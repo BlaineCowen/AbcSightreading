@@ -1,0 +1,13 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+import Abcjs from "../components/Abcjs.svelte";
+---
+
+<link rel="stylesheet" href="/node_modules/abcjs/abcjs-audio.css" />
+
+<Layout title="title">
+  <h1>Music</h1>
+  <!-- <Music client:only /> -->
+  <Abcjs client:only />
+</Layout>
