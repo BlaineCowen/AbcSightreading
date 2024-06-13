@@ -18,5 +18,8 @@
     "svelte": "^4.2.17",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.5"
+  },
+  "devDependencies": {
+    "@smui/button": "^7.0.0"
   }
 }
