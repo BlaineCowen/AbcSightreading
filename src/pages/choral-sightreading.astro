@@ -1,7 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 
-import Abcjs from "../components/Abcjs.svelte";
+import AbcjsChoral from "../components/AbcjsChoral.svelte";
 
 import Navbar from "../components/Navbar.svelte";
 ---
@@ -12,5 +12,5 @@ import Navbar from "../components/Navbar.svelte";
   <Navbar client:only="svelte" />
 
   <!-- <Music client:only /> -->
-  <Abcjs client:only="svelte" />
+  <AbcjsChoral client:only="svelte" />
 </Layout>

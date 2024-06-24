@@ -1,11 +1,64 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { createNewSr, generateTune } from "./generateAbc.ts";
+  import { createNewSr } from "./generatePartString.ts";
   import abcjs from "abcjs";
-  import Spacebar from "./Spacebar.svelte";
 
   let bpm = 60;
   let beatsPerMeasure = 4;
+  let possibleVoicing = {
+    "4 Part Mixed": {
+      numofParts: 4,
+      parts: {
+        Soprano: { range: [15, 32] },
+        Alto: { range: [10, 25] },
+        Tenor: { range: [8, 20] },
+        Bass: { range: [0, 15] },
+      },
+    },
+    "3 Part Mixed": {
+      numofParts: 3,
+      parts: {
+        Soprano: { range: [15, 32] },
+        Alto: { range: [10, 25] },
+        Baritone: { range: [8, 20] },
+      },
+    },
+    "3 Part Treble": {
+      numofParts: 3,
+      parts: {
+        "Soprano 1": { range: [15, 32] },
+        "Soprano 2": { range: [10, 25] },
+        Alto: { range: [8, 20] },
+      },
+    },
+    "3 Part Tenor/Bass": {
+      numofParts: 3,
+      parts: {
+        Tenor: { range: [15, 32] },
+        Baritone: { range: [10, 25] },
+        Bass: { range: [8, 20] },
+      },
+    },
+    "2 Part Treble": {
+      numofParts: 2,
+      parts: {
+        Soprano: { range: [15, 32] },
+        Alto: { range: [10, 25] },
+      },
+    },
+    Unison: {
+      numofParts: 1,
+      parts: {
+        Unison: { range: [15, 32] },
+      },
+    },
+  };
+  let possibleLevels = [1, 2, 3, 4, 5];
+  let possibleTimeSignatures = ["4/4", "3/4", "2/4"];
+  let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+
+  let abcjsReturn = [];
+  let chordProgression = [] as any[];
   let renderedString = "";
   let progress = 0.0;
   let measures = 8;
@@ -16,6 +69,17 @@
   let notesArray = [] as any[];
   let spacebarPressArray = [] as number[];
   let scoreArray = [] as any[];
+
+  let selectedVoicing = "" as string;
+
+  onMount(() => {
+    selectedVoicing = "4 Part Mixed";
+  });
+
+  function handleVoicing(event: any) {
+    selectedVoicing = event.target.innerText;
+    console.log(selectedVoicing);
+  }
 
   const drumBeats = {
     "4/4": "dddd 76 77 77 77 60 30 30 30",
@@ -74,7 +138,6 @@
       let progressCheck = progress;
 
       scoreArray.push([progress, minDistance]);
-      console.log("Score Array: ", scoreArray);
 
       // Remove the matched number to prevent reuse
       larger.splice(closestIndex, 1);
@@ -148,13 +211,23 @@
     // reset abcjs
     const params = {
       bpm: bpm,
-      key: "D",
+      key: "Bb",
       timeSig: "4/4",
-      notes: generateTune(measures),
       measures: measures,
     };
 
-    renderedString = createNewSr(params);
+    abcjsReturn = createNewSr(params);
+
+    if (typeof abcjsReturn[0] == "string") {
+      renderedString = abcjsReturn[0];
+    } else {
+      renderedString = abcjsReturn[0].toString();
+    }
+
+    if (typeof abcjsReturn[1] == "object") {
+      chordProgression = abcjsReturn[1];
+      console.log(chordProgression);
+    }
 
     const renderedTune = await renderTune();
 
@@ -234,45 +307,80 @@
 <main>
   <div id="audio" class="flex justify-center"></div>
   <div class="flex justify-center bg-white">
-    <div id="paper" class="bg-white"></div>
+    <h1>Choral Sight Reading</h1>
+    <h1>Select Parts</h1>
   </div>
-
-  <div class="flex justify-center bg-white">
-    <div id="start" class="border-black bg-blue-500 rounded-md z-20 p-1 m-2">
-      <button id="start" on:click={handleClick}>Start Game </button>
+  <div class="flex-wrap justify-center">
+    <div class="flex justify-center bg-white mx-10">
+      {#each Object.entries(possibleVoicing) as [voicing, value]}
+        <button
+          id="voicing"
+          class="{selectedVoicing === voicing
+            ? 'bg-blue-500 hover:bg-blue-500'
+            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/6 rounded-md z-20 p-1 m-2"
+          on:click={handleVoicing}>{voicing}</button
+        >
+      {/each}
     </div>
-  </div>
 
-  <div id="audio" class="bg-white"></div>
+    <div class="flex justify-center bg-white w-full">
+      <h1>Range</h1>
+    </div>
+    <div id="range-box" class="flex justify-center w-full">
+      <!-- make a range slider using tailwind -->
+      <input
+        type="range"
+        id="range"
+        name="range"
+        min="0"
+        max="32"
+        class="w-1/3"
+      />
+      <span class="text-sm">0</span>
+      <span class="text-sm">32</span>
+    </div>
+    <div class="flex justify-center w-full">
+      <div
+        id="start"
+        class="border-black bg-blue-500 rounded-md w-1/3 z-20 p-1 m-2 flex justify-center"
+      >
+        <button id="start" class="" on:click={handleClick}>Create</button>
+      </div>
+    </div>
 
-  <!-- progress bar -->
-  <div
-    id="progress-bar-container"
-    class="hidden"
-    style="width: 100%; background-color: #eee;"
-  >
+    <div id="paper" class="boarder-black bg-gray-100 rounded-md p-1 m-2"></div>
+
+    <div id="audio" class="bg-white"></div>
+
+    <!-- progress bar -->
     <div
-      id="progress-bar"
-      style="width: {progress}%; background-color: green; height: 20px;"
-    ></div>
-  </div>
-
-  {#if songPlaying}
-    <div class="flex justify-center bg-white">
-      <button class="border-black bg-blue-500 rounded-md p-1 m-2">
-        Stop
-      </button>
+      id="progress-bar-container"
+      class="hidden"
+      style="width: 100%; background-color: #eee;"
+    >
+      <div
+        id="progress-bar"
+        style="width: {progress}%; background-color: green; height: 20px;"
+      ></div>
     </div>
-  {/if}
 
-  <!-- create div that is a long rectangle with rounded corners -->
+    {#if songPlaying}
+      <div class="flex justify-center bg-white">
+        <button class="border-black bg-blue-500 rounded-md p-1 m-2">
+          Stop
+        </button>
+      </div>
+    {/if}
 
-  <div id="spacebar-container" class="p-10 bg-gray-50 flex justify-center">
-    <Spacebar>Space</Spacebar>
-  </div>
+    <p class="text-yellow-100">
+      {chordProgression.map((chord) => chord.name).join(" ")}
+    </p>
 
-  <!-- display score -->
-  <div class="flex justify-center bg-white">
-    <h1 class="text-2xl">{score}</h1>
+    <!-- create div that is a long rectangle with rounded corners -->
+
+    <!-- display score -->
+    <div class="flex justify-center bg-white">
+      <h1 class="text-2xl">{score}</h1>
+    </div>
   </div>
 </main>
