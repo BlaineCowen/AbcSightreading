@@ -20,6 +20,7 @@
     "typescript": "^5.4.5"
   },
   "devDependencies": {
+    "@bulatdashiev/svelte-slider": "^1.0.3",
     "@smui/button": "^7.0.0"
   }
 }

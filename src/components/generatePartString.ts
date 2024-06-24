@@ -58,7 +58,7 @@ var chords: {
 } = {
   "1": {
     name: "1",
-    triadNotes: [0, 2, 4, 7],
+    triadNotes: [0, 2, 4],
     root: 0,
     nextChordPossibilities: [
       "2",
@@ -76,19 +76,19 @@ var chords: {
   "2": {
     name: "2",
     root: 1,
-    triadNotes: [1, 3, 5, 8],
+    triadNotes: [1, 3, 5],
     nextChordPossibilities: ["3", "5", "6"],
   },
   "3": {
     name: "3",
     root: 2,
-    triadNotes: [2, 4, 6, 9],
+    triadNotes: [2, 4, 6],
     nextChordPossibilities: ["4", "6"],
   },
   "4": {
     name: "4",
     root: 3,
-    triadNotes: [3, 5, 7, 10],
+    triadNotes: [3, 5, 0],
     nextChordPossibilities: ["1", "2", "5"],
   },
   "5": {
@@ -100,7 +100,7 @@ var chords: {
   "6": {
     name: "6",
     root: 5,
-    triadNotes: [5, 7, 2],
+    triadNotes: [5, 0, 2],
     nextChordPossibilities: ["2", "3", "4", "7"],
   },
   "7": {
@@ -118,7 +118,7 @@ var chords: {
   "5/6": {
     name: "5/6",
     root: 2,
-    triadNotes: [3, 5, 7],
+    triadNotes: [3, 5, 0],
     nextChordPossibilities: ["6"],
   },
   "5/4": {
@@ -130,7 +130,7 @@ var chords: {
   m4: {
     name: "m4",
     root: 3,
-    triadNotes: [3, 5, 7],
+    triadNotes: [3, 5, 0],
     nextChordPossibilities: ["1"],
   },
 };
@@ -525,7 +525,6 @@ let rhythmList = [
 function generateChordProgression(timeSig: any, numOfMeasures: any) {
   var denominator = timeSig.split("/")[1];
   var numOfChords = numOfMeasures * 2;
-  console.log(`this is the number of chords: ${numOfChords}`);
 
   var chordProgression: any[] = [];
   let validProgression = false;
@@ -598,13 +597,17 @@ function createNoteList(tonic: string, numOfNotes: number) {
     }
 
     if (octave === 0) {
-      note = notes[index] + ",";
+      note = notes[index] + ",,";
     } else if (octave === 1) {
-      note = notes[index];
+      note = notes[index] + ",";
     } else if (octave === 2) {
-      note = notes[index].toLowerCase();
+      note = notes[index];
     } else if (octave === 3) {
+      note = notes[index].toLowerCase();
+    } else if (octave === 4) {
       note = notes[index].toLowerCase() + "'";
+    } else if (octave === 5) {
+      note = notes[index].toLowerCase() + "''";
     }
 
     noteList.push({ name: note, degree: degree });
@@ -622,32 +625,32 @@ function createNoteList(tonic: string, numOfNotes: number) {
 }
 
 function createNewSr(params: any) {
-  console.log(params);
-
   //generate the list of notes
-  function generateTune(partName: string) {
+  function generateTune(partObject: any) {
     // get key
     var key = keyRendered[0];
     var scaleType = "Major";
-
-    var transpose = 0;
-
     var generatedNote = "";
     var generatedScaleDegree = "";
     var generatedNotes: string[][] = [];
     var noteValue = 2;
     var tonic: any = key;
+    var minRange = partObject.selectedRange[0];
+    var maxRange = partObject.selectedRange[1];
+    var rangeNoteList = noteList.slice(minRange, maxRange);
+    // log part name
+    console.log(partObject);
+    console.log(rangeNoteList);
 
     if (keyRendered.includes("m")) {
       scaleType = "Minor";
     }
 
     for (var i = 1; i <= numOfMeasures * 2; i++) {
-      if (partName === "Bass") {
-        transpose = -12;
+      if (partObject.order === 0) {
         if (i === 1) {
           // push the tonic to the end of the generated tune as a whole note
-          var possibleNotes = noteList.filter((note) => note.degree === 0);
+          var possibleNotes = rangeNoteList.filter((note) => note.degree === 0);
           var randomIndex = Math.floor(Math.random() * possibleNotes.length);
           generatedNote = possibleNotes[randomIndex].name + noteValue;
           generatedScaleDegree = "1";
@@ -655,15 +658,14 @@ function createNewSr(params: any) {
         } else {
           var currentChord = renderedChordProgression[i - 1];
 
-          // find all indexes in noteList that at % 7 = currentRootIndex
-          var possibleBassNotes = noteList.filter(
+          // find all indexes in rangeNoteList that at % 7 = currentRootIndex
+          var possibleBassNotes = rangeNoteList.filter(
             (note) => note.degree === currentChord.root
           );
 
           var randomIndex = Math.floor(
             Math.random() * possibleBassNotes.length
           );
-          console.log(`this is the random index: ${randomIndex}`);
 
           generatedNote = possibleBassNotes[randomIndex].name + noteValue;
           generatedScaleDegree = currentChord.root.toString();
@@ -675,50 +677,30 @@ function createNewSr(params: any) {
         }
       } else {
         var currentChord = renderedChordProgression[i - 1];
-        console.log(`this is the current chord: ${currentChord.name}`);
+        // log current chord
+        console.log(currentChord);
 
         // find all indexes that are % x = 0 with the triadnotes
-        var possibleDegrees: number[] = [];
-        // Assuming noteList is at least as long as the highest value you want to calculate
-        for (let i = 0; i < noteList.length; i++) {
-          currentChord.triadNotes.forEach((triadNote: number) => {
-            var chordNotes = noteList.filter(
-              (note) => note.degree === triadNote
-            );
-            chordNotes.forEach((chordNote) => {
-              possibleDegrees.push(chordNote.degree);
-            });
-          });
-        }
-
-        // Remove duplicates if necessary
-        possibleDegrees = [...new Set(possibleDegrees)];
-
-        console.log(possibleDegrees);
-
-        // get rid of undefined values
-        possibleDegrees = possibleDegrees.filter(
-          (degree) => degree !== undefined
-        );
-
-        console.log(`these are the triad notes: ${currentChord.triadNotes}`);
-        console.log(`these are the possible degrees: ${possibleDegrees}`);
-
-        var noteNamesOfDegrees = possibleDegrees.map(
-          (degree) => noteList[degree]
-        );
-
-        console.log(
-          `these are the note names of the degrees: ${noteNamesOfDegrees}`
-        );
-
+        // pick a random triad note
         var randomDegreeInChord =
           currentChord.triadNotes[
             Math.floor(Math.random() * currentChord.triadNotes.length)
           ];
+        console.log("randomDegreeInChord: " + randomDegreeInChord);
 
-        generatedNote =
-          noteList[randomDegreeInChord + transpose].name + noteValue;
+        // find all notes in the range that have the same degree as the randomDegreeInChord
+        var possibleNotes = rangeNoteList.filter(
+          (note) => note.degree === randomDegreeInChord
+        );
+        console.log("possibleNotes: ");
+        console.log(possibleNotes);
+
+        // pick a random note from the possible notes
+        var randomIndex = Math.floor(Math.random() * possibleNotes.length);
+
+        generatedNote = possibleNotes[randomIndex].name + noteValue;
+        console.log("generatedNote: " + generatedNote);
+
         if (i % 2 === 0) {
           generatedNote += "|";
         }
@@ -740,6 +722,7 @@ function createNewSr(params: any) {
   var tempo = params.bpm;
   var numOfMeasures = params.measures;
   var tonic = keyRendered[0];
+  var partsObject = params.partsObject;
 
   var renderedChordProgression = generateChordProgression(
     timeSigRendered,
@@ -747,32 +730,34 @@ function createNewSr(params: any) {
   );
 
   // Example usage:
-  var numOfNotes = 20;
+  var numOfNotes = 32;
   var noteList = createNoteList(tonic, numOfNotes);
 
-  var bassPart = generateTune("Bass");
-  console.log(`this is the bass part: ${bassPart}`);
+  var generatedPartTunes: { [key: string]: string } = {};
 
-  var tenorPart = generateTune("Tenor");
-  console.log(`this is the tenor part: ${tenorPart}`);
+  for (const [partName, partObject] of Object.entries(partsObject.parts)) {
+    generatedPartTunes[partName] = generateTune(partObject);
+  }
 
-  var altoPart = generateTune("Alto");
-  console.log(`this is the alto part: ${altoPart}`);
+  var sopranoPart = "abc";
 
-  var sopranoPart = generateTune("Soprano");
-  console.log(`this is the soprano part: ${sopranoPart}`);
+  // get the first entry of the generatedPartTunes object
+  var headerString = "";
+  for (var i = 0; i < Object.keys(generatedPartTunes).length; i++) {
+    // find the clef by matching the name to the part name object
+    var partName = Object.keys(generatedPartTunes)[i];
+    var clef = partsObject.parts[partName].clef;
+    headerString += `V:${
+      Object.keys(generatedPartTunes)[i][0]
+    } clef=${clef} name="${partName}" snm="${partName[0]}"\n`;
+  }
 
-  console.log(sopranoPart);
+  var tuneBody = "";
 
-  //  var renderedString = "X:1\nM:" +
-  //     timeSigRendered +
-  //     "\nL:1/32\nK:" +
-  //     keyRendered +
-  //     "\n" +
-  //     "Q: 1/4=" + tempo + "\n" +
-
-  //     notesToRender +
-  //     "\n"
+  for (var i = 0; i < Object.keys(generatedPartTunes).length; i++) {
+    var partName = Object.keys(generatedPartTunes)[i];
+    tuneBody += `[V:${partName[0]}] ${generatedPartTunes[partName]}] \n`;
+  }
 
   var renderedString =
     `X:1 \n` +
@@ -782,16 +767,10 @@ function createNewSr(params: any) {
     `L:1/4\n` +
     `Q:1/4=76 \n` +
     `%%score S A T B \n` +
-    `V:S   clef=treble name="Soprano"   snm="S"  \n` +
-    `V:A   clef=treble  name="Alto"  snm="A"  \n` +
-    `V:T   clef=treble-8      name="Tenor"    snm="T" \n` +
-    `V:B   clef=bass      name="Bass"   snm="B" \n` +
+    `${headerString}` +
     `K: ${keyRendered} \n` +
     `%            End of header, start of tune body: \n` +
-    `[V:S] ${sopranoPart}] \n` +
-    `[V:A] ${altoPart}] \n` +
-    `[V:T] ${tenorPart}] \n` +
-    `[V:B] ${bassPart}]`;
+    `${tuneBody}`;
   console.log(renderedString);
 
   return [renderedString, renderedChordProgression];

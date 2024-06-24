@@ -2,57 +2,165 @@
   import { onMount } from "svelte";
   import { createNewSr } from "./generatePartString.ts";
   import abcjs from "abcjs";
+  import Slider from "@bulatdashiev/svelte-slider";
 
   let bpm = 60;
   let beatsPerMeasure = 4;
-  let possibleVoicing = {
+  let possibleVoicing: {
+    [key: string]: {
+      numofParts: number;
+      parts: {
+        [key: string]: {
+          order: number;
+          clef: string;
+          range: number[];
+          selectedRange: number[];
+        };
+      };
+    };
+  } = {
     "4 Part Mixed": {
       numofParts: 4,
       parts: {
-        Soprano: { range: [15, 32] },
-        Alto: { range: [10, 25] },
-        Tenor: { range: [8, 20] },
-        Bass: { range: [0, 15] },
+        Soprano: {
+          order: 3,
+          clef: "treble",
+          range: [20, 32],
+          selectedRange: [20, 32],
+        },
+        Alto: {
+          order: 2,
+          clef: "treble",
+          range: [15, 25],
+          selectedRange: [15, 25],
+        },
+        Tenor: {
+          order: 1,
+          clef: "treble-8",
+          range: [10, 20],
+          selectedRange: [10, 20],
+        },
+        Bass: {
+          order: 0,
+          clef: "bass",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
       },
     },
     "3 Part Mixed": {
       numofParts: 3,
       parts: {
-        Soprano: { range: [15, 32] },
-        Alto: { range: [10, 25] },
-        Baritone: { range: [8, 20] },
+        Soprano: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Alto: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Baritone: {
+          order: 0,
+          clef: "bass",
+          range: [8, 20],
+          selectedRange: [8, 20],
+        },
       },
     },
     "3 Part Treble": {
       numofParts: 3,
       parts: {
-        "Soprano 1": { range: [15, 32] },
-        "Soprano 2": { range: [10, 25] },
-        Alto: { range: [8, 20] },
+        Soprano1: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Soprano2: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Alto: {
+          order: 0,
+          clef: "treble",
+          range: [8, 20],
+          selectedRange: [8, 20],
+        },
       },
     },
     "3 Part Tenor/Bass": {
       numofParts: 3,
       parts: {
-        Tenor: { range: [15, 32] },
-        Baritone: { range: [10, 25] },
-        Bass: { range: [8, 20] },
+        Tenor: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Baritone: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Bass: {
+          order: 0,
+          clef: "treble",
+          range: [8, 20],
+          selectedRange: [8, 20],
+        },
       },
     },
     "2 Part Treble": {
       numofParts: 2,
       parts: {
-        Soprano: { range: [15, 32] },
-        Alto: { range: [10, 25] },
+        Soprano1: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Soprano2: {
+          order: 0,
+          clef: "treble",
+          range: [0, 15],
+          selectedRange: [0, 15],
+        },
+        Alto: {
+          order: 0,
+          clef: "treble",
+          range: [10, 25],
+          selectedRange: [10, 25],
+        },
       },
     },
     Unison: {
       numofParts: 1,
       parts: {
-        Unison: { range: [15, 32] },
+        Unison: {
+          order: 0,
+          clef: "treble",
+          range: [0, 32],
+          selectedRange: [0, 32],
+        },
       },
     },
   };
+
+  function updateRange(partName: string, newRange: number[]) {
+    console.log(partName, newRange);
+
+    const parts = possibleVoicing[selectedVoicing].parts;
+    parts[partName].selectedRange = newRange;
+    possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
+  }
+
   let possibleLevels = [1, 2, 3, 4, 5];
   let possibleTimeSignatures = ["4/4", "3/4", "2/4"];
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
@@ -86,96 +194,6 @@
   };
 
   var audioParams = { drum: drumBeats["4/4"], drumBars: 1, drumIntro: 1 };
-
-  function handleKeyDown(event: KeyboardEvent) {
-    if (event.code === "Space") {
-      spacebarPressArray.push(millisecondsSinceStart * 10);
-    }
-  }
-
-  function averageDistance(
-    arr1: number[],
-    arr2: number[],
-    baseDifference: number
-  ): number {
-    // Sort both arrays
-    let sortedArr1 = [...arr1].sort((a, b) => a - b);
-    let sortedArr2 = [...arr2].sort((a, b) => a - b);
-
-    // Identify the smaller and larger array
-    let smaller: number[], larger: number[];
-    if (sortedArr1.length <= sortedArr2.length) {
-      smaller = sortedArr1;
-      larger = sortedArr2;
-    } else {
-      smaller = sortedArr2;
-      larger = sortedArr1;
-    }
-
-    // Calculate the distances for matched pairs
-    let distances: number[] = [];
-    for (let num of smaller) {
-      // Find the closest number in the larger array
-      let closestIndex = 0;
-      let closestNum = larger[0];
-      let minDistance = Math.abs(num - closestNum);
-      for (let i = 1; i < larger.length; i++) {
-        let distance = Math.abs(num - larger[i]);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestNum = larger[i];
-          closestIndex = i;
-        } else {
-          break; // Since arrays are sorted, stop if distance increases
-        }
-      }
-      // min dist is sq root ofmin dist
-      minDistance = Math.sqrt(minDistance);
-      // round to 2 dec
-      minDistance = Math.round(minDistance * 100) / 100;
-
-      distances.push(minDistance);
-      let progressCheck = progress;
-
-      scoreArray.push([progress, minDistance]);
-
-      // Remove the matched number to prevent reuse
-      larger.splice(closestIndex, 1);
-    }
-
-    // Add base differences for remaining unmatched numbers in the larger array
-    let unmatchedCount = larger.length;
-    distances.push(...Array(unmatchedCount).fill(baseDifference));
-
-    // Calculate the average distance
-    let totalDistance = distances.reduce((acc, val) => acc + val, 0);
-    let averageDist = totalDistance / (arr1.length + arr2.length);
-
-    return averageDist;
-  }
-
-  let baseDifference: number = 25;
-
-  // Function to continuously update the score
-  function updateScore() {
-    if (notesArray.length > 0 && spacebarPressArray.length > 0) {
-      score =
-        100 - averageDistance(notesArray, spacebarPressArray, baseDifference);
-      score = Math.round(score);
-      // check if spacebar is longer than notes
-
-      if (spacebarPressArray.length > notesArray.length) {
-        score = score - (spacebarPressArray.length - notesArray.length) * 10;
-      }
-    }
-  }
-
-  // Run the updateScore function continuously every second
-  setInterval(updateScore, 1000);
-
-  onMount(() => {
-    window.addEventListener("keydown", handleKeyDown);
-  });
 
   interface NoteEvent {
     milliseconds: number;
@@ -214,6 +232,7 @@
       key: "Bb",
       timeSig: "4/4",
       measures: measures,
+      partsObject: possibleVoicing[selectedVoicing],
     };
 
     abcjsReturn = createNewSr(params);
@@ -323,22 +342,27 @@
       {/each}
     </div>
 
-    <div class="flex justify-center bg-white w-full">
+    <div class="flex justify-center h-auto bg-white w-full">
       <h1>Range</h1>
     </div>
-    <div id="range-box" class="flex justify-center w-full">
-      <!-- make a range slider using tailwind -->
-      <input
-        type="range"
-        id="range"
-        name="range"
-        min="0"
-        max="32"
-        class="w-1/3"
-      />
-      <span class="text-sm">0</span>
-      <span class="text-sm">32</span>
-    </div>
+    {#if possibleVoicing[selectedVoicing]}
+      {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, partDetails]}
+        <div class="flex justify-center bg-white">
+          <h1>{partName}</h1>
+          <p>{partDetails.selectedRange[0]}</p>
+          <Slider
+            min={partDetails.range[0]}
+            max={partDetails.range[1]}
+            step={1}
+            range={true}
+            bind:value={partDetails.selectedRange}
+            on:input={() => updateRange(partName, partDetails.selectedRange)}
+          />
+          <p>{partDetails.selectedRange[1]}</p>
+        </div>
+      {/each}
+    {/if}
+
     <div class="flex justify-center w-full">
       <div
         id="start"
@@ -377,10 +401,5 @@
     </p>
 
     <!-- create div that is a long rectangle with rounded corners -->
-
-    <!-- display score -->
-    <div class="flex justify-center bg-white">
-      <h1 class="text-2xl">{score}</h1>
-    </div>
   </div>
 </main>

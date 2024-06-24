@@ -1,3 +1,8 @@
 {
-  "extends": "astro/tsconfigs/strict"
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    // other options
+  },
+  "include": ["src/**/*", "types/**/*"] // Adjust the path as necessary
+  
 }
