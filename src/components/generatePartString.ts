@@ -46,7 +46,44 @@ var possibleKeys = ["G"];
 //make an array of all possible time signatures
 var possibleTimeSigs = ["4/4"];
 
-// create an object called a chord that has sseveral properties
+let baseNoteArray = [
+  "C,,",
+  "D,,",
+  "E,,",
+  "F,,",
+  "G,,",
+  "A,,",
+  "B,,",
+  "C,",
+  "D,",
+  "E,",
+  "F,",
+  "G,",
+  "A,",
+  "B,",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "A",
+  "B",
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "a",
+  "b",
+  "c'",
+  "d'",
+  "e'",
+  "f'",
+  "g'",
+  "a'",
+  "b'",
+  "c''",
+];
 
 var chords: {
   [key: string]: {
@@ -584,7 +621,7 @@ function createNoteList(tonic: string, numOfNotes: number) {
   var keyLetter = tonic[0].toUpperCase();
   var noteList = [];
   var octave = 0;
-  var notes = ["A", "B", "C", "D", "E", "F", "G"];
+  var notes = ["C", "D", "E", "F", "G", "A", "B"];
   var indexOfOrigin = notes.indexOf(keyLetter);
   var index = notes.indexOf(keyLetter);
 
@@ -635,11 +672,27 @@ function createNewSr(params: any) {
     var generatedNotes: string[][] = [];
     var noteValue = 2;
     var tonic: any = key;
-    var minRange = partObject.selectedRange[0];
-    var maxRange = partObject.selectedRange[1];
+    console.log(partObject.selectedRange);
+    console.log(noteList);
+    console.log(baseNoteArray);
+
+    var minRange = noteList.findIndex(
+      (note) => note.name === baseNoteArray[partObject.selectedRange[0]]
+    );
+    console.log(minRange);
+    // if min range not found, set to 0
+    if (minRange === -1) {
+      minRange = 0;
+    }
+
+    var maxRange = noteList.findIndex(
+      (note) => note.name === baseNoteArray[partObject.selectedRange[1]]
+    );
+    console.log(maxRange);
+
     var rangeNoteList = noteList.slice(minRange, maxRange);
+
     // log part name
-    console.log(partObject);
     console.log(rangeNoteList);
 
     if (keyRendered.includes("m")) {
@@ -649,6 +702,8 @@ function createNewSr(params: any) {
     for (var i = 1; i <= numOfMeasures * 2; i++) {
       if (partObject.order === 0) {
         if (i === 1) {
+          console.log(rangeNoteList);
+
           // push the tonic to the end of the generated tune as a whole note
           var possibleNotes = rangeNoteList.filter((note) => note.degree === 0);
           var randomIndex = Math.floor(Math.random() * possibleNotes.length);

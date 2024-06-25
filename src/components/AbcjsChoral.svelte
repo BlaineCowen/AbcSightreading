@@ -6,6 +6,46 @@
 
   let bpm = 60;
   let beatsPerMeasure = 4;
+
+  let baseNoteArray = [
+    "C,,",
+    "D,,",
+    "E,,",
+    "F,,",
+    "G,,",
+    "A,,",
+    "B,,",
+    "C,",
+    "D,",
+    "E,",
+    "F,",
+    "G,",
+    "A,",
+    "B,",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "A",
+    "B",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "a",
+    "b",
+    "c'",
+    "d'",
+    "e'",
+    "f'",
+    "g'",
+    "a'",
+    "b'",
+    "c''",
+  ];
+
   let possibleVoicing: {
     [key: string]: {
       numofParts: number;
@@ -26,7 +66,7 @@
           order: 3,
           clef: "treble",
           range: [20, 32],
-          selectedRange: [20, 32],
+          selectedRange: [16, 25],
         },
         Alto: {
           order: 2,
@@ -170,13 +210,8 @@
   let renderedString = "";
   let progress = 0.0;
   let measures = 8;
-  let millisecondsSinceStart = 0;
-  let score = 100;
-  let songPlaying = false;
 
-  let notesArray = [] as any[];
-  let spacebarPressArray = [] as number[];
-  let scoreArray = [] as any[];
+  let songPlaying = false;
 
   let selectedVoicing = "" as string;
 
@@ -202,9 +237,6 @@
   interface ICursorControl {
     extraMeasuresAtBeginning?: number;
     beatSubdivisions: number;
-    onEvent: (event: NoteEvent) => void;
-    onBeat: (beatNumber: number, totalBeats: number) => void;
-    onStart: () => void;
     onFinished: () => void;
   }
 
@@ -261,28 +293,6 @@
     const cursorControl: ICursorControl = {
       extraMeasuresAtBeginning: 1,
       beatSubdivisions: 2,
-      onEvent: (event: NoteEvent) => {
-        let millisecondOfNote: number = event["milliseconds"];
-        notesArray.push(millisecondOfNote);
-      },
-      onBeat: (beatNumber: number, totalBeats: number) => {
-        if (beatNumber == beatsPerMeasure) {
-          const startTime = Date.now();
-          setInterval(() => {
-            const elapsedTime = Date.now() - startTime;
-            progress = (elapsedTime / totalTime - measureTime) / 10;
-
-            if (progress > 100) progress = 100;
-          }, 1);
-        }
-      },
-      onStart: () => {
-        const secretStartTime = Date.now();
-        setInterval(() => {
-          const secretElapsedTime = Date.now() - secretStartTime;
-          millisecondsSinceStart = secretElapsedTime / 10;
-        }, 1);
-      },
       onFinished: () => {
         progress = 100;
         console.log("ended");
@@ -351,8 +361,8 @@
           <h1>{partName}</h1>
           <p>{partDetails.selectedRange[0]}</p>
           <Slider
-            min={partDetails.range[0]}
-            max={partDetails.range[1]}
+            min={0}
+            max={baseNoteArray.length - 1}
             step={1}
             range={true}
             bind:value={partDetails.selectedRange}
