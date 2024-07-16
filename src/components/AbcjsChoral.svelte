@@ -77,8 +77,8 @@
         Tenor: {
           order: 1,
           clef: "treble-8",
-          range: [10, 20],
-          selectedRange: [10, 20],
+          range: [10, 32],
+          selectedRange: [16, 25],
         },
         Bass: {
           order: 0,

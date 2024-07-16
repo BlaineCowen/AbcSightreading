@@ -91,6 +91,8 @@ var chords: {
     triadNotes: number[];
     root: number;
     nextChordPossibilities: string[];
+    sharpScaleDegree: number | undefined;
+    flatScaleDegree: number | undefined;
   };
 } = {
   "1": {
@@ -109,455 +111,150 @@ var chords: {
       "5/4",
       "m4",
     ],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "2": {
     name: "2",
     root: 1,
     triadNotes: [1, 3, 5],
     nextChordPossibilities: ["3", "5", "6"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "3": {
     name: "3",
     root: 2,
     triadNotes: [2, 4, 6],
     nextChordPossibilities: ["4", "6"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "4": {
     name: "4",
     root: 3,
     triadNotes: [3, 5, 0],
     nextChordPossibilities: ["1", "2", "5"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "5": {
     name: "5",
     root: 4,
     triadNotes: [4, 6, 1],
     nextChordPossibilities: ["1", "6"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "6": {
     name: "6",
     root: 5,
     triadNotes: [5, 0, 2],
     nextChordPossibilities: ["2", "3", "4", "7"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "7": {
     name: "7",
     root: 6,
     triadNotes: [6, 1, 3],
     nextChordPossibilities: ["1", "6"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
   },
   "5/5": {
     name: "5/5",
     root: 1,
     triadNotes: [1, 3, 5],
     nextChordPossibilities: ["5"],
+    sharpScaleDegree: 3,
+    flatScaleDegree: undefined,
   },
   "5/6": {
     name: "5/6",
     root: 2,
-    triadNotes: [3, 5, 0],
+    triadNotes: [2, 4, 6],
     nextChordPossibilities: ["6"],
+    sharpScaleDegree: 4,
+    flatScaleDegree: undefined,
   },
   "5/4": {
     name: "5/4",
     root: 6,
     triadNotes: [6, 1, 3],
     nextChordPossibilities: ["4"],
+    sharpScaleDegree: 1,
+    flatScaleDegree: undefined,
   },
   m4: {
     name: "m4",
     root: 3,
     triadNotes: [3, 5, 0],
     nextChordPossibilities: ["1"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: 5,
+  },
+  "1-7": {
+    name: "1-7",
+    root: 0,
+    triadNotes: [0, 2, 4, 6],
+    nextChordPossibilities: ["4"],
+    sharpScaleDegree: undefined,
+    flatScaleDegree: 6,
   },
 };
 
-//list of all possible notes
-// var noteList = [
-//   "C,",
-//   "D,",
-//   "E,",
-//   "F,",
-//   "G,",
-//   "A,",
-//   "B,",
-//   "C",
-//   "D",
-//   "E",
-//   "F",
-//   "G",
-//   "A",
-//   "B",
-//   "c",
-//   "d",
-//   "e",
-//   "f",
-//   "g",
-//   "a",
-//   "b",
-//   "c'",
-//   "d'",
-//   "e'",
-//   "f'",
-//   "g'",
-//   "a'",
-//   "b'",
-//   "c''",
-//   "d''",
-//   "e''",
-//   "f''",
-// ];
-
-//user selects range
-// var chosenRange = [0, noteList.length];
-// var possibleNotes = noteList.slice(chosenRange[0], chosenRange[1]);
-
-var notesToRender = "";
-
-//list all time sigs
-
-const twoFourTime = {
-  abcValue: "2/4", //text value to give abcjs
-  maxLength: 0.5, //max length of each measure
-  beats: 2, //how many beats are in each measure (not really used)
-  compound: false, //if compound
+var keySignatures: {
+  [key: string]: {
+    flats: number[] | undefined;
+    sharps: number[] | undefined;
+  };
+} = {
+  C: {
+    flats: undefined,
+    sharps: undefined,
+  },
+  G: {
+    flats: undefined,
+    sharps: [6],
+  },
+  D: {
+    flats: undefined,
+    sharps: [6, 2],
+  },
+  A: {
+    flats: undefined,
+    sharps: [6, 2, 5],
+  },
+  E: {
+    flats: undefined,
+    sharps: [6, 2, 5, 1],
+  },
+  B: {
+    flats: undefined,
+    sharps: [6, 2, 5, 1, 4],
+  },
+  F: {
+    flats: [3],
+    sharps: undefined,
+  },
+  Bb: {
+    flats: [3, 0],
+    sharps: undefined,
+  },
+  Eb: {
+    flats: [3, 0, 4],
+    sharps: undefined,
+  },
+  Ab: {
+    flats: [3, 0, 4, 1],
+    sharps: undefined,
+  },
+  Db: {
+    flats: [3, 0, 4, 1, 5],
+    sharps: undefined,
+  },
 };
-
-const threeFourTime = {
-  abcValue: "3/4",
-  maxLength: 0.75,
-  beats: 3,
-  compound: false,
-};
-
-const fourFourTime = {
-  abcValue: "4/4",
-  maxLength: 1,
-  beats: 4,
-  compound: false,
-};
-
-const cutTime = {
-  abcValue: "C|",
-  maxLength: 1,
-  beats: 4,
-  compound: false,
-};
-
-const threeEightTime = {
-  abcValue: "3/8",
-  maxLength: 3 / 8,
-  beats: 1,
-  compound: true,
-};
-
-const sixEightTime = {
-  abcValue: "6/8",
-  maxLength: 3 / 4,
-  beats: 2,
-  compound: true,
-};
-
-const nineEightTime = {
-  abcValue: "9/8",
-  maxLength: 9 / 8,
-  beats: 3,
-  compound: true,
-};
-
-var timeSigList = [fourFourTime];
-
-var timeSigRendered = fourFourTime;
-
-//rhythms
-
-const thirtySecond = {
-  name: "thirtySecond",
-  abcValue: ["1"], //text value for the abcjs engine to add to tune
-  meterValue: [1 / 32], //value to calculate each note's length
-  totalValue: 1 / 32, //value to calculate the combined length
-  rest: false, //if rest
-  oddsWeight: 0, //weight of the rhythm value chosen by the user
-  maxRng: 0, //used for the odds range in getRhythm
-};
-
-const sixteenth = {
-  name: "sixteenth",
-  abcValue: ["2"],
-  meterValue: [1 / 16],
-  totalValue: 1 / 16,
-  rest: false,
-  oddsWeight: 10,
-  maxRng: 0,
-};
-
-const sixteenthRest = {
-  name: "sixteenthRest",
-  abcValue: ["z2"],
-  meterValue: [1 / 16],
-  totalValue: 1 / 16,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotSixteenth = {
-  name: "dotSixteenth",
-  abcValue: ["3"],
-  meterValue: [3 / 32],
-  totalValue: 3 / 32,
-  rest: false,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotSixteenthRest = {
-  name: "dotSixteenthRest",
-  abcValue: ["z3"],
-  meterValue: [1 / 16],
-  totalValue: 1 / 16,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const eighth = {
-  name: "eighth",
-  abcValue: ["4"],
-  meterValue: [1 / 8],
-  totalValue: 1 / 8,
-  rest: false,
-  oddsWeight: 10,
-  maxRng: 0,
-};
-
-const eigthRest = {
-  name: "eigthRest",
-  abcValue: ["z4"],
-  meterValue: [1 / 8],
-  totalValue: 1 / 8,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotEighth = {
-  name: "dotEighth",
-  abcValue: ["6"],
-  meterValue: [3 / 16],
-  totalValue: 3 / 16,
-  rest: false,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotEigthRest = {
-  name: "dotEigthRest",
-  abcValue: ["z6"],
-  meterValue: [3 / 16],
-  totalValue: 3 / 16,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const quarter = {
-  name: "quarter",
-  abcValue: ["8"],
-  meterValue: [1 / 4],
-  totalValue: 1 / 4,
-  rest: false,
-  oddsWeight: 10,
-  maxRng: 0,
-};
-
-const quarterRest = {
-  name: "quarterRest",
-  abcValue: ["z8"],
-  meterValue: [1 / 4],
-  totalValue: 1 / 4,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotQuarter = {
-  name: "dotQuarter",
-  abcValue: ["12"],
-  meterValue: [3 / 8],
-  totalValue: 3 / 8,
-  rest: false,
-  oddsWeight: 10,
-  maxRng: 0,
-};
-
-const dotQuarterRest = {
-  name: "dotQuarterRest",
-  abcValue: ["z12"],
-  meterValue: [3 / 8],
-  totalValue: 3 / 8,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const half = {
-  name: "half",
-  abcValue: ["16"],
-  meterValue: [1 / 2],
-  totalValue: 1 / 2,
-  rest: false,
-  oddsWeight: 10,
-  maxRng: 0,
-};
-
-const halfRest = {
-  name: "halfRest",
-  abcValue: ["z16"],
-  meterValue: [1 / 2],
-  totalValue: 1 / 2,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotHalf = {
-  name: "dotHalf",
-  abcValue: ["24"],
-  meterValue: 3 / 4,
-  totalValue: 3 / 4,
-  rest: false,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotHalfRest = {
-  name: "dotHalfRest",
-  abcValue: ["z24"],
-  meterValue: [3 / 4],
-  totalValue: 3 / 4,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const whole = {
-  name: "whole",
-  abcValue: ["32"],
-  meterValue: [1],
-  totalValue: 1,
-  rest: false,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const wholeRest = {
-  name: "wholeRest",
-  abcValue: ["z32"],
-  meterValue: [1],
-  totalValue: 1,
-  rest: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-//patterns
-
-const fourEigths = {
-  name: "fourEigths",
-  abcValue: ["4", "4", "4", "4"],
-  meterValue: [1 / 8, 1 / 8, 1 / 8, 1 / 8],
-  totalValue: 1 / 2,
-  rest: false,
-  chunk: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const eighthQtrEighth = {
-  name: "eighthQtrEighth",
-  abcValue: ["4", "8", "4"],
-  meterValue: [1 / 8, 1 / 4, 1 / 8],
-  totalValue: 1 / 2,
-  rest: false,
-  chunk: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const fourSixteenths = {
-  name: "fourSixteenths",
-  abcValue: ["2", "2", "2", "2"],
-  meterValue: [1 / 16, 1 / 16, 1 / 16, 1 / 16],
-  totalValue: 1 / 4,
-  rest: false,
-  chunk: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const eighthSixteenthSixteenth = {
-  name: "eighthSixteenthSixteenth",
-  abcValue: ["4", "2", "2"],
-  meterValue: [1 / 8, 1 / 16, 1 / 16],
-  totalValue: 1 / 4,
-  rest: false,
-  chunk: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const sixteenthSixteenthEighth = {
-  name: "sixteenthSixteenthEighth",
-  abcValue: ["2", "2", "4"],
-  meterValue: [1 / 16, 1 / 16, 1 / 8],
-  totalValue: 1 / 4,
-  rest: false,
-  chunk: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-const dotEighthSixteenth = {
-  name: "dotEighthSixteenth",
-  abcValue: ["6", "2"],
-  meterValue: [3 / 16, 1 / 16],
-  totalValue: 1 / 4,
-  rest: false,
-  chunk: true,
-  oddsWeight: 0,
-  maxRng: 0,
-};
-
-//array of all rhythm values
-
-let rhythmList = [
-  thirtySecond,
-  sixteenth,
-  dotSixteenth,
-  eighth,
-  dotEighth,
-  quarter,
-  dotQuarter,
-  half,
-  dotHalf,
-  whole,
-  sixteenthRest,
-  dotSixteenthRest,
-  eigthRest,
-  dotEigthRest,
-  quarterRest,
-  dotQuarterRest,
-  halfRest,
-  dotHalfRest,
-  wholeRest,
-  fourEigths,
-  eighthQtrEighth,
-  fourSixteenths,
-  eighthSixteenthSixteenth,
-  sixteenthSixteenthEighth,
-  dotEighthSixteenth,
-];
 
 function generateChordProgression(timeSig: any, numOfMeasures: any) {
   var denominator = timeSig.split("/")[1];
@@ -666,6 +363,9 @@ function createNewSr(params: any) {
   function generateTune(partObject: any) {
     // get key
     var key = keyRendered[0];
+    var keyObject = keySignatures[keyRendered];
+    console.log(keyObject);
+
     var scaleType = "Major";
     var generatedNote = "";
     var generatedScaleDegree = "";
@@ -731,36 +431,119 @@ function createNewSr(params: any) {
           generatedNotes.push([generatedNote, generatedScaleDegree]);
         }
       } else {
+        if (i === 1) {
+          // call previous note any random note in the 1 chord
+          var currentChord = renderedChordProgression[i - 1];
+
+          var previousNotePossibilities = rangeNoteList.filter((note) =>
+            currentChord.triadNotes.includes(note.degree)
+          );
+          console.log(previousNotePossibilities);
+
+          var previousNote =
+            previousNotePossibilities[
+              Math.floor(Math.random() * previousNotePossibilities.length)
+            ].name;
+        }
+
+        if (i !== 1) {
+          var previousNote = generatedNotes[i - 2][0];
+        }
+
         var currentChord = renderedChordProgression[i - 1];
         // log current chord
         console.log(currentChord);
 
-        // find all indexes that are % x = 0 with the triadnotes
-        // pick a random triad note
-        var randomDegreeInChord =
-          currentChord.triadNotes[
-            Math.floor(Math.random() * currentChord.triadNotes.length)
-          ];
-        console.log("randomDegreeInChord: " + randomDegreeInChord);
-
-        // find all notes in the range that have the same degree as the randomDegreeInChord
-        var possibleNotes = rangeNoteList.filter(
-          (note) => note.degree === randomDegreeInChord
+        // find all indexes that have the same degree as triad notes
+        var possibleNotes = rangeNoteList.filter((note) =>
+          currentChord.triadNotes.includes(note.degree)
         );
-        console.log("possibleNotes: ");
-        console.log(possibleNotes);
 
-        // pick a random note from the possible notes
-        var randomIndex = Math.floor(Math.random() * possibleNotes.length);
+        // find index in rangeNoteList that is the same as the previous note
+        var previousNoteIndex = rangeNoteList.findIndex(
+          (note) => note.name === previousNote
+        );
 
-        generatedNote = possibleNotes[randomIndex].name + noteValue;
+        // find the closest possible note to the previous note
+        // make an array with the indexes of the possible notes
+        var possibleNoteIndexes = possibleNotes.map((note) =>
+          rangeNoteList.findIndex((rangeNote) => rangeNote.name === note.name)
+        );
+
+        // find the closest note to the previous note index
+        var closestNoteIndex = possibleNoteIndexes.reduce((prev, curr) =>
+          Math.abs(curr - previousNoteIndex) <
+          Math.abs(prev - previousNoteIndex)
+            ? curr
+            : prev
+        );
+
+        generatedNote = rangeNoteList[closestNoteIndex].name + noteValue;
+
         console.log("generatedNote: " + generatedNote);
 
         if (i % 2 === 0) {
           generatedNote += "|";
         }
 
-        generatedScaleDegree = randomDegreeInChord.toString();
+        generatedScaleDegree =
+          rangeNoteList[closestNoteIndex].degree.toString();
+
+        // if generateScaleDegree === currentChord.sharedDegree, then add a ^ to the beginning of the note name
+        if (currentChord.sharpScaleDegree !== undefined) {
+          if (
+            currentChord.sharpScaleDegree ===
+            rangeNoteList[closestNoteIndex].degree
+          ) {
+            if (
+              keyObject.flats &&
+              keyObject.flats.findIndex(
+                (degree) => degree === rangeNoteList[closestNoteIndex].degree
+              ) >= 0
+            ) {
+              // note is a flat in key
+              generatedNote = "=" + generatedNote;
+            }
+            // check if note is a sharp in key
+            else if (
+              keyObject.sharps &&
+              keyObject.sharps.findIndex(
+                (degree) => degree === rangeNoteList[closestNoteIndex].degree
+              ) >= 0
+            ) {
+              generatedNote = "^^" + generatedNote;
+            } else {
+              generatedNote = "^" + generatedNote;
+            }
+          }
+        }
+        // do the same with flat scale degree
+        if (currentChord.flatScaleDegree !== undefined) {
+          if (
+            currentChord.flatScaleDegree ===
+            rangeNoteList[closestNoteIndex].degree
+          ) {
+            if (
+              keyObject.sharps &&
+              keyObject.sharps.findIndex(
+                (degree) => degree === rangeNoteList[closestNoteIndex].degree
+              ) >= 0
+            ) {
+              // note is a sharp in key
+              generatedNote = "=" + generatedNote;
+            } else if (
+              keyObject.flats &&
+              keyObject.flats.findIndex(
+                (degree) => degree === rangeNoteList[closestNoteIndex].degree
+              ) >= 0
+            ) {
+              generatedNote = "__" + generatedNote;
+            } else {
+              generatedNote = "_" + generatedNote;
+            }
+          }
+        }
+
         generatedNotes.push([generatedNote, generatedScaleDegree]);
       }
     }
