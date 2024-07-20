@@ -3,6 +3,7 @@
   import { createNewSr } from "./generatePartString.ts";
   import abcjs from "abcjs";
   import Slider from "@bulatdashiev/svelte-slider";
+  import { nonChordToneGenerator } from "./nonChordToneGen";
 
   let bpm = 60;
   let beatsPerMeasure = 4;
