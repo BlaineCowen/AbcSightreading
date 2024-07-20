@@ -434,182 +434,6 @@ function createNewSr(params: any) {
       singlePartObject;
   }
   //generate the list of notes
-  function generateTune(partObject: any) {
-    // get key
-    var key = keyRendered[0];
-    var keyObject = keySignatures[keyRendered];
-
-    var scaleType = "Major";
-    var generatedNote = "";
-    var generatedScaleDegree = "";
-    var generatedNotes: string[][] = [];
-    var concatNoteString = "";
-    var noteValue = 2;
-    var tonic: any = key;
-    var minRange = noteList.findIndex(
-      (note) => note.name === baseNoteArray[partObject.selectedRange[0]]
-    );
-    // if min range not found, set to 0
-    if (minRange === -1) {
-      minRange = 0;
-    }
-
-    var maxRange = noteList.findIndex(
-      (note) => note.name === baseNoteArray[partObject.selectedRange[1]]
-    );
-
-    var rangeNoteList = noteList.slice(minRange, maxRange);
-
-    if (keyRendered.includes("m")) {
-      scaleType = "Minor";
-    }
-
-    for (var i = 1; i <= numOfMeasures * 2; i++) {
-      if (partObject.order === 0) {
-        if (i === 1) {
-          // push the tonic to the end of the generated tune as a whole note
-          var possibleNotes = rangeNoteList.filter((note) => note.degree === 0);
-          var randomIndex = Math.floor(Math.random() * possibleNotes.length);
-          generatedNote = possibleNotes[randomIndex].name;
-          generatedScaleDegree = "1";
-          generatedNotes.push([generatedNote, generatedScaleDegree]);
-        } else {
-          var currentChord = renderedChordProgression[i - 1];
-
-          // find all indexes in rangeNoteList that at % 7 = currentRootIndex
-          var possibleBassNotes = rangeNoteList.filter(
-            (note) => note.degree === currentChord.root
-          );
-
-          var randomIndex = Math.floor(
-            Math.random() * possibleBassNotes.length
-          );
-
-          generatedNote = possibleBassNotes[randomIndex].name + noteValue;
-          generatedScaleDegree = currentChord.root.toString();
-          if (i % 2 === 0) {
-            generatedNote += "|";
-          }
-
-          generatedNotes.push([generatedNote, generatedScaleDegree]);
-        }
-      } else {
-        if (i === 1) {
-          // call previous note any random note in the 1 chord
-          var currentChord = renderedChordProgression[i - 1];
-
-          var previousNotePossibilities = rangeNoteList.filter((note) =>
-            currentChord.triadNotes.includes(note.degree)
-          );
-
-          var previousNote =
-            previousNotePossibilities[
-              Math.floor(Math.random() * previousNotePossibilities.length)
-            ].name;
-        }
-
-        if (i !== 1) {
-          var previousNote = generatedNotes[i - 2][0];
-        }
-
-        var currentChord = renderedChordProgression[i - 1];
-
-        // find all indexes that have the same degree as triad notes
-        var possibleNotes = rangeNoteList.filter((note) =>
-          currentChord.triadNotes.includes(note.degree)
-        );
-
-        // find index in rangeNoteList that is the same as the previous note
-        var previousNoteIndex = rangeNoteList.findIndex(
-          (note) => note.name === previousNote
-        );
-
-        // find the closest possible note to the previous note
-        // make an array with the indexes of the possible notes
-        var possibleNoteIndexes = possibleNotes.map((note) =>
-          rangeNoteList.findIndex((rangeNote) => rangeNote.name === note.name)
-        );
-
-        // find the closest note to the previous note index
-        var closestNoteIndex = possibleNoteIndexes.reduce((prev, curr) =>
-          Math.abs(curr - previousNoteIndex) <
-          Math.abs(prev - previousNoteIndex)
-            ? curr
-            : prev
-        );
-
-        generatedNote = rangeNoteList[closestNoteIndex].name + noteValue;
-
-        if (i % 2 === 0) {
-          generatedNote += "|";
-        }
-
-        generatedScaleDegree =
-          rangeNoteList[closestNoteIndex].degree.toString();
-
-        // if generateScaleDegree === currentChord.sharedDegree, then add a ^ to the beginning of the note name
-        if (currentChord.sharpScaleDegree !== undefined) {
-          if (
-            currentChord.sharpScaleDegree ===
-            rangeNoteList[closestNoteIndex].degree
-          ) {
-            if (
-              keyObject.flats &&
-              keyObject.flats.findIndex(
-                (degree) => degree === rangeNoteList[closestNoteIndex].degree
-              ) >= 0
-            ) {
-              // note is a flat in key
-              generatedNote = "=" + generatedNote;
-            }
-            // check if note is a sharp in key
-            else if (
-              keyObject.sharps &&
-              keyObject.sharps.findIndex(
-                (degree) => degree === rangeNoteList[closestNoteIndex].degree
-              ) >= 0
-            ) {
-              generatedNote = "^^" + generatedNote;
-            } else {
-              generatedNote = "^" + generatedNote;
-            }
-          }
-        }
-        // do the same with flat scale degree
-        if (currentChord.flatScaleDegree !== undefined) {
-          if (
-            currentChord.flatScaleDegree ===
-            rangeNoteList[closestNoteIndex].degree
-          ) {
-            if (
-              keyObject.sharps &&
-              keyObject.sharps.findIndex(
-                (degree) => degree === rangeNoteList[closestNoteIndex].degree
-              ) >= 0
-            ) {
-              // note is a sharp in key
-              generatedNote = "=" + generatedNote;
-            } else if (
-              keyObject.flats &&
-              keyObject.flats.findIndex(
-                (degree) => degree === rangeNoteList[closestNoteIndex].degree
-              ) >= 0
-            ) {
-              generatedNote = "__" + generatedNote;
-            } else {
-              generatedNote = "_" + generatedNote;
-            }
-          }
-        }
-
-        generatedNotes.push([generatedNote, generatedScaleDegree]);
-      }
-    }
-    var generatedTune = generatedNotes
-      .map(([note, scaleDegree]) => note)
-      .join("");
-    return generatedTune;
-  }
 
   // var keyRendered = params.key;
   var keyRendered = params.key;
@@ -636,17 +460,6 @@ function createNewSr(params: any) {
   // Example usage:
   var numOfNotes = 40;
   var noteList = createNoteList(tonic, numOfNotes);
-
-  var generatedPartTunes: { [key: string]: string } = {};
-
-  var newTuneObject: {
-    [key: string]: {
-      noteSymbols: string[];
-      noteLengths: number[];
-      scaleDegrees: number[];
-      pitchValues: number[];
-    };
-  } = {};
 
   for (
     var noteIndex = 0;
@@ -771,18 +584,14 @@ function createNewSr(params: any) {
     // add barlines every 2 notes
   }
 
-  for (const [partName, partObject] of Object.entries(partsObject.parts)) {
-    generatedPartTunes[partName] = generateTune(partObject);
-  }
-
   // get the first entry of the generatedPartTunes object
   var headerString = "";
-  for (var i = 0; i < Object.keys(generatedPartTunes).length; i++) {
+  for (var i = 0; i < Object.keys(partsObject).length; i++) {
     // find the clef by matching the name to the part name object
-    var partName = Object.keys(generatedPartTunes)[i];
+    var partName = Object.keys(partsObject.parts)[i];
     var clef = partsObject.parts[partName].clef;
     headerString += `V:${
-      Object.keys(generatedPartTunes)[i][0]
+      Object.keys(partsObject.parts)[i]
     } clef=${clef} name="${partName}" snm="${partName[0]}"\n`;
   }
 
