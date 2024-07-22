@@ -357,7 +357,7 @@ function createNoteList(tonic: string, numOfNotes: number) {
       note = notes[index].toLowerCase() + "''";
     }
 
-    noteList.push({ name: note, degree: degree });
+    noteList.push({ name: note, degree: degree, pitchValue: i });
 
     index++;
     degree++;
@@ -377,8 +377,11 @@ function createNewSr(params: any) {
     var key = keyRendered[0];
     var keyObject = keySignatures[keyRendered];
     var partObject = params.partObject;
-    var partOrder = params.partOrder;
+    var randPartIndex = params.randPartIndex;
     var baseNoteArray = params.baseNoteArray;
+
+    var partName = Object.keys(partObject.parts)[randPartIndex];
+    var partOrder = partObject.parts[partName].order;
 
     var scaleType = "Major";
     var generatedNote = "";
@@ -391,10 +394,20 @@ function createNewSr(params: any) {
     var noteLength = 2;
     var scaleDegreeToAdd: number = 0;
     var singlePartObject =
-      partObject.parts[Object.keys(partObject.parts)[partOrder]];
+      partObject.parts[Object.keys(partObject.parts)[randPartIndex]];
 
     var aboveIndex = baseNoteArray.length - 1;
     var belowIndex = 0;
+
+    var prevNote: { pitchValue: number } = { pitchValue: 0 };
+    var nextNote = {};
+
+    if (singlePartObject.chordNoteObject.length > 0) {
+      prevNote =
+        singlePartObject.chordNoteObject[
+          singlePartObject.chordNoteObject.length - 1
+        ];
+    }
 
     var tonic: any = key;
     var minRange = noteList.findIndex(
@@ -449,13 +462,32 @@ function createNewSr(params: any) {
     var possibleNotes = rangeNoteList.filter(
       (note) => note.degree === scaleDegreeToAdd
     );
-    var randomPossibleNote = Math.floor(Math.random() * possibleNotes.length);
-    generatedNote = possibleNotes[randomPossibleNote].name;
 
-    // find the index of the note in the original notesList
-    var pitchValue = noteList.findIndex(
-      (note) => note.name === possibleNotes[randomPossibleNote].name
-    );
+    var closestPossibleNote = null;
+
+    // find closest note to prev note
+    if (prevNote.pitchValue !== 0) {
+      closestPossibleNote = possibleNotes.reduce((prev, curr) =>
+        Math.abs(curr.pitchValue - prevNote.pitchValue) <
+        Math.abs(prev.pitchValue - prevNote.pitchValue)
+          ? curr
+          : prev
+      );
+    }
+
+    if (closestPossibleNote) {
+      generatedNote = closestPossibleNote.name;
+
+      // find the index of the note in the original notesList
+      var pitchValue = closestPossibleNote.pitchValue;
+    } else {
+      var randomPossibleNote = Math.floor(Math.random() * possibleNotes.length);
+
+      generatedNote = possibleNotes[randomPossibleNote].name;
+
+      // find the index of the note in the original notesList
+      var pitchValue = possibleNotes[randomPossibleNote].pitchValue;
+    }
 
     chordNoteObject = {
       noteLength: noteLength,
@@ -500,7 +532,7 @@ function createNewSr(params: any) {
   var partIndexArray: number[] = [];
 
   while (legalVoiceLeading) {
-    // reset chordNoteObject
+    // reset chordNoteObjects
     for (const [partName, partObject] of Object.entries(partsObject.parts)) {
       partsObject.parts[partName].chordNoteObject = [];
     }
@@ -550,7 +582,8 @@ function createNewSr(params: any) {
           noteList: noteList,
           partObject: partsObject,
           partIndexArray: partIndexArray,
-          partOrder: partIndexArray[i],
+          randPartIndex: partIndexArray[i],
+          partName: Object.keys(partsObject.parts)[partIndexArray[i]],
           noteIndex: noteIndex,
           renderedChordProgression: renderedChordProgression,
         };
@@ -560,11 +593,11 @@ function createNewSr(params: any) {
         // add to array
         chordObjectsToAdd.push(chordObjectToAdd);
 
-        var partOrder =
+        var randPartIndex =
           partsObject.parts[Object.keys(partsObject.parts)[partIndexArray[i]]]
             .order;
 
-        noteArrayToCheck[partOrder] = chordObjectToAdd.pitchValue;
+        noteArrayToCheck[randPartIndex] = chordObjectToAdd.pitchValue;
 
         if (i === partIndexArray.length - 1) {
           // check for illegal voice leading
@@ -593,7 +626,6 @@ function createNewSr(params: any) {
   var prevNoteObj = {};
   var nextNoteObj = {};
 
-  // concat the part string. add a | every 2 notes
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
     for (
       var j = 0;
@@ -664,7 +696,7 @@ function createNewSr(params: any) {
     var clef = partsObject.parts[Object.keys(partsObject.parts)[i]].clef;
     var middleString = "";
     if (clef === "treble-8") {
-      middleString = 'transpose=12 middle="B,"';
+      middleString = "octave=1";
     }
     headerString += `V:${partName[0]} clef=${clef} name="${partName}" snm="${partName[0]}" ${middleString}\n`;
   }
