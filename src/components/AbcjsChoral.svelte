@@ -73,13 +73,13 @@
           order: 2,
           clef: "treble",
           range: [15, 25],
-          selectedRange: [15, 25],
+          selectedRange: [15, 23],
         },
         Tenor: {
           order: 1,
           clef: "treble-8",
           range: [10, 32],
-          selectedRange: [16, 25],
+          selectedRange: [8, 17],
         },
         Bass: {
           order: 0,

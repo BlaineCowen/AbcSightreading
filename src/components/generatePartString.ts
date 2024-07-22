@@ -259,6 +259,15 @@ var keySignatures: {
   },
 };
 
+function checkForIllegalVoiceLeading(arr: number[]) {
+  var sortedArr = [...arr].sort((a, b) => a - b);
+  if (sortedArr.join(",") === arr.join(",")) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 function generateChordProgression(timeSig: any, numOfMeasures: any) {
   var denominator = timeSig.split("/")[1];
   var numOfChords = numOfMeasures * 2;
@@ -363,20 +372,30 @@ function createNoteList(tonic: string, numOfNotes: number) {
 }
 
 function createNewSr(params: any) {
-  function generateChord(noteIndex: number, singlePartObject: any) {
+  function generateChord(params: any) {
     // get key
     var key = keyRendered[0];
     var keyObject = keySignatures[keyRendered];
+    var partObject = params.partObject;
+    var partOrder = params.partOrder;
+    var baseNoteArray = params.baseNoteArray;
 
     var scaleType = "Major";
     var generatedNote = "";
-    var generatedScaleDegree = "";
-    var generatedNotes = singlePartObject.noteSymbols;
-    var generatedNoteLengths = singlePartObject.noteLengths;
-    var generatedScaleDegrees = singlePartObject.scaleDegrees;
-    var generatedPitchValues = singlePartObject.pitchValues;
-    var noteValue = 2;
+    var chordNoteObject: {
+      noteLength: number;
+      name: string;
+      degree: number;
+      pitchValue: number;
+    } = { noteLength: 0, name: "", degree: 0, pitchValue: 0 };
+    var noteLength = 2;
     var scaleDegreeToAdd: number = 0;
+    var singlePartObject =
+      partObject.parts[Object.keys(partObject.parts)[partOrder]];
+
+    var aboveIndex = baseNoteArray.length - 1;
+    var belowIndex = 0;
+
     var tonic: any = key;
     var minRange = noteList.findIndex(
       (note) => note.name === baseNoteArray[singlePartObject.selectedRange[0]]
@@ -389,6 +408,25 @@ function createNewSr(params: any) {
     var maxRange = noteList.findIndex(
       (note) => note.name === baseNoteArray[singlePartObject.selectedRange[1]]
     );
+
+    if (partOrder === 0) {
+      aboveIndex =
+        partObject.parts[Object.keys(partObject.parts)[1]].noteArray[noteIndex];
+    } else if (
+      partOrder > 0 &&
+      partOrder < Object.keys(partObject.parts).length - 1
+    ) {
+      aboveIndex =
+        partObject.parts[Object.keys(partObject.parts)[partOrder + 1]]
+          .noteArray[noteIndex];
+      belowIndex =
+        partObject.parts[Object.keys(partObject.parts)[partOrder - 1]]
+          .noteArray[noteIndex];
+    } else if (partOrder === Object.keys(partObject.parts).length - 1) {
+      belowIndex =
+        partObject.parts[Object.keys(partObject.parts)[partOrder - 1]]
+          .noteArray[noteIndex];
+    }
 
     var rangeNoteList = noteList.slice(minRange, maxRange);
 
@@ -419,19 +457,14 @@ function createNewSr(params: any) {
       (note) => note.name === possibleNotes[randomPossibleNote].name
     );
 
-    // add gerneated note to note symbols , scale degree to scale degrees, and pitch value to pitch values
-    generatedNotes.push(generatedNote);
-    generatedNoteLengths.push(noteValue);
-    generatedScaleDegrees.push(scaleDegreeToAdd);
-    generatedPitchValues.push(pitchValue);
+    chordNoteObject = {
+      noteLength: noteLength,
+      name: generatedNote,
+      degree: scaleDegreeToAdd,
+      pitchValue: pitchValue,
+    };
 
-    singlePartObject.noteSymbols = generatedNotes;
-    singlePartObject.scaleDegrees = generatedScaleDegrees;
-    singlePartObject.pitchValues = generatedPitchValues;
-
-    // update original partobject
-    partsObject.parts[Object.keys(partsObject.parts)[partIndexArray[i]]] =
-      singlePartObject;
+    return chordNoteObject;
   }
   //generate the list of notes
 
@@ -445,11 +478,9 @@ function createNewSr(params: any) {
   var partsObject = params.partsObject;
   // add note symbol, scale degree, and pitch value to each partsObject
   for (const [partName, partObject] of Object.entries(partsObject.parts)) {
-    partsObject.parts[partName].noteSymbols = [];
-    partsObject.parts[partName].noteLengths = [];
-    partsObject.parts[partName].scaleDegrees = [];
-    partsObject.parts[partName].pitchValues = [];
     partsObject.parts[partName].concatNoteString = "";
+    partsObject.parts[partName].completeNoteObject = [];
+    partsObject.parts[partName].noteArray = [];
   }
 
   var renderedChordProgression = generateChordProgression(
@@ -460,38 +491,102 @@ function createNewSr(params: any) {
   // Example usage:
   var numOfNotes = 40;
   var noteList = createNoteList(tonic, numOfNotes);
+  var legalVoiceLeading = true;
 
-  for (
-    var noteIndex = 0;
-    noteIndex < renderedChordProgression.length;
-    noteIndex++
-  ) {
-    var chordProgressionIndex = noteIndex;
+  // make an array of 0's of length of the number of parts
+  var arrToCheck = Array.from(
+    Array(Object.keys(partsObject.parts).length).keys()
+  );
+  var partIndexArray: number[] = [];
 
-    // create index 0-x with x being the number of parts -1
-    var partIndexArray = Array.from(
-      Array(Object.keys(partsObject.parts).length).keys()
-    );
-    // shuffle the array
-    partIndexArray.sort(() => Math.random() - 0.5);
+  while (legalVoiceLeading) {
+    // reset chordNoteObject
+    for (const [partName, partObject] of Object.entries(partsObject.parts)) {
+      partsObject.parts[partName].chordNoteObject = [];
+    }
 
-    var chordTriadCopy = [
-      ...chords[renderedChordProgression[chordProgressionIndex].name]
-        .triadNotes,
-    ];
+    for (
+      var noteIndex = 0;
+      noteIndex < renderedChordProgression.length;
+      noteIndex++
+    ) {
+      var chordProgressionIndex = noteIndex;
 
-    // loop through the array
-    for (var i = 0; i < partIndexArray.length; i++) {
-      if (chordTriadCopy.length === 0) {
-        chordTriadCopy = [
-          ...chords[renderedChordProgression[chordProgressionIndex].name]
-            .triadNotes,
-        ];
-      }
-      generateChord(
-        noteIndex,
-        partsObject.parts[Object.keys(partsObject.parts)[partIndexArray[i]]]
+      // create index 0-x with x being the number of parts -1
+      partIndexArray = Array.from(
+        Array(Object.keys(partsObject.parts).length).keys()
       );
+      // shuffle the array
+      partIndexArray.sort(() => Math.random() - 0.5);
+
+      var chordTriadCopy = [
+        ...chords[renderedChordProgression[chordProgressionIndex].name]
+          .triadNotes,
+      ];
+
+      // create blank chordObjectToAdd
+      var chordObjectsToAdd = [];
+      var noteArrayToCheck = Array.from(
+        Array(Object.keys(partsObject.parts).length).keys()
+      );
+
+      // loop through the array
+      for (var i = 0; i < partIndexArray.length; i++) {
+        // make an array of notes with length of parts
+
+        if (chordTriadCopy.length === 0) {
+          chordTriadCopy = [
+            ...chords[renderedChordProgression[chordProgressionIndex].name]
+              .triadNotes,
+          ];
+        }
+
+        var genChordParams = {
+          key: keyRendered,
+          timeSig: timeSigRendered,
+          tonic: tonic,
+          baseNoteArray: baseNoteArray,
+          chordTriadCopy: chordTriadCopy,
+          noteList: noteList,
+          partObject: partsObject,
+          partIndexArray: partIndexArray,
+          partOrder: partIndexArray[i],
+          noteIndex: noteIndex,
+          renderedChordProgression: renderedChordProgression,
+        };
+
+        var chordObjectToAdd = generateChord(genChordParams);
+
+        // add to array
+        chordObjectsToAdd.push(chordObjectToAdd);
+
+        var partOrder =
+          partsObject.parts[Object.keys(partsObject.parts)[partIndexArray[i]]]
+            .order;
+
+        noteArrayToCheck[partOrder] = chordObjectToAdd.pitchValue;
+
+        if (i === partIndexArray.length - 1) {
+          // check for illegal voice leading
+          var legalVoiceLeading = checkForIllegalVoiceLeading(noteArrayToCheck);
+
+          if (!legalVoiceLeading) {
+            noteIndex--;
+            break;
+          } else {
+            // add to the complete note object
+            for (var partNum = 0; partNum < partIndexArray.length; partNum++) {
+              partsObject.parts[
+                Object.keys(partsObject.parts)[partIndexArray[partNum]]
+              ].chordNoteObject.push(chordObjectsToAdd[partNum]);
+            }
+          }
+        }
+      }
+    }
+
+    if (legalVoiceLeading) {
+      break;
     }
   }
 
@@ -503,50 +598,26 @@ function createNewSr(params: any) {
     for (
       var j = 0;
       j <
-      partsObject.parts[Object.keys(partsObject.parts)[i]].noteSymbols.length;
+      partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject
+        .length;
       j++
     ) {
       if (
         j !==
-        partsObject.parts[Object.keys(partsObject.parts)[i]].noteSymbols
+        partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject
           .length -
           1
       ) {
-        prevNoteObj = {
-          name: partsObject.parts[
-            Object.keys(partsObject.parts)[i]
-          ].noteSymbols[j].replace(/\d+/g, ""),
-          degree: parseInt(
-            partsObject.parts[Object.keys(partsObject.parts)[i]].scaleDegrees[j]
-          ),
-          length: parseInt(
-            partsObject.parts[Object.keys(partsObject.parts)[i]].noteLengths[j]
-          ),
-          pitchValue:
-            partsObject.parts[Object.keys(partsObject.parts)[i]].pitchValues[j],
-        };
-        console.log("next note obj");
-        console.log(nextNoteObj);
+        prevNoteObj =
+          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
+            j
+          ];
 
-        nextNoteObj = {
-          name: partsObject.parts[
-            Object.keys(partsObject.parts)[i]
-          ].noteSymbols[j + 1].replace(/\d+/g, ""),
-          degree: parseInt(
-            partsObject.parts[Object.keys(partsObject.parts)[i]].scaleDegrees[
-              j + 1
-            ]
-          ),
-          length: parseInt(
-            partsObject.parts[Object.keys(partsObject.parts)[i]].noteLengths[
-              j + 1
-            ]
-          ),
-          pitchValue:
-            partsObject.parts[Object.keys(partsObject.parts)[i]].pitchValues[
-              j + 1
-            ],
-        };
+        nextNoteObj =
+          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
+            j + 1
+          ];
+
         console.log("prev note obj");
         console.log(prevNoteObj);
 
@@ -565,34 +636,37 @@ function createNewSr(params: any) {
           ].concatNoteString += "|";
         }
       }
-
       // add a double barline at the end
-      if (
+      else if (
         j ===
-        partsObject.parts[Object.keys(partsObject.parts)[i]].noteSymbols
+        partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject
           .length -
           1
       ) {
         partsObject.parts[Object.keys(partsObject.parts)[i]].concatNoteString +=
-          partsObject.parts[Object.keys(partsObject.parts)[i]].noteSymbols[j] +
-          partsObject.parts[Object.keys(partsObject.parts)[i]].noteLengths[j];
+          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
+            j
+          ].name +
+          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
+            j
+          ].noteLength;
         partsObject.parts[Object.keys(partsObject.parts)[i]].concatNoteString +=
           "|";
       }
     }
-
-    // add barlines every 2 notes
   }
 
   // get the first entry of the generatedPartTunes object
   var headerString = "";
-  for (var i = 0; i < Object.keys(partsObject).length; i++) {
+  for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
     // find the clef by matching the name to the part name object
     var partName = Object.keys(partsObject.parts)[i];
-    var clef = partsObject.parts[partName].clef;
-    headerString += `V:${
-      Object.keys(partsObject.parts)[i]
-    } clef=${clef} name="${partName}" snm="${partName[0]}"\n`;
+    var clef = partsObject.parts[Object.keys(partsObject.parts)[i]].clef;
+    var middleString = "";
+    if (clef === "treble-8") {
+      middleString = 'transpose=12 middle="B,"';
+    }
+    headerString += `V:${partName[0]} clef=${clef} name="${partName}" snm="${partName[0]}" ${middleString}\n`;
   }
 
   var tuneBody = "";
@@ -615,7 +689,9 @@ function createNewSr(params: any) {
     `K: ${keyRendered} \n` +
     `%            End of header, start of tune body: \n` +
     `${tuneBody}`;
+
   console.log(renderedString);
+  console.log(partsObject);
 
   return [renderedString, renderedChordProgression];
 }

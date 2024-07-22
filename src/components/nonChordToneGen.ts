@@ -48,16 +48,16 @@ export function nonChordToneGenerator(
     var prevPitchValue = prevNote.pitchValue;
     const nextPitchValue = nextNote.pitchValue;
     const newPitchValue = Math.floor((prevPitchValue + nextPitchValue) / 2);
-    const newPitchLength = Math.floor(prevNote.length / 2);
+    const newPitchLength = Math.floor(prevNote.noteLength / 2);
     console.log(noteList);
 
     const newPitchDegree = noteList[newPitchValue].degree;
     const newPitchName = noteList[newPitchValue].name;
     //   change previous note length /2
-    prevNote.length = newPitchLength;
+    prevNote.noteLength = newPitchLength;
 
     const newConcatString =
-      prevNote.name + prevNote.length + newPitchName + newPitchLength;
+      prevNote.name + prevNote.noteLength + newPitchName + newPitchLength;
     return newConcatString;
   }
 
@@ -66,16 +66,16 @@ export function nonChordToneGenerator(
     const nextPitchValue = nextNote.pitchValue;
     const upOrDown = Math.random() < 0.5 ? -1 : 1;
     const newPitchValue = Math.floor(prevPitchValue + upOrDown);
-    const newPitchLength = Math.floor(prevNote.length / 2);
+    const newPitchLength = Math.floor(prevNote.noteLength / 2);
     console.log(noteList);
 
     const newPitchDegree = noteList[newPitchValue].degree;
     const newPitchName = noteList[newPitchValue].name;
     //   change previous note length /2
-    prevNote.length = newPitchLength;
+    prevNote.noteLength = newPitchLength;
 
     const newConcatString =
-      prevNote.name + prevNote.length + newPitchName + newPitchLength;
+      prevNote.name + prevNote.noteLength + newPitchName + newPitchLength;
     return newConcatString;
   }
 
@@ -83,16 +83,16 @@ export function nonChordToneGenerator(
     var prevPitchValue = prevNote.pitchValue;
     const nextPitchValue = nextNote.pitchValue;
     const newPitchValue = nextPitchValue;
-    const newPitchLength = Math.floor(prevNote.length / 2);
+    const newPitchLength = Math.floor(prevNote.noteLength / 2);
     console.log(noteList);
 
     const newPitchDegree = noteList[newPitchValue].degree;
     const newPitchName = noteList[newPitchValue].name;
     //   change previous note length /2
-    prevNote.length = newPitchLength;
+    prevNote.noteLength = newPitchLength;
 
     const newConcatString =
-      prevNote.name + prevNote.length + newPitchName + newPitchLength;
+      prevNote.name + prevNote.noteLength + newPitchName + newPitchLength;
     return newConcatString;
   }
 
@@ -120,7 +120,7 @@ export function nonChordToneGenerator(
 
     concatString = randomNonChordToneFunction(prevNote, nextNote, noteList);
   } else {
-    concatString = prevNote.name + prevNote.length;
+    concatString = prevNote.name + prevNote.noteLength;
   }
 
   return concatString;
