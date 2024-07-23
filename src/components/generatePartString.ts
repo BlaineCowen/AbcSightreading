@@ -244,48 +244,48 @@ var keySignatures: {
   };
 } = {
   C: {
-    flats: undefined,
-    sharps: undefined,
+    flats: [],
+    sharps: [],
   },
   G: {
-    flats: undefined,
+    flats: [],
     sharps: [6],
   },
   D: {
-    flats: undefined,
+    flats: [],
     sharps: [6, 2],
   },
   A: {
-    flats: undefined,
+    flats: [],
     sharps: [6, 2, 5],
   },
   E: {
-    flats: undefined,
+    flats: [],
     sharps: [6, 2, 5, 1],
   },
   B: {
-    flats: undefined,
+    flats: [],
     sharps: [6, 2, 5, 1, 4],
   },
   F: {
     flats: [3],
-    sharps: undefined,
+    sharps: [],
   },
   Bb: {
     flats: [3, 0],
-    sharps: undefined,
+    sharps: [],
   },
   Eb: {
     flats: [3, 0, 4],
-    sharps: undefined,
+    sharps: [],
   },
   Ab: {
     flats: [3, 0, 4, 1],
-    sharps: undefined,
+    sharps: [],
   },
   Db: {
     flats: [3, 0, 4, 1, 5],
-    sharps: undefined,
+    sharps: [],
   },
 };
 
@@ -443,6 +443,7 @@ function createNewSr(params: any) {
     var partObject = params.partObject;
     var randPartIndex = params.randPartIndex;
     var baseNoteArray = params.baseNoteArray;
+    var currentChord = params.renderedChordProgression[params.noteIndex];
 
     var partName = Object.keys(partObject.parts)[randPartIndex];
     var partOrder = partObject.parts[partName].order;
@@ -553,12 +554,28 @@ function createNewSr(params: any) {
       var pitchValue = possibleNotes[randomPossibleNote].pitchValue;
     }
 
-    // see if pitch should have an accidental
-    var sharpScaleDegree =
-      chords[renderedChordProgression[noteIndex].name].sharpScaleDegree;
+    // see if it is a sharp or flat scale degree in hte chord
+    var accidental = null;
+    if (currentChord.sharpScaleDegree === scaleDegreeToAdd) {
+      accidental = "^";
+      if (keyObject.sharps?.indexOf(scaleDegreeToAdd) !== -1) {
+        accidental = "^^";
+      } else if (keyObject.flats?.indexOf(scaleDegreeToAdd) !== -1) {
+        accidental = "=";
+      }
+    }
+    if (currentChord.flatScaleDegree === scaleDegreeToAdd) {
+      accidental = "_";
+      if (keyObject.sharps?.indexOf(scaleDegreeToAdd) !== -1) {
+        accidental = "=";
+      } else if (keyObject.flats?.indexOf(scaleDegreeToAdd) !== -1) {
+        accidental = "__";
+      }
+    }
 
-    var flatScaleDegree =
-      chords[renderedChordProgression[noteIndex].name].flatScaleDegree;
+    if (accidental) {
+      generatedNote = accidental + generatedNote;
+    }
 
     chordNoteObject = {
       noteLength: noteLength,
