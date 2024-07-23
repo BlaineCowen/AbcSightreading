@@ -2,6 +2,7 @@ import type { ChordType } from "abcjs";
 import Index from "../pages/index.astro";
 import { render } from "astro/compiler-runtime";
 import { nonChordToneGenerator } from "./nonChordToneGen";
+import { get } from "svelte/store";
 
 interface AbcObject {
   key: string;
@@ -16,9 +17,9 @@ var startTonic = true;
 
 //list of all posible keys
 var keyList = [
-  "A",
-  "Am",
-  "Ab",
+  { name: "A", sharps: [6, 2, 5], flats: undefined },
+  { name: "Am", sharps: undefined, flats: undefined },
+  { name: "Ab", sharps: undefined, flats: [3, 0, 4, 1] },
   "Bb",
   "Bbm",
   "B",
@@ -93,7 +94,8 @@ var chords: {
     name: string;
     triadNotes: number[];
     root: number;
-    nextChordPossibilities: string[];
+    nextChordPossibilities: { name: string; weight: number }[];
+
     sharpScaleDegree: number | undefined;
     flatScaleDegree: number | undefined;
   };
@@ -103,16 +105,18 @@ var chords: {
     triadNotes: [0, 2, 4],
     root: 0,
     nextChordPossibilities: [
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "5/5",
-      "5/6",
-      "5/4",
-      "m4",
+      { name: "1", weight: 10 },
+      { name: "2", weight: 12 },
+      { name: "3", weight: 1 },
+      { name: "4", weight: 28 },
+      { name: "5", weight: 41 },
+      { name: "6", weight: 9 },
+      { name: "7", weight: 6 },
+      { name: "5/5", weight: 10 },
+      { name: "5/6", weight: 10 },
+      { name: "5/4", weight: 10 },
+      { name: "m4", weight: 10 },
+      { name: "1-7", weight: 10 },
     ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
@@ -121,7 +125,11 @@ var chords: {
     name: "2",
     root: 1,
     triadNotes: [1, 3, 5],
-    nextChordPossibilities: ["3", "5", "6"],
+    nextChordPossibilities: [
+      { name: "2", weight: 10 },
+      { name: "5", weight: 72 },
+      { name: "7", weight: 26 },
+    ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -129,7 +137,11 @@ var chords: {
     name: "3",
     root: 2,
     triadNotes: [2, 4, 6],
-    nextChordPossibilities: ["4", "6"],
+    nextChordPossibilities: [
+      { name: "4", weight: 53 },
+      { name: "5", weight: 6 },
+      { name: "6", weight: 32 },
+    ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -137,7 +149,12 @@ var chords: {
     name: "4",
     root: 3,
     triadNotes: [3, 5, 0],
-    nextChordPossibilities: ["1", "2", "5"],
+    nextChordPossibilities: [
+      { name: "1", weight: 22 }, // Adjust the weight as needed
+      { name: "2", weight: 13 }, // Adjust the weight as needed
+      { name: "5", weight: 39 },
+      { name: "7", weight: 23 }, // Adjust the weight as needed
+    ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -145,7 +162,12 @@ var chords: {
     name: "5",
     root: 4,
     triadNotes: [4, 6, 1],
-    nextChordPossibilities: ["1", "6"],
+    nextChordPossibilities: [
+      { name: "1", weight: 83 },
+      { name: "6", weight: 17 },
+      { name: "5/5", weight: 10 },
+      { name: "5/6", weight: 10 },
+    ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -153,7 +175,13 @@ var chords: {
     name: "6",
     root: 5,
     triadNotes: [5, 0, 2],
-    nextChordPossibilities: ["2", "3", "4", "7"],
+    nextChordPossibilities: [
+      { name: "1", weight: 12 },
+      { name: "2", weight: 30 },
+      { name: "3", weight: 8 },
+      { name: "4", weight: 7 },
+      { name: "7", weight: 9 },
+    ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -161,7 +189,9 @@ var chords: {
     name: "7",
     root: 6,
     triadNotes: [6, 1, 3],
-    nextChordPossibilities: ["1", "6"],
+    nextChordPossibilities: [
+      { name: "1", weight: 90 }, // Adjust the weight as needed
+    ],
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -169,7 +199,7 @@ var chords: {
     name: "5/5",
     root: 1,
     triadNotes: [1, 3, 5],
-    nextChordPossibilities: ["5"],
+    nextChordPossibilities: [{ name: "5", weight: 100 }],
     sharpScaleDegree: 3,
     flatScaleDegree: undefined,
   },
@@ -177,7 +207,7 @@ var chords: {
     name: "5/6",
     root: 2,
     triadNotes: [2, 4, 6],
-    nextChordPossibilities: ["6"],
+    nextChordPossibilities: [{ name: "6", weight: 100 }],
     sharpScaleDegree: 4,
     flatScaleDegree: undefined,
   },
@@ -185,7 +215,7 @@ var chords: {
     name: "5/4",
     root: 6,
     triadNotes: [6, 1, 3],
-    nextChordPossibilities: ["4"],
+    nextChordPossibilities: [{ name: "4", weight: 100 }],
     sharpScaleDegree: 1,
     flatScaleDegree: undefined,
   },
@@ -193,7 +223,7 @@ var chords: {
     name: "m4",
     root: 3,
     triadNotes: [3, 5, 0],
-    nextChordPossibilities: ["1"],
+    nextChordPossibilities: [{ name: "1", weight: 100 }],
     sharpScaleDegree: undefined,
     flatScaleDegree: 5,
   },
@@ -201,7 +231,7 @@ var chords: {
     name: "1-7",
     root: 0,
     triadNotes: [0, 2, 4, 6],
-    nextChordPossibilities: ["4"],
+    nextChordPossibilities: [{ name: "4", weight: 100 }],
     sharpScaleDegree: undefined,
     flatScaleDegree: 6,
   },
@@ -268,6 +298,32 @@ function checkForIllegalVoiceLeading(arr: number[]) {
   }
 }
 
+function getRandomByWeight(arr: { name: string; weight: number }[]) {
+  if (arr.length === 0) {
+    return null; // Handle empty array case
+  }
+
+  // Shuffle the array (Fisher-Yates shuffle)
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+
+  var totalWeight = arr.reduce((acc, val) => acc + val.weight, 0);
+  var randomNum = Math.floor(Math.random() * totalWeight);
+  var weightSum = 0;
+
+  for (var i = 0; i < arr.length; i++) {
+    weightSum += arr[i].weight;
+    if (randomNum < weightSum) {
+      // Use < instead of <=
+      return arr[i];
+    }
+  }
+
+  return arr[arr.length - 1]; // Fallback, though normally shouldn't be reached
+}
+
 function generateChordProgression(timeSig: any, numOfMeasures: any) {
   var denominator = timeSig.split("/")[1];
   var numOfChords = numOfMeasures * 2;
@@ -286,7 +342,8 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
         // The third-to-last chord must lead to 5
         const lastChord = chordProgression[chordProgression.length - 1];
         const nextChordPossibilities = lastChord.nextChordPossibilities.filter(
-          (chord: string) => chord === "1" || chord === "2" || chord === "4"
+          (chord: { name: string; weight: number }) =>
+            chord.name === "1" || chord.name === "2" || chord.name === "4"
         );
 
         if (nextChordPossibilities.length === 0) {
@@ -294,12 +351,15 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
           break;
         }
 
-        const nextChordName =
-          nextChordPossibilities[
-            Math.floor(Math.random() * nextChordPossibilities.length)
-          ];
-        const nextChord = chords[nextChordName];
-        chordProgression.push(nextChord);
+        const nextChordInner = getRandomByWeight(nextChordPossibilities);
+        if (nextChordInner !== null) {
+          const nextChordName = nextChordInner.name;
+          const nextChord = chords[nextChordName];
+
+          chordProgression.push(nextChord);
+        } else {
+          break;
+        }
       } else if (i === numOfChords - 2) {
         // The second-to-last chord must be "5"
         const nextChord = chords["5"];
@@ -310,12 +370,16 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
         chordProgression.push(nextChord);
       } else {
         const lastChord = chordProgression[chordProgression.length - 1];
-        const nextChordName =
-          lastChord.nextChordPossibilities[
-            Math.floor(Math.random() * lastChord.nextChordPossibilities.length)
-          ];
-        const nextChord = chords[nextChordName];
-        chordProgression.push(nextChord);
+        const nextChordInner = getRandomByWeight(
+          lastChord.nextChordPossibilities
+        );
+        if (nextChordInner === null) {
+          break;
+        } else {
+          const nextChordName = nextChordInner.name;
+          const nextChord = chords[nextChordName];
+          chordProgression.push(nextChord);
+        }
       }
     }
 
@@ -489,6 +553,13 @@ function createNewSr(params: any) {
       var pitchValue = possibleNotes[randomPossibleNote].pitchValue;
     }
 
+    // see if pitch should have an accidental
+    var sharpScaleDegree =
+      chords[renderedChordProgression[noteIndex].name].sharpScaleDegree;
+
+    var flatScaleDegree =
+      chords[renderedChordProgression[noteIndex].name].flatScaleDegree;
+
     chordNoteObject = {
       noteLength: noteLength,
       name: generatedNote,
@@ -498,9 +569,7 @@ function createNewSr(params: any) {
 
     return chordNoteObject;
   }
-  //generate the list of notes
 
-  // var keyRendered = params.key;
   var keyRendered = params.key;
   var timeSigRendered = params.timeSig;
   var notesToRender = params.notes;
@@ -626,7 +695,61 @@ function createNewSr(params: any) {
   var prevNoteObj = {};
   var nextNoteObj = {};
 
+  // create a new array in each part to contain complete notes
+  for (
+    var partIndex = 0;
+    partIndex < Object.keys(partsObject.parts).length;
+    partIndex++
+  ) {
+    // create linear index when starting each new part
+    var noteLinearIndex = 1;
+
+    // loop through the chordNoteObject
+    for (
+      var chordNoteIndex = 0;
+      chordNoteIndex <
+      partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
+        .chordNoteObject.length;
+      chordNoteIndex++
+    ) {
+      // add linrear index to each chordNoteObject
+      partsObject.parts[
+        Object.keys(partsObject.parts)[partIndex]
+      ].chordNoteObject[chordNoteIndex].noteLinearIndex = noteLinearIndex;
+      // add the note to the completeNoteObject for each length of the note and add a noteLinearIndex
+      for (
+        var i = 0;
+        i <
+        partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
+          .chordNoteObject[chordNoteIndex].noteLength;
+        i++
+      ) {
+        var newNote = false;
+        if (i === 0) {
+          newNote = true;
+        }
+        var noteLength =
+          partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
+            .chordNoteObject[chordNoteIndex].noteLength;
+        partsObject.parts[
+          Object.keys(partsObject.parts)[partIndex]
+        ].completeNoteObject.push({
+          name: partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
+            .chordNoteObject[chordNoteIndex].name,
+          noteLength: noteLength,
+          noteLinearIndex: noteLinearIndex,
+          newNote: newNote,
+        });
+        noteLinearIndex++;
+      }
+    }
+  }
+
+  // loop through the parts object
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
+    // get the part name
+    var partName = Object.keys(partsObject.parts)[i];
+    // loop through each chord
     for (
       var j = 0;
       j <
@@ -634,28 +757,23 @@ function createNewSr(params: any) {
         .length;
       j++
     ) {
+      // make sure we aren't on last note
       if (
         j !==
         partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject
           .length -
           1
       ) {
-        prevNoteObj =
-          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
-            j
-          ];
-
-        nextNoteObj =
-          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
-            j + 1
-          ];
+        var prevNoteIndex = j;
+        var nextNoteIndex = j + 1;
 
         console.log("prev note obj");
         console.log(prevNoteObj);
 
         var noteComboToAdd = nonChordToneGenerator(
-          prevNoteObj,
-          nextNoteObj,
+          prevNoteIndex,
+          partName,
+          partsObject,
           noteList
         );
 
@@ -687,6 +805,34 @@ function createNewSr(params: any) {
       }
     }
   }
+
+  function createConcatString(partsObject: any) {
+    Object.keys(partsObject.parts).forEach((partName) => {
+      var concatString = "";
+      var totalNoteValue = 0;
+      for (
+        var i = 0;
+        i < partsObject.parts[partName].completeNoteObject.length;
+        i++
+      ) {
+        if (partsObject.parts[partName].completeNoteObject[i].newNote) {
+          concatString +=
+            partsObject.parts[partName].completeNoteObject[i].name +
+            partsObject.parts[partName].completeNoteObject[i].noteLength;
+
+          totalNoteValue +=
+            partsObject.parts[partName].completeNoteObject[i].noteLength;
+          if (totalNoteValue % 4 === 0) {
+            concatString += "|";
+          }
+        }
+      }
+      partsObject.parts[partName].concatNoteString = concatString;
+    });
+    return partsObject;
+  }
+
+  partsObject = createConcatString(partsObject);
 
   // get the first entry of the generatedPartTunes object
   var headerString = "";

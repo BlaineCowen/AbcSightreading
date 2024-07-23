@@ -243,7 +243,9 @@
 
   async function renderTune(): Promise<any> {
     return import("abcjs").then((abcjs) => {
-      var renderedTune = abcjs.renderAbc("paper", renderedString);
+      var renderedTune = abcjs.renderAbc("paper", renderedString, {
+        responsive: "resize",
+      });
       return renderedTune;
     });
   }
@@ -383,7 +385,10 @@
       </div>
     </div>
 
-    <div id="paper" class="boarder-black bg-gray-100 rounded-md p-1 m-2"></div>
+    <div
+      id="paper"
+      class="w-full h-1/2 flex justify-center border-black bg-gray-100 rounded-md p-1 m-2"
+    ></div>
 
     <div id="audio" class="bg-white"></div>
 

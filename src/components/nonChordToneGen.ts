@@ -1,6 +1,7 @@
 export function nonChordToneGenerator(
-  prevNote: any,
-  nextNote: any,
+  noteIndex: number,
+  partName: string,
+  partsObject: any,
   noteList: any
 ) {
   var possibleNonChordTones: {
@@ -30,35 +31,53 @@ export function nonChordToneGenerator(
       function: anticipation,
     },
   };
+
+  var prevNote = partsObject.parts[partName].chordNoteObject[noteIndex];
+  var nextNote = partsObject.parts[partName].chordNoteObject[noteIndex + 1];
+
+  var indexToReplace = partsObject.parts[partName].completeNoteObject.findIndex(
+    (note: any) => note.noteLinearIndex === prevNote.noteLinearIndex
+  );
+
   // get distance between 2 notes
   const distance = Math.abs(prevNote.pitchValue - nextNote.pitchValue);
 
   if (distance === 0) {
     // set neighboring tone to possible
-    possibleNonChordTones.neighboringTone.possible = true;
+    // possibleNonChordTones.neighboringTone.possible = true;
   }
   if (distance === 2) {
     // set passing tone to possible
     possibleNonChordTones.passingTone.possible = true;
   }
 
-  var concatString = "";
+  var newNotes = [];
 
   function passingTone(prevNote: any, nextNote: any, noteList: any) {
     var prevPitchValue = prevNote.pitchValue;
     const nextPitchValue = nextNote.pitchValue;
     const newPitchValue = Math.floor((prevPitchValue + nextPitchValue) / 2);
     const newPitchLength = Math.floor(prevNote.noteLength / 2);
-    console.log(noteList);
 
     const newPitchDegree = noteList[newPitchValue].degree;
     const newPitchName = noteList[newPitchValue].name;
-    //   change previous note length /2
-    prevNote.noteLength = newPitchLength;
 
-    const newConcatString =
-      prevNote.name + prevNote.noteLength + newPitchName + newPitchLength;
-    return newConcatString;
+    const newNotes = [
+      {
+        name: prevNote.name,
+        noteLength: newPitchLength,
+        noteLinearIndex: prevNote.noteLinearIndex,
+        newNote: true,
+      },
+      {
+        name: newPitchName,
+        noteLength: newPitchLength,
+        noteLinearIndex: prevNote.noteLinearIndex + 1,
+        newNote: true,
+      },
+    ];
+
+    return newNotes;
   }
 
   function neighboringTone(prevNote: any, nextNote: any, noteList: any) {
@@ -67,16 +86,27 @@ export function nonChordToneGenerator(
     const upOrDown = Math.random() < 0.5 ? -1 : 1;
     const newPitchValue = Math.floor(prevPitchValue + upOrDown);
     const newPitchLength = Math.floor(prevNote.noteLength / 2);
-    console.log(noteList);
 
     const newPitchDegree = noteList[newPitchValue].degree;
     const newPitchName = noteList[newPitchValue].name;
     //   change previous note length /2
     prevNote.noteLength = newPitchLength;
 
-    const newConcatString =
-      prevNote.name + prevNote.noteLength + newPitchName + newPitchLength;
-    return newConcatString;
+    const newNotes = [
+      {
+        name: prevNote.name,
+        noteLength: newPitchLength,
+        noteLinearIndex: prevNote.noteLinearIndex,
+        newNote: true,
+      },
+      {
+        name: newPitchName,
+        noteLength: newPitchLength,
+        noteLinearIndex: prevNote.noteLinearIndex + 1,
+        newNote: true,
+      },
+    ];
+    return newNotes;
   }
 
   function anticipation(prevNote: any, nextNote: any, noteList: any) {
@@ -91,13 +121,25 @@ export function nonChordToneGenerator(
     //   change previous note length /2
     prevNote.noteLength = newPitchLength;
 
-    const newConcatString =
-      prevNote.name + prevNote.noteLength + newPitchName + newPitchLength;
-    return newConcatString;
+    const newNotes = [
+      {
+        name: prevNote.name,
+        noteLength: newPitchLength,
+        noteLinearIndex: prevNote.noteLinearIndex,
+        newNote: true,
+      },
+      {
+        name: newPitchName,
+        noteLength: newPitchLength,
+        noteLinearIndex: prevNote.noteLinearIndex + 1,
+        newNote: true,
+      },
+    ];
+    return newNotes;
   }
 
   //   get a random number between 0 and 10
-  const diceRoll = Math.floor(Math.random() * 10);
+  const diceRoll = Math.floor(Math.random() * 5);
 
   if (diceRoll === 0) {
     // pick a random nonchord function that is possible
@@ -118,10 +160,24 @@ export function nonChordToneGenerator(
         indexesOfPossibleNonChordTones[randomNonChordToneIndex]
       ].function;
 
-    concatString = randomNonChordToneFunction(prevNote, nextNote, noteList);
+    newNotes = randomNonChordToneFunction(prevNote, nextNote, noteList);
   } else {
-    concatString = prevNote.name + prevNote.noteLength;
+    newNotes = [
+      {
+        name: prevNote.name,
+        noteLength: prevNote.noteLength,
+        noteLinearIndex: prevNote.noteLinearIndex,
+        newNote: true,
+      },
+    ];
   }
 
-  return concatString;
+  // replace the note with the new notes
+  partsObject.parts[partName].completeNoteObject.splice(
+    indexToReplace,
+    newNotes.length,
+    ...newNotes
+  );
+
+  return partsObject;
 }
