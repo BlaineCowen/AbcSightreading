@@ -213,6 +213,7 @@
   let selectedKey = "C";
 
   const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
+  let selectedMeasures = 8;
 
   let abcjsReturn = [];
   let chordProgression = [] as any[];
@@ -275,13 +276,12 @@
 
     // hide start button
     const startButton = document.getElementById("start") as HTMLButtonElement;
-    startButton.style.display = "none";
 
     // reset abcjs
     const params = {
       bpm: bpm,
       key: selectedKey,
-      timeSig: selectedTimeSignature,
+      timeSig: timeSignatures[selectedTimeSignature],
       measures: measures,
       partsObject: possibleVoicing[selectedVoicing],
     };
@@ -353,12 +353,15 @@
 </script>
 
 <main>
-  <div id="audio" class="flex justify-center"></div>
-  <div class="flex justify-center bg-white">
+  <div id="audio" class="flex justify-center w-full"></div>
+  <div class="flex justify-center items-center text-xl bg-white h-20">
     <h1>Choral Sight Reading</h1>
-    <h1>Select Parts</h1>
   </div>
-  <div class="flex-wrap justify-center">
+
+  <div id="song-options" class="flex-wrap justify-center mx-10">
+    <div class="flex justify-center pt-5 mx-10 bg-white">
+      <h1>Select Parts</h1>
+    </div>
     <div class="flex justify-center bg-white mx-10">
       {#each Object.entries(possibleVoicing) as [voicing, value]}
         <button
@@ -371,12 +374,28 @@
       {/each}
     </div>
 
-    <div class="flex justify-center h-auto bg-white w-full">
+    <div class="flex justify-center bg-white mx-10">
+      <h1>Key</h1>
+    </div>
+
+    <div class="flex justify-center bg-white mx-10">
+      {#each possibleKeys as key}
+        <button
+          id="key"
+          class="{selectedKey === key
+            ? 'bg-blue-500 hover:bg-blue-500'
+            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
+          on:click={() => (selectedKey = key)}>{key}</button
+        >
+      {/each}
+    </div>
+
+    <div class="flex justify-center h-auto bg-white mx-10">
       <h1>Range</h1>
     </div>
     {#if possibleVoicing[selectedVoicing]}
       {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, partDetails]}
-        <div class="flex justify-center bg-white">
+        <div class="flex justify-center mx-10 px-10 bg-white">
           <h1>{partName}</h1>
           <p>{partDetails.selectedRange[0]}</p>
           <Slider

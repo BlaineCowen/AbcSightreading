@@ -13,43 +13,6 @@ interface AbcObject {
   measures: number;
 }
 
-var startTonic = true;
-
-//list of all posible keys
-var keyList = [
-  { name: "A", sharps: [6, 2, 5], flats: undefined },
-  { name: "Am", sharps: undefined, flats: undefined },
-  { name: "Ab", sharps: undefined, flats: [3, 0, 4, 1] },
-  "Bb",
-  "Bbm",
-  "B",
-  "Bm",
-  "C",
-  "Cm",
-  "C",
-  "C#m",
-  "Db",
-  "D",
-  "Dm",
-  "Eb",
-  "Ebm",
-  "F",
-  "Fm",
-  "F#",
-  "F#m",
-  "Gb",
-  "G",
-  "Gm",
-  "G#",
-  "G#m",
-];
-
-//for when user selects certain keys
-var possibleKeys = ["G"];
-
-//make an array of all possible time signatures
-var possibleTimeSigs = ["4/4"];
-
 let baseNoteArray = [
   "C,,",
   "D,,",
@@ -298,7 +261,7 @@ function checkForIllegalVoiceLeading(arr: number[]) {
   }
 }
 
-function getRandomByWeight(arr: { name: string; weight: number }[]) {
+function getRandomByWeight(arr: { name: any; weight: number }[]) {
   if (arr.length === 0) {
     return null; // Handle empty array case
   }
@@ -324,9 +287,95 @@ function getRandomByWeight(arr: { name: string; weight: number }[]) {
   return arr[arr.length - 1]; // Fallback, though normally shouldn't be reached
 }
 
+function generateRandomCombination(
+  array: number[],
+  targetSum: number,
+  eighthsPerMeasure: number
+) {
+  let result: number[] = [];
+  let largestNumber = Math.max(...array);
+  let currentSum = 0;
+  let currentCombination: number[] = [];
+  let arrayToRandom = [];
+
+  let runs = 0;
+
+  for (let i = 0; i < array.length; i++) {
+    if (array[i] <= targetSum) {
+      arrayToRandom.push({ name: array[i], weight: 10 / array[i] });
+    }
+  }
+  // get the current sum of the array
+  currentSum = array.reduce((a, b) => a + b, 0);
+
+  while (currentSum !== targetSum || runs < 100) {
+    let measureArray: number[] = [];
+    let measureRhythm = 0;
+    while (measureRhythm < eighthsPerMeasure) {
+      let randomNumber = null;
+      if (currentSum === targetSum - eighthsPerMeasure) {
+        randomNumber = eighthsPerMeasure;
+      } else {
+        if (arrayToRandom.length > 0) {
+          randomNumber = getRandomByWeight(arrayToRandom);
+
+          if (randomNumber !== null) {
+            randomNumber = randomNumber.name;
+          }
+        }
+      }
+
+      let testMeasureArray = [...measureArray];
+      testMeasureArray.push(randomNumber);
+      let testMeasureSum = testMeasureArray.reduce((a, b) => a + b, 0);
+      if (testMeasureSum <= eighthsPerMeasure) {
+        measureArray.push(randomNumber);
+        measureRhythm += randomNumber;
+      }
+    }
+    let testCompleteArray = [...currentCombination];
+    // add measure array to end of current combination
+    testCompleteArray = testCompleteArray.concat(measureArray);
+
+    // get the current sum of the array
+    let testSum = testCompleteArray.reduce((a, b) => a + b, 0);
+    // if the sum is less than the target sum, set the current combination to the test array
+    if (testSum <= targetSum) {
+      currentCombination = testCompleteArray;
+      currentSum = testSum;
+    }
+
+    // increment the runs
+    runs++;
+  }
+  if (runs >= 1000) {
+    console.log("Error: Could not find a valid combination");
+    return [];
+  }
+  result = currentCombination;
+  // Choose a random element from the array
+
+  return result;
+}
+
 function generateChordProgression(timeSig: any, numOfMeasures: any) {
-  var denominator = timeSig.split("/")[1];
-  var numOfChords = numOfMeasures * 2;
+  var eighthsPerMeasure = timeSig.eighthsPerMeasure;
+  var possibleLengths = [];
+  var testTotal = eighthsPerMeasure;
+  while (testTotal > 1) {
+    possibleLengths.push(testTotal);
+    testTotal -= 2;
+  }
+  var noteLength = 0;
+  var randNoteLengths = generateRandomCombination(
+    possibleLengths,
+    timeSig.eighthsPerMeasure * numOfMeasures,
+    eighthsPerMeasure
+  );
+  // make last note a whole note
+  randNoteLengths[randNoteLengths.length - 1] = eighthsPerMeasure;
+
+  var numOfChords = randNoteLengths.length;
 
   var chordProgression: any[] = [];
   let validProgression = false;
@@ -335,16 +384,21 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
 
     for (let i = 0; i < numOfChords; i++) {
       if (i === 0) {
-        const firstChord = chords["1"];
+        const firstChord = {
+          chord: chords["1"],
+          length: randNoteLengths[i],
+          triadDegrees: chords["1"].triadNotes,
+        };
 
         chordProgression.push(firstChord);
       } else if (i === numOfChords - 3) {
         // The third-to-last chord must lead to 5
         const lastChord = chordProgression[chordProgression.length - 1];
-        const nextChordPossibilities = lastChord.nextChordPossibilities.filter(
-          (chord: { name: string; weight: number }) =>
-            chord.name === "1" || chord.name === "2" || chord.name === "4"
-        );
+        const nextChordPossibilities =
+          lastChord.chord.nextChordPossibilities.filter(
+            (chord: { name: string; weight: number }) =>
+              chord.name === "1" || chord.name === "2" || chord.name === "4"
+          );
 
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
@@ -354,7 +408,11 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
         const nextChordInner = getRandomByWeight(nextChordPossibilities);
         if (nextChordInner !== null) {
           const nextChordName = nextChordInner.name;
-          const nextChord = chords[nextChordName];
+          const nextChord = {
+            chord: chords[nextChordName],
+            length: randNoteLengths[i],
+            triadDegrees: chords[nextChordName].triadNotes,
+          };
 
           chordProgression.push(nextChord);
         } else {
@@ -362,22 +420,35 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
         }
       } else if (i === numOfChords - 2) {
         // The second-to-last chord must be "5"
-        const nextChord = chords["5"];
+        const nextChord = {
+          chord: chords["5"],
+          length: randNoteLengths[i],
+          triadDegrees: chords["5"].triadNotes,
+        };
         chordProgression.push(nextChord);
       } else if (i === numOfChords - 1) {
+        noteLength = eighthsPerMeasure;
         // The last chord must be "1"
-        const nextChord = chords["1"];
+        const nextChord = {
+          chord: chords["1"],
+          length: noteLength,
+          triadDegrees: chords["1"].triadNotes,
+        };
         chordProgression.push(nextChord);
       } else {
         const lastChord = chordProgression[chordProgression.length - 1];
         const nextChordInner = getRandomByWeight(
-          lastChord.nextChordPossibilities
+          lastChord.chord.nextChordPossibilities
         );
         if (nextChordInner === null) {
           break;
         } else {
           const nextChordName = nextChordInner.name;
-          const nextChord = chords[nextChordName];
+          const nextChord = {
+            chord: chords[nextChordName],
+            length: randNoteLengths[i],
+            triadDegrees: chords[nextChordName].triadNotes,
+          };
           chordProgression.push(nextChord);
         }
       }
@@ -456,7 +527,7 @@ function createNewSr(params: any) {
       degree: number;
       pitchValue: number;
     } = { noteLength: 0, name: "", degree: 0, pitchValue: 0 };
-    var noteLength = 2;
+    var noteLength = currentChord.length;
     var scaleDegreeToAdd: number = 0;
     var singlePartObject =
       partObject.parts[Object.keys(partObject.parts)[randPartIndex]];
@@ -512,7 +583,7 @@ function createNewSr(params: any) {
       scaleType = "Minor";
     }
     if (singlePartObject.order === 0) {
-      scaleDegreeToAdd = renderedChordProgression[noteIndex].root;
+      scaleDegreeToAdd = renderedChordProgression[noteIndex].chord.root;
     } else if (singlePartObject.order !== 0) {
       // pull a random number from triad copy and erase from list
       var randomIndex = Math.floor(Math.random() * chordTriadCopy.length);
@@ -638,7 +709,7 @@ function createNewSr(params: any) {
       partIndexArray.sort(() => Math.random() - 0.5);
 
       var chordTriadCopy = [
-        ...chords[renderedChordProgression[chordProgressionIndex].name]
+        ...chords[renderedChordProgression[chordProgressionIndex].chord.name]
           .triadNotes,
       ];
 
@@ -654,8 +725,9 @@ function createNewSr(params: any) {
 
         if (chordTriadCopy.length === 0) {
           chordTriadCopy = [
-            ...chords[renderedChordProgression[chordProgressionIndex].name]
-              .triadNotes,
+            ...chords[
+              renderedChordProgression[chordProgressionIndex].chord.name
+            ].triadNotes,
           ];
         }
 
@@ -766,6 +838,7 @@ function createNewSr(params: any) {
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
     // get the part name
     var partName = Object.keys(partsObject.parts)[i];
+    var sumOfNotes = 0;
     // loop through each chord
     for (
       var j = 0;
@@ -797,7 +870,13 @@ function createNewSr(params: any) {
         // run each note through passing tone generator
         partsObject.parts[Object.keys(partsObject.parts)[i]].concatNoteString +=
           noteComboToAdd;
-        if ((j + 1) % 2 === 0) {
+
+        sumOfNotes +=
+          partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
+            j
+          ].noteLength;
+
+        if (sumOfNotes % 8 === 0) {
           partsObject.parts[
             Object.keys(partsObject.parts)[i]
           ].concatNoteString += "|";
@@ -839,7 +918,7 @@ function createNewSr(params: any) {
 
           totalNoteValue +=
             partsObject.parts[partName].completeNoteObject[i].noteLength;
-          if (totalNoteValue % 4 === 0) {
+          if (totalNoteValue % timeSigRendered.eighthsPerMeasure === 0) {
             concatString += "|";
           }
         }
@@ -877,7 +956,7 @@ function createNewSr(params: any) {
     `T:SATB UIL Sight Reading \n` +
     `C:Blaine Cowen \n` +
     `M:C\n` +
-    `L:1/4\n` +
+    `L:1/8\n` +
     `Q:1/4=76 \n` +
     `%%score S A T B \n` +
     `${headerString}` +
