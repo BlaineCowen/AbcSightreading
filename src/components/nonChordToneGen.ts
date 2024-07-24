@@ -27,24 +27,40 @@ export function nonChordToneGenerator(
     anticipation: {
       value: "Anticipation",
       weight: 1,
-      possible: true,
+      possible: false,
       function: anticipation,
+    },
+    suspension: {
+      value: "Suspension",
+      weight: 1,
+      possible: true,
+      function: suspension,
     },
   };
 
-  var prevNote = partsObject.parts[partName].chordNoteObject[noteIndex];
+  var currNote = partsObject.parts[partName].chordNoteObject[noteIndex];
   var nextNote = partsObject.parts[partName].chordNoteObject[noteIndex + 1];
 
   var indexToReplace = partsObject.parts[partName].completeNoteObject.findIndex(
-    (note: any) => note.noteLinearIndex === prevNote.noteLinearIndex
+    (note: any) => note.noteLinearIndex === currNote.noteLinearIndex
   );
 
   // get distance between 2 notes
-  const distance = Math.abs(prevNote.pitchValue - nextNote.pitchValue);
+  const distance = Math.abs(currNote.pitchValue - nextNote.pitchValue);
 
   if (distance === 0) {
     // set neighboring tone to possible
+    possibleNonChordTones.neighboringTone.possible = true;
+    possibleNonChordTones.anticipation.possible = true;
+    possibleNonChordTones.suspension.possible = true;
+
     // possibleNonChordTones.neighboringTone.possible = true;
+  }
+  if (distance === 1) {
+    // set neighboring tone to possible
+    possibleNonChordTones.neighboringTone.possible = true;
+    possibleNonChordTones.anticipation.possible = true;
+    possibleNonChordTones.suspension.possible = true;
   }
   if (distance === 2) {
     // set passing tone to possible
@@ -53,26 +69,31 @@ export function nonChordToneGenerator(
 
   var newNotes = [];
 
-  function passingTone(prevNote: any, nextNote: any, noteList: any) {
-    var prevPitchValue = prevNote.pitchValue;
+  function passingTone(currNote: any, nextNote: any, noteList: any) {
+    var currPitchValue = currNote.pitchValue;
     const nextPitchValue = nextNote.pitchValue;
-    const newPitchValue = Math.floor((prevPitchValue + nextPitchValue) / 2);
-    const newPitchLength = Math.floor(prevNote.noteLength / 2);
 
-    const newPitchDegree = noteList[newPitchValue].degree;
-    const newPitchName = noteList[newPitchValue].name;
+    const secondNotePitchValue = Math.floor(
+      (currPitchValue + nextPitchValue) / 2
+    );
+    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+
+    const secondPitchDegree = noteList[secondNotePitchValue].degree;
+    const secondPitchName = noteList[secondNotePitchValue].name;
 
     const newNotes = [
       {
-        name: prevNote.name,
-        noteLength: newPitchLength,
-        noteLinearIndex: prevNote.noteLinearIndex,
+        name: currNote.name,
+        degree: currNote.degree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex,
         newNote: true,
       },
       {
-        name: newPitchName,
-        noteLength: newPitchLength,
-        noteLinearIndex: prevNote.noteLinearIndex + 1,
+        name: secondPitchName,
+        degree: secondPitchDegree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex + 1,
         newNote: true,
       },
     ];
@@ -80,64 +101,129 @@ export function nonChordToneGenerator(
     return newNotes;
   }
 
-  function neighboringTone(prevNote: any, nextNote: any, noteList: any) {
-    var prevPitchValue = prevNote.pitchValue;
+  function neighboringTone(currNote: any, nextNote: any, noteList: any) {
+    var currPitchValue = currNote.pitchValue;
     const nextPitchValue = nextNote.pitchValue;
     const upOrDown = Math.random() < 0.5 ? -1 : 1;
-    const newPitchValue = Math.floor(prevPitchValue + upOrDown);
-    const newPitchLength = Math.floor(prevNote.noteLength / 2);
+    const secondNotePitchValue = Math.floor(currPitchValue + upOrDown);
+    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
 
-    const newPitchDegree = noteList[newPitchValue].degree;
-    const newPitchName = noteList[newPitchValue].name;
-    //   change previous note length /2
-    prevNote.noteLength = newPitchLength;
+    const secondPitchDegree = noteList[secondNotePitchValue].degree;
+    const secondPitchName = noteList[secondNotePitchValue].name;
+    //   change currious note length /2
+    currNote.noteLength = newCurrPitchLength;
 
     const newNotes = [
       {
-        name: prevNote.name,
-        noteLength: newPitchLength,
-        noteLinearIndex: prevNote.noteLinearIndex,
+        name: currNote.name,
+        degree: currNote.degree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex,
         newNote: true,
       },
       {
-        name: newPitchName,
-        noteLength: newPitchLength,
-        noteLinearIndex: prevNote.noteLinearIndex + 1,
+        name: secondPitchName,
+        degree: secondPitchDegree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex + 1,
         newNote: true,
       },
     ];
     return newNotes;
   }
 
-  function anticipation(prevNote: any, nextNote: any, noteList: any) {
-    var prevPitchValue = prevNote.pitchValue;
+  function anticipation(currNote: any, nextNote: any, noteList: any) {
+    // only if distance = 1
+    var currPitchValue = currNote.pitchValue;
     const nextPitchValue = nextNote.pitchValue;
-    const newPitchValue = nextPitchValue;
-    const newPitchLength = Math.floor(prevNote.noteLength / 2);
-    console.log(noteList);
 
-    const newPitchDegree = noteList[newPitchValue].degree;
-    const newPitchName = noteList[newPitchValue].name;
-    //   change previous note length /2
-    prevNote.noteLength = newPitchLength;
+    const secondNotePitchValue = nextPitchValue;
+    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+
+    const secondPitchDegree = noteList[secondNotePitchValue].degree;
+    const secondPitchName = noteList[secondNotePitchValue].name;
+    //   change currious note length /2
+    currNote.noteLength = newCurrPitchLength;
 
     const newNotes = [
       {
-        name: prevNote.name,
-        noteLength: newPitchLength,
-        noteLinearIndex: prevNote.noteLinearIndex,
+        name: currNote.name,
+        degree: currNote.degree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex,
         newNote: true,
       },
       {
-        name: newPitchName,
-        noteLength: newPitchLength,
-        noteLinearIndex: prevNote.noteLinearIndex + 1,
+        name: secondPitchName,
+        degree: secondPitchDegree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex + 1,
         newNote: true,
       },
     ];
     return newNotes;
   }
 
+  function appoggiatura(currNote: any, nextNote: any, noteList: any) {
+    // distance must be a 1
+    var currPitchValue = currNote.pitchValue;
+    const nextPitchValue = nextNote.pitchValue;
+    const movementDirection = currPitchValue > nextPitchValue ? -1 : 1;
+    const upOrDown = Math.random() < 0.5 ? -1 : 1;
+    const newCurrPitchValue = currNote.pitchValue;
+    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+
+    const secondPitchDegree = noteList[newCurrPitchValue].degree;
+    const secondPitchName = noteList[newCurrPitchValue].name;
+    //   change currious note length /2
+    currNote.noteLength = newCurrPitchLength;
+
+    const newNotes = [
+      {
+        name: currNote.name,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex,
+        newNote: true,
+      },
+      {
+        name: secondPitchName,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex + 1,
+        newNote: true,
+      },
+    ];
+    return newNotes;
+  }
+
+  function suspension(currNote: any, nextNote: any, noteList: any) {
+    var currPitchValue = currNote.pitchValue;
+    const nextPitchValue = nextNote.pitchValue;
+
+    const newCurrPitchValue = currPitchValue + 1;
+    const newCurrPitchLength = currNote.noteLength;
+
+    const secondPitchDegree = noteList[newCurrPitchValue].degree;
+    const secondPitchName = noteList[newCurrPitchValue].name;
+    //   change currious note length /2
+    currNote.noteLength = newCurrPitchLength;
+
+    const newNotes = [
+      {
+        name: currNote.name,
+        degreee: secondPitchDegree,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex,
+        newNote: true,
+      },
+      {
+        name: secondPitchName,
+        noteLength: newCurrPitchLength,
+        noteLinearIndex: currNote.noteLinearIndex + 1,
+        newNote: false,
+      },
+    ];
+    return newNotes;
+  }
   //   get a random number between 0 and 10
   const diceRoll = Math.floor(Math.random() * 5);
 
@@ -160,13 +246,13 @@ export function nonChordToneGenerator(
         indexesOfPossibleNonChordTones[randomNonChordToneIndex]
       ].function;
 
-    newNotes = randomNonChordToneFunction(prevNote, nextNote, noteList);
+    newNotes = randomNonChordToneFunction(currNote, nextNote, noteList);
   } else {
     newNotes = [
       {
-        name: prevNote.name,
-        noteLength: prevNote.noteLength,
-        noteLinearIndex: prevNote.noteLinearIndex,
+        name: currNote.name,
+        noteLength: currNote.noteLength,
+        noteLinearIndex: currNote.noteLinearIndex,
         newNote: true,
       },
     ];

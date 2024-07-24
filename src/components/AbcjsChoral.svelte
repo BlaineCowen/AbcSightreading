@@ -194,17 +194,25 @@
     },
   };
 
-  function updateRange(partName: string, newRange: number[]) {
-    console.log(partName, newRange);
-
-    const parts = possibleVoicing[selectedVoicing].parts;
-    parts[partName].selectedRange = newRange;
-    possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
-  }
+  let timeSignatures: {
+    [key: string]: {
+      eighthsPerMeasure: number;
+    };
+  } = {
+    "4/4": {
+      eighthsPerMeasure: 8,
+    },
+    "3/4": {
+      eighthsPerMeasure: 6,
+    },
+  };
+  let selectedTimeSignature = "4/4";
 
   let possibleLevels = [1, 2, 3, 4, 5];
-  let possibleTimeSignatures = ["4/4", "3/4", "2/4"];
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+  let selectedKey = "C";
+
+  const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
 
   let abcjsReturn = [];
   let chordProgression = [] as any[];
@@ -215,6 +223,14 @@
   let songPlaying = false;
 
   let selectedVoicing = "" as string;
+
+  function updateRange(partName: string, newRange: number[]) {
+    console.log(partName, newRange);
+
+    const parts = possibleVoicing[selectedVoicing].parts;
+    parts[partName].selectedRange = newRange;
+    possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
+  }
 
   onMount(() => {
     selectedVoicing = "4 Part Mixed";
@@ -264,8 +280,8 @@
     // reset abcjs
     const params = {
       bpm: bpm,
-      key: "Bb",
-      timeSig: "4/4",
+      key: selectedKey,
+      timeSig: selectedTimeSignature,
       measures: measures,
       partsObject: possibleVoicing[selectedVoicing],
     };
