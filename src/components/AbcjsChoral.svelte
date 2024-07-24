@@ -85,7 +85,7 @@
           order: 0,
           clef: "bass",
           range: [0, 15],
-          selectedRange: [0, 15],
+          selectedRange: [4, 15],
         },
       },
     },
@@ -214,6 +214,8 @@
 
   const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
   let selectedMeasures = 8;
+  let maxSkip = 3;
+  const maxSkipRange = [2, 8];
 
   let abcjsReturn = [];
   let chordProgression = [] as any[];
@@ -283,6 +285,7 @@
       key: selectedKey,
       timeSig: timeSignatures[selectedTimeSignature],
       measures: measures,
+      maxSkip: maxSkip,
       partsObject: possibleVoicing[selectedVoicing],
     };
 
@@ -372,6 +375,52 @@
           on:click={handleVoicing}>{voicing}</button
         >
       {/each}
+    </div>
+
+    <div class="flex justify-center bg-white mx-10">
+      <h1>Time Signature</h1>
+    </div>
+    <div class="flex justify-center bg-white mx-10">
+      {#each Object.entries(timeSignatures) as [timeSig, value]}
+        <button
+          id="timeSig"
+          class="{selectedTimeSignature === timeSig
+            ? 'bg-blue-500 hover:bg-blue-500'
+            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
+          on:click={() => (selectedTimeSignature = timeSig)}>{timeSig}</button
+        >
+      {/each}
+    </div>
+
+    <!-- creat a number select for max skip -->
+    <div class="flex justify-center bg-white mx-10">
+      <h1>Max Skip</h1>
+    </div>
+    <div class="flex justify-center bg-white mx-10">
+      <!-- minus button -->
+      <button
+        class="border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
+        on:click={() => {
+          if (maxSkip > maxSkipRange[0]) {
+            maxSkip = maxSkip - 1;
+          } else {
+            maxSkipRange[0];
+          }
+        }}>-</button
+      >
+
+      <p class="text-2xl">{maxSkip}</p>
+      <!-- plus button -->
+      <button
+        class="border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
+        on:click={() => {
+          if (maxSkip < maxSkipRange[1]) {
+            maxSkip = maxSkip + 1;
+          } else {
+            maxSkipRange[1];
+          }
+        }}>+</button
+      >
     </div>
 
     <div class="flex justify-center bg-white mx-10">

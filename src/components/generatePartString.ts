@@ -510,6 +510,7 @@ function createNewSr(params: any) {
   function generateChord(params: any) {
     // get key
     var key = keyRendered[0];
+    var maxSkip = params.maxSkip;
     var keyObject = keySignatures[keyRendered];
     var partObject = params.partObject;
     var randPartIndex = params.randPartIndex;
@@ -582,48 +583,67 @@ function createNewSr(params: any) {
     if (keyRendered.includes("m")) {
       scaleType = "Minor";
     }
+
+    var randomCloseNote: { name: string; degree: number; pitchValue: number } =
+      { name: "", degree: 0, pitchValue: 0 };
+
     if (singlePartObject.order === 0) {
       scaleDegreeToAdd = renderedChordProgression[noteIndex].chord.root;
-    } else if (singlePartObject.order !== 0) {
-      // pull a random number from triad copy and erase from list
-      var randomIndex = Math.floor(Math.random() * chordTriadCopy.length);
-      scaleDegreeToAdd = chordTriadCopy[randomIndex];
-
-      chordTriadCopy.splice(chordTriadCopy.indexOf(scaleDegreeToAdd), 1);
-    } else {
-      // throw error
-      console.log("error in order");
-    }
-
-    var possibleNotes = rangeNoteList.filter(
-      (note) => note.degree === scaleDegreeToAdd
-    );
-
-    var closestPossibleNote = null;
-
-    // find closest note to prev note
-    if (prevNote.pitchValue !== 0) {
-      closestPossibleNote = possibleNotes.reduce((prev, curr) =>
-        Math.abs(curr.pitchValue - prevNote.pitchValue) <
-        Math.abs(prev.pitchValue - prevNote.pitchValue)
-          ? curr
-          : prev
+      var rangeNoteListFilter = rangeNoteList.filter(
+        (note) => note.degree === scaleDegreeToAdd
       );
+      if (prevNote.pitchValue === 0) {
+        randomCloseNote =
+          rangeNoteListFilter[
+            Math.floor(Math.random() * rangeNoteListFilter.length)
+          ];
+      } else {
+        // pick the closest note to the previous note
+        randomCloseNote = rangeNoteListFilter.reduce((prev, curr) =>
+          Math.abs(curr.pitchValue - prevNote.pitchValue) <
+          Math.abs(prev.pitchValue - prevNote.pitchValue)
+            ? curr
+            : prev
+        );
+      }
+    } else if (singlePartObject.order !== 0) {
+      if (prevNote.pitchValue === 0) {
+        // pitch a random scale degree in chordtriad copy
+        var scaleDegreeToAdd =
+          chordTriadCopy[Math.floor(Math.random() * chordTriadCopy.length)];
+
+        var rangeNoteListFilter = rangeNoteList.filter(
+          (note) => note.degree === scaleDegreeToAdd
+        );
+        randomCloseNote =
+          rangeNoteListFilter[
+            Math.floor(Math.random() * rangeNoteListFilter.length)
+          ];
+      }
+      if (prevNote.pitchValue !== 0) {
+        var rangeNoteListFilter = rangeNoteList.filter((note) =>
+          chordTriadCopy.includes(note.degree)
+        );
+        var notesWithinRange = rangeNoteListFilter.filter(
+          (note) => Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+        );
+
+        if (notesWithinRange.length === 0) {
+          return false;
+        }
+
+        randomCloseNote =
+          notesWithinRange[Math.floor(Math.random() * notesWithinRange.length)];
+
+        scaleDegreeToAdd = randomCloseNote.degree;
+      }
+      chordTriadCopy.splice(chordTriadCopy.indexOf(scaleDegreeToAdd), 1);
     }
 
-    if (closestPossibleNote) {
-      generatedNote = closestPossibleNote.name;
+    generatedNote = randomCloseNote.name;
 
-      // find the index of the note in the original notesList
-      var pitchValue = closestPossibleNote.pitchValue;
-    } else {
-      var randomPossibleNote = Math.floor(Math.random() * possibleNotes.length);
-
-      generatedNote = possibleNotes[randomPossibleNote].name;
-
-      // find the index of the note in the original notesList
-      var pitchValue = possibleNotes[randomPossibleNote].pitchValue;
-    }
+    // find the index of the note in the original notesList
+    var pitchValue = randomCloseNote.pitchValue;
 
     // see if it is a sharp or flat scale degree in hte chord
     var accidental = null;
@@ -659,6 +679,7 @@ function createNewSr(params: any) {
   }
 
   var keyRendered = params.key;
+  var maxSkip = params.maxSkip;
   var timeSigRendered = params.timeSig;
   var notesToRender = params.notes;
   var tempo = params.bpm;
@@ -734,6 +755,7 @@ function createNewSr(params: any) {
         var genChordParams = {
           key: keyRendered,
           timeSig: timeSigRendered,
+          maxSkip: maxSkip,
           tonic: tonic,
           baseNoteArray: baseNoteArray,
           chordTriadCopy: chordTriadCopy,
@@ -747,6 +769,11 @@ function createNewSr(params: any) {
         };
 
         var chordObjectToAdd = generateChord(genChordParams);
+        if (!chordObjectToAdd) {
+          legalVoiceLeading = false;
+          noteIndex -= 1;
+          break;
+        }
 
         // add to array
         chordObjectsToAdd.push(chordObjectToAdd);
