@@ -67,6 +67,30 @@ export function nonChordToneGenerator(
     possibleNonChordTones.passingTone.possible = true;
   }
 
+  function spitNoteLengths(currNote: any) {
+    var firstNoteLength = currNote.noteLength;
+    if (firstNoteLength > 4) {
+      firstNoteLength -= 2;
+    } else {
+      if (firstNoteLength === 4) {
+        var coinFlip = Math.random() < 0.5 ? -1 : 1;
+        if (coinFlip === -1) {
+          firstNoteLength = Math.round(firstNoteLength * 0.75);
+        } else {
+          firstNoteLength = Math.round(firstNoteLength * 0.5);
+        }
+      } else {
+        firstNoteLength = Math.round(firstNoteLength * 0.5);
+      }
+    }
+    var secondNoteLength = currNote.noteLength - firstNoteLength;
+    // check if any = 0
+    if (firstNoteLength === 0 || secondNoteLength === 0) {
+      console.log("note length is 0");
+    }
+    return [firstNoteLength, secondNoteLength];
+  }
+
   var newNotes = [];
 
   function passingTone(currNote: any, nextNote: any, noteList: any) {
@@ -76,7 +100,9 @@ export function nonChordToneGenerator(
     const secondNotePitchValue = Math.floor(
       (currPitchValue + nextPitchValue) / 2
     );
-    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+    let newCurrPitchLength = 0,
+      secondNoteLength = 0;
+    [newCurrPitchLength, secondNoteLength] = spitNoteLengths(currNote);
 
     const secondPitchDegree = noteList[secondNotePitchValue].degree;
     const secondPitchName = noteList[secondNotePitchValue].name;
@@ -92,7 +118,7 @@ export function nonChordToneGenerator(
       {
         name: secondPitchName,
         degree: secondPitchDegree,
-        noteLength: newCurrPitchLength,
+        noteLength: secondNoteLength,
         noteLinearIndex: currNote.noteLinearIndex + 1,
         newNote: true,
       },
@@ -106,7 +132,9 @@ export function nonChordToneGenerator(
     const nextPitchValue = nextNote.pitchValue;
     const upOrDown = Math.random() < 0.5 ? -1 : 1;
     const secondNotePitchValue = Math.floor(currPitchValue + upOrDown);
-    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+    let newCurrPitchLength = 0,
+      secondNoteLength = 0;
+    [newCurrPitchLength, secondNoteLength] = spitNoteLengths(currNote);
 
     const secondPitchDegree = noteList[secondNotePitchValue].degree;
     const secondPitchName = noteList[secondNotePitchValue].name;
@@ -124,7 +152,7 @@ export function nonChordToneGenerator(
       {
         name: secondPitchName,
         degree: secondPitchDegree,
-        noteLength: newCurrPitchLength,
+        noteLength: secondNoteLength,
         noteLinearIndex: currNote.noteLinearIndex + 1,
         newNote: true,
       },
@@ -138,7 +166,9 @@ export function nonChordToneGenerator(
     const nextPitchValue = nextNote.pitchValue;
 
     const secondNotePitchValue = nextPitchValue;
-    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+    let newCurrPitchLength = 0,
+      secondNoteLength = 0;
+    [newCurrPitchLength, secondNoteLength] = spitNoteLengths(currNote);
 
     const secondPitchDegree = noteList[secondNotePitchValue].degree;
     const secondPitchName = noteList[secondNotePitchValue].name;
@@ -156,7 +186,7 @@ export function nonChordToneGenerator(
       {
         name: secondPitchName,
         degree: secondPitchDegree,
-        noteLength: newCurrPitchLength,
+        noteLength: secondNoteLength,
         noteLinearIndex: currNote.noteLinearIndex + 1,
         newNote: true,
       },
@@ -171,7 +201,9 @@ export function nonChordToneGenerator(
     const movementDirection = currPitchValue > nextPitchValue ? -1 : 1;
     const upOrDown = Math.random() < 0.5 ? -1 : 1;
     const newCurrPitchValue = currNote.pitchValue;
-    const newCurrPitchLength = Math.floor(currNote.noteLength / 2);
+    let newCurrPitchLength = 0,
+      secondNoteLength = 0;
+    [newCurrPitchLength, secondNoteLength] = spitNoteLengths(currNote);
 
     const secondPitchDegree = noteList[newCurrPitchValue].degree;
     const secondPitchName = noteList[newCurrPitchValue].name;
@@ -200,7 +232,9 @@ export function nonChordToneGenerator(
     const nextPitchValue = nextNote.pitchValue;
 
     const newCurrPitchValue = currPitchValue + 1;
-    const newCurrPitchLength = currNote.noteLength;
+    let newCurrPitchLength = 0,
+      secondNoteLength = 0;
+    [newCurrPitchLength, secondNoteLength] = spitNoteLengths(currNote);
 
     const secondPitchDegree = noteList[newCurrPitchValue].degree;
     const secondPitchName = noteList[newCurrPitchValue].name;
@@ -217,15 +251,15 @@ export function nonChordToneGenerator(
       },
       {
         name: secondPitchName,
-        noteLength: newCurrPitchLength,
+        noteLength: secondNoteLength,
         noteLinearIndex: currNote.noteLinearIndex + 1,
-        newNote: false,
+        newNote: true,
       },
     ];
     return newNotes;
   }
   //   get a random number between 0 and 10
-  const diceRoll = Math.floor(Math.random() * 5);
+  const diceRoll = Math.floor(Math.random() * 15);
 
   if (diceRoll === 0) {
     // pick a random nonchord function that is possible
