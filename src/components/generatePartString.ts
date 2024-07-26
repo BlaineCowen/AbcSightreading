@@ -594,6 +594,46 @@ function createNoteList(tonic: string, numOfNotes: number) {
   return noteList;
 }
 
+function findClosestDegrees(
+  prevNoteDegree: number,
+  otherDegreesInChord: number[]
+) {
+  const modulo = 8; // Assuming degrees are from 0 to 11 for a chromatic scale. Adjust if needed.
+
+  // Function to calculate modular distance
+  const modDist = (a: number, b: number, mod: number) =>
+    (((a - b + mod) % mod) + mod) % mod;
+
+  // Find the closest degree above
+  let closestDegreeAbove = otherDegreesInChord.reduce((prev, curr) => {
+    const prevDist = modDist(prev, prevNoteDegree, modulo);
+    const currDist = modDist(curr, prevNoteDegree, modulo);
+    return currDist > 0 && currDist < prevDist ? curr : prev;
+  });
+
+  // Find the closest degree below
+  let closestDegreeBelow = otherDegreesInChord.reduce((prev, curr) => {
+    const prevDist = modDist(prevNoteDegree, prev, modulo);
+    const currDist = modDist(prevNoteDegree, curr, modulo);
+    return currDist > 0 && currDist < prevDist ? curr : prev;
+  });
+
+  return { closestDegreeAbove, closestDegreeBelow };
+}
+
+// Function to check if a degree is within the cyclical range
+function isDegreeWithinRange(
+  degree: number,
+  closestDegreeBelow: number,
+  closestDegreeAbove: number
+): boolean {
+  if (closestDegreeBelow <= closestDegreeAbove) {
+    return degree >= closestDegreeBelow && degree <= closestDegreeAbove;
+  } else {
+    return degree >= closestDegreeBelow || degree <= closestDegreeAbove;
+  }
+}
+
 function createNewSr(params: any) {
   function generateChord(params: any) {
     // get key
@@ -623,14 +663,11 @@ function createNewSr(params: any) {
     var singlePartObject =
       partObject.parts[Object.keys(partObject.parts)[randPartIndex]];
 
-    var aboveIndex = baseNoteArray.length - 1;
-    var belowIndex = 0;
-
-    var prevNote: { pitchValue: number; name: string } = {
+    var prevNote: { pitchValue: number; name: string; degree: number } = {
       pitchValue: 0,
       name: "",
+      degree: 0,
     };
-    var nextNote = {};
 
     if (singlePartObject.chordNoteObject.length > 0) {
       prevNote =
@@ -651,25 +688,6 @@ function createNewSr(params: any) {
     var maxRange = noteList.findIndex(
       (note) => note.name === baseNoteArray[singlePartObject.selectedRange[1]]
     );
-
-    if (partOrder === 0) {
-      aboveIndex =
-        partObject.parts[Object.keys(partObject.parts)[1]].noteArray[noteIndex];
-    } else if (
-      partOrder > 0 &&
-      partOrder < Object.keys(partObject.parts).length - 1
-    ) {
-      aboveIndex =
-        partObject.parts[Object.keys(partObject.parts)[partOrder + 1]]
-          .noteArray[noteIndex];
-      belowIndex =
-        partObject.parts[Object.keys(partObject.parts)[partOrder - 1]]
-          .noteArray[noteIndex];
-    } else if (partOrder === Object.keys(partObject.parts).length - 1) {
-      belowIndex =
-        partObject.parts[Object.keys(partObject.parts)[partOrder - 1]]
-          .noteArray[noteIndex];
-    }
 
     var rangeNoteList = noteList.slice(minRange, maxRange);
 
@@ -720,9 +738,34 @@ function createNewSr(params: any) {
           ];
       }
       if (prevNote.pitchValue !== 0) {
+        let otherDegreesInChord: number[] = [];
+
+        try {
+          Object.keys(partsObject.parts).forEach((part: any) => {
+            let degreeToCheck =
+              partsObject.parts[part].chordNoteObject[noteIndex - 1].degree;
+            if (
+              degreeToCheck !== undefined &&
+              degreeToCheck !== prevNote.degree
+            ) {
+              otherDegreesInChord.push(degreeToCheck);
+            }
+          });
+        } catch (error) {
+          console.error("An error occurred:", error);
+        }
+
+        let prevNoteDegree = prevNote.degree;
+
+        const { closestDegreeAbove, closestDegreeBelow } = findClosestDegrees(
+          prevNoteDegree,
+          otherDegreesInChord
+        );
+
         // check if last note is an accidental
         // see if .name includes [^, ^^, =, _, __ ]
         var prevNoteAccidental = prevNote.name.match(/[_^=]/g);
+
         if (prevNoteAccidental) {
           maxSkip = 1;
         }
@@ -730,8 +773,15 @@ function createNewSr(params: any) {
         var rangeNoteListFilter = rangeNoteList.filter((note) =>
           chordTriadCopy.includes(note.degree)
         );
+
         var notesWithinRange = rangeNoteListFilter.filter(
-          (note) => Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+          (note) =>
+            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip &&
+            isDegreeWithinRange(
+              prevNote.degree,
+              closestDegreeBelow,
+              closestDegreeAbove
+            )
         );
 
         if (notesWithinRange.length === 0) {
