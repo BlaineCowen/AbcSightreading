@@ -99,7 +99,7 @@ var chords: {
       { name: "5-64", weight: 20 },
       { name: "5-7", weight: 10 },
       { name: "1-64", weight: 10 },
-      { name: "7", weight: 26 },
+      { name: "7", weight: 10 },
     ],
     sharpScaleDegree: undefined,
     type: "predominant",
@@ -126,7 +126,7 @@ var chords: {
       { name: "1", weight: 22 }, // Adjust the weight as needed
       { name: "2", weight: 13 }, // Adjust the weight as needed
       { name: "5", weight: 39 },
-      { name: "7", weight: 23 }, // Adjust the weight as needed
+      { name: "7", weight: 15 }, // Adjust the weight as needed
     ],
     type: "predominant",
     sharpScaleDegree: undefined,
@@ -169,7 +169,7 @@ var chords: {
     root: 6,
     triadNotes: [6, 1, 3],
     nextChordPossibilities: [
-      { name: "1", weight: 90 }, // Adjust the weight as needed
+      { name: "1", weight: 100 }, // Adjust the weight as needed
     ],
     type: "leading-tone",
     sharpScaleDegree: undefined,
@@ -438,7 +438,7 @@ function generateRandomCombination(
   }
   // get the current sum of the array
   currentSum = array.reduce((a, b) => a + b, 0);
-
+  let testMeasureSum = 0;
   while (currentSum !== targetSum && totalRuns < 1000) {
     // check if totalruns is getting high
     if (totalRuns >= 900) {
@@ -471,6 +471,7 @@ function generateRandomCombination(
       testMeasureArray.push(randomNumber);
 
       let testMeasureSum = testMeasureArray.reduce((a, b) => a + b, 0);
+
       if (testMeasureSum <= eighthsPerMeasure) {
         measureArray.push(randomNumber);
         measureRhythm += randomNumber;
@@ -505,6 +506,17 @@ function generateRandomCombination(
   // Choose a random element from the array
   console.log("random combination ");
   console.log(result);
+
+  // loop through array
+  for (let i = 0; i < result.length; i++) {
+    if (result[i] === 4) {
+      let diceRoll = Math.random();
+      if (diceRoll < 0.5) {
+        let dottedQuarterEighth = [3, 1];
+        result.splice(i, 1, ...dottedQuarterEighth);
+      }
+    }
+  }
 
   return result;
 }
@@ -566,6 +578,10 @@ function generateChordProgression(
           );
 
         if (nextChordPossibilities.length === 0) {
+          console.log(
+            `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          );
+
           // Restart the loop if no valid progression is found
           chordGenFails++;
           break;
@@ -590,24 +606,45 @@ function generateChordProgression(
             chordProgression.push(nextChord);
           }
         } else {
+          console.log(
+            `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          );
+
           chordGenFails++;
           break;
         }
       } else if (i === numOfChords - 2) {
         // The second-to-last chord must be dominant
         let prevChord = chordProgression[chordProgression.length - 1];
+        // prefer dominant
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter(
             (chord: { name: string; weight: number; type: string }) =>
-              (chords[chord.name].type === "dominant" ||
-                chords[chord.name].type === "dominant-inversion") &&
+              // prefer dominant chords
+              chords[chord.name].type === "dominant" &&
               bassDegrees
                 .map((note) => note.degree)
                 .includes(chords[chord.name].root)
           );
+        if (nextChordPossibilities.length === 0) {
+          // if no dominant chords are found, try tonic chords
+          nextChordPossibilities =
+            prevChord.chord.nextChordPossibilities.filter(
+              (chord: { name: string; weight: number; type: string }) =>
+                chords[chord.name].type === "dominant-inversion" &&
+                bassDegrees
+                  .map((note) => note.degree)
+                  .includes(chords[chord.name].root)
+            );
+        }
 
+        // if still no valid progression is found restart the loop
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
+          console.log(
+            `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          );
+
           chordGenFails++;
           break;
         }
@@ -630,11 +667,16 @@ function generateChordProgression(
             bassNoteArray.push(bassNoteToAdd[0]);
             chordProgression.push(nextChord);
           } else {
+            console.log(
+              `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+            );
+
             chordGenFails++;
             break;
           }
         }
       } else if (i === numOfChords - 1) {
+        let prevChord = chordProgression[chordProgression.length - 1];
         let noteLength = timeSig.eighthsPerMeasure;
         // The last chord must be "1"
         const nextChord = {
@@ -652,6 +694,10 @@ function generateChordProgression(
           bassNoteArray.push(bassNoteToAdd[0]);
           chordProgression.push(nextChord);
         } else {
+          console.log(
+            `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          );
+
           chordGenFails++;
           break;
         }
@@ -668,6 +714,10 @@ function generateChordProgression(
 
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
+          console.log(
+            `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          );
+
           chordGenFails++;
           break;
         } else {
@@ -954,6 +1004,22 @@ function createNewSr(params: any) {
               note.degree !== bannedParFifthDegree) &&
             Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
         );
+        if (rangeNoteListFilter.length === 0) {
+          // you can repeat degrees
+          rangeNoteListFilter = rangeNoteList.filter(
+            (note) =>
+              chords[currentChord.chord.name].triadNotes.includes(
+                note.degree
+              ) &&
+              (bannedParFifthDegree === null ||
+                note.degree !== bannedParFifthDegree) &&
+              Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+          );
+        }
+        // if still 0 return
+        if (rangeNoteListFilter.length === 0) {
+          return false;
+        }
         if (closestDegreeAbove === closestDegreeAbove) {
           var notesWithinRange = rangeNoteListFilter;
         } else {
@@ -978,6 +1044,9 @@ function createNewSr(params: any) {
         scaleDegreeToAdd = randomCloseNote.degree;
       }
       chordTriadCopy.splice(chordTriadCopy.indexOf(scaleDegreeToAdd), 1);
+    }
+    if (randomCloseNote === undefined) {
+      return false;
     }
 
     generatedNote = randomCloseNote.name;

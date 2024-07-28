@@ -261,7 +261,11 @@ export function nonChordToneGenerator(
   //   get a random number between 0 and 10
   const diceRoll = Math.floor(Math.random() * 15);
 
-  if (diceRoll === 0) {
+  if (
+    diceRoll === 0 &&
+    currNote.noteLength !== 1 &&
+    currNote.noteLength !== 3
+  ) {
     // pick a random nonchord function that is possible
     // get length where possible is true
     const indexesOfPossibleNonChordTones = [];

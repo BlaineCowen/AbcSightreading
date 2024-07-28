@@ -68,14 +68,14 @@
           order: 3,
           smallName: "S",
           clef: "treble",
-          range: [20, 32],
+          range: [15, 23],
           selectedRange: [15, 23],
         },
         Alto: {
           order: 2,
           smallName: "A",
           clef: "treble",
-          range: [15, 25],
+          range: [14, 21],
           selectedRange: [14, 21],
         },
         Tenor: {
@@ -89,8 +89,8 @@
           order: 0,
           smallName: "B",
           clef: "bass",
-          range: [0, 15],
-          selectedRange: [4, 15],
+          range: [7, 14],
+          selectedRange: [7, 14],
         },
       },
     },
@@ -101,22 +101,22 @@
           order: 2,
           smallName: "S",
           clef: "treble",
-          range: [20, 32],
-          selectedRange: [16, 25],
+          range: [15, 23],
+          selectedRange: [15, 23],
         },
         Alto: {
           order: 1,
           smallName: "A",
           clef: "treble",
-          range: [15, 25],
-          selectedRange: [15, 23],
+          range: [14, 21],
+          selectedRange: [14, 21],
         },
         Baritone: {
           order: 0,
           smallName: "B",
           clef: "bass",
-          range: [0, 15],
-          selectedRange: [4, 15],
+          range: [6, 14],
+          selectedRange: [6, 14],
         },
       },
     },
@@ -127,22 +127,22 @@
           order: 2,
           smallName: "S1",
           clef: "treble",
-          range: [20, 32],
-          selectedRange: [16, 25],
+          range: [15, 23],
+          selectedRange: [15, 23],
         },
         Soprano2: {
           order: 1,
           smallName: "S2",
           clef: "treble",
-          range: [18, 29],
-          selectedRange: [16, 25],
+          range: [15, 22],
+          selectedRange: [15, 22],
         },
         Alto: {
           order: 0,
           smallName: "A",
           clef: "treble",
-          range: [15, 25],
-          selectedRange: [15, 23],
+          range: [14, 21],
+          selectedRange: [14, 21],
         },
       },
     },
@@ -222,7 +222,7 @@
 
   let possibleLevels = [1, 2, 3, 4, 5];
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
-  let selectedKey = "C";
+  let selectedKey = "F";
 
   const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
   let selectedMeasures = 8;
