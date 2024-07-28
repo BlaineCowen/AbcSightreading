@@ -58,7 +58,7 @@ var chords: {
     triadNotes: number[];
     root: number;
     nextChordPossibilities: { name: string; weight: number }[];
-
+    type: string;
     sharpScaleDegree: number | undefined;
     flatScaleDegree: number | undefined;
   };
@@ -80,7 +80,12 @@ var chords: {
       { name: "5/2", weight: 10 },
       { name: "m4", weight: 10 },
       { name: "1-7", weight: 10 },
+      { name: "2-6", weight: 10 },
+      { name: "4-64", weight: 30 },
+      { name: "6-6", weight: 15 },
+      { name: "5-7", weight: 10 },
     ],
+    type: "tonic",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -90,10 +95,14 @@ var chords: {
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [
       { name: "2", weight: 10 },
-      { name: "5", weight: 72 },
+      { name: "5", weight: 70 },
+      { name: "5-64", weight: 20 },
+      { name: "5-7", weight: 10 },
+      { name: "1-64", weight: 10 },
       { name: "7", weight: 26 },
     ],
     sharpScaleDegree: undefined,
+    type: "predominant",
     flatScaleDegree: undefined,
   },
   "3": {
@@ -105,6 +114,7 @@ var chords: {
       { name: "5", weight: 6 },
       { name: "6", weight: 32 },
     ],
+    type: "mediant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -118,6 +128,7 @@ var chords: {
       { name: "5", weight: 39 },
       { name: "7", weight: 23 }, // Adjust the weight as needed
     ],
+    type: "predominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -127,10 +138,12 @@ var chords: {
     triadNotes: [4, 6, 1],
     nextChordPossibilities: [
       { name: "1", weight: 83 },
+      { name: "5", weight: 17 },
       { name: "6", weight: 17 },
       { name: "5/5", weight: 10 },
       { name: "5/6", weight: 10 },
     ],
+    type: "dominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -144,7 +157,10 @@ var chords: {
       { name: "3", weight: 8 },
       { name: "4", weight: 7 },
       { name: "7", weight: 9 },
+      { name: "5/5", weight: 10 },
+      { name: "5/6", weight: 15 },
     ],
+    type: "mediant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -155,6 +171,16 @@ var chords: {
     nextChordPossibilities: [
       { name: "1", weight: 90 }, // Adjust the weight as needed
     ],
+    type: "leading-tone",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+  },
+  "5-7": {
+    name: "5-7",
+    root: 4,
+    triadNotes: [6, 1, 3],
+    nextChordPossibilities: [{ name: "1", weight: 100 }],
+    type: "dominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -163,6 +189,7 @@ var chords: {
     root: 1,
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [{ name: "5", weight: 100 }],
+    type: "secondary-dominant",
     sharpScaleDegree: 3,
     flatScaleDegree: undefined,
   },
@@ -171,6 +198,7 @@ var chords: {
     root: 2,
     triadNotes: [2, 4, 6],
     nextChordPossibilities: [{ name: "6", weight: 100 }],
+    type: "secondary-dominant",
     sharpScaleDegree: 4,
     flatScaleDegree: undefined,
   },
@@ -179,6 +207,7 @@ var chords: {
     root: 5,
     triadNotes: [5, 0, 2],
     nextChordPossibilities: [{ name: "2", weight: 100 }],
+    type: "secondary-dominant",
     sharpScaleDegree: 0,
     flatScaleDegree: undefined,
   },
@@ -187,14 +216,19 @@ var chords: {
     root: 3,
     triadNotes: [3, 5, 0],
     nextChordPossibilities: [{ name: "1", weight: 100 }],
+    type: "plagal",
     sharpScaleDegree: undefined,
     flatScaleDegree: 5,
   },
   "1-7": {
     name: "1-7",
     root: 0,
-    triadNotes: [0, 2, 4, 6],
-    nextChordPossibilities: [{ name: "4", weight: 100 }],
+    triadNotes: [2, 4, 6],
+    nextChordPossibilities: [
+      { name: "4", weight: 100 },
+      { name: "4-64", weight: 100 },
+    ],
+    type: "secondary-dominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: 6,
   },
@@ -203,6 +237,20 @@ var chords: {
     root: 4,
     triadNotes: [0, 2, 4],
     nextChordPossibilities: [{ name: "5", weight: 100 }],
+    type: "predominant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+  },
+  "5-64": {
+    name: "5-64",
+    root: 1,
+    triadNotes: [4, 6, 1],
+    nextChordPossibilities: [
+      { name: "1", weight: 100 },
+      { name: "3", weight: 50 },
+      { name: "5-6", weight: 50 },
+    ],
+    type: "dominant-inversion",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -216,6 +264,7 @@ var chords: {
       { name: "5", weight: 39 },
       { name: "7", weight: 23 },
     ],
+    type: "predominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -223,7 +272,11 @@ var chords: {
     name: "4-64",
     root: 0,
     triadNotes: [3, 5, 0],
-    nextChordPossibilities: [{ name: "1", weight: 100 }],
+    nextChordPossibilities: [
+      { name: "1", weight: 100 },
+      { name: "5-64", weight: 50 },
+    ],
+    type: "predominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -237,7 +290,36 @@ var chords: {
       { name: "3", weight: 8 },
       { name: "4", weight: 7 },
       { name: "7", weight: 9 },
+      { name: "5-6", weight: 10 },
     ],
+    type: "mediant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+  },
+  "5-6": {
+    name: "5-6",
+    root: 6,
+    triadNotes: [4, 6, 1],
+    nextChordPossibilities: [{ name: "1", weight: 100 }],
+    type: "dominant-inversion",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+  },
+  "1-6": {
+    name: "1-6",
+    root: 2,
+    triadNotes: [0, 2, 4],
+    nextChordPossibilities: [
+      { name: "1", weight: 10 },
+      { name: "4", weight: 50 },
+      { name: "6", weight: 9 },
+      { name: "5/6", weight: 10 },
+      { name: "5/2", weight: 10 },
+      { name: "m4", weight: 10 },
+      { name: "2-6", weight: 20 },
+      { name: "6-6", weight: 15 },
+    ],
+    type: "tonic-inversion",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
   },
@@ -294,6 +376,12 @@ var keySignatures: {
     sharps: [],
   },
 };
+
+interface Note {
+  name: string;
+  degree: number;
+  pitchValue: number;
+}
 
 function checkForIllegalVoiceLeading(arr: number[]) {
   var sortedArr = [...arr].sort((a, b) => a - b);
@@ -421,49 +509,41 @@ function generateRandomCombination(
   return result;
 }
 
-function generateChordProgression(timeSig: any, numOfMeasures: any) {
-  var eighthsPerMeasure = timeSig.eighthsPerMeasure;
-  var possibleLengths = [];
-  var testTotal = eighthsPerMeasure;
-  var fails = 0;
-  while (testTotal > 1 && fails < 100) {
-    console.log("genchord progression lengths ", fails);
+function generateChordProgression(
+  timeSig: any,
+  numOfMeasures: any,
+  bassRangeNoteList: Note[],
+  maxSkip: number,
+  randNoteLengths: number[]
+) {
+  let bassNoteArray = [];
+  const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
+  bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
 
-    possibleLengths.push(testTotal);
-    testTotal -= 2;
-  }
-  var noteLength = 0;
-  var randNoteLengths = generateRandomCombination(
-    possibleLengths,
-    timeSig.eighthsPerMeasure * numOfMeasures,
-    eighthsPerMeasure
-  );
-
-  var fails = 0;
-  while (randNoteLengths.length === 0 && fails < 100) {
-    randNoteLengths = generateRandomCombination(
-      possibleLengths,
-      timeSig.eighthsPerMeasure * numOfMeasures,
-      eighthsPerMeasure
-    );
-    fails++;
-  }
-  if (fails >= 100) {
-    console.log("Error: Could not find a valid combination");
-    return [];
-  }
-  // make last note a whole note
-  randNoteLengths[randNoteLengths.length - 1] = eighthsPerMeasure;
+  var chordGenFails = 0;
 
   var numOfChords = randNoteLengths.length;
 
+  let prevBassNote = bassNoteArray[0];
+  let bassDegrees = bassRangeNoteList.filter(
+    (note) => Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip
+  );
+
   var chordProgression: any[] = [];
   let validProgression = false;
-  while (!validProgression) {
-    console.log("genchord progression fails ", fails);
+  while (!validProgression && chordGenFails < 100) {
+    console.log("genchord progression chordGenFails ", chordGenFails);
     chordProgression = [];
+    bassNoteArray = [tonicNotes[Math.floor(Math.random() * tonicNotes.length)]];
 
     for (let i = 0; i < numOfChords; i++) {
+      if (i !== 0) {
+        prevBassNote = bassNoteArray[i - 1];
+        bassDegrees = bassRangeNoteList.filter(
+          (note) =>
+            Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip
+        );
+      }
       if (i === 0) {
         const firstChord = {
           chord: chords["1"],
@@ -474,66 +554,148 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
         chordProgression.push(firstChord);
       } else if (i === numOfChords - 3) {
         // The third-to-last chord must lead to 5
-        const lastChord = chordProgression[chordProgression.length - 1];
-        const nextChordPossibilities =
-          lastChord.chord.nextChordPossibilities.filter(
-            (chord: { name: string; weight: number }) =>
-              chord.name === "1" || chord.name === "2" || chord.name === "4"
+        let prevChord = chordProgression[chordProgression.length - 1];
+        let nextChordPossibilities =
+          prevChord.chord.nextChordPossibilities.filter(
+            (chord: { name: string; weight: number; type: string }) =>
+              (chords[chord.name].type === "tonic" ||
+                chords[chord.name].type === "predominant") &&
+              bassDegrees
+                .map((note) => note.degree)
+                .includes(chords[chord.name].root)
           );
 
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
-          fails++;
+          chordGenFails++;
           break;
         }
 
-        const nextChordInner = getRandomByWeight(nextChordPossibilities);
+        let nextChordInner = getRandomByWeight(nextChordPossibilities);
         if (nextChordInner !== null) {
-          const nextChordName = nextChordInner.name;
-          const nextChord = {
+          let nextChordName = nextChordInner.name;
+          let nextChord = {
             chord: chords[nextChordName],
             length: randNoteLengths[i],
             triadDegrees: chords[nextChordName].triadNotes,
           };
-
-          chordProgression.push(nextChord);
+          let bassNoteToAdd = bassRangeNoteList
+            .filter((note) => note.degree === chords[nextChordName].root)
+            .filter(
+              (note) =>
+                Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip
+            );
+          if (bassNoteToAdd.length > 0) {
+            bassNoteArray.push(bassNoteToAdd[0]);
+            chordProgression.push(nextChord);
+          }
         } else {
-          fails++;
+          chordGenFails++;
           break;
         }
       } else if (i === numOfChords - 2) {
-        // The second-to-last chord must be "5"
-        const nextChord = {
-          chord: chords["5"],
-          length: randNoteLengths[i],
-          triadDegrees: chords["5"].triadNotes,
-        };
-        chordProgression.push(nextChord);
+        // The second-to-last chord must be dominant
+        let prevChord = chordProgression[chordProgression.length - 1];
+        let nextChordPossibilities =
+          prevChord.chord.nextChordPossibilities.filter(
+            (chord: { name: string; weight: number; type: string }) =>
+              (chords[chord.name].type === "dominant" ||
+                chords[chord.name].type === "dominant-inversion") &&
+              bassDegrees
+                .map((note) => note.degree)
+                .includes(chords[chord.name].root)
+          );
+
+        if (nextChordPossibilities.length === 0) {
+          // Restart the loop if no valid progression is found
+          chordGenFails++;
+          break;
+        }
+
+        let nextChordInner = getRandomByWeight(nextChordPossibilities);
+        if (nextChordInner !== null) {
+          let nextChordName = nextChordInner.name;
+          let nextChord = {
+            chord: chords[nextChordName],
+            length: randNoteLengths[i],
+            triadDegrees: chords[nextChordName].triadNotes,
+          };
+          let bassNoteToAdd = bassRangeNoteList
+            .filter((note) => note.degree === chords[nextChordName].root)
+            .filter(
+              (note) =>
+                Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip
+            );
+          if (bassNoteToAdd.length > 0) {
+            bassNoteArray.push(bassNoteToAdd[0]);
+            chordProgression.push(nextChord);
+          } else {
+            chordGenFails++;
+            break;
+          }
+        }
       } else if (i === numOfChords - 1) {
-        noteLength = eighthsPerMeasure;
+        let noteLength = timeSig.eighthsPerMeasure;
         // The last chord must be "1"
         const nextChord = {
           chord: chords["1"],
           length: noteLength,
           triadDegrees: chords["1"].triadNotes,
         };
-        chordProgression.push(nextChord);
+        let bassNoteToAdd = bassRangeNoteList
+          .filter((note) => note.degree === chords["1"].root)
+          .filter(
+            (note) =>
+              Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip
+          );
+        if (bassNoteToAdd.length > 0) {
+          bassNoteArray.push(bassNoteToAdd[0]);
+          chordProgression.push(nextChord);
+        } else {
+          chordGenFails++;
+          break;
+        }
       } else {
-        const lastChord = chordProgression[chordProgression.length - 1];
-        const nextChordInner = getRandomByWeight(
-          lastChord.chord.nextChordPossibilities
-        );
-        if (nextChordInner === null) {
-          fails++;
+        let prevChord = chordProgression[chordProgression.length - 1];
+        prevBassNote = bassNoteArray[i - 1];
+        let nextChordPossibilities =
+          prevChord.chord.nextChordPossibilities.filter(
+            (chord: { name: string; weight: number }) =>
+              bassDegrees
+                .map((note) => note.degree)
+                .includes(chords[chord.name].root)
+          );
+
+        if (nextChordPossibilities.length === 0) {
+          // Restart the loop if no valid progression is found
+          chordGenFails++;
           break;
         } else {
-          const nextChordName = nextChordInner.name;
-          const nextChord = {
-            chord: chords[nextChordName],
-            length: randNoteLengths[i],
-            triadDegrees: chords[nextChordName].triadNotes,
-          };
-          chordProgression.push(nextChord);
+          let nextChordInner = getRandomByWeight(nextChordPossibilities);
+          if (nextChordInner === null) {
+            chordGenFails++;
+            break;
+          } else {
+            let nextChordName = nextChordInner.name;
+            let nextChord = {
+              chord: chords[nextChordName],
+              length: randNoteLengths[i],
+              triadDegrees: chords[nextChordName].triadNotes,
+            };
+            let bassNoteToAdd = bassRangeNoteList
+              .filter((note) => note.degree === chords[nextChordName].root)
+              .filter(
+                (note) =>
+                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip
+              );
+            if (bassNoteToAdd.length > 0) {
+              bassNoteArray.push(bassNoteToAdd[0]);
+              chordProgression.push(nextChord);
+            } else {
+              chordGenFails++;
+              break;
+            }
+          }
         }
       }
     }
@@ -542,12 +704,13 @@ function generateChordProgression(timeSig: any, numOfMeasures: any) {
       validProgression = true;
     }
   }
-  if (fails >= 100) {
+
+  if (chordGenFails >= 100) {
     console.log("Error: Could not find a valid chord progression");
     return [];
   }
 
-  return chordProgression;
+  return [chordProgression, bassNoteArray];
 }
 
 function createNoteList(tonic: string, numOfNotes: number) {
@@ -567,17 +730,17 @@ function createNoteList(tonic: string, numOfNotes: number) {
     }
 
     if (octave === 0) {
-      note = notes[index] + ",,";
+      note = notes[index] + ",,,";
     } else if (octave === 1) {
-      note = notes[index] + ",";
+      note = notes[index] + ",,";
     } else if (octave === 2) {
-      note = notes[index];
+      note = notes[index] + ",";
     } else if (octave === 3) {
-      note = notes[index].toLowerCase();
+      note = notes[index];
     } else if (octave === 4) {
-      note = notes[index].toLowerCase() + "'";
+      note = notes[index].toLowerCase();
     } else if (octave === 5) {
-      note = notes[index].toLowerCase() + "''";
+      note = notes[index].toLowerCase() + "'";
     }
 
     noteList.push({ name: note, degree: degree, pitchValue: i });
@@ -653,11 +816,12 @@ function createNewSr(params: any) {
     var scaleType = "Major";
     var generatedNote = "";
     var chordNoteObject: {
+      partName: string;
       noteLength: number;
       name: string;
       degree: number;
       pitchValue: number;
-    } = { noteLength: 0, name: "", degree: 0, pitchValue: 0 };
+    } = { partName: "", noteLength: 0, name: "", degree: 0, pitchValue: 0 };
     var noteLength = currentChord.length;
     var scaleDegreeToAdd: number = 0;
     var singlePartObject =
@@ -732,6 +896,7 @@ function createNewSr(params: any) {
         var rangeNoteListFilter = rangeNoteList.filter(
           (note) => note.degree === scaleDegreeToAdd
         );
+
         randomCloseNote =
           rangeNoteListFilter[
             Math.floor(Math.random() * rangeNoteListFilter.length)
@@ -739,6 +904,7 @@ function createNewSr(params: any) {
       }
       if (prevNote.pitchValue !== 0) {
         let otherDegreesInChord: number[] = [];
+        let bannedParFifthDegree: number | null = null;
 
         try {
           Object.keys(partsObject.parts).forEach((part: any) => {
@@ -749,6 +915,17 @@ function createNewSr(params: any) {
               degreeToCheck !== prevNote.degree
             ) {
               otherDegreesInChord.push(degreeToCheck);
+            }
+            if (Math.abs(degreeToCheck - prevNote.degree) % 8 === 4) {
+              params.otherPartNotes.forEach((note: any) => {
+                // check if that part has a next note
+                if (note.partName === part) {
+                  // make sure it is not the same note as previous note
+                  if (note.degree !== degreeToCheck) {
+                    bannedParFifthDegree = (note.degree + 1) % 8;
+                  }
+                }
+              });
             }
           });
         } catch (error) {
@@ -770,19 +947,26 @@ function createNewSr(params: any) {
           maxSkip = 1;
         }
 
-        var rangeNoteListFilter = rangeNoteList.filter((note) =>
-          chordTriadCopy.includes(note.degree)
-        );
-
-        var notesWithinRange = rangeNoteListFilter.filter(
+        var rangeNoteListFilter = rangeNoteList.filter(
           (note) =>
-            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip &&
-            isDegreeWithinRange(
-              prevNote.degree,
-              closestDegreeBelow,
-              closestDegreeAbove
-            )
+            chordTriadCopy.includes(note.degree) &&
+            (bannedParFifthDegree === null ||
+              note.degree !== bannedParFifthDegree) &&
+            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
         );
+        if (closestDegreeAbove === closestDegreeAbove) {
+          var notesWithinRange = rangeNoteListFilter;
+        } else {
+          var notesWithinRange = rangeNoteListFilter.filter(
+            (note) =>
+              Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip &&
+              isDegreeWithinRange(
+                prevNote.degree,
+                closestDegreeBelow,
+                closestDegreeAbove
+              )
+          );
+        }
 
         if (notesWithinRange.length === 0) {
           return false;
@@ -833,6 +1017,7 @@ function createNewSr(params: any) {
     }
 
     chordNoteObject = {
+      partName: partName,
       noteLength: noteLength,
       name: generatedNote,
       degree: scaleDegreeToAdd,
@@ -857,14 +1042,47 @@ function createNewSr(params: any) {
     partsObject.parts[partName].noteArray = [];
   }
 
-  var renderedChordProgression = generateChordProgression(
-    timeSigRendered,
-    numOfMeasures
-  );
-
   // Example usage:
   var numOfNotes = 40;
   var noteList = createNoteList(tonic, numOfNotes);
+  const lowestPartName = Object.keys(partsObject.parts).reduce((prev, curr) =>
+    partsObject.parts[prev].order < partsObject.parts[curr].order ? prev : curr
+  );
+  const bassNoteList = noteList.slice(
+    noteList.findIndex(
+      (note) =>
+        note.name ===
+        baseNoteArray[partsObject.parts[lowestPartName].selectedRange[0]]
+    ),
+    noteList.findIndex(
+      (note) =>
+        note.name ===
+        baseNoteArray[partsObject.parts[lowestPartName].selectedRange[1]]
+    )
+  );
+
+  var possibleLengths = [];
+  var testTotal = timeSigRendered.eighthsPerMeasure;
+  var fails = 0;
+  while (testTotal > 1 && fails < 100) {
+    console.log("genchord progression lengths ", fails);
+
+    possibleLengths.push(testTotal);
+    testTotal -= 2;
+  }
+  const randNoteLengths = generateRandomCombination(
+    possibleLengths,
+    timeSigRendered.eighthsPerMeasure * numOfMeasures,
+    timeSigRendered.eighthsPerMeasure
+  );
+
+  const [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
+    timeSigRendered,
+    numOfMeasures,
+    bassNoteList,
+    maxSkip,
+    randNoteLengths
+  );
 
   // make an array of 0's of length of the number of parts
   var arrToCheck = Array.from(
@@ -892,10 +1110,28 @@ function createNewSr(params: any) {
         .length < renderedChordProgression.length
     ) {
       let chordProgressionIndex = noteIndex;
+
       let partIndexArray = Array.from(
         Array(Object.keys(partsObject.parts).length).keys()
       );
-      partIndexArray.sort(() => Math.random() - 0.5);
+      let bassPartObjectIndex = Object.keys(partsObject.parts).findIndex(
+        (part) => partsObject.parts[part].order === 0
+      );
+      let bassRandIndex = partIndexArray.indexOf(bassPartObjectIndex);
+      partIndexArray.splice(bassRandIndex, 1);
+      // Shuffle the remaining elements using the Fisher-Yates shuffle algorithm
+      // for (let i = result.length - 1; i > 0; i--) {
+      //   const j = Math.floor(Math.random() * (i + 1));
+      //   [result[i], result[j]] = [result[j], result[i]];
+      // }
+      for (let i = partIndexArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [partIndexArray[i], partIndexArray[j]] = [
+          partIndexArray[j],
+          partIndexArray[i],
+        ];
+      }
+      partIndexArray.unshift(bassRandIndex);
 
       // Create a copy of the triad
       let chordTriadCopy = [
@@ -928,6 +1164,7 @@ function createNewSr(params: any) {
           noteIndex: noteIndex,
           baseNoteArray: baseNoteArray,
           chordTriadCopy: chordTriadCopy,
+          otherPartNotes: chordObjectsToAdd,
           noteList: noteList,
           partObject: partsObject,
           partIndexArray: partIndexArray,
@@ -939,8 +1176,17 @@ function createNewSr(params: any) {
         let chordObjectToAdd: any = {};
         singlePartFails = 0;
         while (singlePartFails < maxSinglePartFails) {
-          chordObjectToAdd = generateChord(genChordParams);
-
+          if (i === 0) {
+            chordObjectToAdd = {
+              partName: Object.keys(partsObject.parts)[partIndexArray[i]],
+              noteLength: randNoteLengths[noteIndex],
+              name: bassGenNoteArray[noteIndex].name,
+              degree: bassGenNoteArray[noteIndex].degree,
+              pitchValue: bassGenNoteArray[noteIndex].pitchValue,
+            };
+          } else {
+            chordObjectToAdd = generateChord(genChordParams);
+          }
           if (Object.keys(chordObjectToAdd).length === 0) {
             singlePartFails++;
           } else {
@@ -1061,6 +1307,65 @@ function createNewSr(params: any) {
     }
   }
 
+  function filterAccidentals(params: any) {
+    const eighthsPerMeasure = params.eighthsPerMeasure;
+    let partsObject = params.partsObject;
+    let eighthCounter = 0;
+    const key = params.key;
+
+    // loop through the parts object
+    Object.keys(partsObject.parts).forEach((partName) => {
+      // loop through the completeNoteObject
+      for (
+        var i = 0;
+        i < partsObject.parts[partName].completeNoteObject.length;
+        i++
+      ) {
+        eighthCounter +=
+          partsObject.parts[partName].completeNoteObject[0].noteLength;
+
+        // check if there is an accidental
+        var accidental =
+          partsObject.parts[partName].completeNoteObject[i].name.match(
+            /[_^=]/g
+          );
+        if (
+          partsObject.parts[partName].completeNoteObject[i].name.match(/[_^=]/g)
+        ) {
+          var noteNameWithAccidental =
+            partsObject.parts[partName].completeNoteObject[i].name;
+          noteNameWithAccidental = noteNameWithAccidental.replace(
+            /[_^=]/gi,
+            ""
+          );
+          var accidentalType = partsObject.parts[partName].completeNoteObject[
+            i
+          ].name
+            .match(/[_^=]/g)
+            .join("");
+        } else {
+          if (
+            partsObject.parts[partName].completeNoteObject[i].name ===
+            noteNameWithAccidental
+          ) {
+            console.log("found accidental");
+          }
+        }
+        if (eighthCounter % eighthsPerMeasure === 0) {
+          accidental = null;
+          accidentalType = null;
+          noteNameWithAccidental = "";
+        }
+      }
+    });
+  }
+
+  filterAccidentals({
+    eighthsPerMeasure: timeSigRendered.eighthsPerMeasure,
+    partsObject: partsObject,
+    key: keyRendered,
+  });
+
   // loop through the parts object
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
     // get the part name
@@ -1127,9 +1432,11 @@ function createNewSr(params: any) {
   }
 
   function createConcatString(partsObject: any) {
+    // loop through parts
     Object.keys(partsObject.parts).forEach((partName) => {
       var concatString = "";
       var totalNoteValue = 0;
+      // loop through each note
       for (
         var i = 0;
         i < partsObject.parts[partName].completeNoteObject.length;
@@ -1159,21 +1466,29 @@ function createNewSr(params: any) {
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
     // find the clef by matching the name to the part name object
     var partName = Object.keys(partsObject.parts)[i];
+    var smallName = partsObject.parts[partName].smallName;
     var clef = partsObject.parts[Object.keys(partsObject.parts)[i]].clef;
     var middleString = "";
     if (clef === "treble-8") {
       middleString = "octave=1";
     }
-    headerString += `V:${partName[0]} clef=${clef} name="${partName}" snm="${partName[0]}" ${middleString}\n`;
+    headerString += `V:${smallName} clef=${clef} name="${partName}" snm="${smallName}" ${middleString}\n`;
   }
 
   var tuneBody = "";
 
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
     var partName = Object.keys(partsObject.parts)[i];
+    var smallName = partsObject.parts[partName].smallName;
 
-    tuneBody += `[V:${partName[0]}] ${partsObject.parts[partName].concatNoteString}] \n`;
+    tuneBody += `[V:${smallName}] ${partsObject.parts[partName].concatNoteString}] \n`;
   }
+
+  var scoreString = "%%score ";
+  Object.keys(partsObject.parts).forEach((partName) => {
+    scoreString += partsObject.parts[partName].smallName + " ";
+  });
+  scoreString += "\n";
 
   var renderedString =
     `X:1 \n` +
@@ -1182,7 +1497,7 @@ function createNewSr(params: any) {
     `M:C\n` +
     `L:1/8\n` +
     `Q:1/4=76 \n` +
-    `%%score S A T B \n` +
+    `${scoreString}` +
     `${headerString}` +
     `K: ${keyRendered} \n` +
     `%            End of header, start of tune body: \n` +

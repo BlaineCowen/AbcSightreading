@@ -53,6 +53,7 @@
       parts: {
         [key: string]: {
           order: number;
+          smallName: string;
           clef: string;
           range: number[];
           selectedRange: number[];
@@ -65,24 +66,28 @@
       parts: {
         Soprano: {
           order: 3,
+          smallName: "S",
           clef: "treble",
           range: [20, 32],
           selectedRange: [16, 25],
         },
         Alto: {
           order: 2,
+          smallName: "A",
           clef: "treble",
           range: [15, 25],
           selectedRange: [15, 23],
         },
         Tenor: {
           order: 1,
+          smallName: "T",
           clef: "treble-8",
           range: [10, 32],
           selectedRange: [8, 17],
         },
         Bass: {
           order: 0,
+          smallName: "B",
           clef: "bass",
           range: [0, 15],
           selectedRange: [4, 15],
@@ -93,22 +98,25 @@
       numofParts: 3,
       parts: {
         Soprano: {
-          order: 0,
+          order: 2,
+          smallName: "S",
           clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          range: [20, 32],
+          selectedRange: [16, 25],
         },
         Alto: {
-          order: 0,
+          order: 1,
+          smallName: "A",
           clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          range: [15, 25],
+          selectedRange: [15, 23],
         },
         Baritone: {
           order: 0,
+          smallName: "B",
           clef: "bass",
-          range: [8, 20],
-          selectedRange: [8, 20],
+          range: [0, 15],
+          selectedRange: [4, 15],
         },
       },
     },
@@ -116,22 +124,25 @@
       numofParts: 3,
       parts: {
         Soprano1: {
-          order: 0,
+          order: 2,
+          smallName: "S1",
           clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          range: [20, 32],
+          selectedRange: [16, 25],
         },
         Soprano2: {
-          order: 0,
+          order: 1,
+          smallName: "S2",
           clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          range: [18, 29],
+          selectedRange: [16, 25],
         },
         Alto: {
           order: 0,
+          smallName: "A",
           clef: "treble",
-          range: [8, 20],
-          selectedRange: [8, 20],
+          range: [15, 25],
+          selectedRange: [15, 23],
         },
       },
     },
@@ -139,45 +150,45 @@
       numofParts: 3,
       parts: {
         Tenor: {
-          order: 0,
-          clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          order: 2,
+          smallName: "T",
+          clef: "treble-8",
+          range: [10, 32],
+          selectedRange: [8, 17],
         },
         Baritone: {
-          order: 0,
-          clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          order: 1,
+          smallName: "B1",
+          clef: "bass",
+          range: [0, 18],
+          selectedRange: [6, 17],
         },
         Bass: {
           order: 0,
-          clef: "treble",
-          range: [8, 20],
-          selectedRange: [8, 20],
+          smallName: "B2",
+          clef: "bass",
+          range: [0, 15],
+          selectedRange: [4, 15],
         },
       },
     },
     "2 Part Treble": {
       numofParts: 2,
       parts: {
-        Soprano1: {
-          order: 0,
+        Soprano: {
+          order: 1,
+          smallName: "S",
           clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
+          range: [20, 32],
+          selectedRange: [16, 25],
         },
-        Soprano2: {
-          order: 0,
-          clef: "treble",
-          range: [0, 15],
-          selectedRange: [0, 15],
-        },
+
         Alto: {
           order: 0,
+          smallName: "A",
           clef: "treble",
-          range: [10, 25],
-          selectedRange: [10, 25],
+          range: [15, 25],
+          selectedRange: [15, 23],
         },
       },
     },
@@ -186,9 +197,10 @@
       parts: {
         Unison: {
           order: 0,
+          smallName: "V",
           clef: "treble",
-          range: [0, 32],
-          selectedRange: [0, 32],
+          range: [20, 32],
+          selectedRange: [16, 25],
         },
       },
     },
