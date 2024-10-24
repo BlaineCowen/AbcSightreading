@@ -4,9 +4,14 @@
   import abcjs from "abcjs";
   import Slider from "@bulatdashiev/svelte-slider";
   import { nonChordToneGenerator } from "./nonChordToneGen";
+  import { chords } from "../resources/chords.ts";
+  import ProgressBar from "./ui/ProgressBar.svelte";
 
   let bpm = 60;
   let beatsPerMeasure = 4;
+
+  let levels = [1, 2, 3, 4, 5];
+  let selectedLevel = 1;
 
   let baseNoteArray = [
     "C,,",
@@ -56,7 +61,9 @@
           smallName: string;
           clef: string;
           range: number[];
-          selectedRange: number[];
+          selectedRange: {
+            [key: number]: number[];
+          };
         };
       };
     };
@@ -69,28 +76,52 @@
           smallName: "S",
           clef: "treble",
           range: [15, 23],
-          selectedRange: [15, 23],
+          selectedRange: {
+            1: [15, 23],
+            2: [15, 23],
+            3: [15, 23],
+            4: [15, 23],
+            5: [15, 23],
+          },
         },
         Alto: {
           order: 2,
           smallName: "A",
           clef: "treble",
           range: [14, 21],
-          selectedRange: [14, 21],
+          selectedRange: {
+            1: [14, 21],
+            2: [14, 21],
+            3: [14, 21],
+            4: [14, 21],
+            5: [14, 21],
+          },
         },
         Tenor: {
           order: 1,
           smallName: "T",
           clef: "treble-8",
           range: [11, 17],
-          selectedRange: [11, 17],
+          selectedRange: {
+            1: [11, 17],
+            2: [11, 17],
+            3: [11, 17],
+            4: [11, 17],
+            5: [11, 17],
+          },
         },
         Bass: {
           order: 0,
           smallName: "B",
           clef: "bass",
           range: [7, 14],
-          selectedRange: [7, 14],
+          selectedRange: {
+            1: [7, 14],
+            2: [7, 14],
+            3: [7, 14],
+            4: [7, 14],
+            5: [7, 14],
+          },
         },
       },
     },
@@ -102,21 +133,39 @@
           smallName: "S",
           clef: "treble",
           range: [15, 23],
-          selectedRange: [15, 23],
+          selectedRange: {
+            1: [15, 23],
+            2: [15, 23],
+            3: [15, 23],
+            4: [15, 23],
+            5: [15, 23],
+          },
         },
         Alto: {
           order: 1,
           smallName: "A",
           clef: "treble",
           range: [14, 21],
-          selectedRange: [14, 21],
+          selectedRange: {
+            1: [14, 21],
+            2: [14, 21],
+            3: [14, 21],
+            4: [14, 21],
+            5: [14, 21],
+          },
         },
         Baritone: {
           order: 0,
           smallName: "B",
           clef: "bass",
           range: [6, 14],
-          selectedRange: [6, 14],
+          selectedRange: {
+            1: [6, 14],
+            2: [6, 14],
+            3: [6, 14],
+            4: [6, 14],
+            5: [6, 14],
+          },
         },
       },
     },
@@ -128,21 +177,39 @@
           smallName: "S1",
           clef: "treble",
           range: [15, 23],
-          selectedRange: [15, 23],
+          selectedRange: {
+            1: [15, 23],
+            2: [15, 23],
+            3: [15, 23],
+            4: [15, 23],
+            5: [15, 23],
+          },
         },
         Soprano2: {
           order: 1,
           smallName: "S2",
           clef: "treble",
           range: [15, 22],
-          selectedRange: [15, 22],
+          selectedRange: {
+            1: [15, 22],
+            2: [15, 22],
+            3: [15, 22],
+            4: [15, 22],
+            5: [15, 22],
+          },
         },
         Alto: {
           order: 0,
           smallName: "A",
           clef: "treble",
           range: [14, 21],
-          selectedRange: [14, 21],
+          selectedRange: {
+            1: [14, 21],
+            2: [14, 21],
+            3: [14, 21],
+            4: [14, 21],
+            5: [14, 21],
+          },
         },
       },
     },
@@ -154,21 +221,39 @@
           smallName: "T",
           clef: "treble-8",
           range: [10, 32],
-          selectedRange: [8, 17],
+          selectedRange: {
+            1: [8, 17],
+            2: [8, 17],
+            3: [8, 17],
+            4: [8, 17],
+            5: [8, 17],
+          },
         },
         Baritone: {
           order: 1,
           smallName: "B1",
           clef: "bass",
           range: [0, 18],
-          selectedRange: [6, 17],
+          selectedRange: {
+            1: [6, 17],
+            2: [6, 17],
+            3: [6, 17],
+            4: [6, 17],
+            5: [6, 17],
+          },
         },
         Bass: {
           order: 0,
           smallName: "B2",
           clef: "bass",
           range: [0, 15],
-          selectedRange: [4, 15],
+          selectedRange: {
+            1: [4, 15],
+            2: [4, 15],
+            3: [4, 15],
+            4: [4, 15],
+            5: [4, 15],
+          },
         },
       },
     },
@@ -180,7 +265,13 @@
           smallName: "S",
           clef: "treble",
           range: [20, 32],
-          selectedRange: [16, 25],
+          selectedRange: {
+            1: [16, 25],
+            2: [16, 25],
+            3: [16, 25],
+            4: [16, 25],
+            5: [16, 25],
+          },
         },
 
         Alto: {
@@ -188,7 +279,13 @@
           smallName: "A",
           clef: "treble",
           range: [15, 25],
-          selectedRange: [15, 23],
+          selectedRange: {
+            1: [15, 23],
+            2: [15, 23],
+            3: [15, 23],
+            4: [15, 23],
+            5: [15, 23],
+          },
         },
       },
     },
@@ -200,7 +297,13 @@
           smallName: "V",
           clef: "treble",
           range: [20, 32],
-          selectedRange: [16, 25],
+          selectedRange: {
+            1: [16, 25],
+            2: [16, 25],
+            3: [16, 25],
+            4: [16, 25],
+            5: [16, 25],
+          },
         },
       },
     },
@@ -208,14 +311,21 @@
 
   let timeSignatures: {
     [key: string]: {
+      name: string;
       eighthsPerMeasure: number;
     };
   } = {
     "4/4": {
+      name: "4/4",
       eighthsPerMeasure: 8,
     },
     "3/4": {
+      name: "3/4",
       eighthsPerMeasure: 6,
+    },
+    "2/4": {
+      name: "2/4",
+      eighthsPerMeasure: 4,
     },
   };
   let selectedTimeSignature = "4/4";
@@ -239,13 +349,13 @@
 
   let selectedVoicing = "" as string;
 
-  function updateRange(partName: string, newRange: number[]) {
-    console.log(partName, newRange);
+  // function updateRange(partName: string, newRange: number[]) {
+  //   console.log(partName, newRange);
 
-    const parts = possibleVoicing[selectedVoicing].parts;
-    parts[partName].selectedRange = newRange;
-    possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
-  }
+  //   const parts = possibleVoicing[selectedVoicing].parts;
+  //   parts[partName].selectedRange = newRange;
+  //   possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
+  // }
 
   onMount(() => {
     selectedVoicing = "4 Part Mixed";
@@ -256,11 +366,12 @@
     console.log(selectedVoicing);
   }
 
-  const drumBeats = {
+  const drumBeats: {
+    [key: string]: string;
+  } = {
     "4/4": "dddd 76 77 77 77 60 30 30 30",
+    "3/4": "ddd 76 77 77 60 30 30",
   };
-
-  var audioParams = { drum: drumBeats["4/4"], drumBars: 1, drumIntro: 1 };
 
   interface NoteEvent {
     milliseconds: number;
@@ -296,10 +407,14 @@
       bpm: bpm,
       key: selectedKey,
       timeSig: timeSignatures[selectedTimeSignature],
+      level: selectedLevel,
       measures: measures,
       maxSkip: maxSkip,
       partsObject: possibleVoicing[selectedVoicing],
+      chords: chords,
     };
+
+    console.log(params.chords);
 
     abcjsReturn = createNewSr(params);
 
@@ -317,6 +432,13 @@
     const renderedTune = await renderTune();
 
     renderedTune[0].setTiming();
+
+    var timeSigName = timeSignatures[selectedTimeSignature].name;
+    var audioParams = {
+      drum: drumBeats[timeSigName],
+      drumBars: 1,
+      drumIntro: 1,
+    };
 
     const totalTime = renderedTune[0].getTotalTime();
 
@@ -365,6 +487,14 @@
     const audio = document.getElementById("audio") as HTMLDivElement;
     audio.style.display = "none";
   }
+
+  function handleChordWeightChange(event: any) {
+    const { chordName, value } = event.detail;
+    console.log(chordName);
+    console.log(value);
+
+    chords[chordName].baseMultiplier = Math.round(value * 100) / 100;
+  }
 </script>
 
 <main>
@@ -385,6 +515,21 @@
             ? 'bg-blue-500 hover:bg-blue-500'
             : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/6 rounded-md z-20 p-1 m-2"
           on:click={handleVoicing}>{voicing}</button
+        >
+      {/each}
+    </div>
+
+    <div class="flex justify-center bg-white mx-10">
+      <h1>Level</h1>
+    </div>
+    <div class="flex justify-center bg-white mx-10">
+      {#each levels as level}
+        <button
+          id="level"
+          class="{selectedLevel === level
+            ? 'bg-blue-500 hover:bg-blue-500'
+            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
+          on:click={() => (selectedLevel = level)}>{level}</button
         >
       {/each}
     </div>
@@ -451,26 +596,20 @@
       {/each}
     </div>
 
-    <div class="flex justify-center h-auto bg-white mx-10">
-      <h1>Range</h1>
+    <div class="flex justify-center bg-white mx-10">
+      <h1>Chord Weights</h1>
     </div>
-    {#if possibleVoicing[selectedVoicing]}
-      {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, partDetails]}
-        <div class="flex justify-center mx-10 px-10 bg-white">
-          <h1>{partName}</h1>
-          <p>{partDetails.selectedRange[0]}</p>
-          <Slider
-            min={0}
-            max={baseNoteArray.length - 1}
-            step={1}
-            range={true}
-            bind:value={partDetails.selectedRange}
-            on:input={() => updateRange(partName, partDetails.selectedRange)}
-          />
-          <p>{partDetails.selectedRange[1]}</p>
-        </div>
+
+    <div class="flex-wrap bg-white justify-center mx-10">
+      {#each Object.values(chords) as chord}
+        <ProgressBar
+          label={chord.symbol}
+          chordName={chord.name}
+          weight={chord.baseMultiplier}
+          on:valueChange={handleChordWeightChange}
+        ></ProgressBar>
       {/each}
-    {/if}
+    </div>
 
     <div class="flex justify-center w-full">
       <div

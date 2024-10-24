@@ -9,3 +9,4 @@
 - [ ] fix issue where nonchord tones create illegal movement
 - [x] create max distance
 - [ ] add slider for weight of chords
+- [ ] make the note get check the bass note for 
