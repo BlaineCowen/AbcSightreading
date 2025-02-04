@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { createNewSr, generateTune } from "./generateAbc.ts";
   import abcjs from "abcjs";
   import Spacebar from "./Spacebar.svelte";
@@ -71,7 +71,7 @@
       minDistance = Math.round(minDistance * 100) / 100;
 
       distances.push(minDistance);
-      let progressCheck = progress;
+      // let progressCheck = progress;
 
       scoreArray.push([progress, minDistance]);
       console.log("Score Array: ", scoreArray);
@@ -111,7 +111,15 @@
   setInterval(updateScore, 1000);
 
   onMount(() => {
-    window.addEventListener("keydown", handleKeyDown);
+    if (typeof window !== "undefined") {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+  });
+
+  onDestroy(() => {
+    if (typeof window !== "undefined") {
+      window.removeEventListener("keydown", handleKeyDown);
+    }
   });
 
   interface NoteEvent {
@@ -173,7 +181,7 @@
         let millisecondOfNote: number = event["milliseconds"];
         notesArray.push(millisecondOfNote);
       },
-      onBeat: (beatNumber: number, totalBeats: number) => {
+      onBeat: (beatNumber: number) => {
         if (beatNumber == beatsPerMeasure) {
           const startTime = Date.now();
           setInterval(() => {
@@ -197,7 +205,7 @@
       },
     };
 
-    var myContext = new AudioContext();
+    // var myContext = new AudioContext();
 
     var createSynth = new abcjs.synth.CreateSynth();
 

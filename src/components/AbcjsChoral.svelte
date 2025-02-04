@@ -2,55 +2,12 @@
   import { onMount } from "svelte";
   import { createNewSr } from "./generatePartString.ts";
   import abcjs from "abcjs";
-  import Slider from "@bulatdashiev/svelte-slider";
-  import { nonChordToneGenerator } from "./nonChordToneGen";
   import { chords } from "../resources/chords.ts";
-  import ProgressBar from "./ui/ProgressBar.svelte";
 
   let bpm = 60;
-  let beatsPerMeasure = 4;
 
   let levels = [1, 2, 3, 4, 5];
   let selectedLevel = 1;
-
-  let baseNoteArray = [
-    "C,,",
-    "D,,",
-    "E,,",
-    "F,,",
-    "G,,",
-    "A,,",
-    "B,,",
-    "C,",
-    "D,",
-    "E,",
-    "F,",
-    "G,",
-    "A,",
-    "B,",
-    "C",
-    "D",
-    "E",
-    "F",
-    "G",
-    "A",
-    "B",
-    "c",
-    "d",
-    "e",
-    "f",
-    "g",
-    "a",
-    "b",
-    "c'",
-    "d'",
-    "e'",
-    "f'",
-    "g'",
-    "a'",
-    "b'",
-    "c''",
-  ];
 
   let possibleVoicing: {
     [key: string]: {
@@ -331,11 +288,11 @@
 
   let selectedTimeSignature = "4/4";
 
-  let possibleLevels = [1, 2, 3, 4, 5];
+  // let possibleLevels = [1, 2, 3, 4, 5];
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
   let selectedKey = "F";
 
-  const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
+  // const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
   let selectedMeasures = 8;
   let maxSkip = 3;
   const maxSkipRange = [2, 8];
@@ -398,9 +355,9 @@
     "3/4": "ddd 76 77 77 60 30 30",
   };
 
-  interface NoteEvent {
-    milliseconds: number;
-  }
+  // interface NoteEvent {
+  //   milliseconds: number;
+  // }
 
   interface ICursorControl {
     extraMeasuresAtBeginning?: number;
@@ -441,7 +398,7 @@
     progressBarContainer.style.display = "block";
 
     // hide start button
-    const startButton = document.getElementById("start") as HTMLButtonElement;
+    // const startButton = document.getElementById("start") as HTMLButtonElement;
 
     abcjsReturn = createNewSr(params);
 
@@ -467,9 +424,9 @@
       drumIntro: 1,
     };
 
-    const totalTime = renderedTune[0].getTotalTime();
+    // const totalTime = renderedTune[0].getTotalTime();
 
-    const measureTime = renderedTune[0].getTotalTime() / measures;
+    // const measureTime = renderedTune[0].getTotalTime() / measures;
 
     var synthControl = new abcjs.synth.SynthController();
 
@@ -482,7 +439,7 @@
       },
     };
 
-    var myContext = new AudioContext();
+    // var myContext = new AudioContext();
 
     var createSynth = new abcjs.synth.CreateSynth();
 
@@ -557,7 +514,7 @@
           <div class="text-center">
             <h2 class="text-lg">Select Parts</h2>
             <div class="flex flex-wrap justify-center">
-              {#each Object.entries(possibleVoicing) as [voicing, value]}
+              {#each Object.entries(possibleVoicing) as [voicing]}
                 <button
                   id="voicing"
                   class="{selectedVoicing === voicing
@@ -589,7 +546,7 @@
           <div class="text-center">
             <h2 class="text-lg">Time Signature</h2>
             <div class="flex flex-wrap justify-center">
-              {#each Object.entries(timeSignatures) as [timeSig, value]}
+              {#each Object.entries(timeSignatures) as [timeSig]}
                 <button
                   id="timeSig"
                   class="{selectedTimeSignature === timeSig

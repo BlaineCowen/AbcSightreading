@@ -1,0 +1,19 @@
+---
+// Your imports
+import Card from "../components/Card.astro";
+import Abcjs from "../components/Abcjs.svelte";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Your Site</title>
+  </head>
+  <body>
+    <main>
+      <h1>Welcome</h1>
+      <Card title="Sample Title" body="Sample Body Text" href="#" />
+      <Abcjs client:only="react" />
+    </main>
+  </body>
+</html>
