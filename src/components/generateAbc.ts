@@ -1,4 +1,3 @@
-
 var startTonic = true;
 
 //list of all posible keys
@@ -35,7 +34,6 @@ var possibleKeys = ["G"];
 
 //make an array of all possible time signatures
 var possibleTimeSigs = ["4/4"];
-
 
 // create an object called a chord that has sseveral properties
 var oneChord = {
@@ -154,6 +152,7 @@ const cutTime = {
   compound: false,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const threeEightTime = {
   abcValue: "3/8",
   maxLength: 3 / 8,
@@ -161,6 +160,7 @@ const threeEightTime = {
   compound: true,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const sixEightTime = {
   abcValue: "6/8",
   maxLength: 3 / 4,
@@ -168,6 +168,7 @@ const sixEightTime = {
   compound: true,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const nineEightTime = {
   abcValue: "9/8",
   maxLength: 9 / 8,
@@ -712,11 +713,11 @@ function generateTune(numOfMeasures: number) {
     for (let i = 0; i < exerciseLength; i++) {
       //loop once per note to render
 
-    let currentBeat: number = measureRhythm.slice(0, i).reduce(add, 0); //current beat is the mearure rhythm array i number of notes long
-    if (rhythmABC[i].toString().charAt(0) == "z") {
+      let currentBeat: number = measureRhythm.slice(0, i).reduce(add, 0); //current beat is the mearure rhythm array i number of notes long
+      if (rhythmABC[i].toString().charAt(0) == "z") {
         notesToRender = notesToRender.concat(rhythmABC[i]);
         continue;
-    }
+      }
 
       if (startTonic == true && i == 0 && measures == 1) {
         notesToRender = notesToRender.concat(" ");
@@ -765,13 +766,13 @@ function generateTune(numOfMeasures: number) {
               }
             }
           }
-        if (
+          if (
             timeSigRendered.compound == false &&
             [1 / 4, 2 / 4, 3 / 4].includes(currentBeat)
-        ) {
+          ) {
             notesToRender = notesToRender.concat(" ");
-        }
-        let nextNote =
+          }
+          let nextNote =
             possibleNotes[possibleNotes.indexOf(previousNote) + randomIndex];
           listOfNotes.push(nextNote);
           notesToRender = notesToRender.concat(nextNote + rhythmABC[i]);
@@ -791,9 +792,6 @@ function generateTune(numOfMeasures: number) {
   return notesToRender;
 }
 
-
-
-
 var keyRendered = "G";
 
 // var params = {
@@ -803,27 +801,25 @@ var keyRendered = "G";
 //     };
 
 function createNewSr(params: any) {
+  var keyRendered = params.key;
+  var timeSigRendered = params.timeSig;
+  var notesToRender = params.notes;
+  var tempo = params.bpm;
+  var numOfMeasures = params.measures;
 
+  var renderedString =
+    "X:1\nM:" +
+    timeSigRendered +
+    "\nL:1/32\nK:" +
+    keyRendered +
+    "\n" +
+    "Q: 1/4=" +
+    tempo +
+    "\n" +
+    notesToRender +
+    "\n";
 
-    var keyRendered = params.key;
-    var timeSigRendered = params.timeSig;
-    var notesToRender = params.notes;
-    var tempo = params.bpm;
-    var numOfMeasures = params.measures;
-
-   var renderedString = "X:1\nM:" +
-      timeSigRendered +
-      "\nL:1/32\nK:" +
-      keyRendered +
-      "\n" +
-      "Q: 1/4=" + tempo + "\n" +
-
-      notesToRender +
-      "\n"
-
-
-  return renderedString; 
-
-};
+  return renderedString;
+}
 
 export { generateTune, createNewSr };

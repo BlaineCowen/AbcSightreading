@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro check && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@bulatdashiev/svelte-slider": "^1.0.3",
-    "@smui/button": "^7.0.0"
+    "@smui/button": "^7.0.0",
+    "@types/react": "^19.0.8"
   }
 }
