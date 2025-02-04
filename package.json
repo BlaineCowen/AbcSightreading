@@ -2,6 +2,9 @@
   "name": "stellar-series",
   "type": "module",
   "version": "0.0.1",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
