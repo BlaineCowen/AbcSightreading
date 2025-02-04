@@ -52,7 +52,7 @@ let baseNoteArray = [
   "c''",
 ];
 
-export let chords: {
+interface ChordSet {
   [key: string]: {
     name: string;
     triadNotes: number[];
@@ -64,311 +64,7 @@ export let chords: {
     flatScaleDegree: number | undefined;
     baseMultiplier: number;
   };
-} = {
-  "1": {
-    name: "1",
-    triadNotes: [0, 2, 4],
-    root: 0,
-    chordFamily: "1",
-    nextChordPossibilities: [
-      { name: "1", weight: 10 },
-      { name: "2", weight: 12 },
-      { name: "3", weight: 1 },
-      { name: "4", weight: 28 },
-      { name: "5", weight: 41 },
-      { name: "6", weight: 9 },
-      { name: "7", weight: 6 },
-      { name: "5/5", weight: 10 },
-      { name: "5/6", weight: 10 },
-      { name: "5/2", weight: 10 },
-      { name: "m4", weight: 10 },
-      { name: "1-7", weight: 10 },
-      { name: "2-6", weight: 10 },
-      { name: "4-64", weight: 30 },
-      { name: "6-6", weight: 15 },
-      { name: "5-7", weight: 10 },
-    ],
-    type: "tonic",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "2": {
-    name: "2",
-    root: 1,
-    chordFamily: "2",
-    triadNotes: [1, 3, 5],
-    nextChordPossibilities: [
-      { name: "2", weight: 10 },
-      { name: "5", weight: 70 },
-      { name: "5-64", weight: 20 },
-      { name: "5-7", weight: 10 },
-      { name: "1-64", weight: 10 },
-      { name: "7", weight: 10 },
-    ],
-    sharpScaleDegree: undefined,
-    type: "predominant",
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "3": {
-    name: "3",
-    root: 2,
-    chordFamily: "3",
-    triadNotes: [2, 4, 6],
-    nextChordPossibilities: [
-      { name: "4", weight: 53 },
-      { name: "5", weight: 6 },
-      { name: "6", weight: 32 },
-    ],
-    type: "mediant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "4": {
-    name: "4",
-    root: 3,
-    chordFamily: "4",
-    triadNotes: [3, 5, 0],
-    nextChordPossibilities: [
-      { name: "1", weight: 22 }, // Adjust the weight as needed
-      { name: "2", weight: 13 }, // Adjust the weight as needed
-      { name: "5", weight: 39 },
-      { name: "7", weight: 15 }, // Adjust the weight as needed
-    ],
-    type: "predominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5": {
-    name: "5",
-    root: 4,
-    chordFamily: "5",
-    triadNotes: [4, 6, 1],
-    nextChordPossibilities: [
-      { name: "1", weight: 83 },
-      { name: "5", weight: 17 },
-      { name: "6", weight: 17 },
-      { name: "5/5", weight: 10 },
-      { name: "5/6", weight: 10 },
-    ],
-    type: "dominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "6": {
-    name: "6",
-    root: 5,
-    chordFamily: "6",
-    triadNotes: [5, 0, 2],
-    nextChordPossibilities: [
-      { name: "1", weight: 12 },
-      { name: "2", weight: 30 },
-      { name: "3", weight: 8 },
-      { name: "4", weight: 7 },
-      { name: "7", weight: 9 },
-      { name: "5/5", weight: 10 },
-      { name: "5/6", weight: 15 },
-    ],
-    type: "mediant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "7": {
-    name: "7",
-    root: 6,
-    chordFamily: "7",
-    triadNotes: [6, 1, 3],
-    nextChordPossibilities: [
-      { name: "1", weight: 100 }, // Adjust the weight as needed
-    ],
-    type: "leading-tone",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5-7": {
-    name: "5-7",
-    root: 4,
-    chordFamily: "5-7",
-    triadNotes: [6, 1, 3],
-    nextChordPossibilities: [{ name: "1", weight: 100 }],
-    type: "dominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5/5": {
-    name: "5/5",
-    root: 1,
-    chordFamily: "5/5",
-    triadNotes: [1, 3, 5],
-    nextChordPossibilities: [
-      { name: "5", weight: 50 },
-      { name: "5-6", weight: 50 },
-    ],
-    type: "secondary-dominant",
-    sharpScaleDegree: 3,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5/6": {
-    name: "5/6",
-    root: 2,
-    chordFamily: "5/6",
-    triadNotes: [2, 4, 6],
-    nextChordPossibilities: [{ name: "6", weight: 100 }],
-    type: "secondary-dominant",
-    sharpScaleDegree: 4,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5/2": {
-    name: "5/2",
-    root: 5,
-    chordFamily: "5/2",
-    triadNotes: [5, 0, 2],
-    nextChordPossibilities: [{ name: "2", weight: 100 }],
-    type: "secondary-dominant",
-    sharpScaleDegree: 0,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  m4: {
-    name: "m4",
-    root: 3,
-    chordFamily: "m4",
-    triadNotes: [3, 5, 0],
-    nextChordPossibilities: [{ name: "1", weight: 100 }],
-    type: "plagal",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: 5,
-    baseMultiplier: 1,
-  },
-  "1-7": {
-    name: "1-7",
-    root: 0,
-    chordFamily: "1-7",
-    triadNotes: [2, 4, 6],
-    nextChordPossibilities: [
-      { name: "4", weight: 100 },
-      { name: "4-64", weight: 100 },
-    ],
-    type: "secondary-dominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: 6,
-    baseMultiplier: 1,
-  },
-  "1-64": {
-    name: "1-64",
-    root: 4,
-    chordFamily: "1",
-    triadNotes: [0, 2, 4],
-    nextChordPossibilities: [{ name: "5", weight: 100 }],
-    type: "predominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5-64": {
-    name: "5-64",
-    root: 1,
-    chordFamily: "5",
-    triadNotes: [4, 6, 1],
-    nextChordPossibilities: [
-      { name: "1", weight: 100 },
-      { name: "3", weight: 50 },
-      { name: "5-6", weight: 50 },
-    ],
-    type: "dominant-inversion",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "2-6": {
-    name: "2-6",
-    root: 3,
-    chordFamily: "2",
-    triadNotes: [1, 3, 5],
-    nextChordPossibilities: [
-      { name: "1", weight: 22 }, // Adjust the weight as needed
-      { name: "2", weight: 13 }, // Adjust the weight as needed
-      { name: "5", weight: 39 },
-      { name: "7", weight: 23 },
-    ],
-    type: "predominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "4-64": {
-    name: "4-64",
-    root: 0,
-    chordFamily: "4",
-    triadNotes: [3, 5, 0],
-    nextChordPossibilities: [
-      { name: "1", weight: 100 },
-      { name: "5-64", weight: 50 },
-    ],
-    type: "predominant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "6-6": {
-    name: "6-6",
-    root: 0,
-    chordFamily: "6",
-    triadNotes: [5, 0, 2],
-    nextChordPossibilities: [
-      { name: "1", weight: 12 },
-      { name: "2", weight: 30 },
-      { name: "3", weight: 8 },
-      { name: "4", weight: 7 },
-      { name: "7", weight: 9 },
-      { name: "5-6", weight: 10 },
-    ],
-    type: "mediant",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "5-6": {
-    name: "5-6",
-    root: 6,
-    chordFamily: "5",
-    triadNotes: [4, 6, 1],
-    nextChordPossibilities: [{ name: "1", weight: 100 }],
-    type: "dominant-inversion",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-  "1-6": {
-    name: "1-6",
-    root: 2,
-    chordFamily: "1",
-    triadNotes: [0, 2, 4],
-    nextChordPossibilities: [
-      { name: "1", weight: 10 },
-      { name: "4", weight: 50 },
-      { name: "6", weight: 9 },
-      { name: "5/6", weight: 10 },
-      { name: "5/2", weight: 10 },
-      { name: "m4", weight: 10 },
-      { name: "2-6", weight: 20 },
-      { name: "6-6", weight: 15 },
-    ],
-    type: "tonic-inversion",
-    sharpScaleDegree: undefined,
-    flatScaleDegree: undefined,
-    baseMultiplier: 1,
-  },
-};
+}
 
 var keySignatures: {
   [key: string]: {
@@ -438,7 +134,10 @@ function checkForIllegalVoiceLeading(arr: number[]) {
   }
 }
 
-function getRandomByWeight(arr: { name: any; weight: number }[]) {
+function getRandomByWeight(
+  arr: { name: any; weight: number }[],
+  chords: ChordSet
+) {
   if (arr.length === 0) {
     return null; // Handle empty array case
   }
@@ -447,7 +146,7 @@ function getRandomByWeight(arr: { name: any; weight: number }[]) {
   arr = arr.map((element) => {
     return {
       name: element.name,
-      weight: element.weight * chords[element.name].baseMultiplier,
+      weight: element.weight * chords[element.name].baseMultiplier * 100,
     };
   });
 
@@ -606,7 +305,8 @@ function generateChordProgression(
   numOfMeasures: any,
   bassRangeNoteList: Note[],
   maxSkip: number,
-  randNoteLengths: number[]
+  randNoteLengths: number[],
+  chords: ChordSet
 ) {
   let bassNoteArray = [];
   let newMaxSkip = maxSkip;
@@ -671,10 +371,12 @@ function generateChordProgression(
 
           // Restart the loop if no valid progression is found
           chordGenFails++;
+          console.log("chordGenFails ", chordGenFails);
+
           break;
         }
 
-        let nextChordInner = getRandomByWeight(nextChordPossibilities);
+        let nextChordInner = getRandomByWeight(nextChordPossibilities, chords);
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
           let nextChord = {
@@ -699,6 +401,8 @@ function generateChordProgression(
           );
 
           chordGenFails++;
+          console.log("chordGenFails ", chordGenFails);
+
           break;
         }
       } else if (i === numOfChords - 2) {
@@ -734,10 +438,11 @@ function generateChordProgression(
           );
 
           chordGenFails++;
+          console.log("chordGenFails ", chordGenFails);
           break;
         }
 
-        let nextChordInner = getRandomByWeight(nextChordPossibilities);
+        let nextChordInner = getRandomByWeight(nextChordPossibilities, chords);
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
           let nextChord = {
@@ -761,6 +466,8 @@ function generateChordProgression(
             );
 
             chordGenFails++;
+            console.log("chordGenFails ", chordGenFails);
+
             break;
           }
         }
@@ -788,6 +495,7 @@ function generateChordProgression(
           );
 
           chordGenFails++;
+          console.log("chordGenFails ", chordGenFails);
           break;
         }
       } else {
@@ -808,9 +516,13 @@ function generateChordProgression(
           );
 
           chordGenFails++;
+          console.log("chordGenFails ", chordGenFails);
           break;
         } else {
-          let nextChordInner = getRandomByWeight(nextChordPossibilities);
+          let nextChordInner = getRandomByWeight(
+            nextChordPossibilities,
+            chords
+          );
           if (nextChordInner === null) {
             chordGenFails++;
             break;
@@ -832,7 +544,12 @@ function generateChordProgression(
               bassNoteArray.push(bassNoteToAdd[0]);
               chordProgression.push(nextChord);
             } else {
+              console.log(
+                `No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+              );
               chordGenFails++;
+              console.log("chordGenFails ", chordGenFails);
+
               break;
             }
           }
@@ -938,6 +655,26 @@ function isDegreeWithinRange(
 }
 
 function createNewSr(params: any) {
+  var importChords = params.chords;
+  var keyRendered = params.key;
+  var maxSkip = params.maxSkip;
+  var level = params.level;
+  var timeSigRendered = params.timeSig;
+  var tempo = params.bpm;
+  var numOfMeasures = params.measures;
+  var tonic = keyRendered[0];
+  var partsObject = JSON.parse(JSON.stringify(params.partsObject));
+
+  // add note symbol, scale degree, and pitch value to each partsObject
+  for (const [partName, partObject] of Object.entries(partsObject.parts)) {
+    partsObject.parts[partName].concatNoteString = "";
+    partsObject.parts[partName].completeNoteObject = [];
+    partsObject.parts[partName].noteArray = [];
+    // also change selected range to just be selectedrange[level]
+    partsObject.parts[partName].selectedRange =
+      partsObject.parts[partName].selectedRange[level];
+  }
+
   function generateChord(params: any) {
     // get key
     var key = keyRendered[0];
@@ -949,13 +686,13 @@ function createNewSr(params: any) {
     var chordTriadCopy = params.chordTriadCopy;
     var baseNoteArray = params.baseNoteArray;
     var currentChord = params.renderedChordProgression[params.noteIndex];
-    var chords = params.chords;
 
     var partName = Object.keys(partObject.parts)[randPartIndex];
     var partOrder = partObject.parts[partName].order;
 
     var scaleType = "Major";
     var generatedNote = "";
+
     var chordNoteObject: {
       partName: string;
       noteLength: number;
@@ -963,6 +700,7 @@ function createNewSr(params: any) {
       degree: number;
       pitchValue: number;
     } = { partName: "", noteLength: 0, name: "", degree: 0, pitchValue: 0 };
+
     var noteLength = currentChord.length;
     var scaleDegreeToAdd: number = 0;
     var singlePartObject =
@@ -1104,7 +842,7 @@ function createNewSr(params: any) {
           // you can repeat degrees
           rangeNoteListFilter = rangeNoteList.filter(
             (note) =>
-              chords[currentChord.chord.name].triadNotes.includes(
+              importChords[currentChord.chord.name].triadNotes.includes(
                 note.degree
               ) &&
               (bannedParFifthDegree === null ||
@@ -1172,8 +910,11 @@ function createNewSr(params: any) {
       }
     }
     if (accidental) {
-      console.log("accidental", accidental);
-      if (distance > 1) {
+      if (
+        distance > 1 ||
+        pitchValue >= maxRange - 1 ||
+        pitchValue <= minRange + 1
+      ) {
         // try again
         return false;
       } else {
@@ -1190,26 +931,6 @@ function createNewSr(params: any) {
     };
 
     return chordNoteObject;
-  }
-
-  var keyRendered = params.key;
-  var maxSkip = params.maxSkip;
-  var level = params.level;
-  var timeSigRendered = params.timeSig;
-  var notesToRender = params.notes;
-  var tempo = params.bpm;
-  var numOfMeasures = params.measures;
-  var tonic = keyRendered[0];
-  var partsObject = params.partsObject;
-
-  // add note symbol, scale degree, and pitch value to each partsObject
-  for (const [partName, partObject] of Object.entries(partsObject.parts)) {
-    partsObject.parts[partName].concatNoteString = "";
-    partsObject.parts[partName].completeNoteObject = [];
-    partsObject.parts[partName].noteArray = [];
-    // also change selected range to just be selectedrange[level]
-    partsObject.parts[partName].selectedRange =
-      partsObject.parts[partName].selectedRange[level];
   }
 
   // Example usage:
@@ -1251,7 +972,8 @@ function createNewSr(params: any) {
     numOfMeasures,
     bassNoteList,
     maxSkip,
-    randNoteLengths
+    randNoteLengths,
+    importChords
   );
 
   // make an array of 0's of length of the number of parts
@@ -1305,8 +1027,9 @@ function createNewSr(params: any) {
 
       // Create a copy of the triad
       let chordTriadCopy = [
-        ...chords[renderedChordProgression[chordProgressionIndex].chord.name]
-          .triadNotes,
+        ...importChords[
+          renderedChordProgression[chordProgressionIndex].chord.name
+        ].triadNotes,
       ];
       // take the bass degree out of chordTriadCopy
       let baseChordDegree = bassGenNoteArray[noteIndex].degree;
@@ -1323,7 +1046,7 @@ function createNewSr(params: any) {
       for (let i = 0; i < partIndexArray.length; i++) {
         if (chordTriadCopy.length === 0) {
           chordTriadCopy = [
-            ...chords[
+            ...importChords[
               renderedChordProgression[chordProgressionIndex].chord.name
             ].triadNotes,
           ];

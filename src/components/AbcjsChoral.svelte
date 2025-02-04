@@ -328,6 +328,7 @@
       eighthsPerMeasure: 4,
     },
   };
+
   let selectedTimeSignature = "4/4";
 
   let possibleLevels = [1, 2, 3, 4, 5];
@@ -349,6 +350,8 @@
 
   let selectedVoicing = "" as string;
 
+  let showDropdown = false;
+
   // function updateRange(partName: string, newRange: number[]) {
   //   console.log(partName, newRange);
 
@@ -357,8 +360,30 @@
   //   possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
   // }
 
+  // Parse URL parameters and set values
+  function loadParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    selectedVoicing = urlParams.get("voices") || "4 Part Mixed";
+    bpm = parseInt(urlParams.get("bpm") || "60");
+    selectedLevel = parseInt(urlParams.get("level") || "1");
+    selectedKey = urlParams.get("key") || "F";
+    selectedMeasures = parseInt(urlParams.get("measures") || "8");
+  }
+
+  // Update URL parameters when settings change
+  function updateURLParams() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("voices", selectedVoicing.toString());
+    url.searchParams.set("bpm", bpm.toString());
+    url.searchParams.set("level", selectedLevel.toString());
+    url.searchParams.set("key", selectedKey);
+    url.searchParams.set("measures", selectedMeasures.toString());
+    window.history.replaceState({}, "", url);
+  }
+
   onMount(() => {
     selectedVoicing = "4 Part Mixed";
+    loadParams();
   });
 
   function handleVoicing(event: any) {
@@ -392,7 +417,23 @@
     });
   }
 
+  let params: any;
+
+  // reset abcjs
+  $: params = {
+    bpm: bpm,
+    key: selectedKey,
+    timeSig: timeSignatures[selectedTimeSignature],
+    level: selectedLevel,
+    measures: measures,
+    maxSkip: maxSkip,
+    partsObject: possibleVoicing[selectedVoicing],
+    chords: chords,
+  };
+
   async function handleClick() {
+    // update URL parameters
+    updateURLParams();
     // show progress bar
     const progressBarContainer = document.getElementById(
       "progress-bar-container"
@@ -401,20 +442,6 @@
 
     // hide start button
     const startButton = document.getElementById("start") as HTMLButtonElement;
-
-    // reset abcjs
-    const params = {
-      bpm: bpm,
-      key: selectedKey,
-      timeSig: timeSignatures[selectedTimeSignature],
-      level: selectedLevel,
-      measures: measures,
-      maxSkip: maxSkip,
-      partsObject: possibleVoicing[selectedVoicing],
-      chords: chords,
-    };
-
-    console.log(params.chords);
 
     abcjsReturn = createNewSr(params);
 
@@ -488,10 +515,9 @@
     audio.style.display = "none";
   }
 
-  function handleChordWeightChange(event: any) {
-    const { chordName, value } = event.detail;
-    console.log(chordName);
-    console.log(value);
+  function handleChordWeightChange(event: any, chord: any) {
+    const value = event.target.value;
+    const chordName = chord.name;
 
     chords[chordName].baseMultiplier = Math.round(value * 100) / 100;
   }
@@ -503,114 +529,10 @@
     <h1>Choral Sight Reading</h1>
   </div>
 
-  <div id="song-options" class="flex-wrap justify-center mx-10">
-    <div class="flex justify-center pt-5 mx-10 bg-white">
-      <h1>Select Parts</h1>
-    </div>
-    <div class="flex justify-center bg-white mx-10">
-      {#each Object.entries(possibleVoicing) as [voicing, value]}
-        <button
-          id="voicing"
-          class="{selectedVoicing === voicing
-            ? 'bg-blue-500 hover:bg-blue-500'
-            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/6 rounded-md z-20 p-1 m-2"
-          on:click={handleVoicing}>{voicing}</button
-        >
-      {/each}
-    </div>
-
-    <div class="flex justify-center bg-white mx-10">
-      <h1>Level</h1>
-    </div>
-    <div class="flex justify-center bg-white mx-10">
-      {#each levels as level}
-        <button
-          id="level"
-          class="{selectedLevel === level
-            ? 'bg-blue-500 hover:bg-blue-500'
-            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
-          on:click={() => (selectedLevel = level)}>{level}</button
-        >
-      {/each}
-    </div>
-
-    <div class="flex justify-center bg-white mx-10">
-      <h1>Time Signature</h1>
-    </div>
-    <div class="flex justify-center bg-white mx-10">
-      {#each Object.entries(timeSignatures) as [timeSig, value]}
-        <button
-          id="timeSig"
-          class="{selectedTimeSignature === timeSig
-            ? 'bg-blue-500 hover:bg-blue-500'
-            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
-          on:click={() => (selectedTimeSignature = timeSig)}>{timeSig}</button
-        >
-      {/each}
-    </div>
-
-    <!-- creat a number select for max skip -->
-    <div class="flex justify-center bg-white mx-10">
-      <h1>Max Skip</h1>
-    </div>
-    <div class="flex justify-center bg-white mx-10">
-      <!-- minus button -->
-      <button
-        class="border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
-        on:click={() => {
-          if (maxSkip > maxSkipRange[0]) {
-            maxSkip = maxSkip - 1;
-          } else {
-            maxSkipRange[0];
-          }
-        }}>-</button
-      >
-
-      <p class="text-2xl">{maxSkip}</p>
-      <!-- plus button -->
-      <button
-        class="border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
-        on:click={() => {
-          if (maxSkip < maxSkipRange[1]) {
-            maxSkip = maxSkip + 1;
-          } else {
-            maxSkipRange[1];
-          }
-        }}>+</button
-      >
-    </div>
-
-    <div class="flex justify-center bg-white mx-10">
-      <h1>Key</h1>
-    </div>
-
-    <div class="flex justify-center bg-white mx-10">
-      {#each possibleKeys as key}
-        <button
-          id="key"
-          class="{selectedKey === key
-            ? 'bg-blue-500 hover:bg-blue-500'
-            : 'bg-blue-50'} border-1 h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/12 rounded-md z-20 p-1 m-2"
-          on:click={() => (selectedKey = key)}>{key}</button
-        >
-      {/each}
-    </div>
-
-    <div class="flex justify-center bg-white mx-10">
-      <h1>Chord Weights</h1>
-    </div>
-
-    <div class="flex-wrap bg-white justify-center mx-10">
-      {#each Object.values(chords) as chord}
-        <ProgressBar
-          label={chord.symbol}
-          chordName={chord.name}
-          weight={chord.baseMultiplier}
-          on:valueChange={handleChordWeightChange}
-        ></ProgressBar>
-      {/each}
-    </div>
-
+  <div
+    id="song-options"
+    class="flex flex-col items-center justify-center mx-10"
+  >
     <div class="flex justify-center w-full">
       <div
         id="start"
@@ -618,6 +540,131 @@
       >
         <button id="start" class="" on:click={handleClick}>Create</button>
       </div>
+    </div>
+    <!-- Dropdown for Options -->
+    <div class="w-full max-w-md bg-white shadow-md rounded-lg p-4 my-4">
+      <button
+        on:click={() => (showDropdown = !showDropdown)}
+        class="w-full bg-blue-500 text-white p-2 rounded-md text-center"
+      >
+        Select Options
+      </button>
+
+      <!-- Dropdown Content -->
+      {#if showDropdown}
+        <div class="mt-4 space-y-4">
+          <!-- Select Parts -->
+          <div class="text-center">
+            <h2 class="text-lg">Select Parts</h2>
+            <div class="flex flex-wrap justify-center">
+              {#each Object.entries(possibleVoicing) as [voicing, value]}
+                <button
+                  id="voicing"
+                  class="{selectedVoicing === voicing
+                    ? 'bg-blue-500 hover:bg-blue-500'
+                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
+                  on:click={handleVoicing}>{voicing}</button
+                >
+              {/each}
+            </div>
+          </div>
+
+          <!-- Level -->
+          <div class="text-center">
+            <h2 class="text-lg">Level</h2>
+            <div class="flex flex-wrap justify-center">
+              {#each levels as level}
+                <button
+                  id="level"
+                  class="{selectedLevel === level
+                    ? 'bg-blue-500 hover:bg-blue-500'
+                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
+                  on:click={() => (selectedLevel = level)}>{level}</button
+                >
+              {/each}
+            </div>
+          </div>
+
+          <!-- Time Signature -->
+          <div class="text-center">
+            <h2 class="text-lg">Time Signature</h2>
+            <div class="flex flex-wrap justify-center">
+              {#each Object.entries(timeSignatures) as [timeSig, value]}
+                <button
+                  id="timeSig"
+                  class="{selectedTimeSignature === timeSig
+                    ? 'bg-blue-500 hover:bg-blue-500'
+                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
+                  on:click={() => (selectedTimeSignature = timeSig)}
+                  >{timeSig}</button
+                >
+              {/each}
+            </div>
+          </div>
+
+          <!-- Max Skip -->
+          <div class="text-center">
+            <h2 class="text-lg">Max Skip</h2>
+            <div class="flex items-center justify-center space-x-4">
+              <button
+                class="border shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-8 h-8 rounded-md"
+                on:click={() => {
+                  if (maxSkip > maxSkipRange[0]) maxSkip -= 1;
+                }}>-</button
+              >
+
+              <span class="text-2xl">{maxSkip}</span>
+
+              <button
+                class="border shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-8 h-8 rounded-md"
+                on:click={() => {
+                  if (maxSkip < maxSkipRange[1]) maxSkip += 1;
+                }}>+</button
+              >
+            </div>
+          </div>
+
+          <!-- Key -->
+          <div class="text-center">
+            <h2 class="text-lg">Key</h2>
+            <div class="flex flex-wrap justify-center">
+              {#each possibleKeys as key}
+                <button
+                  id="key"
+                  class="{selectedKey === key
+                    ? 'bg-blue-500 hover:bg-blue-500'
+                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
+                  on:click={() => (selectedKey = key)}>{key}</button
+                >
+              {/each}
+            </div>
+          </div>
+
+          <!-- Chord Weights (Progress Bar) -->
+          <div class="text-center">
+            <h2 class="text-lg">Chord Weights</h2>
+            <div class="flex flex-wrap justify-center">
+              {#each Object.values(chords) as chord, index}
+                <div class="flex flex-col items-center w-1/4 my-1 mx-2">
+                  <!-- Label with `for` attribute linked to the input's `id` -->
+                  <label for="slider-{index}" class="text-sm mb-1"
+                    >{chord.symbol}</label
+                  >
+                  <input
+                    type="range"
+                    id="slider-{index}"
+                    min="0"
+                    max="100"
+                    value={chord.baseMultiplier}
+                    on:input={(event) => handleChordWeightChange(event, chord)}
+                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <div
@@ -647,10 +694,10 @@
       </div>
     {/if}
 
-    <p class="text-yellow-100">
-      {chordProgression.map((chord) => chord.name).join(" ")}
-    </p>
-
-    <!-- create div that is a long rectangle with rounded corners -->
+    <div class="h-4">
+      <p class="text-pink-500 text-xxl">
+        {chordProgression.map((chord) => chord.name).join(" ")}
+      </p>
+    </div>
   </div>
 </main>
