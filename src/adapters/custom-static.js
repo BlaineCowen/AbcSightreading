@@ -1,5 +1,3 @@
-import { createIntegration } from "@astrojs/adapter-static";
-
 export default function customStaticAdapter() {
   return {
     ...createIntegration({
