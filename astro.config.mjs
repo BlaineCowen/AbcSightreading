@@ -1,11 +1,9 @@
 import { defineConfig } from "astro/config";
 import tailwind from "@astrojs/tailwind";
-import staticAdapter from "@astrojs/adapter-static";
-
 import svelte from "@astrojs/svelte";
 
+// No adapter needed for basic static site generation
 export default defineConfig({
-  adapter: staticAdapter(),
   output: "static",
   integrations: [svelte(), tailwind()],
 });

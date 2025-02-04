@@ -25,7 +25,8 @@
     "tailwind-merge": "^2.5.2",
     "tailwindcss": "^3.4.10",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "@astrojs/adapter-static": "^4.0.0"
   },
   "devDependencies": {
     "@bulatdashiev/svelte-slider": "^1.0.3",
