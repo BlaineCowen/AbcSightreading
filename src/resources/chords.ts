@@ -1,5 +1,3 @@
-import type { symbol } from "astro/zod";
-
 export const chords: {
   [key: string]: {
     name: string;

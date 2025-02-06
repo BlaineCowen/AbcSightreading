@@ -369,6 +369,7 @@
     return import("abcjs").then((abcjs) => {
       var renderedTune = abcjs.renderAbc("paper", renderedString, {
         responsive: "resize",
+        scale: 1.5,
       });
       return renderedTune;
     });
@@ -626,7 +627,7 @@
 
     <div
       id="paper"
-      class="w-full h-1/2 flex justify-center border-black bg-gray-100 rounded-md p-1 m-2"
+      class="w-full max-w-5xl h-1/2 flex justify-center border-black bg-gray-100 rounded-md p-4 m-2"
     ></div>
 
     <div id="audio" class="bg-white"></div>
