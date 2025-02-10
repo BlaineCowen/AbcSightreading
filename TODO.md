@@ -8,5 +8,9 @@
 - [x] fix where voices cross on degrees
 - [ ] fix issue where nonchord tones create illegal movement
 - [x] create max distance
-- [ ] add slider for weight of chords
+- [x] add slider for weight of chords
 - [ ] make the note get check the bass note for 
+- [ ] add a moving 8th notes option
+- [ ] add pictures for rhythms
+- [ ] add accidentals to sr
+

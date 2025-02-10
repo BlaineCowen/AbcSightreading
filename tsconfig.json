@@ -10,9 +10,11 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@types/*": [
+        "./types/*"
       ]
     }
   },
   "include": ["src/**/*", "types/**/*"] // Adjust the path as necessary
-  
 }

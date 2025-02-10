@@ -3,17 +3,20 @@
   import { onMount } from "svelte";
 
   export let range: { min: number; max: number };
+  export let clef: string;
   export let onRangeChange: (newRange: { min: number; max: number }) => void;
+  export let onClefChange: (newClef: string) => void;
+
   let mounted = false;
 
   async function renderStaff(): Promise<any> {
-    const abcString = `X:1\nK:C\nL:1/4\n${noteArray[range.min]}${noteArray[range.max]}|`;
+    const abcString = `X:1\nK:${clef}\nL:1/4\n${noteArray[range.min]}${noteArray[range.max]}|`;
     return import("abcjs").then((abcjs) => {
       var renderedTune = abcjs.renderAbc("abcjs-staff", abcString, {
         responsive: "resize",
         scale: 5,
         staffwidth: 300,
-        paddingLeft: 10,
+        paddingleft: 10,
       });
       return renderedTune;
     });
@@ -36,6 +39,12 @@
       }
     }
     onRangeChange(newRange);
+  }
+
+  // Function removed to fix lint error - clef handling is done in parent component
+
+  $: if (clef) {
+    renderStaff();
   }
 
   $: if (range) {

@@ -1,17 +1,17 @@
-import type { ChordType } from "abcjs";
-import Index from "../pages/index.astro";
-import { render } from "astro/compiler-runtime";
+// import type { ChordType } from "abcjs";
+// import Index from "../pages/index.astro";
+// import { render } from "astro/compiler-runtime";
 import { nonChordToneGenerator } from "./nonChordToneGen";
-import { get } from "svelte/store";
+// import { get } from "svelte/store";
 
-interface AbcObject {
-  key: string;
-  timeSig: string;
-  parts: string;
-  form: string;
-  bpm: number;
-  measures: number;
-}
+// interface AbcObject {
+//   key: string;
+//   timeSig: string;
+//   parts: string;
+//   form: string;
+//   bpm: number;
+//   measures: number;
+// }
 
 let baseNoteArray = [
   "C,,",
@@ -719,7 +719,7 @@ function createNewSr(params: any) {
         ];
     }
 
-    var tonic: any = key;
+    // var tonic: any = key;
     var minRange = noteList.findIndex(
       (note) => note.name === baseNoteArray[singlePartObject.selectedRange[0]]
     );
@@ -811,16 +811,16 @@ function createNewSr(params: any) {
           console.error("An error occurred:", error);
         }
 
-        let prevNoteDegree = prevNote.degree;
+        // let prevNoteDegree = prevNote.degree;
 
         let closestDegreeAbove = 0;
         let closestDegreeBelow = 0;
 
         if (otherDegreesInChord.length !== 0) {
-          let { closestDegreeAbove, closestDegreeBelow } = findClosestDegrees(
-            prevNoteDegree,
-            otherDegreesInChord
-          );
+          // let { closestDegreeAbove, closestDegreeBelow } = findClosestDegrees(
+          //   prevNoteDegree,
+          //   otherDegreesInChord
+          // );
         }
 
         // check if last note is an accidental

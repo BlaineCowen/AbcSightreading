@@ -1,4 +1,5 @@
 import { chords as allChords } from "../resources/chords";
+import { type Rhythm } from "../resources/rhythms";
 
 // interface AbcObject {
 //   key: string;
@@ -171,7 +172,7 @@ function getRandomByWeight(
   return arr[arr.length - 1]; // Fallback, though normally shouldn't be reached
 }
 
-function getRandomRhythmByWeight(arr: { name: any; weight: number }[]) {
+function getRandomRhythmByWeight(arr: Rhythm[]) {
   if (arr.length === 0) {
     return null; // Handle empty array case
   }
@@ -197,26 +198,33 @@ function getRandomRhythmByWeight(arr: { name: any; weight: number }[]) {
   return arr[arr.length - 1]; // Fallback, though normally shouldn't be reached
 }
 
-function generateRandomCombination(
-  array: number[],
+function generateRandomRhythmCombination(
+  rhythmArray: Rhythm[],
   targetSum: number,
-  eighthsPerMeasure: number
-) {
-  let result: number[] = [];
-  let largestNumber = Math.max(...array);
+  tsPerMeasure: number
+): { numbers: number[]; rhythmObjects: Rhythm[] } {
+  let numberResult: number[] = [];
+  let rhythmResult: Rhythm[] = [];
   let currentSum = 0;
   let currentCombination: number[] = [];
-  let arrayToRandom = [];
 
   let totalRuns = 0;
 
-  for (let i = 0; i < array.length; i++) {
-    if (array[i] <= targetSum) {
-      arrayToRandom.push({ name: array[i], weight: 10 / array[i] });
+  // sort array desc
+  rhythmArray.sort((a, b) => b.totalValue - a.totalValue);
+
+  for (let i = 0; i < rhythmArray.length; i++) {
+    if (rhythmArray[i].totalValue <= targetSum) {
+      // ass weight to each rhythm
+      rhythmArray[i].weight = rhythmArray[i].totalValue;
     }
   }
-  // get the current sum of the array
-  currentSum = array.reduce((a, b) => a + b, 0);
+  // // get the current sum of the array
+  // currentSum = rhythmArray.reduce((a, b) => a + b.totalValue, 0);
+
+  // make a copy of rhythm array to randomize
+  let rhythmArrayToRandom = [...rhythmArray];
+
   // let testMeasureSum = 0;
   while (currentSum !== targetSum && totalRuns < 1000) {
     // check if totalruns is getting high
@@ -224,36 +232,43 @@ function generateRandomCombination(
       console.log("Error: Could not find a valid combination");
     }
     let measureArray: number[] = [];
+    let measureRhythmArr: Rhythm[] = [];
+
     let measureRhythm = 0;
+
     let measureRuns = 0;
+
     const maxMeasureRuns = 10;
-    while (measureRhythm < eighthsPerMeasure) {
-      let randomNumber = null;
+
+    while (measureRhythm < tsPerMeasure) {
+      let randomRhythm: Rhythm | null = null;
       // check if last measure
-      if (currentSum === targetSum - eighthsPerMeasure) {
-        randomNumber = eighthsPerMeasure;
+      if (currentSum === targetSum - rhythmArray[0].totalValue) {
+        randomRhythm = rhythmArray[0];
       } else {
         // make sure array is there
-        if (arrayToRandom.length > 0) {
-          let filteredArrayToRandom = arrayToRandom.filter(
-            (element) => element.name + measureRhythm <= eighthsPerMeasure
+        if (rhythmArrayToRandom.length > 0) {
+          let filteredArrayToRandom = rhythmArrayToRandom.filter(
+            (element) => element.totalValue + measureRhythm <= tsPerMeasure
           );
-          randomNumber = getRandomRhythmByWeight(filteredArrayToRandom);
 
-          if (randomNumber !== null) {
-            randomNumber = randomNumber.name;
-          }
+          randomRhythm = getRandomRhythmByWeight(filteredArrayToRandom);
         }
       }
 
       let testMeasureArray = [...measureArray];
-      testMeasureArray.push(randomNumber);
+      if (randomRhythm !== null) {
+        testMeasureArray.push(randomRhythm.totalValue);
+        let testMeasureSum = testMeasureArray.reduce((a, b) => a + b, 0);
+        if (testMeasureSum <= tsPerMeasure) {
+          for (let i = 0; i < randomRhythm.abcValue.length; i++) {
+            measureArray.push(parseInt(randomRhythm.abcValue[i]));
+          }
 
-      let testMeasureSum = testMeasureArray.reduce((a, b) => a + b, 0);
+          measureRhythmArr.push(randomRhythm);
 
-      if (testMeasureSum <= eighthsPerMeasure) {
-        measureArray.push(randomNumber);
-        measureRhythm += randomNumber;
+          measureRhythm += randomRhythm.totalValue;
+        }
       } else {
         measureRuns++;
         if (measureRuns >= maxMeasureRuns) {
@@ -262,8 +277,10 @@ function generateRandomCombination(
       }
     }
     let testCompleteArray = [...currentCombination];
+    let testCompleteRhythmArr = [...rhythmResult];
     // add measure array to end of current combination
     testCompleteArray = testCompleteArray.concat(measureArray);
+    testCompleteRhythmArr = testCompleteRhythmArr.concat(measureRhythmArr);
 
     // get the current sum of the array
     let testSum = testCompleteArray.reduce((a, b) => a + b, 0);
@@ -271,6 +288,7 @@ function generateRandomCombination(
     if (testSum <= targetSum) {
       currentCombination = testCompleteArray;
       currentSum = testSum;
+      rhythmResult = testCompleteRhythmArr;
     }
 
     // increment the runs
@@ -278,26 +296,15 @@ function generateRandomCombination(
   }
   if (totalRuns >= 1000) {
     console.log("Error: Could not find a valid combination");
-    return [];
+    return { numbers: [], rhythmObjects: [] };
   }
 
-  result = currentCombination;
+  numberResult = currentCombination;
   // Choose a random element from the array
   console.log("random combination ");
-  console.log(result);
+  console.log(numberResult);
 
-  // loop through array
-  for (let i = 0; i < result.length; i++) {
-    if (result[i] === 4) {
-      let diceRoll = Math.random();
-      if (diceRoll < 0.5) {
-        let dottedQuarterEighth = [3, 1];
-        result.splice(i, 1, ...dottedQuarterEighth);
-      }
-    }
-  }
-
-  return result;
+  return { numbers: numberResult, rhythmObjects: rhythmResult };
 }
 
 function generateChordProgression(
@@ -311,8 +318,9 @@ function generateChordProgression(
 ) {
   let bassNoteArray = [];
   let newMaxSkip = maxSkip;
-  const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
-  bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
+
+  // const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
+  // bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
 
   // make sure that in chords[objects].nextChordPossibilities, the chord name is in the chords object
   for (const chord in chords) {
@@ -333,7 +341,19 @@ function generateChordProgression(
     scaleDegrees.includes(note.degree)
   );
 
+  // pick a random note from bassRangeNoteList degree 0,2,4
+  let tonicNotes = bassRangeNoteList.filter((note) =>
+    [0, 2, 4].includes(note.degree)
+  );
+
+  bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
+
   let prevBassNote = bassNoteArray[0];
+  let prevChord = {
+    chord: chords["1"],
+    length: 8,
+    triadDegrees: [0, 2, 4],
+  };
 
   let bassDegrees = bassRangeNoteList.filter(
     (note) =>
@@ -342,24 +362,51 @@ function generateChordProgression(
   );
 
   var chordProgression: any[] = [];
+
   let validProgression = false;
+
   while (!validProgression && chordGenFails < 100) {
     console.log("genchord progression chordGenFails ", chordGenFails);
     chordProgression = [];
     bassNoteArray = [tonicNotes[Math.floor(Math.random() * tonicNotes.length)]];
 
     for (let i = 0; i < numOfChords; i++) {
+      newMaxSkip = maxSkip;
       if (i !== 0) {
-        if (randNoteLengths[i] === 1 || randNoteLengths[i] === 3) {
+        // todo add eighth note check
+        if (randNoteLengths[i] <= 4) {
           // newMaxSkip = 1;
         } else {
-          // newMaxSkip = maxSkip;
+          newMaxSkip = maxSkip;
         }
         prevBassNote = bassNoteArray[i - 1];
+
+        prevChord = chordProgression[i - 1];
+
+        // check if prev note was an accidental note
+        if (
+          (prevChord.chord.sharpScaleDegree !== undefined &&
+            prevChord.chord.sharpScaleDegree === prevBassNote.degree) ||
+          (prevChord.chord.flatScaleDegree !== undefined &&
+            prevChord.chord.flatScaleDegree === prevBassNote.degree)
+        ) {
+          newMaxSkip = 1;
+        } else {
+          newMaxSkip = maxSkip;
+        }
+
+        // todo add eighth note check
         bassDegrees = bassRangeNoteList.filter(
           (note) =>
             Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
         );
+        if (bassDegrees.length === 0) {
+          console.log("No valid bass degrees found");
+          chordGenFails++;
+          bassNoteArray.pop();
+          console.log("chordGenFails ", chordGenFails);
+          break;
+        }
       }
       if (i === 0) {
         const firstChord = {
@@ -371,7 +418,7 @@ function generateChordProgression(
         chordProgression.push(firstChord);
       } else if (i === numOfChords - 3) {
         // The third-to-last chord must lead to 5
-        let prevChord = chordProgression[chordProgression.length - 1];
+        prevChord = chordProgression[chordProgression.length - 1];
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter(
             (chord: { name: string; weight: number }) => {
@@ -410,7 +457,7 @@ function generateChordProgression(
             length: randNoteLengths[i],
             triadDegrees: chords[nextChordName].triadNotes,
           };
-          let bassNoteToAdd = bassRangeNoteList
+          let bassNoteToAdd = bassDegrees
             .filter((note) =>
               chords[nextChordName].triadNotes.includes(note.degree)
             )
@@ -438,40 +485,37 @@ function generateChordProgression(
         }
       } else if (i === numOfChords - 2) {
         // The second-to-last chord must be dominant
-        let prevChord = chordProgression[chordProgression.length - 1];
+        prevChord = chordProgression[chordProgression.length - 1];
+
         // prefer dominant
         let nextChordPossibilities =
-          prevChord.chord.nextChordPossibilities.filter(
-            (chord: { name: string; weight: number; type: string }) => {
+          prevChord.chord.nextChordPossibilities.filter((chord) => {
+            if (!chords[chord.name]) return false;
+            return (
+              (chords[chord.name].type === "dominant" ||
+                chords[chord.name].type === "predominant") &&
+              bassDegrees
+                .map((note) => note.degree)
+                .some((degree) =>
+                  chords[chord.name].triadNotes.includes(degree)
+                )
+            );
+          });
+        if (nextChordPossibilities.length === 0) {
+          // if no dominant chords are found, try tonic chords
+          nextChordPossibilities =
+            prevChord.chord.nextChordPossibilities.filter((chord) => {
               if (!chords[chord.name]) return false;
               return (
-                (chords[chord.name].type === "dominant" ||
-                  chords[chord.name].type === "predominant") &&
+                (chords[chord.name].type === "dominant-inversion" ||
+                  chords[chord.name].type === "tonic") &&
                 bassDegrees
                   .map((note) => note.degree)
                   .some((degree) =>
                     chords[chord.name].triadNotes.includes(degree)
                   )
               );
-            }
-          );
-        if (nextChordPossibilities.length === 0) {
-          // if no dominant chords are found, try tonic chords
-          nextChordPossibilities =
-            prevChord.chord.nextChordPossibilities.filter(
-              (chord: { name: string; weight: number; type: string }) => {
-                if (!chords[chord.name]) return false;
-                return (
-                  (chords[chord.name].type === "dominant-inversion" ||
-                    chords[chord.name].type === "tonic") &&
-                  bassDegrees
-                    .map((note) => note.degree)
-                    .some((degree) =>
-                      chords[chord.name].triadNotes.includes(degree)
-                    )
-                );
-              }
-            );
+            });
         }
 
         // if still no valid progression is found restart the loop
@@ -495,7 +539,7 @@ function generateChordProgression(
             length: randNoteLengths[i],
             triadDegrees: chords[nextChordName].triadNotes,
           };
-          let bassNoteToAdd = bassRangeNoteList
+          let bassNoteToAdd = bassDegrees
             .filter((note) =>
               chords[nextChordName].triadNotes.includes(note.degree)
             )
@@ -523,15 +567,15 @@ function generateChordProgression(
           }
         }
       } else if (i === numOfChords - 1) {
-        let prevChord = chordProgression[chordProgression.length - 1];
-        let noteLength = timeSig.eighthsPerMeasure;
+        prevChord = chordProgression[chordProgression.length - 1];
+
         // The last chord must be "1"
         const nextChord = {
           chord: chords["1"],
-          length: noteLength,
+          length: randNoteLengths[i],
           triadDegrees: chords["1"].triadNotes,
         };
-        let bassNoteToAdd = bassRangeNoteList
+        let bassNoteToAdd = bassDegrees
           .filter((note) => chords["1"].triadNotes.includes(note.degree))
           .filter(
             (note) =>
@@ -553,24 +597,15 @@ function generateChordProgression(
           break;
         }
       } else {
-        let prevChord = chordProgression[chordProgression.length - 1];
+        prevChord = chordProgression[chordProgression.length - 1];
         prevBassNote = bassNoteArray[i - 1];
         let nextChordPossibilities =
-          prevChord.chord.nextChordPossibilities.filter(
-            (chord: {
-              name: string;
-              weight: number;
-              type: string;
-              triadNotes: number[];
-            }) => {
-              if (!chords[chord.name]) return false;
-              return bassDegrees
-                .map((note) => note.degree)
-                .some((degree) =>
-                  chords[chord.name].triadNotes.includes(degree)
-                );
-            }
-          );
+          prevChord.chord.nextChordPossibilities.filter((chord) => {
+            if (!chords[chord.name]) return false;
+            return bassDegrees
+              .map((note) => note.degree)
+              .some((degree) => chords[chord.name].triadNotes.includes(degree));
+          });
 
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
@@ -599,7 +634,7 @@ function generateChordProgression(
               length: randNoteLengths[i],
               triadDegrees: chords[nextChordName].triadNotes,
             };
-            let bassNoteToAdd = bassRangeNoteList
+            let bassNoteToAdd = bassDegrees
               .filter((note) =>
                 chords[nextChordName].triadNotes.includes(note.degree)
               )
@@ -637,7 +672,10 @@ function generateChordProgression(
     console.log("Error: Could not find a valid chord progression");
     return [];
   }
-
+  console.log(
+    "chordProgression ",
+    chordProgression.map((chord) => chord.chord.name)
+  );
   return [chordProgression, bassNoteArray];
 }
 
@@ -726,6 +764,7 @@ function isDegreeWithinRange(
 }
 
 function createNewSr(params: any) {
+  var clef = params.clef;
   var importChords = params.chords;
   var keyRendered = params.key;
   var maxSkip = params.maxSkip;
@@ -740,6 +779,9 @@ function createNewSr(params: any) {
 
   var tonic = keyRendered[0];
   var partsObject = JSON.parse(JSON.stringify(params.partsObject));
+
+  // add selected range to partsObject
+  partsObject.parts.Unison.selectedRange = selectedRange;
 
   // filter chords to only include chords that are in the chords object
   importChords = Object.fromEntries(
@@ -773,6 +815,7 @@ function createNewSr(params: any) {
     var chordTriadCopy = params.chordTriadCopy;
     var baseNoteArray = params.baseNoteArray;
     var currentChord = params.renderedChordProgression[params.noteIndex];
+    var bassGenNoteArray = params.bassGenNoteArray;
 
     var partName = Object.keys(partObject.parts)[randPartIndex];
     var partOrder = partObject.parts[partName].order;
@@ -829,7 +872,7 @@ function createNewSr(params: any) {
       { name: "", degree: 0, pitchValue: 0 };
 
     if (singlePartObject.order === 0) {
-      scaleDegreeToAdd = renderedChordProgression[noteIndex].chord.root;
+      scaleDegreeToAdd = bassGenNoteArray[noteIndex].degree;
       var rangeNoteListFilter = rangeNoteList.filter(
         (note) => note.degree === scaleDegreeToAdd
       );
@@ -915,7 +958,7 @@ function createNewSr(params: any) {
         var prevNoteAccidental = prevNote.name.match(/[_^=]/g);
 
         if (prevNoteAccidental) {
-          maxSkip = 1;
+          // maxSkip = 1;
         }
 
         var rangeNoteListFilter = rangeNoteList.filter(
@@ -1003,7 +1046,8 @@ function createNewSr(params: any) {
         pitchValue <= minRange + 1
       ) {
         // try again
-        return false;
+        // return false;
+        generatedNote = accidental + generatedNote;
       } else {
         generatedNote = accidental + generatedNote;
       }
@@ -1028,20 +1072,23 @@ function createNewSr(params: any) {
     noteList.findIndex((note) => note.name === baseNoteArray[selectedRange[1]])
   );
 
-  var possibleLengths = [];
-  var testTotal = timeSigRendered.eighthsPerMeasure;
-  var fails = 0;
-  while (testTotal > 1 && fails < 100) {
-    console.log("genchord progression lengths ", fails);
+  // var testTotal = timeSigRendered.tsPerMeasure;
+  // var fails = 0;
+  // while (testTotal > 1 && fails < 100) {
+  //   console.log("genchord progression lengths ", fails);
 
-    possibleLengths.push(testTotal);
-    testTotal -= 2;
-  }
-  const randNoteLengths = generateRandomCombination(
-    possibleLengths,
-    timeSigRendered.eighthsPerMeasure * numOfMeasures,
-    timeSigRendered.eighthsPerMeasure
-  );
+  //   possibleLengths.push(testTotal);
+  //   testTotal -= 2;
+  // }
+  const randNoteLengthsResult: { numbers: number[]; rhythmObjects: Rhythm[] } =
+    generateRandomRhythmCombination(
+      rhythms,
+      timeSigRendered.tsPerMeasure * numOfMeasures,
+      timeSigRendered.tsPerMeasure
+    );
+
+  const randNoteLengths = randNoteLengthsResult.numbers;
+  const randRhythmObjects = randNoteLengthsResult.rhythmObjects;
 
   const [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
     timeSigRendered,
@@ -1136,6 +1183,7 @@ function createNewSr(params: any) {
           tonic: tonic,
           noteIndex: noteIndex,
           baseNoteArray: baseNoteArray,
+          bassGenNoteArray: bassGenNoteArray,
           chordTriadCopy: chordTriadCopy,
           otherPartNotes: chordObjectsToAdd,
           noteList: noteList,
@@ -1149,17 +1197,7 @@ function createNewSr(params: any) {
         let chordObjectToAdd: any = {};
         singlePartFails = 0;
         while (singlePartFails < maxSinglePartFails) {
-          if (i === 0) {
-            chordObjectToAdd = {
-              partName: Object.keys(partsObject.parts)[partIndexArray[i]],
-              noteLength: randNoteLengths[noteIndex],
-              name: bassGenNoteArray[noteIndex].name,
-              degree: bassGenNoteArray[noteIndex].degree,
-              pitchValue: bassGenNoteArray[noteIndex].pitchValue,
-            };
-          } else {
-            chordObjectToAdd = generateChord(genChordParams);
-          }
+          chordObjectToAdd = generateChord(genChordParams);
           if (Object.keys(chordObjectToAdd).length === 0) {
             singlePartFails++;
           } else {
@@ -1247,7 +1285,7 @@ function createNewSr(params: any) {
         .chordNoteObject.length;
       chordNoteIndex++
     ) {
-      // add linrear index to each chordNoteObject
+      // add linear index to each chordNoteObject
       partsObject.parts[
         Object.keys(partsObject.parts)[partIndex]
       ].chordNoteObject[chordNoteIndex].noteLinearIndex = noteLinearIndex;
@@ -1281,9 +1319,9 @@ function createNewSr(params: any) {
   }
 
   function filterAccidentals(params: any) {
-    const eighthsPerMeasure = params.eighthsPerMeasure;
+    const tsPerMeasure = params.tsPerMeasure;
     let partsObject = params.partsObject;
-    let eighthCounter = 0;
+    let tsCounter = 0;
     const key = params.key;
 
     // loop through the parts object
@@ -1294,7 +1332,7 @@ function createNewSr(params: any) {
         i < partsObject.parts[partName].completeNoteObject.length;
         i++
       ) {
-        eighthCounter +=
+        tsCounter +=
           partsObject.parts[partName].completeNoteObject[0].noteLength;
 
         // check if there is an accidental
@@ -1324,7 +1362,7 @@ function createNewSr(params: any) {
             console.log("found accidental");
           }
         }
-        if (eighthCounter % eighthsPerMeasure === 0) {
+        if (tsCounter % tsPerMeasure === 0) {
           accidental = null;
           accidentalType = null;
           noteNameWithAccidental = "";
@@ -1334,7 +1372,7 @@ function createNewSr(params: any) {
   }
 
   filterAccidentals({
-    eighthsPerMeasure: timeSigRendered.eighthsPerMeasure,
+    tsPerMeasure: timeSigRendered.tsPerMeasure,
     partsObject: partsObject,
     key: keyRendered,
   });
@@ -1344,6 +1382,7 @@ function createNewSr(params: any) {
     // get the part name
     var partName = Object.keys(partsObject.parts)[i];
     var sumOfNotes = 0;
+
     // loop through each chord
     for (
       var j = 0;
@@ -1373,6 +1412,11 @@ function createNewSr(params: any) {
             Object.keys(partsObject.parts)[i]
           ].concatNoteString += "|";
         }
+        // if (sumOfNotes % 16 === 0) {
+        //   partsObject.parts[
+        //     Object.keys(partsObject.parts)[i]
+        //   ].concatNoteString += "\n";
+        // }
       }
       // add a double barline at the end
       else if (
@@ -1388,6 +1432,7 @@ function createNewSr(params: any) {
           partsObject.parts[Object.keys(partsObject.parts)[i]].chordNoteObject[
             j
           ].noteLength;
+
         partsObject.parts[Object.keys(partsObject.parts)[i]].concatNoteString +=
           "|";
       }
@@ -1402,29 +1447,58 @@ function createNewSr(params: any) {
       // loop through each note
       for (
         var i = 0;
-        i < partsObject.parts[partName].completeNoteObject.length;
+        i < partsObject.parts[partName].chordNoteObject.length;
         i++
       ) {
         // check if previous notelength is a 3
+        let addSpace = false;
+        // find the index of the randrhythmobject.abcValue recursively
+        let matchRIndex = 0;
 
-        if (partsObject.parts[partName].completeNoteObject[i].newNote) {
-          concatString +=
-            partsObject.parts[partName].completeNoteObject[i].name +
-            partsObject.parts[partName].completeNoteObject[i].noteLength;
-
-          if (
-            i !== 0 &&
-            partsObject.parts[partName].completeNoteObject[i - 1].noteLength ===
-              3
-          ) {
-            concatString += " ";
+        for (let r = 0; r < randRhythmObjects.length; r++) {
+          if (addSpace) {
+            break;
           }
-
-          totalNoteValue +=
-            partsObject.parts[partName].completeNoteObject[i].noteLength;
-          if (totalNoteValue % timeSigRendered.eighthsPerMeasure === 0) {
-            concatString += "|";
+          for (let s = 0; s < randRhythmObjects[r].abcValue.length; s++) {
+            if (matchRIndex !== i) {
+              matchRIndex++;
+            }
+            if (matchRIndex === i) {
+              // check if we are the last of the array
+              if (s === randRhythmObjects[r].abcValue.length - 1) {
+                addSpace = true;
+                break;
+              } else {
+                addSpace = false;
+                break;
+              }
+            }
           }
+          if (matchRIndex === i) {
+            break;
+          }
+        }
+
+        if (addSpace) {
+          concatString += " ";
+        }
+
+        concatString +=
+          partsObject.parts[partName].chordNoteObject[i].name +
+          partsObject.parts[partName].chordNoteObject[i].noteLength;
+
+        // if (
+        //   i !== 0 &&
+        //   partsObject.parts[partName].chordNoteObject[i - 1].noteLength ===
+        //     3
+        // ) {
+        //   concatString += " ";
+        // }
+
+        totalNoteValue +=
+          partsObject.parts[partName].chordNoteObject[i].noteLength;
+        if (totalNoteValue % timeSigRendered.tsPerMeasure === 0) {
+          concatString += "|";
         }
       }
       partsObject.parts[partName].concatNoteString = concatString;
@@ -1440,12 +1514,11 @@ function createNewSr(params: any) {
     // find the clef by matching the name to the part name object
     var partName = Object.keys(partsObject.parts)[i];
     var smallName = partsObject.parts[partName].smallName;
-    var clef = partsObject.parts[Object.keys(partsObject.parts)[i]].clef;
     var middleString = "";
     if (clef === "treble-8") {
       middleString = "octave=1";
     }
-    headerString += `V:${smallName} clef=${clef} name="${partName}" snm="${smallName}" ${middleString}\n`;
+    headerString += `V:${smallName} name="${partName}" snm="${smallName}" ${middleString}\n`;
   }
 
   var tuneBody = "";
@@ -1454,7 +1527,7 @@ function createNewSr(params: any) {
     var partName = Object.keys(partsObject.parts)[i];
     var smallName = partsObject.parts[partName].smallName;
 
-    tuneBody += `[V:${smallName}] ${partsObject.parts[partName].concatNoteString}] \n`;
+    tuneBody += `[V:1] ${partsObject.parts[partName].concatNoteString}] \n`;
   }
 
   var scoreString = "%%score ";
@@ -1468,11 +1541,11 @@ function createNewSr(params: any) {
     `T:SATB UIL Sight Reading \n` +
     `C:Blaine Cowen \n` +
     `M:${timeSigRendered.name}\n` +
-    `L:1/8\n` +
+    `L:1/32\n` +
     `Q:1/4=76 \n` +
     `${scoreString}` +
     `${headerString}` +
-    `K: ${keyRendered} \n` +
+    `K: ${keyRendered} clef=${clef} \n` +
     `%            End of header, start of tune body: \n` +
     `${tuneBody}`;
 

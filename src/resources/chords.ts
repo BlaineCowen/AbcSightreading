@@ -175,7 +175,7 @@ export const chords: {
     type: "secondary-dominant",
     sharpScaleDegree: 3,
     flatScaleDegree: undefined,
-    baseMultiplier: 1,
+    baseMultiplier: 10,
   },
   "5/6": {
     name: "5/6",
@@ -190,7 +190,7 @@ export const chords: {
     type: "secondary-dominant",
     sharpScaleDegree: 4,
     flatScaleDegree: undefined,
-    baseMultiplier: 1,
+    baseMultiplier: 10,
   },
   "5/2": {
     name: "5/2",
@@ -205,7 +205,7 @@ export const chords: {
     type: "secondary-dominant",
     sharpScaleDegree: 0,
     flatScaleDegree: undefined,
-    baseMultiplier: 1,
+    baseMultiplier: 10,
   },
 
   m4: {
