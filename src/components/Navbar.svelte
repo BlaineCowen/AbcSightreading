@@ -1,9 +1,31 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   let isNavbarOpen = false;
+
+  let navbar: HTMLDivElement;
+  let lastScrollY = 0;
+
+  const handleScroll = () => {
+    if (window.scrollY > lastScrollY) {
+      navbar.style.transform = "translateY(-100%)"; // Hide on scroll down
+    } else {
+      navbar.style.transform = "translateY(0)"; // Show on scroll up
+    }
+    lastScrollY = window.scrollY;
+  };
+
+  onMount(() => {
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  });
 </script>
 
 <main>
-  <div class=" absolute flex w-full">
+  <div
+    class="absolute bg-white flex w-full transition-transform duration-300"
+    bind:this={navbar}
+    style="transform: translateY(0);"
+  >
     {#if isNavbarOpen}
       <div
         class="navbar-menu open inline-block bg-slate-100 top-full left-0 shadow-md w-32 z-10"
@@ -56,4 +78,5 @@
     justify-content: center;
     align-items: center;
   }
+  
 </style>

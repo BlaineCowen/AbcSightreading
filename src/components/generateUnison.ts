@@ -1542,7 +1542,7 @@ function createNewSr(params: any) {
     `C:Blaine Cowen \n` +
     `M:${timeSigRendered.name}\n` +
     `L:1/32\n` +
-    `Q:1/4=76 \n` +
+    `Q:1/4=${tempo} \n` +
     `${scoreString}` +
     `${headerString}` +
     `K: ${keyRendered} clef=${clef} \n` +

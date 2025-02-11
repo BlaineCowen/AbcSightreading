@@ -5,6 +5,24 @@
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   // import { chords } from "../resources/chords";
+  // Import all SVGs dynamically
+
+  let filterRhythms = Object.values(rhythms).filter((rhythm) => {
+    console.log(rhythm.name); // Log rhythm names
+    return (
+      !rhythm.name.includes("thirtySecond") &&
+      !rhythm.name.toLowerCase().includes("rest")
+    );
+  });
+
+  const rhythmSvgs = Object.fromEntries(
+    Object.entries(rhythms)
+      .filter(
+        ([name]) =>
+          !name.includes("thirtySecond") && !name.toLowerCase().includes("rest")
+      )
+      .map(([name]) => [name, import(`../assets/svgs/${name}.svg?raw`)])
+  );
 
   // Wrap initial state declarations in a function
   function getInitialState() {
@@ -34,6 +52,7 @@
           accidentals: options.accidentals || false,
           moveEighthNotes: options.moveEighthNotes || false,
           accidentalsFollowStep: options.accidentalsFollowStep || true,
+          tempo: options.tempo || 60,
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -70,6 +89,7 @@
   let accidentals = initialState.accidentals;
   let moveEighthNotes = initialState.moveEighthNotes;
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
+  let tempo = initialState.tempo;
 
   let renderedString: any;
   let progress = 0;
@@ -173,6 +193,7 @@
         };
         measures = options.measures || 8;
         bpm = options.bpm || 60;
+        tempo = options.tempo || 60;
         accidentals = options.accidentals || false; // Load accidentals state
         moveEighthNotes = options.moveEighthNotes || false; // Load new state
         accidentalsFollowStep = options.accidentalsFollowStep || false; // Load new state
@@ -318,7 +339,7 @@
 </script>
 
 <div class="w-full">
-  <main class="flex flex-col items-center w-full max-w-4xl mx-auto">
+  <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
     <div class="flex flex-col items-center w-full">
       <div id="audio" class="w-full flex justify-center"></div>
 
@@ -435,6 +456,13 @@
                   {/each}
                 </div>
               </div>
+
+              <!-- tempo -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Tempo</h2>
+                <input type="range" min="30" max="120" value={tempo} />
+              </div>
+
               <!-- check range selector   -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Range</h2>
@@ -463,51 +491,51 @@
                   {/each}
                 </div>
               </div>
-            </div>
 
-            <!-- accidentals -->
-            <div class="space-y-2">
-              <h2 class="text-lg font-semibold">Accidentals</h2>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  class="px-3 py-1 rounded {accidentals
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100'}"
-                  on:click={() => (accidentals = !accidentals)}
-                >
-                  {accidentals ? "On" : "Off"}
-                </button>
+              <!-- accidentals -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Accidentals</h2>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    class="px-3 py-1 rounded {accidentals
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100'}"
+                    on:click={() => (accidentals = !accidentals)}
+                  >
+                    {accidentals ? "On" : "Off"}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <!-- move eighth notes -->
-            <div class="space-y-2">
-              <h2 class="text-lg font-semibold">Move 8th Notes</h2>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  class="px-3 py-1 rounded {moveEighthNotes
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100'}"
-                  on:click={() => (moveEighthNotes = !moveEighthNotes)}
-                >
-                  {moveEighthNotes ? "On" : "Off"}
-                </button>
+              <!-- move eighth notes -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Move 8th Notes</h2>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    class="px-3 py-1 rounded {moveEighthNotes
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100'}"
+                    on:click={() => (moveEighthNotes = !moveEighthNotes)}
+                  >
+                    {moveEighthNotes ? "On" : "Off"}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <!-- accidentals follow step -->
-            <div class="space-y-2">
-              <h2 class="text-lg font-semibold">Accidentals Follow Step</h2>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  class="px-3 py-1 rounded {accidentalsFollowStep
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100'}"
-                  on:click={() =>
-                    (accidentalsFollowStep = !accidentalsFollowStep)}
-                >
-                  {accidentalsFollowStep ? "On" : "Off"}
-                </button>
+              <!-- accidentals follow step -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Accidentals Follow Step</h2>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    class="px-3 py-1 rounded {accidentalsFollowStep
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100'}"
+                    on:click={() =>
+                      (accidentalsFollowStep = !accidentalsFollowStep)}
+                  >
+                    {accidentalsFollowStep ? "On" : "Off"}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -515,17 +543,23 @@
             <div class="space-y-2">
               <h2 class="text-lg font-semibold">Rhythms</h2>
               <div class="flex flex-wrap gap-2">
-                {#each Object.values(rhythms) as rhythm}
+                {#each Object.values(filterRhythms) as rhythm}
                   <button
-                    class="px-3 py-1 rounded {selectedRhythms.some(
+                    class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded {selectedRhythms.some(
                       // @ts-ignore
                       (r) => r.name === rhythm.name
                     )
                       ? 'bg-blue-500 text-white'
                       : 'bg-gray-100'}"
                     on:click={() => {
-                      // @ts-ignore
-                      if (selectedRhythms.some((r) => r.name === rhythm.name)) {
+                      if (
+                        selectedRhythms.some(
+                          (
+                            // @ts-ignore
+                            r
+                          ) => r.name === rhythm.name
+                        )
+                      ) {
                         selectedRhythms = selectedRhythms.filter(
                           // @ts-ignore
                           (r) => r.name !== rhythm.name
@@ -535,16 +569,26 @@
                       }
                     }}
                   >
-                    {rhythm.name}
+                    {#await rhythmSvgs[rhythm.name]}
+                      <!-- Loading state -->
+                      <span>...</span>
+                    {:then svg}
+                      <span
+                        class="rhythm-icon w-full h-full flex items-center justify-center"
+                      >
+                        {@html svg.default}
+                      </span>
+                    {:catch}
+                      <span>{rhythm.name}</span>
+                    {/await}
                   </button>
                 {/each}
               </div>
             </div>
           </div>
-        {:else}
-          <div class="text-center text-gray-500">Options collapsed</div>
         {/if}
         <!-- Create Button -->
+
         <button
           class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
           on:click={handleClick}
@@ -556,6 +600,9 @@
 
     <!-- Music Display -->
     <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
+
+    <!-- padding -->
+    <div class="h-96"></div>
 
     <!-- Progress Bar -->
     {#if songPlaying}

@@ -1,5 +1,7 @@
 ---
 import Navbar from "../components/Navbar.svelte";
+import "../styles/globals.css";
+import "abcjs/abcjs-audio.css";
 
 interface Props {
   title: string;
@@ -17,7 +19,7 @@ const { title, description = "A music sight reading practice app" } =
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="/styles/abcjs-audio.css" />
+
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
   </head>
@@ -29,33 +31,4 @@ const { title, description = "A music sight reading practice app" } =
       <slot />
     </main>
   </body>
-  <style is:global>
-    :root {
-      --accent: 136, 58, 234;
-      --accent-light: 224, 204, 250;
-      --accent-dark: 49, 10, 101;
-      --accent-gradient: linear-gradient(
-        45deg,
-        rgb(var(--accent)),
-        rgb(var(--accent-light)) 30%,
-        white 60%
-      );
-    }
-    html {
-      font-family: system-ui, sans-serif;
-      background: #13151a;
-      background-size: 224px;
-    }
-    code {
-      font-family:
-        Menlo,
-        Monaco,
-        Lucida Console,
-        Liberation Mono,
-        DejaVu Sans Mono,
-        Bitstream Vera Sans Mono,
-        Courier New,
-        monospace;
-    }
-  </style>
 </html>
