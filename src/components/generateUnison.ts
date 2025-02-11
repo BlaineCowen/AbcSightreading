@@ -770,7 +770,7 @@ function createNewSr(params: any) {
   var maxSkip = params.maxSkip;
   var timeSigRendered = params.timeSig;
   var selectedRange = [params.range.min, params.range.max + 1];
-  var tempo = params.bpm;
+  var tempo = params.tempo;
   var numOfMeasures = params.measures;
   var rhythms = params.rhythms;
   var scaleDegrees: number[] = Array.from(params.scaleDegrees);

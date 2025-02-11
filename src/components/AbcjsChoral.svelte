@@ -343,10 +343,10 @@
     loadParams();
   });
 
-  function handleVoicing(event: any) {
-    selectedVoicing = event.target.innerText;
-    console.log(selectedVoicing);
-  }
+  // function handleVoicing(event: any) {
+  //   selectedVoicing = event.target.innerText;
+  //   console.log(selectedVoicing);
+  // }
 
   const drumBeats: {
     [key: string]: string;
@@ -392,11 +392,6 @@
   async function handleClick() {
     // update URL parameters
     updateURLParams();
-    // show progress bar
-    const progressBarContainer = document.getElementById(
-      "progress-bar-container"
-    ) as HTMLDivElement;
-    progressBarContainer.style.display = "block";
 
     // hide start button
     // const startButton = document.getElementById("start") as HTMLButtonElement;
@@ -481,181 +476,207 @@
   }
 </script>
 
-<main>
-  <div id="audio" class="flex justify-center w-full"></div>
-  <div class="flex justify-center items-center text-xl bg-white h-20">
-    <h1>Choral Sight Reading</h1>
-  </div>
+<div class="w-full">
+  <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
+    <div class="flex flex-col items-center w-full">
+      <div id="audio" class="w-full flex justify-center"></div>
 
-  <div
-    id="song-options"
-    class="flex flex-col items-center justify-center mx-10"
-  >
-    <div class="flex justify-center w-full">
+      <!-- Options Panel -->
       <div
-        id="start"
-        class="border-black bg-blue-500 rounded-md w-1/3 z-20 p-1 m-2 flex justify-center"
+        class="w-full bg-white shadow-md rounded-lg p-4 my-4 transition-all duration-300"
       >
-        <button id="start" class="" on:click={handleClick}>Create</button>
-      </div>
-    </div>
-    <!-- Dropdown for Options -->
-    <div class="w-full max-w-md bg-white shadow-md rounded-lg p-4 my-4">
-      <button
-        on:click={() => (showDropdown = !showDropdown)}
-        class="w-full bg-blue-500 text-white p-2 rounded-md text-center"
-      >
-        Select Options
-      </button>
-
-      <!-- Dropdown Content -->
-      {#if showDropdown}
-        <div class="mt-4 space-y-4">
-          <!-- Select Parts -->
-          <div class="text-center">
-            <h2 class="text-lg">Select Parts</h2>
-            <div class="flex flex-wrap justify-center">
-              {#each Object.entries(possibleVoicing) as [voicing]}
-                <button
-                  id="voicing"
-                  class="{selectedVoicing === voicing
-                    ? 'bg-blue-500 hover:bg-blue-500'
-                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
-                  on:click={handleVoicing}>{voicing}</button
-                >
-              {/each}
-            </div>
-          </div>
-
-          <!-- Level -->
-          <div class="text-center">
-            <h2 class="text-lg">Level</h2>
-            <div class="flex flex-wrap justify-center">
-              {#each levels as level}
-                <button
-                  id="level"
-                  class="{selectedLevel === level
-                    ? 'bg-blue-500 hover:bg-blue-500'
-                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
-                  on:click={() => (selectedLevel = level)}>{level}</button
-                >
-              {/each}
-            </div>
-          </div>
-
-          <!-- Time Signature -->
-          <div class="text-center">
-            <h2 class="text-lg">Time Signature</h2>
-            <div class="flex flex-wrap justify-center">
-              {#each Object.entries(timeSignatures) as [timeSig]}
-                <button
-                  id="timeSig"
-                  class="{selectedTimeSignature === timeSig
-                    ? 'bg-blue-500 hover:bg-blue-500'
-                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
-                  on:click={() => (selectedTimeSignature = timeSig)}
-                  >{timeSig}</button
-                >
-              {/each}
-            </div>
-          </div>
-
-          <!-- Max Skip -->
-          <div class="text-center">
-            <h2 class="text-lg">Max Skip</h2>
-            <div class="flex items-center justify-center space-x-4">
-              <button
-                class="border shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-8 h-8 rounded-md"
-                on:click={() => {
-                  if (maxSkip > maxSkipRange[0]) maxSkip -= 1;
-                }}>-</button
+        <!-- Header with minimize button -->
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="text-lg font-semibold">Options</h2>
+          <button
+            class="p-1 hover:bg-gray-100 rounded"
+            on:click={() => (showDropdown = !showDropdown)}
+          >
+            {#if showDropdown}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
               >
-
-              <span class="text-2xl">{maxSkip}</span>
-
-              <button
-                class="border shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-8 h-8 rounded-md"
-                on:click={() => {
-                  if (maxSkip < maxSkipRange[1]) maxSkip += 1;
-                }}>+</button
+                <path
+                  fill-rule="evenodd"
+                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            {:else}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
               >
-            </div>
-          </div>
+                <path
+                  fill-rule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            {/if}
+          </button>
+        </div>
 
-          <!-- Key -->
-          <div class="text-center">
-            <h2 class="text-lg">Key</h2>
-            <div class="flex flex-wrap justify-center">
-              {#each possibleKeys as key}
-                <button
-                  id="key"
-                  class="{selectedKey === key
-                    ? 'bg-blue-500 hover:bg-blue-500'
-                    : 'bg-blue-50'} border h-auto shadow-md hover:bg-blue-100 active:bg-blue-500 focus:ring w-1/3 rounded-md z-20 p-1 m-1"
-                  on:click={() => (selectedKey = key)}>{key}</button
-                >
-              {/each}
-            </div>
-          </div>
-
-          <!-- Chord Weights (Progress Bar) -->
-          <div class="text-center">
-            <h2 class="text-lg">Chord Weights</h2>
-            <div class="flex flex-wrap justify-center">
-              {#each Object.values(chords) as chord, index}
-                <div class="flex flex-col items-center w-1/4 my-1 mx-2">
-                  <!-- Label with `for` attribute linked to the input's `id` -->
-                  <label for="slider-{index}" class="text-sm mb-1"
-                    >{chord.symbol}</label
-                  >
-                  <input
-                    type="range"
-                    id="slider-{index}"
-                    min="0"
-                    max="100"
-                    value={chord.baseMultiplier}
-                    on:input={(event) => handleChordWeightChange(event, chord)}
-                    class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
+        {#if showDropdown}
+          <div class="space-y-4 overflow-hidden transition-all duration-300">
+            <div class="grid grid-cols-2 gap-4">
+              <!-- Voicing Selection -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Voicing</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each Object.keys(possibleVoicing) as voicing}
+                    <button
+                      class="px-3 py-1 rounded {selectedVoicing === voicing
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => (selectedVoicing = voicing)}
+                    >
+                      {voicing}
+                    </button>
+                  {/each}
                 </div>
-              {/each}
+              </div>
+
+              <!-- Level Selection -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Level</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each levels as level}
+                    <button
+                      class="px-3 py-1 rounded {selectedLevel === level
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => (selectedLevel = level)}
+                    >
+                      {level}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Time Signature -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Time Signature</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each Object.keys(timeSignatures) as timeSig}
+                    <button
+                      class="px-3 py-1 rounded {selectedTimeSignature ===
+                      timeSig
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => (selectedTimeSignature = timeSig)}
+                    >
+                      {timeSig}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Key Selection -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Key</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each possibleKeys as key}
+                    <button
+                      class="px-3 py-1 rounded {selectedKey === key
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => (selectedKey = key)}
+                    >
+                      {key}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Max Skip -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Max Skip</h2>
+                <div class="flex items-center gap-4">
+                  <button
+                    class="px-3 py-1 rounded bg-gray-100"
+                    on:click={() => {
+                      if (maxSkip > maxSkipRange[0]) maxSkip -= 1;
+                    }}
+                  >
+                    -
+                  </button>
+                  <span>{maxSkip}</span>
+                  <button
+                    class="px-3 py-1 rounded bg-gray-100"
+                    on:click={() => {
+                      if (maxSkip < maxSkipRange[1]) maxSkip += 1;
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <!-- Chord Weights -->
+              <div class="space-y-2 col-span-2">
+                <h2 class="text-lg font-semibold">Chord Weights</h2>
+                <div class="grid grid-cols-4 gap-4">
+                  {#each Object.values(chords) as chord}
+                    <div class="flex flex-col gap-1">
+                      <label for={chord.symbol} class="text-sm"
+                        >{chord.symbol}</label
+                      >
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={chord.baseMultiplier}
+                        on:input={(event) =>
+                          handleChordWeightChange(event, chord)}
+                        class="w-full"
+                      />
+                    </div>
+                  {/each}
+                </div>
+              </div>
             </div>
           </div>
+        {/if}
+
+        <!-- Generate Button -->
+        <button
+          class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
+          on:click={handleClick}
+        >
+          Generate Exercise
+        </button>
+      </div>
+
+      <!-- Music Display -->
+      <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
+
+      <!-- padding -->
+      <div class="h-96"></div>
+
+      <!-- Progress Bar -->
+      {#if songPlaying}
+        <div class="w-full bg-gray-200 rounded-full h-2.5 my-4">
+          <div
+            class="bg-blue-500 h-2.5 rounded-full"
+            style="width: {progress}%"
+          ></div>
+        </div>
+      {/if}
+
+      <!-- Chord Progression Display -->
+      {#if chordProgression.length > 0}
+        <div class="text-center mt-4">
+          <p class="text-gray-600">
+            {chordProgression.map((chord) => chord.name).join(" ")}
+          </p>
         </div>
       {/if}
     </div>
-
-    <div
-      id="paper"
-      class="w-full max-w-5xl h-1/2 flex justify-center border-black bg-gray-100 rounded-md p-4 m-2"
-    ></div>
-
-    <div id="audio" class="bg-white"></div>
-
-    <!-- progress bar -->
-    <div
-      id="progress-bar-container"
-      class="hidden"
-      style="width: 100%; background-color: #eee;"
-    >
-      <div
-        id="progress-bar"
-        style="width: {progress}%; background-color: green; height: 20px;"
-      ></div>
-    </div>
-
-    {#if songPlaying}
-      <div class="flex justify-center bg-white">
-        <button class="border-black bg-blue-500 rounded-md p-1 m-2">
-          Stop
-        </button>
-      </div>
-    {/if}
-
-    <div class="h-4">
-      <p class="text-pink-500 text-xxl">
-        {chordProgression.map((chord) => chord.name).join(" ")}
-      </p>
-    </div>
-  </div>
-</main>
+  </main>
+</div>

@@ -139,9 +139,9 @@ button {
   transition: background-color 0.3s ease; /* Smooth background transition */
 }
 
-button:hover {
+/* button:hover {
   background-color: rgba(255, 255, 255, 0.1); /* Subtle hover effect */
-}
+
 
 
 .main {

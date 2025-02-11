@@ -278,6 +278,7 @@
         timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
       measures: measures,
       maxSkip: 4,
+      tempo: tempo,
       range: selectedRange,
       rhythms: selectedRhythms,
       scaleDegrees: selectedScaleDegrees,
@@ -479,7 +480,17 @@
               <!-- tempo -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Tempo</h2>
-                <input type="range" min="30" max="120" value={tempo} />
+                <span class="text-sm text-gray-500">{tempo}</span>
+                <input
+                  type="range"
+                  min="30"
+                  max="120"
+                  value={tempo}
+                  on:input={(e) =>
+                    (tempo =
+                      // @ts-ignore
+                      e.target.value)}
+                />
               </div>
 
               <!-- check range selector   -->
@@ -617,19 +628,17 @@
       </div>
     </div>
 
-    {#if playSynth}
-      <div class="w-full flex justify-center">
+    <div class="w-full flex justify-left">
+      {#if playSynth}
         <button on:click={() => (playSynth = !playSynth)}>
           <SpeakerIcon />
         </button>
-      </div>
-    {:else}
-      <div class="w-full flex justify-center">
+      {:else}
         <button on:click={() => (playSynth = !playSynth)}>
           <SpeakerIconOff />
         </button>
-      </div>
-    {/if}
+      {/if}
+    </div>
 
     <!-- Music Display -->
     <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
