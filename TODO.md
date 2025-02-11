@@ -13,4 +13,5 @@
 - [ ] add a moving 8th notes option
 - [ ] add pictures for rhythms
 - [ ] add accidentals to sr
+- [ ] add rest functionality
 

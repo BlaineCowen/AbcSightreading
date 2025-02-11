@@ -4,8 +4,13 @@
   import abcjs from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
+  import * as Tone from "tone";
+  import { toneNoteArray } from "../resources/toneNoteArray";
+
   // import { chords } from "../resources/chords";
   // Import all SVGs dynamically
+
+  const synth = new Tone.Synth().toDestination();
 
   let filterRhythms = Object.values(rhythms).filter((rhythm) => {
     console.log(rhythm.name); // Log rhythm names
@@ -232,6 +237,11 @@
     loadOptions();
   });
 
+  const playNote = (note: any) => {
+    console.log(note);
+    synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
+  };
+
   async function renderTune(): Promise<any> {
     return import("abcjs").then((abcjs) => {
       var renderedTune = abcjs.renderAbc("paper", renderedString[0], {
@@ -242,6 +252,9 @@
           preferredMeasuresPerLine: 3,
           minSpacing: 1,
           maxSpacing: 5,
+        },
+        clickListener: (event: any) => {
+          playNote(event.midiPitches[0].pitch);
         },
       });
       return renderedTune;

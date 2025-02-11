@@ -1538,8 +1538,6 @@ function createNewSr(params: any) {
 
   var renderedString =
     `X:1 \n` +
-    `T:SATB UIL Sight Reading \n` +
-    `C:Blaine Cowen \n` +
     `M:${timeSigRendered.name}\n` +
     `L:1/32\n` +
     `Q:1/4=${tempo} \n` +
