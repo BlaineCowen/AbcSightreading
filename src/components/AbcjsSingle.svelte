@@ -6,11 +6,15 @@
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
   import { toneNoteArray } from "../resources/toneNoteArray";
+  import SpeakerIcon from "./ui/speaker-icon.svelte";
+  import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
 
   // import { chords } from "../resources/chords";
   // Import all SVGs dynamically
 
   const synth = new Tone.Synth().toDestination();
+
+  let playSynth = true;
 
   let filterRhythms = Object.values(rhythms).filter((rhythm) => {
     console.log(rhythm.name); // Log rhythm names
@@ -239,7 +243,9 @@
 
   const playNote = (note: any) => {
     console.log(note);
-    synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
+    if (playSynth) {
+      synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
+    }
   };
 
   async function renderTune(): Promise<any> {
@@ -610,6 +616,20 @@
         </button>
       </div>
     </div>
+
+    {#if playSynth}
+      <div class="w-full flex justify-center">
+        <button on:click={() => (playSynth = !playSynth)}>
+          <SpeakerIcon />
+        </button>
+      </div>
+    {:else}
+      <div class="w-full flex justify-center">
+        <button on:click={() => (playSynth = !playSynth)}>
+          <SpeakerIconOff />
+        </button>
+      </div>
+    {/if}
 
     <!-- Music Display -->
     <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
