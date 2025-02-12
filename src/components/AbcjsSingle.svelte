@@ -356,12 +356,54 @@
         break;
     }
   }
+
+  // Add state variables
+  let dronePlaying = false;
+  let droneOscillator: Tone.Oscillator | null = null;
+
+  function toggleDrone() {
+    if (!dronePlaying) {
+      Tone.start();
+      const rootNote = getRootNoteFrequency(selectedKey);
+      droneOscillator = new Tone.Oscillator({
+        frequency: rootNote,
+        type: "sine",
+        volume: -12,
+      })
+        .toDestination()
+        .start();
+    } else {
+      droneOscillator?.stop();
+      droneOscillator = null;
+    }
+    dronePlaying = !dronePlaying;
+  }
+
+  function getRootNoteFrequency(key: string): number {
+    const keyMap: Record<string, number> = {
+      C: 60,
+      G: 67,
+      D: 62,
+      A: 69,
+      E: 64,
+      B: 71,
+      F: 65,
+      Bb: 58,
+      Eb: 63,
+      Ab: 56,
+      Db: 61,
+    };
+    return Tone.Frequency(keyMap[key], "midi").toFrequency();
+  }
 </script>
 
 <div class="w-full">
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
     <div class="flex flex-col items-center w-full">
-      <div id="audio" class="w-full flex justify-center"></div>
+      <div
+        id="audio"
+        class="w-full flex justify-center gap-2 items-center my-4"
+      ></div>
 
       <!-- Options Panel -->
       <div
@@ -638,6 +680,14 @@
           <SpeakerIconOff />
         </button>
       {/if}
+      <button
+        class="px-4 py-2 rounded {dronePlaying
+          ? 'bg-red-500'
+          : 'bg-green-500'} text-white"
+        on:click={toggleDrone}
+      >
+        {dronePlaying ? "Stop Drone" : "Start Drone"}
+      </button>
     </div>
 
     <!-- Music Display -->

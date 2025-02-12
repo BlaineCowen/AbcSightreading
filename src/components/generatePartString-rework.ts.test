@@ -1,0 +1,150 @@
+interface PartConfig {
+  clef: string;
+  range: { min: number; max: number };
+}
+
+interface GeneratorParams {
+  bpm: number;
+  clef: string;
+  timeSig: TimeSignature;
+  measures: number;
+  range: { min: number; max: number };
+  rhythms: any[];
+  scaleDegrees: Set<number>;
+  key: string;
+  chords: string[];
+  partsObject: {
+    numofParts: number;
+    parts: Record<string, PartConfig>;
+  };
+  accidentals: boolean;
+  moveEighthNotes: boolean;
+  accidentalsFollowStep: boolean;
+  tempo: number;
+}
+
+interface VoicePart {
+  notes: Note[];
+  range: number[];
+  clef: string;
+  rhythmPattern: number[];
+}
+
+export function createNewSr(params: GeneratorParams): [string, any[]] {
+  // 1. Generate rhythm pattern based on selected rhythms
+  const rhythmPattern = generateRhythmPattern(
+    params.timeSig,
+    params.measures,
+    params.rhythms
+  );
+
+  // 2. Create scale degrees filter
+  const scaleDegreeFilter = Array.from(params.scaleDegrees);
+
+  // 3. Generate chord progression with voice leading constraints
+  const progression = generateChordProgression({
+    key: params.key,
+    chords: params.chords,
+    measures: params.measures,
+    scaleDegrees: scaleDegreeFilter,
+    range: params.range,
+    accidentals: params.accidentals,
+  });
+
+  // 4. Build voice parts with rhythm and range constraints
+  const voiceParts = buildVoiceParts({
+    progression,
+    rhythmPattern,
+    partsConfig: params.partsObject.parts,
+    range: params.range,
+    maxSkip: 4,
+    accidentalsFollowStep: params.accidentalsFollowStep,
+  });
+
+  // 5. Add non-chord tones and rhythmic variations
+  const partsWithEmbellishments = addEmbellishments(
+    voiceParts,
+    params.moveEighthNotes
+  );
+
+  // 6. Assemble ABC notation with all parameters
+  const abcString = assembleAbcNotation(partsWithEmbellishments, {
+    key: params.key,
+    timeSig: params.timeSig.name,
+    bpm: params.bpm,
+    clef: params.clef,
+    tempo: params.tempo,
+  });
+
+  return [abcString, progression];
+}
+
+interface VoiceBuildingParams {
+  progression: any[];
+  rhythmPattern: number[];
+  partsConfig: Record<string, PartConfig>;
+  range: { min: number; max: number };
+  maxSkip: number;
+  accidentalsFollowStep: boolean;
+}
+
+function buildVoiceParts(params: VoiceBuildingParams) {
+  const parts: Record<string, VoicePart> = {};
+
+  Object.entries(params.partsConfig).forEach(([partName, config]) => {
+    parts[partName] = {
+      notes: [],
+      range: [params.range.min, params.range.max],
+      clef: config.clef,
+      rhythmPattern: params.rhythmPattern,
+    };
+
+    params.progression.forEach((chord, index) => {
+      const availableNotes = getNotesInRange(
+        chord.triadNotes,
+        parts[partName].range,
+        params.accidentalsFollowStep
+      );
+
+      const safeNote = findSafeVoiceLeading(
+        parts[partName].notes,
+        availableNotes,
+        params.maxSkip
+      );
+
+      parts[partName].notes.push({
+        ...safeNote,
+        duration: params.rhythmPattern[index % params.rhythmPattern.length],
+      });
+    });
+  });
+
+  return parts;
+}
+
+function generateRhythmPattern(
+  timeSig: TimeSignature,
+  measures: number,
+  selectedRhythms: any[]
+) {
+  const pattern: number[] = [];
+  const eighthsPerMeasure = timeSig.eighthsPerMeasure;
+
+  for (let i = 0; i < measures; i++) {
+    const rhythm =
+      selectedRhythms[Math.floor(Math.random() * selectedRhythms.length)];
+    pattern.push(...rhythm.abcValue.map(convertRhythmToDuration));
+  }
+
+  return pattern;
+}
+
+function convertRhythmToDuration(rhythmSymbol: string): number {
+  const durationMap: Record<string, number> = {
+    "1": 8, // Whole note
+    "2": 4, // Half note
+    "4": 2, // Quarter note
+    "8": 1, // Eighth note
+  };
+  return durationMap[rhythmSymbol] || 2;
+}
