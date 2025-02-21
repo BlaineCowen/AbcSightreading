@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onDestroy } from "svelte";
   import { createNewSr } from "./generateUnison";
   import abcjs from "abcjs";
   import type {
     TimingCallbacks,
     TimingCallbacksPosition,
-    TimingCallbacksDebug,
+    // TimingCallbacksDebug,
   } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
@@ -14,9 +14,6 @@
   import SpeakerIcon from "./ui/speaker-icon.svelte";
   import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
   import "abcjs/abcjs-audio.css"; // Use the audio CSS instead of midi CSS
-  import metronome_low from "../assets/audio/metronome_low.mp3";
-  import metronome_high from "../assets/audio/metronome_high.mp3";
-
   // import { chords } from "../resources/chords";
   // Import all SVGs dynamically
 
@@ -212,38 +209,38 @@
   const STORAGE_KEY = "sightReadingOptions";
 
   // Load saved options
-  function loadOptions() {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const options = JSON.parse(saved);
-        console.log("Loaded options from storage:", options);
+  // function loadOptions() {
+  //   const saved = localStorage.getItem(STORAGE_KEY);
+  //   if (saved) {
+  //     try {
+  //       const options = JSON.parse(saved);
+  //       console.log("Loaded options from storage:", options);
 
-        selectedClef = options.selectedClef || "treble";
-        (selectedRange = options.selectedRange || { min: 17, max: 21 }),
-          (selectedScaleDegrees = new Set(
-            options.selectedScaleDegrees || [1, 3, 5]
-          ));
-        selectedKey = options.selectedKey || "F";
-        selectedRhythms = (options.selectedRhythms || [])
-          .map((name: string) =>
-            Object.values(rhythms).find((r) => r.name === name)
-          )
-          .filter(Boolean) || [rhythms.eighthEighth, rhythms.quarter]; // Remove any undefined values
-        selectedTimeSignature =
-          options.selectedTimeSignature || timeSignatures["4/4"];
-        measures = options.measures || 8;
-        bpm = options.bpm || 60;
-        tempo = options.tempo || 60;
-        accidentals = options.accidentals || false; // Load accidentals state
-        moveEighthNotes = options.moveEighthNotes || false; // Load new state
-        accidentalsFollowStep = options.accidentalsFollowStep || false; // Load new state
-      } catch (e) {
-        console.error("Error loading saved options:", e);
-        localStorage.removeItem(STORAGE_KEY); // Clear corrupted data
-      }
-    }
-  }
+  //       selectedClef = options.selectedClef || "treble";
+  //       (selectedRange = options.selectedRange || { min: 17, max: 21 }),
+  //         (selectedScaleDegrees = new Set(
+  //           options.selectedScaleDegrees || [1, 3, 5]
+  //         ));
+  //       selectedKey = options.selectedKey || "F";
+  //       selectedRhythms = (options.selectedRhythms || [])
+  //         .map((name: string) =>
+  //           Object.values(rhythms).find((r) => r.name === name)
+  //         )
+  //         .filter(Boolean) || [rhythms.eighthEighth, rhythms.quarter]; // Remove any undefined values
+  //       selectedTimeSignature =
+  //         options.selectedTimeSignature || timeSignatures["4/4"];
+  //       measures = options.measures || 8;
+  //       bpm = options.bpm || 60;
+  //       tempo = options.tempo || 60;
+  //       accidentals = options.accidentals || false; // Load accidentals state
+  //       moveEighthNotes = options.moveEighthNotes || false; // Load new state
+  //       accidentalsFollowStep = options.accidentalsFollowStep || false; // Load new state
+  //     } catch (e) {
+  //       console.error("Error loading saved options:", e);
+  //       localStorage.removeItem(STORAGE_KEY); // Clear corrupted data
+  //     }
+  //   }
+  // }
 
   // Save options whenever they change
   $: {
@@ -267,26 +264,6 @@
       console.error("Error saving options:", e);
     }
   }
-
-  // Load options when component mounts
-  onMount(() => {
-    loadOptions();
-
-    // Initialize metronome sampler
-    metronome = new Tone.Sampler({
-      urls: {
-        C4: metronome_low,
-        D4: metronome_high,
-      },
-      onload: () => {
-        console.log("Metronome sample loaded");
-        isMetronomeLoaded = true;
-      },
-      onerror: (error) => {
-        console.error("Failed to load metronome sound:", error);
-      },
-    }).toDestination();
-  });
 
   function updateProgress(position: number) {
     currentProgress = (position / totalDuration) * 100;
@@ -407,11 +384,10 @@
         beatNumber: number,
         totalBeats: number,
         totalTime: number,
-        position: TimingCallbacksPosition,
-        debugInfo?: TimingCallbacksDebug
+        position: TimingCallbacksPosition
+        // debugInfo?: TimingCallbacksDebug
       ) => {
         totalDuration = totalTime;
-        // Only update cursor if we have valid position data
         if (position && cursor && typeof position.left === "number") {
           if (beatNumber === totalBeats) {
             cursor.setAttribute("x1", "0");
@@ -429,6 +405,13 @@
             cursor.setAttribute("x2", x.toString());
             cursor.setAttribute("y1", startY.toString());
             cursor.setAttribute("y2", endY.toString());
+
+            // Add smooth scrolling to follow cursor
+            const offset = 100; // Adjust this value to control how far from the top the cursor should stay
+            window.scrollTo({
+              top: Math.max(0, startY - offset),
+              behavior: "smooth",
+            });
           }
         }
       },
@@ -457,13 +440,13 @@
       qpm: tempo,
       beatSubdivisions: 8,
       extraMeasuresAtBeginning: 1,
-      drum: drumBeats[selectedTimeSignature as keyof typeof drumBeats],
+
       lineEndAnticipation: 0,
-      includeEndBeats: true,
+
       beatCallback: cursorControl.beatCallback,
-      eventCallback: cursorControl.eventCallback,
-      beatSubdivision: 8,
-      onEnd: cursorControl.onEnd,
+      // eventCallback: cursorControl.eventCallback,
+      // beatSubdivisions: 8,
+      // onEnd: cursorControl.onEnd,
     });
 
     try {
@@ -619,11 +602,11 @@
     return Tone.Frequency(keyMap[key], "midi").toFrequency();
   }
 
-  function stopAnimation() {
-    if (timingCallbacks) {
-      timingCallbacks.stop();
-    }
-  }
+  // function stopAnimation() {
+  //   if (timingCallbacks) {
+  //     timingCallbacks.stop();
+  //   }
+  // }
 
   function toggleMetronome() {
     if (!metronome || !isMetronomeLoaded) {
@@ -666,9 +649,7 @@
     if (metronomeSequence) {
       metronomeSequence.dispose();
     }
-    if (metronome) {
-      metronome.dispose();
-    }
+
     Tone.Transport.stop();
   });
 </script>
