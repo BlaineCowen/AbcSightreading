@@ -1,20 +1,49 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { createNewSr } from "./generateUnison";
   import abcjs from "abcjs";
+  import type {
+    TimingCallbacks,
+    TimingCallbacksPosition,
+    TimingCallbacksDebug,
+  } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
   import { toneNoteArray } from "../resources/toneNoteArray";
   import SpeakerIcon from "./ui/speaker-icon.svelte";
   import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
+  import "abcjs/abcjs-audio.css"; // Use the audio CSS instead of midi CSS
+  import metronome_low from "../assets/audio/metronome_low.mp3";
+  import metronome_high from "../assets/audio/metronome_high.mp3";
 
   // import { chords } from "../resources/chords";
   // Import all SVGs dynamically
 
   const synth = new Tone.Synth().toDestination();
-
   let playSynth = true;
+
+  // Audio and playback state
+  let currentTune: any = null;
+  let timingCallbacks: TimingCallbacks | null = null;
+  let isPlaying = false;
+  let createSynth: any = null;
+  let midiBuffer: any = null;
+  let cursor: SVGLineElement | null = null;
+  let totalDuration = 0;
+  let currentProgress = 0;
+
+  // Metronome state
+  let metronome: Tone.Sampler | null = null;
+  let isMetronomePlaying = false;
+  let metronomeSequence: Tone.Sequence | null = null;
+  let isMetronomeLoaded = false;
+
+  const playNote = (note: any) => {
+    if (playSynth) {
+      synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
+    }
+  };
 
   let filterRhythms = Object.values(rhythms).filter((rhythm) => {
     console.log(rhythm.name); // Log rhythm names
@@ -101,7 +130,6 @@
   let tempo = initialState.tempo;
 
   let renderedString: any;
-  let progress = 0;
   let songPlaying = false;
 
   // Define possible keys
@@ -166,9 +194,15 @@
   }
 
   const drumBeats = {
-    "4/4": "dddd 76 77 77 77 60 30 30 30",
-    "3/4": "ddd 76 77 77 60 30 30",
-    "2/4": "dd 76 77 60 30",
+    // the array is [0]=drum [1]=drumIntro
+    "2/4": ["dd 76 77 60 30", 2],
+    "3/4": ["ddd 76 77 77 60 30 30", 1],
+    "4/4": ["dddd 76 77 77 77 60 30 30 30", 1],
+    "5/4": ["ddddd 76 77 77 76 77 60 30 30 60 30", 1],
+    "Cut Time": ["dd 76 77 60 30", 2],
+    "6/8": ["dd 76 77 60 30", 2],
+    "9/8": ["ddd 76 77 77 60 30 30", 1],
+    "12/8": ["dddd 76 77 77 77 60 30 30 30", 1],
   };
 
   // Add this state variable
@@ -196,10 +230,8 @@
             Object.values(rhythms).find((r) => r.name === name)
           )
           .filter(Boolean) || [rhythms.eighthEighth, rhythms.quarter]; // Remove any undefined values
-        selectedTimeSignature = options.selectedTimeSignature || {
-          name: "4/4",
-          tsPerMeasure: 32,
-        };
+        selectedTimeSignature =
+          options.selectedTimeSignature || timeSignatures["4/4"];
         measures = options.measures || 8;
         bpm = options.bpm || 60;
         tempo = options.tempo || 60;
@@ -239,37 +271,247 @@
   // Load options when component mounts
   onMount(() => {
     loadOptions();
+
+    // Initialize metronome sampler
+    metronome = new Tone.Sampler({
+      urls: {
+        C4: metronome_low,
+        D4: metronome_high,
+      },
+      onload: () => {
+        console.log("Metronome sample loaded");
+        isMetronomeLoaded = true;
+      },
+      onerror: (error) => {
+        console.error("Failed to load metronome sound:", error);
+      },
+    }).toDestination();
   });
 
-  const playNote = (note: any) => {
-    console.log(note);
-    if (playSynth) {
-      synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
+  function updateProgress(position: number) {
+    currentProgress = (position / totalDuration) * 100;
+  }
+
+  function handleProgressClick(event: MouseEvent) {
+    const progressBar = event.currentTarget as HTMLDivElement;
+    const rect = progressBar.getBoundingClientRect();
+    const position = (event.clientX - rect.left) / rect.width;
+
+    if (timingCallbacks) {
+      timingCallbacks.setProgress(position, "percent");
+      updateProgress(position * totalDuration);
     }
-  };
+  }
+
+  async function initAudio() {
+    if (!currentTune) {
+      console.warn("No tune available - generate one first");
+      return false;
+    }
+
+    if (!createSynth) {
+      createSynth = new abcjs.synth.CreateSynth();
+    }
+
+    if (!midiBuffer) {
+      try {
+        await createSynth.init({
+          visualObj: currentTune,
+          extraMeasuresAtBeginning: 1,
+
+          options: {
+            program: 0,
+            midiTranspose: 0,
+            soundFontUrl:
+              "https://paulrosen.github.io/midi-js-soundfonts/abcjs/",
+            qpm: tempo,
+            // Configure drum sounds
+            drum: drumBeats[selectedTimeSignature as keyof typeof drumBeats][0],
+            drumIntro:
+              drumBeats[selectedTimeSignature as keyof typeof drumBeats][1],
+          },
+        });
+        midiBuffer = await createSynth.prime();
+      } catch (error) {
+        console.warn("Audio initialization failed:", error);
+        return false;
+      }
+    }
+    return true;
+  }
 
   async function renderTune(): Promise<any> {
-    return import("abcjs").then((abcjs) => {
-      var renderedTune = abcjs.renderAbc("paper", renderedString[0], {
-        add_classes: true,
-        scale: 2,
-        staffwidth: 900,
-        wrap: {
-          preferredMeasuresPerLine: 3,
-          minSpacing: 1,
-          maxSpacing: 5,
-        },
-        clickListener: (event: any) => {
-          playNote(event.midiPitches[0].pitch);
+    const abcOptions = {
+      add_classes: true,
+      generateDownload: true,
+      generateInline: true,
+      generateTiming: true,
+      scale: 2,
+      staffwidth: 900,
+      paddingTop: 15,
+      paddingBottom: 15,
+      wrap: {
+        preferredMeasuresPerLine: 3,
+        minSpacing: 1,
+        maxSpacing: 5,
+      },
+      clickListener: (event: any) => {
+        playNote(event.midiPitches[0].pitch);
+      },
+    };
+
+    const visualObj = abcjs.renderAbc("paper", renderedString[0], abcOptions);
+
+    function createCursor() {
+      const svg = document.querySelector("#paper svg");
+      if (!svg) return null;
+
+      const cursor = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "line"
+      );
+      cursor.setAttribute("class", "abcjs-cursor");
+      cursor.setAttributeNS(null, "x1", "0");
+      cursor.setAttributeNS(null, "y1", "0");
+      cursor.setAttributeNS(null, "x2", "0");
+      cursor.setAttributeNS(null, "y2", "0");
+      svg.appendChild(cursor);
+      return cursor;
+    }
+
+    // Wait for SVG to be rendered
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    cursor = createCursor();
+
+    currentTune = visualObj[0];
+    return visualObj;
+  }
+
+  async function playMusic() {
+    if (!currentTune) {
+      alert("Please generate a tune first!");
+      return;
+    }
+
+    const audioInitialized = await initAudio();
+    if (!audioInitialized) return;
+
+    isPlaying = true;
+
+    if (timingCallbacks) {
+      timingCallbacks.stop();
+    }
+
+    const cursorControl = {
+      beatCallback: (
+        beatNumber: number,
+        totalBeats: number,
+        totalTime: number,
+        position: TimingCallbacksPosition,
+        debugInfo?: TimingCallbacksDebug
+      ) => {
+        totalDuration = totalTime;
+        // Only update cursor if we have valid position data
+        if (position && cursor && typeof position.left === "number") {
+          if (beatNumber === totalBeats) {
+            cursor.setAttribute("x1", "0");
+            cursor.setAttribute("x2", "0");
+            cursor.setAttribute("y1", "0");
+            cursor.setAttribute("y2", "0");
+          } else {
+            const x = Math.max(0, position.left - 2);
+            const cursorHeight = position.height;
+            const shortenBy = cursorHeight * 0.3;
+            const startY = position.top + shortenBy;
+            const endY = position.top + position.height;
+
+            cursor.setAttribute("x1", x.toString());
+            cursor.setAttribute("x2", x.toString());
+            cursor.setAttribute("y1", startY.toString());
+            cursor.setAttribute("y2", endY.toString());
+          }
+        }
+      },
+      eventCallback: (ev: any) => {
+        if (!ev) return;
+        console.log("Event callback:", ev);
+        updateProgress(ev.milliseconds || 0);
+        if (ev?.type === "end") {
+          stopMusic();
+        }
+      },
+      onEnd: () => {
+        isPlaying = false;
+        currentProgress = 0;
+        stopMusic();
+        if (cursor) {
+          cursor.setAttribute("x1", "0");
+          cursor.setAttribute("x2", "0");
+          cursor.setAttribute("y1", "0");
+          cursor.setAttribute("y2", "0");
+        }
+      },
+    };
+
+    timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
+      qpm: tempo,
+      beatSubdivisions: 8,
+      extraMeasuresAtBeginning: 1,
+      drum: drumBeats[selectedTimeSignature as keyof typeof drumBeats],
+      lineEndAnticipation: 0,
+      includeEndBeats: true,
+      beatCallback: cursorControl.beatCallback,
+      eventCallback: cursorControl.eventCallback,
+      beatSubdivision: 8,
+      onEnd: cursorControl.onEnd,
+    });
+
+    try {
+      await createSynth.start({
+        midiTranspose: 0,
+
+        qpm: tempo,
+        drumIntro: 1, // Add one bar of count-in
+        onEnded: () => {
+          stopMusic();
         },
       });
-      return renderedTune;
-    });
+      timingCallbacks.start();
+    } catch (error) {
+      console.warn("Audio playback failed:", error);
+      stopMusic();
+    }
+  }
+
+  function pauseMusic() {
+    if (createSynth) {
+      createSynth.pause();
+    }
+    if (timingCallbacks) {
+      timingCallbacks.pause();
+    }
+    isPlaying = false;
+  }
+
+  function stopMusic() {
+    if (createSynth) {
+      createSynth.stop();
+      midiBuffer = null; // Reset buffer for next play
+    }
+    if (timingCallbacks) {
+      timingCallbacks.stop();
+    }
+    isPlaying = false;
   }
 
   async function handleClick() {
-    // Auto-minimize when generating
     optionsVisible = false;
+
+    // Reset audio state for new tune
+    stopMusic(); // Stop any playing audio
+    midiBuffer = null;
+    createSynth = null;
+    currentTune = null;
 
     const params = {
       bpm,
@@ -299,26 +541,7 @@
 
     renderedString = createNewSr(params);
     const renderedTune = await renderTune();
-    const audioParams = {
-      drum: drumBeats[selectedTimeSignature as keyof typeof drumBeats],
-      drumBars: 1,
-      drumIntro: 1,
-    };
-
-    var synthControl = new abcjs.synth.SynthController();
-    var createSynth = new abcjs.synth.CreateSynth();
-
-    createSynth.init({ visualObj: renderedTune[0] }).then(() => {
-      synthControl
-        .setTune(renderedTune[0], false, audioParams)
-        .then(() => {
-          synthControl.load("#audio");
-          // synthControl.play();
-        })
-        .catch((error) => {
-          console.warn("Audio problem:", error);
-        });
-    });
+    if (!renderedTune) return;
 
     songPlaying = true;
   }
@@ -395,16 +618,64 @@
     };
     return Tone.Frequency(keyMap[key], "midi").toFrequency();
   }
+
+  function stopAnimation() {
+    if (timingCallbacks) {
+      timingCallbacks.stop();
+    }
+  }
+
+  function toggleMetronome() {
+    if (!metronome || !isMetronomeLoaded) {
+      console.warn("Metronome not ready");
+      return;
+    }
+
+    if (!isMetronomePlaying) {
+      // Create sequence if it doesn't exist
+      if (!metronomeSequence) {
+        metronomeSequence = new Tone.Sequence(
+          (time, note) => {
+            metronome?.triggerAttackRelease(note, "32n", time);
+          },
+          ["C4", "D4", "D4", "D4"],
+          "4n" // Quarter note subdivision
+        );
+      }
+
+      // Start the transport and sequence
+      Tone.Transport.bpm.value = tempo;
+      Tone.start()
+        .then(() => {
+          metronomeSequence?.start(0);
+          Tone.Transport.start();
+          isMetronomePlaying = true;
+        })
+        .catch((error) => {
+          console.error("Failed to start metronome:", error);
+        });
+    } else {
+      // Stop the transport and sequence
+      metronomeSequence?.stop();
+      Tone.Transport.stop();
+      isMetronomePlaying = false;
+    }
+  }
+
+  onDestroy(() => {
+    if (metronomeSequence) {
+      metronomeSequence.dispose();
+    }
+    if (metronome) {
+      metronome.dispose();
+    }
+    Tone.Transport.stop();
+  });
 </script>
 
 <div class="w-full">
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
     <div class="flex flex-col items-center w-full">
-      <div
-        id="audio"
-        class="w-full flex justify-center gap-2 items-center my-4"
-      ></div>
-
       <!-- Options Panel -->
       <div
         class="w-full bg-white shadow-md rounded-lg p-4 my-4 transition-all duration-300"
@@ -670,40 +941,83 @@
       </div>
     </div>
 
-    <div class="w-full flex justify-left">
+    <div class="w-full flex items-center gap-4 p-4">
       {#if playSynth}
-        <button on:click={() => (playSynth = !playSynth)}>
+        <button class="flex-shrink-0" on:click={() => (playSynth = !playSynth)}>
           <SpeakerIcon />
         </button>
       {:else}
-        <button on:click={() => (playSynth = !playSynth)}>
+        <button class="flex-shrink-0" on:click={() => (playSynth = !playSynth)}>
           <SpeakerIconOff />
         </button>
       {/if}
       <button
-        class="px-4 py-2 rounded {dronePlaying
+        class="flex-shrink-0 px-4 py-2 rounded {dronePlaying
           ? 'bg-red-500'
           : 'bg-green-500'} text-white"
         on:click={toggleDrone}
       >
         {dronePlaying ? "Stop Drone" : "Start Drone"}
       </button>
+      <button
+        class="flex-shrink-0 px-4 py-2 rounded {isMetronomePlaying
+          ? 'bg-red-500'
+          : 'bg-green-500'} text-white"
+        on:click={toggleMetronome}
+      >
+        {isMetronomePlaying ? "Stop Metronome" : "Start Metronome"}
+      </button>
+      <div class="flex gap-2">
+        <button
+          class="px-4 py-2 rounded {!currentTune
+            ? 'bg-gray-400 cursor-not-allowed'
+            : 'bg-blue-500'} text-white"
+          disabled={!currentTune}
+          on:click={isPlaying ? pauseMusic : playMusic}
+        >
+          {isPlaying ? "Pause" : "Play"}
+        </button>
+        <button
+          class="px-4 py-2 rounded {!currentTune
+            ? 'bg-gray-400 cursor-not-allowed'
+            : 'bg-red-500'} text-white"
+          disabled={!currentTune}
+          on:click={stopMusic}
+        >
+          Stop
+        </button>
+      </div>
     </div>
 
     <!-- Music Display -->
-    <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
+    <div
+      id="paper"
+      class="bg-white rounded-lg shadow-md my-4 relative overflow-hidden"
+    ></div>
 
     <!-- padding -->
     <div class="h-96"></div>
 
     <!-- Progress Bar -->
-    {#if songPlaying}
-      <div class="w-full bg-gray-200 rounded-full h-2.5 my-4">
+    {#if currentTune}
+      <div
+        class="w-full bg-gray-200 rounded-full h-2.5 my-4 cursor-pointer"
+        on:click={handleProgressClick}
+      >
         <div
           class="bg-blue-500 h-2.5 rounded-full"
-          style="width: {progress}%"
+          style="width: {currentProgress}%"
         ></div>
       </div>
     {/if}
   </main>
 </div>
+
+<style>
+  :global(.abcjs-cursor) {
+    padding-top: 20%;
+    stroke: blue;
+    stroke-width: 2;
+    pointer-events: none;
+  }
+</style>

@@ -23,6 +23,7 @@
     "astro": "^4.9.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "font-awesome": "^4.7.0",
     "lucide-react": "^0.439.0",
     "shadcdn": "^0.0.8",
     "svelte": "^4.2.17",
