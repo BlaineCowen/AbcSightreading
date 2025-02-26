@@ -764,6 +764,8 @@ function isDegreeWithinRange(
 }
 
 function createNewSr(params: any) {
+  const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
+
   var clef = params.clef;
   var importChords = params.chords;
   var keyRendered = params.key;
@@ -1440,100 +1442,69 @@ function createNewSr(params: any) {
   }
 
   function createConcatString(partsObject: any) {
-    // loop through parts
-    Object.keys(partsObject.parts).forEach((partName) => {
-      var concatString = "";
-      var totalNoteValue = 0;
-      // loop through each note
-      for (
-        var i = 0;
-        i < partsObject.parts[partName].chordNoteObject.length;
-        i++
-      ) {
-        // check if previous notelength is a 3
-        let addSpace = false;
-        // find the index of the randrhythmobject.abcValue recursively
-        let matchRIndex = 0;
+    var concatString = "";
 
-        for (let r = 0; r < randRhythmObjects.length; r++) {
-          if (addSpace) {
-            break;
-          }
-          for (let s = 0; s < randRhythmObjects[r].abcValue.length; s++) {
-            if (matchRIndex !== i) {
-              matchRIndex++;
-            }
-            if (matchRIndex === i) {
-              // check if we are the last of the array
-              if (s === randRhythmObjects[r].abcValue.length - 1) {
-                addSpace = true;
-                break;
-              } else {
-                addSpace = false;
-                break;
-              }
-            }
-          }
-          if (matchRIndex === i) {
-            break;
-          }
-        }
+    // Add notes
+    Object.keys(partsObject.parts).forEach((part: string) => {
+      var singlePartObject = partsObject.parts[part];
+      var measureString = "";
+      var measureCount = 0;
 
-        if (addSpace) {
-          concatString += " ";
-        }
-
-        concatString +=
-          partsObject.parts[partName].chordNoteObject[i].name +
-          partsObject.parts[partName].chordNoteObject[i].noteLength;
-
-        // if (
-        //   i !== 0 &&
-        //   partsObject.parts[partName].chordNoteObject[i - 1].noteLength ===
-        //     3
-        // ) {
-        //   concatString += " ";
-        // }
-
-        totalNoteValue +=
-          partsObject.parts[partName].chordNoteObject[i].noteLength;
-        if (totalNoteValue % timeSigRendered.tsPerMeasure === 0) {
-          concatString += "|";
-        }
+      // Add part name
+      if (partsObject.numofParts > 1) {
+        concatString += `[V:${part}] `;
       }
-      partsObject.parts[partName].concatNoteString = concatString;
+
+      // Add notes
+      singlePartObject.chordNoteObject.forEach((note: any, index: number) => {
+        if (measureCount === 0) {
+          measureString = "";
+        }
+        measureString += `${note.name}${note.noteLength} `;
+        measureCount += note.noteLength;
+
+        if (measureCount >= params.timeSig.tsPerMeasure) {
+          concatString += measureString + "|";
+          measureCount = 0;
+        }
+      });
+
+      // Add any remaining measure
+      if (measureString !== "") {
+        concatString += measureString + "|";
+      }
+
+      concatString += "\n";
+
+      // Add solfege lyrics if enabled
+      if (params.showSolfege) {
+        let solfegeString = "w: ";
+        singlePartObject.chordNoteObject.forEach((note: any) => {
+          solfegeString += solfege[note.degree] + " ";
+        });
+        concatString += solfegeString + "\n";
+      }
     });
-    return partsObject;
+
+    return concatString;
   }
 
-  partsObject = createConcatString(partsObject);
+  const tuneBody = createConcatString(partsObject);
 
   // get the first entry of the generatedPartTunes object
   var headerString = "";
   for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
-    // find the clef by matching the name to the part name object
     var partName = Object.keys(partsObject.parts)[i];
     var smallName = partsObject.parts[partName].smallName;
     var middleString = "";
     if (clef === "treble-8") {
       middleString = "octave=1";
     }
-    headerString += `V:${smallName} name="${partName}" snm="${smallName}" ${middleString}\n`;
-  }
-
-  var tuneBody = "";
-
-  for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
-    var partName = Object.keys(partsObject.parts)[i];
-    var smallName = partsObject.parts[partName].smallName;
-
-    tuneBody += `[V:1] ${partsObject.parts[partName].concatNoteString}] \n`;
+    headerString += `V:${smallName} ${middleString}\n`;
   }
 
   var scoreString = "%%score ";
-  Object.keys(partsObject.parts).forEach((partName) => {
-    scoreString += partsObject.parts[partName].smallName + " ";
-  });
+
   scoreString += "\n";
 
   var renderedString =

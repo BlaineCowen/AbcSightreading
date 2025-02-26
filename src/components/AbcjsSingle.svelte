@@ -82,6 +82,7 @@
           moveEighthNotes: options.moveEighthNotes || false,
           accidentalsFollowStep: options.accidentalsFollowStep || true,
           tempo: options.tempo || 60,
+          showSolfege: options.showSolfege || false,
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -103,6 +104,7 @@
       accidentals: false,
       moveEighthNotes: false,
       accidentalsFollowStep: false,
+      showSolfege: false,
     };
   }
 
@@ -119,6 +121,7 @@
   let moveEighthNotes = initialState.moveEighthNotes;
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
   let tempo = initialState.tempo;
+  let showSolfege = initialState.showSolfege || false;
 
   let renderedString: any;
   let songPlaying = false;
@@ -250,6 +253,7 @@
       accidentals,
       moveEighthNotes,
       accidentalsFollowStep,
+      showSolfege,
     };
     try {
       console.log("Saving options:", options);
@@ -510,6 +514,7 @@
       selectedTimeSignature: selectedTimeSignature,
       key: selectedKey,
       chords: availableChords,
+      showSolfege: showSolfege,
       partsObject: {
         numofParts: 1,
         parts: {
@@ -821,6 +826,21 @@
                       (accidentalsFollowStep = !accidentalsFollowStep)}
                   >
                     {accidentalsFollowStep ? "On" : "Off"}
+                  </button>
+                </div>
+              </div>
+
+              <!-- show solfege -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Show Solfege</h2>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    class="px-3 py-1 rounded {showSolfege
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100'}"
+                    on:click={() => (showSolfege = !showSolfege)}
+                  >
+                    {showSolfege ? "On" : "Off"}
                   </button>
                 </div>
               </div>
