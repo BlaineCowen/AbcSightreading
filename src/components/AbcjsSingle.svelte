@@ -30,12 +30,6 @@
   let totalDuration = 0;
   let currentProgress = 0;
 
-  // Metronome state
-  let metronome: Tone.Sampler | null = null;
-  let isMetronomePlaying = false;
-  let metronomeSequence: Tone.Sequence | null = null;
-  let isMetronomeLoaded = false;
-
   const playNote = (note: any) => {
     if (playSynth) {
       synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
@@ -385,7 +379,6 @@
         totalBeats: number,
         totalTime: number,
         position: TimingCallbacksPosition
-        // debugInfo?: TimingCallbacksDebug
       ) => {
         totalDuration = totalTime;
         if (position && cursor && typeof position.left === "number") {
@@ -406,12 +399,18 @@
             cursor.setAttribute("y1", startY.toString());
             cursor.setAttribute("y2", endY.toString());
 
-            // Add smooth scrolling to follow cursor
-            const offset = 100; // Adjust this value to control how far from the top the cursor should stay
-            window.scrollTo({
-              top: Math.max(0, startY - offset),
-              behavior: "smooth",
-            });
+            // Center cursor in viewport considering zoom
+            const viewportHeight = window.innerHeight;
+            const paperElement = document.getElementById("paper");
+            if (paperElement) {
+              const paperRect = paperElement.getBoundingClientRect();
+              const scrollOffset =
+                startY - viewportHeight / 2 + (paperRect.top + window.scrollY);
+              window.scrollTo({
+                top: Math.max(0, scrollOffset),
+                behavior: "smooth",
+              });
+            }
           }
         }
       },
@@ -566,6 +565,8 @@
   // Add state variables
   let dronePlaying = false;
   let droneOscillator: Tone.Oscillator | null = null;
+  let droneVolume = new Tone.Volume(-12).toDestination(); // Default volume at -12dB
+  let currentDroneVolume = -12; // Track current volume for the slider
 
   function toggleDrone() {
     if (!dronePlaying) {
@@ -574,15 +575,20 @@
       droneOscillator = new Tone.Oscillator({
         frequency: rootNote,
         type: "sine",
-        volume: -12,
       })
-        .toDestination()
+        .connect(droneVolume)
         .start();
     } else {
       droneOscillator?.stop();
       droneOscillator = null;
     }
     dronePlaying = !dronePlaying;
+  }
+
+  function handleDroneVolumeChange(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value);
+    currentDroneVolume = value;
+    droneVolume.volume.value = value;
   }
 
   function getRootNoteFrequency(key: string): number {
@@ -602,54 +608,11 @@
     return Tone.Frequency(keyMap[key], "midi").toFrequency();
   }
 
-  // function stopAnimation() {
-  //   if (timingCallbacks) {
-  //     timingCallbacks.stop();
-  //   }
-  // }
-
-  function toggleMetronome() {
-    if (!metronome || !isMetronomeLoaded) {
-      console.warn("Metronome not ready");
-      return;
-    }
-
-    if (!isMetronomePlaying) {
-      // Create sequence if it doesn't exist
-      if (!metronomeSequence) {
-        metronomeSequence = new Tone.Sequence(
-          (time, note) => {
-            metronome?.triggerAttackRelease(note, "32n", time);
-          },
-          ["C4", "D4", "D4", "D4"],
-          "4n" // Quarter note subdivision
-        );
-      }
-
-      // Start the transport and sequence
-      Tone.Transport.bpm.value = tempo;
-      Tone.start()
-        .then(() => {
-          metronomeSequence?.start(0);
-          Tone.Transport.start();
-          isMetronomePlaying = true;
-        })
-        .catch((error) => {
-          console.error("Failed to start metronome:", error);
-        });
-    } else {
-      // Stop the transport and sequence
-      metronomeSequence?.stop();
-      Tone.Transport.stop();
-      isMetronomePlaying = false;
-    }
-  }
-
   onDestroy(() => {
-    if (metronomeSequence) {
-      metronomeSequence.dispose();
+    if (droneOscillator) {
+      droneOscillator.stop();
+      droneOscillator = null;
     }
-
     Tone.Transport.stop();
   });
 </script>
@@ -932,22 +895,29 @@
           <SpeakerIconOff />
         </button>
       {/if}
-      <button
-        class="flex-shrink-0 px-4 py-2 rounded {dronePlaying
-          ? 'bg-red-500'
-          : 'bg-green-500'} text-white"
-        on:click={toggleDrone}
-      >
-        {dronePlaying ? "Stop Drone" : "Start Drone"}
-      </button>
-      <button
-        class="flex-shrink-0 px-4 py-2 rounded {isMetronomePlaying
-          ? 'bg-red-500'
-          : 'bg-green-500'} text-white"
-        on:click={toggleMetronome}
-      >
-        {isMetronomePlaying ? "Stop Metronome" : "Start Metronome"}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          on:click={toggleDrone}
+        >
+          {dronePlaying ? "Stop Drone" : "Start Drone"}
+        </button>
+        {#if dronePlaying}
+          <div class="flex items-center gap-2">
+            <input
+              type="range"
+              min="-60"
+              max="0"
+              step="1"
+              value={currentDroneVolume}
+              on:input={handleDroneVolumeChange}
+              class="w-32"
+              aria-label="Drone volume"
+            />
+            <span class="text-sm">{currentDroneVolume}dB</span>
+          </div>
+        {/if}
+      </div>
       <div class="flex gap-2">
         <button
           class="px-4 py-2 rounded {!currentTune
@@ -981,15 +951,35 @@
 
     <!-- Progress Bar -->
     {#if currentTune}
-      <div
-        class="w-full bg-gray-200 rounded-full h-2.5 my-4 cursor-pointer"
+      <button
+        type="button"
+        class="w-full bg-gray-200 rounded-full h-2.5 my-4"
         on:click={handleProgressClick}
+        on:keydown={(e) => {
+          if (e.key === "Enter") {
+            handleProgressClick(
+              new MouseEvent("click", {
+                clientX:
+                  e.currentTarget.getBoundingClientRect().left +
+                  e.currentTarget.offsetWidth / 2,
+                clientY:
+                  e.currentTarget.getBoundingClientRect().top +
+                  e.currentTarget.offsetHeight / 2,
+              })
+            );
+          }
+        }}
+        aria-label="Progress bar"
       >
         <div
           class="bg-blue-500 h-2.5 rounded-full"
           style="width: {currentProgress}%"
+          role="progressbar"
+          aria-valuenow={currentProgress}
+          aria-valuemin="0"
+          aria-valuemax="100"
         ></div>
-      </div>
+      </button>
     {/if}
   </main>
 </div>
