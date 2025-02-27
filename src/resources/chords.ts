@@ -1,18 +1,18 @@
-export const chords: {
-  [key: string]: {
-    name: string;
-    symbol: string;
-    triadNotes: number[];
-    root: number;
-    chordFamily?: string;
-    nextChordPossibilities: { name: string; weight: number }[];
-    type: string;
-    sharpScaleDegree: number | undefined;
-    flatScaleDegree: number | undefined;
-    baseMultiplier: number;
-  };
-} = {
-  "1": {
+interface Chord {
+  name: string;
+  symbol: string;
+  triadNotes: number[];
+  root: number;
+  chordFamily?: string;
+  nextChordPossibilities: { name: string; weight: number }[];
+  type: string;
+  sharpScaleDegree: number | undefined;
+  flatScaleDegree: number | undefined;
+  baseMultiplier: number;
+}
+
+export const chords: Chord[] = [
+  {
     name: "1",
     symbol: "I",
     triadNotes: [0, 2, 4],
@@ -41,7 +41,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "2": {
+  {
     name: "2",
     root: 1,
     symbol: "ii",
@@ -60,7 +60,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "3": {
+  {
     name: "3",
     symbol: "iii",
     root: 2,
@@ -79,25 +79,24 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "4": {
+  {
     name: "4",
     symbol: "IV",
     root: 3,
-
     chordFamily: "4",
     triadNotes: [3, 5, 0],
     nextChordPossibilities: [
-      { name: "1", weight: 22 }, // Adjust the weight as needed
-      { name: "2", weight: 13 }, // Adjust the weight as needed
+      { name: "1", weight: 22 },
+      { name: "2", weight: 13 },
       { name: "5", weight: 39 },
-      { name: "7", weight: 15 }, // Adjust the weight as needed
+      { name: "7", weight: 15 },
     ],
     type: "predominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "5": {
+  {
     name: "5",
     symbol: "V",
     root: 4,
@@ -115,7 +114,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "6": {
+  {
     name: "6",
     symbol: "vi",
     root: 5,
@@ -135,21 +134,19 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "7": {
+  {
     name: "7",
     symbol: "vii°",
     root: 6,
     chordFamily: "7",
     triadNotes: [6, 1, 3],
-    nextChordPossibilities: [
-      { name: "1", weight: 100 }, // Adjust the weight as needed
-    ],
+    nextChordPossibilities: [{ name: "1", weight: 100 }],
     type: "leading-tone",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "5-7": {
+  {
     name: "5-7",
     symbol: "V⁷",
     root: 4,
@@ -161,7 +158,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "5/5": {
+  {
     name: "5/5",
     symbol: "V/V",
     root: 1,
@@ -177,7 +174,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 10,
   },
-  "5/6": {
+  {
     name: "5/6",
     symbol: "V/vi",
     root: 2,
@@ -192,7 +189,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "5/2": {
+  {
     name: "5/2",
     symbol: "V/ii",
     root: 5,
@@ -207,8 +204,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-
-  m4: {
+  {
     name: "m4",
     symbol: "iv",
     root: 3,
@@ -224,7 +220,7 @@ export const chords: {
     flatScaleDegree: 5,
     baseMultiplier: 1,
   },
-  "1-7": {
+  {
     name: "1-7",
     symbol: "I⁷",
     root: 0,
@@ -239,7 +235,7 @@ export const chords: {
     flatScaleDegree: 6,
     baseMultiplier: 1,
   },
-  "1-64": {
+  {
     name: "1-64",
     symbol: "I⁶₄",
     root: 4,
@@ -251,7 +247,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "5-64": {
+  {
     name: "5-64",
     symbol: "V⁶₄",
     root: 1,
@@ -267,15 +263,15 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "2-6": {
+  {
     name: "2-6",
     symbol: "ii⁶",
     root: 3,
     chordFamily: "2",
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [
-      { name: "1", weight: 22 }, // Adjust the weight as needed
-      { name: "2", weight: 13 }, // Adjust the weight as needed
+      { name: "1", weight: 22 },
+      { name: "2", weight: 13 },
       { name: "5", weight: 39 },
       { name: "7", weight: 23 },
     ],
@@ -284,7 +280,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "4-6": {
+  {
     name: "4-6",
     symbol: "IV⁶",
     root: 5,
@@ -305,7 +301,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "4-64": {
+  {
     name: "4-64",
     symbol: "IV⁶₄",
     root: 0,
@@ -320,7 +316,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "6-6": {
+  {
     name: "6-6",
     symbol: "vi⁶",
     root: 0,
@@ -339,7 +335,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "5-6": {
+  {
     name: "5-6",
     symbol: "V⁶",
     root: 6,
@@ -351,7 +347,7 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-  "1-6": {
+  {
     name: "1-6",
     symbol: "I⁶",
     root: 2,
@@ -372,4 +368,4 @@ export const chords: {
     flatScaleDegree: undefined,
     baseMultiplier: 1,
   },
-};
+];

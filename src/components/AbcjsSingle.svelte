@@ -10,14 +10,13 @@
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
-  import { toneNoteArray } from "../resources/toneNoteArray";
   import SpeakerIcon from "./ui/speaker-icon.svelte";
   import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
   import "abcjs/abcjs-audio.css"; // Use the audio CSS instead of midi CSS
   // import { chords } from "../resources/chords";
   // Import all SVGs dynamically
 
-  const synth = new Tone.Synth().toDestination();
+  const toneSynth = new Tone.Synth().toDestination();
   let playSynth = true;
 
   // Audio and playback state
@@ -30,13 +29,47 @@
   let totalDuration = 0;
   let currentProgress = 0;
 
-  const playNote = (note: any) => {
+  /**
+   * Plays a single note using the Tone.js synth
+   * @param {string} noteName - The name of the note (e.g., "f", "G", "c'")
+   */
+  const playNote = async (noteName: string) => {
     if (playSynth) {
-      synth.triggerAttackRelease(toneNoteArray[note - 12], "8n");
+      await Tone.start();
+
+      // Convert ABC notation to Tone.js notation
+      // ABC: C is middle C (C4), c is C5, c' is C6, C, is C3
+      let octave = 4; // Default to middle C octave
+      let note = noteName;
+
+      // Handle commas (lower octave)
+      while (note.endsWith(",")) {
+        octave--;
+        note = note.slice(0, -1);
+      }
+
+      // Handle apostrophes (raise octave)
+      while (note.includes("'")) {
+        octave++;
+        note = note.replace("'", "");
+      }
+
+      // If lowercase, raise octave by 1 (since lowercase means one octave above in ABC)
+      if (note === note.toLowerCase()) {
+        octave++;
+      }
+
+      // Convert to uppercase for Tone.js
+      note = note.toUpperCase();
+
+      // Handle accidentals
+      note = note.replace("^", "#").replace("_", "b");
+
+      toneSynth.triggerAttackRelease(`${note}${octave}`, "8n");
     }
   };
 
-  let filterRhythms = Object.values(rhythms).filter((rhythm) => {
+  let filterRhythms = rhythms.filter((rhythm) => {
     console.log(rhythm.name); // Log rhythm names
     return (
       !rhythm.name.includes("thirtySecond") &&
@@ -45,15 +78,22 @@
   });
 
   const rhythmSvgs = Object.fromEntries(
-    Object.entries(rhythms)
+    rhythms
       .filter(
-        ([name]) =>
-          !name.includes("thirtySecond") && !name.toLowerCase().includes("rest")
+        (rhythm) =>
+          !rhythm.name.includes("thirtySecond") &&
+          !rhythm.name.toLowerCase().includes("rest")
       )
-      .map(([name]) => [name, import(`../assets/svgs/${name}.svg?raw`)])
+      .map((rhythm) => [
+        rhythm.name,
+        import(`../assets/svgs/${rhythm.name}.svg?raw`),
+      ])
   );
 
-  // Wrap initial state declarations in a function
+  /**
+   * Returns the initial state for the sight reading options, either from localStorage or defaults
+   * @returns {Object} The initial state configuration
+   */
   function getInitialState() {
     // Try to load from localStorage first
     const saved = localStorage.getItem("sightReadingOptions");
@@ -68,10 +108,11 @@
           ),
           selectedKey: options.selectedKey || "F",
           selectedRhythms: (options.selectedRhythms || [])
-            .map((name: string) =>
-              Object.values(rhythms).find((r) => r.name === name)
-            )
-            .filter(Boolean) || [rhythms.eighthEighth, rhythms.quarter],
+            .map((name: string) => rhythms.find((r) => r.name === name))
+            .filter(Boolean) || [
+            rhythms.find((r) => r.name === "eighthEighth"),
+            rhythms.find((r) => r.name === "quarter"),
+          ],
           selectedTimeSignature: options.selectedTimeSignature || {
             name: "4/4",
             tsPerMeasure: 32,
@@ -94,7 +135,10 @@
       selectedRange: { min: 17, max: 21 },
       selectedScaleDegrees: new Set([1, 3, 5]),
       selectedKey: "F",
-      selectedRhythms: [rhythms.eighthEighth, rhythms.quarter],
+      selectedRhythms: [
+        rhythms.find((r) => r.name === "eighthEighth"),
+        rhythms.find((r) => r.name === "quarter"),
+      ],
       selectedTimeSignature: {
         name: "4/4",
         tsPerMeasure: 32,
@@ -124,7 +168,6 @@
   let showSolfege = initialState.showSolfege || false;
 
   let renderedString: any;
-  let songPlaying = false;
 
   // Define possible keys
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
@@ -205,40 +248,6 @@
   // Add these localStorage functions
   const STORAGE_KEY = "sightReadingOptions";
 
-  // Load saved options
-  // function loadOptions() {
-  //   const saved = localStorage.getItem(STORAGE_KEY);
-  //   if (saved) {
-  //     try {
-  //       const options = JSON.parse(saved);
-  //       console.log("Loaded options from storage:", options);
-
-  //       selectedClef = options.selectedClef || "treble";
-  //       (selectedRange = options.selectedRange || { min: 17, max: 21 }),
-  //         (selectedScaleDegrees = new Set(
-  //           options.selectedScaleDegrees || [1, 3, 5]
-  //         ));
-  //       selectedKey = options.selectedKey || "F";
-  //       selectedRhythms = (options.selectedRhythms || [])
-  //         .map((name: string) =>
-  //           Object.values(rhythms).find((r) => r.name === name)
-  //         )
-  //         .filter(Boolean) || [rhythms.eighthEighth, rhythms.quarter]; // Remove any undefined values
-  //       selectedTimeSignature =
-  //         options.selectedTimeSignature || timeSignatures["4/4"];
-  //       measures = options.measures || 8;
-  //       bpm = options.bpm || 60;
-  //       tempo = options.tempo || 60;
-  //       accidentals = options.accidentals || false; // Load accidentals state
-  //       moveEighthNotes = options.moveEighthNotes || false; // Load new state
-  //       accidentalsFollowStep = options.accidentalsFollowStep || false; // Load new state
-  //     } catch (e) {
-  //       console.error("Error loading saved options:", e);
-  //       localStorage.removeItem(STORAGE_KEY); // Clear corrupted data
-  //     }
-  //   }
-  // }
-
   // Save options whenever they change
   $: {
     const options = {
@@ -263,10 +272,18 @@
     }
   }
 
+  /**
+   * Updates the progress bar based on current playback position
+   * @param {number} position - Current position in milliseconds
+   */
   function updateProgress(position: number) {
     currentProgress = (position / totalDuration) * 100;
   }
 
+  /**
+   * Handles clicks on the progress bar to seek to a specific position
+   * @param {MouseEvent} event - The click event
+   */
   function handleProgressClick(event: MouseEvent) {
     const progressBar = event.currentTarget as HTMLDivElement;
     const rect = progressBar.getBoundingClientRect();
@@ -278,6 +295,10 @@
     }
   }
 
+  /**
+   * Initializes the audio synthesis engine and buffer
+   * @returns {Promise<boolean>} Success status of initialization
+   */
   async function initAudio() {
     if (!currentTune) {
       console.warn("No tune available - generate one first");
@@ -315,6 +336,10 @@
     return true;
   }
 
+  /**
+   * Renders the ABC notation to the paper div
+   * @returns {Promise<any>} The rendered visual object
+   */
   async function renderTune(): Promise<any> {
     const abcOptions = {
       add_classes: true,
@@ -330,13 +355,20 @@
         minSpacing: 1,
         maxSpacing: 5,
       },
-      clickListener: (event: any) => {
-        playNote(event.midiPitches[0].pitch);
+      clickListener: async (event: any) => {
+        console.log("clickListener", event);
+        if (event.pitches && event.pitches.length > 0) {
+          await playNote(event.pitches[0].name);
+        }
       },
     };
 
     const visualObj = abcjs.renderAbc("paper", renderedString[0], abcOptions);
 
+    /**
+     * Creates a cursor element for tracking playback position
+     * @returns {SVGLineElement|null} The created cursor element
+     */
     function createCursor() {
       const svg = document.querySelector("#paper svg");
       if (!svg) return null;
@@ -362,6 +394,9 @@
     return visualObj;
   }
 
+  /**
+   * Starts or resumes music playback
+   */
   async function playMusic() {
     if (!currentTune) {
       alert("Please generate a tune first!");
@@ -378,6 +413,13 @@
     }
 
     const cursorControl = {
+      /**
+       * Callback for beat events, updates cursor position
+       * @param {number} beatNumber - Current beat number
+       * @param {number} totalBeats - Total number of beats
+       * @param {number} totalTime - Total duration in milliseconds
+       * @param {TimingCallbacksPosition} position - Position information for cursor
+       */
       beatCallback: (
         beatNumber: number,
         totalBeats: number,
@@ -394,30 +436,21 @@
           } else {
             const x = Math.max(0, position.left - 2);
             const cursorHeight = position.height;
-            const shortenBy = cursorHeight * 0.3;
+            const shortenBy = cursorHeight * 0.15;
             const startY = position.top + shortenBy;
-            const endY = position.top + position.height;
+            const endY = position.top + position.height + cursorHeight * 0.15;
 
             cursor.setAttribute("x1", x.toString());
             cursor.setAttribute("x2", x.toString());
             cursor.setAttribute("y1", startY.toString());
             cursor.setAttribute("y2", endY.toString());
-
-            // Center cursor in viewport considering zoom
-            const viewportHeight = window.innerHeight;
-            const paperElement = document.getElementById("paper");
-            if (paperElement) {
-              const paperRect = paperElement.getBoundingClientRect();
-              const scrollOffset =
-                startY - viewportHeight / 2 + (paperRect.top + window.scrollY);
-              window.scrollTo({
-                top: Math.max(0, scrollOffset),
-                behavior: "smooth",
-              });
-            }
           }
         }
       },
+      /**
+       * Callback for playback events
+       * @param {any} ev - Event information
+       */
       eventCallback: (ev: any) => {
         if (!ev) return;
         console.log("Event callback:", ev);
@@ -425,7 +458,11 @@
         if (ev?.type === "end") {
           stopMusic();
         }
+        return;
       },
+      /**
+       * Callback for when playback ends
+       */
       onEnd: () => {
         isPlaying = false;
         currentProgress = 0;
@@ -443,13 +480,27 @@
       qpm: tempo,
       beatSubdivisions: 8,
       extraMeasuresAtBeginning: 1,
-
-      lineEndAnticipation: 0,
-
+      lineEndAnticipation: 500, // 500ms anticipation
+      lineEndCallback: () => {
+        // Find the current cursor position
+        const cursor = document.querySelector(".abcjs-cursor");
+        if (cursor) {
+          const cursorRect = cursor.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const paperElement = document.getElementById("paper");
+          if (paperElement) {
+            // Position cursor at top third of viewport
+            const targetPosition = viewportHeight / 6;
+            const scrollOffset =
+              cursorRect.top - targetPosition + window.scrollY;
+            window.scrollTo({
+              top: Math.max(0, scrollOffset),
+              behavior: "smooth",
+            });
+          }
+        }
+      },
       beatCallback: cursorControl.beatCallback,
-      // eventCallback: cursorControl.eventCallback,
-      // beatSubdivisions: 8,
-      // onEnd: cursorControl.onEnd,
     });
 
     try {
@@ -469,6 +520,9 @@
     }
   }
 
+  /**
+   * Pauses music playback
+   */
   function pauseMusic() {
     if (createSynth) {
       createSynth.pause();
@@ -479,6 +533,9 @@
     isPlaying = false;
   }
 
+  /**
+   * Stops music playback and resets playback state
+   */
   function stopMusic() {
     if (createSynth) {
       createSynth.stop();
@@ -490,6 +547,9 @@
     isPlaying = false;
   }
 
+  /**
+   * Handles the generate button click, creates new sight reading exercise
+   */
   async function handleClick() {
     optionsVisible = false;
 
@@ -529,15 +589,21 @@
     renderedString = createNewSr(params);
     const renderedTune = await renderTune();
     if (!renderedTune) return;
-
-    songPlaying = true;
   }
 
+  /**
+   * Updates the selected range for note generation
+   * @param {Object} newRange - The new range object with min and max values
+   */
   function handleRangeChange(newRange: { min: number; max: number }) {
     selectedRange = newRange;
     console.log("Range changed:", selectedRange); // Debug
   }
 
+  /**
+   * Toggles a scale degree selection
+   * @param {number} degree - The scale degree to toggle
+   */
   function toggleScaleDegree(degree: number) {
     if (selectedScaleDegrees.has(degree)) {
       selectedScaleDegrees.delete(degree);
@@ -547,7 +613,10 @@
     selectedScaleDegrees = selectedScaleDegrees; // Trigger reactivity
   }
 
-  // Function to update selectedClef
+  /**
+   * Updates the selected clef and adjusts note range accordingly
+   * @param {string} clef - The clef to switch to
+   */
   function updateClef(clef: string) {
     selectedClef = clef;
     // change ranges based on clef
@@ -573,6 +642,9 @@
   let droneVolume = new Tone.Volume(-12).toDestination(); // Default volume at -12dB
   let currentDroneVolume = -12; // Track current volume for the slider
 
+  /**
+   * Toggles the drone sound on/off
+   */
   function toggleDrone() {
     if (!dronePlaying) {
       Tone.start();
@@ -590,12 +662,21 @@
     dronePlaying = !dronePlaying;
   }
 
+  /**
+   * Handles changes to the drone volume
+   * @param {Event} event - The input event from the volume slider
+   */
   function handleDroneVolumeChange(event: Event) {
     const value = Number((event.target as HTMLInputElement).value);
     currentDroneVolume = value;
     droneVolume.volume.value = value;
   }
 
+  /**
+   * Gets the frequency for a given key's root note
+   * @param {string} key - The musical key
+   * @returns {number} The frequency in Hz
+   */
   function getRootNoteFrequency(key: string): number {
     const keyMap: Record<string, number> = {
       C: 60,
@@ -1006,7 +1087,7 @@
 
 <style>
   :global(.abcjs-cursor) {
-    padding-top: 20%;
+    padding-bottom: 20%;
     stroke: blue;
     stroke-width: 2;
     pointer-events: none;

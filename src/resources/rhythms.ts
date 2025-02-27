@@ -4,15 +4,20 @@ export interface Rhythm {
   abcValue: string[];
   meterValue: number[];
   totalValue: number;
+  singleNoteValue?: number; // Value of individual note in a pattern
   rest: boolean;
   oddsWeight: number;
   maxRng: number;
   pattern?: boolean;
   symbol: string;
+  isPatternNote?: boolean;
+  isPatternStart?: boolean;
+  isPatternEnd?: boolean;
+  patternIndex?: number | null;
 }
 
-export const rhythms = {
-  thirtySecond: {
+export const rhythms: Rhythm[] = [
+  {
     name: "thirtySecond",
     abcValue: ["1"],
     meterValue: [1 / 32],
@@ -22,8 +27,9 @@ export const rhythms = {
     pattern: false,
     maxRng: 0,
     symbol: "𝄽",
+    weight: 0,
   },
-  thirtySecondRest: {
+  {
     name: "thirtySecondRest",
     abcValue: ["z1"],
     meterValue: [1 / 32],
@@ -33,19 +39,9 @@ export const rhythms = {
     pattern: false,
     maxRng: 0,
     symbol: "𝄻",
+    weight: 0,
   },
-  // sixteenth: {
-  //   name: "sixteenth",
-  //   abcValue: ["2"],
-  //   meterValue: [1 / 16],
-  //   totalValue: 2,
-  //   rest: false,
-  //   oddsWeight: 10,
-  //   maxRng: 0,
-  //   pattern: false,
-  //   symbol: "𝄚",
-  // },
-  sixteenthRest: {
+  {
     name: "sixteenthRest",
     abcValue: ["z2"],
     meterValue: [1 / 16],
@@ -55,19 +51,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄽",
+    weight: 0,
   },
-  // dotSixteenth: {
-  //   name: "dotSixteenth",
-  //   abcValue: ["3"],
-  //   meterValue: [3 / 32],
-  //   totalValue: 3,
-  //   rest: false,
-  //   oddsWeight: 0,
-  //   maxRng: 0,
-  //   pattern: false,
-  //   symbol: "𝄚•",
-  // },
-  dotSixteenthRest: {
+  {
     name: "dotSixteenthRest",
     abcValue: ["z3"],
     meterValue: [1 / 16],
@@ -77,19 +63,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄽",
+    weight: 0,
   },
-  // eighth: {
-  //   name: "eighth",
-  //   abcValue: ["4"],
-  //   meterValue: [1 / 8],
-  //   totalValue: 4,
-  //   rest: false,
-  //   oddsWeight: 10,
-  //   maxRng: 0,
-  //   pattern: false,
-  //   symbol: "𝄙",
-  // },
-  eighthRest: {
+  {
     name: "eighthRest",
     abcValue: ["z4"],
     meterValue: [1 / 8],
@@ -99,19 +75,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄾",
+    weight: 0,
   },
-  // dotEighth: {
-  //   name: "dotEighth",
-  //   abcValue: ["6"],
-  //   meterValue: [3 / 16],
-  //   totalValue: 5,
-  //   rest: false,
-  //   oddsWeight: 0,
-  //   maxRng: 0,
-  //   pattern: false,
-  //   symbol: "𝄙•",
-  // },
-  dotEighthRest: {
+  {
     name: "dotEighthRest",
     abcValue: ["z6"],
     meterValue: [1 / 8],
@@ -121,8 +87,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄾",
+    weight: 0,
   },
-  quarter: {
+  {
     name: "quarter",
     abcValue: ["8"],
     meterValue: [1 / 4],
@@ -132,8 +99,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄘",
+    weight: 10,
   },
-  quarterRest: {
+  {
     name: "quarterRest",
     abcValue: ["z8"],
     meterValue: [1 / 4],
@@ -143,8 +111,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄽",
+    weight: 0,
   },
-  dotQuarter: {
+  {
     name: "dotQuarter",
     abcValue: ["10"],
     meterValue: [3 / 8],
@@ -154,8 +123,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄘•",
+    weight: 0,
   },
-  dotQuarterRest: {
+  {
     name: "dotQuarterRest",
     abcValue: ["z10"],
     meterValue: [1 / 4],
@@ -165,8 +135,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄽",
+    weight: 0,
   },
-  half: {
+  {
     name: "half",
     abcValue: ["16"],
     meterValue: [1 / 2],
@@ -176,8 +147,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄗",
+    weight: 10,
   },
-  halfRest: {
+  {
     name: "halfRest",
     abcValue: ["z16"],
     meterValue: [1 / 2],
@@ -187,8 +159,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄼",
+    weight: 0,
   },
-  dotHalf: {
+  {
     name: "dotHalf",
     abcValue: ["20"],
     meterValue: [3 / 4],
@@ -198,8 +171,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄗•",
+    weight: 0,
   },
-  dotHalfRest: {
+  {
     name: "dotHalfRest",
     abcValue: ["z20"],
     meterValue: [1 / 2],
@@ -209,8 +183,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄼",
+    weight: 0,
   },
-  whole: {
+  {
     name: "whole",
     abcValue: ["32"],
     meterValue: [1],
@@ -220,8 +195,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄖",
+    weight: 10,
   },
-  wholeRest: {
+  {
     name: "wholeRest",
     abcValue: ["z32"],
     meterValue: [1],
@@ -231,8 +207,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: false,
     symbol: "𝄻",
+    weight: 0,
   },
-  eighthEighth: {
+  {
     name: "eighthEighth",
     abcValue: ["4", "4"],
     meterValue: [1 / 8, 1 / 8],
@@ -242,19 +219,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄙𝄙",
+    weight: 10,
   },
-  // fourEighths: {
-  //   name: "fourEighths",
-  //   abcValue: ["4", "4", "4", "4"],
-  //   meterValue: [1 / 8, 1 / 8, 1 / 8, 1 / 8],
-  //   totalValue: 16,
-  //   rest: false,
-  //   oddsWeight: 0,
-  //   maxRng: 0,
-  //   pattern: true,
-  //   symbol: "𝄙𝄙𝄙𝄙",
-  // },
-  fourSixteenths: {
+  {
     name: "fourSixteenths",
     abcValue: ["2", "2", "2", "2"],
     meterValue: [1 / 16, 1 / 16, 1 / 16, 1 / 16],
@@ -264,8 +231,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄚𝄚𝄚𝄚",
+    weight: 10,
   },
-  eighthSixteenthSixteenth: {
+  {
     name: "eighthSixteenthSixteenth",
     abcValue: ["4", "2", "2"],
     meterValue: [1 / 8, 1 / 16, 1 / 16],
@@ -275,8 +243,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄙𝄚𝄚",
+    weight: 10,
   },
-  sixteenthSixteenthEighth: {
+  {
     name: "sixteenthSixteenthEighth",
     abcValue: ["2", "2", "4"],
     meterValue: [1 / 16, 1 / 16, 1 / 8],
@@ -286,8 +255,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄚𝄚𝄙",
+    weight: 10,
   },
-  dotEighthSixteenth: {
+  {
     name: "dotEighthSixteenth",
     abcValue: ["6", "2"],
     meterValue: [3 / 16, 1 / 16],
@@ -297,8 +267,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄙•𝄚",
+    weight: 10,
   },
-  dotQuarterEighth: {
+  {
     name: "dotQuarterEighth",
     abcValue: ["12", "4"],
     meterValue: [3 / 8, 1 / 8],
@@ -308,8 +279,9 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄘•𝄙",
+    weight: 10,
   },
-  dotHalfQuarter: {
+  {
     name: "dotHalfQuarter",
     abcValue: ["24", "8"],
     meterValue: [3 / 4, 1 / 4],
@@ -319,5 +291,6 @@ export const rhythms = {
     maxRng: 0,
     pattern: true,
     symbol: "𝄗•𝄘",
+    weight: 10,
   },
-} as const;
+];
