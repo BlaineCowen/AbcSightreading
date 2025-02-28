@@ -13,7 +13,8 @@
   import SpeakerIcon from "./ui/speaker-icon.svelte";
   import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
   import "abcjs/abcjs-audio.css"; // Use the audio CSS instead of midi CSS
-  // import { chords } from "../resources/chords";
+  import { chords } from "../resources/chords";
+  import type { Chord } from "../types/ChordSet";
   // Import all SVGs dynamically
 
   const toneSynth = new Tone.Synth().toDestination();
@@ -694,6 +695,11 @@
     return Tone.Frequency(keyMap[key], "midi").toFrequency();
   }
 
+  function handleChordWeightChange(event: Event, chord: Chord) {
+    const value = Number((event.target as HTMLInputElement).value);
+    chord.baseMultiplier = value;
+  }
+
   onDestroy(() => {
     if (droneOscillator) {
       droneOscillator.stop();
@@ -923,6 +929,35 @@
                   >
                     {showSolfege ? "On" : "Off"}
                   </button>
+                </div>
+              </div>
+
+              <!-- Chord Weights -->
+              <div class="space-y-2 col-span-2">
+                <h2 class="text-lg font-semibold">Chord Weights</h2>
+                <div class="grid grid-cols-4 gap-4">
+                  {#each Object.values(chords) as chord}
+                    <div class="flex flex-col gap-1">
+                      <div class="flex justify-between">
+                        <label for={chord.symbol} class="text-sm"
+                          >{chord.symbol}</label
+                        >
+                        <span class="text-sm text-gray-500"
+                          >{chord.baseMultiplier.toFixed(2)}</span
+                        >
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        value={chord.baseMultiplier}
+                        on:input={(event) =>
+                          handleChordWeightChange(event, chord)}
+                        class="w-full"
+                      />
+                    </div>
+                  {/each}
                 </div>
               </div>
             </div>

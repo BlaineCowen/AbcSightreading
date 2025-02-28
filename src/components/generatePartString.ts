@@ -52,18 +52,16 @@ let baseNoteArray = [
   "c''",
 ];
 
-interface ChordSet {
-  [key: string]: {
-    name: string;
-    triadNotes: number[];
-    root: number;
-    chordFamily?: string;
-    nextChordPossibilities: { name: string; weight: number }[];
-    type: string;
-    sharpScaleDegree: number | undefined;
-    flatScaleDegree: number | undefined;
-    baseMultiplier: number;
-  };
+interface Chord {
+  name: string;
+  triadNotes: number[];
+  root: number;
+  chordFamily?: string;
+  nextChordPossibilities: { name: string; weight: number }[];
+  type: string;
+  sharpScaleDegree: number | undefined;
+  flatScaleDegree: number | undefined;
+  baseMultiplier: number;
 }
 
 var keySignatures: {
@@ -136,7 +134,7 @@ function checkForIllegalVoiceLeading(arr: number[]) {
 
 function getRandomByWeight(
   arr: { name: any; weight: number }[],
-  chords: ChordSet
+  chords: any[]
 ) {
   if (arr.length === 0) {
     return null; // Handle empty array case
@@ -144,9 +142,14 @@ function getRandomByWeight(
 
   // change weight to weight * chords[arr[i].name].baseMultiplier
   arr = arr.map((element) => {
+    const chord = chords.find((c) => c.name === element.name);
+    if (!chord) {
+      console.warn(`Chord ${element.name} not found`);
+      return element;
+    }
     return {
       name: element.name,
-      weight: element.weight * chords[element.name].baseMultiplier * 100,
+      weight: element.weight * chord.baseMultiplier * 100,
     };
   });
 
@@ -306,7 +309,7 @@ function generateChordProgression(
   bassRangeNoteList: Note[],
   maxSkip: number,
   randNoteLengths: number[],
-  chords: ChordSet
+  chords: any[]
 ) {
   let bassNoteArray = [];
   let newMaxSkip = maxSkip;
@@ -345,9 +348,9 @@ function generateChordProgression(
       }
       if (i === 0) {
         const firstChord = {
-          chord: chords["1"],
+          chord: chords.find((c) => c.name === "1"),
           length: randNoteLengths[i],
-          triadDegrees: chords["1"].triadNotes,
+          triadDegrees: chords.find((c) => c.name === "1")?.triadNotes,
         };
 
         chordProgression.push(firstChord);
@@ -356,12 +359,15 @@ function generateChordProgression(
         let prevChord = chordProgression[chordProgression.length - 1];
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter(
-            (chord: { name: string; weight: number; type: string }) =>
-              (chords[chord.name].type === "tonic" ||
-                chords[chord.name].type === "predominant") &&
-              bassDegrees
-                .map((note) => note.degree)
-                .includes(chords[chord.name].root)
+            (chord: { name: string; weight: number; type: string }) => {
+              const nextChord = chords.find((c) => c.name === chord.name);
+              return (
+                nextChord &&
+                (nextChord.type === "tonic" ||
+                  nextChord.type === "predominant") &&
+                bassDegrees.map((note) => note.degree).includes(nextChord.root)
+              );
+            }
           );
 
         if (nextChordPossibilities.length === 0) {
@@ -379,13 +385,14 @@ function generateChordProgression(
         let nextChordInner = getRandomByWeight(nextChordPossibilities, chords);
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
+          const nextChordDef = chords.find((c) => c.name === nextChordName);
           let nextChord = {
-            chord: chords[nextChordName],
+            chord: nextChordDef,
             length: randNoteLengths[i],
-            triadDegrees: chords[nextChordName].triadNotes,
+            triadDegrees: nextChordDef?.triadNotes,
           };
           let bassNoteToAdd = bassRangeNoteList
-            .filter((note) => note.degree === chords[nextChordName].root)
+            .filter((note) => note.degree === nextChordDef?.root)
             .filter(
               (note) =>
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
@@ -411,22 +418,29 @@ function generateChordProgression(
         // prefer dominant
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter(
-            (chord: { name: string; weight: number; type: string }) =>
-              // prefer dominant chords
-              chords[chord.name].type === "dominant" &&
-              bassDegrees
-                .map((note) => note.degree)
-                .includes(chords[chord.name].root)
+            (chord: { name: string; weight: number; type: string }) => {
+              const nextChord = chords.find((c) => c.name === chord.name);
+              return (
+                nextChord &&
+                nextChord.type === "dominant" &&
+                bassDegrees.map((note) => note.degree).includes(nextChord.root)
+              );
+            }
           );
         if (nextChordPossibilities.length === 0) {
           // if no dominant chords are found, try tonic chords
           nextChordPossibilities =
             prevChord.chord.nextChordPossibilities.filter(
-              (chord: { name: string; weight: number; type: string }) =>
-                chords[chord.name].type === "dominant-inversion" &&
-                bassDegrees
-                  .map((note) => note.degree)
-                  .includes(chords[chord.name].root)
+              (chord: { name: string; weight: number; type: string }) => {
+                const nextChord = chords.find((c) => c.name === chord.name);
+                return (
+                  nextChord &&
+                  nextChord.type === "dominant-inversion" &&
+                  bassDegrees
+                    .map((note) => note.degree)
+                    .includes(nextChord.root)
+                );
+              }
             );
         }
 
@@ -445,13 +459,14 @@ function generateChordProgression(
         let nextChordInner = getRandomByWeight(nextChordPossibilities, chords);
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
+          const nextChordDef = chords.find((c) => c.name === nextChordName);
           let nextChord = {
-            chord: chords[nextChordName],
+            chord: nextChordDef,
             length: randNoteLengths[i],
-            triadDegrees: chords[nextChordName].triadNotes,
+            triadDegrees: nextChordDef?.triadNotes,
           };
           let bassNoteToAdd = bassRangeNoteList
-            .filter((note) => note.degree === chords[nextChordName].root)
+            .filter((note) => note.degree === nextChordDef?.root)
             .filter(
               (note) =>
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
@@ -475,13 +490,14 @@ function generateChordProgression(
         let prevChord = chordProgression[chordProgression.length - 1];
         let noteLength = timeSig.eighthsPerMeasure;
         // The last chord must be "1"
+        const tonicChord = chords.find((c) => c.name === "1");
         const nextChord = {
-          chord: chords["1"],
+          chord: tonicChord,
           length: noteLength,
-          triadDegrees: chords["1"].triadNotes,
+          triadDegrees: tonicChord?.triadNotes,
         };
         let bassNoteToAdd = bassRangeNoteList
-          .filter((note) => note.degree === chords["1"].root)
+          .filter((note) => note.degree === tonicChord?.root)
           .filter(
             (note) =>
               Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
@@ -503,10 +519,13 @@ function generateChordProgression(
         prevBassNote = bassNoteArray[i - 1];
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter(
-            (chord: { name: string; weight: number }) =>
-              bassDegrees
-                .map((note) => note.degree)
-                .includes(chords[chord.name].root)
+            (chord: { name: string; weight: number }) => {
+              const nextChord = chords.find((c) => c.name === chord.name);
+              return (
+                nextChord &&
+                bassDegrees.map((note) => note.degree).includes(nextChord.root)
+              );
+            }
           );
 
         if (nextChordPossibilities.length === 0) {
@@ -528,13 +547,14 @@ function generateChordProgression(
             break;
           } else {
             let nextChordName = nextChordInner.name;
+            const nextChordDef = chords.find((c) => c.name === nextChordName);
             let nextChord = {
-              chord: chords[nextChordName],
+              chord: nextChordDef,
               length: randNoteLengths[i],
-              triadDegrees: chords[nextChordName].triadNotes,
+              triadDegrees: nextChordDef?.triadNotes,
             };
             let bassNoteToAdd = bassRangeNoteList
-              .filter((note) => note.degree === chords[nextChordName].root)
+              .filter((note) => note.degree === nextChordDef?.root)
               .filter(
                 (note) =>
                   Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
@@ -675,19 +695,39 @@ function createNewSr(params: any) {
       partsObject.parts[partName].selectedRange[level];
   }
 
-  function generateChord(params: any) {
+  function generateChord(params: {
+    key: string;
+    timeSig: any;
+    maxSkip: number;
+    tonic: string;
+    noteIndex: number;
+    baseNoteArray: string[];
+    bassGenNoteArray: Note[];
+    chordTriadCopy: number[];
+    otherPartNotes: any[];
+    noteList: Note[];
+    partObject: any;
+    partIndexArray: number[];
+    randPartIndex: number;
+    partName: string;
+    renderedChordProgression: any[];
+    chords: Chord[];
+    randRhythmObjects: any[];
+  }) {
     // get key
-    var key = keyRendered[0];
+    var key = params.key;
     var maxSkip = params.maxSkip;
     var noteIndex = params.noteIndex;
-    var keyObject = keySignatures[keyRendered];
+    var keyObject = keySignatures[key];
     var partObject = params.partObject;
     var randPartIndex = params.randPartIndex;
     var chordTriadCopy = params.chordTriadCopy;
     var baseNoteArray = params.baseNoteArray;
     var currentChord = params.renderedChordProgression[params.noteIndex];
+    var bassGenNoteArray = params.bassGenNoteArray;
+    var noteList = params.noteList;
 
-    var partName = Object.keys(partObject.parts)[randPartIndex];
+    var partName = params.partName;
     var partOrder = partObject.parts[partName].order;
 
     var scaleType = "Major";
@@ -742,7 +782,7 @@ function createNewSr(params: any) {
       { name: "", degree: 0, pitchValue: 0 };
 
     if (singlePartObject.order === 0) {
-      scaleDegreeToAdd = renderedChordProgression[noteIndex].chord.root;
+      scaleDegreeToAdd = currentChord.chord.root;
       var rangeNoteListFilter = rangeNoteList.filter(
         (note) => note.degree === scaleDegreeToAdd
       );
@@ -840,11 +880,12 @@ function createNewSr(params: any) {
         );
         if (rangeNoteListFilter.length === 0) {
           // you can repeat degrees
+          const currentChordDef = params.chords.find(
+            (c: Chord) => c.name === currentChord.chord.name
+          );
           rangeNoteListFilter = rangeNoteList.filter(
             (note) =>
-              importChords[currentChord.chord.name].triadNotes.includes(
-                note.degree
-              ) &&
+              currentChordDef?.triadNotes.includes(note.degree) &&
               (bannedParFifthDegree === null ||
                 note.degree !== bannedParFifthDegree) &&
               Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
@@ -992,9 +1033,10 @@ function createNewSr(params: any) {
     let allPartsFails = 0;
     let noteIndex = 0;
 
-    // Reset chordNoteObjects
+    // Reset chordNoteObjects and initialize completeNoteObject
     for (const partName in partsObject.parts) {
       partsObject.parts[partName].chordNoteObject = [];
+      partsObject.parts[partName].completeNoteObject = [];
     }
 
     while (
@@ -1026,14 +1068,19 @@ function createNewSr(params: any) {
       partIndexArray.unshift(bassRandIndex);
 
       // Create a copy of the triad
-      let chordTriadCopy = [
-        ...importChords[
-          renderedChordProgression[chordProgressionIndex].chord.name
-        ].triadNotes,
-      ];
+      let chordTriadCopy: number[] = [];
+      const currentChord =
+        renderedChordProgression[chordProgressionIndex].chord;
+      if (currentChord) {
+        chordTriadCopy = [...currentChord.triadNotes];
+      }
+
       // take the bass degree out of chordTriadCopy
       let baseChordDegree = bassGenNoteArray[noteIndex].degree;
-      chordTriadCopy.splice(chordTriadCopy.indexOf(baseChordDegree), 1);
+      const degreeIndex = chordTriadCopy.indexOf(baseChordDegree);
+      if (degreeIndex !== -1) {
+        chordTriadCopy.splice(degreeIndex, 1);
+      }
 
       let chordObjectsToAdd = [];
       let noteArrayToCheck = Array(Object.keys(partsObject.parts).length).fill(
@@ -1045,21 +1092,22 @@ function createNewSr(params: any) {
 
       for (let i = 0; i < partIndexArray.length; i++) {
         if (chordTriadCopy.length === 0) {
-          chordTriadCopy = [
-            ...importChords[
-              renderedChordProgression[chordProgressionIndex].chord.name
-            ].triadNotes,
-          ];
+          const currentChord =
+            renderedChordProgression[chordProgressionIndex].chord;
+          if (currentChord) {
+            chordTriadCopy = [...currentChord.triadNotes];
+          }
         }
 
         let genChordParams = {
-          key: keyRendered,
+          key: keyRendered as string,
           timeSig: timeSigRendered,
-          maxSkip: maxSkip,
-          tonic: tonic,
+          maxSkip: maxSkip as number,
+          tonic: tonic as string,
           noteIndex: noteIndex,
           baseNoteArray: baseNoteArray,
-          chordTriadCopy: chordTriadCopy,
+          bassGenNoteArray: bassGenNoteArray as Note[],
+          chordTriadCopy: chordTriadCopy as number[],
           otherPartNotes: chordObjectsToAdd,
           noteList: noteList,
           partObject: partsObject,
@@ -1067,6 +1115,8 @@ function createNewSr(params: any) {
           randPartIndex: partIndexArray[i],
           partName: Object.keys(partsObject.parts)[partIndexArray[i]],
           renderedChordProgression: renderedChordProgression,
+          chords: importChords as Chord[],
+          randRhythmObjects: [] as any[],
         };
 
         let chordObjectToAdd: any = {};

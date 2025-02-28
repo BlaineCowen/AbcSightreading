@@ -1,4 +1,5 @@
-import { chords as allChords } from "../resources/chords";
+import { chords } from "../resources/chords";
+import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
 
 // interface AbcObject {
@@ -134,7 +135,7 @@ interface GenerateChordParams {
   randRhythmObjects: Rhythm[];
   otherPartNotes: any[];
   noteList: Note[];
-  chords: ChordSet;
+  chords: Chord[];
 }
 
 function checkForIllegalVoiceLeading(arr: number[]) {
@@ -152,7 +153,7 @@ function checkForIllegalVoiceLeading(arr: number[]) {
 
 function getRandomByWeight(
   arr: { name: any; weight: number }[],
-  chords: ChordSet
+  chords: Chord[]
 ) {
   if (arr.length === 0) {
     return null; // Handle empty array case
@@ -160,9 +161,14 @@ function getRandomByWeight(
 
   // change weight to weight * chords[arr[i].name].baseMultiplier
   arr = arr.map((element) => {
+    const chord = chords.find((c) => c.name === element.name);
+    if (!chord) {
+      console.warn(`Chord ${element.name} not found`);
+      return element;
+    }
     return {
       name: element.name,
-      weight: element.weight * chords[element.name].baseMultiplier * 100,
+      weight: element.weight * chord.baseMultiplier * 100,
     };
   });
 
@@ -337,7 +343,7 @@ function generateChordProgression(
   bassRangeNoteList: Note[],
   maxSkip: number,
   randNoteLengths: number[],
-  chords: ChordSet,
+  chords: Chord[],
   scaleDegrees: number[]
 ) {
   let bassNoteArray = [];
@@ -351,8 +357,8 @@ function generateChordProgression(
     if (chords[chord].nextChordPossibilities) {
       chords[chord].nextChordPossibilities = chords[
         chord
-      ].nextChordPossibilities.filter(
-        (chord: { name: string }) => chords[chord.name]
+      ].nextChordPossibilities.filter((chord: { name: string }) =>
+        chords.find((c) => c.name === chord.name)
       );
     }
   }
@@ -374,7 +380,7 @@ function generateChordProgression(
 
   let prevBassNote = bassNoteArray[0];
   let prevChord = {
-    chord: chords["1"],
+    chord: chords[0],
     length: 8,
     triadDegrees: [0, 2, 4],
   };
@@ -434,9 +440,9 @@ function generateChordProgression(
       }
       if (i === 0) {
         const firstChord = {
-          chord: chords["1"],
+          chord: chords[0],
           length: randNoteLengths[i],
-          triadDegrees: chords["1"].triadNotes,
+          triadDegrees: chords[0].triadNotes,
         };
 
         chordProgression.push(firstChord);
@@ -446,14 +452,16 @@ function generateChordProgression(
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter(
             (chord: { name: string; weight: number }) => {
-              if (!chords[chord.name]) {
+              if (!chords.find((c) => c.name === chord.name)) {
                 console.warn(`Chord ${chord.name} not found in chords object`);
                 return false;
               }
               return bassDegrees
                 .map((note) => note.degree)
                 .some((degree) =>
-                  chords[chord.name].triadNotes.includes(degree)
+                  chords
+                    .find((c) => c.name === chord.name)
+                    ?.triadNotes.includes(degree)
                 );
             }
           );
@@ -477,13 +485,16 @@ function generateChordProgression(
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
           let nextChord = {
-            chord: chords[nextChordName],
+            chord: chords.find((c) => c.name === nextChordName),
             length: randNoteLengths[i],
-            triadDegrees: chords[nextChordName].triadNotes,
+            triadDegrees: chords.find((c) => c.name === nextChordName)
+              ?.triadNotes,
           };
           let bassNoteToAdd = bassDegrees
             .filter((note) =>
-              chords[nextChordName].triadNotes.includes(note.degree)
+              chords
+                .find((c) => c.name === nextChordName)
+                ?.triadNotes.includes(note.degree)
             )
             .filter(
               (note) =>
@@ -514,14 +525,17 @@ function generateChordProgression(
         // prefer dominant
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter((chord) => {
-            if (!chords[chord.name]) return false;
+            if (!chords.find((c) => c.name === chord.name)) return false;
             return (
-              (chords[chord.name].type === "dominant" ||
-                chords[chord.name].type === "predominant") &&
+              (chords.find((c) => c.name === chord.name)?.type === "dominant" ||
+                chords.find((c) => c.name === chord.name)?.type ===
+                  "predominant") &&
               bassDegrees
                 .map((note) => note.degree)
                 .some((degree) =>
-                  chords[chord.name].triadNotes.includes(degree)
+                  chords
+                    .find((c) => c.name === chord.name)
+                    ?.triadNotes.includes(degree)
                 )
             );
           });
@@ -529,14 +543,18 @@ function generateChordProgression(
           // if no dominant chords are found, try tonic chords
           nextChordPossibilities =
             prevChord.chord.nextChordPossibilities.filter((chord) => {
-              if (!chords[chord.name]) return false;
+              if (!chords.find((c) => c.name === chord.name)) return false;
               return (
-                (chords[chord.name].type === "dominant-inversion" ||
-                  chords[chord.name].type === "tonic") &&
+                (chords.find((c) => c.name === chord.name)?.type ===
+                  "dominant-inversion" ||
+                  chords.find((c) => c.name === chord.name)?.type ===
+                    "tonic") &&
                 bassDegrees
                   .map((note) => note.degree)
                   .some((degree) =>
-                    chords[chord.name].triadNotes.includes(degree)
+                    chords
+                      .find((c) => c.name === chord.name)
+                      ?.triadNotes.includes(degree)
                   )
               );
             });
@@ -559,13 +577,16 @@ function generateChordProgression(
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
           let nextChord = {
-            chord: chords[nextChordName],
+            chord: chords.find((c) => c.name === nextChordName),
             length: randNoteLengths[i],
-            triadDegrees: chords[nextChordName].triadNotes,
+            triadDegrees: chords.find((c) => c.name === nextChordName)
+              ?.triadNotes,
           };
           let bassNoteToAdd = bassDegrees
             .filter((note) =>
-              chords[nextChordName].triadNotes.includes(note.degree)
+              chords
+                .find((c) => c.name === nextChordName)
+                ?.triadNotes.includes(note.degree)
             )
             .filter(
               (note) =>
@@ -595,12 +616,12 @@ function generateChordProgression(
 
         // The last chord must be "1"
         const nextChord = {
-          chord: chords["1"],
+          chord: chords[0],
           length: randNoteLengths[i],
-          triadDegrees: chords["1"].triadNotes,
+          triadDegrees: chords[0].triadNotes,
         };
         let bassNoteToAdd = bassDegrees
-          .filter((note) => chords["1"].triadNotes.includes(note.degree))
+          .filter((note) => chords[0].triadNotes.includes(note.degree))
           .filter(
             (note) =>
               Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
@@ -625,10 +646,14 @@ function generateChordProgression(
         prevBassNote = bassNoteArray[i - 1];
         let nextChordPossibilities =
           prevChord.chord.nextChordPossibilities.filter((chord) => {
-            if (!chords[chord.name]) return false;
+            if (!chords.find((c) => c.name === chord.name)) return false;
             return bassDegrees
               .map((note) => note.degree)
-              .some((degree) => chords[chord.name].triadNotes.includes(degree));
+              .some((degree) =>
+                chords
+                  .find((c) => c.name === chord.name)
+                  ?.triadNotes.includes(degree)
+              );
           });
 
         if (nextChordPossibilities.length === 0) {
@@ -654,13 +679,16 @@ function generateChordProgression(
           } else {
             let nextChordName = nextChordInner.name;
             let nextChord = {
-              chord: chords[nextChordName],
+              chord: chords.find((c) => c.name === nextChordName),
               length: randNoteLengths[i],
-              triadDegrees: chords[nextChordName].triadNotes,
+              triadDegrees: chords.find((c) => c.name === nextChordName)
+                ?.triadNotes,
             };
             let bassNoteToAdd = bassDegrees
               .filter((note) =>
-                chords[nextChordName].triadNotes.includes(note.degree)
+                chords
+                  .find((c) => c.name === nextChordName)
+                  ?.triadNotes.includes(note.degree)
               )
               .filter(
                 (note) =>
@@ -958,20 +986,24 @@ function generateChord(params: GenerateChordParams) {
         // maxSkip = 1;
       }
 
-      var rangeNoteListFilter = rangeNoteList.filter(
-        (note: Note) =>
-          chordTriadCopy.includes(note.degree) &&
+      var rangeNoteListFilter = rangeNoteList.filter((note: Note) => {
+        const currentChordObj = params.chords.find(
+          (c) => c.name === currentChord.chord.name
+        );
+        return (
+          currentChordObj?.triadNotes.includes(note.degree) &&
           (bannedParFifthDegree === null ||
             note.degree !== bannedParFifthDegree) &&
           Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
-      );
+        );
+      });
       if (rangeNoteListFilter.length === 0) {
         // you can repeat degrees
         rangeNoteListFilter = rangeNoteList.filter(
           (note: Note) =>
-            params.chords[currentChord.chord.name].triadNotes.includes(
-              note.degree
-            ) &&
+            params.chords
+              .find((c) => c.name === currentChord.chord.name)
+              ?.triadNotes.includes(note.degree) &&
             (bannedParFifthDegree === null ||
               note.degree !== bannedParFifthDegree) &&
             Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
@@ -1117,23 +1149,16 @@ function createConcatString(
 
         // Add space if:
         // 1. End of measure
-        // 2. End of pattern
-        // 3. Last note in sequence
-        // 4. Next note starts a new pattern
+        // 2. Last note in sequence
+        // 3. Next note starts a new pattern
         const isEndOfMeasure =
           tsCount + note.noteLength >= params.timeSig.tsPerMeasure;
         const isLastNote =
           index === singlePartObject.chordNoteObject.length - 1;
-        const isEndOfPattern = note.isPatternEnd;
         const nextNote = singlePartObject.chordNoteObject[index + 1];
         const isNextNoteNewPattern = nextNote?.isPatternStart;
 
-        if (
-          isEndOfMeasure ||
-          isLastNote ||
-          isEndOfPattern ||
-          isNextNoteNewPattern
-        ) {
+        if (isEndOfMeasure || isLastNote || isNextNoteNewPattern) {
           measureString += " ";
         }
 
@@ -1160,356 +1185,85 @@ function createConcatString(
   return concatString;
 }
 
-function createNewSr(params: any) {
+interface ChordType {
+  name: string;
+  triadNotes: number[];
+  type: string;
+  root: number;
+  nextChordPossibilities: { name: string; weight: number }[];
+  baseMultiplier: number;
+}
+
+interface ChordMap {
+  [key: string]: ChordSet;
+}
+
+interface ChordArray extends Array<ChordSet> {}
+
+export function createNewSr(params: any) {
   const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
-
-  var clef = params.clef;
-  var importChords = params.chords;
-  var keyRendered = params.key;
-  var maxSkip = params.maxSkip;
-  var timeSigRendered = params.timeSig;
-  var selectedRange = [params.range.min, params.range.max + 1];
-  var tempo = params.tempo;
-  var numOfMeasures = params.measures;
-  var rhythms = params.rhythms;
-  var scaleDegrees: number[] = Array.from(params.scaleDegrees);
-  // subtract 1 from each scale degree
-  scaleDegrees = scaleDegrees.map((degree: number) => degree - 1);
-
-  var tonic = keyRendered[0];
-  var partsObject = JSON.parse(JSON.stringify(params.partsObject));
-
-  // add selected range to partsObject
-  partsObject.parts.Unison.selectedRange = selectedRange;
-
-  // filter chords to only include chords that are in the chords object
-  importChords = allChords
-    .filter((chord) => importChords.includes(chord.name))
-    .reduce((acc, chord) => {
-      acc[chord.name] = chord;
-      return acc;
-    }, {} as ChordSet);
-
-  // and change all next chord possibilities to only include chords that are in the chords object
-  for (const chord in importChords) {
-    importChords[chord].nextChordPossibilities = importChords[
-      chord
-    ].nextChordPossibilities.filter((chord: { name: string }) =>
-      Object.keys(importChords).includes(chord.name)
-    );
-  }
-
-  // add note symbol, scale degree, and pitch value to each partsObject
-  for (const [partName, partObject] of Object.entries(partsObject.parts)) {
-    partsObject.parts[partName].concatNoteString = "";
-    partsObject.parts[partName].completeNoteObject = [];
-    partsObject.parts[partName].noteArray = [];
-  }
-
-  function generateChord(params: any) {
-    // get key
-    var key = keyRendered[0];
-    var maxSkip = params.maxSkip;
-    var noteIndex = params.noteIndex;
-    var keyObject = keySignatures[keyRendered];
-    var partObject = params.partObject;
-    var randPartIndex = params.randPartIndex;
-    var chordTriadCopy = params.chordTriadCopy;
-    var baseNoteArray = params.baseNoteArray;
-    var currentChord = params.renderedChordProgression[params.noteIndex];
-    var bassGenNoteArray = params.bassGenNoteArray;
-    var noteList = params.noteList;
-
-    var partName = Object.keys(partObject.parts)[randPartIndex];
-    var partOrder = partObject.parts[partName].order;
-
-    var scaleType = "Major";
-    var generatedNote = "";
-
-    var chordNoteObject: ChordNoteObject = {
-      partName: "",
-      noteLength: 0,
-      name: "",
-      degree: 0,
-      pitchValue: 0,
-      chord: null,
-      rhythm: null,
-      isPatternStart: false,
-      isPatternEnd: false,
-      patternIndex: null,
-    };
-
-    var noteLength = currentChord.length;
-    var scaleDegreeToAdd: number = 0;
-    var singlePartObject =
-      partObject.parts[Object.keys(partObject.parts)[randPartIndex]];
-
-    var prevNote: Note = {
-      pitchValue: 0,
-      name: "",
-      degree: 0,
-    };
-
-    if (singlePartObject.chordNoteObject.length > 0) {
-      prevNote =
-        singlePartObject.chordNoteObject[
-          singlePartObject.chordNoteObject.length - 1
-        ];
-    }
-
-    var minRange = noteList.findIndex(
-      (note: Note) =>
-        note.name === baseNoteArray[singlePartObject.selectedRange[0]]
-    );
-    if (minRange === -1) {
-      minRange = 0;
-    }
-
-    var maxRange = noteList.findIndex(
-      (note: Note) =>
-        note.name === baseNoteArray[singlePartObject.selectedRange[1]]
-    );
-
-    var rangeNoteList = noteList.slice(minRange, maxRange);
-
-    if (keyRendered.includes("m")) {
-      scaleType = "Minor";
-    }
-
-    var randomCloseNote: Note = { name: "", degree: 0, pitchValue: 0 };
-
-    if (singlePartObject.order === 0) {
-      scaleDegreeToAdd = bassGenNoteArray[noteIndex].degree;
-      var rangeNoteListFilter = rangeNoteList.filter(
-        (note: Note) => note.degree === scaleDegreeToAdd
-      );
-      if (prevNote.pitchValue === 0) {
-        randomCloseNote =
-          rangeNoteListFilter[
-            Math.floor(Math.random() * rangeNoteListFilter.length)
-          ];
-      } else {
-        // pick the closest note to the previous note
-        randomCloseNote = rangeNoteListFilter.reduce((prev: Note, curr: Note) =>
-          Math.abs(curr.pitchValue - prevNote.pitchValue) <
-          Math.abs(prev.pitchValue - prevNote.pitchValue)
-            ? curr
-            : prev
-        );
-      }
-    } else if (singlePartObject.order !== 0) {
-      // check if prev note is undefined
-      if (!prevNote) {
-        console.log("Error: Previous note is undefined");
-        return false;
-      }
-
-      if (prevNote.pitchValue === 0) {
-        // pitch a random scale degree in chordtriad copy
-        var scaleDegreeToAdd: number =
-          chordTriadCopy[Math.floor(Math.random() * chordTriadCopy.length)];
-
-        var rangeNoteListFilter = rangeNoteList.filter(
-          (note: Note) => note.degree === scaleDegreeToAdd
-        );
-
-        randomCloseNote =
-          rangeNoteListFilter[
-            Math.floor(Math.random() * rangeNoteListFilter.length)
-          ];
-      }
-      if (prevNote.pitchValue !== 0) {
-        let otherDegreesInChord: number[] = [];
-        let bannedParFifthDegree: number | null = null;
-
-        try {
-          Object.keys(partObject.parts).forEach((part: string) => {
-            let degreeToCheck =
-              partObject.parts[part].chordNoteObject[noteIndex - 1]?.degree;
-            if (
-              degreeToCheck !== undefined &&
-              degreeToCheck !== prevNote.degree
-            ) {
-              otherDegreesInChord.push(degreeToCheck);
-            }
-            if (Math.abs(degreeToCheck - prevNote.degree) % 8 === 4) {
-              params.otherPartNotes.forEach((note: any) => {
-                if (note.partName === part) {
-                  if (note.degree !== degreeToCheck) {
-                    bannedParFifthDegree = (note.degree + 1) % 8;
-                  }
-                }
-              });
-            }
-          });
-        } catch (error) {
-          console.error("An error occurred:", error);
-        }
-
-        let closestDegreeAbove = 0;
-        let closestDegreeBelow = 0;
-
-        if (otherDegreesInChord.length !== 0) {
-          // let { closestDegreeAbove, closestDegreeBelow } = findClosestDegrees(
-          //   prevNoteDegree,
-          //   otherDegreesInChord
-          // );
-        }
-
-        // check if last note is an accidental
-        // see if .name includes [^, ^^, =, _, __ ]
-        var prevNoteAccidental = prevNote.name.match(/[_^=]/g);
-
-        if (prevNoteAccidental) {
-          // maxSkip = 1;
-        }
-
-        var rangeNoteListFilter = rangeNoteList.filter(
-          (note: Note) =>
-            chordTriadCopy.includes(note.degree) &&
-            (bannedParFifthDegree === null ||
-              note.degree !== bannedParFifthDegree) &&
-            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
-        );
-        if (rangeNoteListFilter.length === 0) {
-          // you can repeat degrees
-          rangeNoteListFilter = rangeNoteList.filter(
-            (note: Note) =>
-              params.chords[currentChord.chord.name].triadNotes.includes(
-                note.degree
-              ) &&
-              (bannedParFifthDegree === null ||
-                note.degree !== bannedParFifthDegree) &&
-              Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
-          );
-        }
-        // if still 0 return
-        if (rangeNoteListFilter.length === 0) {
-          return false;
-        }
-        if (closestDegreeAbove === closestDegreeAbove) {
-          var notesWithinRange = rangeNoteListFilter;
-        } else {
-          var notesWithinRange = rangeNoteListFilter.filter(
-            (note: Note) =>
-              Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip &&
-              isDegreeWithinRange(
-                prevNote.degree,
-                closestDegreeBelow,
-                closestDegreeAbove
-              )
-          );
-        }
-
-        if (notesWithinRange.length === 0) {
-          return false;
-        }
-
-        randomCloseNote =
-          notesWithinRange[Math.floor(Math.random() * notesWithinRange.length)];
-
-        scaleDegreeToAdd = randomCloseNote.degree;
-      }
-      chordTriadCopy.splice(chordTriadCopy.indexOf(scaleDegreeToAdd), 1);
-    }
-    if (randomCloseNote === undefined) {
-      return false;
-    }
-
-    generatedNote = randomCloseNote.name;
-
-    // find the index of the note in the original notesList
-    var pitchValue = randomCloseNote.pitchValue;
-
-    var distance = Math.abs(pitchValue - prevNote.pitchValue);
-
-    // see if it is a sharp or flat scale degree in hte chord
-    var accidental = null;
-    if (currentChord.chord.sharpScaleDegree === scaleDegreeToAdd) {
-      accidental = "^";
-      if (keyObject.sharps?.indexOf(scaleDegreeToAdd) !== -1) {
-        accidental = "^^";
-      } else if (keyObject.flats?.indexOf(scaleDegreeToAdd) !== -1) {
-        accidental = "=";
-      }
-    }
-
-    if (currentChord.chord.flatScaleDegree === scaleDegreeToAdd) {
-      accidental = "_";
-      if (keyObject.sharps?.indexOf(scaleDegreeToAdd) !== -1) {
-        accidental = "=";
-      } else if (keyObject.flats?.indexOf(scaleDegreeToAdd) !== -1) {
-        accidental = "__";
-      }
-    }
-    if (accidental) {
-      if (
-        distance > 1 ||
-        pitchValue >= maxRange - 1 ||
-        pitchValue <= minRange + 1
-      ) {
-        // try again
-        // return false;
-        generatedNote = accidental + generatedNote;
-      } else {
-        generatedNote = accidental + generatedNote;
-      }
-    }
-
-    chordNoteObject = {
-      partName: partName,
-      noteLength: noteLength,
-      name: generatedNote,
-      degree: scaleDegreeToAdd,
-      pitchValue: pitchValue,
-      chord: currentChord.chord,
-      rhythm: params.randRhythmObjects[params.noteIndex],
-      isPatternStart: Boolean(
-        params.randRhythmObjects[params.noteIndex]?.pattern &&
-          (params.noteIndex === 0 ||
-            !params.randRhythmObjects[params.noteIndex - 1]?.pattern)
-      ),
-      isPatternEnd: Boolean(
-        params.randRhythmObjects[params.noteIndex]?.pattern &&
-          (params.noteIndex === params.randRhythmObjects.length - 1 ||
-            !params.randRhythmObjects[params.noteIndex + 1]?.pattern)
-      ),
-      patternIndex: params.randRhythmObjects[params.noteIndex]?.pattern
-        ? params.randRhythmObjects[params.noteIndex].abcValue.findIndex(
-            (v: string) => v === noteLength.toString()
-          )
-        : null,
-    };
-
-    return chordNoteObject;
-  }
-
-  // Example usage:
-  var numOfNotes = 40;
-  var noteList = createNoteList(tonic, numOfNotes);
-  const unisonNoteList = noteList.slice(
-    noteList.findIndex((note) => note.name === baseNoteArray[selectedRange[0]]),
-    noteList.findIndex((note) => note.name === baseNoteArray[selectedRange[1]])
+  let importChords = params.chords;
+  let filteredChords = chords.filter((chord) =>
+    importChords.includes(chord.name)
   );
 
-  const randNoteLengthsResult: { numbers: number[]; rhythmObjects: Rhythm[] } =
-    generateRandomRhythmCombination(
-      rhythms,
-      timeSigRendered.tsPerMeasure * numOfMeasures,
-      timeSigRendered.tsPerMeasure
+  // Helper function to find a chord by name
+  function getChordByName(name: string): Chord | undefined {
+    return filteredChords.find(
+      (c) => c && typeof c === "object" && c.name === name
     );
+  }
+
+  // Update next chord possibilities to only include valid chords
+  filteredChords = filteredChords.map((chord) => ({
+    ...chord,
+    nextChordPossibilities: chord.nextChordPossibilities.filter((next) =>
+      filteredChords.some((c) => c.name === next.name)
+    ),
+  }));
+
+  var clef = params.clef;
+  var keyRendered = params.key;
+  var maxSkip = params.maxSkip;
+  var level = params.level;
+  var timeSig = params.timeSig;
+  var bpm = params.bpm;
+  var measures = params.measures;
+  var partsObject = params.partsObject;
+
+  // add selected range to partsObject
+  partsObject.parts.Unison.selectedRange = [
+    params.range.min,
+    params.range.max + 1,
+  ];
+
+  // Initialize variables
+  var numOfNotes = 40;
+  var noteList = createNoteList(keyRendered[0], numOfNotes);
+  const unisonNoteList = noteList.slice(
+    noteList.findIndex((note) => note.name === baseNoteArray[params.range.min]),
+    noteList.findIndex(
+      (note) => note.name === baseNoteArray[params.range.max + 1]
+    )
+  );
+
+  const randNoteLengthsResult = generateRandomRhythmCombination(
+    params.rhythms,
+    timeSig.tsPerMeasure * measures,
+    timeSig.tsPerMeasure
+  );
 
   const randNoteLengths = randNoteLengthsResult.numbers;
   const randRhythmObjects = randNoteLengthsResult.rhythmObjects;
 
-  const [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
-    timeSigRendered,
-    numOfMeasures,
+  let [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
+    timeSig,
+    measures,
     unisonNoteList,
     maxSkip,
     randNoteLengths,
-    importChords,
-    scaleDegrees as any
+    filteredChords,
+    Array.from(params.scaleDegrees)
   );
 
   // make an array of 0's of length of the number of parts
@@ -1524,14 +1278,15 @@ function createNewSr(params: any) {
   const maxSinglePartFails = 20;
   const maxAllPartsFails = 20;
 
+  // Reset chordNoteObjects and initialize completeNoteObject
+  for (const partName in partsObject.parts) {
+    partsObject.parts[partName].chordNoteObject = [];
+    partsObject.parts[partName].completeNoteObject = [];
+  }
+
   while (totalLoopFails < maxTotalLoopFails) {
     let allPartsFails = 0;
     let noteIndex = 0;
-
-    // Reset chordNoteObjects
-    for (const partName in partsObject.parts) {
-      partsObject.parts[partName].chordNoteObject = [];
-    }
 
     while (
       partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
@@ -1547,11 +1302,7 @@ function createNewSr(params: any) {
       );
       let bassRandIndex = partIndexArray.indexOf(bassPartObjectIndex);
       partIndexArray.splice(bassRandIndex, 1);
-      // Shuffle the remaining elements using the Fisher-Yates shuffle algorithm
-      // for (let i = result.length - 1; i > 0; i--) {
-      //   const j = Math.floor(Math.random() * (i + 1));
-      //   [result[i], result[j]] = [result[j], result[i]];
-      // }
+
       for (let i = partIndexArray.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [partIndexArray[i], partIndexArray[j]] = [
@@ -1562,11 +1313,19 @@ function createNewSr(params: any) {
       partIndexArray.unshift(bassRandIndex);
 
       // Create a copy of the triad
-      let chordTriadCopy = [
-        ...importChords[
+      const currentChord = getChordByName(
+        renderedChordProgression[chordProgressionIndex].chord.name
+      );
+      let chordTriadCopy = currentChord ? [...currentChord.triadNotes] : [];
+
+      // If we need to refill the triad notes
+      if (chordTriadCopy.length === 0) {
+        const chord = getChordByName(
           renderedChordProgression[chordProgressionIndex].chord.name
-        ].triadNotes,
-      ];
+        );
+        chordTriadCopy = chord ? [...chord.triadNotes] : [];
+      }
+
       // take the bass degree out of chordTriadCopy
       let baseChordDegree = bassGenNoteArray[noteIndex].degree;
       chordTriadCopy.splice(chordTriadCopy.indexOf(baseChordDegree), 1);
@@ -1582,17 +1341,17 @@ function createNewSr(params: any) {
       for (let i = 0; i < partIndexArray.length; i++) {
         if (chordTriadCopy.length === 0) {
           chordTriadCopy = [
-            ...importChords[
+            ...(getChordByName(
               renderedChordProgression[chordProgressionIndex].chord.name
-            ].triadNotes,
+            )?.triadNotes || []),
           ];
         }
 
         let genChordParams = {
           key: keyRendered,
-          timeSig: timeSigRendered,
+          timeSig: timeSig,
           maxSkip: maxSkip,
-          tonic: tonic,
+          tonic: keyRendered[0],
           noteIndex: noteIndex,
           baseNoteArray: baseNoteArray,
           bassGenNoteArray: bassGenNoteArray,
@@ -1604,7 +1363,7 @@ function createNewSr(params: any) {
           randPartIndex: partIndexArray[i],
           partName: Object.keys(partsObject.parts)[partIndexArray[i]],
           renderedChordProgression: renderedChordProgression,
-          chords: importChords,
+          chords: filteredChords,
           randRhythmObjects: randRhythmObjects,
         };
 
@@ -1792,14 +1551,14 @@ function createNewSr(params: any) {
   }
 
   filterAccidentals({
-    tsPerMeasure: timeSigRendered.tsPerMeasure,
+    tsPerMeasure: timeSig.tsPerMeasure,
     partsObject: partsObject,
     key: keyRendered,
   });
 
   // Remove the redundant loop and directly use createConcatString
   const tuneBody = createConcatString(partsObject as PartsObject, {
-    timeSig: timeSigRendered,
+    timeSig: timeSig,
     showSolfege: params.showSolfege === true,
   });
 
@@ -1820,7 +1579,7 @@ function createNewSr(params: any) {
 
         // Only add space at the end of a measure
         const isEndOfMeasure =
-          tsCount + note.noteLength >= timeSigRendered.tsPerMeasure;
+          tsCount + note.noteLength >= timeSig.tsPerMeasure;
         const isLastNote =
           index === singlePartObject.chordNoteObject.length - 1;
 
@@ -1830,7 +1589,7 @@ function createNewSr(params: any) {
 
         tsCount += note.noteLength;
 
-        if (tsCount >= timeSigRendered.tsPerMeasure) {
+        if (tsCount >= timeSig.tsPerMeasure) {
           partString += measureString + "|";
           tsCount = 0;
         }
@@ -1853,12 +1612,11 @@ function createNewSr(params: any) {
   }
 
   var scoreString = "%%score ";
-
   scoreString += "\n";
 
   var renderedString =
     `X:1 \n` +
-    `M:${timeSigRendered.name}\n` +
+    `M:${timeSig.name}\n` +
     `L:1/32\n` +
     `${scoreString}` +
     `${headerString}` +
@@ -1871,5 +1629,3 @@ function createNewSr(params: any) {
 
   return [renderedString, renderedChordProgression];
 }
-
-export { createNewSr };
