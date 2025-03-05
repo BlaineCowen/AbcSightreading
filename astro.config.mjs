@@ -4,7 +4,7 @@ import svelte from "@astrojs/svelte";
 
 // No adapter needed for basic static site generation
 export default defineConfig({
-  output: "static",
+  output: "server",
   integrations: [svelte(), tailwind()],
   vite: {
     resolve: {

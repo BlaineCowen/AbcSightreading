@@ -13,7 +13,9 @@
       ],
       "@types/*": [
         "./types/*"
-      ]
+      ],
+      "$lib": ["./src/lib"],
+      "$lib/*": ["./src/lib/*"]
     }
   },
   "include": ["src/**/*", "types/**/*"] // Adjust the path as necessary

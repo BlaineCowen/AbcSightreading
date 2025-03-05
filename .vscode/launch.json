@@ -2,10 +2,43 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "command": "./node_modules/.bin/astro dev",
-      "name": "Development server",
+      "type": "bun",
       "request": "launch",
-      "type": "node-terminal"
+      "name": "Debug Tests",
+      "program": "${workspaceFolder}/src/tests/generateUnison.test.ts",
+      "cwd": "${workspaceFolder}",
+      "watchMode": false,
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "type": "bun",
+      "request": "launch",
+      "name": "Debug Server",
+      "program": "${workspaceFolder}/node_modules/astro/astro.js",
+      "args": ["dev"],
+      "cwd": "${workspaceFolder}",
+      "watchMode": true,
+      "skipFiles": [
+        "<node_internals>/**",
+        "${workspaceFolder}/node_modules/**"
+      ],
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Debug Client",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:4321",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": {
+        "/*": "${webRoot}/*"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Full Stack",
+      "configurations": ["Debug Server", "Debug Client"]
     }
   ]
 }

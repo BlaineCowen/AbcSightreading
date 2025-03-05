@@ -1,21 +1,14 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { createNewSr } from "./generateUnison";
   import abcjs from "abcjs";
-  import type {
-    TimingCallbacks,
-    TimingCallbacksPosition,
-    // TimingCallbacksDebug,
-  } from "abcjs";
+  import type { TimingCallbacks, TimingCallbacksPosition } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
   import SpeakerIcon from "./ui/speaker-icon.svelte";
   import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
-  import "abcjs/abcjs-audio.css"; // Use the audio CSS instead of midi CSS
-  import { chords } from "../resources/chords";
-  import type { Chord } from "../types/ChordSet";
-  // Import all SVGs dynamically
+  import "abcjs/abcjs-audio.css";
+  import PitchVisualizer from "./PitchVisualizer.svelte";
 
   const toneSynth = new Tone.Synth().toDestination();
   let playSynth = true;
@@ -29,6 +22,42 @@
   let cursor: SVGLineElement | null = null;
   let totalDuration = 0;
   let currentProgress = 0;
+
+  // Add loading state
+  let isLoading = false;
+  let error: string | null = null;
+
+  let audioContext: AudioContext | null = null;
+  let analyser: AnalyserNode | null = null;
+  let stream: MediaStream | null = null;
+  let detector: any = null;
+  let rafId: number | null = null;
+
+  // Key to frequency mapping (middle C = C4 = 261.63Hz)
+  const keyToRootFreq: Record<string, number> = {
+    C: 261.63,
+    G: 392.0,
+    D: 293.66,
+    A: 440.0,
+    E: 329.63,
+    B: 493.88,
+    F: 349.23,
+    Bb: 466.16,
+    Eb: 311.13,
+    Ab: 415.3,
+    Db: 277.18,
+  };
+
+  // Solfege scale degrees (relative to root)
+  const solfegeMap = [
+    { degree: 0, name: "do" },
+    { degree: 2, name: "re" },
+    { degree: 4, name: "mi" },
+    { degree: 5, name: "fa" },
+    { degree: 7, name: "sol" },
+    { degree: 9, name: "la" },
+    { degree: 11, name: "ti" },
+  ];
 
   /**
    * Plays a single note using the Tone.js synth
@@ -71,7 +100,7 @@
   };
 
   let filterRhythms = rhythms.filter((rhythm) => {
-    console.log(rhythm.name); // Log rhythm names
+    console.log("Available rhythm:", rhythm.name, rhythm); // Log full rhythm objects
     return (
       !rhythm.name.includes("thirtySecond") &&
       !rhythm.name.toLowerCase().includes("rest")
@@ -169,6 +198,8 @@
   let showSolfege = initialState.showSolfege || false;
 
   let renderedString: any;
+  let selectableArray: any[] = [];
+  let pitchCursor: SVGLineElement | null = null;
 
   // Define possible keys
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
@@ -365,6 +396,8 @@
     };
 
     const visualObj = abcjs.renderAbc("paper", renderedString[0], abcOptions);
+    selectableArray = visualObj[0].getSelectableArray();
+    console.log("selectableArray", selectableArray);
 
     /**
      * Creates a cursor element for tracking playback position
@@ -390,6 +423,8 @@
     // Wait for SVG to be rendered
     await new Promise((resolve) => setTimeout(resolve, 0));
     cursor = createCursor();
+    pitchCursor = createPitchCursor();
+    updatePitchCursor(0); // Position cursor at first note
 
     currentTune = visualObj[0];
     return visualObj;
@@ -553,43 +588,115 @@
    */
   async function handleClick() {
     optionsVisible = false;
+    isLoading = true;
+    error = null;
 
-    // Reset audio state for new tune
-    stopMusic(); // Stop any playing audio
-    midiBuffer = null;
-    createSynth = null;
-    currentTune = null;
+    try {
+      // Validate rhythms first
+      if (!validateSelectedRhythms(selectedRhythms)) {
+        throw new Error("Please select at least one valid rhythm");
+      }
 
-    const params = {
-      bpm,
-      clef: selectedClef,
-      timeSig:
-        timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
-      measures: measures,
-      maxSkip: 4,
-      tempo: tempo,
-      range: selectedRange,
-      rhythms: selectedRhythms,
-      scaleDegrees: selectedScaleDegrees,
-      selectedClef: selectedClef,
-      selectedTimeSignature: selectedTimeSignature,
-      key: selectedKey,
-      chords: availableChords,
-      showSolfege: showSolfege,
-      partsObject: {
-        numofParts: 1,
-        parts: {
-          Unison: {
-            order: 0,
-            smallName: "U",
+      // Reset audio state for new tune
+      stopMusic();
+      midiBuffer = null;
+      createSynth = null;
+      currentTune = null;
+
+      const params = {
+        bpm,
+        clef: selectedClef,
+        timeSig:
+          timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
+        measures: measures,
+        maxSkip: 4,
+        tempo: tempo,
+        range: selectedRange,
+        rhythms: selectedRhythms,
+        scaleDegrees: Array.from(selectedScaleDegrees),
+        selectedClef: selectedClef,
+        selectedTimeSignature: selectedTimeSignature,
+        key: selectedKey,
+        chords: availableChords,
+        showSolfege: showSolfege,
+        partsObject: {
+          numofParts: 1,
+          parts: {
+            Unison: {
+              order: 0,
+              smallName: "U",
+            },
           },
         },
-      },
-    };
+      };
 
-    renderedString = createNewSr(params);
-    const renderedTune = await renderTune();
-    if (!renderedTune) return;
+      // Validate parameters before sending
+      if (!params.rhythms || params.rhythms.length === 0) {
+        throw new Error("No rhythms selected");
+      }
+      if (
+        !params.timeSig ||
+        !params.timeSig.name ||
+        !params.timeSig.tsPerMeasure
+      ) {
+        throw new Error("Invalid time signature");
+      }
+      if (!params.measures || params.measures <= 0) {
+        throw new Error("Invalid number of measures");
+      }
+      if (!params.range || !params.range.min || !params.range.max) {
+        throw new Error("Invalid range");
+      }
+
+      console.log(
+        "Sending params to generate:",
+        JSON.stringify(params, null, 2)
+      );
+
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(params),
+      });
+
+      let text;
+      try {
+        text = await response.text();
+      } catch (e) {
+        throw new Error("Failed to read response body");
+      }
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (e) {
+        console.error("Failed to parse response as JSON:", text);
+        throw new Error(`Invalid JSON response: ${text.substring(0, 100)}...`);
+      }
+
+      if (!response.ok) {
+        console.error("Error response:", result);
+        throw new Error(
+          result.error || `HTTP error! status: ${response.status}`
+        );
+      }
+
+      console.log("Response data:", result);
+
+      if (result.success) {
+        renderedString = result.data;
+        await renderTune();
+      } else {
+        throw new Error(result.error || "Failed to generate music");
+      }
+    } catch (err) {
+      console.error("Detailed error:", err);
+      error = err instanceof Error ? err.message : "An error occurred";
+    } finally {
+      isLoading = false;
+    }
   }
 
   /**
@@ -695,11 +802,6 @@
     return Tone.Frequency(keyMap[key], "midi").toFrequency();
   }
 
-  function handleChordWeightChange(event: Event, chord: Chord) {
-    const value = Number((event.target as HTMLInputElement).value);
-    chord.baseMultiplier = value;
-  }
-
   onDestroy(() => {
     if (droneOscillator) {
       droneOscillator.stop();
@@ -707,10 +809,76 @@
     }
     Tone.Transport.stop();
   });
+
+  // Add this function to validate selected rhythms
+  function validateSelectedRhythms(rhythms: Rhythm[]) {
+    if (!rhythms || rhythms.length === 0) {
+      console.error("No rhythms selected");
+      return false;
+    }
+
+    console.log("Selected rhythms:", rhythms);
+    let totalWeight = 0;
+    rhythms.forEach((rhythm) => {
+      if (!rhythm || typeof rhythm.weight !== "number") {
+        console.error("Invalid rhythm object:", rhythm);
+        return false;
+      }
+      totalWeight += rhythm.weight;
+    });
+
+    if (totalWeight === 0) {
+      console.error("All selected rhythms have zero weight");
+      return false;
+    }
+
+    return true;
+  }
+
+  // Add this function to create the pitch cursor
+  function createPitchCursor() {
+    const svg = document.querySelector("#paper svg");
+    if (!svg) return null;
+
+    const cursor = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "line"
+    );
+    cursor.setAttribute("class", "abcjs-pitch-cursor");
+    cursor.setAttributeNS(null, "x1", "0");
+    cursor.setAttributeNS(null, "y1", "0");
+    cursor.setAttributeNS(null, "x2", "0");
+    cursor.setAttributeNS(null, "y2", "0");
+    svg.appendChild(cursor);
+    return cursor;
+  }
+
+  // Add this function to update the pitch cursor position
+  function updatePitchCursor(index: number) {
+    if (!pitchCursor || !selectableArray[index]) return;
+
+    const note = selectableArray[index];
+    if (note?.absEl?.x && note?.absEl?.y) {
+      const x = note.absEl.x + 10; // Offset slightly to the right of the note
+      const height = 80; // Height of the cursor line
+      pitchCursor.setAttribute("x1", x.toString());
+      pitchCursor.setAttribute("x2", x.toString());
+      pitchCursor.setAttribute("y1", (note.staffPos.top - 10).toString());
+      pitchCursor.setAttribute("y2", (note.staffPos.top + height).toString());
+    }
+  }
+
+  // Add event listener for note progression
+  if (typeof window !== "undefined") {
+    window.addEventListener("noteProgression", ((event: CustomEvent) => {
+      updatePitchCursor(event.detail.index);
+    }) as EventListener);
+  }
 </script>
 
 <div class="w-full">
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
+    <PitchVisualizer {selectedKey} {selectableArray} />
     <div class="flex flex-col items-center w-full">
       <!-- Options Panel -->
       <div
@@ -931,35 +1099,6 @@
                   </button>
                 </div>
               </div>
-
-              <!-- Chord Weights -->
-              <div class="space-y-2 col-span-2">
-                <h2 class="text-lg font-semibold">Chord Weights</h2>
-                <div class="grid grid-cols-4 gap-4">
-                  {#each Object.values(chords) as chord}
-                    <div class="flex flex-col gap-1">
-                      <div class="flex justify-between">
-                        <label for={chord.symbol} class="text-sm"
-                          >{chord.symbol}</label
-                        >
-                        <span class="text-sm text-gray-500"
-                          >{chord.baseMultiplier.toFixed(2)}</span
-                        >
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={chord.baseMultiplier}
-                        on:input={(event) =>
-                          handleChordWeightChange(event, chord)}
-                        class="w-full"
-                      />
-                    </div>
-                  {/each}
-                </div>
-              </div>
             </div>
 
             <!-- Rhythm Selection -->
@@ -1013,11 +1152,18 @@
         <!-- Create Button -->
 
         <button
-          class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
+          class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
           on:click={handleClick}
+          disabled={isLoading}
         >
-          Generate Exercise
+          {isLoading ? "Generating..." : "Generate Exercise"}
         </button>
+
+        {#if error}
+          <div class="mt-4 p-4 bg-red-100 text-red-700 rounded-md">
+            {error}
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -1126,5 +1272,12 @@
     stroke: blue;
     stroke-width: 2;
     pointer-events: none;
+  }
+
+  :global(.abcjs-pitch-cursor) {
+    stroke: #22c55e;
+    stroke-width: 2;
+    pointer-events: none;
+    transition: all 0.3s ease;
   }
 </style>

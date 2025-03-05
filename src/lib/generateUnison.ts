@@ -231,6 +231,14 @@ function generateRandomRhythmCombination(
 
   let totalRuns = 0;
 
+  if (!rhythmArray || rhythmArray.length === 0) {
+    throw new Error("No rhythms provided for generation");
+  }
+
+  if (targetSum <= 0 || tsPerMeasure <= 0) {
+    throw new Error("Invalid targetSum or tsPerMeasure");
+  }
+
   // sort array desc
   rhythmArray.sort((a, b) => b.totalValue - a.totalValue);
 
@@ -244,7 +252,9 @@ function generateRandomRhythmCombination(
 
   while (currentSum !== targetSum && totalRuns < 1000) {
     if (totalRuns >= 900) {
-      console.log("Error: Could not find a valid combination");
+      console.warn(
+        "Approaching maximum attempts to generate rhythm combination"
+      );
     }
     let measureArray: number[] = [];
     let measureRhythmArr: Rhythm[] = [];
@@ -288,6 +298,17 @@ function generateRandomRhythmCombination(
                 isPatternEnd: i === randomRhythm.abcValue.length - 1,
                 patternIndex: i,
               };
+
+              // Debug log for pattern properties
+              console.log(`Generated rhythm note in pattern:`, {
+                value,
+                isPatternStart: i === 0,
+                isPatternEnd: i === randomRhythm.abcValue.length - 1,
+                patternIndex: i,
+                totalLength: randomRhythm.abcValue.length,
+                name: randomRhythm.name,
+              });
+
               measureRhythmArr.push(modifiedRhythm);
             }
           } else {
@@ -346,6 +367,9 @@ function generateChordProgression(
   chords: Chord[],
   scaleDegrees: number[]
 ) {
+  console.log("Initial bassRangeNoteList:", bassRangeNoteList);
+  console.log("Scale degrees:", scaleDegrees);
+
   let bassNoteArray = [];
   let newMaxSkip = maxSkip;
 
@@ -367,14 +391,48 @@ function generateChordProgression(
 
   var numOfChords = randNoteLengths.length;
 
-  bassRangeNoteList = bassRangeNoteList.filter((note) =>
-    scaleDegrees.includes(note.degree)
+  console.log(
+    "Before filtering bassRangeNoteList:",
+    bassRangeNoteList.map((n) => ({ degree: n.degree, name: n.name }))
   );
+  console.log("Filtering for scale degrees:", scaleDegrees);
+
+  bassRangeNoteList = bassRangeNoteList.filter((note) => {
+    const included = scaleDegrees.includes(note.degree);
+    if (!included) {
+      console.log(
+        `Note ${note.name} (degree ${note.degree}) excluded - not in scale degrees`
+      );
+    }
+    return included;
+  });
+
+  console.log(
+    "After filtering bassRangeNoteList:",
+    bassRangeNoteList.map((n) => ({ degree: n.degree, name: n.name }))
+  );
+
+  if (bassRangeNoteList.length === 0) {
+    throw new Error(
+      "No valid notes found in range for the selected scale degrees"
+    );
+  }
 
   // pick a random note from bassRangeNoteList degree 0,2,4
   let tonicNotes = bassRangeNoteList.filter((note) =>
     [0, 2, 4].includes(note.degree)
   );
+
+  console.log(
+    "Tonic notes found:",
+    tonicNotes.map((n) => ({ degree: n.degree, name: n.name }))
+  );
+
+  if (tonicNotes.length === 0) {
+    throw new Error(
+      "No tonic notes found in the selected range and scale degrees"
+    );
+  }
 
   bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
 
@@ -1092,20 +1150,26 @@ function generateChord(params: GenerateChordParams) {
     rhythm: params.randRhythmObjects[params.noteIndex],
     isPatternStart: Boolean(
       params.randRhythmObjects[params.noteIndex]?.pattern &&
-        (params.noteIndex === 0 ||
-          !params.randRhythmObjects[params.noteIndex - 1]?.pattern)
+        params.randRhythmObjects[params.noteIndex]?.isPatternStart
     ),
     isPatternEnd: Boolean(
       params.randRhythmObjects[params.noteIndex]?.pattern &&
-        (params.noteIndex === params.randRhythmObjects.length - 1 ||
-          !params.randRhythmObjects[params.noteIndex + 1]?.pattern)
+        params.randRhythmObjects[params.noteIndex]?.isPatternEnd
     ),
-    patternIndex: params.randRhythmObjects[params.noteIndex]?.pattern
-      ? params.randRhythmObjects[params.noteIndex].abcValue.findIndex(
-          (v: string) => v === noteLength.toString()
-        )
-      : null,
+    patternIndex:
+      params.randRhythmObjects[params.noteIndex]?.patternIndex ?? null,
   };
+
+  // Debug log for pattern properties
+  console.log(`Note ${params.noteIndex}:`, {
+    noteLength,
+    pattern: params.randRhythmObjects[params.noteIndex]?.pattern,
+    abcValue: params.randRhythmObjects[params.noteIndex]?.abcValue,
+    patternIndex: params.randRhythmObjects[params.noteIndex]?.patternIndex,
+    isPatternStart: params.randRhythmObjects[params.noteIndex]?.isPatternStart,
+    isPatternEnd: params.randRhythmObjects[params.noteIndex]?.isPatternEnd,
+    name: params.randRhythmObjects[params.noteIndex]?.name,
+  });
 
   return chordNoteObject;
 }
@@ -1147,19 +1211,43 @@ function createConcatString(
 
         measureString += `${note.name}${note.noteLength}`;
 
-        // Add space if:
-        // 1. End of measure
-        // 2. Last note in sequence
-        // 3. Next note starts a new pattern
         const isEndOfMeasure =
           tsCount + note.noteLength >= params.timeSig.tsPerMeasure;
         const isLastNote =
           index === singlePartObject.chordNoteObject.length - 1;
         const nextNote = singlePartObject.chordNoteObject[index + 1];
-        const isNextNoteNewPattern = nextNote?.isPatternStart;
 
-        if (isEndOfMeasure || isLastNote || isNextNoteNewPattern) {
+        // Debug log for pattern checking
+        console.log(`Concat Note ${index}:`, {
+          name: note.name,
+          length: note.noteLength,
+          rhythm: note.rhythm?.name,
+          pattern: note.rhythm?.pattern,
+          isPatternStart: note.isPatternStart,
+          isPatternEnd: note.isPatternEnd,
+          nextIsPattern: nextNote?.rhythm?.pattern,
+          nextIsStart: nextNote?.isPatternStart,
+        });
+
+        // Add space if:
+        // 1. End of measure
+        // 2. Last note in sequence
+        // 3. Current note is end of pattern
+        // 4. Current note is not part of a pattern
+        const shouldAddSpace =
+          isEndOfMeasure ||
+          isLastNote ||
+          note.isPatternEnd ||
+          !note.rhythm?.pattern;
+
+        if (shouldAddSpace) {
           measureString += " ";
+          console.log(`Added space after note ${index} because:`, {
+            isEndOfMeasure,
+            isLastNote,
+            isPatternEnd: note.isPatternEnd,
+            notInPattern: !note.rhythm?.pattern,
+          });
         }
 
         tsCount += note.noteLength;
@@ -1201,431 +1289,463 @@ interface ChordMap {
 interface ChordArray extends Array<ChordSet> {}
 
 export function createNewSr(params: any) {
-  const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
-  let importChords = params.chords;
-  let filteredChords = chords.filter((chord) =>
-    importChords.includes(chord.name)
-  );
+  try {
+    if (!params) {
+      throw new Error("No parameters provided for music generation");
+    }
 
-  // Helper function to find a chord by name
-  function getChordByName(name: string): Chord | undefined {
-    return filteredChords.find(
-      (c) => c && typeof c === "object" && c.name === name
+    if (!params.selectedRhythms || params.selectedRhythms.length === 0) {
+      throw new Error("No rhythms selected");
+    }
+
+    if (!params.selectedTimeSignature) {
+      throw new Error("No time signature selected");
+    }
+
+    const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
+    let importChords = params.chords;
+    let filteredChords = chords.filter((chord) =>
+      importChords.includes(chord.name)
     );
-  }
 
-  // Update next chord possibilities to only include valid chords
-  filteredChords = filteredChords.map((chord) => ({
-    ...chord,
-    nextChordPossibilities: chord.nextChordPossibilities.filter((next) =>
-      filteredChords.some((c) => c.name === next.name)
-    ),
-  }));
-
-  var clef = params.clef;
-  var keyRendered = params.key;
-  var maxSkip = params.maxSkip;
-  var level = params.level;
-  var timeSig = params.timeSig;
-  var bpm = params.bpm;
-  var measures = params.measures;
-  var partsObject = params.partsObject;
-
-  // add selected range to partsObject
-  partsObject.parts.Unison.selectedRange = [
-    params.range.min,
-    params.range.max + 1,
-  ];
-
-  // Initialize variables
-  var numOfNotes = 40;
-  var noteList = createNoteList(keyRendered[0], numOfNotes);
-  const unisonNoteList = noteList.slice(
-    noteList.findIndex((note) => note.name === baseNoteArray[params.range.min]),
-    noteList.findIndex(
-      (note) => note.name === baseNoteArray[params.range.max + 1]
-    )
-  );
-
-  const randNoteLengthsResult = generateRandomRhythmCombination(
-    params.rhythms,
-    timeSig.tsPerMeasure * measures,
-    timeSig.tsPerMeasure
-  );
-
-  const randNoteLengths = randNoteLengthsResult.numbers;
-  const randRhythmObjects = randNoteLengthsResult.rhythmObjects;
-
-  let [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
-    timeSig,
-    measures,
-    unisonNoteList,
-    maxSkip,
-    randNoteLengths,
-    filteredChords,
-    Array.from(params.scaleDegrees)
-  );
-
-  // make an array of 0's of length of the number of parts
-  var arrToCheck = Array.from(
-    Array(Object.keys(partsObject.parts).length).keys()
-  );
-  var partIndexArray: number[] = [];
-  var legalVoiceLeading = true;
-
-  let totalLoopFails = 0;
-  const maxTotalLoopFails = 100;
-  const maxSinglePartFails = 20;
-  const maxAllPartsFails = 20;
-
-  // Reset chordNoteObjects and initialize completeNoteObject
-  for (const partName in partsObject.parts) {
-    partsObject.parts[partName].chordNoteObject = [];
-    partsObject.parts[partName].completeNoteObject = [];
-  }
-
-  while (totalLoopFails < maxTotalLoopFails) {
-    let allPartsFails = 0;
-    let noteIndex = 0;
-
-    while (
-      partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
-        .length < renderedChordProgression.length
-    ) {
-      let chordProgressionIndex = noteIndex;
-
-      let partIndexArray = Array.from(
-        Array(Object.keys(partsObject.parts).length).keys()
+    // Helper function to find a chord by name
+    function getChordByName(name: string): Chord | undefined {
+      return filteredChords.find(
+        (c) => c && typeof c === "object" && c.name === name
       );
-      let bassPartObjectIndex = Object.keys(partsObject.parts).findIndex(
-        (part) => partsObject.parts[part].order === 0
-      );
-      let bassRandIndex = partIndexArray.indexOf(bassPartObjectIndex);
-      partIndexArray.splice(bassRandIndex, 1);
+    }
 
-      for (let i = partIndexArray.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [partIndexArray[i], partIndexArray[j]] = [
-          partIndexArray[j],
-          partIndexArray[i],
-        ];
-      }
-      partIndexArray.unshift(bassRandIndex);
+    // Update next chord possibilities to only include valid chords
+    filteredChords = filteredChords.map((chord) => {
+      return {
+        ...chord,
+        nextChordPossibilities: chord.nextChordPossibilities.filter((next) =>
+          filteredChords.some((c) => c.name === next.name)
+        ),
+      };
+    });
 
-      // Create a copy of the triad
-      const currentChord = getChordByName(
-        renderedChordProgression[chordProgressionIndex].chord.name
-      );
-      let chordTriadCopy = currentChord ? [...currentChord.triadNotes] : [];
+    var clef = params.clef;
+    var keyRendered = params.key;
+    var maxSkip = params.maxSkip;
+    var level = params.level;
+    var timeSig = params.timeSig;
+    var bpm = params.bpm;
+    var measures = params.measures;
+    var partsObject = params.partsObject;
 
-      // If we need to refill the triad notes
-      if (chordTriadCopy.length === 0) {
-        const chord = getChordByName(
-          renderedChordProgression[chordProgressionIndex].chord.name
+    // add selected range to partsObject
+    partsObject.parts.Unison.selectedRange = [
+      params.range.min,
+      params.range.max + 1,
+    ];
+
+    // Initialize variables
+    var numOfNotes = 40;
+    var noteList = createNoteList(keyRendered[0], numOfNotes);
+    const unisonNoteList = noteList.slice(
+      noteList.findIndex(
+        (note) => note.name === baseNoteArray[params.range.min]
+      ),
+      noteList.findIndex(
+        (note) => note.name === baseNoteArray[params.range.max + 1]
+      )
+    );
+
+    const randNoteLengthsResult = generateRandomRhythmCombination(
+      params.rhythms,
+      timeSig.tsPerMeasure * measures,
+      timeSig.tsPerMeasure
+    );
+
+    const randNoteLengths = randNoteLengthsResult.numbers;
+    const randRhythmObjects = randNoteLengthsResult.rhythmObjects;
+
+    let [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
+      timeSig,
+      measures,
+      unisonNoteList,
+      maxSkip,
+      randNoteLengths,
+      filteredChords,
+      Array.from(params.scaleDegrees)
+    );
+
+    // make an array of 0's of length of the number of parts
+    var arrToCheck = Array.from(
+      Array(Object.keys(partsObject.parts).length).keys()
+    );
+    var partIndexArray: number[] = [];
+    var legalVoiceLeading = true;
+
+    let totalLoopFails = 0;
+    const maxTotalLoopFails = 100;
+    const maxSinglePartFails = 20;
+    const maxAllPartsFails = 20;
+
+    // Reset chordNoteObjects and initialize completeNoteObject
+    for (const partName in partsObject.parts) {
+      partsObject.parts[partName].chordNoteObject = [];
+      partsObject.parts[partName].completeNoteObject = [];
+    }
+
+    while (totalLoopFails < maxTotalLoopFails) {
+      let allPartsFails = 0;
+      let noteIndex = 0;
+
+      while (
+        partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
+          .length < renderedChordProgression.length
+      ) {
+        let chordProgressionIndex = noteIndex;
+
+        let partIndexArray = Array.from(
+          Array(Object.keys(partsObject.parts).length).keys()
         );
-        chordTriadCopy = chord ? [...chord.triadNotes] : [];
-      }
+        let bassPartObjectIndex = Object.keys(partsObject.parts).findIndex(
+          (part) => partsObject.parts[part].order === 0
+        );
+        let bassRandIndex = partIndexArray.indexOf(bassPartObjectIndex);
+        partIndexArray.splice(bassRandIndex, 1);
 
-      // take the bass degree out of chordTriadCopy
-      let baseChordDegree = bassGenNoteArray[noteIndex].degree;
-      chordTriadCopy.splice(chordTriadCopy.indexOf(baseChordDegree), 1);
-
-      let chordObjectsToAdd = [];
-      let noteArrayToCheck = Array(Object.keys(partsObject.parts).length).fill(
-        0
-      );
-
-      let singlePartFails = 0;
-      let success = true; // Track success of this iteration
-
-      for (let i = 0; i < partIndexArray.length; i++) {
-        if (chordTriadCopy.length === 0) {
-          chordTriadCopy = [
-            ...(getChordByName(
-              renderedChordProgression[chordProgressionIndex].chord.name
-            )?.triadNotes || []),
+        for (let i = partIndexArray.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [partIndexArray[i], partIndexArray[j]] = [
+            partIndexArray[j],
+            partIndexArray[i],
           ];
         }
+        partIndexArray.unshift(bassRandIndex);
 
-        let genChordParams = {
-          key: keyRendered,
-          timeSig: timeSig,
-          maxSkip: maxSkip,
-          tonic: keyRendered[0],
-          noteIndex: noteIndex,
-          baseNoteArray: baseNoteArray,
-          bassGenNoteArray: bassGenNoteArray,
-          chordTriadCopy: chordTriadCopy,
-          otherPartNotes: chordObjectsToAdd,
-          noteList: noteList,
-          partObject: partsObject,
-          partIndexArray: partIndexArray,
-          randPartIndex: partIndexArray[i],
-          partName: Object.keys(partsObject.parts)[partIndexArray[i]],
-          renderedChordProgression: renderedChordProgression,
-          chords: filteredChords,
-          randRhythmObjects: randRhythmObjects,
-        };
+        // Create a copy of the triad
+        const currentChord = getChordByName(
+          renderedChordProgression[chordProgressionIndex].chord.name
+        );
+        let chordTriadCopy = currentChord ? [...currentChord.triadNotes] : [];
 
-        let chordObjectToAdd: any = {};
-        singlePartFails = 0;
-        while (singlePartFails < maxSinglePartFails) {
-          chordObjectToAdd = generateChord(genChordParams);
-          if (Object.keys(chordObjectToAdd).length === 0) {
-            singlePartFails++;
-          } else {
+        // If we need to refill the triad notes
+        if (chordTriadCopy.length === 0) {
+          const chord = getChordByName(
+            renderedChordProgression[chordProgressionIndex].chord.name
+          );
+          chordTriadCopy = chord ? [...chord.triadNotes] : [];
+        }
+
+        // take the bass degree out of chordTriadCopy
+        let baseChordDegree = bassGenNoteArray[noteIndex].degree;
+        chordTriadCopy.splice(chordTriadCopy.indexOf(baseChordDegree), 1);
+
+        let chordObjectsToAdd = [];
+        let noteArrayToCheck = Array(
+          Object.keys(partsObject.parts).length
+        ).fill(0);
+
+        let singlePartFails = 0;
+        let success = true; // Track success of this iteration
+
+        for (let i = 0; i < partIndexArray.length; i++) {
+          if (chordTriadCopy.length === 0) {
+            chordTriadCopy = [
+              ...(getChordByName(
+                renderedChordProgression[chordProgressionIndex].chord.name
+              )?.triadNotes || []),
+            ];
+          }
+
+          let genChordParams = {
+            key: keyRendered,
+            timeSig: timeSig,
+            maxSkip: maxSkip,
+            tonic: keyRendered[0],
+            noteIndex: noteIndex,
+            baseNoteArray: baseNoteArray,
+            bassGenNoteArray: bassGenNoteArray,
+            chordTriadCopy: chordTriadCopy,
+            otherPartNotes: chordObjectsToAdd,
+            noteList: noteList,
+            partObject: partsObject,
+            partIndexArray: partIndexArray,
+            randPartIndex: partIndexArray[i],
+            partName: Object.keys(partsObject.parts)[partIndexArray[i]],
+            renderedChordProgression: renderedChordProgression,
+            chords: filteredChords,
+            randRhythmObjects: randRhythmObjects,
+          };
+
+          let chordObjectToAdd: any = {};
+          singlePartFails = 0;
+          while (singlePartFails < maxSinglePartFails) {
+            chordObjectToAdd = generateChord(genChordParams);
+            if (Object.keys(chordObjectToAdd).length === 0) {
+              singlePartFails++;
+            } else {
+              break;
+            }
+          }
+
+          if (singlePartFails >= maxSinglePartFails) {
+            allPartsFails++;
+            success = false;
             break;
           }
+
+          // Add to array
+          chordObjectsToAdd.push(chordObjectToAdd);
+
+          let randPartIndex =
+            partsObject.parts[Object.keys(partsObject.parts)[partIndexArray[i]]]
+              .order;
+          noteArrayToCheck[randPartIndex] = chordObjectToAdd.pitchValue;
         }
 
-        if (singlePartFails >= maxSinglePartFails) {
+        if (!success || !checkForIllegalVoiceLeading(noteArrayToCheck)) {
+          // If there are errors, retry for the same chord
           allPartsFails++;
-          success = false;
-          break;
-        }
-
-        // Add to array
-        chordObjectsToAdd.push(chordObjectToAdd);
-
-        let randPartIndex =
-          partsObject.parts[Object.keys(partsObject.parts)[partIndexArray[i]]]
-            .order;
-        noteArrayToCheck[randPartIndex] = chordObjectToAdd.pitchValue;
-      }
-
-      if (!success || !checkForIllegalVoiceLeading(noteArrayToCheck)) {
-        // If there are errors, retry for the same chord
-        allPartsFails++;
-        if (allPartsFails >= maxAllPartsFails) {
-          totalLoopFails++;
-          break;
-        }
-        continue;
-      }
-
-      // Add to the complete note object
-      for (let partNum = 0; partNum < partIndexArray.length; partNum++) {
-        let partName = Object.keys(partsObject.parts)[partIndexArray[partNum]];
-        if (!partsObject.parts[partName].chordNoteObject) {
-          console.error(
-            "Error: chordNoteObject is undefined for part",
-            partName
-          );
+          if (allPartsFails >= maxAllPartsFails) {
+            totalLoopFails++;
+            break;
+          }
           continue;
         }
-        // Add rhythm information to the note object
-        const noteObj = chordObjectsToAdd[partNum];
-        noteObj.rhythm = randRhythmObjects[noteIndex];
-        partsObject.parts[partName].chordNoteObject.push(noteObj);
+
+        // Add to the complete note object
+        for (let partNum = 0; partNum < partIndexArray.length; partNum++) {
+          let partName = Object.keys(partsObject.parts)[
+            partIndexArray[partNum]
+          ];
+          if (!partsObject.parts[partName].chordNoteObject) {
+            console.error(
+              "Error: chordNoteObject is undefined for part",
+              partName
+            );
+            continue;
+          }
+          // Add rhythm information to the note object
+          const noteObj = chordObjectsToAdd[partNum];
+          noteObj.rhythm = randRhythmObjects[noteIndex];
+          partsObject.parts[partName].chordNoteObject.push(noteObj);
+        }
+
+        // Move to the next note
+        noteIndex++;
+        allPartsFails = 0; // Reset part failures for the next note
       }
 
-      // Move to the next note
-      noteIndex++;
-      allPartsFails = 0; // Reset part failures for the next note
-    }
-
-    // Check if the song is fully rendered
-    if (
-      partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
-        .length === renderedChordProgression.length
-    ) {
-      break;
-    }
-  }
-
-  if (totalLoopFails >= maxTotalLoopFails) {
-    console.error(
-      "Error: Could not find a valid voice leading after 100 attempts"
-    );
-  }
-
-  var prevNoteObj = {};
-  var nextNoteObj = {};
-
-  // create a new array in each part to contain complete notes
-  for (
-    var partIndex = 0;
-    partIndex < Object.keys(partsObject.parts).length;
-    partIndex++
-  ) {
-    // create linear index when starting each new part
-    var noteLinearIndex = 1;
-
-    // loop through the chordNoteObject
-    for (
-      var chordNoteIndex = 0;
-      chordNoteIndex <
-      partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
-        .chordNoteObject.length;
-      chordNoteIndex++
-    ) {
-      const currentNote =
-        partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
-          .chordNoteObject[chordNoteIndex];
-
-      // add linear index to each chordNoteObject
-      currentNote.noteLinearIndex = noteLinearIndex;
-
-      // add the note to the completeNoteObject for each length of the note and add a noteLinearIndex
-      for (var i = 0; i < currentNote.noteLength; i++) {
-        var newNote = i === 0;
-        // Check if this is a new pattern by comparing the rhythm's totalValue with singleNoteValue
-        var newPattern =
-          i === 0 &&
-          currentNote.rhythm?.pattern &&
-          currentNote.rhythm.totalValue > currentNote.rhythm.singleNoteValue &&
-          currentNote.rhythm.isPatternStart;
-        var endPattern =
-          i === currentNote.noteLength - 1 &&
-          currentNote.rhythm?.pattern &&
-          currentNote.rhythm.isPatternEnd;
-
-        partsObject.parts[
-          Object.keys(partsObject.parts)[partIndex]
-        ].completeNoteObject.push({
-          name: currentNote.name,
-          noteLength: currentNote.noteLength,
-          noteLinearIndex: noteLinearIndex,
-          newNote: newNote,
-          newPattern: newPattern,
-          endPattern: endPattern,
-          isPatternNote: currentNote.rhythm?.isPatternNote || false,
-          patternIndex: currentNote.rhythm?.patternIndex || null,
-        });
-        noteLinearIndex++;
-      }
-    }
-  }
-
-  function filterAccidentals(params: any) {
-    const tsPerMeasure = params.tsPerMeasure;
-    let partsObject = params.partsObject;
-    let tsCounter = 0;
-    const key = params.key;
-
-    // loop through the parts object
-    Object.keys(partsObject.parts).forEach((partName) => {
-      // loop through the completeNoteObject
-      for (
-        var i = 0;
-        i < partsObject.parts[partName].completeNoteObject.length;
-        i++
+      // Check if the song is fully rendered
+      if (
+        partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
+          .length === renderedChordProgression.length
       ) {
-        tsCounter +=
-          partsObject.parts[partName].completeNoteObject[0].noteLength;
+        break;
+      }
+    }
 
-        // check if there is an accidental
-        var accidental =
-          partsObject.parts[partName].completeNoteObject[i].name.match(
-            /[_^=]/g
-          );
-        if (
-          partsObject.parts[partName].completeNoteObject[i].name.match(/[_^=]/g)
+    if (totalLoopFails >= maxTotalLoopFails) {
+      console.error(
+        "Error: Could not find a valid voice leading after 100 attempts"
+      );
+    }
+
+    var prevNoteObj = {};
+    var nextNoteObj = {};
+
+    // create a new array in each part to contain complete notes
+    for (
+      var partIndex = 0;
+      partIndex < Object.keys(partsObject.parts).length;
+      partIndex++
+    ) {
+      // create linear index when starting each new part
+      var noteLinearIndex = 1;
+
+      // loop through the chordNoteObject
+      for (
+        var chordNoteIndex = 0;
+        chordNoteIndex <
+        partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
+          .chordNoteObject.length;
+        chordNoteIndex++
+      ) {
+        const currentNote =
+          partsObject.parts[Object.keys(partsObject.parts)[partIndex]]
+            .chordNoteObject[chordNoteIndex];
+
+        // add linear index to each chordNoteObject
+        currentNote.noteLinearIndex = noteLinearIndex;
+
+        // add the note to the completeNoteObject for each length of the note and add a noteLinearIndex
+        for (var i = 0; i < currentNote.noteLength; i++) {
+          var newNote = i === 0;
+          // Check if this is a new pattern by comparing the rhythm's totalValue with singleNoteValue
+          var newPattern =
+            i === 0 &&
+            currentNote.rhythm?.pattern &&
+            currentNote.rhythm.totalValue >
+              currentNote.rhythm.singleNoteValue &&
+            currentNote.rhythm.isPatternStart;
+          var endPattern =
+            i === currentNote.noteLength - 1 &&
+            currentNote.rhythm?.pattern &&
+            currentNote.rhythm.isPatternEnd;
+
+          partsObject.parts[
+            Object.keys(partsObject.parts)[partIndex]
+          ].completeNoteObject.push({
+            name: currentNote.name,
+            noteLength: currentNote.noteLength,
+            noteLinearIndex: noteLinearIndex,
+            newNote: newNote,
+            newPattern: newPattern,
+            endPattern: endPattern,
+            isPatternNote: currentNote.rhythm?.isPatternNote || false,
+            patternIndex: currentNote.rhythm?.patternIndex || null,
+          });
+          noteLinearIndex++;
+        }
+      }
+    }
+
+    function filterAccidentals(params: any) {
+      const tsPerMeasure = params.tsPerMeasure;
+      let partsObject = params.partsObject;
+      let tsCounter = 0;
+      const key = params.key;
+
+      // loop through the parts object
+      Object.keys(partsObject.parts).forEach((partName) => {
+        // loop through the completeNoteObject
+        for (
+          var i = 0;
+          i < partsObject.parts[partName].completeNoteObject.length;
+          i++
         ) {
-          var noteNameWithAccidental =
-            partsObject.parts[partName].completeNoteObject[i].name;
-          noteNameWithAccidental = noteNameWithAccidental.replace(
-            /[_^=]/gi,
-            ""
-          );
-          var accidentalType = partsObject.parts[partName].completeNoteObject[
-            i
-          ].name
-            .match(/[_^=]/g)
-            .join("");
-        } else {
+          tsCounter +=
+            partsObject.parts[partName].completeNoteObject[0].noteLength;
+
+          // check if there is an accidental
+          var accidental =
+            partsObject.parts[partName].completeNoteObject[i].name.match(
+              /[_^=]/g
+            );
           if (
-            partsObject.parts[partName].completeNoteObject[i].name ===
-            noteNameWithAccidental
+            partsObject.parts[partName].completeNoteObject[i].name.match(
+              /[_^=]/g
+            )
           ) {
-            console.log("found accidental");
+            var noteNameWithAccidental =
+              partsObject.parts[partName].completeNoteObject[i].name;
+            noteNameWithAccidental = noteNameWithAccidental.replace(
+              /[_^=]/gi,
+              ""
+            );
+            var accidentalType = partsObject.parts[partName].completeNoteObject[
+              i
+            ].name
+              .match(/[_^=]/g)
+              .join("");
+          } else {
+            if (
+              partsObject.parts[partName].completeNoteObject[i].name ===
+              noteNameWithAccidental
+            ) {
+              console.log("found accidental");
+            }
+          }
+          if (tsCounter % tsPerMeasure === 0) {
+            accidental = null;
+            accidentalType = null;
+            noteNameWithAccidental = "";
           }
         }
-        if (tsCounter % tsPerMeasure === 0) {
-          accidental = null;
-          accidentalType = null;
-          noteNameWithAccidental = "";
-        }
-      }
-    });
-  }
-
-  filterAccidentals({
-    tsPerMeasure: timeSig.tsPerMeasure,
-    partsObject: partsObject,
-    key: keyRendered,
-  });
-
-  // Remove the redundant loop and directly use createConcatString
-  const tuneBody = createConcatString(partsObject as PartsObject, {
-    timeSig: timeSig,
-    showSolfege: params.showSolfege === true,
-  });
-
-  // Save the concatenated string back to each part
-  Object.keys(partsObject.parts).forEach((part) => {
-    let partString = "";
-    const singlePartObject = partsObject.parts[part];
-    let tsCount = 0;
-    let measureString = "";
-
-    singlePartObject.chordNoteObject.forEach(
-      (note: ChordNoteObject, index: number) => {
-        if (tsCount === 0) {
-          measureString = "";
-        }
-
-        measureString += `${note.name}${note.noteLength}`;
-
-        // Only add space at the end of a measure
-        const isEndOfMeasure =
-          tsCount + note.noteLength >= timeSig.tsPerMeasure;
-        const isLastNote =
-          index === singlePartObject.chordNoteObject.length - 1;
-
-        if (isEndOfMeasure || isLastNote) {
-          measureString += " ";
-        }
-
-        tsCount += note.noteLength;
-
-        if (tsCount >= timeSig.tsPerMeasure) {
-          partString += measureString + "|";
-          tsCount = 0;
-        }
-      }
-    );
-
-    partsObject.parts[part].concatNoteString = partString;
-  });
-
-  // get the first entry of the generatedPartTunes object
-  var headerString = "";
-  for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
-    var partName = Object.keys(partsObject.parts)[i];
-    var smallName = partsObject.parts[partName].smallName;
-    var middleString = "";
-    if (clef === "treble-8") {
-      middleString = "octave=1";
+      });
     }
-    headerString += `V:${smallName} ${middleString}\n`;
+
+    filterAccidentals({
+      tsPerMeasure: timeSig.tsPerMeasure,
+      partsObject: partsObject,
+      key: keyRendered,
+    });
+
+    // Remove the redundant loop and directly use createConcatString
+    const tuneBody = createConcatString(partsObject as PartsObject, {
+      timeSig: timeSig,
+      showSolfege: params.showSolfege === true,
+    });
+
+    // Save the concatenated string back to each part
+    Object.keys(partsObject.parts).forEach((part) => {
+      let partString = "";
+      const singlePartObject = partsObject.parts[part];
+      let tsCount = 0;
+      let measureString = "";
+
+      singlePartObject.chordNoteObject.forEach(
+        (note: ChordNoteObject, index: number) => {
+          if (tsCount === 0) {
+            measureString = "";
+          }
+
+          measureString += `${note.name}${note.noteLength}`;
+
+          const isEndOfMeasure =
+            tsCount + note.noteLength >= timeSig.tsPerMeasure;
+          const isLastNote =
+            index === singlePartObject.chordNoteObject.length - 1;
+          const nextNote = singlePartObject.chordNoteObject[index + 1];
+
+          const shouldAddSpace =
+            isEndOfMeasure ||
+            isLastNote ||
+            (note.isPatternEnd && nextNote?.isPatternStart) ||
+            !note.rhythm?.pattern;
+
+          if (shouldAddSpace) {
+            measureString += " ";
+          }
+
+          tsCount += note.noteLength;
+
+          if (tsCount >= timeSig.tsPerMeasure) {
+            partString += measureString + "|";
+            tsCount = 0;
+          }
+        }
+      );
+
+      partsObject.parts[part].concatNoteString = partString;
+    });
+
+    // get the first entry of the generatedPartTunes object
+    var headerString = "";
+    for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
+      var partName = Object.keys(partsObject.parts)[i];
+      var smallName = partsObject.parts[partName].smallName;
+      var middleString = "";
+      if (clef === "treble-8") {
+        middleString = "octave=1";
+      }
+      headerString += `V:${smallName} ${middleString}\n`;
+    }
+
+    var scoreString = "%%score ";
+    scoreString += "\n";
+
+    var renderedString =
+      `X:1 \n` +
+      `M:${timeSig.name}\n` +
+      `L:1/32\n` +
+      `${scoreString}` +
+      `${headerString}` +
+      `K: ${keyRendered} clef=${clef} \n` +
+      `%            End of header, start of tune body: \n` +
+      `${tuneBody}`;
+
+    console.log(renderedString);
+    console.log(partsObject);
+
+    return [renderedString, renderedChordProgression];
+  } catch (error) {
+    console.error("An error occurred:", error);
+    return [null, null];
   }
-
-  var scoreString = "%%score ";
-  scoreString += "\n";
-
-  var renderedString =
-    `X:1 \n` +
-    `M:${timeSig.name}\n` +
-    `L:1/32\n` +
-    `${scoreString}` +
-    `${headerString}` +
-    `K: ${keyRendered} clef=${clef} \n` +
-    `%            End of header, start of tune body: \n` +
-    `${tuneBody}`;
-
-  console.log(renderedString);
-  console.log(partsObject);
-
-  return [renderedString, renderedChordProgression];
 }

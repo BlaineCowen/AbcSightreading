@@ -14,9 +14,10 @@
     return import("abcjs").then((abcjs) => {
       var renderedTune = abcjs.renderAbc("abcjs-staff", abcString, {
         responsive: "resize",
-        scale: 5,
-        staffwidth: 300,
-        paddingleft: 10,
+        scale: 2,
+        staffwidth: 200,
+        paddingleft: 0,
+        paddingright: 0,
       });
       return renderedTune;
     });
@@ -58,8 +59,8 @@
 </script>
 
 {#if mounted}
-  <div class="relative w-[400px] p-4 mt-8 bg-white rounded-lg shadow-md">
-    <div class="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+  <div class="relative w-[250px] p-4 mt-8 bg-white rounded-lg shadow-md">
+    <div class="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-2">
       <button
         class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
         on:click={() => adjustRange("min", "up")}
@@ -74,11 +75,11 @@
       </button>
     </div>
 
-    <div class="flex justify-center items-center ml-10 w-full">
+    <div class="flex justify-center items-center ml-8 w-full">
       <div id="abcjs-staff" class="flex justify-center w-full"></div>
     </div>
 
-    <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+    <div class="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2">
       <button
         class="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
         on:click={() => adjustRange("max", "up")}

@@ -1,6 +1,13 @@
-import { vitePreprocess } from '@astrojs/svelte';
+import adapter from "@sveltejs/adapter-auto";
+import preprocess from "svelte-preprocess";
 
-export default {
-	preprocess: vitePreprocess(),
-
+/** @type {import('@sveltejs/kit').Config} */
+const config = {
+  kit: {
+    adapter: adapter(),
+  },
+  preprocess: preprocess(),
+  output: "server",
 };
+
+export default config;
