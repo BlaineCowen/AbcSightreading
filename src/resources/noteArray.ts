@@ -5,34 +5,41 @@ export const noteArray: string[] = [
   "F,,",
   "G,,",
   "A,,",
-  "B,,",
+  "B,,", // Lowest octave (double comma)
   "C,",
   "D,",
   "E,",
   "F,",
   "G,",
   "A,",
-  "B,",
+  "B,", // Low octave (single comma)
   "C",
   "D",
   "E",
   "F",
   "G",
   "A",
-  "B",
+  "B", // Middle octave (no comma)
   "c",
   "d",
   "e",
   "f",
   "g",
   "a",
-  "b",
+  "b", // High octave (lowercase)
   "c'",
   "d'",
   "e'",
   "f'",
   "g'",
   "a'",
-  "b'",
+  "b'", // Higher octave (prime)
   "c''",
+  "d''",
+  "e''",
+  "f''",
+  "g''",
+  "a''",
+  "b''", // Highest octave (double prime)
+  "c'''", // Top C (triple prime)
 ];

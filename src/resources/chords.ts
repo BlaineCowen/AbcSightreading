@@ -140,7 +140,7 @@ export const chords: Chord[] = [
     symbol: "V⁷",
     root: 4,
     chordFamily: "5-7",
-    triadNotes: [6, 1, 3],
+    triadNotes: [4, 6, 1, 3],
     nextChordPossibilities: [{ name: "1", weight: 100 }],
     type: "dominant",
     sharpScaleDegree: undefined,

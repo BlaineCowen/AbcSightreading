@@ -31,7 +31,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "thirtySecondRest",
-    abcValue: ["z1"],
+    abcValue: ["1"],
     meterValue: [1 / 32],
     totalValue: 1,
     rest: true,
@@ -43,7 +43,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "sixteenthRest",
-    abcValue: ["z2"],
+    abcValue: ["2"],
     meterValue: [1 / 16],
     totalValue: 2,
     rest: true,
@@ -55,7 +55,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "dotSixteenthRest",
-    abcValue: ["z3"],
+    abcValue: ["3"],
     meterValue: [1 / 16],
     totalValue: 3,
     rest: true,
@@ -67,7 +67,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "eighthRest",
-    abcValue: ["z4"],
+    abcValue: ["4"],
     meterValue: [1 / 8],
     totalValue: 4,
     rest: true,
@@ -79,7 +79,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "dotEighthRest",
-    abcValue: ["z6"],
+    abcValue: ["6"],
     meterValue: [1 / 8],
     totalValue: 5,
     rest: true,
@@ -103,7 +103,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "quarterRest",
-    abcValue: ["z8"],
+    abcValue: ["8"],
     meterValue: [1 / 4],
     totalValue: 8,
     rest: true,
@@ -127,7 +127,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "dotQuarterRest",
-    abcValue: ["z10"],
+    abcValue: ["10"],
     meterValue: [1 / 4],
     totalValue: 10,
     rest: true,
@@ -151,7 +151,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "halfRest",
-    abcValue: ["z16"],
+    abcValue: ["16"],
     meterValue: [1 / 2],
     totalValue: 16,
     rest: true,
@@ -175,7 +175,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "dotHalfRest",
-    abcValue: ["z20"],
+    abcValue: ["20"],
     meterValue: [1 / 2],
     totalValue: 24,
     rest: true,

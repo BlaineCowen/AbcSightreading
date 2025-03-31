@@ -25,5 +25,9 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
+summaries.md
+
+.cursor/
+
 # TODO.md
 TODO.md

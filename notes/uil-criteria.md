@@ -14,6 +14,78 @@ Other general considerations for composers are:
 - Avoid introducing more than one rhythmic or harmonic problem at a time.
 - Remember that it is unnecessary to employ all of the allowed elements in a single piece.
 
+## Level 1 - Conference MS Varsity Treble, Varsity Tenor-Bass
+
+### Meter
+- 2/4, 3/4, 4/4
+- No meter changes
+
+### Key
+- Major keys: C (MIDI 60), F (MIDI 53), G (MIDI 55)
+
+### Texture
+- Homophonic only
+
+### Harmony
+- I, IV, and V chords only
+- Stepwise melodic motion, with occasional skips within the tonic chord
+
+### Rhythm
+- Whole, half, quarter notes, and corresponding rests
+- Eighth notes appear only in pairs or as part of simple patterns
+
+### Length
+- Approximately 24-28 measures in 4/4, or equivalent in 3/4
+
+### Voicings
+- Treble: SA
+- Tenor-Bass: TB
+
+### Text
+- Choir may use the printed text or their preferred method of reading on both readings.
+
+### Ranges
+| Sop. I (MIDI 72-78) | Alto (MIDI 65-72) |
+|---------------------|------------------|
+| Ten. I (MIDI 60-67) | Bass (MIDI 52-60) |
+
+## Level 2 - Conference MS Varsity Mixed
+
+### Meter
+- 3/4, 4/4
+- No meter changes
+
+### Key
+- Major keys: C (MIDI 60), F (MIDI 53), G (MIDI 55), D (MIDI 62)
+
+### Texture
+- Homophonic, with a few simple parallel motion lines
+
+### Harmony
+- I, IV, V, and V7 chords
+- Stepwise motion with occasional skips within the I, IV, and V chords
+- No altered tones
+
+### Rhythm
+- Whole, half, quarter, and eighth notes
+- Simple dotted quarter and eighth-note patterns
+
+### Length
+- Approximately 28-32 measures in 4/4, or equivalent in 3/4
+
+### Voicings
+- Mixed: SATB, SAB
+- Treble: SSA/SA
+- Tenor-Bass: TBB/TB
+
+### Text
+- Choir may use the printed text or their preferred method of reading on both readings.
+
+### Ranges
+| Sop. I (MIDI 72-80) | Sop. II (MIDI 69-77) | Alto (MIDI 65-74) |
+|---------------------|---------------------|------------------|
+| Ten. I (MIDI 60-68) | Baritone (MIDI 57-65) | Bass (MIDI 52-60) |
+
 ## Level 3 - Conference 1A/2A/3A Varsity; 5A/6A NV
 
 ### Meter
@@ -59,84 +131,64 @@ Other general considerations for composers are:
 |---------------------|---------------------|------------------|
 | Ten. I (MIDI 60-68) | Baritone (MIDI 57-65) | Bass (MIDI 52-60) |
 
-## Level 4 - Conference 4A Varsity
+## Level 4 - Conference 4A Varsity; 5A/6A Non-Varsity
 
 ### Meter
-- 2/4, 3/4, 4/4
-- No meter changes
+- 3/4, 4/4, 6/8
+- Simple meter changes
 
 ### Key
-- Major keys: B-flat (MIDI 58), E-flat (MIDI 63), F (MIDI 53), C (MIDI 60), G (MIDI 55), D (MIDI 62), A (MIDI 69)
+- Major keys up to three sharps or flats
 
 ### Texture
-- Homophonic, with polyphonic sections
-- No more than 20% polyphony
+- Primarily homophonic with up to 30% polyphony
 
 ### Harmony
-- I, IV, V, and V7 chords allowed; ii, iii, and vi chords
-- Dissonance with proper resolution, but for no more than two chords in succession
-- Melodic skips within I, IV, V, and vi chords (including 6ths and octaves)
-- Leaps of a tritone or 7th are forbidden
+- I, IV, V, V7, ii, vi, and occasional secondary dominants
 
 ### Rhythm
-- Basic patterns using eighth, quarter, half, and whole notes and corresponding rests
-- Dotted values using eighths or longer values
+- Whole, half, quarter, and eighth notes in various patterns
+- Syncopation and dotted rhythms
 
 ### Length
-- Approximately 32 measures in 4/4, 42 measures in 3/4
+- 36-48 measures
 
 ### Voicings
-- Mixed: SATB and SAB
-- Treble: SSA/SA
-- Tenor-Bass: TBB /TB
+- SATB, SAB, SSA, TBB
 
 ### Text
-- Choir may use the printed text or their preferred method of reading on both readings.
+- Choir may use printed text or preferred reading method
 
 ### Ranges
-| Sop. I (MIDI 72-80) | Sop. II (MIDI 69-77) | Alto (MIDI 65-74) |
-|---------------------|---------------------|------------------|
-| Ten. I (MIDI 60-68) | Baritone (MIDI 57-65) | Bass (MIDI 52-60) |
+- Expands slightly beyond Level 3
 
-## Level 5 - Conference 6A/5A Varsity
+## Level 5 - Conference 5A/6A Varsity
 
 ### Meter
-- 2/4, 3/4, 4/4  
-- No meter changes
+- All simple and compound meters
+- Frequent meter changes
 
 ### Key
-- Major keys up through four sharps and four flats
-- Possible modulation to relative minor keys
+- Major and minor keys up to four sharps or flats
 
 ### Texture
-- Homophonic, with polyphonic sections
-- No more than 25% polyphony
+- Homophonic and polyphonic balance (up to 50% polyphony)
 
 ### Harmony
-- Altered tones, approached and left by stepwise motion: **“fi” (V/V, MIDI 66), “si” (V/vi, MIDI 71), “di” (V/ii, MIDI 62), and “te” (V7/IV, MIDI 69)**
-- Other altered tones like “ri” (V/iii) allowed but discouraged
-- Leaps of tritones and sevenths are forbidden
-- Dissonance is acceptable with proper resolution
+- Full harmonic range including secondary dominants and modulations
 
 ### Rhythm
-- Simple syncopation and ties across barlines
-- Dotted patterns, including an occasional dotted eighth and sixteenth
-- Other sixteenth-note patterns and triplets are forbidden
+- Complex syncopation and mixed rhythmic patterns
 
 ### Length
-- Approximately 32-36 measures for 5A with an authentic cadence
-- Additional 12-16 measures for 6A
+- 48+ measures
 
 ### Voicings
-- Mixed: SATB and SAB
-- Treble: SSA/SA
-- Tenor-Bass: TBB/TB
+- SATB, SSAA, TTBB
 
 ### Text
-- Choir may use the printed text or their preferred method of reading on both readings.
+- Choir may use printed text or preferred reading method
 
 ### Ranges
-| Sop. I (MIDI 72-80) | Sop. II (MIDI 69-77) | Alto (MIDI 65-74) |
-|---------------------|---------------------|------------------|
-| Ten. I (MIDI 60-68) | Baritone (MIDI 57-65) | Bass (MIDI 52-60) |
+- Fully extended vocal ranges
 

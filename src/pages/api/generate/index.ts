@@ -14,7 +14,6 @@ export const POST: APIRoute = async ({ request }) => {
   console.log("🚀 POST request received");
 
   try {
-    console.log("📝 Request method:", request.method);
     console.log(
       "🔍 Request headers:",
       Object.fromEntries([...request.headers])
@@ -22,13 +21,11 @@ export const POST: APIRoute = async ({ request }) => {
 
     let params;
     const rawBody = await request.text();
-    console.log("📦 Raw request body:", rawBody);
 
     try {
       params = JSON.parse(rawBody);
       console.log("✅ Parsed params:", params);
     } catch (error: any) {
-      console.error("❌ JSON parse error:", error);
       return new Response(
         JSON.stringify({
           success: false,
@@ -72,20 +69,13 @@ export const POST: APIRoute = async ({ request }) => {
       selectedTimeSignature: params.selectedTimeSignature,
     };
 
-    console.log(
-      "🎵 Calling createNewSr with transformed params:",
-      transformedParams
-    );
-
     const generatedString = createNewSr(transformedParams);
-    console.log("🎼 Generated string:", generatedString);
 
     if (!generatedString || !Array.isArray(generatedString)) {
       console.error("❌ Invalid generated string format");
       throw new Error("Invalid generated string format");
     }
 
-    console.log("✅ Sending successful response");
     return new Response(
       JSON.stringify({ success: true, data: generatedString }),
       {

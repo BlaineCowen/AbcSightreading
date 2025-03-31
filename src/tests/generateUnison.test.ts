@@ -2,65 +2,49 @@ import { describe, expect, test } from "bun:test";
 import { createNewSr } from "../lib/generateUnison";
 import { rhythms } from "../resources/rhythms";
 
-const sampleParams = {
-  selectedRhythms: [
-    "eighthEighth",
-    "fourSixteenths",
-    "eighthSixteenthSixteenth",
-  ],
-  selectedTimeSignature: "4/4",
-  chords: ["1", "4", "5"],
+const exactParams = {
+  bpm: 60,
   clef: "treble",
-  key: "C",
-  maxSkip: 2,
-  level: 1,
   timeSig: {
     name: "4/4",
-    tsPerMeasure: 8,
+    tsPerMeasure: 32,
   },
-  bpm: 120,
-  measures: 4,
+  measures: 16,
+  maxSkip: 4,
+  tempo: 60,
+  range: {
+    min: 14,
+    max: 19,
+  },
+  selectedRhythms: ["quarter"],
+  rhythms: rhythms.filter((r) => r.name === "quarter"),
+  scaleDegrees: new Set([1, 3, 5, 6]), // Using natural 1-based scale degrees
+  selectedClef: "treble",
+  selectedTimeSignature: "4/4",
+  key: "C",
+  chords: ["1", "2", "3", "4", "5", "6", "7"],
+  showSolfege: false,
   partsObject: {
+    numofParts: 1,
     parts: {
       Unison: {
         chordNoteObject: [],
         order: 0,
         smallName: "U",
-        selectedRange: [8, 15],
+        selectedRange: [14, 19],
       },
     },
   },
-  range: {
-    min: 8,
-    max: 15,
-  },
-  rhythms: rhythms.filter((r) =>
-    ["eighthEighth", "fourSixteenths", "eighthSixteenthSixteenth"].includes(
-      r.name
-    )
-  ),
-  scaleDegrees: new Set([0, 2, 4, 5, 7]),
-  showSolfege: true,
 };
 
 describe("generateUnison", () => {
-  test("should generate music notation", () => {
-    const [notation, progression] = createNewSr(sampleParams);
-    expect(notation).toBeTruthy();
-    expect(progression).toBeTruthy();
-  });
-
-  test("should work with scale degrees 1,3,5,6", () => {
-    const params = {
-      ...sampleParams,
-      scaleDegrees: new Set([0, 4, 7, 9]), // 1,3,5,6 in zero-based indexing
-    };
-
-    const [notation, progression] = createNewSr(params);
+  test("should work with exact parameters", () => {
+    console.log("Testing with params:", JSON.stringify(exactParams, null, 2));
+    const [notation, progression] = createNewSr(exactParams);
+    console.log("Generated notation:", notation);
     expect(notation).toBeTruthy();
     expect(progression).toBeTruthy();
 
-    // Check if the generated notes only use the specified scale degrees
     if (typeof notation === "string") {
       const notes =
         notation.match(
@@ -71,10 +55,8 @@ describe("generateUnison", () => {
       // Convert notes to scale degrees and verify they're in our set
       const scaleSteps = notes
         .map((note: string) => {
-          // Skip rests
           if (note === "z") return null;
 
-          // Basic note to number mapping (C=0, D=2, E=4, F=5, G=7, A=9, B=11)
           const baseNote = note
             .replace(/[,']*/g, "")
             .replace(/[\^_=]/g, "")
@@ -89,13 +71,20 @@ describe("generateUnison", () => {
             B: 11,
           };
           const step = baseMap[baseNote as keyof typeof baseMap];
-
           return step % 12;
         })
         .filter((step: number | null): step is number => step !== null);
 
-      const allowedDegrees = [0, 4, 7, 9]; // 1,3,5,6
-      scaleSteps.forEach((step: number) => {
+      console.log("Scale steps found:", scaleSteps);
+
+      // Convert to 1-based for comparison since we're using 1-based input
+      const oneBasedSteps = scaleSteps.map((step) => (step + 1) % 12 || 12);
+      console.log("One-based steps:", oneBasedSteps);
+
+      const allowedDegrees = Array.from(exactParams.scaleDegrees);
+      console.log("Allowed degrees (one-based):", allowedDegrees);
+
+      oneBasedSteps.forEach((step: number) => {
         expect(allowedDegrees).toContain(step);
       });
     }

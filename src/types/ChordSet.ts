@@ -10,9 +10,3 @@ export interface Chord {
   flatScaleDegree: number | undefined;
   baseMultiplier: number;
 }
-
-export type ChordArray = ChordSet[];
-
-export interface ChordMap {
-  [key: string]: ChordSet;
-}

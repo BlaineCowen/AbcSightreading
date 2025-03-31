@@ -1,6 +1,7 @@
 import { chords } from "../resources/chords";
 import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
+import { noteArray } from "../resources/noteArray";
 
 // interface AbcObject {
 //   key: string;
@@ -219,7 +220,7 @@ function getRandomRhythmByWeight(arr: Rhythm[]) {
   return arr[arr.length - 1]; // Fallback, though normally shouldn't be reached
 }
 
-function generateRandomRhythmCombination(
+export function generateRandomRhythmCombination(
   rhythmArray: Rhythm[],
   targetSum: number,
   tsPerMeasure: number
@@ -265,7 +266,7 @@ function generateRandomRhythmCombination(
 
     while (measureRhythm < tsPerMeasure) {
       let randomRhythm: Rhythm | null = null;
-      if (currentSum === targetSum - rhythmArray[0].totalValue) {
+      if (currentSum === targetSum - tsPerMeasure) {
         randomRhythm = rhythmArray[0];
       } else {
         if (rhythmArrayToRandom.length > 0) {
@@ -291,7 +292,7 @@ function generateRandomRhythmCombination(
               const modifiedRhythm: Rhythm = {
                 ...randomRhythm,
                 abcValue: [randomRhythm.abcValue[i]],
-                totalValue: randomRhythm.totalValue,
+                totalValue: value,
                 singleNoteValue: value,
                 isPatternNote: true,
                 isPatternStart: i === 0,
@@ -324,13 +325,12 @@ function generateRandomRhythmCombination(
             });
           }
 
-          measureRhythm += randomRhythm.totalValue;
+          measureRhythm = measureArray.reduce((a, b) => a + b, 0);
         }
-      } else {
-        measureRuns++;
-        if (measureRuns >= maxMeasureRuns) {
-          break;
-        }
+      }
+      measureRuns++;
+      if (measureRuns >= maxMeasureRuns) {
+        break;
       }
     }
 
@@ -792,41 +792,43 @@ function generateChordProgression(
 function createNoteList(tonic: string, numOfNotes: number) {
   var keyLetter = tonic[0].toUpperCase();
   var noteList = [];
-  var octave = 0;
   var notes = ["C", "D", "E", "F", "G", "A", "B"];
   var indexOfOrigin = notes.indexOf(keyLetter);
   var index = notes.indexOf(keyLetter);
-
   var degree = 0;
 
-  for (var i = 0; i < numOfNotes; i++) {
-    var note = "";
+  // Calculate minimum number of notes needed to cover all UIL ranges
+  // UIL ranges use ABC notation indices from noteArray
+  // We need to cover from C,, (index 0) to c'' (index 35)
+  const minNotes = 40;
+
+  // Use the larger of numOfNotes or minNotes
+  const totalNotes = Math.max(numOfNotes, minNotes);
+
+  // Start from a lower index to ensure we have enough notes in both directions
+  // Start from C,, (index 0) and go up to c''' (index 42)
+  for (let currentNoteIndex = 0; currentNoteIndex < 42; currentNoteIndex++) {
     if (degree >= 7) {
       degree = 0;
     }
 
-    if (octave === 0) {
-      note = notes[index] + ",,,";
-    } else if (octave === 1) {
-      note = notes[index] + ",,";
-    } else if (octave === 2) {
-      note = notes[index] + ",";
-    } else if (octave === 3) {
-      note = notes[index];
-    } else if (octave === 4) {
-      note = notes[index].toLowerCase();
-    } else if (octave === 5) {
-      note = notes[index].toLowerCase() + "'";
+    // Get the ABC notation from noteArray
+    const abcNote = noteArray[currentNoteIndex];
+    if (!abcNote) {
+      break; // Stop if we've reached the end of noteArray
     }
 
-    noteList.push({ name: note, degree: degree, pitchValue: i });
+    noteList.push({
+      name: abcNote,
+      degree: degree,
+      pitchValue: currentNoteIndex,
+    });
 
     index++;
     degree++;
 
     if (index >= notes.length) {
       index = 0;
-      octave++;
     }
   }
 
@@ -1302,6 +1304,20 @@ export function createNewSr(params: any) {
       throw new Error("No time signature selected");
     }
 
+    // Convert scale degrees from 1-based to 0-based
+    if (params.scaleDegrees) {
+      const oneBasedDegrees = Array.from(params.scaleDegrees) as number[];
+      params.scaleDegrees = new Set(
+        oneBasedDegrees.map((deg) => (deg - 1) % 12)
+      );
+      console.log(
+        "Converted scale degrees from",
+        oneBasedDegrees,
+        "to",
+        Array.from(params.scaleDegrees)
+      );
+    }
+
     const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
     let importChords = params.chords;
     let filteredChords = chords.filter((chord) =>
@@ -1332,6 +1348,7 @@ export function createNewSr(params: any) {
     var timeSig = params.timeSig;
     var bpm = params.bpm;
     var measures = params.measures;
+
     var partsObject = params.partsObject;
 
     // add selected range to partsObject

@@ -1,50 +1,32 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { createNewSr } from "./generatePartString.ts";
   import abcjs from "abcjs";
-  import { chords } from "../resources/chords.ts";
+  import { chords as fullChordSet } from "../resources/chords";
+  import { rhythms as allRhythms } from "../resources/rhythms";
+  import {
+    generateChoralExercise,
+    type GenerateChoralParams,
+  } from "../lib/generateChoral";
+  import type { TimeSignature, PartsObject } from "../lib/types";
+  import { ClefType } from "../lib/types";
+  import type { Chord } from "../lib/types";
+  import type { Rhythm } from "../resources/rhythms";
 
   let bpm = 60;
 
   let levels = [1, 2, 3, 4, 5];
   let selectedLevel = 1;
 
-  let possibleVoicing: {
-    [key: string]: {
-      numofParts: number;
-      parts: {
-        [key: string]: {
-          order: number;
-          smallName: string;
-          clef: string;
-          range: number[];
-          selectedRange: {
-            [key: number]: number[];
-          };
-        };
-      };
-    };
-  } = {
+  const measureOptions = [2, 4, 8, 16];
+
+  let possibleVoicing: Record<string, PartsObject> = {
     "4 Part Mixed": {
       numofParts: 4,
       parts: {
         Soprano: {
           order: 3,
           smallName: "S",
-          clef: "treble",
-          range: [15, 23],
-          selectedRange: {
-            1: [15, 23],
-            2: [15, 23],
-            3: [15, 23],
-            4: [15, 23],
-            5: [15, 23],
-          },
-        },
-        Alto: {
-          order: 2,
-          smallName: "A",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [14, 21],
           selectedRange: {
             1: [14, 21],
@@ -54,23 +36,23 @@
             5: [14, 21],
           },
         },
+        Alto: {
+          order: 2,
+          smallName: "A",
+          clef: ClefType.Treble,
+          range: [12, 16],
+          selectedRange: {
+            1: [12, 16],
+            2: [12, 16],
+            3: [12, 16],
+            4: [12, 16],
+            5: [12, 16],
+          },
+        },
         Tenor: {
           order: 1,
           smallName: "T",
-          clef: "treble-8",
-          range: [11, 17],
-          selectedRange: {
-            1: [11, 17],
-            2: [11, 17],
-            3: [11, 17],
-            4: [11, 17],
-            5: [11, 17],
-          },
-        },
-        Bass: {
-          order: 0,
-          smallName: "B",
-          clef: "bass",
+          clef: ClefType.TrebleOctaveDown,
           range: [7, 14],
           selectedRange: {
             1: [7, 14],
@@ -78,6 +60,19 @@
             3: [7, 14],
             4: [7, 14],
             5: [7, 14],
+          },
+        },
+        Bass: {
+          order: 0,
+          smallName: "B",
+          clef: ClefType.Bass,
+          range: [2, 9],
+          selectedRange: {
+            1: [2, 9],
+            2: [2, 9],
+            3: [2, 9],
+            4: [2, 9],
+            5: [2, 9],
           },
         },
       },
@@ -88,7 +83,7 @@
         Soprano: {
           order: 2,
           smallName: "S",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [15, 23],
           selectedRange: {
             1: [15, 23],
@@ -101,7 +96,7 @@
         Alto: {
           order: 1,
           smallName: "A",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [14, 21],
           selectedRange: {
             1: [14, 21],
@@ -114,7 +109,7 @@
         Baritone: {
           order: 0,
           smallName: "B",
-          clef: "bass",
+          clef: ClefType.Bass,
           range: [6, 14],
           selectedRange: {
             1: [6, 14],
@@ -132,7 +127,7 @@
         Soprano1: {
           order: 2,
           smallName: "S1",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [15, 23],
           selectedRange: {
             1: [15, 23],
@@ -145,7 +140,7 @@
         Soprano2: {
           order: 1,
           smallName: "S2",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [15, 22],
           selectedRange: {
             1: [15, 22],
@@ -158,7 +153,7 @@
         Alto: {
           order: 0,
           smallName: "A",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [14, 21],
           selectedRange: {
             1: [14, 21],
@@ -176,7 +171,7 @@
         Tenor: {
           order: 2,
           smallName: "T",
-          clef: "treble-8",
+          clef: ClefType.TrebleOctaveDown,
           range: [10, 32],
           selectedRange: {
             1: [8, 17],
@@ -189,7 +184,7 @@
         Baritone: {
           order: 1,
           smallName: "B1",
-          clef: "bass",
+          clef: ClefType.Bass,
           range: [0, 18],
           selectedRange: {
             1: [6, 17],
@@ -202,7 +197,7 @@
         Bass: {
           order: 0,
           smallName: "B2",
-          clef: "bass",
+          clef: ClefType.Bass,
           range: [0, 15],
           selectedRange: {
             1: [4, 15],
@@ -220,7 +215,7 @@
         Soprano: {
           order: 1,
           smallName: "S",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [20, 32],
           selectedRange: {
             1: [16, 25],
@@ -234,7 +229,7 @@
         Alto: {
           order: 0,
           smallName: "A",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [15, 25],
           selectedRange: {
             1: [15, 23],
@@ -252,7 +247,7 @@
         Unison: {
           order: 0,
           smallName: "V",
-          clef: "treble",
+          clef: ClefType.Treble,
           range: [20, 32],
           selectedRange: {
             1: [16, 25],
@@ -266,76 +261,89 @@
     },
   };
 
-  let timeSignatures: {
-    [key: string]: {
-      name: string;
-      eighthsPerMeasure: number;
-    };
-  } = {
+  let timeSignatures: Record<string, TimeSignature> = {
     "4/4": {
       name: "4/4",
-      eighthsPerMeasure: 8,
+      tsPerMeasure: 8,
     },
     "3/4": {
       name: "3/4",
-      eighthsPerMeasure: 6,
+      tsPerMeasure: 6,
     },
     "2/4": {
       name: "2/4",
-      eighthsPerMeasure: 4,
+      tsPerMeasure: 4,
     },
   };
 
   let selectedTimeSignature = "4/4";
 
-  // let possibleLevels = [1, 2, 3, 4, 5];
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
-  let selectedKey = "F";
+  let selectedKey = "C";
 
-  // const measureOptions = [4, 8, 12, 16, 20, 24, 28, 32];
-  let selectedMeasures = 8;
-  let maxSkip = 3;
+  let measures = 8;
+  let maxSkip = 4;
   const maxSkipRange = [2, 8];
 
-  let abcjsReturn = [];
-  let chordProgression = [] as any[];
+  let chordProgression: Chord[] = [];
   let renderedString = "";
   let progress = 0.0;
-  let measures = 8;
-
   let songPlaying = false;
 
-  let selectedVoicing = "" as string;
+  let selectedVoicing = "SATB" as string;
 
   let showDropdown = false;
 
-  // function updateRange(partName: string, newRange: number[]) {
-  //   console.log(partName, newRange);
+  let filterRhythms: Record<string, Rhythm> = {};
 
-  //   const parts = possibleVoicing[selectedVoicing].parts;
-  //   parts[partName].selectedRange = newRange;
-  //   possibleVoicing[selectedVoicing].parts = { ...parts }; // Reassign to trigger reactivity
-  // }
+  // Filter out 32nd notes and rests, convert to Record for easy lookup
+  filterRhythms = Object.fromEntries(
+    allRhythms
+      .filter(
+        (rhythm) =>
+          !rhythm.name.includes("thirtySecond") &&
+          !rhythm.name.toLowerCase().includes("rest")
+      )
+      .map((rhythm) => [rhythm.name, rhythm])
+  );
 
-  // Parse URL parameters and set values
+  // Default to quarter and eighth notes
+  let selectedRhythms: Rhythm[] = allRhythms
+    .filter((r) => r.name === "quarter" || r.name === "eighth")
+    .map((r) => r as Rhythm);
+
+  const rhythmSvgs = Object.fromEntries(
+    allRhythms
+      .filter(
+        (rhythm) =>
+          !rhythm.name.includes("thirtySecond") &&
+          !rhythm.name.toLowerCase().includes("rest")
+      )
+      .map((rhythm) => [
+        rhythm.name,
+        import(`../assets/svgs/${rhythm.name}.svg?raw`),
+      ])
+  );
+
   function loadParams() {
     const urlParams = new URLSearchParams(window.location.search);
     selectedVoicing = urlParams.get("voices") || "4 Part Mixed";
     bpm = parseInt(urlParams.get("bpm") || "60");
     selectedLevel = parseInt(urlParams.get("level") || "1");
-    selectedKey = urlParams.get("key") || "F";
-    selectedMeasures = parseInt(urlParams.get("measures") || "8");
+    selectedKey = urlParams.get("key") || "C";
+    measures = parseInt(urlParams.get("measures") || "8");
   }
 
-  // Update URL parameters when settings change
   function updateURLParams() {
-    const url = new URL(window.location.href);
-    url.searchParams.set("voices", selectedVoicing.toString());
-    url.searchParams.set("bpm", bpm.toString());
-    url.searchParams.set("level", selectedLevel.toString());
-    url.searchParams.set("key", selectedKey);
-    url.searchParams.set("measures", selectedMeasures.toString());
-    window.history.replaceState({}, "", url);
+    const params = new URLSearchParams();
+    params.set("key", selectedKey);
+    params.set("timeSig", selectedTimeSignature);
+    params.set("level", selectedLevel.toString());
+    params.set("voicing", selectedVoicing);
+    params.set("bpm", bpm.toString());
+    params.set("maxSkip", maxSkip.toString());
+    params.set("measures", measures.toString());
+    window.history.replaceState({}, "", `?${params.toString()}`);
   }
 
   onMount(() => {
@@ -343,21 +351,12 @@
     loadParams();
   });
 
-  // function handleVoicing(event: any) {
-  //   selectedVoicing = event.target.innerText;
-  //   console.log(selectedVoicing);
-  // }
-
   const drumBeats: {
     [key: string]: string;
   } = {
     "4/4": "dddd 76 77 77 77 60 30 30 30",
     "3/4": "ddd 76 77 77 60 30 30",
   };
-
-  // interface NoteEvent {
-  //   milliseconds: number;
-  // }
 
   interface ICursorControl {
     extraMeasuresAtBeginning?: number;
@@ -375,104 +374,89 @@
     });
   }
 
-  let params: any;
-
-  // reset abcjs
-  $: params = {
-    bpm: bpm,
-    key: selectedKey,
-    timeSig: timeSignatures[selectedTimeSignature],
-    level: selectedLevel,
-    measures: measures,
-    maxSkip: maxSkip,
-    partsObject: possibleVoicing[selectedVoicing],
-    chords: chords,
-  };
-
-  async function handleClick() {
-    // update URL parameters
-    updateURLParams();
-
-    // hide start button
-    // const startButton = document.getElementById("start") as HTMLButtonElement;
-
-    abcjsReturn = createNewSr(params);
-
-    if (typeof abcjsReturn[0] == "string") {
-      renderedString = abcjsReturn[0];
-    } else {
-      renderedString = abcjsReturn[0].toString();
-    }
-
-    if (typeof abcjsReturn[1] == "object") {
-      chordProgression = abcjsReturn[1];
-      console.log(chordProgression);
-    }
-
-    const renderedTune = await renderTune();
-
-    renderedTune[0].setTiming();
-
-    var timeSigName = timeSignatures[selectedTimeSignature].name;
-    var audioParams = {
-      drum: drumBeats[timeSigName],
-      drumBars: 1,
-      drumIntro: 1,
-    };
-
-    // const totalTime = renderedTune[0].getTotalTime();
-
-    // const measureTime = renderedTune[0].getTotalTime() / measures;
-
-    var synthControl = new abcjs.synth.SynthController();
-
-    const cursorControl: ICursorControl = {
-      extraMeasuresAtBeginning: 1,
-      beatSubdivisions: 2,
-      onFinished: () => {
-        progress = 100;
-        console.log("ended");
-      },
-    };
-
-    // var myContext = new AudioContext();
-
-    var createSynth = new abcjs.synth.CreateSynth();
-
-    createSynth
-      .init({ visualObj: renderedTune[0] })
-      .then(function () {
-        synthControl
-          .setTune(renderedTune[0], false, audioParams)
-          .then(function () {
-            synthControl.load("#audio", cursorControl);
-          })
-          .then(function () {
-            console.log("Audio successfully loaded.");
-          })
-          .then(function () {
-            synthControl.play();
-          })
-          .catch(function (error) {
-            console.warn("Audio problem:", error);
-          });
-      })
-      .catch(function (error) {
-        console.warn("Audio problem:", error);
-      });
-
-    songPlaying = true;
-
-    // hide #audio
-    const audio = document.getElementById("audio") as HTMLDivElement;
-    audio.style.display = "none";
+  $: {
+    // Removed the console log for currentParams for brevity, or keep if useful
+    // const currentParams = { ... };
+    // console.log("Current params:", currentParams);
   }
 
-  function handleChordWeightChange(event: any, chord: any) {
-    const value = event.target.value;
-    const chordName = chord.name;
+  async function handleClick() {
+    updateURLParams();
 
-    chords[chordName].baseMultiplier = Math.round(value * 100) / 100;
+    const validSelectedRhythms: Rhythm[] = selectedRhythms.filter(
+      (r): r is Rhythm => r !== undefined
+    );
+    if (validSelectedRhythms.length === 0) {
+      alert("Please select at least one rhythm.");
+      return;
+    }
+
+    const params: GenerateChoralParams = {
+      key: selectedKey,
+      timeSig: timeSignatures[selectedTimeSignature],
+      partsObject: possibleVoicing[selectedVoicing],
+      level: selectedLevel,
+      measures: measures,
+      maxSkip: maxSkip,
+      bpm: bpm,
+      selectedRhythms: validSelectedRhythms,
+      chords: fullChordSet,
+    };
+
+    try {
+      const { abcString, chordProgression: generatedProgression } =
+        generateChoralExercise(params);
+
+      renderedString = abcString;
+      chordProgression = generatedProgression as Chord[];
+
+      const renderedTune = await renderTune();
+      if (!renderedTune || renderedTune.length === 0) {
+        throw new Error("Failed to render ABC notation.");
+      }
+      renderedTune[0].setTiming();
+
+      const timeSigName = params.timeSig.name;
+      const audioParams = {
+        drum: drumBeats[timeSigName],
+        drumBars: 1,
+        drumIntro: 1,
+      };
+
+      const synthControl = new abcjs.synth.SynthController();
+      const cursorControl: ICursorControl = {
+        extraMeasuresAtBeginning: 1,
+        beatSubdivisions: 2,
+        onFinished: () => {
+          progress = 100;
+          songPlaying = false;
+          console.log("ended");
+        },
+      };
+      const createSynth = new abcjs.synth.CreateSynth();
+
+      await createSynth.init({ visualObj: renderedTune[0] });
+      await synthControl.setTune(renderedTune[0], false, audioParams);
+      await synthControl.load("#audio", cursorControl);
+      console.log("Audio successfully loaded.");
+      await synthControl.play();
+      songPlaying = true;
+    } catch (error: unknown) {
+      console.error("Error generating exercise:", error);
+      let message = "An unknown error occurred.";
+      if (error instanceof Error) {
+        message = error.message;
+      }
+      alert(`Error generating exercise: ${message}`);
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    const urlParams = new URLSearchParams(window.location.search);
+    bpm = parseInt(urlParams.get("bpm") || "60");
+    selectedLevel = parseInt(urlParams.get("level") || "1");
+    selectedKey = urlParams.get("key") || "C";
+    measures = parseInt(urlParams.get("measures") || "8");
   }
 </script>
 
@@ -481,11 +465,9 @@
     <div class="flex flex-col items-center w-full">
       <div id="audio" class="w-full flex justify-center"></div>
 
-      <!-- Options Panel -->
       <div
         class="w-full bg-white shadow-md rounded-lg p-4 my-4 transition-all duration-300"
       >
-        <!-- Header with minimize button -->
         <div class="flex justify-between items-center mb-2">
           <h2 class="text-lg font-semibold">Options</h2>
           <button
@@ -525,7 +507,6 @@
         {#if showDropdown}
           <div class="space-y-4 overflow-hidden transition-all duration-300">
             <div class="grid grid-cols-2 gap-4">
-              <!-- Voicing Selection -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Voicing</h2>
                 <div class="flex flex-wrap gap-2">
@@ -542,7 +523,6 @@
                 </div>
               </div>
 
-              <!-- Level Selection -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Level</h2>
                 <div class="flex flex-wrap gap-2">
@@ -559,7 +539,6 @@
                 </div>
               </div>
 
-              <!-- Time Signature -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Time Signature</h2>
                 <div class="flex flex-wrap gap-2">
@@ -577,7 +556,6 @@
                 </div>
               </div>
 
-              <!-- Key Selection -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Key</h2>
                 <div class="flex flex-wrap gap-2">
@@ -594,7 +572,6 @@
                 </div>
               </div>
 
-              <!-- Max Skip -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Max Skip</h2>
                 <div class="flex items-center gap-4">
@@ -618,25 +595,56 @@
                 </div>
               </div>
 
-              <!-- Chord Weights -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Measures</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each measureOptions as measureOpt (measureOpt)}
+                    <button
+                      class="px-3 py-1 rounded {measures === measureOpt
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => (measures = measureOpt)}
+                    >
+                      {measureOpt}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
               <div class="space-y-2 col-span-2">
-                <h2 class="text-lg font-semibold">Chord Weights</h2>
-                <div class="grid grid-cols-4 gap-4">
-                  {#each Object.values(chords) as chord}
-                    <div class="flex flex-col gap-1">
-                      <label for={chord.symbol} class="text-sm"
-                        >{chord.symbol}</label
-                      >
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={chord.baseMultiplier}
-                        on:input={(event) =>
-                          handleChordWeightChange(event, chord)}
-                        class="w-full"
-                      />
-                    </div>
+                <h2 class="text-lg font-semibold">Rhythms</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each Object.values(filterRhythms) as rhythm}
+                    <button
+                      class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded {selectedRhythms.some(
+                        (r) => r?.name === rhythm.name
+                      )
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => {
+                        if (
+                          selectedRhythms.some((r) => r?.name === rhythm.name)
+                        ) {
+                          selectedRhythms = selectedRhythms.filter(
+                            (r) => r?.name !== rhythm.name
+                          );
+                        } else {
+                          selectedRhythms = [...selectedRhythms, rhythm];
+                        }
+                      }}
+                    >
+                      {#await rhythmSvgs[rhythm.name]}
+                        <span>...</span>
+                      {:then svg}
+                        <span
+                          class="rhythm-icon w-full h-full flex items-center justify-center"
+                        >
+                          {@html svg.default}
+                        </span>
+                      {:catch}
+                        <span>{rhythm.name}</span>
+                      {/await}
+                    </button>
                   {/each}
                 </div>
               </div>
@@ -644,7 +652,6 @@
           </div>
         {/if}
 
-        <!-- Generate Button -->
         <button
           class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
           on:click={handleClick}
@@ -653,13 +660,10 @@
         </button>
       </div>
 
-      <!-- Music Display -->
       <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
 
-      <!-- padding -->
       <div class="h-96"></div>
 
-      <!-- Progress Bar -->
       {#if songPlaying}
         <div class="w-full bg-gray-200 rounded-full h-2.5 my-4">
           <div
@@ -669,7 +673,6 @@
         </div>
       {/if}
 
-      <!-- Chord Progression Display -->
       {#if chordProgression.length > 0}
         <div class="text-center mt-4">
           <p class="text-gray-600">
@@ -680,3 +683,10 @@
     </div>
   </main>
 </div>
+
+<style>
+  :global(.rhythm-icon svg) {
+    width: 100%;
+    height: 100%;
+  }
+</style>
