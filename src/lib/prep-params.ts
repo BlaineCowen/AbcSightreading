@@ -5,7 +5,7 @@ import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
 
 // Helper to get diatonic degree (0-6) in a specific key
-function getDiatonicDegree(
+export function getDiatonicDegree(
   pitchValue: number,
   keySignatureInfo: { sharps: number[]; flats: number[]; rootOffset: number }
 ): number {
@@ -13,13 +13,16 @@ function getDiatonicDegree(
   const noteName = noteArray[pitchValue];
   const baseLetter = noteName[0].toUpperCase();
 
-  // Get the first letter of the key (e.g., 'F' from 'F' or 'F#')
-  const keyLetter = String.fromCharCode(
-    ((keySignatureInfo.rootOffset + 5) % 7) + 67
-  ); // 67 is 'C'
-
-  // Map letters in order from the key letter
+  // Fixed letter order starting from C
   const letterOrder = ["C", "D", "E", "F", "G", "A", "B"];
+
+  // Get key letter based on rootOffset
+  const keyLetter = letterOrder[keySignatureInfo.rootOffset];
+  if (!keyLetter) {
+    throw new Error(`Invalid rootOffset: ${keySignatureInfo.rootOffset}`);
+  }
+
+  // Find the index of our key in the letter order
   const keyIndex = letterOrder.indexOf(keyLetter);
 
   // Rotate the array so the key letter is at index 0
@@ -93,6 +96,7 @@ export function prepareVoiceParts(
       name,
       clef: partDef.clef,
       order: partDef.order, // Use order directly from partsObject
+      chordNotes: [], // Initialize empty array for chord notes
     };
   });
 }

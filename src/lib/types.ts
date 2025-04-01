@@ -19,12 +19,20 @@ export interface VoicePart {
   name: string; // Full name, e.g., "Soprano"
   clef: string; // Clef name, e.g., "treble", "bass", "treble-8"
   order: number; // Order for voice leading checks (e.g., 0=Bass, 3=Soprano)
+  chordNotes: VoiceNote[];
 }
 
 export interface VoiceNote extends Note {
   length: number;
   rest: boolean;
   order?: number;
+  accidental?:
+    | "sharp"
+    | "flat"
+    | "natural"
+    | "double-sharp"
+    | "double-flat"
+    | null;
 }
 
 export interface ChordPossibility {

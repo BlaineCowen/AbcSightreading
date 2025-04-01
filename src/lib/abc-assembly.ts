@@ -33,7 +33,20 @@ export function assembleAbcString(
   timeSig: TimeSignature,
   metadata: AbcMetadata
 ): string {
-  // Implementation will go here
+  console.log("Assembling ABC string with:");
+  console.log(
+    "  Voice notes:",
+    voiceParts.map((v) => v.chordNotes.length)
+  );
+  console.log(
+    "  Voice parts:",
+    voiceParts.map((v) => v.name)
+  );
+  console.log(
+    "  Rhythms:",
+    rhythms.map((r) => ({ name: r.name, abcValue: r.abcValue }))
+  );
+
   let abcString = "";
 
   // --- Header Generation ---
@@ -41,7 +54,7 @@ export function assembleAbcString(
   abcString += `T:${metadata.title}\n`;
   abcString += `C:${metadata.composer}\n`;
   abcString += `M:${timeSig.name}\n`;
-  abcString += `L:1/8\n`; // Assuming 1/8 notes are the base unit for length numbers
+  abcString += `L:1/32\n`; // Base unit is 32nd notes
   abcString += `Q:1/4=${metadata.tempo}\n`;
 
   // %%score directive
@@ -54,9 +67,9 @@ export function assembleAbcString(
   // V: Voice part headers
   voiceParts.forEach((part) => {
     let middleString = "";
-    // Handle octave shifting clefs if necessary based on your ClefType enum
-    // Example: if (part.clef === ClefType.TrebleOctaveDown) { middleString = "octave=-1"; }
-    // Adjust based on your actual clef handling
+    if (part.clef === "treble-8") {
+      middleString = "octave=1";
+    }
     abcString += `V:${part.smallName} clef=${part.clef} name="${part.name}" snm="${part.smallName}" ${middleString}\n`;
   });
 
@@ -65,39 +78,51 @@ export function assembleAbcString(
   abcString += `% End of header, start of tune body:\n`;
 
   // --- Body Generation ---
-  const numSteps = rhythms.length;
   const numVoices = voiceParts.length;
-  let measureBeatCount = 0;
-  const beatsPerMeasure = timeSig.tsPerMeasure / 4; // Assuming L:1/8, so tsPerMeasure is 32nds -> divide by 4 for eighths
+  const beatsPerMeasure = timeSig.tsPerMeasure;
 
   for (let voiceIndex = 0; voiceIndex < numVoices; voiceIndex++) {
-    const partSmallName = voiceParts[voiceIndex].smallName;
+    const part = voiceParts[voiceIndex];
+    const partSmallName = part.smallName;
     let partString = `[V:${partSmallName}] `;
-    measureBeatCount = 0;
+    let measureCount = 0;
 
-    for (let stepIndex = 0; stepIndex < numSteps; stepIndex++) {
-      const note = allVoiceNotes[voiceIndex][stepIndex];
-      const rhythm = rhythms[stepIndex]; // Get corresponding rhythm
-      const noteLength = rhythm.totalValue; // Use totalValue from rhythm (in eighths if L:1/8)
+    for (let stepIndex = 0; stepIndex < part.chordNotes.length; stepIndex++) {
+      const note = part.chordNotes[stepIndex];
 
       if (note.rest) {
-        partString += `z${noteLength}`;
+        partString += `z${note.length}`;
       } else {
-        partString += `${note.name}${noteLength}`;
+        // Add accidental if present
+        if (note.accidental === "sharp") {
+          partString += "^";
+        } else if (note.accidental === "flat") {
+          partString += "_";
+        } else if (note.accidental === "natural") {
+          partString += "=";
+        } else if (note.accidental === "double-sharp") {
+          partString += "^^";
+        } else if (note.accidental === "double-flat") {
+          partString += "__";
+        }
+        partString += `${note.name}${note.length}`;
       }
       partString += " "; // Add space after note/rest
 
-      measureBeatCount += noteLength;
+      measureCount += note.length;
 
       // Add bar line if measure is complete
-      if (measureBeatCount >= beatsPerMeasure) {
+      if (measureCount >= beatsPerMeasure) {
         partString += "| ";
-        measureBeatCount = 0; // Reset measure count
+        measureCount = measureCount % beatsPerMeasure; // Handle any overflow
       }
     }
-    // Add final bar line if needed (might need adjustment based on exact beat counts)
+
+    // Add final double bar line
     if (!partString.endsWith("| ")) {
-      partString += "|]"; // End of tune marker
+      partString += "|]";
+    } else {
+      partString = partString.slice(0, -2) + "|]";
     }
     abcString += partString + "\n";
   }

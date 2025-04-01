@@ -7,6 +7,7 @@ import {
 } from "./types";
 import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
+import { generatePossibleNotes } from "./prep-params";
 
 // Function to check voice leading (Ensure this is defined or imported)
 function isVoiceOrderValid(pitches: number[]): boolean {
@@ -52,39 +53,74 @@ function determineAccidental(
   // Check if this degree is already sharp in the key signature
   const isSharpenedInKey = keyInfo.sharps?.includes(degree);
 
+  console.log(
+    `\nAccidental check for degree ${degree} in ${key} with chord ${chord.name}:`
+  );
+  console.log(
+    `  Key signature: ${
+      isFlattedInKey ? "flat" : isSharpenedInKey ? "sharp" : "natural"
+    }`
+  );
+  console.log(
+    `  Chord wants: ${
+      chord.sharpScaleDegree === degree
+        ? "sharp"
+        : chord.flatScaleDegree === degree
+        ? "flat"
+        : "natural"
+    }`
+  );
+  console.log(
+    `  Chord scale degrees: flat=${chord.flatScaleDegree}, sharp=${chord.sharpScaleDegree}`
+  );
+
+  let result: {
+    accidental:
+      | "sharp"
+      | "flat"
+      | "natural"
+      | "double-sharp"
+      | "double-flat"
+      | null;
+    prefix: string;
+  };
+
   if (chord.sharpScaleDegree === degree) {
     if (isFlattedInKey) {
       // If the note is flat in the key and needs to be raised, make it natural
-      return { accidental: "natural", prefix: "=" };
+      result = { accidental: "natural", prefix: "=" };
     } else if (isSharpenedInKey) {
       // If already sharp in key and needs to be raised, make it double sharp
-      return { accidental: "double-sharp", prefix: "^^" };
+      result = { accidental: "double-sharp", prefix: "^^" };
     } else {
       // If natural in key and needs to be raised, make it sharp
-      return { accidental: "sharp", prefix: "^" };
+      result = { accidental: "sharp", prefix: "^" };
     }
   } else if (chord.flatScaleDegree === degree) {
     if (isFlattedInKey) {
       // If already flat in key and needs to be lowered, make it double flat
-      return { accidental: "double-flat", prefix: "__" };
+      result = { accidental: "double-flat", prefix: "__" };
     } else if (isSharpenedInKey) {
       // If sharp in key and needs to be lowered, make it natural
-      return { accidental: "natural", prefix: "=" };
+      result = { accidental: "natural", prefix: "=" };
     } else {
       // If natural in key and needs to be lowered, make it flat
-      return { accidental: "flat", prefix: "_" };
+      result = { accidental: "flat", prefix: "_" };
     }
+  } else {
+    result = { accidental: null, prefix: "" };
   }
 
-  return { accidental: null, prefix: "" };
+  console.log(
+    `  Result: ${result.accidental || "none"} (prefix: ${
+      result.prefix || "none"
+    })\n`
+  );
+  return result;
 }
 
-function getMaxSkip(prevNote: Note | undefined, nextNote: Note): number {
-  // If either note has an accidental, enforce step-wise motion
-  if (prevNote?.accidental || nextNote.accidental) {
-    return 2; // Allow only step-wise motion (2 semitones)
-  }
-  return 4; // Default max skip
+function getMaxSkip(defaultValue: number = 4, minValue: number = 2): number {
+  return defaultValue;
 }
 
 /**
@@ -98,24 +134,33 @@ export function buildChordNotes(
   bassLine: Note[],
   maxSkip: number
 ): VoiceNote[][] {
-  console.log("  -> Entering buildChordNotes");
-  const allVoiceNotes: VoiceNote[][] = voiceParts.map(() => []);
   const keyInfo = keySignatures[key];
   if (!keyInfo) throw new Error(`Key signature not found for key: ${key}`);
 
-  // Count non-rest positions that need chords
-  const chordPositions = rhythms.filter((r) => !r.rest).length;
+  // Count chords needed - patterns count as one chord
+  const chordPositions = rhythms.reduce((count, rhythm) => {
+    if (rhythm.rest) return count;
+    if (rhythm.isPatternNote) {
+      // Only count the start of a pattern
+      return rhythm.isPatternStart ? count + 1 : count;
+    }
+    return count + 1;
+  }, 0);
 
   // Validate inputs
   if (progression.length !== chordPositions) {
     throw new Error(
-      `Chord progression length (${progression.length}) does not match number of non-rest positions (${chordPositions})`
+      `Chord progression length (${
+        progression.length
+      }) does not match number of chord positions needed (${chordPositions}). Rhythms: ${rhythms
+        .map((r) => r.name)
+        .join(", ")}`
     );
   }
 
   if (bassLine.length !== chordPositions) {
     throw new Error(
-      `Bass line length (${bassLine.length}) does not match number of non-rest positions (${chordPositions})`
+      `Bass line length (${bassLine.length}) does not match number of chord positions needed (${chordPositions})`
     );
   }
 
@@ -151,10 +196,6 @@ export function buildChordNotes(
       return true;
     });
 
-    console.log(
-      `[${voicePart.name}] Initial notes in range [${voicePart.range[0]},${voicePart.range[1]}]: ${validNotes.length}`
-    );
-
     // 1. First try unused chord tones
     const availableTriadDegrees = chord.triadNotes.filter(
       (deg) => !usedTriadDegrees.includes(deg)
@@ -170,17 +211,11 @@ export function buildChordNotes(
     validNotes = validNotes.filter((note) =>
       degreesToUse.includes(note.degree)
     );
-    console.log(
-      `[${voicePart.name}] Notes matching chord tones (${degreesToUse}): ${validNotes.length}`
-    );
 
     // Apply voice leading if we have a previous note
     if (previousNote && !previousNote.rest) {
       validNotes = validNotes.filter(
         (note) => Math.abs(note.pitchValue - previousNote.pitchValue) <= maxSkip
-      );
-      console.log(
-        `[${voicePart.name}] Notes after voice leading filter: ${validNotes.length}`
       );
     }
 
@@ -198,10 +233,6 @@ export function buildChordNotes(
         }
       });
     });
-
-    console.log(
-      `[${voicePart.name}] Notes after voice crossing check: ${validNotes.length}`
-    );
 
     if (validNotes.length === 0) {
       return null;
@@ -221,16 +252,12 @@ export function buildChordNotes(
         return currentDiff < closestDiff ? current : closest;
       });
     } else {
-      // If no previous note, select from the lower third of the valid range for lower voices,
+      // If no previous note, select from the lower third for lower voices,
       // middle third for middle voices, and upper third for higher voices
       const rangePosition = voicePart.order / (voiceParts.length - 1); // 0 to 1
       const index = Math.floor(validNotes.length * rangePosition);
       selectedNote = validNotes[Math.min(index, validNotes.length - 1)];
     }
-
-    console.log(
-      `[${voicePart.name}] Selected note: ${selectedNote.name} (Degree: ${selectedNote.degree}, Pitch: ${selectedNote.pitchValue})`
-    );
 
     return selectedNote;
   }
@@ -243,42 +270,40 @@ export function buildChordNotes(
     maxSkip: number
   ): boolean {
     let chordIndex = 0;
-    allVoiceNotes.forEach((voice) => {
-      voice.length = 0;
+
+    // Clear existing chord notes
+    voiceParts.forEach((part) => {
+      part.chordNotes = [];
     });
 
     for (let stepIndex = 0; stepIndex < rhythms.length; stepIndex++) {
       const rhythm = rhythms[stepIndex];
-      const isFirstStep = stepIndex === 0;
 
       if (rhythm.rest) {
-        // For rests, add rest notes to all parts
-        voiceParts.forEach((_, voiceIndex) => {
-          allVoiceNotes[voiceIndex].push({
+        // For rests, add rest notes to all parts with proper length
+        voiceParts.forEach((part) => {
+          part.chordNotes.push({
             name: "z",
             degree: 0,
             pitchValue: 0,
-            length: rhythm.totalValue,
+            length: parseInt(rhythm.abcValue[0]),
             rest: true,
+            order: part.order,
           });
         });
         continue;
       }
 
+      // Get current chord - only increment after processing
       const currentChord = chordProgression[chordIndex];
       if (!currentChord) {
         console.error(
-          `    -> ERROR: Chord undefined at chordIndex ${chordIndex} for step ${
+          `Error: Chord undefined at chordIndex ${chordIndex} for step ${
             stepIndex + 1
           }`
         );
         return false;
       }
-
-      if (isFirstStep)
-        console.log(
-          `      Processing STEP 1 (Rhythm: ${rhythm.name}, Chord: ${currentChord.symbol})`
-        );
 
       const maxStepRetries = 5;
       let stepRetryCount = 0;
@@ -286,8 +311,6 @@ export function buildChordNotes(
 
       while (stepRetryCount < maxStepRetries && !stepSuccess) {
         stepRetryCount++;
-        if (isFirstStep)
-          console.log(`          Step 1 Attempt ${stepRetryCount}`);
 
         const stepNotesAttempt: (VoiceNote | null)[] = new Array(
           voiceParts.length
@@ -300,40 +323,26 @@ export function buildChordNotes(
         const otherPartsInfo = voiceParts.filter((vp) => vp.order !== 0);
         const shuffledOtherParts = shuffleArray([...otherPartsInfo]);
 
-        if (isFirstStep)
-          console.log(
-            `            Shuffle Order for Attempt ${stepRetryCount}: Bass, ${shuffledOtherParts
-              .map((p) => p.name)
-              .join(", ")}`
-          );
-
         // Process Bass First using the provided bassLine
         if (!bassPartInfo) {
-          console.error("            Bass part definition not found!");
+          console.error("Bass part definition not found!");
           stepGenerationFailed = true;
         } else {
           const bassVoiceIndex = voiceParts.findIndex((vp) => vp.order === 0);
-          if (isFirstStep)
-            console.log(`            Processing Bass part first (Order: 0)`);
 
           const bassNote = bassLine[chordIndex];
           if (!bassNote) {
-            console.error(
-              `            Bass note missing for chord index ${chordIndex}`
-            );
+            console.error(`Bass note missing for chord index ${chordIndex}`);
             stepGenerationFailed = true;
           } else {
             const generatedBassNote: VoiceNote = {
               ...bassNote,
-              length: rhythm.totalValue,
+              length: parseInt(rhythm.abcValue[0]),
               rest: false,
+              order: 0,
             };
             stepNotesAttempt[bassVoiceIndex] = generatedBassNote;
             pitchCheckArray[bassVoiceIndex] = generatedBassNote.pitchValue;
-            if (isFirstStep)
-              console.log(
-                `            Bass note generated: ${generatedBassNote.name}, (Pitch: ${generatedBassNote.pitchValue})`
-              );
           }
         }
 
@@ -345,11 +354,6 @@ export function buildChordNotes(
               (vp) => vp.name === actualPartName
             );
             let generatedVoiceNote: VoiceNote | null = null;
-
-            if (isFirstStep)
-              console.log(
-                `            Processing ${actualPartName} (Order: ${voicePart.order})`
-              );
 
             try {
               // Get used triad degrees from all parts that have been processed in this step
@@ -372,10 +376,6 @@ export function buildChordNotes(
               );
 
               if (!selectedNote) {
-                if (isFirstStep)
-                  console.warn(
-                    `            [${actualPartName}] No valid notes found after filtering.`
-                  );
                 throw new Error(
                   `No valid notes for ${actualPartName} after filtering`
                 );
@@ -383,44 +383,29 @@ export function buildChordNotes(
 
               let finalNoteName = selectedNote.name;
               const noteDegree = selectedNote.degree;
-              const notePitchClass = selectedNote.pitchValue % 12;
-              if (
-                currentChord.sharpScaleDegree !== undefined &&
-                noteDegree === currentChord.sharpScaleDegree
-              ) {
-                const accidentalInfo = determineAccidental(
-                  noteDegree,
-                  currentChord,
-                  keySignatures,
-                  key
-                );
+              const accidentalInfo = determineAccidental(
+                noteDegree,
+                currentChord,
+                keySignatures,
+                key
+              );
+
+              if (accidentalInfo.accidental) {
                 finalNoteName = accidentalInfo.prefix + selectedNote.name;
-                selectedNote.accidental = accidentalInfo.accidental;
-              } else if (
-                currentChord.flatScaleDegree !== undefined &&
-                noteDegree === currentChord.flatScaleDegree
-              ) {
-                const accidentalInfo = determineAccidental(
-                  noteDegree,
-                  currentChord,
-                  keySignatures,
-                  key
-                );
-                finalNoteName = accidentalInfo.prefix + selectedNote.name;
-                selectedNote.accidental = accidentalInfo.accidental;
               }
 
               generatedVoiceNote = {
                 ...selectedNote,
                 name: finalNoteName,
-                length: rhythm.totalValue,
+                length: parseInt(rhythm.abcValue[0]),
                 rest: false,
+                order: voicePart.order,
+                accidental: accidentalInfo.accidental,
               };
             } catch (e: any) {
-              if (isFirstStep)
-                console.error(
-                  `            [${actualPartName}] Error finding note: ${e.message}`
-                );
+              console.error(
+                `Error finding note for ${actualPartName}: ${e.message}`
+              );
               stepGenerationFailed = true;
               break;
             }
@@ -431,10 +416,9 @@ export function buildChordNotes(
               pitchCheckArray[originalVoiceIndex] =
                 generatedVoiceNote.pitchValue;
             } else if (!stepGenerationFailed) {
-              if (isFirstStep)
-                console.error(
-                  `            [${actualPartName}] Generated note is unexpectedly null.`
-                );
+              console.error(
+                `Generated note is unexpectedly null for ${actualPartName}`
+              );
               stepGenerationFailed = true;
               break;
             }
@@ -443,10 +427,6 @@ export function buildChordNotes(
 
         // Post-Attempt Checks
         if (stepGenerationFailed) {
-          if (isFirstStep)
-            console.warn(
-              `          Step 1 Attempt ${stepRetryCount} FAILED generation.`
-            );
           continue; // Try step again
         }
 
@@ -458,75 +438,47 @@ export function buildChordNotes(
         voiceOrderPitches.sort((a, b) => a.order - b.order);
         const orderedPitches = voiceOrderPitches.map((v) => v.pitch);
 
-        if (isFirstStep) {
-          console.log(
-            `          Step 1 Attempt ${stepRetryCount} Pitches (Original): [${pitchCheckArray.join(
-              ","
-            )}]`
-          );
-          console.log(
-            `          Step 1 Attempt ${stepRetryCount} Pitches (By Voice Order): [${orderedPitches.join(
-              ","
-            )}]`
-          );
-        }
-
         // Check voice order using the correctly ordered pitchCheckArray
         if (isVoiceOrderValid(orderedPitches)) {
           stepNotesAttempt.forEach((note, voiceIndex) => {
             // Ensure we push to the correct original index in allVoiceNotes
-            if (note) allVoiceNotes[voiceIndex].push(note);
+            if (note) voiceParts[voiceIndex].chordNotes.push(note);
           });
           stepSuccess = true;
-          if (isFirstStep)
-            console.log(
-              `          Step 1 Attempt ${stepRetryCount} SUCCEEDED.`
-            );
-        } else {
-          if (isFirstStep) {
-            console.warn(
-              `          Step 1 Attempt ${stepRetryCount} FAILED voice order validation. Ordered pitches: [${orderedPitches.join(
-                ","
-              )}]`
-            );
-          }
         }
       }
 
       if (!stepSuccess) {
         console.error(
-          `    -> FAILED to generate valid notes for step ${
-            stepIndex + 1
-          } (Rhythm: ${rhythm.name}, Chord: ${
-            currentChord.symbol
-          }) after ${maxStepRetries} attempts.`
+          `Failed to generate valid notes for step ${stepIndex + 1} (Rhythm: ${
+            rhythm.name
+          }, Chord: ${currentChord.symbol}) after ${maxStepRetries} attempts.`
         );
         return false; // Fail entire process
       }
 
-      // Increment chordIndex only AFTER a successful non-rest step
-      chordIndex++;
+      // Increment chord index after successfully processing the step
+      if (rhythm.isPatternNote) {
+        // Only increment at the end of a pattern
+        if (rhythm.isPatternEnd) {
+          chordIndex++;
+        }
+      } else {
+        // For non-pattern notes, increment after processing
+        chordIndex++;
+      }
     }
 
     return true;
   }
 
-  console.log(
-    `  -> Starting main retry loop (max attempts: ${maxTotalLoopFails})`
-  );
   while (totalLoopFails < maxTotalLoopFails) {
-    console.log(`    Attempt #${totalLoopFails + 1}...`);
     if (processRhythms(rhythms, progression, voiceParts, bassLine, maxSkip)) {
-      console.log("  -> Successfully generated notes within max attempts.");
-      return allVoiceNotes;
+      return voiceParts.map((part) => part.chordNotes);
     }
     totalLoopFails++;
-    console.warn(`    Attempt #${totalLoopFails} failed. Retrying...`);
   }
 
-  console.error(
-    `  -> FAILED to build valid notes after ${maxTotalLoopFails} attempts.`
-  );
   throw new Error("Failed to build valid notes after max attempts");
 }
 
@@ -536,4 +488,155 @@ export function buildChordNotes(
 function getOctaveMarkers(pitch: number): string {
   const octave = Math.floor(pitch / 7);
   return octave <= 0 ? ",".repeat(-octave) : "'".repeat(octave);
+}
+
+function generateBassNote(
+  chord: Chord,
+  rhythm: Rhythm,
+  key: string,
+  range: [number, number],
+  previousNote?: VoiceNote,
+  maxSkip?: number
+): VoiceNote {
+  if (rhythm.rest) {
+    return {
+      name: "z",
+      degree: -1,
+      pitchValue: -1,
+      length: rhythm.isPatternNote
+        ? parseInt(rhythm.abcValue[0])
+        : rhythm.totalValue,
+      rest: true,
+    };
+  }
+
+  const possibleNotes = generatePossibleNotes(range, key).filter(
+    (note: Note) => note.degree === chord.root
+  );
+
+  if (!possibleNotes.length) {
+    throw new Error(
+      `No possible bass notes found for chord ${chord.name} in range [${range[0]}, ${range[1]}]`
+    );
+  }
+
+  let selectedNote: Note;
+  if (!previousNote || previousNote.rest) {
+    selectedNote =
+      possibleNotes[Math.floor(Math.random() * possibleNotes.length)];
+  } else {
+    const effectiveMaxSkip = maxSkip || getMaxSkip();
+    const validNotes = possibleNotes.filter(
+      (note: Note) =>
+        Math.abs(note.pitchValue - previousNote.pitchValue) <= effectiveMaxSkip
+    );
+    if (!validNotes.length) {
+      throw new Error(
+        `No valid bass notes within max skip of ${effectiveMaxSkip} from previous note ${previousNote.name}`
+      );
+    }
+    selectedNote = validNotes[Math.floor(Math.random() * validNotes.length)];
+  }
+
+  const accidentalInfo = determineAccidental(
+    selectedNote.degree,
+    chord,
+    keySignatures,
+    key
+  );
+  const generatedBassNote: VoiceNote = {
+    ...selectedNote,
+    name: accidentalInfo.prefix + selectedNote.name,
+    length: rhythm.isPatternNote
+      ? parseInt(rhythm.abcValue[0])
+      : rhythm.totalValue,
+    rest: false,
+    accidental: accidentalInfo.accidental,
+  };
+
+  return generatedBassNote;
+}
+
+function generateVoiceNote(
+  chord: Chord,
+  rhythm: Rhythm,
+  key: string,
+  range: [number, number],
+  previousNote?: VoiceNote,
+  otherNotes: VoiceNote[] = [],
+  maxSkip?: number
+): VoiceNote {
+  if (rhythm.rest) {
+    return {
+      name: "z",
+      degree: -1,
+      pitchValue: -1,
+      length: rhythm.isPatternNote
+        ? parseInt(rhythm.abcValue[0])
+        : rhythm.totalValue,
+      rest: true,
+    };
+  }
+
+  // Get all possible notes for this voice part in the given range
+  const possibleNotes = generatePossibleNotes(range, key).filter((note: Note) =>
+    chord.triadNotes.includes(note.degree)
+  );
+
+  if (!possibleNotes.length) {
+    throw new Error(
+      `No possible notes found for chord ${chord.name} in range [${range[0]}, ${range[1]}]`
+    );
+  }
+
+  // Filter notes based on voice leading rules
+  let validNotes = possibleNotes;
+  if (previousNote && !previousNote.rest) {
+    const effectiveMaxSkip = maxSkip || getMaxSkip();
+    validNotes = validNotes.filter(
+      (note: Note) =>
+        Math.abs(note.pitchValue - previousNote.pitchValue) <= effectiveMaxSkip
+    );
+  }
+
+  // Filter out notes that would create parallel fifths
+  if (previousNote && !previousNote.rest && otherNotes.length > 0) {
+    validNotes = validNotes.filter((note: Note) => {
+      // Check for parallel fifths with each other voice
+      return !otherNotes.some((otherNote) => {
+        if (otherNote.rest) return false;
+        const prevInterval =
+          Math.abs(previousNote.pitchValue - otherNote.pitchValue) % 7;
+        const newInterval =
+          Math.abs(note.pitchValue - otherNote.pitchValue) % 7;
+        return prevInterval === 4 && newInterval === 4;
+      });
+    });
+  }
+
+  if (!validNotes.length) {
+    throw new Error(
+      `No valid notes found for chord ${chord.name} after applying voice leading rules`
+    );
+  }
+
+  const selectedNote =
+    validNotes[Math.floor(Math.random() * validNotes.length)];
+  const accidentalInfo = determineAccidental(
+    selectedNote.degree,
+    chord,
+    keySignatures,
+    key
+  );
+  const generatedVoiceNote: VoiceNote = {
+    ...selectedNote,
+    name: accidentalInfo.prefix + selectedNote.name,
+    length: rhythm.isPatternNote
+      ? parseInt(rhythm.abcValue[0])
+      : rhythm.totalValue,
+    rest: false,
+    accidental: accidentalInfo.accidental,
+  };
+
+  return generatedVoiceNote;
 }

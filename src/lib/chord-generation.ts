@@ -10,6 +10,7 @@ import {
   type VoiceNote,
   type Rhythm,
 } from "./types";
+import { getDiatonicDegree } from "./prep-params";
 
 // Remove duplicate interface declarations since they're imported
 export {
@@ -279,16 +280,10 @@ function findValidBassNote(
   const targetDegree = chord.root;
   console.log("Target Degree:", targetDegree);
 
-  // Map letters to scale degrees (0-6)
-  const letterToDegree: { [key: string]: number } = {
-    C: 0,
-    D: 1,
-    E: 2,
-    F: 3,
-    G: 4,
-    A: 5,
-    B: 6,
-  };
+  const keyInfo = keySignatures[key];
+  if (!keyInfo) {
+    throw new Error(`Key signature not found for key: ${key}`);
+  }
 
   const possibleNotes: Note[] = [];
 
@@ -297,8 +292,10 @@ function findValidBassNote(
     const noteName = noteArray[pitch];
     if (!noteName) continue;
 
-    const baseLetter = noteName[0].toUpperCase();
-    if (letterToDegree[baseLetter] === targetDegree) {
+    // Use getDiatonicDegree to get the correct scale degree for this pitch in the current key
+    const degree = getDiatonicDegree(pitch, keyInfo);
+
+    if (degree === targetDegree) {
       // Check if this degree needs an accidental based on the chord
       let finalNoteName = noteName;
       const chromaticDegree = diatonicToChromatic(targetDegree);

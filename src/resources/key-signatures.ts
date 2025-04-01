@@ -6,37 +6,36 @@ export const keySignatures: {
   };
 } = {
   C: { sharps: [], flats: [], rootOffset: 0 },
-  G: { sharps: [3], flats: [], rootOffset: 7 }, // F#
-  D: { sharps: [3, 0], flats: [], rootOffset: 2 }, // F#, C#
-  A: { sharps: [3, 0, 4], flats: [], rootOffset: 9 }, // F#, C#, G#
-  E: { sharps: [3, 0, 4, 1], flats: [], rootOffset: 4 }, // F#, C#, G#, D#
-  B: { sharps: [3, 0, 4, 1, 5], flats: [], rootOffset: 11 }, // F#, C#, G#, D#, A#
-  "F#": { sharps: [3, 0, 4, 1, 5, 2], flats: [], rootOffset: 6 }, // F#, C#, G#, D#, A#, E#
-  "C#": { sharps: [3, 0, 4, 1, 5, 2, 6], flats: [], rootOffset: 1 }, // F#, C#, G#, D#, A#, E#, B#
-
-  F: { sharps: [], flats: [6], rootOffset: 5 }, // Bb
-  Bb: { sharps: [], flats: [6, 2], rootOffset: 10 }, // Bb, Eb
-  Eb: { sharps: [], flats: [6, 2, 5], rootOffset: 3 }, // Bb, Eb, Ab
-  Ab: { sharps: [], flats: [6, 2, 5, 0], rootOffset: 8 }, // Bb, Eb, Ab, Db
-  Db: { sharps: [], flats: [6, 2, 5, 0, 3], rootOffset: 1 }, // Bb, Eb, Ab, Db, Gb
-  Gb: { sharps: [], flats: [6, 2, 5, 0, 3, 1], rootOffset: 6 }, // Bb, Eb, Ab, Db, Gb, Cb
-  Cb: { sharps: [], flats: [6, 2, 5, 0, 3, 1, 4], rootOffset: 11 }, // Bb, Eb, Ab, Db, Gb, Cb, Fb
+  G: { sharps: [6], flats: [], rootOffset: 4 },
+  D: { sharps: [6, 2], flats: [], rootOffset: 1 },
+  A: { sharps: [6, 2, 5], flats: [], rootOffset: 5 },
+  E: { sharps: [6, 2, 5, 1], flats: [], rootOffset: 2 },
+  B: { sharps: [6, 2, 5, 1, 4], flats: [], rootOffset: 6 },
+  "F#": { sharps: [6, 2, 5, 1, 4, 0], flats: [], rootOffset: 3 },
+  "C#": { sharps: [6, 2, 5, 1, 4, 0, 3], flats: [], rootOffset: 0 },
+  F: { sharps: [], flats: [3], rootOffset: 3 },
+  Bb: { sharps: [], flats: [3, 0], rootOffset: 0 },
+  Eb: { sharps: [], flats: [3, 0, 4], rootOffset: 4 },
+  Ab: { sharps: [], flats: [3, 0, 4, 1], rootOffset: 1 },
+  Db: { sharps: [], flats: [3, 0, 4, 1, 5], rootOffset: 5 },
+  Gb: { sharps: [], flats: [3, 0, 4, 1, 5, 2], rootOffset: 2 },
+  Cb: { sharps: [], flats: [3, 0, 4, 1, 5, 2, 6], rootOffset: 6 },
 
   // --- Minor Keys --- (Natural Minor definition)
   Am: { sharps: [], flats: [], rootOffset: 9 },
-  Em: { sharps: [3], flats: [], rootOffset: 4 }, // F#
-  Bm: { sharps: [3, 0], flats: [], rootOffset: 11 }, // F#, C#
-  "F#m": { sharps: [3, 0, 4], flats: [], rootOffset: 6 }, // F#, C#, G#
-  "C#m": { sharps: [3, 0, 4, 1], flats: [], rootOffset: 1 }, // F#, C#, G#, D#
-  "G#m": { sharps: [3, 0, 4, 1, 5], flats: [], rootOffset: 8 }, // F#, C#, G#, D#, A#
-  "D#m": { sharps: [3, 0, 4, 1, 5, 2], flats: [], rootOffset: 3 }, // F#, C#, G#, D#, A#, E#
-  "A#m": { sharps: [3, 0, 4, 1, 5, 2, 6], flats: [], rootOffset: 10 }, // F#, C#, G#, D#, A#, E#, B#
+  Em: { sharps: [6], flats: [], rootOffset: 4 },
+  Bm: { sharps: [6, 2], flats: [], rootOffset: 11 },
+  "F#m": { sharps: [6, 2, 5], flats: [], rootOffset: 6 },
+  "C#m": { sharps: [6, 2, 5, 1], flats: [], rootOffset: 1 },
+  "G#m": { sharps: [6, 2, 5, 1, 4], flats: [], rootOffset: 8 },
+  "D#m": { sharps: [6, 2, 5, 1, 4, 0], flats: [], rootOffset: 3 },
+  "A#m": { sharps: [6, 2, 5, 1, 4, 0, 3], flats: [], rootOffset: 10 },
 
-  Dm: { sharps: [], flats: [6], rootOffset: 2 }, // Bb
-  Gm: { sharps: [], flats: [6, 2], rootOffset: 7 }, // Bb, Eb
-  Cm: { sharps: [], flats: [6, 2, 5], rootOffset: 0 }, // Bb, Eb, Ab
-  Fm: { sharps: [], flats: [6, 2, 5, 0], rootOffset: 5 }, // Bb, Eb, Ab, Db
-  Bbm: { sharps: [], flats: [6, 2, 5, 0, 3], rootOffset: 10 }, // Bb, Eb, Ab, Db, Gb
-  Ebm: { sharps: [], flats: [6, 2, 5, 0, 3, 1], rootOffset: 3 }, // Bb, Eb, Ab, Db, Gb, Cb
-  Abm: { sharps: [], flats: [6, 2, 5, 0, 3, 1, 4], rootOffset: 8 }, // Bb, Eb, Ab, Db, Gb, Cb, Fb
+  Dm: { sharps: [], flats: [3], rootOffset: 2 },
+  Gm: { sharps: [], flats: [3, 0], rootOffset: 7 },
+  Cm: { sharps: [], flats: [3, 0, 4], rootOffset: 0 },
+  Fm: { sharps: [], flats: [3, 0, 4, 1], rootOffset: 5 },
+  Bbm: { sharps: [], flats: [3, 0, 4, 1, 5], rootOffset: 10 },
+  Ebm: { sharps: [], flats: [3, 0, 4, 1, 5, 2], rootOffset: 3 },
+  Abm: { sharps: [], flats: [3, 0, 4, 1, 5, 2, 6], rootOffset: 8 },
 };

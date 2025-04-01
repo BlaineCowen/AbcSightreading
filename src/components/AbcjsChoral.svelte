@@ -264,15 +264,15 @@
   let timeSignatures: Record<string, TimeSignature> = {
     "4/4": {
       name: "4/4",
-      tsPerMeasure: 8,
+      tsPerMeasure: 32,
     },
     "3/4": {
       name: "3/4",
-      tsPerMeasure: 6,
+      tsPerMeasure: 24,
     },
     "2/4": {
       name: "2/4",
-      tsPerMeasure: 4,
+      tsPerMeasure: 16,
     },
   };
 
@@ -307,9 +307,11 @@
       .map((rhythm) => [rhythm.name, rhythm])
   );
 
-  // Default to quarter and eighth notes
+  // Default to quarter, half, and eighth notes
   let selectedRhythms: Rhythm[] = allRhythms
-    .filter((r) => r.name === "quarter" || r.name === "eighth")
+    .filter(
+      (r) => r.name === "quarter" || r.name === "half" || r.name === "eighth"
+    )
     .map((r) => r as Rhythm);
 
   const rhythmSvgs = Object.fromEntries(

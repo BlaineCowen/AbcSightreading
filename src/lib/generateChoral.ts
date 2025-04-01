@@ -90,9 +90,34 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     selectedRhythms
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
-  const numNotes = finalRhythms.filter((r) => !r.rest).length;
+
+  // Count chords needed - patterns count as one chord
+  const numNotes = finalRhythms.reduce((count, rhythm) => {
+    if (rhythm.rest) return count;
+    if (rhythm.isPatternNote) {
+      // Only count the start of a pattern
+      return rhythm.isPatternStart ? count + 1 : count;
+    }
+    return count + 1;
+  }, 0);
+
   console.log(
-    `  Generated ${finalRhythms.length} rhythm steps, ${numNotes} non-rest notes.`
+    `  Generated ${finalRhythms.length} rhythm steps, ${numNotes} chords needed.`
+  );
+  console.log(
+    "  Rhythm array details:",
+    finalRhythms.map((r) => ({
+      name: r.name,
+      totalValue: r.totalValue,
+      meterValue: r.meterValue,
+      abcValue: r.abcValue,
+      rest: r.rest,
+      pattern: r.pattern,
+      isPatternNote: r.isPatternNote,
+      isPatternStart: r.isPatternStart,
+      isPatternEnd: r.isPatternEnd,
+      patternIndex: r.patternIndex,
+    }))
   );
 
   // 4. Generate Chord Progression & Bass Line
