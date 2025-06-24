@@ -2,6 +2,7 @@
 // Your imports
 // import { useRouter } from "astro:router";
 import Layout from "../layouts/Layout.astro";
+import Card from "../components/Card.astro";
 
 // const router = useRouter();
 
@@ -13,13 +14,21 @@ const links: any = [
 ---
 
 <Layout title="ABC Sight Reading - Home">
-  <div class="flex mt-10 flex-col gap-4 items-center">
-    {
-      links.map((link: any) => (
-        <a href={link.href} class="text-lg hover:underline">
-          {link.text}
-        </a>
-      ))
-    }
+  <div
+    class="flex flex-col items-center justify-center min-h-[calc(100vh-6rem)]"
+  >
+    <h1 class="text-4xl font-bold text-center mb-8">ABC Sight Reading</h1>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full px-4">
+      <Card
+        href="/sightreading"
+        title="Unison Sight Reading"
+        body="Practice sight reading with single-part exercises. Perfect for individual practice and skill development."
+      />
+      <Card
+        href="/choral-sightreading"
+        title="Choral Sight Reading"
+        body="Practice multi-part choral sight reading. Great for ensemble preparation and understanding harmony."
+      />
+    </div>
   </div>
 </Layout>

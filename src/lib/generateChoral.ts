@@ -3,6 +3,8 @@ import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
 import { assembleAbcString } from "./abc-assembly";
+import { generateNonChordTones } from "./non-chord-tone-gen";
+// Separate imports for types and values
 import type {
   Chord,
   Rhythm,
@@ -12,7 +14,9 @@ import type {
   PartDefinition,
   PartsObject,
   Note,
+  Cadence,
 } from "./types";
+import { allCadences } from "./types"; // Import the value separately
 
 // Interface for the main function parameters
 export interface GenerateChoralParams {
@@ -28,6 +32,7 @@ export interface GenerateChoralParams {
   // Add any other necessary parameters like title, composer, etc.
   title?: string;
   composer?: string;
+  accidentalsByStep: boolean;
 }
 
 /**
@@ -53,6 +58,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     bpm,
     selectedRhythms,
     chords,
+    accidentalsByStep,
   } = params;
 
   // --- Input Validation ---
@@ -79,15 +85,73 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   console.log(`  Prepared ${voiceParts.length} voice parts.`);
   console.log(voiceParts);
 
-  // 2. Generate Rhythm
-  console.log("2. Generating Rhythm...");
+  // Separate the input rhythms into main generation rhythms and potential NCT patterns
+  const mainRhythms = params.selectedRhythms.filter((r) => {
+    if (r.totalValue < 8 || r.totalValue > timeSig.tsPerMeasure) {
+      return false; // Exclude shorter than quarter or longer than measure
+    }
+    if (r.pattern && r.abcValue.some((abcVal) => parseInt(abcVal) < 8)) {
+      return false; // Exclude patterns containing notes shorter than quarter
+    }
+    return true;
+  });
+
+  const patternRhythms = params.selectedRhythms.filter(
+    (r) => r.pattern === true
+  );
+
+  if (mainRhythms.length === 0) {
+    throw new Error(
+      "No suitable main rhythms found after filtering params.selectedRhythms."
+    );
+  }
   console.log(
-    `  Params: timeSig=${timeSig.name}, measures=${measures}, selectedRhythms count=${selectedRhythms.length}`
+    `  Filtered ${params.selectedRhythms.length} input rhythms into ${mainRhythms.length} main rhythms and ${patternRhythms.length} pattern rhythms for NCT.`
+  );
+
+  // 1.5 Generate Cadence Plan
+  console.log("1.5 Generating Cadence Plan...");
+  const numCadencePoints = Math.floor(measures / 4);
+  const selectedCadences: Cadence[] = [];
+
+  // Ensure we have Perfect Authentic defined
+  const perfectAuthenticCadence = allCadences.find(
+    (c) => c.type === "Perfect Authentic"
+  );
+  if (!perfectAuthenticCadence) {
+    throw new Error(
+      "Cannot find 'Perfect Authentic' cadence definition in allCadences."
+    );
+  }
+
+  for (let i = 0; i < numCadencePoints; i++) {
+    const isLastCadence = i === numCadencePoints - 1;
+
+    if (isLastCadence) {
+      selectedCadences.push(perfectAuthenticCadence);
+      console.log(`  Cadence Point ${i + 1} (Last): Forced Perfect Authentic`);
+    } else {
+      // Select a random cadence for intermediate points
+      // For now, allow any cadence (including another PAC)
+      const randomIndex = Math.floor(Math.random() * allCadences.length);
+      const randomCadence = allCadences[randomIndex];
+      selectedCadences.push(randomCadence);
+      console.log(`  Cadence Point ${i + 1}: Selected ${randomCadence.type}`);
+    }
+  }
+
+  // TODO: Use 'selectedCadences' later in chord generation logic
+
+  // 2. Generate Rhythm using ONLY mainRhythms
+  console.log("2. Generating Rhythm (using main rhythms only)...");
+  console.log(
+    `  Params: timeSig=${timeSig.name}, measures=${measures}, mainRhythms count=${mainRhythms.length}`
   );
   const generatedRhythms = generateRandomRhythm(
     timeSig,
     measures,
-    selectedRhythms
+    mainRhythms,
+    selectedCadences
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
 
@@ -138,7 +202,9 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     numNotes,
     bassRange,
     maxSkip,
-    key
+    key,
+    finalRhythms,
+    selectedCadences
   );
   const chordProgression = result.progression;
   const bassLine = result.bassLine;
@@ -157,12 +223,22 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     chordProgression,
     voiceParts,
     bassLine,
-    maxSkip
+    maxSkip,
+    accidentalsByStep
   );
   console.log(`  Built notes for ${voiceNotes.length} voices.`);
 
+  // 5. Apply Non-Chord Tone Generation
+  console.log("5. Applying Non-Chord Tone Generation...");
+  const notesWithNCTs: VoiceNote[][] = voiceNotes.map((partNotes, index) => {
+    console.log(`  Processing voice index ${index} for NCTs...`);
+    // Pass the pattern rhythms, key, all notes, and current index
+    return generateNonChordTones(partNotes, patternRhythms, voiceNotes, index);
+  });
+  console.log(`  Finished NCT generation.`);
+
   // 6. Assemble ABC Notation String
-  console.log("5. Assembling ABC String...");
+  console.log("6. Assembling ABC String...");
   const abcParams = {
     title: params.title || `Sight Reading Exercise - Level ${level} - ${key}`,
     composer: params.composer || "Generated by SightReadingApp",
@@ -172,14 +248,14 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     tempo: bpm,
   };
   console.log(
-    `  Params: voiceNotes count=${voiceNotes.length}, voiceParts count=${
+    `  Params: voiceNotes count=${notesWithNCTs.length}, voiceParts count=${
       voiceParts.length
     }, rhythms count=${finalRhythms.length}, key=${key}, timeSig=${
       timeSig.name
     }, metadata=${JSON.stringify(abcParams)}`
   );
   const abcString = assembleAbcString(
-    voiceNotes,
+    notesWithNCTs,
     voiceParts,
     finalRhythms,
     key,

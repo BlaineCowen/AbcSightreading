@@ -163,7 +163,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "dotHalf",
-    abcValue: ["20"],
+    abcValue: ["24"],
     meterValue: [3 / 4],
     totalValue: 24,
     rest: false,

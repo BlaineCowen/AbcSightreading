@@ -310,7 +310,12 @@
   // Default to quarter, half, and eighth notes
   let selectedRhythms: Rhythm[] = allRhythms
     .filter(
-      (r) => r.name === "quarter" || r.name === "half" || r.name === "eighth"
+      (r) =>
+        r.name === "quarter" ||
+        r.name === "half" ||
+        r.name === "eighth" ||
+        r.name == "dotQuarterEighth" ||
+        r.name == "dotHalf"
     )
     .map((r) => r as Rhythm);
 
@@ -403,6 +408,7 @@
       bpm: bpm,
       selectedRhythms: validSelectedRhythms,
       chords: fullChordSet,
+      accidentalsByStep: true,
     };
 
     try {

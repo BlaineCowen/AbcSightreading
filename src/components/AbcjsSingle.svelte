@@ -878,7 +878,7 @@
 
 <div class="w-full">
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
-    <PitchVisualizer {selectedKey} {selectableArray} />
+    <!-- <PitchVisualizer {selectedKey} {selectableArray} /> -->
     <div class="flex flex-col items-center w-full">
       <!-- Options Panel -->
       <div

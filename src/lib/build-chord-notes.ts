@@ -132,7 +132,8 @@ export function buildChordNotes(
   progression: Chord[],
   voiceParts: VoicePart[],
   bassLine: Note[],
-  maxSkip: number
+  maxSkip: number,
+  accidentalsByStep: boolean
 ): VoiceNote[][] {
   const keyInfo = keySignatures[key];
   if (!keyInfo) throw new Error(`Key signature not found for key: ${key}`);
@@ -286,9 +287,10 @@ export function buildChordNotes(
             name: "z",
             degree: 0,
             pitchValue: 0,
-            length: parseInt(rhythm.abcValue[0]),
+            length: rhythm.totalValue,
             rest: true,
             order: part.order,
+            isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
           });
         });
         continue;
@@ -337,9 +339,10 @@ export function buildChordNotes(
           } else {
             const generatedBassNote: VoiceNote = {
               ...bassNote,
-              length: parseInt(rhythm.abcValue[0]),
+              length: rhythm.totalValue,
               rest: false,
               order: 0,
+              isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
             };
             stepNotesAttempt[bassVoiceIndex] = generatedBassNote;
             pitchCheckArray[bassVoiceIndex] = generatedBassNote.pitchValue;
@@ -397,10 +400,11 @@ export function buildChordNotes(
               generatedVoiceNote = {
                 ...selectedNote,
                 name: finalNoteName,
-                length: parseInt(rhythm.abcValue[0]),
+                length: rhythm.totalValue,
                 rest: false,
                 order: voicePart.order,
                 accidental: accidentalInfo.accidental,
+                isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
               };
             } catch (e: any) {
               console.error(
@@ -503,10 +507,9 @@ function generateBassNote(
       name: "z",
       degree: -1,
       pitchValue: -1,
-      length: rhythm.isPatternNote
-        ? parseInt(rhythm.abcValue[0])
-        : rhythm.totalValue,
+      length: rhythm.totalValue,
       rest: true,
+      isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
     };
   }
 
@@ -547,11 +550,10 @@ function generateBassNote(
   const generatedBassNote: VoiceNote = {
     ...selectedNote,
     name: accidentalInfo.prefix + selectedNote.name,
-    length: rhythm.isPatternNote
-      ? parseInt(rhythm.abcValue[0])
-      : rhythm.totalValue,
+    length: rhythm.totalValue,
     rest: false,
     accidental: accidentalInfo.accidental,
+    isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
   };
 
   return generatedBassNote;
@@ -571,10 +573,9 @@ function generateVoiceNote(
       name: "z",
       degree: -1,
       pitchValue: -1,
-      length: rhythm.isPatternNote
-        ? parseInt(rhythm.abcValue[0])
-        : rhythm.totalValue,
+      length: rhythm.totalValue,
       rest: true,
+      isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
     };
   }
 
@@ -631,11 +632,10 @@ function generateVoiceNote(
   const generatedVoiceNote: VoiceNote = {
     ...selectedNote,
     name: accidentalInfo.prefix + selectedNote.name,
-    length: rhythm.isPatternNote
-      ? parseInt(rhythm.abcValue[0])
-      : rhythm.totalValue,
+    length: rhythm.totalValue,
     rest: false,
     accidental: accidentalInfo.accidental,
+    isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
   };
 
   return generatedVoiceNote;

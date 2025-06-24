@@ -229,133 +229,113 @@ export function generateRandomRhythmCombination(
   let rhythmResult: Rhythm[] = [];
   let currentSum = 0;
   let currentCombination: number[] = [];
-
   let totalRuns = 0;
 
   if (!rhythmArray || rhythmArray.length === 0) {
     throw new Error("No rhythms provided for generation");
   }
 
-  if (targetSum <= 0 || tsPerMeasure <= 0) {
-    throw new Error("Invalid targetSum or tsPerMeasure");
-  }
-
-  // sort array desc
+  // Sort array by duration (descending)
   rhythmArray.sort((a, b) => b.totalValue - a.totalValue);
 
-  for (let i = 0; i < rhythmArray.length; i++) {
-    if (rhythmArray[i].totalValue <= targetSum) {
-      rhythmArray[i].weight = rhythmArray[i].totalValue;
-    }
-  }
-
-  let rhythmArrayToRandom = [...rhythmArray];
+  // Weight rhythms based on their duration and how well they fit in measures
+  rhythmArray = rhythmArray.map((r) => ({
+    ...r,
+    weight: r.totalValue <= tsPerMeasure ? r.totalValue : 1,
+  }));
 
   while (currentSum !== targetSum && totalRuns < 1000) {
-    if (totalRuns >= 900) {
-      console.warn(
-        "Approaching maximum attempts to generate rhythm combination"
-      );
-    }
     let measureArray: number[] = [];
     let measureRhythmArr: Rhythm[] = [];
-
     let measureRhythm = 0;
     let measureRuns = 0;
-    const maxMeasureRuns = 10;
+    const maxMeasureRuns = 20; // Increased from 10 to allow more attempts
 
-    while (measureRhythm < tsPerMeasure) {
-      let randomRhythm: Rhythm | null = null;
-      if (currentSum === targetSum - tsPerMeasure) {
-        randomRhythm = rhythmArray[0];
-      } else {
-        if (rhythmArrayToRandom.length > 0) {
-          let filteredArrayToRandom = rhythmArrayToRandom.filter(
-            (element) => element.totalValue + measureRhythm <= tsPerMeasure
-          );
-          randomRhythm = getRandomRhythmByWeight(filteredArrayToRandom);
+    // Fill current measure
+    while (measureRhythm < tsPerMeasure && measureRuns < maxMeasureRuns) {
+      const remainingInMeasure = tsPerMeasure - measureRhythm;
+      const remainingTotal = targetSum - currentSum - measureRhythm;
+
+      // Filter rhythms that can fit in both the measure and total remaining space
+      let filteredRhythms = rhythmArray.filter((r) => {
+        const rhythmValue = r.totalValue;
+        return (
+          rhythmValue <= remainingInMeasure &&
+          rhythmValue <= remainingTotal &&
+          (remainingInMeasure % rhythmValue === 0 ||
+            remainingInMeasure - rhythmValue >= 8)
+        ); // Ensure we don't leave awkward small gaps
+      });
+
+      // If no rhythms fit, try to find exact matches for remaining space
+      if (filteredRhythms.length === 0) {
+        filteredRhythms = rhythmArray.filter(
+          (r) => r.totalValue === remainingInMeasure
+        );
+      }
+
+      // If still no matches, try the smallest available rhythm
+      if (filteredRhythms.length === 0) {
+        const smallestRhythm = rhythmArray
+          .filter((r) => r.totalValue <= remainingInMeasure)
+          .sort((a, b) => a.totalValue - b.totalValue)[0];
+        if (smallestRhythm) {
+          filteredRhythms = [smallestRhythm];
         }
       }
 
-      let testMeasureArray = [...measureArray];
-      if (randomRhythm !== null) {
-        testMeasureArray.push(randomRhythm.totalValue);
-        let testMeasureSum = testMeasureArray.reduce((a, b) => a + b, 0);
-        if (testMeasureSum <= tsPerMeasure) {
-          // If it's a pattern, create individual rhythm objects for each note in the pattern
-          if (randomRhythm.pattern) {
-            for (let i = 0; i < randomRhythm.abcValue.length; i++) {
-              const value = parseInt(randomRhythm.abcValue[i]);
+      if (filteredRhythms.length > 0) {
+        const selectedRhythm = getRandomRhythmByWeight(filteredRhythms);
+        if (selectedRhythm) {
+          if (selectedRhythm.pattern) {
+            for (let i = 0; i < selectedRhythm.abcValue.length; i++) {
+              const value = parseInt(selectedRhythm.abcValue[i]);
               measureArray.push(value);
-
-              // Create a modified rhythm object for each note in the pattern
-              const modifiedRhythm: Rhythm = {
-                ...randomRhythm,
-                abcValue: [randomRhythm.abcValue[i]],
+              measureRhythmArr.push({
+                ...selectedRhythm,
+                abcValue: [selectedRhythm.abcValue[i]],
                 totalValue: value,
                 singleNoteValue: value,
                 isPatternNote: true,
                 isPatternStart: i === 0,
-                isPatternEnd: i === randomRhythm.abcValue.length - 1,
+                isPatternEnd: i === selectedRhythm.abcValue.length - 1,
                 patternIndex: i,
-              };
-
-              // Debug log for pattern properties
-              console.log(`Generated rhythm note in pattern:`, {
-                value,
-                isPatternStart: i === 0,
-                isPatternEnd: i === randomRhythm.abcValue.length - 1,
-                patternIndex: i,
-                totalLength: randomRhythm.abcValue.length,
-                name: randomRhythm.name,
               });
-
-              measureRhythmArr.push(modifiedRhythm);
             }
           } else {
-            // For non-pattern rhythms, just add them as is
-            measureArray.push(parseInt(randomRhythm.abcValue[0]));
+            measureArray.push(selectedRhythm.totalValue);
             measureRhythmArr.push({
-              ...randomRhythm,
-              singleNoteValue: randomRhythm.totalValue,
+              ...selectedRhythm,
+              singleNoteValue: selectedRhythm.totalValue,
               isPatternNote: false,
               isPatternStart: false,
               isPatternEnd: false,
               patternIndex: null,
             });
           }
-
           measureRhythm = measureArray.reduce((a, b) => a + b, 0);
         }
       }
       measureRuns++;
-      if (measureRuns >= maxMeasureRuns) {
-        break;
-      }
     }
 
-    let testCompleteArray = [...currentCombination];
-    let testCompleteRhythmArr = [...rhythmResult];
-    testCompleteArray = testCompleteArray.concat(measureArray);
-    testCompleteRhythmArr = testCompleteRhythmArr.concat(measureRhythmArr);
-
-    let testSum = testCompleteArray.reduce((a, b) => a + b, 0);
-    if (testSum <= targetSum) {
-      currentCombination = testCompleteArray;
-      currentSum = testSum;
-      rhythmResult = testCompleteRhythmArr;
+    // Only add the measure if it's complete or we're at the end
+    const measureSum = measureArray.reduce((a, b) => a + b, 0);
+    if (measureSum === tsPerMeasure || currentSum + measureSum === targetSum) {
+      currentCombination = currentCombination.concat(measureArray);
+      currentSum += measureSum;
+      rhythmResult = rhythmResult.concat(measureRhythmArr);
     }
 
     totalRuns++;
   }
 
-  if (totalRuns >= 1000) {
-    console.log("Error: Could not find a valid combination");
+  if (totalRuns >= 1000 || currentSum !== targetSum) {
+    console.warn("Could not find valid rhythm combination");
     return { numbers: [], rhythmObjects: [] };
   }
 
-  numberResult = currentCombination;
-  return { numbers: numberResult, rhythmObjects: rhythmResult };
+  return { numbers: currentCombination, rhythmObjects: rhythmResult };
 }
 
 function generateChordProgression(
@@ -1295,8 +1275,19 @@ export function createNewSr(params: any) {
     if (!params) {
       throw new Error("No parameters provided for music generation");
     }
+    console.log("[Debug] createNewSr: Initial params", {
+      selectedRhythms: params.selectedRhythms,
+      rhythms: params.rhythms, // assuming this is where the full list comes from
+      timeSig: params.timeSig,
+      measures: params.measures,
+      scaleDegrees: params.scaleDegrees,
+      selectedTimeSignature: params.selectedTimeSignature,
+    });
 
     if (!params.selectedRhythms || params.selectedRhythms.length === 0) {
+      console.error(
+        "[Debug] createNewSr: No rhythms selected in params.selectedRhythms!"
+      );
       throw new Error("No rhythms selected");
     }
 
@@ -1374,9 +1365,27 @@ export function createNewSr(params: any) {
       timeSig.tsPerMeasure * measures,
       timeSig.tsPerMeasure
     );
+    console.log(
+      "[Debug] createNewSr: Result from generateRandomRhythmCombination",
+      randNoteLengthsResult
+    );
 
     const randNoteLengths = randNoteLengthsResult.numbers;
     const randRhythmObjects = randNoteLengthsResult.rhythmObjects;
+
+    if (!randNoteLengths || randNoteLengths.length === 0) {
+      console.error(
+        "[Debug] createNewSr: generateRandomRhythmCombination returned no numbers!"
+      );
+      // Potentially throw an error or handle empty rhythm sequence
+      // For now, let's log and see if the original error ("No valid notes found in range...") still occurs
+    }
+    if (!randRhythmObjects || randRhythmObjects.length === 0) {
+      console.error(
+        "[Debug] createNewSr: generateRandomRhythmCombination returned no rhythmObjects!"
+      );
+      // Potentially throw an error or handle empty rhythm sequence
+    }
 
     let [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
       timeSig,
@@ -1762,6 +1771,7 @@ export function createNewSr(params: any) {
 
     return [renderedString, renderedChordProgression];
   } catch (error) {
+    console.error("[Debug] createNewSr: Error caught", error);
     console.error("An error occurred:", error);
     return [null, null];
   }

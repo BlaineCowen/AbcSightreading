@@ -35,8 +35,8 @@ export function assembleAbcString(
 ): string {
   console.log("Assembling ABC string with:");
   console.log(
-    "  Voice notes:",
-    voiceParts.map((v) => v.chordNotes.length)
+    "  Notes per voice:",
+    allVoiceNotes.map((notes) => notes.length)
   );
   console.log(
     "  Voice parts:",
@@ -87,25 +87,44 @@ export function assembleAbcString(
     let partString = `[V:${partSmallName}] `;
     let measureCount = 0;
 
-    for (let stepIndex = 0; stepIndex < part.chordNotes.length; stepIndex++) {
-      const note = part.chordNotes[stepIndex];
+    const notesForPart = allVoiceNotes[voiceIndex];
+
+    for (let stepIndex = 0; stepIndex < notesForPart.length; stepIndex++) {
+      const note = notesForPart[stepIndex];
+
+      // Log the note being processed
+      console.log(`ABC_ASM [V:${partSmallName}, Step:${stepIndex}]:`, {
+        name: note.name,
+        length: note.length,
+        rest: note.rest,
+        accidental: note.accidental,
+      });
 
       if (note.rest) {
         partString += `z${note.length}`;
       } else {
-        // Add accidental if present
-        if (note.accidental === "sharp") {
-          partString += "^";
-        } else if (note.accidental === "flat") {
-          partString += "_";
-        } else if (note.accidental === "natural") {
-          partString += "=";
-        } else if (note.accidental === "double-sharp") {
-          partString += "^^";
-        } else if (note.accidental === "double-flat") {
-          partString += "__";
-        }
+        // Simplify accidental handling: Assume note.name might already contain ^, _, =
+        // If note.name doesn't have it, but note.accidental does, this needs adjustment
+        // based on how note names and accidentals are consistently generated.
+        // For now, directly use note.name as it might include the accidental prefix.
         partString += `${note.name}${note.length}`;
+
+        // --- Original Accidental Handling (Commented Out) ---
+        // if (note.accidental === "sharp") {
+        //   partString += "^";
+        // } else if (note.accidental === "flat") {
+        //   partString += "_";
+        // } else if (note.accidental === "natural") {
+        //   partString += "=";
+        // } else if (note.accidental === "double-sharp") {
+        //   partString += "^^";
+        // } else if (note.accidental === "double-flat") {
+        //   partString += "__";
+        // }
+        // // Remove any existing accidentals from the note name
+        // const cleanNoteName = note.name.replace(/[_^=]/g, "");
+        // partString += `${cleanNoteName}${note.length}`;
+        // --- End Original ---
       }
       partString += " "; // Add space after note/rest
 

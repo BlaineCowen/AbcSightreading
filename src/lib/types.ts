@@ -33,6 +33,7 @@ export interface VoiceNote extends Note {
     | "double-sharp"
     | "double-flat"
     | null;
+  isCadenceEnd?: boolean; // Flag if this note is the end of a cadence
 }
 
 export interface ChordPossibility {
@@ -84,11 +85,12 @@ export interface Rhythm {
 }
 
 export interface RhythmWithPattern extends Rhythm {
-  pattern: boolean;
-  isPatternNote: boolean;
-  isPatternStart: boolean;
-  isPatternEnd: boolean;
-  patternIndex: number | null;
+  isPatternNote?: boolean;
+  isPatternStart?: boolean;
+  isPatternEnd?: boolean;
+  patternIndex?: number | null;
+  isCadenceEnd?: boolean;
+  cadenceType?: string;
 }
 
 // Add TimeSignature type definition
@@ -96,6 +98,14 @@ export interface TimeSignature {
   name: string; // e.g., "4/4", "3/4"
   tsPerMeasure: number; // Number of base units (e.g., 32nd notes if L:1/32) per measure
 }
+
+// --- Add KeySignatureInfo --- New Interface
+export interface KeySignatureInfo {
+  sharps?: number[]; // Array of diatonic degrees (0-6) that are sharp
+  flats?: number[]; // Array of diatonic degrees (0-6) that are flat
+  // Add other properties if keySignatures object contains more info per key
+}
+// --- End KeySignatureInfo ---
 
 // Add ClefType Enum
 export enum ClefType {
@@ -123,3 +133,68 @@ export interface PartsObject {
   numofParts: number;
   parts: { [partName: string]: PartDefinition };
 }
+
+// New interface to describe requirements for a single step in a cadence
+export interface CadenceStep {
+  function: ChordType; // The required chord *function*
+  requiredChord?: string; // Optional: Specific required chord symbol using Roman numerals (e.g., "V", "I", "IV", "vi")
+  requiredInversion?: number; // Optional: 0 for root, 1 for first inv, etc.
+}
+
+// Update the Cadence type/interface
+export type Cadence = {
+  type: string;
+  progression: CadenceStep[];
+  isFinal: boolean;
+  strength?: number | string;
+};
+
+// --- Array of Cadence Definitions (Updated) ---
+export const allCadences: Cadence[] = [
+  {
+    type: "Perfect Authentic",
+    progression: [
+      { function: ChordType.Predominant },
+      { function: ChordType.Dominant, requiredChord: "V" }, // Use Roman numeral
+      { function: ChordType.Tonic, requiredChord: "I" }, // Use Roman numeral
+    ],
+    isFinal: true,
+    strength: "strong",
+  },
+  {
+    type: "Imperfect Authentic",
+    progression: [
+      { function: ChordType.Predominant },
+      { function: ChordType.Dominant, requiredChord: "V" }, // Use Roman numeral
+      { function: ChordType.Tonic, requiredChord: "I" }, // Use Roman numeral
+    ],
+    isFinal: true,
+    strength: "strong",
+  },
+  {
+    type: "Half",
+    progression: [
+      { function: ChordType.Dominant, requiredChord: "V" }, // Use Roman numeral
+    ],
+    isFinal: false,
+    strength: "weak",
+  },
+  {
+    type: "Plagal",
+    progression: [
+      { function: ChordType.Predominant, requiredChord: "IV" }, // Use Roman numeral
+      { function: ChordType.Tonic, requiredChord: "I" }, // Use Roman numeral
+    ],
+    isFinal: true,
+    strength: "moderate",
+  },
+  {
+    type: "Deceptive",
+    progression: [
+      { function: ChordType.Dominant, requiredChord: "V" }, // Use Roman numeral
+      { function: ChordType.Mediant, requiredChord: "vi" }, // Use Roman numeral (lowercase for minor)
+    ],
+    isFinal: false,
+    strength: "weak",
+  },
+];

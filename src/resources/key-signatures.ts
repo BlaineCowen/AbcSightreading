@@ -14,12 +14,12 @@ export const keySignatures: {
   "F#": { sharps: [6, 2, 5, 1, 4, 0], flats: [], rootOffset: 3 },
   "C#": { sharps: [6, 2, 5, 1, 4, 0, 3], flats: [], rootOffset: 0 },
   F: { sharps: [], flats: [3], rootOffset: 3 },
-  Bb: { sharps: [], flats: [3, 0], rootOffset: 0 },
-  Eb: { sharps: [], flats: [3, 0, 4], rootOffset: 4 },
-  Ab: { sharps: [], flats: [3, 0, 4, 1], rootOffset: 1 },
-  Db: { sharps: [], flats: [3, 0, 4, 1, 5], rootOffset: 5 },
-  Gb: { sharps: [], flats: [3, 0, 4, 1, 5, 2], rootOffset: 2 },
-  Cb: { sharps: [], flats: [3, 0, 4, 1, 5, 2, 6], rootOffset: 6 },
+  Bb: { sharps: [], flats: [3, 0], rootOffset: 6 },
+  Eb: { sharps: [], flats: [3, 0, 4], rootOffset: 2 },
+  Ab: { sharps: [], flats: [3, 0, 4, 1], rootOffset: 5 },
+  Db: { sharps: [], flats: [3, 0, 4, 1, 5], rootOffset: 1 },
+  Gb: { sharps: [], flats: [3, 0, 4, 1, 5, 2], rootOffset: 4 },
+  Cb: { sharps: [], flats: [3, 0, 4, 1, 5, 2, 6], rootOffset: 0 },
 
   // --- Minor Keys --- (Natural Minor definition)
   Am: { sharps: [], flats: [], rootOffset: 9 },

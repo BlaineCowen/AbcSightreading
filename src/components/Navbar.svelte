@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   let isNavbarOpen = false;
 
-  let navbar: HTMLDivElement;
+  let navbar: HTMLElement;
   let lastScrollY = 0;
 
   const handleScroll = () => {
@@ -20,41 +20,87 @@
   });
 </script>
 
-<main>
-  <div
-    class="absolute bg-white flex w-full transition-transform duration-300"
-    bind:this={navbar}
-    style="transform: translateY(0);"
-  >
-    {#if isNavbarOpen}
-      <div
-        class="navbar-menu open inline-block bg-slate-100 top-full left-0 shadow-md w-32 z-10"
+<nav
+  bind:this={navbar}
+  class="fixed w-full bg-white shadow-md z-50 transition-transform duration-300"
+>
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="flex justify-between items-center h-16">
+      <a
+        href="/"
+        class="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors"
       >
-        <!-- Your navbar menu content here -->
-        <a href="/">Home</a>
-        <a href="/choral-sightreading">Choral Sightreading</a>
-        <a href="/about">About</a>
-        <a href="/contact">Contact</a>
+        ABC Sight Reading
+      </a>
+
+      <!-- Mobile menu button -->
+      <button
+        class="md:hidden p-2 rounded-md hover:bg-gray-100 transition-colors"
+        on:click={() => (isNavbarOpen = !isNavbarOpen)}
+        aria-label="Toggle menu"
+      >
+        <svg
+          class="h-6 w-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          {#if isNavbarOpen}
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          {:else}
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          {/if}
+        </svg>
+      </button>
+
+      <!-- Desktop menu -->
+      <div class="hidden md:flex space-x-8">
+        <a
+          href="/sightreading"
+          class="text-gray-600 hover:text-blue-600 transition-colors"
+        >
+          Unison Sight Reading
+        </a>
+        <a
+          href="/choral-sightreading"
+          class="text-gray-600 hover:text-blue-600 transition-colors"
+        >
+          Choral Sight Reading
+        </a>
+      </div>
+    </div>
+
+    <!-- Mobile menu -->
+    {#if isNavbarOpen}
+      <div class="md:hidden py-4 space-y-2">
+        <a
+          href="/sightreading"
+          class="block px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+          on:click={() => (isNavbarOpen = false)}
+        >
+          Unison Sight Reading
+        </a>
+        <a
+          href="/choral-sightreading"
+          class="block px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+          on:click={() => (isNavbarOpen = false)}
+        >
+          Choral Sight Reading
+        </a>
       </div>
     {/if}
-    <div
-      class="rounded-full m-4 inline-block bg-slate-100 shadow-md circle z-10"
-    >
-      <button id="hamburger" on:click={() => (isNavbarOpen = !isNavbarOpen)}>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="28"
-          height="28"
-          viewBox="0 0 24 24"
-          ><path
-            fill="currentColor"
-            d="M3 18h18v-2H3zm0-5h18v-2H3zm0-7v2h18V6z"
-          /></svg
-        >
-      </button>
-    </div>
   </div>
-</main>
+</nav>
 
 <style lang="css">
   .navbar-menu {
@@ -78,5 +124,4 @@
     justify-content: center;
     align-items: center;
   }
-  
 </style>
