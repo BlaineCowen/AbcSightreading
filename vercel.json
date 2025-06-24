@@ -2,18 +2,5 @@
   "buildCommand": "bun run build",
   "devCommand": "bun run dev",
   "installCommand": "bun install",
-  "framework": "astro",
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "functions": {
-    "api/**/*": {
-      "runtime": "experimental-edge"
-    }
-  }
+  "framework": "astro"
 }
