@@ -1,7 +1,7 @@
 import { defineConfig } from "astro/config";
 import tailwind from "@astrojs/tailwind";
 import svelte from "@astrojs/svelte";
-import vercel from "@astrojs/vercel/serverless";
+import vercel from "@astrojs/vercel/edge";
 
 // No adapter needed for basic static site generation
 export default defineConfig({
