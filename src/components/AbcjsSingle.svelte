@@ -1,25 +1,22 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import abcjs from "abcjs";
-  import type { TimingCallbacks, TimingCallbacksPosition } from "abcjs";
+  import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
   import SpeakerIcon from "./ui/speaker-icon.svelte";
   import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
+  import PianoIcon from "./ui/pianoIcon.svelte";
+  import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import "abcjs/abcjs-audio.css";
-  import PitchVisualizer from "./PitchVisualizer.svelte";
-
-  const toneSynth = new Tone.Synth().toDestination();
-  let playSynth = true;
+  // import PitchVisualizer from "./PitchVisualizer.svelte";
 
   // Audio and playback state
   let currentTune: any = null;
   let timingCallbacks: TimingCallbacks | null = null;
   let isPlaying = false;
   let createSynth: any = null;
-  let midiBuffer: any = null;
-  let cursor: SVGLineElement | null = null;
   let totalDuration = 0;
   let currentProgress = 0;
 
@@ -27,76 +24,107 @@
   let isLoading = false;
   let error: string | null = null;
 
-  let audioContext: AudioContext | null = null;
-  let analyser: AnalyserNode | null = null;
-  let stream: MediaStream | null = null;
-  let detector: any = null;
-  let rafId: number | null = null;
+  // --- NEW WEB AUDIO API STATE ---
+  let audioContext: AudioContext;
+  let gainNode: GainNode; // For the main instrument
+  let metronomeGainNode: GainNode; // For the metronome
+  let sourceNode: AudioBufferSourceNode | null = null;
+  let audioBuffer: AudioBuffer | null = null; // We will store the generated audio here
+  let startTime = 0;
+  let pausedAt = 0;
+  let masterVolume = 0.5; // Master volume, 0-1
+  let isMuted = false;
+  let previousVolume = masterVolume; // To restore volume after unmuting
+  let isMetronomeOn = true;
+  let metronomeVolume = 0.5;
+
+  // Initialize Web Audio API components
+  onMount(() => {
+    if (typeof window !== "undefined") {
+      audioContext = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
+      gainNode = audioContext.createGain();
+      gainNode.gain.value = masterVolume * 0.7;
+      gainNode.connect(audioContext.destination);
+
+      metronomeGainNode = audioContext.createGain();
+      metronomeGainNode.gain.value = metronomeVolume * 2;
+      metronomeGainNode.connect(audioContext.destination);
+
+      toneSynth.connect(gainNode);
+    }
+  });
+
+  const toneSynth = new Tone.Synth();
+
+  // let audioContext: AudioContext | null = null;
+  // let analyser: AnalyserNode | null = null;
+  // let stream: MediaStream | null = null;
+  // let detector: any = null;
+  // let rafId: number | null = null;
 
   // Key to frequency mapping (middle C = C4 = 261.63Hz)
-  const keyToRootFreq: Record<string, number> = {
-    C: 261.63,
-    G: 392.0,
-    D: 293.66,
-    A: 440.0,
-    E: 329.63,
-    B: 493.88,
-    F: 349.23,
-    Bb: 466.16,
-    Eb: 311.13,
-    Ab: 415.3,
-    Db: 277.18,
-  };
+  // const keyToRootFreq: Record<string, number> = {
+  //   C: 261.63,
+  //   G: 392.0,
+  //   D: 293.66,
+  //   A: 440.0,
+  //   E: 329.63,
+  //   B: 493.88,
+  //   F: 349.23,
+  //   Bb: 466.16,
+  //   Eb: 311.13,
+  //   Ab: 415.3,
+  //   Db: 277.18,
+  // };
 
   // Solfege scale degrees (relative to root)
-  const solfegeMap = [
-    { degree: 0, name: "do" },
-    { degree: 2, name: "re" },
-    { degree: 4, name: "mi" },
-    { degree: 5, name: "fa" },
-    { degree: 7, name: "sol" },
-    { degree: 9, name: "la" },
-    { degree: 11, name: "ti" },
-  ];
+  // const solfegeMap = [
+  //   { degree: 0, name: "do" },
+  //   { degree: 2, name: "re" },
+  //   { degree: 4, name: "mi" },
+  //   { degree: 5, name: "fa" },
+  //   { degree: 7, name: "sol" },
+  //   { degree: 9, name: "la" },
+  //   { degree: 11, name: "ti" },
+  // ];
 
   /**
    * Plays a single note using the Tone.js synth
    * @param {string} noteName - The name of the note (e.g., "f", "G", "c'")
    */
   const playNote = async (noteName: string) => {
-    if (playSynth) {
-      await Tone.start();
+    await Tone.start();
 
-      // Convert ABC notation to Tone.js notation
-      // ABC: C is middle C (C4), c is C5, c' is C6, C, is C3
-      let octave = 4; // Default to middle C octave
-      let note = noteName;
+    // Convert ABC notation to Tone.js notation
+    // ABC: C is middle C (C4), c is C5, c' is C6, C, is C3
+    let octave = 4; // Default to middle C octave
+    let note = noteName;
 
-      // Handle commas (lower octave)
-      while (note.endsWith(",")) {
-        octave--;
-        note = note.slice(0, -1);
-      }
-
-      // Handle apostrophes (raise octave)
-      while (note.includes("'")) {
-        octave++;
-        note = note.replace("'", "");
-      }
-
-      // If lowercase, raise octave by 1 (since lowercase means one octave above in ABC)
-      if (note === note.toLowerCase()) {
-        octave++;
-      }
-
-      // Convert to uppercase for Tone.js
-      note = note.toUpperCase();
-
-      // Handle accidentals
-      note = note.replace("^", "#").replace("_", "b");
-
-      toneSynth.triggerAttackRelease(`${note}${octave}`, "8n");
+    // Handle commas (lower octave)
+    while (note.endsWith(",")) {
+      octave--;
+      note = note.slice(0, -1);
     }
+
+    // Handle apostrophes (raise octave)
+    while (note.includes("'")) {
+      octave++;
+      note = note.replace("'", "");
+    }
+
+    // If lowercase, raise octave by 1 (since lowercase means one octave above in ABC)
+    if (note === note.toLowerCase()) {
+      octave++;
+    }
+
+    // Convert to uppercase for Tone.js
+    note = note.toUpperCase();
+
+    // Handle accidentals
+    note = note.replace("^", "#").replace("_", "b");
+
+    toneSynth.triggerAttackRelease(`${note}${octave}`, "8n");
   };
 
   let filterRhythms = rhythms.filter((rhythm) => {
@@ -130,6 +158,16 @@
     if (saved) {
       try {
         const options = JSON.parse(saved);
+        // Handle backward compatibility for selectedTimeSignature
+        let ts = "4/4";
+        if (options.selectedTimeSignature) {
+          if (typeof options.selectedTimeSignature === "object") {
+            ts = options.selectedTimeSignature.name || "4/4";
+          } else {
+            ts = options.selectedTimeSignature;
+          }
+        }
+
         return {
           selectedClef: options.selectedClef || "treble",
           selectedRange: options.selectedRange || { min: 17, max: 21 },
@@ -143,10 +181,7 @@
             rhythms.find((r) => r.name === "eighthEighth"),
             rhythms.find((r) => r.name === "quarter"),
           ],
-          selectedTimeSignature: options.selectedTimeSignature || {
-            name: "4/4",
-            tsPerMeasure: 32,
-          },
+          selectedTimeSignature: ts,
           measures: options.measures || 8,
           bpm: options.bpm || 60,
           accidentals: options.accidentals || false,
@@ -169,10 +204,7 @@
         rhythms.find((r) => r.name === "eighthEighth"),
         rhythms.find((r) => r.name === "quarter"),
       ],
-      selectedTimeSignature: {
-        name: "4/4",
-        tsPerMeasure: 32,
-      },
+      selectedTimeSignature: "4/4",
       measures: 8,
       bpm: 60,
       accidentals: false,
@@ -262,18 +294,6 @@
     }
   }
 
-  const drumBeats = {
-    // the array is [0]=drum [1]=drumIntro
-    "2/4": ["dd 76 77 60 30", 2],
-    "3/4": ["ddd 76 77 77 60 30 30", 1],
-    "4/4": ["dddd 76 77 77 77 60 30 30 30", 1],
-    "5/4": ["ddddd 76 77 77 76 77 60 30 30 60 30", 1],
-    "Cut Time": ["dd 76 77 60 30", 2],
-    "6/8": ["dd 76 77 60 30", 2],
-    "9/8": ["ddd 76 77 77 60 30 30", 1],
-    "12/8": ["dddd 76 77 77 77 60 30 30 30", 1],
-  };
-
   // Add this state variable
   let optionsVisible = true;
 
@@ -336,35 +356,26 @@
       console.warn("No tune available - generate one first");
       return false;
     }
-
+    // Ensure AudioContext is running
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
     if (!createSynth) {
       createSynth = new abcjs.synth.CreateSynth();
     }
-
-    if (!midiBuffer) {
-      try {
-        await createSynth.init({
-          visualObj: currentTune,
-          extraMeasuresAtBeginning: 1,
-
-          options: {
-            program: 0,
-            midiTranspose: 0,
-            soundFontUrl:
-              "https://paulrosen.github.io/midi-js-soundfonts/abcjs/",
-            qpm: tempo,
-            // Configure drum sounds
-            drum: drumBeats[selectedTimeSignature as keyof typeof drumBeats][0],
-            drumIntro:
-              drumBeats[selectedTimeSignature as keyof typeof drumBeats][1],
-          },
-        });
-        midiBuffer = await createSynth.prime();
-      } catch (error) {
-        console.warn("Audio initialization failed:", error);
-        return false;
-      }
-    }
+    // We don't need midiBuffer anymore. We'll get the full AudioBuffer.
+    // The init call loads the required instrument sounds.
+    await createSynth.init({
+      audioContext: audioContext, // Pass our context to abcjs
+      visualObj: currentTune,
+      options: {
+        qpm: tempo,
+      },
+    });
+    // prime() gets it ready to create the buffer
+    await createSynth.prime();
+    // This gets the entire playable audio file.
+    audioBuffer = await createSynth.getAudioBuffer();
     return true;
   }
 
@@ -422,46 +433,22 @@
 
     // Wait for SVG to be rendered
     await new Promise((resolve) => setTimeout(resolve, 0));
-    cursor = createCursor();
+    const cursor = createCursor();
     pitchCursor = createPitchCursor();
     updatePitchCursor(0); // Position cursor at first note
 
     currentTune = visualObj[0];
-    return visualObj;
-  }
 
-  /**
-   * Starts or resumes music playback
-   */
-  async function playMusic() {
-    if (!currentTune) {
-      alert("Please generate a tune first!");
-      return;
-    }
+    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
 
-    const audioInitialized = await initAudio();
-    if (!audioInitialized) return;
-
-    isPlaying = true;
-
-    if (timingCallbacks) {
-      timingCallbacks.stop();
-    }
-
-    const cursorControl = {
-      /**
-       * Callback for beat events, updates cursor position
-       * @param {number} beatNumber - Current beat number
-       * @param {number} totalBeats - Total number of beats
-       * @param {number} totalTime - Total duration in milliseconds
-       * @param {TimingCallbacksPosition} position - Position information for cursor
-       */
-      beatCallback: (
-        beatNumber: number,
-        totalBeats: number,
-        totalTime: number,
-        position: TimingCallbacksPosition
-      ) => {
+    // Create new timing callbacks
+    timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
+      beatCallback: (beatNumber, totalBeats, totalTime, position) => {
+        if (isMetronomeOn) {
+          // Play a click sound on each beat
+          const beatInMeasure = beatNumber % beatsPerMeasure;
+          playMetronomeClick(beatInMeasure === 0);
+        }
         totalDuration = totalTime;
         if (position && cursor && typeof position.left === "number") {
           if (beatNumber === totalBeats) {
@@ -483,76 +470,82 @@
           }
         }
       },
-      /**
-       * Callback for playback events
-       * @param {any} ev - Event information
-       */
-      eventCallback: (ev: any) => {
-        if (!ev) return;
-        console.log("Event callback:", ev);
-        updateProgress(ev.milliseconds || 0);
-        if (ev?.type === "end") {
-          stopMusic();
-        }
-        return;
-      },
-      /**
-       * Callback for when playback ends
-       */
-      onEnd: () => {
-        isPlaying = false;
-        currentProgress = 0;
-        stopMusic();
-        if (cursor) {
-          cursor.setAttribute("x1", "0");
-          cursor.setAttribute("x2", "0");
-          cursor.setAttribute("y1", "0");
-          cursor.setAttribute("y2", "0");
-        }
-      },
-    };
-
-    timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
       qpm: tempo,
-      beatSubdivisions: 8,
-      extraMeasuresAtBeginning: 1,
-      lineEndAnticipation: 500, // 500ms anticipation
-      lineEndCallback: () => {
-        // Find the current cursor position
-        const cursor = document.querySelector(".abcjs-cursor");
-        if (cursor) {
-          const cursorRect = cursor.getBoundingClientRect();
-          const viewportHeight = window.innerHeight;
-          const paperElement = document.getElementById("paper");
-          if (paperElement) {
-            // Position cursor at top third of viewport
-            const targetPosition = viewportHeight / 6;
-            const scrollOffset =
-              cursorRect.top - targetPosition + window.scrollY;
-            window.scrollTo({
-              top: Math.max(0, scrollOffset),
-              behavior: "smooth",
-            });
-          }
-        }
-      },
-      beatCallback: cursorControl.beatCallback,
     });
 
-    try {
-      await createSynth.start({
-        midiTranspose: 0,
+    return visualObj;
+  }
 
-        qpm: tempo,
-        drumIntro: 1, // Add one bar of count-in
-        onEnded: () => {
-          stopMusic();
-        },
-      });
+  /**
+   * Starts or resumes music playback
+   */
+  async function playMusic() {
+    // If already playing, do nothing.
+    if (isPlaying) {
+      return;
+    }
+    // If we are paused, just resume.
+    if (pausedAt > 0) {
+      return resumeMusic();
+    }
+
+    // Ensure we have a tune to play.
+    if (!currentTune) {
+      alert("Please generate a tune first!");
+      return;
+    }
+    // Make sure audio is initialized and we have a buffer.
+    if (!audioBuffer) {
+      const audioInitialized = await initAudio();
+      if (!audioInitialized || !audioBuffer) return;
+    }
+
+    if (!audioBuffer) return;
+
+    // We have a buffer, let's play it.
+    sourceNode = audioContext.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+    sourceNode.connect(gainNode);
+
+    // When the song is over, clean up.
+    sourceNode.onended = () => {
+      if (isPlaying) {
+        // only if it finished naturally, not if stopped
+        stopMusic();
+      }
+    };
+
+    sourceNode.start(0);
+    startTime = audioContext.currentTime;
+    isPlaying = true;
+
+    // Start the visual cursor
+    if (timingCallbacks) {
       timingCallbacks.start();
-    } catch (error) {
-      console.warn("Audio playback failed:", error);
-      stopMusic();
+    }
+  }
+
+  function resumeMusic() {
+    if (isPlaying || !pausedAt || !audioBuffer) return;
+
+    sourceNode = audioContext.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+    sourceNode.connect(gainNode);
+
+    sourceNode.onended = () => {
+      if (isPlaying) {
+        stopMusic();
+      }
+    };
+
+    sourceNode.start(0, pausedAt); // Start from where we paused
+    // Adjust startTime to account for the pause
+    startTime = audioContext.currentTime - pausedAt;
+    pausedAt = 0; // Clear paused state
+    isPlaying = true;
+
+    if (timingCallbacks) {
+      timingCallbacks.start(); // Resumes from paused state
     }
   }
 
@@ -560,27 +553,60 @@
    * Pauses music playback
    */
   function pauseMusic() {
-    if (createSynth) {
-      createSynth.pause();
-    }
+    if (!isPlaying || !sourceNode) return;
+    pausedAt = audioContext.currentTime - startTime;
+    sourceNode.onended = null; // Prevent onended from firing on a manual stop
+    sourceNode.stop();
+    sourceNode = null;
+    isPlaying = false;
     if (timingCallbacks) {
       timingCallbacks.pause();
     }
-    isPlaying = false;
   }
 
   /**
    * Stops music playback and resets playback state
    */
   function stopMusic() {
-    if (createSynth) {
-      createSynth.stop();
-      midiBuffer = null; // Reset buffer for next play
+    isPlaying = false;
+    pausedAt = 0;
+    startTime = 0;
+    if (sourceNode) {
+      sourceNode.onended = null;
+      sourceNode.stop();
+      sourceNode = null;
     }
     if (timingCallbacks) {
       timingCallbacks.stop();
     }
-    isPlaying = false;
+  }
+
+  function playMetronomeClick(isDownbeat: boolean) {
+    if (!audioContext || metronomeGainNode.gain.value === 0) return;
+
+    const osc = audioContext.createOscillator();
+    const clickGain = audioContext.createGain();
+
+    // Set the frequency you wanted
+    osc.frequency.value = isDownbeat ? 1000 : 800;
+
+    // This is the fix:
+    // 1. Set the gain to full volume INSTANTLY at the current time.
+    clickGain.gain.setValueAtTime(
+      isDownbeat ? 1.5 : 1,
+      audioContext.currentTime
+    );
+
+    // 2. Schedule a ramp down to (near) silence over the next 0.03 seconds.
+    clickGain.gain.exponentialRampToValueAtTime(
+      0.001,
+      audioContext.currentTime + 0.03
+    );
+
+    osc.connect(clickGain);
+    clickGain.connect(metronomeGainNode);
+    osc.start(audioContext.currentTime);
+    osc.stop(audioContext.currentTime + 0.03);
   }
 
   /**
@@ -599,7 +625,7 @@
 
       // Reset audio state for new tune
       stopMusic();
-      midiBuffer = null;
+      audioBuffer = null; // Force re-initialization
       createSynth = null;
       currentTune = null;
 
@@ -749,6 +775,43 @@
   let droneOscillator: Tone.Oscillator | null = null;
   let droneVolume = new Tone.Volume(-12).toDestination(); // Default volume at -12dB
   let currentDroneVolume = -12; // Track current volume for the slider
+
+  /**
+   * Handles changes to the main audio volume
+   * @param {Event} event - The input event from the volume slider
+   */
+  function handleVolumeChange(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value);
+    masterVolume = value;
+    isMuted = masterVolume === 0;
+    if (gainNode) {
+      gainNode.gain.value = masterVolume * 0.7;
+    }
+  }
+
+  /**
+   * Toggles the main audio mute state
+   */
+  function toggleMute() {
+    isMuted = !isMuted;
+    if (isMuted) {
+      previousVolume = masterVolume;
+      masterVolume = 0;
+    } else {
+      masterVolume = previousVolume === 0 ? 0.5 : previousVolume;
+    }
+    if (gainNode) {
+      gainNode.gain.value = masterVolume * 0.7;
+    }
+  }
+
+  function handleMetronomeVolumeChange(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value);
+    metronomeVolume = value;
+    if (metronomeGainNode) {
+      metronomeGainNode.gain.value = metronomeVolume * 2;
+    }
+  }
 
   /**
    * Toggles the drone sound on/off
@@ -1168,15 +1231,39 @@
     </div>
 
     <div class="w-full flex items-center gap-4 p-4">
-      {#if playSynth}
-        <button class="flex-shrink-0" on:click={() => (playSynth = !playSynth)}>
-          <SpeakerIcon />
+      <button class="flex-shrink-0" on:click={toggleMute}>
+        {#if isMuted || masterVolume === 0}
+          <PianoIcon />
+        {:else}
+          <PianoIcon />
+        {/if}
+      </button>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        bind:value={masterVolume}
+        on:input={handleVolumeChange}
+        class="w-24"
+        aria-label="Master volume"
+      />
+      <!-- Metronome Controls -->
+      <div class="flex items-center gap-2 border-l-2 pl-4 ml-4">
+        <button on:click={() => (isMetronomeOn = !isMetronomeOn)}>
+          <MetronomeIcon />
         </button>
-      {:else}
-        <button class="flex-shrink-0" on:click={() => (playSynth = !playSynth)}>
-          <SpeakerIconOff />
-        </button>
-      {/if}
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          bind:value={metronomeVolume}
+          on:input={handleMetronomeVolumeChange}
+          class="w-24"
+          aria-label="Metronome volume"
+        />
+      </div>
       <div class="flex items-center gap-2">
         <button
           class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
