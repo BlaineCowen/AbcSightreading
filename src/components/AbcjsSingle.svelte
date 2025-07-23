@@ -5,8 +5,6 @@
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
-  import SpeakerIcon from "./ui/speaker-icon.svelte";
-  import SpeakerIconOff from "./ui/speaker-icon-off.svelte";
   import PianoIcon from "./ui/pianoIcon.svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import "abcjs/abcjs-audio.css";
@@ -247,6 +245,20 @@
   const clefOptions = ["treble", "bass", "alto", "tenor"];
 
   const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];
+  const sharpScaleDegrees = [
+    { display: "♯1", value: 1 },
+    { display: "♯2", value: 2 },
+    { display: "♯4", value: 4 },
+    { display: "♯5", value: 5 },
+    { display: "♯6", value: 6 },
+  ];
+  const flatScaleDegrees = [
+    { display: "♭2", value: 2 },
+    { display: "♭4", value: 4 },
+    { display: "♭5", value: 5 },
+    { display: "♭6", value: 6 },
+    { display: "♭7", value: 7 },
+  ];
 
   let availableChords = ["1", "2", "3", "4", "5", "6", "7"];
 
@@ -645,6 +657,7 @@
         key: selectedKey,
         chords: availableChords,
         showSolfege: showSolfege,
+        moveOnEighthNotes: moveEighthNotes,
         partsObject: {
           numofParts: 1,
           parts: {
@@ -1089,6 +1102,19 @@
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Scale Degrees</h2>
                 <div class="flex flex-wrap gap-2">
+                  {#each sharpScaleDegrees as degree}
+                    <button
+                      class="px-2 py-1 rounded bg-gray-100 {degree.value === 1
+                        ? 'ml-5'
+                        : degree.value === 4
+                          ? 'ml-10'
+                          : ''}"
+                    >
+                      {degree.display}
+                    </button>
+                  {/each}
+                </div>
+                <div class="flex flex-wrap gap-2">
                   {#each scaleDegrees as degree}
                     <button
                       class="px-3 py-1 rounded {selectedScaleDegrees.has(degree)
@@ -1097,6 +1123,19 @@
                       on:click={() => toggleScaleDegree(degree)}
                     >
                       {degree}
+                    </button>
+                  {/each}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#each flatScaleDegrees as degree}
+                    <button
+                      class="px-2 py-1 rounded bg-gray-100 {degree.value === 2
+                        ? 'ml-5'
+                        : degree.value === 5
+                          ? 'ml-10'
+                          : ''}"
+                    >
+                      {degree.display}
                     </button>
                   {/each}
                 </div>

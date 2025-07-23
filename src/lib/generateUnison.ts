@@ -2,6 +2,8 @@ import { chords } from "../resources/chords";
 import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
 import { noteArray } from "../resources/noteArray";
+import { generateRandomRhythm } from "./rhythm-generation";
+import type { Cadence, RhythmWithPattern } from "./types";
 
 // interface AbcObject {
 //   key: string;
@@ -225,27 +227,27 @@ export function generateRandomRhythmCombination(
   targetSum: number,
   tsPerMeasure: number
 ): { numbers: number[]; rhythmObjects: Rhythm[] } {
-  console.log("=== RHYTHM COMBINATION GENERATION START ===");
-  console.log("🔍 Rhythm generation params:", {
-    rhythmArrayLength: rhythmArray?.length || 0,
-    targetSum,
-    tsPerMeasure,
-  });
+  // console.log("=== RHYTHM COMBINATION GENERATION START ===");
+  // console.log("🔍 Rhythm generation params:", {
+  //   rhythmArrayLength: rhythmArray?.length || 0,
+  //   targetSum,
+  //   tsPerMeasure,
+  // });
 
   if (!rhythmArray || rhythmArray.length === 0) {
     console.error("❌ No rhythms provided for generation");
     throw new Error("No rhythms provided for generation");
   }
 
-  console.log(
-    "📝 Available rhythms:",
-    rhythmArray.map((r) => ({
-      name: r.name,
-      totalValue: r.totalValue,
-      pattern: r.pattern,
-      abcValue: r.abcValue,
-    }))
-  );
+  // console.log(
+  //   "📝 Available rhythms:",
+  //   rhythmArray.map((r) => ({
+  //     name: r.name,
+  //     totalValue: r.totalValue,
+  //     pattern: r.pattern,
+  //     abcValue: r.abcValue,
+  //   }))
+  // );
 
   let numberResult: number[] = [];
   let rhythmResult: Rhythm[] = [];
@@ -262,21 +264,21 @@ export function generateRandomRhythmCombination(
     weight: r.totalValue <= tsPerMeasure ? r.totalValue : 1,
   }));
 
-  console.log(
-    "📝 Sorted and weighted rhythms:",
-    rhythmArray.map((r) => ({
-      name: r.name,
-      totalValue: r.totalValue,
-      weight: r.weight,
-    }))
-  );
+  // console.log(
+  //   "📝 Sorted and weighted rhythms:",
+  //   rhythmArray.map((r) => ({
+  //     name: r.name,
+  //     totalValue: r.totalValue,
+  //     weight: r.weight,
+  //   }))
+  // );
 
   while (currentSum !== targetSum && totalRuns < 1000) {
-    console.log(
-      `🔄 Rhythm generation attempt ${
-        totalRuns + 1
-      }/1000, currentSum: ${currentSum}, targetSum: ${targetSum}`
-    );
+    // console.log(
+    //   `🔄 Rhythm generation attempt ${
+    //     totalRuns + 1
+    //   }/1000, currentSum: ${currentSum}, targetSum: ${targetSum}`
+    // );
     let measureArray: number[] = [];
     let measureRhythmArr: Rhythm[] = [];
     let measureRhythm = 0;
@@ -288,11 +290,11 @@ export function generateRandomRhythmCombination(
       const remainingInMeasure = tsPerMeasure - measureRhythm;
       const remainingTotal = targetSum - currentSum - measureRhythm;
 
-      console.log(
-        `📝 Measure fill attempt ${
-          measureRuns + 1
-        }, remainingInMeasure: ${remainingInMeasure}, remainingTotal: ${remainingTotal}`
-      );
+      // console.log(
+      //   `📝 Measure fill attempt ${
+      //     measureRuns + 1
+      //   }, remainingInMeasure: ${remainingInMeasure}, remainingTotal: ${remainingTotal}`
+      // );
 
       // Filter rhythms that can fit in both the measure and total remaining space
       let filteredRhythms = rhythmArray.filter((r) => {
@@ -305,17 +307,17 @@ export function generateRandomRhythmCombination(
         ); // Ensure we don't leave awkward small gaps
       });
 
-      console.log(
-        `📝 Filtered rhythms for this measure:`,
-        filteredRhythms.map((r) => ({
-          name: r.name,
-          totalValue: r.totalValue,
-        }))
-      );
+      // console.log(
+      //   `📝 Filtered rhythms for this measure:`,
+      //   filteredRhythms.map((r) => ({
+      //     name: r.name,
+      //     totalValue: r.totalValue,
+      //   }))
+      // );
 
       // If no rhythms fit, try to find exact matches for remaining space
       if (filteredRhythms.length === 0) {
-        console.log("⚠️ No rhythms fit, trying exact matches");
+        // console.log("⚠️ No rhythms fit, trying exact matches");
         filteredRhythms = rhythmArray.filter(
           (r) => r.totalValue === remainingInMeasure
         );
@@ -323,7 +325,7 @@ export function generateRandomRhythmCombination(
 
       // If still no matches, try the smallest available rhythm
       if (filteredRhythms.length === 0) {
-        console.log("⚠️ Still no matches, trying smallest rhythm");
+        // console.log("⚠️ Still no matches, trying smallest rhythm");
         const smallestRhythm = rhythmArray
           .filter((r) => r.totalValue <= remainingInMeasure)
           .sort((a, b) => a.totalValue - b.totalValue)[0];
@@ -335,9 +337,9 @@ export function generateRandomRhythmCombination(
       if (filteredRhythms.length > 0) {
         const selectedRhythm = getRandomRhythmByWeight(filteredRhythms);
         if (selectedRhythm) {
-          console.log(
-            `✅ Selected rhythm: ${selectedRhythm.name} (value: ${selectedRhythm.totalValue})`
-          );
+          // console.log(
+          //   `✅ Selected rhythm: ${selectedRhythm.name} (value: ${selectedRhythm.totalValue})`
+          // );
           if (selectedRhythm.pattern) {
             for (let i = 0; i < selectedRhythm.abcValue.length; i++) {
               const value = parseInt(selectedRhythm.abcValue[i]);
@@ -376,7 +378,7 @@ export function generateRandomRhythmCombination(
       currentCombination = currentCombination.concat(measureArray);
       currentSum += measureSum;
       rhythmResult = rhythmResult.concat(measureRhythmArr);
-      console.log(`✅ Added measure, new currentSum: ${currentSum}`);
+      // console.log(`✅ Added measure, new currentSum: ${currentSum}`);
     }
 
     totalRuns++;
@@ -393,15 +395,48 @@ export function generateRandomRhythmCombination(
     return { numbers: [], rhythmObjects: [] };
   }
 
-  console.log("✅ Rhythm combination generated successfully");
-  console.log("📊 Final result:", {
-    numbers: currentCombination,
-    rhythmObjects: rhythmResult.length,
-    totalValue: currentCombination.reduce((a, b) => a + b, 0),
-  });
-  console.log("=== RHYTHM COMBINATION GENERATION COMPLETE ===");
+  // console.log("✅ Rhythm combination generated successfully");
+  // console.log("📊 Final result:", {
+  //   numbers: currentCombination,
+  //   rhythmObjects: rhythmResult.length,
+  //   totalValue: currentCombination.reduce((a, b) => a + b, 0),
+  // });
+  // console.log("=== RHYTHM COMBINATION GENERATION COMPLETE ===");
 
   return { numbers: currentCombination, rhythmObjects: rhythmResult };
+}
+
+/**
+ * Determines if two consecutive eighth notes should be tied based on user settings and position in the piece.
+ * @param index - The current note index.
+ * @param moveOnEighthNotes - The flag from user settings.
+ * @param rhythms - The array of rhythm objects, which may have cadence info.
+ * @returns True if the notes should be tied.
+ */
+function shouldTieEighthNotes(
+  index: number,
+  moveOnEighthNotes: boolean,
+  rhythms: RhythmWithPattern[]
+): boolean {
+  // If user wants notes to move, don't tie.
+  if (moveOnEighthNotes) {
+    return false;
+  }
+
+  // Not applicable for the first note.
+  if (index === 0) {
+    return false;
+  }
+
+  // Cadence Protection: Don't tie if it's a cadence point.
+  if (rhythms[index]?.isCadenceEnd) {
+    return false;
+  }
+
+  const isCurrentEighth = rhythms[index]?.totalValue <= 4;
+  const isPreviousEighth = rhythms[index - 1]?.totalValue <= 4;
+
+  return isCurrentEighth && isPreviousEighth;
 }
 
 function generateChordProgression(
@@ -411,18 +446,20 @@ function generateChordProgression(
   maxSkip: number,
   randNoteLengths: number[],
   chords: Chord[],
-  scaleDegrees: number[]
+  scaleDegrees: number[],
+  moveOnEighthNotes: boolean,
+  randRhythmObjects: RhythmWithPattern[]
 ) {
-  console.log("=== CHORD PROGRESSION GENERATION START ===");
-  console.log("🔍 Initial bassRangeNoteList:", bassRangeNoteList);
-  console.log("🔍 Scale degrees:", scaleDegrees);
-  console.log("🔍 Other params:", {
-    timeSig,
-    numOfMeasures,
-    maxSkip,
-    randNoteLengthsLength: randNoteLengths.length,
-    chordsLength: chords.length,
-  });
+  // console.log("=== CHORD PROGRESSION GENERATION START ===");
+  // console.log("🔍 Initial bassRangeNoteList:", bassRangeNoteList);
+  // console.log("🔍 Scale degrees:", scaleDegrees);
+  // console.log("🔍 Other params:", {
+  //   timeSig,
+  //   numOfMeasures,
+  //   maxSkip,
+  //   randNoteLengthsLength: randNoteLengths.length,
+  //   chordsLength: chords.length,
+  // });
 
   let bassNoteArray = [];
   let newMaxSkip = maxSkip;
@@ -431,7 +468,7 @@ function generateChordProgression(
   // bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
 
   // make sure that in chords[objects].nextChordPossibilities, the chord name is in the chords object
-  console.log("🔍 Filtering chord nextChordPossibilities...");
+  // console.log("🔍 Filtering chord nextChordPossibilities...");
   for (const chord in chords) {
     if (chords[chord].nextChordPossibilities) {
       const originalLength = chords[chord].nextChordPossibilities.length;
@@ -442,9 +479,9 @@ function generateChordProgression(
       );
       const filteredLength = chords[chord].nextChordPossibilities.length;
       if (originalLength !== filteredLength) {
-        console.log(
-          `📝 Filtered chord ${chords[chord].name}: ${originalLength} -> ${filteredLength} possibilities`
-        );
+        // console.log(
+        //   `📝 Filtered chord ${chords[chord].name}: ${originalLength} -> ${filteredLength} possibilities`
+        // );
       }
     }
   }
@@ -452,32 +489,32 @@ function generateChordProgression(
   var chordGenFails = 0;
 
   var numOfChords = randNoteLengths.length;
-  console.log("📊 Number of chords to generate:", numOfChords);
+  // console.log("📊 Number of chords to generate:", numOfChords);
 
-  console.log(
-    "🔍 Before filtering bassRangeNoteList:",
-    bassRangeNoteList.map((n) => ({ degree: n.degree, name: n.name }))
-  );
-  console.log("🔍 Filtering for scale degrees:", scaleDegrees);
+  // console.log(
+  //   "🔍 Before filtering bassRangeNoteList:",
+  //   bassRangeNoteList.map((n) => ({ degree: n.degree, name: n.name }))
+  // );
+  // console.log("🔍 Filtering for scale degrees:", scaleDegrees);
 
   const originalBassRangeLength = bassRangeNoteList.length;
   bassRangeNoteList = bassRangeNoteList.filter((note) => {
     const included = scaleDegrees.includes(note.degree);
-    if (!included) {
-      console.log(
-        `❌ Note ${note.name} (degree ${note.degree}) excluded - not in scale degrees`
-      );
-    }
+    // if (!included) {
+    //   console.log(
+    //     `❌ Note ${note.name} (degree ${note.degree}) excluded - not in scale degrees`
+    //   );
+    // }
     return included;
   });
 
-  console.log(
-    "🔍 After filtering bassRangeNoteList:",
-    bassRangeNoteList.map((n) => ({ degree: n.degree, name: n.name }))
-  );
-  console.log(
-    `📊 Filtered ${originalBassRangeLength} -> ${bassRangeNoteList.length} notes`
-  );
+  // console.log(
+  //   "🔍 After filtering bassRangeNoteList:",
+  //   bassRangeNoteList.map((n) => ({ degree: n.degree, name: n.name }))
+  // );
+  // console.log(
+  //   `📊 Filtered ${originalBassRangeLength} -> ${bassRangeNoteList.length} notes`
+  // );
 
   if (bassRangeNoteList.length === 0) {
     console.error(
@@ -501,10 +538,10 @@ function generateChordProgression(
     [0, 2, 4].includes(note.degree)
   );
 
-  console.log(
-    "🔍 Tonic notes found:",
-    tonicNotes.map((n) => ({ degree: n.degree, name: n.name }))
-  );
+  // console.log(
+  //   "🔍 Tonic notes found:",
+  //   tonicNotes.map((n) => ({ degree: n.degree, name: n.name }))
+  // );
 
   if (tonicNotes.length === 0) {
     console.error(
@@ -543,13 +580,27 @@ function generateChordProgression(
   let validProgression = false;
 
   while (!validProgression && chordGenFails < 100) {
-    console.log(`🔄 Chord progression attempt ${chordGenFails + 1}/100`);
+    // console.log(`🔄 Chord progression attempt ${chordGenFails + 1}/100`);
     chordProgression = [];
     bassNoteArray = [tonicNotes[Math.floor(Math.random() * tonicNotes.length)]];
 
     for (let i = 0; i < numOfChords; i++) {
-      console.log(`📝 Generating chord ${i + 1}/${numOfChords}`);
+      // console.log(`📝 Generating chord ${i + 1}/${numOfChords}`);
       newMaxSkip = maxSkip;
+
+      if (
+        shouldTieEighthNotes(
+          i,
+          moveOnEighthNotes,
+          randRhythmObjects as RhythmWithPattern[]
+        )
+      ) {
+        const prevChord = chordProgression[i - 1];
+        chordProgression.push(prevChord);
+        bassNoteArray.push(bassNoteArray[i - 1]);
+        continue;
+      }
+
       if (i !== 0) {
         // todo add eighth note check
         if (randNoteLengths[i] <= 4) {
@@ -579,10 +630,10 @@ function generateChordProgression(
             Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
         );
         if (bassDegrees.length === 0) {
-          console.log(`❌ No valid bass degrees found for chord ${i}`);
+          // console.log(`❌ No valid bass degrees found for chord ${i}`);
           chordGenFails++;
           bassNoteArray.pop();
-          console.log("chordGenFails ", chordGenFails);
+          // console.log("chordGenFails ", chordGenFails);
           break;
         }
       }
@@ -615,16 +666,16 @@ function generateChordProgression(
           );
 
         if (nextChordPossibilities.length === 0) {
-          console.log(
-            `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-          );
+          // console.log(
+          //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          // );
 
           // Restart the loop if no valid progression is found
           chordGenFails++;
           // erase last bass note
           bassNoteArray.pop();
 
-          console.log("chordGenFails ", chordGenFails);
+          // console.log("chordGenFails ", chordGenFails);
 
           break;
         }
@@ -656,13 +707,13 @@ function generateChordProgression(
             chordProgression.push(nextChord);
           }
         } else {
-          console.log(
-            `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-          );
+          // console.log(
+          //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          // );
 
           chordGenFails++;
           bassNoteArray.pop();
-          console.log("chordGenFails ", chordGenFails);
+          // console.log("chordGenFails ", chordGenFails);
 
           break;
         }
@@ -711,13 +762,13 @@ function generateChordProgression(
         // if still no valid progression is found restart the loop
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
-          console.log(
-            `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-          );
+          // console.log(
+          //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          // );
 
           chordGenFails++;
           bassNoteArray.pop();
-          console.log("chordGenFails ", chordGenFails);
+          // console.log("chordGenFails ", chordGenFails);
           break;
         }
 
@@ -748,13 +799,13 @@ function generateChordProgression(
             );
             chordProgression.push(nextChord);
           } else {
-            console.log(
-              `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-            );
+            // console.log(
+            //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+            // );
 
             chordGenFails++;
             bassNoteArray.pop();
-            console.log("chordGenFails ", chordGenFails);
+            // console.log("chordGenFails ", chordGenFails);
 
             break;
           }
@@ -780,13 +831,13 @@ function generateChordProgression(
           );
           chordProgression.push(nextChord);
         } else {
-          console.log(
-            `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-          );
+          // console.log(
+          //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          // );
 
           chordGenFails++;
           bassNoteArray.pop();
-          console.log("chordGenFails ", chordGenFails);
+          // console.log("chordGenFails ", chordGenFails);
           break;
         }
       } else {
@@ -806,15 +857,15 @@ function generateChordProgression(
 
         if (nextChordPossibilities.length === 0) {
           // Restart the loop if no valid progression is found
-          console.log(
-            `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-          );
+          // console.log(
+          //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+          // );
 
           chordGenFails++;
           // erase last bass note
           bassNoteArray.pop();
 
-          console.log("chordGenFails ", chordGenFails);
+          // console.log("chordGenFails ", chordGenFails);
           break;
         } else {
           let nextChordInner = getRandomByWeight(
@@ -824,7 +875,7 @@ function generateChordProgression(
           if (nextChordInner === null) {
             chordGenFails++;
             bassNoteArray.pop();
-            console.log("chordGenFails ", chordGenFails);
+            // console.log("chordGenFails ", chordGenFails);
             break;
           } else {
             let nextChordName = nextChordInner.name;
@@ -851,12 +902,12 @@ function generateChordProgression(
               );
               chordProgression.push(nextChord);
             } else {
-              console.log(
-                `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
-              );
+              // console.log(
+              //   `❌ No valid progression found for pre chord ${prevChord.chord.name} index ${i}`
+              // );
               chordGenFails++;
               bassNoteArray.pop();
-              console.log("chordGenFails ", chordGenFails);
+              // console.log("chordGenFails ", chordGenFails);
 
               break;
             }
@@ -867,7 +918,7 @@ function generateChordProgression(
 
     if (chordProgression.length === numOfChords) {
       validProgression = true;
-      console.log("✅ Valid chord progression found!");
+      // console.log("✅ Valid chord progression found!");
     }
   }
 
@@ -877,91 +928,55 @@ function generateChordProgression(
     );
     return [];
   }
-  console.log(
-    "✅ Chord progression generated:",
-    chordProgression.map((chord) => chord.chord.name)
-  );
-  console.log("=== CHORD PROGRESSION GENERATION COMPLETE ===");
+  // console.log(
+  //   "✅ Chord progression generated:",
+  //   chordProgression.map((chord) => chord.chord.name)
+  // );
+  // console.log("=== CHORD PROGRESSION GENERATION COMPLETE ===");
   return [chordProgression, bassNoteArray];
 }
 
 function createNoteList(tonic: string, numOfNotes: number) {
-  console.log("=== CREATE NOTE LIST START ===");
-  console.log(
-    "🔍 Creating note list for tonic:",
-    tonic,
-    "with",
-    numOfNotes,
-    "notes"
-  );
+  const keyLetter = tonic[0].toUpperCase();
+  const notes = ["C", "D", "E", "F", "G", "A", "B"];
+  const tonicIndex = notes.indexOf(keyLetter);
 
-  var keyLetter = tonic[0].toUpperCase();
-  var noteList = [];
-  var notes = ["C", "D", "E", "F", "G", "A", "B"];
-  var indexOfOrigin = notes.indexOf(keyLetter);
-  var index = notes.indexOf(keyLetter);
-  var degree = 0;
+  if (tonicIndex === -1) {
+    console.error(`Invalid tonic: ${tonic}`);
+    return [];
+  }
 
-  console.log("🔍 Key letter:", keyLetter, "index in notes:", indexOfOrigin);
+  // Create a mapping from note letter to scale degree based on the tonic
+  const degreeMap = new Map<string, number>();
+  for (let i = 0; i < 7; i++) {
+    const noteName = notes[(tonicIndex + i) % 7];
+    degreeMap.set(noteName, i);
+  }
 
-  // Calculate minimum number of notes needed to cover all UIL ranges
-  // UIL ranges use ABC notation indices from noteArray
-  // We need to cover from C,, (index 0) to c'' (index 35)
-  const minNotes = 40;
-
-  // Use the larger of numOfNotes or minNotes
-  const totalNotes = Math.max(numOfNotes, minNotes);
-
-  console.log("📊 Note generation params:", {
-    minNotes,
-    numOfNotes,
-    totalNotes,
-    noteArrayLength: noteArray.length,
-  });
-
-  // Start from a lower index to ensure we have enough notes in both directions
-  // Start from C,, (index 0) and go up to c''' (index 42)
-  for (let currentNoteIndex = 0; currentNoteIndex < 42; currentNoteIndex++) {
-    if (degree >= 7) {
-      degree = 0;
-    }
-
-    // Get the ABC notation from noteArray
+  const noteList = [];
+  // Use the full noteArray to ensure all possible notes are mapped
+  for (
+    let currentNoteIndex = 0;
+    currentNoteIndex < noteArray.length;
+    currentNoteIndex++
+  ) {
     const abcNote = noteArray[currentNoteIndex];
-    if (!abcNote) {
-      console.log(
-        `⚠️ No ABC note found at index ${currentNoteIndex}, stopping`
-      );
-      break; // Stop if we've reached the end of noteArray
-    }
+    if (!abcNote) continue;
 
-    noteList.push({
-      name: abcNote,
-      degree: degree,
-      pitchValue: currentNoteIndex,
-    });
+    // Extract the base note letter (e.g., from "C,," or "^F'")
+    const noteLetter = abcNote.replace(/[^A-Ga-g]/g, "").toUpperCase();
+    const degree = degreeMap.get(noteLetter);
 
-    index++;
-    degree++;
-
-    if (index >= notes.length) {
-      index = 0;
+    if (degree !== undefined) {
+      noteList.push({
+        name: abcNote,
+        degree: degree,
+        pitchValue: currentNoteIndex,
+      });
     }
   }
 
-  console.log("✅ Note list created successfully");
-  console.log("📊 Note list summary:", {
-    totalNotes: noteList.length,
-    firstNote: noteList[0],
-    lastNote: noteList[noteList.length - 1],
-    sampleNotes: noteList.slice(0, 5).map((n) => ({
-      name: n.name,
-      degree: n.degree,
-      pitchValue: n.pitchValue,
-    })),
-  });
-  console.log("=== CREATE NOTE LIST COMPLETE ===");
-
+  console.log("✅ Note list created with correct degrees for key:", tonic);
   return noteList;
 }
 
@@ -1293,15 +1308,15 @@ function generateChord(params: GenerateChordParams) {
   };
 
   // Debug log for pattern properties
-  console.log(`Note ${params.noteIndex}:`, {
-    noteLength,
-    pattern: params.randRhythmObjects[params.noteIndex]?.pattern,
-    abcValue: params.randRhythmObjects[params.noteIndex]?.abcValue,
-    patternIndex: params.randRhythmObjects[params.noteIndex]?.patternIndex,
-    isPatternStart: params.randRhythmObjects[params.noteIndex]?.isPatternStart,
-    isPatternEnd: params.randRhythmObjects[params.noteIndex]?.isPatternEnd,
-    name: params.randRhythmObjects[params.noteIndex]?.name,
-  });
+  // console.log(`Note ${params.noteIndex}:`, {
+  //   noteLength,
+  //   pattern: params.randRhythmObjects[params.noteIndex]?.pattern,
+  //   abcValue: params.randRhythmObjects[params.noteIndex]?.abcValue,
+  //   patternIndex: params.randRhythmObjects[params.noteIndex]?.patternIndex,
+  //   isPatternStart: params.randRhythmObjects[params.noteIndex]?.isPatternStart,
+  //   isPatternEnd: params.randRhythmObjects[params.noteIndex]?.isPatternEnd,
+  //   name: params.randRhythmObjects[params.noteIndex]?.name,
+  // });
 
   return chordNoteObject;
 }
@@ -1350,16 +1365,16 @@ function createConcatString(
         const nextNote = singlePartObject.chordNoteObject[index + 1];
 
         // Debug log for pattern checking
-        console.log(`Concat Note ${index}:`, {
-          name: note.name,
-          length: note.noteLength,
-          rhythm: note.rhythm?.name,
-          pattern: note.rhythm?.pattern,
-          isPatternStart: note.isPatternStart,
-          isPatternEnd: note.isPatternEnd,
-          nextIsPattern: nextNote?.rhythm?.pattern,
-          nextIsStart: nextNote?.isPatternStart,
-        });
+        // console.log(`Concat Note ${index}:`, {
+        //   name: note.name,
+        //   length: note.noteLength,
+        //   rhythm: note.rhythm?.name,
+        //   pattern: note.rhythm?.pattern,
+        //   isPatternStart: note.isPatternStart,
+        //   isPatternEnd: note.isPatternEnd,
+        //   nextIsPattern: nextNote?.rhythm?.pattern,
+        //   nextIsStart: nextNote?.isPatternStart,
+        // });
 
         // Add space if:
         // 1. End of measure
@@ -1372,15 +1387,15 @@ function createConcatString(
           note.isPatternEnd ||
           !note.rhythm?.pattern;
 
-        if (shouldAddSpace) {
-          measureString += " ";
-          console.log(`Added space after note ${index} because:`, {
-            isEndOfMeasure,
-            isLastNote,
-            isPatternEnd: note.isPatternEnd,
-            notInPattern: !note.rhythm?.pattern,
-          });
-        }
+        // if (shouldAddSpace) {
+        //   measureString += " ";
+        //   console.log(`Added space after note ${index} because:`, {
+        //     isEndOfMeasure,
+        //     isLastNote,
+        //     isPatternEnd: note.isPatternEnd,
+        //     notInPattern: !note.rhythm?.pattern,
+        //   });
+        // }
 
         tsCount += note.noteLength;
 
@@ -1422,28 +1437,28 @@ interface ChordArray extends Array<ChordSet> {}
 
 export function createNewSr(params: any) {
   try {
-    console.log("=== UNISON SIGHT READING GENERATION START ===");
-    console.log("🔍 Initial params received:", {
-      selectedRhythms: params.selectedRhythms,
-      rhythms: params.rhythms,
-      timeSig: params.timeSig,
-      measures: params.measures,
-      scaleDegrees: params.scaleDegrees,
-      selectedTimeSignature: params.selectedTimeSignature,
-      range: params.range,
-      key: params.key,
-      clef: params.clef,
-      maxSkip: params.maxSkip,
-      chords: params.chords,
-      partsObject: params.partsObject,
-    });
+    // console.log("=== UNISON SIGHT READING GENERATION START ===");
+    // console.log("🔍 Initial params received:", {
+    //   selectedRhythms: params.selectedRhythms,
+    //   rhythms: params.rhythms,
+    //   timeSig: params.timeSig,
+    //   measures: params.measures,
+    //   scaleDegrees: params.scaleDegrees,
+    //   selectedTimeSignature: params.selectedTimeSignature,
+    //   range: params.range,
+    //   key: params.key,
+    //   clef: params.clef,
+    //   maxSkip: params.maxSkip,
+    //   chords: params.chords,
+    //   partsObject: params.partsObject,
+    // });
 
     if (!params) {
       throw new Error("No parameters provided for music generation");
     }
 
     // Validate critical parameters
-    console.log("🔍 Validating parameters...");
+    // console.log("🔍 Validating parameters...");
 
     if (!params.selectedRhythms || params.selectedRhythms.length === 0) {
       console.error("❌ No rhythms selected in params.selectedRhythms!");
@@ -1465,7 +1480,7 @@ export function createNewSr(params: any) {
       throw new Error("No key specified");
     }
 
-    console.log("✅ Basic parameter validation passed");
+    // console.log("✅ Basic parameter validation passed");
 
     // Convert scale degrees from 1-based to 0-based
     if (params.scaleDegrees) {
@@ -1473,29 +1488,29 @@ export function createNewSr(params: any) {
       params.scaleDegrees = new Set(
         oneBasedDegrees.map((deg) => (deg - 1) % 12)
       );
-      console.log(
-        "🔄 Converted scale degrees from",
-        oneBasedDegrees,
-        "to",
-        Array.from(params.scaleDegrees)
-      );
+      // console.log(
+      //   "🔄 Converted scale degrees from",
+      //   oneBasedDegrees,
+      //   "to",
+      //   Array.from(params.scaleDegrees)
+      // );
     } else {
       console.warn("⚠️ No scale degrees provided, using default");
       params.scaleDegrees = new Set([0, 1, 2, 3, 4, 5, 6]); // Default to all degrees
     }
 
-    console.log("🔍 Processing chords...");
+    // console.log("🔍 Processing chords...");
     const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
     let importChords = params.chords;
-    console.log("📋 Import chords:", importChords);
+    // console.log("📋 Import chords:", importChords);
 
     let filteredChords = chords.filter((chord) =>
       importChords.includes(chord.name)
     );
-    console.log(
-      "🎵 Filtered chords:",
-      filteredChords.map((c) => c.name)
-    );
+    // console.log(
+    //   "🎵 Filtered chords:",
+    //   filteredChords.map((c) => c.name)
+    // );
 
     if (filteredChords.length === 0) {
       console.error("❌ No valid chords found after filtering");
@@ -1519,7 +1534,7 @@ export function createNewSr(params: any) {
       };
     });
 
-    console.log("✅ Chord processing complete");
+    // console.log("✅ Chord processing complete");
 
     var clef = params.clef;
     var keyRendered = params.key;
@@ -1529,23 +1544,23 @@ export function createNewSr(params: any) {
     var bpm = params.bpm;
     var measures = params.measures;
 
-    console.log("🔍 Extracted parameters:", {
-      clef,
-      keyRendered,
-      maxSkip,
-      level,
-      timeSig,
-      bpm,
-      measures,
-    });
+    // console.log("🔍 Extracted parameters:", {
+    //   clef,
+    //   keyRendered,
+    //   maxSkip,
+    //   level,
+    //   timeSig,
+    //   bpm,
+    //   measures,
+    // });
 
     var partsObject = params.partsObject;
 
     // add selected range to partsObject
-    console.log("🔍 Setting range for Unison part:", {
-      min: params.range.min,
-      max: params.range.max + 1,
-    });
+    // console.log("🔍 Setting range for Unison part:", {
+    //   min: params.range.min,
+    //   max: params.range.max + 1,
+    // });
 
     partsObject.parts.Unison.selectedRange = [
       params.range.min,
@@ -1554,19 +1569,19 @@ export function createNewSr(params: any) {
 
     // Initialize variables
     var numOfNotes = 40;
-    console.log("🔍 Creating note list for key:", keyRendered[0]);
+    // console.log("🔍 Creating note list for key:", keyRendered[0]);
     var noteList = createNoteList(keyRendered[0], numOfNotes);
-    console.log("📝 Note list created, length:", noteList.length);
-    console.log(
-      "📝 First 10 notes:",
-      noteList.slice(0, 10).map((n) => ({
-        name: n.name,
-        degree: n.degree,
-        pitchValue: n.pitchValue,
-      }))
-    );
+    // console.log("📝 Note list created, length:", noteList.length);
+    // console.log(
+    //   "📝 First 10 notes:",
+    //   noteList.slice(0, 10).map((n) => ({
+    //     name: n.name,
+    //     degree: n.degree,
+    //     pitchValue: n.pitchValue,
+    //   }))
+    // );
 
-    console.log("🔍 Finding unison note range...");
+    // console.log("🔍 Finding unison note range...");
     const minIndex = noteList.findIndex(
       (note) => note.name === baseNoteArray[params.range.min]
     );
@@ -1574,12 +1589,12 @@ export function createNewSr(params: any) {
       (note) => note.name === baseNoteArray[params.range.max + 1]
     );
 
-    console.log("📊 Range indices:", {
-      minIndex,
-      maxIndex,
-      minNote: baseNoteArray[params.range.min],
-      maxNote: baseNoteArray[params.range.max + 1],
-    });
+    // console.log("📊 Range indices:", {
+    //   minIndex,
+    //   maxIndex,
+    //   minNote: baseNoteArray[params.range.min],
+    //   maxNote: baseNoteArray[params.range.max + 1],
+    // });
 
     if (minIndex === -1) {
       console.error(
@@ -1597,57 +1612,53 @@ export function createNewSr(params: any) {
     }
 
     const unisonNoteList = noteList.slice(minIndex, maxIndex);
-    console.log("📝 Unison note list created, length:", unisonNoteList.length);
-    console.log(
-      "📝 Unison notes:",
-      unisonNoteList.map((n) => ({
-        name: n.name,
-        degree: n.degree,
-        pitchValue: n.pitchValue,
-      }))
-    );
+    // console.log("📝 Unison note list created, length:", unisonNoteList.length);
+    // console.log(
+    //   "📝 Unison notes:",
+    //   unisonNoteList.map((n) => ({
+    //     name: n.name,
+    //     degree: n.degree,
+    //     pitchValue: n.pitchValue,
+    //   }))
+    // );
 
-    console.log("🔍 Generating rhythm combination...");
-    console.log("📊 Rhythm generation params:", {
-      rhythms: params.rhythms.length,
-      targetSum: timeSig.tsPerMeasure * measures,
-      tsPerMeasure: timeSig.tsPerMeasure,
+    // console.log("🔍 Generating rhythm combination...");
+    // console.log("📊 Rhythm generation params:", {
+    //   rhythms: params.rhythms.length,
+    //   targetSum: timeSig.tsPerMeasure * measures,
+    //   tsPerMeasure: timeSig.tsPerMeasure,
+    // });
+
+    // Use the new rhythm generation library
+    const numCadences = Math.ceil(params.measures / 4);
+    const selectedCadences: Cadence[] = Array(numCadences).fill({
+      type: "V-I",
     });
 
-    const randNoteLengthsResult = generateRandomRhythmCombination(
+    const randRhythmObjects = generateRandomRhythm(
+      params.timeSig,
+      params.measures,
       params.rhythms,
-      timeSig.tsPerMeasure * measures,
-      timeSig.tsPerMeasure
+      selectedCadences,
+      true // <-- This is the new flag to disable the filter
     );
-    console.log("✅ Rhythm combination result:", {
-      numbers: randNoteLengthsResult.numbers,
-      rhythmObjects: randNoteLengthsResult.rhythmObjects?.length || 0,
-    });
+    const randNoteLengths = randRhythmObjects.map((r) => r.totalValue);
 
-    const randNoteLengths = randNoteLengthsResult.numbers;
-    const randRhythmObjects = randNoteLengthsResult.rhythmObjects;
-
-    if (!randNoteLengths || randNoteLengths.length === 0) {
-      console.error("❌ generateRandomRhythmCombination returned no numbers!");
-      throw new Error("Failed to generate rhythm pattern");
-    }
     if (!randRhythmObjects || randRhythmObjects.length === 0) {
-      console.error(
-        "❌ generateRandomRhythmCombination returned no rhythmObjects!"
-      );
+      console.error("❌ generateRandomRhythm returned no rhythmObjects!");
       throw new Error("Failed to generate rhythm objects");
     }
 
-    console.log("🔍 Generating chord progression...");
-    console.log("📊 Chord progression params:", {
-      timeSig,
-      measures,
-      unisonNoteListLength: unisonNoteList.length,
-      maxSkip,
-      randNoteLengthsLength: randNoteLengths.length,
-      filteredChordsLength: filteredChords.length,
-      scaleDegrees: Array.from(params.scaleDegrees),
-    });
+    // console.log("🔍 Generating chord progression...");
+    // console.log("📊 Chord progression params:", {
+    //   timeSig,
+    //   measures,
+    //   unisonNoteListLength: unisonNoteList.length,
+    //   maxSkip,
+    //   randNoteLengthsLength: randNoteLengths.length,
+    //   filteredChordsLength: filteredChords.length,
+    //   scaleDegrees: Array.from(params.scaleDegrees),
+    // });
 
     let [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
       timeSig,
@@ -1656,13 +1667,15 @@ export function createNewSr(params: any) {
       maxSkip,
       randNoteLengths,
       filteredChords,
-      Array.from(params.scaleDegrees)
+      Array.from(params.scaleDegrees),
+      params.moveOnEighthNotes,
+      randRhythmObjects
     );
 
-    console.log("✅ Chord progression generated:", {
-      progressionLength: renderedChordProgression?.length || 0,
-      bassArrayLength: bassGenNoteArray?.length || 0,
-    });
+    // console.log("✅ Chord progression generated:", {
+    //   progressionLength: renderedChordProgression?.length || 0,
+    //   bassArrayLength: bassGenNoteArray?.length || 0,
+    // });
 
     if (!renderedChordProgression || renderedChordProgression.length === 0) {
       console.error("❌ No chord progression generated");
@@ -1686,7 +1699,7 @@ export function createNewSr(params: any) {
     const maxSinglePartFails = 20;
     const maxAllPartsFails = 20;
 
-    console.log("🔍 Starting voice generation loop...");
+    // console.log("🔍 Starting voice generation loop...");
 
     // Reset chordNoteObjects and initialize completeNoteObject
     for (const partName in partsObject.parts) {
@@ -1695,9 +1708,9 @@ export function createNewSr(params: any) {
     }
 
     while (totalLoopFails < maxTotalLoopFails) {
-      console.log(
-        `🔄 Voice generation attempt ${totalLoopFails + 1}/${maxTotalLoopFails}`
-      );
+      // console.log(
+      //   `🔄 Voice generation attempt ${totalLoopFails + 1}/${maxTotalLoopFails}`
+      // );
       let allPartsFails = 0;
       let noteIndex = 0;
 
@@ -1705,12 +1718,45 @@ export function createNewSr(params: any) {
         partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
           .length < renderedChordProgression.length
       ) {
-        console.log(
-          `📝 Generating note ${noteIndex + 1}/${
-            renderedChordProgression.length
-          }`
-        );
+        // console.log(
+        //   `📝 Generating note ${noteIndex + 1}/${
+        //     renderedChordProgression.length
+        //   }`
+        // );
         let chordProgressionIndex = noteIndex;
+
+        if (
+          shouldTieEighthNotes(
+            noteIndex,
+            params.moveOnEighthNotes,
+            randRhythmObjects
+          )
+        ) {
+          // console.log(`📝 Eighth note hold for note ${noteIndex}, copying previous note.`);
+          for (
+            let partNum = 0;
+            partNum < Object.keys(partsObject.parts).length;
+            partNum++
+          ) {
+            let partName = Object.keys(partsObject.parts)[partNum];
+            const prevNoteObject =
+              partsObject.parts[partName].chordNoteObject[noteIndex - 1];
+
+            const newNoteObject = {
+              ...prevNoteObject,
+              noteLength: randRhythmObjects[noteIndex].totalValue,
+              rhythm: randRhythmObjects[noteIndex],
+              isPatternStart: Boolean(
+                randRhythmObjects[noteIndex]?.isPatternStart
+              ),
+              isPatternEnd: Boolean(randRhythmObjects[noteIndex]?.isPatternEnd),
+              patternIndex: randRhythmObjects[noteIndex]?.patternIndex ?? null,
+            };
+            partsObject.parts[partName].chordNoteObject.push(newNoteObject);
+          }
+          noteIndex++;
+          continue;
+        }
 
         let partIndexArray = Array.from(
           Array(Object.keys(partsObject.parts).length).keys()
@@ -1797,9 +1843,9 @@ export function createNewSr(params: any) {
           }
 
           if (singlePartFails >= maxSinglePartFails) {
-            console.log(
-              `❌ Failed to generate chord for part ${i} after ${maxSinglePartFails} attempts`
-            );
+            // console.log(
+            //   `❌ Failed to generate chord for part ${i} after ${maxSinglePartFails} attempts`
+            // );
             allPartsFails++;
             success = false;
             break;
@@ -1816,7 +1862,7 @@ export function createNewSr(params: any) {
 
         if (!success || !checkForIllegalVoiceLeading(noteArrayToCheck)) {
           // If there are errors, retry for the same chord
-          console.log(`❌ Voice leading check failed for note ${noteIndex}`);
+          // console.log(`❌ Voice leading check failed for note ${noteIndex}`);
           allPartsFails++;
           if (allPartsFails >= maxAllPartsFails) {
             totalLoopFails++;
@@ -1865,7 +1911,7 @@ export function createNewSr(params: any) {
       throw new Error("Failed to generate valid voice leading");
     }
 
-    console.log("🔍 Processing complete note objects...");
+    // console.log("🔍 Processing complete note objects...");
 
     var prevNoteObj = {};
     var nextNoteObj = {};
@@ -1926,7 +1972,7 @@ export function createNewSr(params: any) {
       }
     }
 
-    console.log("🔍 Filtering accidentals...");
+    // console.log("🔍 Filtering accidentals...");
 
     function filterAccidentals(params: any) {
       const tsPerMeasure = params.tsPerMeasure;
@@ -1967,12 +2013,12 @@ export function createNewSr(params: any) {
               .match(/[_^=]/g)
               .join("");
           } else {
-            if (
-              partsObject.parts[partName].completeNoteObject[i].name ===
-              noteNameWithAccidental
-            ) {
-              console.log("found accidental");
-            }
+            // if (
+            //   partsObject.parts[partName].completeNoteObject[i].name ===
+            //   noteNameWithAccidental
+            // ) {
+            //   console.log("found accidental");
+            // }
           }
           if (tsCounter % tsPerMeasure === 0) {
             accidental = null;
@@ -1989,7 +2035,7 @@ export function createNewSr(params: any) {
       key: keyRendered,
     });
 
-    console.log("🔍 Creating concatenated string...");
+    // console.log("🔍 Creating concatenated string...");
 
     // Remove the redundant loop and directly use createConcatString
     const tuneBody = createConcatString(partsObject as PartsObject, {
@@ -1997,7 +2043,7 @@ export function createNewSr(params: any) {
       showSolfege: params.showSolfege === true,
     });
 
-    console.log("✅ Tune body created, length:", tuneBody.length);
+    // console.log("✅ Tune body created, length:", tuneBody.length);
 
     // Save the concatenated string back to each part
     Object.keys(partsObject.parts).forEach((part) => {
@@ -2042,7 +2088,7 @@ export function createNewSr(params: any) {
       partsObject.parts[part].concatNoteString = partString;
     });
 
-    console.log("🔍 Creating final ABC string...");
+    // console.log("🔍 Creating final ABC string...");
 
     // get the first entry of the generatedPartTunes object
     var headerString = "";
@@ -2070,18 +2116,18 @@ export function createNewSr(params: any) {
       `${tuneBody}`;
 
     console.log("✅ Final ABC string created");
-    console.log(
-      "📝 Final string preview:",
-      renderedString.substring(0, 200) + "..."
-    );
-    console.log("📊 Parts object summary:", {
-      parts: Object.keys(partsObject.parts),
-      chordNoteObjects: Object.keys(partsObject.parts).map(
-        (p) => partsObject.parts[p].chordNoteObject?.length || 0
-      ),
-    });
+    // console.log(
+    //   "📝 Final string preview:",
+    //   renderedString.substring(0, 200) + "..."
+    // );
+    // console.log("📊 Parts object summary:", {
+    //   parts: Object.keys(partsObject.parts),
+    //   chordNoteObjects: Object.keys(partsObject.parts).map(
+    //     (p) => partsObject.parts[p].chordNoteObject?.length || 0
+    //   ),
+    // });
 
-    console.log("=== UNISON SIGHT READING GENERATION COMPLETE ===");
+    // console.log("=== UNISON SIGHT READING GENERATION COMPLETE ===");
 
     return [renderedString, renderedChordProgression];
   } catch (error) {

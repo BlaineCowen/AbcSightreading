@@ -22,37 +22,42 @@ export function generateRandomRhythm(
   timeSig: TimeSignature,
   measures: number,
   availableRhythms: Rhythm[],
-  selectedCadences: Cadence[]
+  selectedCadences: Cadence[],
+  disableRhythmFilter: boolean = false
 ): RhythmWithPattern[] {
-  // Filter rhythms:
-  // - Exclude notes with totalValue < 8 (shorter than a quarter note)
-  // - Exclude notes with totalValue > timeSig.tsPerMeasure (longer than a measure)
-  // - Exclude patterns containing any note with value < 8
-  // TODO: Add filter for dotted notes if needed
-  const rhythms = availableRhythms.filter((r) => {
-    // Exclude if the total value is less than a quarter note
-    if (r.totalValue < 8) {
-      return false;
-    }
-    // Exclude if the total value is greater than the measure duration
-    if (r.totalValue > timeSig.tsPerMeasure) {
-      return false;
-    }
+  let rhythms = [...availableRhythms]; // Start with all available rhythms
 
-    // If it's a pattern, check individual notes
-    if (r.pattern) {
-      // Check if any note within the pattern is < quarter note
-      const containsShortNote = r.abcValue.some(
-        (abcVal) => parseInt(abcVal) < 8
-      );
-      if (containsShortNote) {
-        return false; // Exclude patterns containing short notes
+  if (!disableRhythmFilter) {
+    // Filter rhythms:
+    // - Exclude notes with totalValue < 8 (shorter than a quarter note)
+    // - Exclude notes with totalValue > timeSig.tsPerMeasure (longer than a measure)
+    // - Exclude patterns containing any note with value < 8
+    // TODO: Add filter for dotted notes if needed
+    rhythms = availableRhythms.filter((r) => {
+      // Exclude if the total value is less than a quarter note
+      if (r.totalValue < 8) {
+        return false;
       }
-    }
-    // Keep non-pattern notes >= 8 AND <= measure length,
-    // and patterns with all notes >= 8 AND total pattern length <= measure length
-    return true;
-  });
+      // Exclude if the total value is greater than the measure duration
+      if (r.totalValue > timeSig.tsPerMeasure) {
+        return false;
+      }
+
+      // If it's a pattern, check individual notes
+      if (r.pattern) {
+        // Check if any note within the pattern is < quarter note
+        const containsShortNote = r.abcValue.some(
+          (abcVal) => parseInt(abcVal) < 8
+        );
+        if (containsShortNote) {
+          return false; // Exclude patterns containing short notes
+        }
+      }
+      // Keep non-pattern notes >= 8 AND <= measure length,
+      // and patterns with all notes >= 8 AND total pattern length <= measure length
+      return true;
+    });
+  }
 
   if (!rhythms.length) {
     throw new Error(
@@ -67,21 +72,37 @@ export function generateRandomRhythm(
 
   // --- Find Longest Single Rhythm (Needed for cadence points) ---
   const singleRhythms = rhythms.filter((r) => !r.pattern && r.totalValue > 0);
-  if (singleRhythms.length === 0) {
-    throw new Error(
-      "Cannot guarantee ending cadences: No single (non-pattern) rhythms provided."
-    );
-  }
-  const longestSingleRhythm = singleRhythms.reduce(
-    (longest, current) =>
-      current.totalValue > longest.totalValue ? current : longest,
-    singleRhythms[0]
-  );
-  const longestDuration = longestSingleRhythm.totalValue;
+  const enforceCadence = singleRhythms.length > 0;
+  let longestSingleRhythm: Rhythm = {
+    name: "",
+    abcValue: [],
+    meterValue: [],
+    totalValue: 0,
+    rest: false,
+    oddsWeight: 0,
+    maxRng: 0,
+    pattern: false,
+    symbol: "",
+    weight: 0,
+  };
+  let longestDuration = 0;
 
-  if (longestDuration > timeSig.tsPerMeasure * 4) {
+  if (enforceCadence) {
+    longestSingleRhythm = singleRhythms.reduce(
+      (longest, current) =>
+        current.totalValue > longest.totalValue ? current : longest,
+      singleRhythms[0]
+    );
+    longestDuration = longestSingleRhythm.totalValue;
+
+    if (longestDuration > timeSig.tsPerMeasure * 4) {
+      console.warn(
+        `Longest single rhythm (${longestDuration}) is longer than a 4-measure block. Cadence enforcement might behave unexpectedly.`
+      );
+    }
+  } else {
     console.warn(
-      `Longest single rhythm (${longestDuration}) is longer than a 4-measure block. Cadence enforcement might behave unexpectedly.`
+      "No single (non-pattern) rhythms provided. Cadence points will not be enforced with a long note."
     );
   }
   // --- End Find Longest ---
@@ -129,12 +150,15 @@ export function generateRandomRhythm(
 
     // Ensure target doesn't exceed total beats
     const blockEndTarget = Math.min(beatsAtNextCadence, totalBeats);
+    let sectionEndTarget = blockEndTarget;
 
-    // Target beat *before* placing the final long note
-    let sectionEndTarget = blockEndTarget - longestDuration;
+    // Target beat *before* placing the final long note, if enforcing cadence
+    if (enforceCadence) {
+      sectionEndTarget = blockEndTarget - longestDuration;
+    }
 
     // Handle edge case: If the block is shorter than the longest note
-    if (sectionEndTarget < currentBeat) {
+    if (enforceCadence && sectionEndTarget < currentBeat) {
       // This implies the remaining space is less than longestDuration.
       // Fill the rest of the block without forcing the long note.
       sectionEndTarget = blockEndTarget;
@@ -310,7 +334,11 @@ export function generateRandomRhythm(
 
     // --- Place Cadence Note (Longest Single Rhythm) ---
     // Check if we are at a cadence point (or the very end) AND if the block was long enough
-    if (currentBeat === sectionEndTarget && blockEndTarget > sectionEndTarget) {
+    if (
+      enforceCadence &&
+      currentBeat === sectionEndTarget &&
+      blockEndTarget > sectionEndTarget
+    ) {
       if (currentBeat < totalBeats) {
         // Ensure we haven't already finished
         console.log(
