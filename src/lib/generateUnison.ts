@@ -139,6 +139,8 @@ interface GenerateChordParams {
   otherPartNotes: any[];
   noteList: Note[];
   chords: Chord[];
+  sharpScaleDegrees: Set<number>;
+  flatScaleDegrees: Set<number>;
 }
 
 function checkForIllegalVoiceLeading(arr: number[]) {
@@ -448,7 +450,8 @@ function generateChordProgression(
   chords: Chord[],
   scaleDegrees: number[],
   moveOnEighthNotes: boolean,
-  randRhythmObjects: RhythmWithPattern[]
+  randRhythmObjects: RhythmWithPattern[],
+  accidentalsFollowStep: boolean
 ) {
   // console.log("=== CHORD PROGRESSION GENERATION START ===");
   // console.log("🔍 Initial bassRangeNoteList:", bassRangeNoteList);
@@ -556,7 +559,7 @@ function generateChordProgression(
       tonicDegrees: [0, 2, 4],
     });
     throw new Error(
-      "No tonic notes found in the selected range and scale degrees"
+      "No tonic notes found in the selected range and scale degrees. Please adjust the settings."
     );
   }
 
@@ -613,15 +616,17 @@ function generateChordProgression(
         prevChord = chordProgression[i - 1];
 
         // check if prev note was an accidental note
-        if (
-          (prevChord.chord.sharpScaleDegree !== undefined &&
-            prevChord.chord.sharpScaleDegree === prevBassNote.degree) ||
-          (prevChord.chord.flatScaleDegree !== undefined &&
-            prevChord.chord.flatScaleDegree === prevBassNote.degree)
-        ) {
-          newMaxSkip = 1;
-        } else {
-          newMaxSkip = maxSkip;
+        if (accidentalsFollowStep) {
+          if (
+            (prevChord.chord.sharpScaleDegree !== undefined &&
+              prevChord.chord.sharpScaleDegree === prevBassNote.degree) ||
+            (prevChord.chord.flatScaleDegree !== undefined &&
+              prevChord.chord.flatScaleDegree === prevBassNote.degree)
+          ) {
+            newMaxSkip = 1;
+          } else {
+            newMaxSkip = maxSkip;
+          }
         }
 
         // todo add eighth note check
@@ -649,21 +654,36 @@ function generateChordProgression(
         // The third-to-last chord must lead to 5
         prevChord = chordProgression[chordProgression.length - 1];
         let nextChordPossibilities =
-          prevChord.chord.nextChordPossibilities.filter(
-            (chord: { name: string; weight: number }) => {
-              if (!chords.find((c) => c.name === chord.name)) {
-                console.warn(`Chord ${chord.name} not found in chords object`);
-                return false;
-              }
-              return bassDegrees
-                .map((note) => note.degree)
-                .some((degree) =>
-                  chords
-                    .find((c) => c.name === chord.name)
-                    ?.triadNotes.includes(degree)
+          prevChord.chord.nextChordPossibilities.filter((possibleNext) => {
+            const nextChordInfo = chords.find(
+              (c) => c.name === possibleNext.name
+            );
+            if (!nextChordInfo) return false;
+
+            // Is it reachable with the general maxSkip?
+            const isGenerallyReachable = bassDegrees.some((bassNote) =>
+              nextChordInfo.triadNotes.includes(bassNote.degree)
+            );
+            if (!isGenerallyReachable) return false;
+
+            // If accidentals must be approached by step...
+            if (accidentalsFollowStep) {
+              const isAltered =
+                nextChordInfo.sharpScaleDegree !== undefined ||
+                nextChordInfo.flatScaleDegree !== undefined;
+
+              if (isAltered) {
+                // ...check if it can be reached by a step (interval <= 2)
+                const isStepwiseReachable = bassRangeNoteList.some(
+                  (bassNote) =>
+                    nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                    Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <= 2
                 );
+                return isStepwiseReachable;
+              }
             }
-          );
+            return true;
+          });
 
         if (nextChordPossibilities.length === 0) {
           // console.log(
@@ -723,39 +743,81 @@ function generateChordProgression(
 
         // prefer dominant
         let nextChordPossibilities =
-          prevChord.chord.nextChordPossibilities.filter((chord) => {
-            if (!chords.find((c) => c.name === chord.name)) return false;
-            return (
-              (chords.find((c) => c.name === chord.name)?.type === "dominant" ||
-                chords.find((c) => c.name === chord.name)?.type ===
-                  "predominant") &&
-              bassDegrees
-                .map((note) => note.degree)
-                .some((degree) =>
-                  chords
-                    .find((c) => c.name === chord.name)
-                    ?.triadNotes.includes(degree)
-                )
+          prevChord.chord.nextChordPossibilities.filter((possibleNext) => {
+            const nextChordInfo = chords.find(
+              (c) => c.name === possibleNext.name
             );
+            if (!nextChordInfo) return false;
+
+            // Pre-filter for cadence
+            const isCadentialChord =
+              nextChordInfo.type === "dominant" ||
+              nextChordInfo.type === "predominant";
+            if (!isCadentialChord) return false;
+
+            // Is it reachable with the general maxSkip?
+            const isGenerallyReachable = bassDegrees.some((bassNote) =>
+              nextChordInfo.triadNotes.includes(bassNote.degree)
+            );
+            if (!isGenerallyReachable) return false;
+
+            // If accidentals must be approached by step...
+            if (accidentalsFollowStep) {
+              const isAltered =
+                nextChordInfo.sharpScaleDegree !== undefined ||
+                nextChordInfo.flatScaleDegree !== undefined;
+
+              if (isAltered) {
+                // ...check if it can be reached by a step (interval <= 2)
+                const isStepwiseReachable = bassRangeNoteList.some(
+                  (bassNote) =>
+                    nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                    Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <= 2
+                );
+                return isStepwiseReachable;
+              }
+            }
+            return true;
           });
         if (nextChordPossibilities.length === 0) {
           // if no dominant chords are found, try tonic chords
           nextChordPossibilities =
-            prevChord.chord.nextChordPossibilities.filter((chord) => {
-              if (!chords.find((c) => c.name === chord.name)) return false;
-              return (
-                (chords.find((c) => c.name === chord.name)?.type ===
-                  "dominant-inversion" ||
-                  chords.find((c) => c.name === chord.name)?.type ===
-                    "tonic") &&
-                bassDegrees
-                  .map((note) => note.degree)
-                  .some((degree) =>
-                    chords
-                      .find((c) => c.name === chord.name)
-                      ?.triadNotes.includes(degree)
-                  )
+            prevChord.chord.nextChordPossibilities.filter((possibleNext) => {
+              const nextChordInfo = chords.find(
+                (c) => c.name === possibleNext.name
               );
+              if (!nextChordInfo) return false;
+
+              // Pre-filter for cadence
+              const isCadentialChord =
+                nextChordInfo.type === "dominant-inversion" ||
+                nextChordInfo.type === "tonic";
+              if (!isCadentialChord) return false;
+
+              // Is it reachable with the general maxSkip?
+              const isGenerallyReachable = bassDegrees.some((bassNote) =>
+                nextChordInfo.triadNotes.includes(bassNote.degree)
+              );
+              if (!isGenerallyReachable) return false;
+
+              // If accidentals must be approached by step...
+              if (accidentalsFollowStep) {
+                const isAltered =
+                  nextChordInfo.sharpScaleDegree !== undefined ||
+                  nextChordInfo.flatScaleDegree !== undefined;
+
+                if (isAltered) {
+                  // ...check if it can be reached by a step (interval <= 2)
+                  const isStepwiseReachable = bassRangeNoteList.some(
+                    (bassNote) =>
+                      nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                      Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <=
+                        2
+                  );
+                  return isStepwiseReachable;
+                }
+              }
+              return true;
             });
         }
 
@@ -844,15 +906,37 @@ function generateChordProgression(
         prevChord = chordProgression[chordProgression.length - 1];
         prevBassNote = bassNoteArray[i - 1];
         let nextChordPossibilities =
-          prevChord.chord.nextChordPossibilities.filter((chord) => {
-            if (!chords.find((c) => c.name === chord.name)) return false;
-            return bassDegrees
-              .map((note) => note.degree)
-              .some((degree) =>
-                chords
-                  .find((c) => c.name === chord.name)
-                  ?.triadNotes.includes(degree)
-              );
+          prevChord.chord.nextChordPossibilities.filter((possibleNext) => {
+            const nextChordInfo = chords.find(
+              (c) => c.name === possibleNext.name
+            );
+            if (!nextChordInfo) return false;
+
+            // Is it reachable with the general maxSkip?
+            const isGenerallyReachable = bassDegrees.some((bassNote) =>
+              nextChordInfo.triadNotes.includes(bassNote.degree)
+            );
+            if (!isGenerallyReachable) return false;
+
+            // If accidentals must be approached by step...
+            if (accidentalsFollowStep) {
+              const isAltered =
+                nextChordInfo.sharpScaleDegree !== undefined ||
+                nextChordInfo.flatScaleDegree !== undefined;
+
+              if (isAltered) {
+                // ...check if it can be reached by a step (interval <= 2)
+                const isStepwiseReachable = bassRangeNoteList.some(
+                  (bassNote) =>
+                    nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                    Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <= 2
+                );
+                return isStepwiseReachable;
+              }
+            }
+
+            // If not altered (or rule is off), and generally reachable, it's valid.
+            return true;
           });
 
         if (nextChordPossibilities.length === 0) {
@@ -926,7 +1010,9 @@ function generateChordProgression(
     console.error(
       "❌ Could not find a valid chord progression after 100 attempts"
     );
-    return [];
+    throw new Error(
+      "Could not generate a melody with the selected options. Please adjust the settings, such as increasing the Max Skip or adding more scale degrees."
+    );
   }
   // console.log(
   //   "✅ Chord progression generated:",
@@ -1256,7 +1342,10 @@ function generateChord(params: GenerateChordParams) {
 
   // see if it is a sharp or flat scale degree in hte chord
   var accidental = null;
-  if (currentChord.chord.sharpScaleDegree === scaleDegreeToAdd) {
+  if (
+    currentChord.chord.sharpScaleDegree === scaleDegreeToAdd &&
+    params.sharpScaleDegrees.has(scaleDegreeToAdd)
+  ) {
     accidental = "^";
     if (keyObject.sharps?.indexOf(scaleDegreeToAdd) !== -1) {
       accidental = "^^";
@@ -1265,7 +1354,10 @@ function generateChord(params: GenerateChordParams) {
     }
   }
 
-  if (currentChord.chord.flatScaleDegree === scaleDegreeToAdd) {
+  if (
+    currentChord.chord.flatScaleDegree === scaleDegreeToAdd &&
+    params.flatScaleDegrees.has(scaleDegreeToAdd)
+  ) {
     accidental = "_";
     if (keyObject.sharps?.indexOf(scaleDegreeToAdd) !== -1) {
       accidental = "=";
@@ -1334,6 +1426,10 @@ interface PartsObject {
 }
 
 const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
+const sharpSolfege = ["di", "ri", "fi", "si", "li"];
+const flatSolfege = ["re", "me", "se", "le", "te"];
+const sharpSolfegeMap = { 0: "di", 1: "ri", 3: "fi", 4: "si", 5: "li" };
+const flatSolfegeMap = { 1: "ra", 2: "me", 4: "se", 5: "le", 6: "te" };
 
 function createConcatString(
   partsObject: PartsObject,
@@ -1345,6 +1441,7 @@ function createConcatString(
     var singlePartObject = partsObject.parts[part];
     var measureString = "";
     var tsCount = 0;
+    let activeAccidentals = new Map<string, string>();
 
     if (partsObject.numofParts && partsObject.numofParts > 1) {
       concatString += `[V:${part}] `;
@@ -1354,9 +1451,33 @@ function createConcatString(
       (note: ChordNoteObject, index: number) => {
         if (tsCount === 0) {
           measureString = "";
+          activeAccidentals.clear();
         }
 
-        measureString += `${note.name}${note.noteLength}`;
+        let processedNoteName = note.name;
+        const accidentalMatch = note.name.match(/[_^=]+/);
+        const currentAccidental = accidentalMatch ? accidentalMatch[0] : null;
+        const noteKey = currentAccidental
+          ? note.name.replace(currentAccidental, "")
+          : note.name;
+
+        const lastAppliedAccidental = activeAccidentals.get(noteKey);
+
+        if (currentAccidental) {
+          if (lastAppliedAccidental !== currentAccidental) {
+            activeAccidentals.set(noteKey, currentAccidental);
+            processedNoteName = note.name;
+          } else {
+            processedNoteName = noteKey;
+          }
+        } else {
+          if (lastAppliedAccidental && lastAppliedAccidental !== "=") {
+            processedNoteName = "=" + noteKey;
+            activeAccidentals.set(noteKey, "=");
+          }
+        }
+
+        measureString += `${processedNoteName}${note.noteLength}`;
 
         const isEndOfMeasure =
           tsCount + note.noteLength >= params.timeSig.tsPerMeasure;
@@ -1411,7 +1532,22 @@ function createConcatString(
     if (params.showSolfege) {
       let solfegeString = "w: ";
       singlePartObject.chordNoteObject.forEach((note: ChordNoteObject) => {
-        solfegeString += solfege[note.degree] + " ";
+        let syllable = "";
+        const accidentalMatch = note.name.match(/[_^=]+/);
+        const accidental = accidentalMatch ? accidentalMatch[0] : null;
+
+        if (accidental === "^" || accidental === "^^") {
+          syllable =
+            sharpSolfegeMap[note.degree as keyof typeof sharpSolfegeMap] ||
+            solfege[note.degree];
+        } else if (accidental === "_" || accidental === "__") {
+          syllable =
+            flatSolfegeMap[note.degree as keyof typeof flatSolfegeMap] ||
+            solfege[note.degree];
+        } else {
+          syllable = solfege[note.degree];
+        }
+        solfegeString += syllable + " ";
       });
       concatString += solfegeString + "\n";
     }
@@ -1499,18 +1635,70 @@ export function createNewSr(params: any) {
       params.scaleDegrees = new Set([0, 1, 2, 3, 4, 5, 6]); // Default to all degrees
     }
 
+    if (params.selectedSharpDegrees) {
+      const oneBasedSharpDegrees = Array.from(
+        params.selectedSharpDegrees
+      ) as number[];
+      params.selectedSharpDegrees = new Set(
+        oneBasedSharpDegrees.map((deg) => (deg - 1) % 12)
+      );
+    }
+
+    if (params.selectedFlatDegrees) {
+      const oneBasedFlatDegrees = Array.from(
+        params.selectedFlatDegrees
+      ) as number[];
+      params.selectedFlatDegrees = new Set(
+        oneBasedFlatDegrees.map((deg) => (deg - 1) % 12)
+      );
+    }
+
     // console.log("🔍 Processing chords...");
     const solfege = ["do", "re", "mi", "fa", "so", "la", "ti"];
-    let importChords = params.chords;
+
     // console.log("📋 Import chords:", importChords);
 
-    let filteredChords = chords.filter((chord) =>
-      importChords.includes(chord.name)
-    );
-    // console.log(
-    //   "🎵 Filtered chords:",
-    //   filteredChords.map((c) => c.name)
-    // );
+    console.log("🔍 Sharp scale degrees:", sharpScaleDegrees);
+    console.log("🔍 Flat scale degrees:", flatScaleDegrees);
+    console.log("🔍 Natural scale degrees:", params.scaleDegrees);
+
+    let filteredChords = chords.filter((chord) => {
+      // Always include 1, 4, and 5 chords
+      if (chord.name === "1" || chord.name === "4" || chord.name === "5") {
+        return true;
+      }
+
+      // Include chords containing selected natural scale degrees
+      if (
+        Array.from(params.scaleDegrees as Set<number>).some((degree: number) =>
+          chord.triadNotes.includes(degree)
+        )
+      ) {
+        return true;
+      }
+
+      // Include chords containing selected sharp scale degrees
+      if (
+        Array.from(sharpScaleDegrees as Set<number>).some((degree: number) =>
+          chord.triadNotes.includes(degree)
+        )
+      ) {
+        return true;
+      }
+
+      // Include chords containing selected flat scale degrees
+      if (
+        Array.from(flatScaleDegrees as Set<number>).some((degree: number) =>
+          chord.triadNotes.includes(degree)
+        )
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+
+    console.log("🔍 Filtered chords:", filteredChords);
 
     if (filteredChords.length === 0) {
       console.error("❌ No valid chords found after filtering");
@@ -1543,6 +1731,8 @@ export function createNewSr(params: any) {
     var timeSig = params.timeSig;
     var bpm = params.bpm;
     var measures = params.measures;
+    var sharpScaleDegrees = params.selectedSharpDegrees || [];
+    var flatScaleDegrees = params.selectedFlatDegrees || [];
 
     // console.log("🔍 Extracted parameters:", {
     //   clef,
@@ -1669,7 +1859,8 @@ export function createNewSr(params: any) {
       filteredChords,
       Array.from(params.scaleDegrees),
       params.moveOnEighthNotes,
-      randRhythmObjects
+      randRhythmObjects,
+      params.accidentalsFollowStep
     );
 
     // console.log("✅ Chord progression generated:", {
@@ -1829,6 +2020,8 @@ export function createNewSr(params: any) {
             renderedChordProgression: renderedChordProgression,
             chords: filteredChords,
             randRhythmObjects: randRhythmObjects,
+            sharpScaleDegrees: sharpScaleDegrees,
+            flatScaleDegrees: flatScaleDegrees,
           };
 
           let chordObjectToAdd: any = {};

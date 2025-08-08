@@ -10,13 +10,37 @@
   import "abcjs/abcjs-audio.css";
   // import PitchVisualizer from "./PitchVisualizer.svelte";
 
+  // --- Static Options ---
+  const possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+  const timeSignatures = {
+    "4/4": { name: "4/4", tsPerMeasure: 32 },
+    "3/4": { name: "3/4", tsPerMeasure: 24 },
+    "2/4": { name: "2/4", tsPerMeasure: 16 },
+  };
+  const clefOptions = ["treble", "bass", "alto", "tenor"];
+  const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];
+  const sharpScaleDegrees = [
+    { display: "♯1", value: 1 },
+    { display: "♯2", value: 2 },
+    { display: "♯4", value: 4 },
+    { display: "♯5", value: 5 },
+    { display: "♯6", value: 6 },
+  ];
+  const flatScaleDegrees = [
+    { display: "♭2", value: 2 },
+    { display: "♭3", value: 3 },
+    { display: "♭5", value: 5 },
+    { display: "♭6", value: 6 },
+    { display: "♭7", value: 7 },
+  ];
+  const measureOptions = [1, 2, 4, 8, 12, 16];
+  const maxSkipOptions = [1, 2, 3, 4, 5, 6, 7, 8];
+
   // Audio and playback state
   let currentTune: any = null;
   let timingCallbacks: TimingCallbacks | null = null;
   let isPlaying = false;
   let createSynth: any = null;
-  let totalDuration = 0;
-  let currentProgress = 0;
 
   // Add loading state
   let isLoading = false;
@@ -52,6 +76,109 @@
       toneSynth.connect(gainNode);
     }
   });
+
+  function loadStateFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.toString() === "") return null; // No params, do nothing.
+
+    const getParam = (name: string) => urlParams.get(name);
+    const options: any = {};
+
+    const clef = getParam("clef");
+    if (clef && clefOptions.includes(clef)) {
+      options.selectedClef = clef;
+    }
+
+    const rangeParts = getParam("range")?.split("-");
+    if (rangeParts?.length === 2) {
+      const min = parseInt(rangeParts[0], 10);
+      const max = parseInt(rangeParts[1], 10);
+      if (!isNaN(min) && !isNaN(max)) {
+        options.selectedRange = { min, max };
+      }
+    }
+
+    const degreesStr = getParam("scaleDegrees");
+    if (degreesStr) {
+      const degrees = degreesStr
+        .split(",")
+        .map((d) => parseInt(d, 10))
+        .filter((d) => !isNaN(d) && d >= 1 && d <= 7);
+      if (degrees.length > 0) {
+        options.selectedScaleDegrees = degrees;
+      }
+    }
+
+    const sharpDegreesStr = getParam("selectedSharpDegrees");
+    if (sharpDegreesStr) {
+      const degrees = sharpDegreesStr
+        .split(",")
+        .map((d) => parseInt(d, 10))
+        .filter((d) => !isNaN(d));
+      if (degrees.length > 0) {
+        options.selectedSharpDegrees = degrees;
+      }
+    }
+
+    const flatDegreesStr = getParam("selectedFlatDegrees");
+    if (flatDegreesStr) {
+      const degrees = flatDegreesStr
+        .split(",")
+        .map((d) => parseInt(d, 10))
+        .filter((d) => !isNaN(d));
+      if (degrees.length > 0) {
+        options.selectedFlatDegrees = degrees;
+      }
+    }
+
+    const key = getParam("key");
+    if (key && possibleKeys.includes(key)) {
+      options.selectedKey = key;
+    }
+
+    const rhythmNames = getParam("rhythms")?.split(",");
+    if (rhythmNames) {
+      const newRhythms = rhythmNames
+        .map((name) => rhythms.find((r) => r.name === name))
+        .map((r) => r?.name);
+      if (newRhythms.length > 0) {
+        options.selectedRhythms = newRhythms;
+      }
+    }
+
+    const ts = getParam("timeSignature");
+    if (ts && Object.keys(timeSignatures).includes(ts)) {
+      options.selectedTimeSignature = ts;
+    }
+
+    const m = parseInt(getParam("measures") || "", 10);
+    if (!isNaN(m) && measureOptions.includes(m)) {
+      options.measures = m;
+    }
+
+    const s = parseInt(getParam("maxSkip") || "", 10);
+    if (!isNaN(s) && maxSkipOptions.includes(s)) {
+      options.maxSkip = s;
+    }
+
+    const b = parseInt(getParam("bpm") || "", 10);
+    if (!isNaN(b) && b >= 30 && b <= 120) {
+      options.bpm = b;
+      options.tempo = b;
+    }
+
+    if (urlParams.has("accidentals"))
+      options.accidentals = getParam("accidentals") === "true";
+    if (urlParams.has("moveEighthNotes"))
+      options.moveEighthNotes = getParam("moveEighthNotes") === "true";
+    if (urlParams.has("accidentalsFollowStep"))
+      options.accidentalsFollowStep =
+        getParam("accidentalsFollowStep") === "true";
+    if (urlParams.has("showSolfege"))
+      options.showSolfege = getParam("showSolfege") === "true";
+
+    return Object.keys(options).length > 0 ? options : null;
+  }
 
   const toneSynth = new Tone.Synth();
 
@@ -129,6 +256,7 @@
     console.log("Available rhythm:", rhythm.name, rhythm); // Log full rhythm objects
     return (
       !rhythm.name.includes("thirtySecond") &&
+      !rhythm.name.includes("dotQuarter") &&
       !rhythm.name.toLowerCase().includes("rest")
     );
   });
@@ -151,6 +279,36 @@
    * @returns {Object} The initial state configuration
    */
   function getInitialState() {
+    if (typeof window !== "undefined") {
+      const urlOptions = loadStateFromUrl();
+      if (urlOptions) {
+        console.log("loading from url");
+        return {
+          selectedClef: urlOptions.selectedClef || "treble",
+          selectedRange: urlOptions.selectedRange || { min: 17, max: 21 },
+          selectedScaleDegrees: new Set<number>(
+            urlOptions.selectedScaleDegrees || [1, 3, 5]
+          ),
+          selectedSharpDegrees: new Set(urlOptions.selectedSharpDegrees || []),
+          selectedFlatDegrees: new Set(urlOptions.selectedFlatDegrees || []),
+          selectedKey: urlOptions.selectedKey || "F",
+          selectedRhythms: (urlOptions.selectedRhythms || [])
+            .map((name: string) => rhythms.find((r) => r.name === name))
+            .filter(Boolean) || [
+            rhythms.find((r) => r.name === "eighthEighth"),
+            rhythms.find((r) => r.name === "quarter"),
+          ],
+          selectedTimeSignature: urlOptions.selectedTimeSignature || "4/4",
+          measures: urlOptions.measures || 8,
+          maxSkip: urlOptions.maxSkip || 4,
+          bpm: urlOptions.bpm || 60,
+          moveEighthNotes: urlOptions.moveEighthNotes || false,
+          accidentalsFollowStep: urlOptions.accidentalsFollowStep || true,
+          tempo: urlOptions.tempo || 60,
+          showSolfege: urlOptions.showSolfege || false,
+        };
+      }
+    }
     // Try to load from localStorage first
     const saved = localStorage.getItem("sightReadingOptions");
     if (saved) {
@@ -169,9 +327,11 @@
         return {
           selectedClef: options.selectedClef || "treble",
           selectedRange: options.selectedRange || { min: 17, max: 21 },
-          selectedScaleDegrees: new Set(
+          selectedScaleDegrees: new Set<number>(
             options.selectedScaleDegrees || [1, 3, 5]
           ),
+          selectedSharpDegrees: new Set(options.selectedSharpDegrees || []),
+          selectedFlatDegrees: new Set(options.selectedFlatDegrees || []),
           selectedKey: options.selectedKey || "F",
           selectedRhythms: (options.selectedRhythms || [])
             .map((name: string) => rhythms.find((r) => r.name === name))
@@ -181,11 +341,10 @@
           ],
           selectedTimeSignature: ts,
           measures: options.measures || 8,
+          maxSkip: options.maxSkip || 4,
           bpm: options.bpm || 60,
-          accidentals: options.accidentals || false,
           moveEighthNotes: options.moveEighthNotes || false,
           accidentalsFollowStep: options.accidentalsFollowStep || true,
-          tempo: options.tempo || 60,
           showSolfege: options.showSolfege || false,
         };
       } catch (e) {
@@ -196,7 +355,9 @@
     return {
       selectedClef: "treble",
       selectedRange: { min: 17, max: 21 },
-      selectedScaleDegrees: new Set([1, 3, 5]),
+      selectedScaleDegrees: new Set<number>([1, 3, 5]),
+      selectedSharpDegrees: new Set(),
+      selectedFlatDegrees: new Set(),
       selectedKey: "F",
       selectedRhythms: [
         rhythms.find((r) => r.name === "eighthEighth"),
@@ -204,8 +365,8 @@
       ],
       selectedTimeSignature: "4/4",
       measures: 8,
+      maxSkip: 4,
       bpm: 60,
-      accidentals: false,
       moveEighthNotes: false,
       accidentalsFollowStep: false,
       showSolfege: false,
@@ -215,13 +376,15 @@
   const initialState = getInitialState();
   let selectedClef = initialState.selectedClef;
   let selectedRange = initialState.selectedRange;
-  let selectedScaleDegrees = initialState.selectedScaleDegrees;
+  let selectedScaleDegrees: Set<number> = initialState.selectedScaleDegrees;
+  let selectedSharpDegrees = initialState.selectedSharpDegrees;
+  let selectedFlatDegrees = initialState.selectedFlatDegrees;
   let selectedKey = initialState.selectedKey;
   let selectedRhythms = initialState.selectedRhythms;
   let selectedTimeSignature = initialState.selectedTimeSignature;
   let measures = initialState.measures;
+  let maxSkip = initialState.maxSkip;
   let bpm = initialState.bpm;
-  let accidentals = initialState.accidentals;
   let moveEighthNotes = initialState.moveEighthNotes;
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
   let tempo = initialState.tempo;
@@ -232,58 +395,33 @@
   let pitchCursor: SVGLineElement | null = null;
 
   // Define possible keys
-  let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+  // let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
 
   // Define time signatures
-  const timeSignatures = {
-    "4/4": { name: "4/4", tsPerMeasure: 32 },
-    "3/4": { name: "3/4", tsPerMeasure: 24 },
-    "2/4": { name: "2/4", tsPerMeasure: 16 },
-  };
+  // const timeSignatures = {
+  //   "4/4": { name: "4/4", tsPerMeasure: 32 },
+  //   "3/4": { name: "3/4", tsPerMeasure: 24 },
+  //   "2/4": { name: "2/4", tsPerMeasure: 16 },
+  // };
 
   // Simplified options
-  const clefOptions = ["treble", "bass", "alto", "tenor"];
+  // const clefOptions = ["treble", "bass", "alto", "tenor"];
 
-  const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];
-  const sharpScaleDegrees = [
-    { display: "♯1", value: 1 },
-    { display: "♯2", value: 2 },
-    { display: "♯4", value: 4 },
-    { display: "♯5", value: 5 },
-    { display: "♯6", value: 6 },
-  ];
-  const flatScaleDegrees = [
-    { display: "♭2", value: 2 },
-    { display: "♭4", value: 4 },
-    { display: "♭5", value: 5 },
-    { display: "♭6", value: 6 },
-    { display: "♭7", value: 7 },
-  ];
-
-  let availableChords = ["1", "2", "3", "4", "5", "6", "7"];
-
-  // Update availableChords based on accidentals
-  $: {
-    if (accidentals) {
-      availableChords = [
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6",
-        "7",
-        "5/2",
-        "5/4",
-        "5/6",
-        "m4",
-      ];
-    } else {
-      availableChords = ["1", "2", "3", "4", "5", "6", "7"];
-    }
-  }
-
-  const measureOptions = [1, 2, 4, 8, 12, 16];
+  // const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];
+  // const sharpScaleDegrees = [
+  //   { display: "♯1", value: 1 },
+  //   { display: "♯2", value: 2 },
+  //   { display: "♯4", value: 4 },
+  //   { display: "♯5", value: 5 },
+  //   { display: "♯6", value: 6 },
+  // ];
+  // const flatScaleDegrees = [
+  //   { display: "♭2", value: 2 },
+  //   { display: "♭4", value: 4 },
+  //   { display: "♭5", value: 5 },
+  //   { display: "♭6", value: 6 },
+  //   { display: "♭7", value: 7 },
+  // ];
 
   // Update range based on clef selection
   $: {
@@ -318,12 +456,14 @@
       selectedClef,
       selectedRange: { ...selectedRange },
       selectedScaleDegrees: Array.from(selectedScaleDegrees),
+      selectedSharpDegrees: Array.from(selectedSharpDegrees),
+      selectedFlatDegrees: Array.from(selectedFlatDegrees),
       selectedKey,
       selectedRhythms: selectedRhythms.map((r: Rhythm) => r.name),
       selectedTimeSignature,
       measures,
+      maxSkip,
       bpm,
-      accidentals,
       moveEighthNotes,
       accidentalsFollowStep,
       showSolfege,
@@ -334,29 +474,36 @@
     } catch (e) {
       console.error("Error saving options:", e);
     }
-  }
-
-  /**
-   * Updates the progress bar based on current playback position
-   * @param {number} position - Current position in milliseconds
-   */
-  function updateProgress(position: number) {
-    currentProgress = (position / totalDuration) * 100;
-  }
-
-  /**
-   * Handles clicks on the progress bar to seek to a specific position
-   * @param {MouseEvent} event - The click event
-   */
-  function handleProgressClick(event: MouseEvent) {
-    const progressBar = event.currentTarget as HTMLDivElement;
-    const rect = progressBar.getBoundingClientRect();
-    const position = (event.clientX - rect.left) / rect.width;
-
-    if (timingCallbacks) {
-      timingCallbacks.setProgress(position, "percent");
-      updateProgress(position * totalDuration);
+    if (typeof window !== "undefined") {
+      updateUrlFromState();
     }
+  }
+
+  function updateUrlFromState() {
+    const params = new URLSearchParams();
+    params.set("clef", selectedClef);
+    params.set("range", `${selectedRange.min}-${selectedRange.max}`);
+    params.set("scaleDegrees", Array.from(selectedScaleDegrees).join(","));
+    params.set(
+      "selectedSharpDegrees",
+      Array.from(selectedSharpDegrees).join(",")
+    );
+    params.set(
+      "selectedFlatDegrees",
+      Array.from(selectedFlatDegrees).join(",")
+    );
+    params.set("key", selectedKey);
+    params.set("rhythms", selectedRhythms.map((r: Rhythm) => r.name).join(","));
+    params.set("timeSignature", selectedTimeSignature);
+    params.set("measures", measures.toString());
+    params.set("maxSkip", maxSkip.toString());
+    params.set("bpm", bpm.toString());
+    params.set("moveEighthNotes", moveEighthNotes.toString());
+    params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
+    params.set("showSolfege", showSolfege.toString());
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    history.replaceState({}, "", newUrl);
   }
 
   /**
@@ -375,6 +522,7 @@
     if (!createSynth) {
       createSynth = new abcjs.synth.CreateSynth();
     }
+
     // We don't need midiBuffer anymore. We'll get the full AudioBuffer.
     // The init call loads the required instrument sounds.
     await createSynth.init({
@@ -382,6 +530,7 @@
       visualObj: currentTune,
       options: {
         qpm: tempo,
+        // No drum parameters - we'll use our synthetic metronome
       },
     });
     // prime() gets it ready to create the buffer
@@ -404,7 +553,7 @@
       scale: 2,
       staffwidth: 900,
       paddingTop: 15,
-      paddingBottom: 15,
+      paddingBottom: 30,
       wrap: {
         preferredMeasuresPerLine: 3,
         minSpacing: 1,
@@ -418,9 +567,24 @@
       },
     };
 
+    // Clear any existing content in the paper div
+    const paperDiv = document.getElementById("paper");
+    if (paperDiv) {
+      paperDiv.innerHTML = "";
+    }
+
     const visualObj = abcjs.renderAbc("paper", renderedString[0], abcOptions);
+
+    // Check if rendering was successful
+    if (!visualObj || !visualObj[0]) {
+      throw new Error("Failed to render ABC notation - visualObj is empty");
+    }
+
     selectableArray = visualObj[0].getSelectableArray();
     console.log("selectableArray", selectableArray);
+
+    // Set currentTune early so the conditional shows the container
+    currentTune = visualObj[0];
 
     /**
      * Creates a cursor element for tracking playback position
@@ -449,19 +613,16 @@
     pitchCursor = createPitchCursor();
     updatePitchCursor(0); // Position cursor at first note
 
-    currentTune = visualObj[0];
-
     const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
 
-    // Create new timing callbacks
+    // Create new timing callbacks with line end callback
     timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
-      beatCallback: (beatNumber, totalBeats, totalTime, position) => {
+      beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
         if (isMetronomeOn) {
           // Play a click sound on each beat
           const beatInMeasure = beatNumber % beatsPerMeasure;
           playMetronomeClick(beatInMeasure === 0);
         }
-        totalDuration = totalTime;
         if (position && cursor && typeof position.left === "number") {
           if (beatNumber === totalBeats) {
             cursor.setAttribute("x1", "0");
@@ -482,7 +643,60 @@
           }
         }
       },
+      lineEndCallback: (data: any) => {
+        console.log("🔄 lineEndCallback triggered with data:", data);
+
+        // Auto-scroll to keep the next line in the center of the viewport
+        const paperDiv = document.getElementById("paper");
+        if (!paperDiv) {
+          console.warn("❌ Paper div not found");
+          return;
+        }
+
+        if (!data || data.top === undefined) {
+          console.warn("❌ Invalid data from lineEndCallback:", data);
+          return;
+        }
+
+        console.log("📍 Paper div found, calculating scroll position...");
+
+        const paperRect = paperDiv.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const currentScrollY = window.scrollY;
+
+        console.log("📊 Layout info:", {
+          paperRect: paperRect,
+          viewportHeight: viewportHeight,
+          currentScrollY: currentScrollY,
+          dataTop: data.top,
+          dataBottom: data.bottom || "undefined",
+        });
+
+        // Calculate target scroll position to center the next line
+        // data.top is relative to the SVG, so we need to add the paper div's position
+        const absoluteLineTop = data.top + paperRect.top + currentScrollY;
+
+        // Adjustable scroll offset - increase this to scroll further ahead
+        const scrollOffset = viewportHeight * 0.1; // Scroll to 30% from top instead of center
+        const targetScrollTop = absoluteLineTop - scrollOffset;
+
+        console.log("🎯 Scroll calculation:", {
+          absoluteLineTop: absoluteLineTop,
+          scrollOffset: scrollOffset,
+          targetScrollTop: targetScrollTop,
+          finalScrollTop: Math.max(0, targetScrollTop),
+        });
+
+        window.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: "smooth",
+        });
+
+        console.log("✅ Scroll command sent");
+      },
       qpm: tempo,
+      extraMeasuresAtBeginning: 1, // This creates the count-in period where metronome plays
+      lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
     });
 
     return visualObj;
@@ -514,27 +728,38 @@
 
     if (!audioBuffer) return;
 
-    // We have a buffer, let's play it.
-    sourceNode = audioContext.createBufferSource();
-    sourceNode.buffer = audioBuffer;
-    sourceNode.connect(gainNode);
+    // Calculate count-in duration based on time signature
+    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+    const beatsPerMinute = tempo;
+    const countInDuration = (60 / beatsPerMinute) * beatsPerMeasure; // Duration in seconds for count-in
 
-    // When the song is over, clean up.
-    sourceNode.onended = () => {
-      if (isPlaying) {
-        // only if it finished naturally, not if stopped
-        stopMusic();
-      }
-    };
-
-    sourceNode.start(0);
-    startTime = audioContext.currentTime;
     isPlaying = true;
 
-    // Start the visual cursor
+    // Start the visual cursor and metronome immediately
     if (timingCallbacks) {
       timingCallbacks.start();
     }
+
+    // Delay the piano playback to allow count-in
+    setTimeout(() => {
+      if (!isPlaying) return; // Check if we've been stopped during count-in
+
+      // We have a buffer, let's play it.
+      sourceNode = audioContext.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      sourceNode.connect(gainNode);
+
+      // When the song is over, clean up.
+      sourceNode.onended = () => {
+        if (isPlaying) {
+          // only if it finished naturally, not if stopped
+          stopMusic();
+        }
+      };
+
+      sourceNode.start(0);
+      startTime = audioContext.currentTime - countInDuration; // Adjust for count-in time
+    }, countInDuration * 1000); // Convert to milliseconds
   }
 
   function resumeMusic() {
@@ -599,17 +824,10 @@
     const osc = audioContext.createOscillator();
     const clickGain = audioContext.createGain();
 
-    // Set the frequency you wanted
     osc.frequency.value = isDownbeat ? 1000 : 800;
 
-    // This is the fix:
-    // 1. Set the gain to full volume INSTANTLY at the current time.
-    clickGain.gain.setValueAtTime(
-      isDownbeat ? 1.5 : 1,
-      audioContext.currentTime
-    );
+    clickGain.gain.setValueAtTime(isDownbeat ? 2 : 1, audioContext.currentTime);
 
-    // 2. Schedule a ramp down to (near) silence over the next 0.03 seconds.
     clickGain.gain.exponentialRampToValueAtTime(
       0.001,
       audioContext.currentTime + 0.03
@@ -625,6 +843,14 @@
    * Handles the generate button click, creates new sight reading exercise
    */
   async function handleClick() {
+    // Client-side validation
+    if (!validateSettings(selectedScaleDegrees, maxSkip)) {
+      error =
+        "The gap between selected scale degrees is larger than the Max Skip. Please increase Max Skip or select more notes to fill the gap.";
+      isLoading = false;
+      return;
+    }
+
     optionsVisible = false;
     isLoading = true;
     error = null;
@@ -647,17 +873,20 @@
         timeSig:
           timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
         measures: measures,
-        maxSkip: 4,
+        maxSkip: maxSkip,
         tempo: tempo,
         range: selectedRange,
         rhythms: selectedRhythms,
         scaleDegrees: Array.from(selectedScaleDegrees),
+        selectedSharpDegrees: Array.from(selectedSharpDegrees),
+        selectedFlatDegrees: Array.from(selectedFlatDegrees),
+
         selectedClef: selectedClef,
         selectedTimeSignature: selectedTimeSignature,
         key: selectedKey,
-        chords: availableChords,
         showSolfege: showSolfege,
         moveOnEighthNotes: moveEighthNotes,
+        accidentalsFollowStep: accidentalsFollowStep,
         partsObject: {
           numofParts: 1,
           parts: {
@@ -738,6 +967,48 @@
     }
   }
 
+  function validateSettings(
+    degrees: Set<number>,
+    maxSkipValue: number
+  ): boolean {
+    if (degrees.size <= 1) {
+      return true; // Not enough notes to have a skip
+    }
+
+    const degreeArray = Array.from(degrees);
+    const visited = new Set<number>();
+    const queue: number[] = [degreeArray[0]]; // Start traversal from the first note.
+    visited.add(degreeArray[0]);
+
+    let head = 0;
+    while (head < queue.length) {
+      const currentNode = queue[head];
+      head++;
+
+      // Find all other selected degrees that are reachable from the current one.
+      for (const potentialNeighbor of degreeArray) {
+        if (visited.has(potentialNeighbor)) {
+          continue;
+        }
+
+        // Calculate the shortest distance on the circular scale (1-7)
+        const distance = Math.min(
+          Math.abs(currentNode - potentialNeighbor),
+          7 - Math.abs(currentNode - potentialNeighbor)
+        );
+
+        if (distance <= maxSkipValue) {
+          visited.add(potentialNeighbor);
+          queue.push(potentialNeighbor);
+        }
+      }
+    }
+
+    // If the number of visited notes equals the total number of selected notes,
+    // the set of notes is fully connected.
+    return visited.size === degrees.size;
+  }
+
   /**
    * Updates the selected range for note generation
    * @param {Object} newRange - The new range object with min and max values
@@ -758,6 +1029,32 @@
       selectedScaleDegrees.add(degree);
     }
     selectedScaleDegrees = selectedScaleDegrees; // Trigger reactivity
+  }
+
+  /**
+   * Toggles a sharp scale degree selection
+   * @param {number} degree - The scale degree to toggle
+   */
+  function toggleSharpDegree(degree: number) {
+    if (selectedSharpDegrees.has(degree)) {
+      selectedSharpDegrees.delete(degree);
+    } else {
+      selectedSharpDegrees.add(degree);
+    }
+    selectedSharpDegrees = selectedSharpDegrees; // Trigger reactivity
+  }
+
+  /**
+   * Toggles a flat scale degree selection
+   * @param {number} degree - The scale degree to toggle
+   */
+  function toggleFlatDegree(degree: number) {
+    if (selectedFlatDegrees.has(degree)) {
+      selectedFlatDegrees.delete(degree);
+    } else {
+      selectedFlatDegrees.add(degree);
+    }
+    selectedFlatDegrees = selectedFlatDegrees; // Trigger reactivity
   }
 
   /**
@@ -952,13 +1249,17 @@
   }
 </script>
 
-<div class="w-full">
-  <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
+<div class="w-full min-h-screen">
+  <main class="flex flex-col items-center w-full pb-20 min-h-screen">
     <!-- <PitchVisualizer {selectedKey} {selectableArray} /> -->
-    <div class="flex flex-col items-center w-full">
+
+    <!-- Options and Controls in constrained width -->
+    <div
+      class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4"
+    >
       <!-- Options Panel -->
       <div
-        class="w-full bg-white shadow-md rounded-lg p-4 my-4 transition-all duration-300"
+        class="w-full bg-white shadow-md rounded-lg p-2 md:p-4 my-4 transition-all duration-300"
       >
         <!-- Header with minimize button -->
         <div class="flex justify-between items-center mb-2">
@@ -1000,14 +1301,15 @@
         <!-- Options content with transition -->
         {#if optionsVisible}
           <div class="space-y-4 overflow-hidden transition-all duration-300">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Clef Selection -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Clef</h2>
                 <div class="flex flex-wrap gap-2">
                   {#each clefOptions as clef}
                     <button
-                      class="px-3 py-1 rounded {selectedClef === clef
+                      class="px-2 md:px-3 py-1 rounded text-sm {selectedClef ===
+                      clef
                         ? 'bg-blue-500 text-white'
                         : 'bg-gray-100'}"
                       on:click={() => updateClef(clef)}
@@ -1046,6 +1348,23 @@
                         ? 'bg-blue-500 text-white'
                         : 'bg-gray-100'}"
                       on:click={() => (measures = option)}
+                    >
+                      {option}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Max Skip -->
+              <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Max Skip</h2>
+                <div class="flex flex-wrap gap-2">
+                  {#each maxSkipOptions as option}
+                    <button
+                      class="px-3 py-1 rounded {maxSkip === option
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-100'}"
+                      on:click={() => (maxSkip = option)}
                     >
                       {option}
                     </button>
@@ -1104,11 +1423,16 @@
                 <div class="flex flex-wrap gap-2">
                   {#each sharpScaleDegrees as degree}
                     <button
-                      class="px-2 py-1 rounded bg-gray-100 {degree.value === 1
+                      class="px-2 py-1 rounded {selectedSharpDegrees.has(
+                        degree.value
+                      )
+                        ? 'bg-gray-600 text-white'
+                        : 'bg-gray-100'} {degree.value === 1
                         ? 'ml-5'
                         : degree.value === 4
                           ? 'ml-10'
                           : ''}"
+                      on:click={() => toggleSharpDegree(degree.value)}
                     >
                       {degree.display}
                     </button>
@@ -1129,30 +1453,20 @@
                 <div class="flex flex-wrap gap-2">
                   {#each flatScaleDegrees as degree}
                     <button
-                      class="px-2 py-1 rounded bg-gray-100 {degree.value === 2
+                      class="px-2 py-1 rounded {selectedFlatDegrees.has(
+                        degree.value
+                      )
+                        ? 'bg-gray-600 text-white'
+                        : 'bg-gray-100'} {degree.value === 2
                         ? 'ml-5'
                         : degree.value === 5
                           ? 'ml-10'
                           : ''}"
+                      on:click={() => toggleFlatDegree(degree.value)}
                     >
                       {degree.display}
                     </button>
                   {/each}
-                </div>
-              </div>
-
-              <!-- accidentals -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Accidentals</h2>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    class="px-3 py-1 rounded {accidentals
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100'}"
-                    on:click={() => (accidentals = !accidentals)}
-                  >
-                    {accidentals ? "On" : "Off"}
-                  </button>
                 </div>
               </div>
 
@@ -1267,132 +1581,123 @@
           </div>
         {/if}
       </div>
-    </div>
 
-    <div class="w-full flex items-center gap-4 p-4">
-      <button class="flex-shrink-0" on:click={toggleMute}>
-        {#if isMuted || masterVolume === 0}
-          <PianoIcon />
-        {:else}
-          <PianoIcon />
-        {/if}
-      </button>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.05"
-        bind:value={masterVolume}
-        on:input={handleVolumeChange}
-        class="w-24"
-        aria-label="Master volume"
-      />
-      <!-- Metronome Controls -->
-      <div class="flex items-center gap-2 border-l-2 pl-4 ml-4">
-        <button on:click={() => (isMetronomeOn = !isMetronomeOn)}>
-          <MetronomeIcon />
-        </button>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          bind:value={metronomeVolume}
-          on:input={handleMetronomeVolumeChange}
-          class="w-24"
-          aria-label="Metronome volume"
-        />
-      </div>
-      <div class="flex items-center gap-2">
-        <button
-          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          on:click={toggleDrone}
-        >
-          {dronePlaying ? "Stop Drone" : "Start Drone"}
-        </button>
-        {#if dronePlaying}
+      <!-- Audio Controls -->
+      <div class="w-full p-4">
+        <!-- Volume Controls Row -->
+        <div class="flex flex-wrap items-center justify-center gap-4 mb-4">
+          <!-- Piano Volume -->
           <div class="flex items-center gap-2">
+            <button class="flex-shrink-0" on:click={toggleMute}>
+              <PianoIcon />
+            </button>
             <input
               type="range"
-              min="-60"
-              max="0"
-              step="1"
-              value={currentDroneVolume}
-              on:input={handleDroneVolumeChange}
-              class="w-32"
-              aria-label="Drone volume"
+              min="0"
+              max="1"
+              step="0.05"
+              bind:value={masterVolume}
+              on:input={handleVolumeChange}
+              class="w-20 md:w-24"
+              aria-label="Master volume"
             />
-            <span class="text-sm">{currentDroneVolume}dB</span>
           </div>
-        {/if}
-      </div>
-      <div class="flex gap-2">
-        <button
-          class="px-4 py-2 rounded {!currentTune
-            ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-blue-500'} text-white"
-          disabled={!currentTune}
-          on:click={isPlaying ? pauseMusic : playMusic}
-        >
-          {isPlaying ? "Pause" : "Play"}
-        </button>
-        <button
-          class="px-4 py-2 rounded {!currentTune
-            ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-red-500'} text-white"
-          disabled={!currentTune}
-          on:click={stopMusic}
-        >
-          Stop
-        </button>
+
+          <!-- Metronome Volume -->
+          <div class="flex items-center gap-2">
+            <button on:click={() => (isMetronomeOn = !isMetronomeOn)}>
+              <MetronomeIcon />
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              bind:value={metronomeVolume}
+              on:input={handleMetronomeVolumeChange}
+              class="w-20 md:w-24"
+              aria-label="Metronome volume"
+            />
+          </div>
+
+          <!-- Drone Control -->
+          <div class="flex items-center gap-2">
+            <button
+              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-sm"
+              on:click={toggleDrone}
+            >
+              {dronePlaying ? "Stop Drone" : "Start Drone"}
+            </button>
+            {#if dronePlaying}
+              <div class="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="-60"
+                  max="0"
+                  step="1"
+                  value={currentDroneVolume}
+                  on:input={handleDroneVolumeChange}
+                  class="w-20 md:w-32"
+                  aria-label="Drone volume"
+                />
+                <span class="text-xs md:text-sm">{currentDroneVolume}dB</span>
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Playback Controls Row -->
+        <div class="flex justify-center gap-3">
+          <button
+            class="flex-1 max-w-24 py-3 px-4 rounded-lg font-semibold text-white transition-colors {!currentTune
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700'}"
+            disabled={!currentTune}
+            on:click={isPlaying ? pauseMusic : playMusic}
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <button
+            class="flex-1 max-w-24 py-3 px-4 rounded-lg font-semibold text-white transition-colors {!currentTune
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-red-500 hover:bg-red-600 active:bg-red-700'}"
+            disabled={!currentTune}
+            on:click={stopMusic}
+          >
+            Stop
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- Music Display -->
-    <div
-      id="paper"
-      class="bg-white rounded-lg shadow-md my-4 relative overflow-hidden"
-    ></div>
+    <!-- Music Display - Full Width with Margins -->
+    {#if currentTune || isLoading}
+      <div class="w-full px-4 md:px-8">
+        <div
+          id="paper"
+          class="bg-white rounded-lg shadow-md my-4 mx-auto overflow-x-auto overflow-y-visible"
+          style="-webkit-overflow-scrolling: touch;"
+        >
+          {#if isLoading}
+            <div class="flex items-center justify-center h-48">
+              <div class="text-gray-500">Generating exercise...</div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <!-- padding -->
     <div class="h-96"></div>
-
-    <!-- Progress Bar -->
-    {#if currentTune}
-      <button
-        type="button"
-        class="w-full bg-gray-200 rounded-full h-2.5 my-4"
-        on:click={handleProgressClick}
-        on:keydown={(e) => {
-          if (e.key === "Enter") {
-            handleProgressClick(
-              new MouseEvent("click", {
-                clientX:
-                  e.currentTarget.getBoundingClientRect().left +
-                  e.currentTarget.offsetWidth / 2,
-                clientY:
-                  e.currentTarget.getBoundingClientRect().top +
-                  e.currentTarget.offsetHeight / 2,
-              })
-            );
-          }
-        }}
-        aria-label="Progress bar"
-      >
-        <div
-          class="bg-blue-500 h-2.5 rounded-full"
-          style="width: {currentProgress}%"
-          role="progressbar"
-          aria-valuenow={currentProgress}
-          aria-valuemin="0"
-          aria-valuemax="100"
-        ></div>
-      </button>
-    {/if}
   </main>
 </div>
 
 <style>
+  :global(html, body) {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   :global(.abcjs-cursor) {
     padding-bottom: 20%;
     stroke: blue;
@@ -1405,5 +1710,42 @@
     stroke-width: 2;
     pointer-events: none;
     transition: all 0.3s ease;
+  }
+
+  /* Improve scrolling on music display */
+  #paper {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+    min-height: 200px;
+    padding: 20px;
+    width: 100%;
+  }
+
+  #paper::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  #paper::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 4px;
+  }
+
+  #paper::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 4px;
+  }
+
+  #paper::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+  }
+
+  /* Ensure SVG content is properly displayed and centered */
+  :global(#paper svg) {
+    display: block;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 auto;
+    max-width: 100%;
   }
 </style>
