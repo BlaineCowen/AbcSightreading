@@ -551,12 +551,12 @@
       generateInline: true,
       generateTiming: true,
       scale: 2,
-      staffwidth: 900,
+      staffwidth: 1000,
       paddingTop: 15,
       paddingBottom: 30,
       wrap: {
         preferredMeasuresPerLine: 4,
-        minSpacing: 2,
+        minSpacing: 1.5,
         maxSpacing: 5,
       },
       clickListener: async (event: any) => {
