@@ -8,7 +8,7 @@ export default defineConfig({
   adapter: vercel({
     functionPerRoute: false,
     maxDuration: 60,
-    runtime: "nodejs20.x",
+    runtime: "nodejs18.x",
   }),
   integrations: [svelte(), tailwind()],
   vite: {
