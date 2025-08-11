@@ -256,7 +256,7 @@
     console.log("Available rhythm:", rhythm.name, rhythm); // Log full rhythm objects
     return (
       !rhythm.name.includes("thirtySecond") &&
-      !rhythm.name.includes("dotQuarter") &&
+      rhythm.name !== "dotQuarter" &&
       !rhythm.name.toLowerCase().includes("rest")
     );
   });
