@@ -555,8 +555,8 @@
       paddingTop: 15,
       paddingBottom: 30,
       wrap: {
-        preferredMeasuresPerLine: 3,
-        minSpacing: 1,
+        preferredMeasuresPerLine: 4,
+        minSpacing: 2,
         maxSpacing: 5,
       },
       clickListener: async (event: any) => {
