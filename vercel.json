@@ -2,10 +2,5 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "outputDirectory": "dist",
-  "framework": "astro",
-  "functions": {
-    "**/*.js": {
-      "runtime": "nodejs20.x"
-    }
-  }
+  "framework": "astro"
 }
