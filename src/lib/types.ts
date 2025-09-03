@@ -124,8 +124,8 @@ export interface PartDefinition {
   order: number;
   smallName: string;
   clef: ClefType; // Use the enum
-  range: [number, number];
-  selectedRange: { [level: number]: [number, number] }; // If level selection is used
+  range: [number, number]; // The full possible range
+  currentRange: [number, number]; // The currently selected range
 }
 
 // Add PartsObject type definition

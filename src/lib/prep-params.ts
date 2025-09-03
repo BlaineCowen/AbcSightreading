@@ -86,9 +86,20 @@ export function prepareVoiceParts(
     }
   }
 
+  console.log("prepareVoiceParts - Input:", {
+    key,
+    ranges,
+    partsObject,
+  });
+
   // Generate parts using provided ranges and key
-  return Object.entries(partsObject.parts).map(([name, partDef]) => {
-    const range = ranges?.[name] || partDef.range;
+  const parts = Object.entries(partsObject.parts).map(([name, partDef]) => {
+    const range = ranges?.[name] || partDef.currentRange || partDef.range;
+    console.log(`prepareVoiceParts - Processing ${name}:`, {
+      range,
+      fallbackRange: partDef.range,
+      currentRange: partDef.currentRange,
+    });
     return {
       range,
       smallName: partDef.smallName,
@@ -99,6 +110,9 @@ export function prepareVoiceParts(
       chordNotes: [], // Initialize empty array for chord notes
     };
   });
+
+  console.log("prepareVoiceParts - Generated parts:", parts);
+  return parts;
 }
 
 export function validateVoiceParts(voiceParts: VoicePart[], key: string): void {

@@ -143,6 +143,19 @@ interface GenerateChordParams {
   flatScaleDegrees: Set<number>;
 }
 
+interface ChordNoteObject {
+  partName: string;
+  noteLength: number;
+  name: string;
+  degree: number;
+  pitchValue: number;
+  chord: any;
+  rhythm: Rhythm | null;
+  isPatternStart: boolean;
+  isPatternEnd: boolean;
+  patternIndex: number | null;
+}
+
 function checkForIllegalVoiceLeading(arr: number[]) {
   // if array length is 1, return true
   if (arr.length === 1) {
@@ -466,6 +479,8 @@ function generateChordProgression(
 
   let bassNoteArray = [];
   let newMaxSkip = maxSkip;
+
+  console.log("🔍 Chords:", chords);
 
   // const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
   // bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
@@ -1106,19 +1121,6 @@ function isDegreeWithinRange(
   }
 }
 
-interface ChordNoteObject {
-  partName: string;
-  noteLength: number;
-  name: string;
-  degree: number;
-  pitchValue: number;
-  chord: any;
-  rhythm: Rhythm | null;
-  isPatternStart: boolean;
-  isPatternEnd: boolean;
-  patternIndex: number | null;
-}
-
 function generateChord(params: GenerateChordParams) {
   // get key
   var key = params.key;
@@ -1271,6 +1273,7 @@ function generateChord(params: GenerateChordParams) {
 
       // check if last note is an accidental
       // see if .name includes [^, ^^, =, _, __ ]
+      console.log("prevNote.name:", prevNote.name);
       var prevNoteAccidental = prevNote.name.match(/[_^=]/g);
 
       if (prevNoteAccidental) {
@@ -1438,6 +1441,7 @@ function createConcatString(
   var concatString = "";
 
   Object.keys(partsObject.parts).forEach((part: string) => {
+    console.log("part:", part);
     var singlePartObject = partsObject.parts[part];
     var measureString = "";
     var tsCount = 0;
@@ -1455,6 +1459,7 @@ function createConcatString(
         }
 
         let processedNoteName = note.name;
+        console.log("note.name:", note.name);
         const accidentalMatch = note.name.match(/[_^=]+/);
         const currentAccidental = accidentalMatch ? accidentalMatch[0] : null;
         const noteKey = currentAccidental
@@ -1556,21 +1561,6 @@ function createConcatString(
   return concatString;
 }
 
-interface ChordType {
-  name: string;
-  triadNotes: number[];
-  type: string;
-  root: number;
-  nextChordPossibilities: { name: string; weight: number }[];
-  baseMultiplier: number;
-}
-
-interface ChordMap {
-  [key: string]: ChordSet;
-}
-
-interface ChordArray extends Array<ChordSet> {}
-
 export function createNewSr(params: any) {
   try {
     // console.log("=== UNISON SIGHT READING GENERATION START ===");
@@ -1663,8 +1653,8 @@ export function createNewSr(params: any) {
     console.log("🔍 Natural scale degrees:", params.scaleDegrees);
 
     let filteredChords = chords.filter((chord) => {
-      // Always include 1, 4, and 5 chords
-      if (chord.name === "1" || chord.name === "4" || chord.name === "5") {
+      // always include 1 chord
+      if (chord.name === "1") {
         return true;
       }
 
@@ -1677,8 +1667,9 @@ export function createNewSr(params: any) {
         return true;
       }
 
-      // Include chords containing selected sharp scale degrees
+      // Include chords containing selected sharp scale degrees, if the set exists
       if (
+        sharpScaleDegrees?.size > 0 &&
         Array.from(sharpScaleDegrees as Set<number>).some((degree: number) =>
           chord.triadNotes.includes(degree)
         )
@@ -1686,8 +1677,9 @@ export function createNewSr(params: any) {
         return true;
       }
 
-      // Include chords containing selected flat scale degrees
+      // Include chords containing selected flat scale degrees, if the set exists
       if (
+        flatScaleDegrees?.size > 0 &&
         Array.from(flatScaleDegrees as Set<number>).some((degree: number) =>
           chord.triadNotes.includes(degree)
         )

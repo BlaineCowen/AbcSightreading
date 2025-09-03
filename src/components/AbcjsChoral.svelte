@@ -11,11 +11,42 @@
   import { ClefType } from "../lib/types";
   import type { Chord } from "../lib/types";
   import type { Rhythm } from "../resources/rhythms";
+  import RangeSelector from "./ui/rangeSelector.svelte";
 
   let bpm = 60;
 
-  let levels = [1, 2, 3, 4, 5];
-  let selectedLevel = 1;
+  interface Preset {
+    maxSkip: number;
+    rhythms: string[];
+    bpm: number;
+  }
+
+  const presets: Record<string, Preset> = {
+    Beginner: {
+      maxSkip: 2,
+      rhythms: ["quarter", "half", "dotHalf"],
+      bpm: 60,
+    },
+    Intermediate: {
+      maxSkip: 4,
+      rhythms: ["quarter", "half", "dotHalf", "eighth", "dotQuarterEighth"],
+      bpm: 80,
+    },
+    Advanced: {
+      maxSkip: 6,
+      rhythms: [
+        "quarter",
+        "half",
+        "dotHalf",
+        "eighth",
+        "dotQuarterEighth",
+        "eighthEighth",
+        "dotHalfQuarter",
+      ],
+      bpm: 100,
+    },
+  };
+  let selectedPreset = "Beginner";
 
   const measureOptions = [2, 4, 8, 16];
 
@@ -28,52 +59,28 @@
           smallName: "S",
           clef: ClefType.Treble,
           range: [14, 21],
-          selectedRange: {
-            1: [14, 21],
-            2: [14, 21],
-            3: [14, 21],
-            4: [14, 21],
-            5: [14, 21],
-          },
+          currentRange: [14, 21],
         },
         Alto: {
           order: 2,
           smallName: "A",
           clef: ClefType.Treble,
           range: [12, 16],
-          selectedRange: {
-            1: [12, 16],
-            2: [12, 16],
-            3: [12, 16],
-            4: [12, 16],
-            5: [12, 16],
-          },
+          currentRange: [12, 16],
         },
         Tenor: {
           order: 1,
           smallName: "T",
           clef: ClefType.TrebleOctaveDown,
           range: [7, 14],
-          selectedRange: {
-            1: [7, 14],
-            2: [7, 14],
-            3: [7, 14],
-            4: [7, 14],
-            5: [7, 14],
-          },
+          currentRange: [7, 14],
         },
         Bass: {
           order: 0,
           smallName: "B",
           clef: ClefType.Bass,
           range: [2, 9],
-          selectedRange: {
-            1: [2, 9],
-            2: [2, 9],
-            3: [2, 9],
-            4: [2, 9],
-            5: [2, 9],
-          },
+          currentRange: [2, 9],
         },
       },
     },
@@ -85,39 +92,21 @@
           smallName: "S",
           clef: ClefType.Treble,
           range: [15, 23],
-          selectedRange: {
-            1: [15, 23],
-            2: [15, 23],
-            3: [15, 23],
-            4: [15, 23],
-            5: [15, 23],
-          },
+          currentRange: [15, 23],
         },
         Alto: {
           order: 1,
           smallName: "A",
           clef: ClefType.Treble,
           range: [14, 21],
-          selectedRange: {
-            1: [14, 21],
-            2: [14, 21],
-            3: [14, 21],
-            4: [14, 21],
-            5: [14, 21],
-          },
+          currentRange: [14, 21],
         },
         Baritone: {
           order: 0,
           smallName: "B",
           clef: ClefType.Bass,
           range: [6, 14],
-          selectedRange: {
-            1: [6, 14],
-            2: [6, 14],
-            3: [6, 14],
-            4: [6, 14],
-            5: [6, 14],
-          },
+          currentRange: [6, 14],
         },
       },
     },
@@ -129,39 +118,21 @@
           smallName: "S1",
           clef: ClefType.Treble,
           range: [15, 23],
-          selectedRange: {
-            1: [15, 23],
-            2: [15, 23],
-            3: [15, 23],
-            4: [15, 23],
-            5: [15, 23],
-          },
+          currentRange: [15, 23],
         },
         Soprano2: {
           order: 1,
           smallName: "S2",
           clef: ClefType.Treble,
           range: [15, 22],
-          selectedRange: {
-            1: [15, 22],
-            2: [15, 22],
-            3: [15, 22],
-            4: [15, 22],
-            5: [15, 22],
-          },
+          currentRange: [15, 22],
         },
         Alto: {
           order: 0,
           smallName: "A",
           clef: ClefType.Treble,
           range: [14, 21],
-          selectedRange: {
-            1: [14, 21],
-            2: [14, 21],
-            3: [14, 21],
-            4: [14, 21],
-            5: [14, 21],
-          },
+          currentRange: [14, 21],
         },
       },
     },
@@ -173,39 +144,21 @@
           smallName: "T",
           clef: ClefType.TrebleOctaveDown,
           range: [10, 32],
-          selectedRange: {
-            1: [8, 17],
-            2: [8, 17],
-            3: [8, 17],
-            4: [8, 17],
-            5: [8, 17],
-          },
+          currentRange: [8, 17],
         },
         Baritone: {
           order: 1,
           smallName: "B1",
           clef: ClefType.Bass,
           range: [0, 18],
-          selectedRange: {
-            1: [6, 17],
-            2: [6, 17],
-            3: [6, 17],
-            4: [6, 17],
-            5: [6, 17],
-          },
+          currentRange: [6, 17],
         },
         Bass: {
           order: 0,
           smallName: "B2",
           clef: ClefType.Bass,
           range: [0, 15],
-          selectedRange: {
-            1: [4, 15],
-            2: [4, 15],
-            3: [4, 15],
-            4: [4, 15],
-            5: [4, 15],
-          },
+          currentRange: [4, 15],
         },
       },
     },
@@ -217,13 +170,7 @@
           smallName: "S",
           clef: ClefType.Treble,
           range: [20, 32],
-          selectedRange: {
-            1: [16, 25],
-            2: [16, 25],
-            3: [16, 25],
-            4: [16, 25],
-            5: [16, 25],
-          },
+          currentRange: [16, 25],
         },
 
         Alto: {
@@ -231,13 +178,7 @@
           smallName: "A",
           clef: ClefType.Treble,
           range: [15, 25],
-          selectedRange: {
-            1: [15, 23],
-            2: [15, 23],
-            3: [15, 23],
-            4: [15, 23],
-            5: [15, 23],
-          },
+          currentRange: [15, 23],
         },
       },
     },
@@ -249,13 +190,7 @@
           smallName: "V",
           clef: ClefType.Treble,
           range: [20, 32],
-          selectedRange: {
-            1: [16, 25],
-            2: [16, 25],
-            3: [16, 25],
-            4: [16, 25],
-            5: [16, 25],
-          },
+          currentRange: [16, 25],
         },
       },
     },
@@ -335,20 +270,18 @@
   function loadParams() {
     const urlParams = new URLSearchParams(window.location.search);
     selectedVoicing = urlParams.get("voices") || "4 Part Mixed";
-    bpm = parseInt(urlParams.get("bpm") || "60");
-    selectedLevel = parseInt(urlParams.get("level") || "1");
+    selectedPreset = urlParams.get("preset") || "Beginner";
     selectedKey = urlParams.get("key") || "C";
     measures = parseInt(urlParams.get("measures") || "8");
+    applyPreset(selectedPreset);
   }
 
   function updateURLParams() {
     const params = new URLSearchParams();
     params.set("key", selectedKey);
     params.set("timeSig", selectedTimeSignature);
-    params.set("level", selectedLevel.toString());
+    params.set("preset", selectedPreset);
     params.set("voicing", selectedVoicing);
-    params.set("bpm", bpm.toString());
-    params.set("maxSkip", maxSkip.toString());
     params.set("measures", measures.toString());
     window.history.replaceState({}, "", `?${params.toString()}`);
   }
@@ -398,11 +331,21 @@
       return;
     }
 
+    console.log("Generating with voicing:", {
+      selectedVoicing,
+      parts: possibleVoicing[selectedVoicing].parts,
+      ranges: Object.fromEntries(
+        Object.entries(possibleVoicing[selectedVoicing].parts).map(
+          ([name, part]) => [name, part.currentRange]
+        )
+      ),
+    });
+
     const params: GenerateChoralParams = {
       key: selectedKey,
       timeSig: timeSignatures[selectedTimeSignature],
       partsObject: possibleVoicing[selectedVoicing],
-      level: selectedLevel,
+
       measures: measures,
       maxSkip: maxSkip,
       bpm: bpm,
@@ -462,9 +405,42 @@
   if (typeof window !== "undefined") {
     const urlParams = new URLSearchParams(window.location.search);
     bpm = parseInt(urlParams.get("bpm") || "60");
-    selectedLevel = parseInt(urlParams.get("level") || "1");
+
     selectedKey = urlParams.get("key") || "C";
     measures = parseInt(urlParams.get("measures") || "8");
+  }
+
+  function handleRangeChange(
+    partName: string,
+    newRange: { min: number; max: number }
+  ) {
+    console.log("AbcjsChoral - handleRangeChange:", { partName, newRange });
+    if (selectedVoicing && possibleVoicing[selectedVoicing]) {
+      const part = possibleVoicing[selectedVoicing].parts[partName];
+      console.log("AbcjsChoral - Found part:", { part });
+      if (part) {
+        const oldRange = [...part.currentRange];
+        part.currentRange = [newRange.min, newRange.max];
+        console.log("AbcjsChoral - Updated range:", {
+          partName,
+          oldRange,
+          newRange: part.currentRange,
+        });
+        // Force a UI update
+        possibleVoicing = { ...possibleVoicing };
+      }
+    }
+  }
+
+  function applyPreset(presetName: string) {
+    const preset = presets[presetName];
+    if (preset) {
+      maxSkip = preset.maxSkip;
+      bpm = preset.bpm;
+      selectedRhythms = allRhythms
+        .filter((r) => preset.rhythms.includes(r.name))
+        .map((r) => r as Rhythm);
+    }
   }
 </script>
 
@@ -529,19 +505,46 @@
                     </button>
                   {/each}
                 </div>
+
+                {#if selectedVoicing && possibleVoicing[selectedVoicing]}
+                  <div
+                    class="mt-4 space-y-4 w-full bg-gray-50 p-4 rounded-lg debug-ranges"
+                  >
+                    <h3 class="text-md font-semibold">Voice Ranges</h3>
+                    <div class="grid gap-6">
+                      {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
+                        <div class="space-y-2 debug-range-item">
+                          <h4 class="text-sm font-medium">{partName}</h4>
+                          <RangeSelector
+                            range={{
+                              min: part.currentRange[0],
+                              max: part.currentRange[1],
+                            }}
+                            clef={part.clef}
+                            onRangeChange={(newRange) =>
+                              handleRangeChange(partName, newRange)}
+                          />
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
               </div>
 
               <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Level</h2>
+                <h2 class="text-lg font-semibold">Preset</h2>
                 <div class="flex flex-wrap gap-2">
-                  {#each levels as level}
+                  {#each Object.keys(presets) as preset}
                     <button
-                      class="px-3 py-1 rounded {selectedLevel === level
+                      class="px-3 py-1 rounded {selectedPreset === preset
                         ? 'bg-blue-500 text-white'
                         : 'bg-gray-100'}"
-                      on:click={() => (selectedLevel = level)}
+                      on:click={() => {
+                        selectedPreset = preset;
+                        applyPreset(preset);
+                      }}
                     >
-                      {level}
+                      {preset}
                     </button>
                   {/each}
                 </div>
