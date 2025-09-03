@@ -304,7 +304,6 @@
           bpm: urlOptions.bpm || 60,
           moveEighthNotes: urlOptions.moveEighthNotes || false,
           accidentalsFollowStep: urlOptions.accidentalsFollowStep || true,
-          tempo: urlOptions.tempo || 60,
           showSolfege: urlOptions.showSolfege || false,
         };
       }
@@ -387,12 +386,14 @@
   let bpm = initialState.bpm;
   let moveEighthNotes = initialState.moveEighthNotes;
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
-  let tempo = initialState.tempo;
+  let tempo = initialState.bpm;
   let showSolfege = initialState.showSolfege || false;
 
   let renderedString: any;
+  let originalTuneString: string | null = null; // Store the original tune string for rerendering
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
+  let displayScale = 2; // Scale for visual display
 
   // Define possible keys
   // let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
@@ -541,6 +542,146 @@
   }
 
   /**
+   * Updates the tempo in an ABC string
+   * @param {string} abcString - The original ABC string
+   * @param {number} newTempo - The new tempo value
+   * @returns {string} The ABC string with updated tempo
+   */
+  function updateTempoInAbcString(abcString: string, newTempo: number): string {
+    // Replace the Q: (tempo) line in the ABC string
+    return abcString.replace(/Q:1\/4=\d+/g, `Q:1/4=${newTempo}`);
+  }
+
+  /**
+   * Rerenders the tune with current tempo and scale settings
+   */
+  async function rerenderTune() {
+    if (!originalTuneString || !currentTune) {
+      console.warn("No original tune string available for rerendering");
+      return;
+    }
+
+    try {
+      // Update the tempo in the ABC string
+      const updatedTuneString = updateTempoInAbcString(
+        originalTuneString,
+        tempo
+      );
+
+      // Clear any existing content in the paper div
+      const paperDiv = document.getElementById("paper");
+      if (paperDiv) {
+        paperDiv.innerHTML = "";
+      }
+
+      const abcOptions = {
+        add_classes: true,
+        generateDownload: true,
+        generateInline: true,
+        generateTiming: true,
+        scale: displayScale,
+        staffwidth: 1000,
+        paddingTop: 50,
+        paddingBottom: 50,
+        wrap: {
+          preferredMeasuresPerLine: 4,
+          minSpacing: 1.5,
+          maxSpacing: 5,
+        },
+        clickListener: async (event: any) => {
+          console.log("clickListener", event);
+          if (event.pitches && event.pitches.length > 0) {
+            await playNote(event.pitches[0].name);
+          }
+        },
+      };
+
+      const visualObj = abcjs.renderAbc("paper", updatedTuneString, abcOptions);
+
+      // Check if rendering was successful
+      if (!visualObj || !visualObj[0]) {
+        throw new Error("Failed to rerender ABC notation - visualObj is empty");
+      }
+
+      selectableArray = visualObj[0].getSelectableArray();
+      currentTune = visualObj[0];
+
+      // Recreate timing callbacks with new tempo
+      if (timingCallbacks) {
+        timingCallbacks.stop();
+      }
+
+      const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+      timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
+        beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
+          if (isMetronomeOn) {
+            const beatInMeasure = beatNumber % beatsPerMeasure;
+            playMetronomeClick(beatInMeasure === 0);
+          }
+          if (position && pitchCursor && typeof position.left === "number") {
+            if (beatNumber === totalBeats) {
+              pitchCursor.setAttribute("x1", "0");
+              pitchCursor.setAttribute("x2", "0");
+              pitchCursor.setAttribute("y1", "0");
+              pitchCursor.setAttribute("y2", "0");
+            } else {
+              const x = Math.max(0, position.left - 2);
+              const cursorHeight = position.height;
+              const shortenBy = cursorHeight * 0.15;
+              const startY = position.top + shortenBy;
+              const endY = position.top + position.height + cursorHeight * 0.15;
+
+              pitchCursor.setAttribute("x1", x.toString());
+              pitchCursor.setAttribute("x2", x.toString());
+              pitchCursor.setAttribute("y1", startY.toString());
+              pitchCursor.setAttribute("y2", endY.toString());
+            }
+          }
+        },
+        lineEndCallback: (data: any) => {
+          console.log("🔄 lineEndCallback triggered with data:", data);
+          const paperDiv = document.getElementById("paper");
+          if (!paperDiv) {
+            console.warn("❌ Paper div not found");
+            return;
+          }
+
+          if (!data || data.top === undefined) {
+            console.warn("❌ Invalid data from lineEndCallback:", data);
+            return;
+          }
+
+          const paperRect = paperDiv.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          const currentScrollY = window.scrollY;
+          const absoluteLineTop = data.top + paperRect.top + currentScrollY;
+          const scrollOffset = viewportHeight * 0.1;
+          const targetScrollTop = absoluteLineTop - scrollOffset;
+
+          window.scrollTo({
+            top: Math.max(0, targetScrollTop),
+            behavior: "smooth",
+          });
+        },
+        qpm: tempo,
+        extraMeasuresAtBeginning: 1,
+        lineEndAnticipation: 500,
+      });
+
+      // Recreate cursor elements
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      pitchCursor = createPitchCursor();
+      updatePitchCursor(0);
+
+      // Reset audio buffer since tempo changed
+      audioBuffer = null;
+      createSynth = null;
+    } catch (err) {
+      console.error("Error rerendering tune:", err);
+    }
+  }
+
+  /**
    * Renders the ABC notation to the paper div
    * @returns {Promise<any>} The rendered visual object
    */
@@ -550,10 +691,10 @@
       generateDownload: true,
       generateInline: true,
       generateTiming: true,
-      scale: 2,
+      scale: displayScale,
       staffwidth: 1000,
-      paddingTop: 15,
-      paddingBottom: 30,
+      paddingTop: 50,
+      paddingBottom: 50,
       wrap: {
         preferredMeasuresPerLine: 4,
         minSpacing: 1.5,
@@ -955,6 +1096,7 @@
 
       if (result.success) {
         renderedString = result.data;
+        originalTuneString = result.data[0]; // Store the original tune string
         await renderTune();
       } else {
         throw new Error(result.error || "Failed to generate music");
@@ -1389,22 +1531,6 @@
                 </div>
               </div>
 
-              <!-- tempo -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Tempo</h2>
-                <span class="text-sm text-gray-500">{tempo}</span>
-                <input
-                  type="range"
-                  min="30"
-                  max="120"
-                  value={tempo}
-                  on:input={(e) =>
-                    (tempo =
-                      // @ts-ignore
-                      e.target.value)}
-                />
-              </div>
-
               <!-- check range selector   -->
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold">Range</h2>
@@ -1413,7 +1539,6 @@
                   range={selectedRange}
                   clef={selectedClef}
                   onRangeChange={handleRangeChange}
-                  onClefChange={updateClef}
                 />
               </div>
 
@@ -1647,7 +1772,7 @@
         </div>
 
         <!-- Playback Controls Row -->
-        <div class="flex justify-center gap-3">
+        <div class="flex justify-center items-center gap-3">
           <button
             class="flex-1 max-w-24 py-3 px-4 rounded-lg font-semibold text-white transition-colors {!currentTune
               ? 'bg-gray-400 cursor-not-allowed'
@@ -1666,16 +1791,64 @@
           >
             Stop
           </button>
+
+          <!-- Tempo Controls -->
+          <div class="flex items-center gap-2 ml-4">
+            <span class="text-sm font-medium">Tempo:</span>
+            <input
+              type="range"
+              min="30"
+              max="120"
+              bind:value={tempo}
+              on:input={() => {
+                if (currentTune && originalTuneString) {
+                  rerenderTune();
+                }
+              }}
+              class="w-20"
+            />
+            <span class="text-sm w-8 text-center">{tempo}</span>
+          </div>
+
+          <!-- Scale Controls -->
+          <div class="flex items-center gap-2 ml-4">
+            <span class="text-sm font-medium">Scale:</span>
+            <button
+              class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
+              on:click={() => {
+                displayScale = Math.max(0.5, displayScale - 0.1);
+                if (currentTune && originalTuneString) {
+                  rerenderTune();
+                }
+              }}
+            >
+              −
+            </button>
+            <span class="text-sm w-12 text-center"
+              >{displayScale.toFixed(1)}x</span
+            >
+            <button
+              class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
+              on:click={() => {
+                displayScale = Math.min(3, displayScale + 0.1);
+                if (currentTune && originalTuneString) {
+                  rerenderTune();
+                }
+              }}
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Music Display - Full Width with Margins -->
     {#if currentTune || isLoading}
-      <div class="w-full px-4 md:px-8">
+      <div class="w-full px-4 md:px-8 pb-20">
         <div
           id="paper"
-          class="bg-white rounded-lg shadow-md my-4 mx-auto overflow-x-auto overflow-y-visible"
+          class="bg-white rounded-lg shadow-md my-4 py-10mx-auto"
           style="-webkit-overflow-scrolling: touch;"
         >
           {#if isLoading}
@@ -1698,15 +1871,15 @@
     max-width: 100vw;
   }
 
-  :global(.abcjs-cursor) {
+  /* :global(.abcjs-cursor) {
     padding-bottom: 20%;
     stroke: blue;
     stroke-width: 2;
     pointer-events: none;
-  }
+  } */
 
   :global(.abcjs-pitch-cursor) {
-    stroke: #22c55e;
+    stroke: #1411c4;
     stroke-width: 2;
     pointer-events: none;
     transition: all 0.3s ease;
@@ -1717,7 +1890,7 @@
     scrollbar-width: thin;
     scrollbar-color: #cbd5e0 #f7fafc;
     min-height: 200px;
-    padding: 20px;
+
     width: 100%;
   }
 

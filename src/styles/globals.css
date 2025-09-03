@@ -127,8 +127,8 @@ font-family:
 }
 
 #paper {
-  min-height: 400px;
-  overflow-y: auto;
+  min-height: 500px;
+  margin: auto;
 }
 
 button {
