@@ -7,7 +7,7 @@ export default defineConfig({
   output: "server",
   adapter: vercel({
     maxDuration: 60,
-    runtime: "edge",
+    // No runtime specified - let Vercel decide
   }),
   integrations: [svelte(), tailwind()],
   vite: {
