@@ -5,7 +5,11 @@
   "framework": "astro",
   "functions": {
     "**/*.js": {
-      "runtime": "nodejs22.x"
+      "runtime": "nodejs20.x"
     }
+  },
+  "engines": {
+    "bun": ">=1.2.0",
+    "node": "20.x"
   }
 }
