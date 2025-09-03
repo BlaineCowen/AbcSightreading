@@ -7,7 +7,7 @@ export default defineConfig({
   output: "server",
   adapter: vercel({
     maxDuration: 60,
-    runtime: "nodejs22.x",
+    runtime: "edge",
   }),
   integrations: [svelte(), tailwind()],
   vite: {
