@@ -16,6 +16,10 @@
   export let onToggleMute: (voiceName: string) => void;
   export let onShare: () => void;
   export let onPrint: () => void;
+
+  function handleBpmInput(e: Event) {
+    onBpmChange(+(e.target as HTMLInputElement).value);
+  }
 </script>
 
 <div class="playback-bar fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-100 px-4 py-2 flex items-center gap-4 flex-wrap z-50 shadow-lg">
@@ -71,7 +75,7 @@
       min="40"
       max="200"
       value={bpm}
-      on:input={(e) => onBpmChange(+(e.currentTarget as HTMLInputElement).value)}
+      on:input={handleBpmInput}
       class="w-20 accent-blue-500"
     />
     <button

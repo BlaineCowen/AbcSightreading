@@ -427,300 +427,252 @@
   }
 </script>
 
-<div class="w-full">
-  <main class="flex flex-col items-center w-full max-w-4xl mx-auto pb-20">
-    <div class="flex flex-col items-center w-full">
-      <div id="audio" class="w-full flex justify-center"></div>
+<div class="w-full pb-20">
+  <!-- Print title (hidden on screen, shown on print) -->
+  <p class="print-title">{selectedKey} major · {selectedTimeSignature} · {selectedVoicing}</p>
 
-      <div
-        class="w-full bg-white shadow-md rounded-lg p-4 my-4 transition-all duration-300"
-      >
-        <div class="flex justify-between items-center mb-2">
-          <h2 class="text-lg font-semibold">Options</h2>
+  <!-- Preset bar -->
+  <PresetDropdown
+    activeLabel={activePresetLabel}
+    currentParams={getCurrentParams}
+    onSelectBuiltin={applyBuiltinPreset}
+    onSelectSaved={applySavedPreset}
+  />
+
+  <main class="flex flex-col items-center w-full max-w-4xl mx-auto">
+
+    <!-- Tab panel -->
+    <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4 no-print">
+
+      <!-- Tab bar -->
+      <div class="flex items-center border-b border-slate-200">
+        {#each ['setup', 'rhythm', 'harmony', 'ranges'] as tab}
           <button
-            class="p-1 hover:bg-gray-100 rounded"
-            on:click={() => (showDropdown = !showDropdown)}
+            class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
+              {selectedTab === tab
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'}"
+            on:click={() => (selectedTab = tab)}
           >
-            {#if showDropdown}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            {:else}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
+            {tab === 'setup' ? 'Setup' : tab === 'rhythm' ? 'Rhythm' : tab === 'harmony' ? 'Harmony' : 'Voice Ranges'}
+            {#if tab === 'setup' && setupDirty}
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
+            {:else if tab === 'rhythm' && rhythmDirty}
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
+            {:else if tab === 'harmony' && harmonyDirty}
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
             {/if}
           </button>
-        </div>
+        {/each}
 
-        {#if showDropdown}
-          <div class="space-y-4 overflow-hidden transition-all duration-300">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Voicing</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each Object.keys(possibleVoicing) as voicing}
-                    <button
-                      class="px-3 py-1 rounded {selectedVoicing === voicing
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (selectedVoicing = voicing)}
-                    >
-                      {voicing}
-                    </button>
-                  {/each}
-                </div>
-
-                {#if selectedVoicing && possibleVoicing[selectedVoicing]}
-                  <div
-                    class="mt-4 space-y-4 w-full bg-gray-50 p-4 rounded-lg debug-ranges"
-                  >
-                    <h3 class="text-md font-semibold">Voice Ranges</h3>
-                    <div class="grid gap-6">
-                      {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
-                        <div class="space-y-2 debug-range-item">
-                          <h4 class="text-sm font-medium">{partName}</h4>
-                          <RangeSelector
-                            range={{
-                              min: part.currentRange[0],
-                              max: part.currentRange[1],
-                            }}
-                            clef={part.clef}
-                            onRangeChange={(newRange) =>
-                              handleRangeChange(partName, newRange)}
-                          />
-                        </div>
-                      {/each}
-                    </div>
-                  </div>
-                {/if}
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Preset</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each Object.keys(presets) as preset}
-                    <button
-                      class="px-3 py-1 rounded {selectedPreset === preset
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => {
-                        selectedPreset = preset;
-                        applyPreset(preset);
-                      }}
-                    >
-                      {preset}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">UIL Level</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each Object.keys(uilPresets) as levelKey}
-                    <button
-                      class="px-3 py-1 rounded {activeUILLevel === levelKey
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => {
-                        if (activeUILLevel === levelKey) {
-                          clearUILPreset();
-                        } else {
-                          applyUILPreset(levelKey);
-                        }
-                      }}
-                    >
-                      {uilPresets[levelKey].label}
-                    </button>
-                  {/each}
-                </div>
-                {#if activeUILLevel}
-                  <p class="text-xs text-green-700">
-                    {uilPresets[activeUILLevel].label} active — keys, chords, and rhythms restricted.
-                    Target: {uilPresets[activeUILLevel].measureRange[0]}–{uilPresets[activeUILLevel].measureRange[1]} measures.
-                    <button class="underline ml-1" on:click={clearUILPreset}>Clear</button>
-                  </p>
-                {/if}
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Non-Chord Tone Amount</h2>
-                <div class="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    bind:value={nctProbability}
-                    class="w-40"
-                  />
-                  <span class="text-sm text-gray-700">{Math.round(nctProbability * 100)}%</span>
-                </div>
-                <p class="text-xs text-gray-500">How often chord tones are decorated with passing tones, neighbor tones, etc.</p>
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Time Signature</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each Object.keys(timeSignatures) as timeSig}
-                    <button
-                      class="px-3 py-1 rounded {selectedTimeSignature ===
-                      timeSig
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (selectedTimeSignature = timeSig)}
-                    >
-                      {timeSig}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Key</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each possibleKeys as key}
-                    <button
-                      class="px-3 py-1 rounded {selectedKey === key
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (selectedKey = key)}
-                    >
-                      {key}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Max Skip</h2>
-                <div class="flex items-center gap-4">
-                  <button
-                    class="px-3 py-1 rounded bg-gray-100"
-                    on:click={() => {
-                      if (maxSkip > maxSkipRange[0]) maxSkip -= 1;
-                    }}
-                  >
-                    -
-                  </button>
-                  <span>{maxSkip}</span>
-                  <button
-                    class="px-3 py-1 rounded bg-gray-100"
-                    on:click={() => {
-                      if (maxSkip < maxSkipRange[1]) maxSkip += 1;
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Measures</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each measureOptions as measureOpt (measureOpt)}
-                    <button
-                      class="px-3 py-1 rounded {measures === measureOpt
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (measures = measureOpt)}
-                    >
-                      {measureOpt}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="space-y-2 col-span-2">
-                <h2 class="text-lg font-semibold">Rhythms</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each Object.values(filterRhythms) as rhythm}
-                    <button
-                      class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded {selectedRhythms.some(
-                        (r) => r?.name === rhythm.name
-                      )
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => {
-                        if (
-                          selectedRhythms.some((r) => r?.name === rhythm.name)
-                        ) {
-                          selectedRhythms = selectedRhythms.filter(
-                            (r) => r?.name !== rhythm.name
-                          );
-                        } else {
-                          selectedRhythms = [...selectedRhythms, rhythm];
-                        }
-                      }}
-                    >
-                      {#await rhythmSvgs[rhythm.name]}
-                        <span>...</span>
-                      {:then svg}
-                        <span
-                          class="rhythm-icon w-full h-full flex items-center justify-center"
-                        >
-                          {@html svg.default}
-                        </span>
-                      {:catch}
-                        <span>{rhythm.name}</span>
-                      {/await}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
-
+        <!-- Generate button always visible in tab bar -->
         <button
-          class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
+          class="ml-auto mr-3 my-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-5 py-1.5 text-sm"
           on:click={handleClick}
         >
-          Generate Exercise
+          ▶ Generate
         </button>
       </div>
 
-      <div id="paper" class="bg-white rounded-lg shadow-md my-4"></div>
+      <!-- Tab content -->
+      <div class="p-4">
 
-      <div class="h-96"></div>
+        <!-- Setup Tab -->
+        {#if selectedTab === 'setup'}
+          <div class="grid grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voicing</p>
+              <div class="flex flex-wrap gap-2">
+                {#each Object.keys(possibleVoicing) as voicing}
+                  <button
+                    class="px-3 py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (selectedVoicing = voicing)}
+                  >{voicing}</button>
+                {/each}
+              </div>
+            </div>
 
-      {#if songPlaying}
-        <div class="w-full bg-gray-200 rounded-full h-2.5 my-4">
-          <div
-            class="bg-blue-500 h-2.5 rounded-full"
-            style="width: {progress}%"
-          ></div>
-        </div>
-      {/if}
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
+              <div class="flex flex-wrap gap-2">
+                {#each possibleKeys as key}
+                  <button
+                    class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (selectedKey = key)}
+                  >{key}</button>
+                {/each}
+              </div>
+            </div>
 
-      {#if chordProgression.length > 0}
-        <div class="text-center mt-4">
-          <p class="text-gray-600">
-            {chordProgression.map((chord) => chord.name).join(" ")}
-          </p>
-        </div>
-      {/if}
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
+              <div class="flex gap-2">
+                {#each Object.keys(timeSignatures) as ts}
+                  <button
+                    class="px-3 py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (selectedTimeSignature = ts)}
+                  >{ts}</button>
+                {/each}
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
+              <div class="flex gap-2">
+                {#each measureOptions as opt}
+                  <button
+                    class="px-3 py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (measures = opt)}
+                  >{opt}</button>
+                {/each}
+              </div>
+            </div>
+          </div>
+
+        <!-- Rhythm Tab -->
+        {:else if selectedTab === 'rhythm'}
+          <div class="space-y-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Select Allowed Rhythms</p>
+            <div class="flex flex-wrap gap-2">
+              {#each Object.values(filterRhythms) as rhythm}
+                <button
+                  class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded
+                    {selectedRhythms.some((r) => r?.name === rhythm.name)
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={() => {
+                    if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
+                      selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
+                    } else {
+                      selectedRhythms = [...selectedRhythms, rhythm];
+                    }
+                  }}
+                >
+                  {#await rhythmSvgs[rhythm.name]}
+                    <span class="text-xs">…</span>
+                  {:then svg}
+                    <span class="rhythm-icon w-full h-full flex items-center justify-center">
+                      {@html svg.default}
+                    </span>
+                  {:catch}
+                    <span class="text-xs">{rhythm.name}</span>
+                  {/await}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+        <!-- Harmony Tab -->
+        {:else if selectedTab === 'harmony'}
+          <div class="space-y-5">
+            <!-- Chord toggles -->
+            {#each Object.entries(chordGroups) as [groupName, chordNames]}
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{groupName}</p>
+                <div class="flex flex-wrap gap-2">
+                  {#each chordNames as chordName}
+                    {@const chord = fullChordSet.find(c => c.name === chordName)}
+                    {#if chord}
+                      <button
+                        class="px-3 py-1 rounded text-sm font-medium
+                          {userAllowedChords.has(chordName)
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
+                        on:click={() => {
+                          const next = new Set(userAllowedChords);
+                          if (next.has(chordName)) next.delete(chordName);
+                          else next.add(chordName);
+                          userAllowedChords = next;
+                        }}
+                      >{chord.symbol}</button>
+                    {/if}
+                  {/each}
+                </div>
+              </div>
+            {/each}
+
+            <!-- NCT Probability -->
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Non-Chord Tone Amount</p>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-500">None</span>
+                <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" />
+                <span class="text-xs text-slate-500">Heavy</span>
+                <span class="text-sm font-semibold">{Math.round(nctProbability * 100)}%</span>
+              </div>
+              <p class="text-xs text-slate-400">Passing · Neighbor · Anticipation · Appoggiatura</p>
+            </div>
+
+            <!-- Max Skip -->
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
+              <div class="flex items-center gap-3">
+                <button class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                  on:click={() => { if (maxSkip > maxSkipRange[0]) maxSkip -= 1; }}>−</button>
+                <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
+                <button class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                  on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}>+</button>
+                <span class="text-xs text-slate-400">diatonic steps</span>
+              </div>
+            </div>
+          </div>
+
+        <!-- Voice Ranges Tab -->
+        {:else if selectedTab === 'ranges'}
+          {#if selectedVoicing && possibleVoicing[selectedVoicing]}
+            <div class="space-y-6">
+              {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
+                <div class="space-y-1">
+                  <p class="text-sm font-medium">{partName}</p>
+                  <RangeSelector
+                    range={{ min: part.currentRange[0], max: part.currentRange[1] }}
+                    clef={part.clef}
+                    onRangeChange={(newRange) => handleRangeChange(partName, newRange)}
+                  />
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+
+      </div>
     </div>
+
+    <!-- Hidden abcjs audio element -->
+    <div id="audio" class="hidden"></div>
+
+    <!-- Sheet music -->
+    <div id="paper" class="bg-white rounded-lg shadow-md w-full my-2"></div>
+
+    <!-- Chord progression display -->
+    {#if chordProgression.length > 0}
+      <div class="text-center mt-2 mb-4 no-print">
+        <p class="text-slate-500 text-sm">{chordProgression.map((c) => c.symbol).join('  ')}</p>
+      </div>
+    {/if}
+
+    <div class="h-4"></div>
+
   </main>
+
+  <!-- Sticky playback bar -->
+  <PlaybackBar
+    {isPlaying}
+    {bpm}
+    {looping}
+    {voiceNames}
+    {mutedVoices}
+    hasExercise={renderedTune !== null}
+    onPlay={handlePlay}
+    onPause={handlePause}
+    onStop={handleStop}
+    onRestart={handleRestart}
+    onBpmChange={handleBpmChange}
+    onToggleLoop={handleToggleLoop}
+    onToggleMute={handleToggleMute}
+    onShare={handleShare}
+    onPrint={handlePrint}
+  />
 </div>
 
 <style>

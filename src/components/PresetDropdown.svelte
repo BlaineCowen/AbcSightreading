@@ -1,6 +1,7 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
-  import { getPresets, savePreset, type PresetParams, type SavedPreset } from '../lib/preset-storage';
+  import { getPresets, savePreset } from '../lib/preset-storage';
+  import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount } from 'svelte';
 
   export let activeLabel: string = '';
@@ -28,6 +29,19 @@
       alert('Could not save preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
     }
   }
+
+  function handleSelectChange(e: Event) {
+    const select = e.target as HTMLSelectElement;
+    const val = select.value;
+    if (!val) return;
+    if (val.startsWith('uil:')) onSelectBuiltin('uil', val.slice(4));
+    else if (val.startsWith('diff:')) onSelectBuiltin('difficulty', val.slice(5));
+    else if (val.startsWith('saved:')) {
+      const found = savedPresets.find(p => p.id === val.slice(6));
+      if (found) onSelectSaved(found);
+    }
+    select.value = '';
+  }
 </script>
 
 <div class="preset-bar bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center gap-3 flex-wrap no-print">
@@ -37,17 +51,7 @@
   <div class="relative">
     <select
       class="appearance-none bg-white border border-slate-300 rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-      on:change={(e) => {
-        const val = (e.target as HTMLSelectElement).value;
-        if (!val) return;
-        if (val.startsWith('uil:')) onSelectBuiltin('uil', val.slice(4));
-        else if (val.startsWith('diff:')) onSelectBuiltin('difficulty', val.slice(5));
-        else if (val.startsWith('saved:')) {
-          const found = savedPresets.find(p => p.id === val.slice(6));
-          if (found) onSelectSaved(found);
-        }
-        (e.target as HTMLSelectElement).value = '';
-      }}
+      on:change={handleSelectChange}
     >
       <option value="" disabled>── UIL Levels ──</option>
       <option value="uil:UIL 1">UIL 1 — Beginner choir</option>
