@@ -129,6 +129,7 @@ font-family:
 #paper {
   min-height: 500px;
   margin: auto;
+  width: 100%;
 }
 
 button {
@@ -148,3 +149,39 @@ button {
   padding-bottom: 100px;
 }
 
+@media print {
+  /* Hide all UI chrome */
+  header,
+  nav,
+  .preset-bar,
+  .tab-panel,
+  .playback-bar,
+  #audio,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Sheet music fills the page */
+  #paper {
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .print-title {
+    display: block !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}
+
+/* Hidden by default, shown only on print */
+.print-title {
+  display: none;
+  font-size: 14px;
+  color: #334155;
+  margin-bottom: 8px;
+  text-align: center;
+}
