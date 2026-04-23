@@ -8,6 +8,7 @@
   export let currentParams: () => PresetParams;
   export let onSelectBuiltin: (type: 'uil' | 'difficulty', key: string) => void;
   export let onSelectSaved: (preset: SavedPreset) => void;
+  export let onDelete: ((id: string, name: string) => void) | undefined = undefined;
 
   let savedPresets: SavedPreset[] = [];
   let showSaveInput = false;
@@ -31,9 +32,11 @@
   }
 
   function handleDelete(id: string) {
+    const preset = savedPresets.find(p => p.id === id);
     try {
       deletePreset(id);
       savedPresets = getPresets();
+      if (preset) onDelete?.(id, preset.name);
     } catch (e) {
       alert('Could not delete preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
     }
@@ -62,6 +65,7 @@
       class="appearance-none bg-white border border-slate-300 rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
       on:change={handleSelectChange}
     >
+      <option value="" disabled selected hidden>Choose a preset…</option>
       <option value="" disabled>── UIL Levels ──</option>
       <option value="uil:UIL 1">UIL 1 — Beginner choir</option>
       <option value="uil:UIL 2">UIL 2 — Easy</option>
@@ -104,9 +108,14 @@
   {#if savedPresets.length > 0}
     <div class="flex flex-wrap gap-1 w-full mt-1">
       {#each savedPresets as preset}
-        <span class="inline-flex items-center gap-1 bg-slate-100 text-slate-600 rounded px-2 py-0.5 text-xs">
-          {preset.name}
+        <span class="inline-flex items-center gap-1 bg-slate-100 rounded px-2 py-0.5 text-xs">
           <button
+            type="button"
+            class="text-slate-600 hover:text-blue-600"
+            on:click={() => onSelectSaved(preset)}
+          >{preset.name}</button>
+          <button
+            type="button"
             class="text-slate-400 hover:text-red-500 leading-none"
             on:click={() => handleDelete(preset.id)}
             title="Delete preset"

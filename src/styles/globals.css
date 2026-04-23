@@ -71,12 +71,16 @@
 @layer base {
   * {
     @apply border-border;
-    
+
   }
   body {
     @apply bg-background text-foreground;
   }
-
+  button {
+    padding: 12px 20px;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+  }
 }
 
 @font-face {
@@ -130,13 +134,6 @@ font-family:
   min-height: 500px;
   margin: auto;
   width: 100%;
-}
-
-button {
-  /* more responsive to touch */
-  padding: 12px 20px; /* Increase padding for better touch targets */
-  border-radius: 5px; /* Rounded corners for a modern look */
-  transition: background-color 0.3s ease; /* Smooth background transition */
 }
 
 /* button:hover {

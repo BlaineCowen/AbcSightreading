@@ -443,6 +443,7 @@
     currentParams={getCurrentParams}
     onSelectBuiltin={applyBuiltinPreset}
     onSelectSaved={applySavedPreset}
+    onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
   />
 
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto">
@@ -454,20 +455,15 @@
       <div class="flex items-center border-b border-slate-200">
         {#each ['setup', 'rhythm', 'harmony', 'ranges'] as tab}
           <button
+            type="button"
             class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
               {selectedTab === tab
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'}"
             on:click={() => (selectedTab = tab)}
           >
-            {tab === 'setup' ? 'Setup' : tab === 'rhythm' ? 'Rhythm' : tab === 'harmony' ? 'Harmony' : 'Voice Ranges'}
-            {#if tab === 'setup' && setupDirty}
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
-            {:else if tab === 'rhythm' && rhythmDirty}
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
-            {:else if tab === 'harmony' && harmonyDirty}
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
-            {:else if tab === 'ranges' && rangesDirty}
+            {({'setup':'Setup','rhythm':'Rhythm','harmony':'Harmony','ranges':'Voice Ranges'})[tab] ?? tab}
+            {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'harmony' && harmonyDirty) || (tab === 'ranges' && rangesDirty)}
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
             {/if}
           </button>
@@ -582,6 +578,7 @@
                     {@const chord = fullChordSet.find(c => c.name === chordName)}
                     {#if chord}
                       <button
+                        type="button"
                         class="px-3 py-1 rounded text-sm font-medium
                           {userAllowedChords.has(chordName)
                             ? 'bg-blue-500 text-white'
@@ -615,10 +612,10 @@
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
               <div class="flex items-center gap-3">
-                <button class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
                   on:click={() => { if (maxSkip > maxSkipRange[0]) maxSkip -= 1; }}>−</button>
                 <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
-                <button class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
                   on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}>+</button>
                 <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
               </div>
