@@ -1,7 +1,7 @@
 <!-- src/components/PlaybackBar.svelte -->
 <script lang="ts">
   export let isPlaying: boolean = false;
-  export let bpm: number = 80;
+  export let bpm: number = 60;
   export let looping: boolean = false;
   export let voiceNames: string[] = [];
   export let mutedVoices: Set<string> = new Set();
@@ -30,7 +30,8 @@
 
     {#if isPlaying}
       <button
-        class="bg-blue-500 hover:bg-blue-400 rounded px-3 py-1 text-sm font-bold"
+        class="bg-blue-500 hover:bg-blue-400 rounded px-3 py-1 text-sm font-bold disabled:opacity-40"
+        disabled={!hasExercise}
         on:click={onPause}
       >⏸ Pause</button>
     {:else}
