@@ -36,16 +36,41 @@ export function savePreset(name: string, params: PresetParams): SavedPreset {
     createdAt: Date.now(),
     params,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...presets, preset]));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...presets, preset]));
+  } catch (e) {
+    throw new Error('Could not save preset: storage quota exceeded.', { cause: e });
+  }
   return preset;
 }
 
-export function deletePreset(id: string): void {
-  const presets = getPresets().filter((p) => p.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+export function deletePreset(id: string): boolean {
+  const presets = getPresets();
+  const next = presets.filter((p) => p.id !== id);
+  if (next.length === presets.length) return false;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (e) {
+    throw new Error('Could not delete preset: storage quota exceeded.', { cause: e });
+  }
+  return true;
 }
 
-export function renamePreset(id: string, name: string): void {
-  const presets = getPresets().map((p) => (p.id === id ? { ...p, name } : p));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+export function renamePreset(id: string, name: string): boolean {
+  const presets = getPresets();
+  let found = false;
+  const next = presets.map((p) => {
+    if (p.id === id) {
+      found = true;
+      return { ...p, name };
+    }
+    return p;
+  });
+  if (!found) return false;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (e) {
+    throw new Error('Could not rename preset: storage quota exceeded.', { cause: e });
+  }
+  return true;
 }
