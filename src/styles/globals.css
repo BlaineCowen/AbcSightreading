@@ -134,7 +134,6 @@ font-family:
 
 button {
   /* more responsive to touch */
- /* // Start Generation Here */
   padding: 12px 20px; /* Increase padding for better touch targets */
   border-radius: 5px; /* Rounded corners for a modern look */
   transition: background-color 0.3s ease; /* Smooth background transition */
