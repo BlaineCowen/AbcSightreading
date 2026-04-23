@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import abcjs from "abcjs";
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
@@ -24,6 +24,7 @@
   let looping = false;
   let mutedVoices: Set<string> = new Set();
   let bpm = 60;
+  let generatedBpm = 60;
 
   // ── Tab state ──────────────────────────────────────────────────────────────
   type Tab = 'setup' | 'rhythm' | 'harmony' | 'ranges';
@@ -31,6 +32,7 @@
 
   // ── Preset state ───────────────────────────────────────────────────────────
   let activePresetLabel = '';
+  let _presetParamSig = '';
 
   interface Preset {
     maxSkip: number;
@@ -162,6 +164,18 @@
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
 
+  $: _currentParamSig = [
+    selectedKey, selectedTimeSignature, selectedVoicing, measures, maxSkip,
+    Math.round(nctProbability * 100),
+    selectedRhythms.map(r => r.name).sort().join(','),
+    [...userAllowedChords].sort().join(','),
+  ].join('|');
+
+  $: if (_presetParamSig && _currentParamSig !== _presetParamSig && activePresetLabel) {
+    activePresetLabel = '';
+    _presetParamSig = '';
+  }
+
   // ── Voice names for playback bar ───────────────────────────────────────────
   $: voiceNames = Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {});
 
@@ -210,6 +224,10 @@
     loadParams();
   });
 
+  onDestroy(() => {
+    try { synthControl?.destroy?.(); } catch {}
+  });
+
   // ── Preset application ─────────────────────────────────────────────────────
   function applyDifficultyPreset(name: string) {
     const p = builtinPresets[name];
@@ -219,6 +237,8 @@
     selectedRhythms = allRhythms.filter((r) => p.rhythms.includes(r.name));
     activePresetLabel = name;
     activeUILLevel = null;
+    // Use setTimeout so the signature captures post-update values
+    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
   function applyUILPreset(levelKey: string) {
@@ -233,6 +253,8 @@
     maxSkip = p.maxSkip;
     userAllowedChords = new Set(p.allowedChordNames ?? allChordNames);
     activePresetLabel = p.label;
+    // Use setTimeout so the signature captures post-update values
+    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
   function applyBuiltinPreset(type: 'uil' | 'difficulty', key: string) {
@@ -261,6 +283,8 @@
     }
     activePresetLabel = preset.name;
     activeUILLevel = null;
+    // Use setTimeout so the signature captures post-update values
+    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
   function getCurrentParams(): PresetParams {
@@ -326,12 +350,8 @@
 
   function handleBpmChange(newBpm: number) {
     bpm = newBpm;
-    try {
-      // @ts-ignore — access Tone Transport via window if bundled globally
-      const Tone = (window as any).Tone;
-      if (Tone?.Transport) Tone.Transport.bpm.value = newBpm;
-    } catch {
-      // Fallback: BPM applies on next Generate
+    if (synthControl && generatedBpm > 0) {
+      try { synthControl.setWarp(Math.round((newBpm / generatedBpm) * 100)); } catch {}
     }
   }
 
@@ -362,6 +382,11 @@
     const voicesOff = voiceNames
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
       .filter((i) => i >= 0);
+
+    if (synthControl) {
+      try { synthControl.destroy(); } catch {}
+      synthControl = null;
+    }
 
     synthControl = new abcjs.synth.SynthController();
 
@@ -424,6 +449,7 @@
       renderedTune = tune[0];
 
       await initSynth(renderedTune);
+      generatedBpm = bpm;
       await synthControl.play();
       isPlaying = true;
     } catch (error: unknown) {
