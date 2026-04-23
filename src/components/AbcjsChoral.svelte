@@ -110,6 +110,10 @@
   let measures = 8;
   let maxSkip = 4;
   const maxSkipRange = [2, 8];
+  const skipIntervalNames: Record<number, string> = {
+    1: 'a 2nd', 2: 'a 3rd', 3: 'a 4th', 4: 'a 5th',
+    5: 'a 6th', 6: 'a 7th', 7: 'an octave', 8: 'a 9th',
+  };
   let nctProbability = 0.1;
   let chordProgression: Chord[] = [];
   let renderedString = "";
@@ -155,6 +159,8 @@
     JSON.stringify([...DEFAULTS.rhythmNames].sort());
   $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
     userAllowedChords.size !== allChordNames.length;
+  $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
+    .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
 
   // ── Voice names for playback bar ───────────────────────────────────────────
   $: voiceNames = Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {});
@@ -461,6 +467,8 @@
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
             {:else if tab === 'harmony' && harmonyDirty}
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
+            {:else if tab === 'ranges' && rangesDirty}
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
             {/if}
           </button>
         {/each}
@@ -612,7 +620,7 @@
                 <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
                 <button class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
                   on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}>+</button>
-                <span class="text-xs text-slate-400">diatonic steps</span>
+                <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
               </div>
             </div>
           </div>

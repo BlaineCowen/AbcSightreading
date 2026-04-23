@@ -1,6 +1,6 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
-  import { getPresets, savePreset } from '../lib/preset-storage';
+  import { getPresets, savePreset, deletePreset } from '../lib/preset-storage';
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount } from 'svelte';
 
@@ -27,6 +27,15 @@
       onSelectSaved(preset);
     } catch (e) {
       alert('Could not save preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
+    }
+  }
+
+  function handleDelete(id: string) {
+    try {
+      deletePreset(id);
+      savedPresets = getPresets();
+    } catch (e) {
+      alert('Could not delete preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
     }
   }
 
@@ -90,6 +99,21 @@
       class="border border-dashed border-slate-400 text-slate-500 rounded px-2 py-1 text-xs hover:border-slate-600"
       on:click={() => showSaveInput = true}
     >+ Save Current</button>
+  {/if}
+
+  {#if savedPresets.length > 0}
+    <div class="flex flex-wrap gap-1 w-full mt-1">
+      {#each savedPresets as preset}
+        <span class="inline-flex items-center gap-1 bg-slate-100 text-slate-600 rounded px-2 py-0.5 text-xs">
+          {preset.name}
+          <button
+            class="text-slate-400 hover:text-red-500 leading-none"
+            on:click={() => handleDelete(preset.id)}
+            title="Delete preset"
+          >×</button>
+        </span>
+      {/each}
+    </div>
   {/if}
 
   {#if activeLabel}
