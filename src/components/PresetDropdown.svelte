@@ -1,6 +1,6 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
-  import { getPresets, savePreset, deletePreset, renamePreset, type PresetParams, type SavedPreset } from '../lib/preset-storage';
+  import { getPresets, savePreset, type PresetParams, type SavedPreset } from '../lib/preset-storage';
   import { onMount } from 'svelte';
 
   export let activeLabel: string = '';
@@ -11,8 +11,6 @@
   let savedPresets: SavedPreset[] = [];
   let showSaveInput = false;
   let newPresetName = '';
-  let renamingId: string | null = null;
-  let renameValue = '';
 
   onMount(() => {
     savedPresets = getPresets();
@@ -20,23 +18,15 @@
 
   function handleSave() {
     if (!newPresetName.trim()) return;
-    const preset = savePreset(newPresetName.trim(), currentParams());
-    savedPresets = getPresets();
-    newPresetName = '';
-    showSaveInput = false;
-    onSelectSaved(preset);
-  }
-
-  function handleDelete(id: string) {
-    deletePreset(id);
-    savedPresets = getPresets();
-  }
-
-  function handleRename(id: string) {
-    if (!renameValue.trim()) return;
-    renamePreset(id, renameValue.trim());
-    savedPresets = getPresets();
-    renamingId = null;
+    try {
+      const preset = savePreset(newPresetName.trim(), currentParams());
+      savedPresets = getPresets();
+      newPresetName = '';
+      showSaveInput = false;
+      onSelectSaved(preset);
+    } catch (e) {
+      alert('Could not save preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
+    }
   }
 </script>
 
@@ -59,7 +49,7 @@
         (e.target as HTMLSelectElement).value = '';
       }}
     >
-      <option value="">── UIL Levels ──</option>
+      <option value="" disabled>── UIL Levels ──</option>
       <option value="uil:UIL 1">UIL 1 — Beginner choir</option>
       <option value="uil:UIL 2">UIL 2 — Easy</option>
       <option value="uil:UIL 3">UIL 3 — Medium</option>
