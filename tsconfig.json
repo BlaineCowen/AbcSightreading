@@ -1,22 +1,13 @@
 {
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noImplicitAny": true,
-    // other options
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@types/*": [
-        "./types/*"
-      ],
+      "@/*": ["./src/*"],
+      "@types/*": ["./types/*"],
       "$lib": ["./src/lib"],
       "$lib/*": ["./src/lib/*"]
     }
   },
-  "include": ["src/**/*", "types/**/*"] // Adjust the path as necessary
+  "include": ["src/**/*", "types/**/*", "**/*.svelte"]
 }

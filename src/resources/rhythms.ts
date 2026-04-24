@@ -115,9 +115,9 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "dotQuarter",
-    abcValue: ["10"],
+    abcValue: ["12"],
     meterValue: [3 / 8],
-    totalValue: 10,
+    totalValue: 12,
     rest: false,
     oddsWeight: 6,
     maxRng: 0,

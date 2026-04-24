@@ -26,11 +26,14 @@ export interface GenerateChoralParams {
   maxSkip: number;
   bpm: number;
   selectedRhythms: Rhythm[];
-  chords: Chord[]; // Add chords to the interface
-  // Add any other necessary parameters like title, composer, etc.
+  chords: Chord[];
   title?: string;
   composer?: string;
   accidentalsByStep: boolean;
+  /** Probability (0–1) that a given chord tone will be subdivided into an NCT. */
+  nctProbability?: number;
+  /** Optional allowlist of chord names; if provided, only these chords are used. */
+  allowedChordNames?: string[];
 }
 
 /**
@@ -55,9 +58,15 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     maxSkip,
     bpm,
     selectedRhythms,
-    chords,
     accidentalsByStep,
+    nctProbability = 0.1,
+    allowedChordNames,
   } = params;
+
+  // Filter chord list if allowedChordNames is specified (UIL presets etc.)
+  const chords = allowedChordNames && allowedChordNames.length > 0
+    ? params.chords.filter((c) => allowedChordNames.includes(c.name))
+    : params.chords;
 
   // --- Input Validation ---
   if (!selectedRhythms || selectedRhythms.length === 0) {
@@ -241,10 +250,17 @@ export function generateChoralExercise(params: GenerateChoralParams): {
 
   // 5. Apply Non-Chord Tone Generation
   console.log("5. Applying Non-Chord Tone Generation...");
+  console.log(`  NCT probability: ${nctProbability}`);
   const notesWithNCTs: VoiceNote[][] = voiceNotes.map((partNotes, index) => {
     console.log(`  Processing voice index ${index} for NCTs...`);
-    // Pass the pattern rhythms, key, all notes, and current index
-    return generateNonChordTones(partNotes, patternRhythms, voiceNotes, index);
+    return generateNonChordTones(
+      partNotes,
+      patternRhythms,
+      voiceNotes,
+      index,
+      nctProbability,
+      key
+    );
   });
   console.log(`  Finished NCT generation.`);
 

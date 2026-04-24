@@ -88,16 +88,27 @@ export function generateRandomRhythm(
   let longestDuration = 0;
 
   if (enforceCadence) {
-    longestSingleRhythm = singleRhythms.reduce(
-      (longest, current) =>
-        current.totalValue > longest.totalValue ? current : longest,
-      singleRhythms[0]
+    // Prefer whole (fills measure) > half (fills half-measure) > everything else.
+    // Dotted notes feel rushed as phrase endings; whole and half notes are cleaner.
+    const measureFill = singleRhythms.find(
+      (r) => r.totalValue === timeSig.tsPerMeasure
     );
+    const halfFill = singleRhythms.find(
+      (r) => r.totalValue === timeSig.tsPerMeasure / 2
+    );
+    longestSingleRhythm =
+      measureFill ||
+      halfFill ||
+      singleRhythms.reduce(
+        (longest, current) =>
+          current.totalValue > longest.totalValue ? current : longest,
+        singleRhythms[0]
+      );
     longestDuration = longestSingleRhythm.totalValue;
 
     if (longestDuration > timeSig.tsPerMeasure * 4) {
       console.warn(
-        `Longest single rhythm (${longestDuration}) is longer than a 4-measure block. Cadence enforcement might behave unexpectedly.`
+        `Cadence rhythm (${longestDuration}) is longer than a 4-measure block. Cadence enforcement might behave unexpectedly.`
       );
     }
   } else {
@@ -184,30 +195,48 @@ export function generateRandomRhythm(
         // Check measure fit
         if (r.totalValue > measureRemaining) return false;
 
-        // --- Keep Existing Placement Rules ---
-        // Prevent long rhythms on weak beats (adjust logic if needed based on timeSig.tsPerMeasure)
+        // --- Placement Rules ---
+        // In L:1/32: quarter-note beat positions are multiples of 8.
+        // The "and" of each beat falls at positions where % 8 === 4.
+        // Allow notes up to dotted-quarter (12) at "and" positions but block half-note+ to
+        // keep rhythms from starting on off-beats with excessively long values.
         if (timeSig.tsPerMeasure >= 8) {
-          // Assuming L:1/32, check rules for 4/4, 3/4 etc.
-          if (
-            currentMeasurePosition % 8 === 2 ||
-            currentMeasurePosition % 8 === 6
-          ) {
-            // Off-beats in 4/4
-            if (r.totalValue >= 8) return false; // Quarter note or longer
-          } else if (currentMeasurePosition % 8 === 4) {
-            // Beat 3 in 4/4
-            if (r.totalValue >= 6) return false; // Dotted 8th or longer
-          } // Add more rules if needed
-        }
-        // Prevent certain rhythms after short notes
-        if (result.length > 0) {
-          const lastRhythm = result[result.length - 1];
-          if (lastRhythm.totalValue <= 4) {
-            // After 16th or shorter
-            if (r.totalValue >= 12) return false; // Prevent dotted quarter or longer
+          const pos = currentMeasurePosition % 8;
+          if (pos === 2 || pos === 6) {
+            // 16th-note off-beats: block quarter-note or longer
+            if (r.totalValue >= 8) return false;
+          } else if (pos === 4) {
+            // "and" of each beat: block half-note or longer (allow quarter/dotted-quarter)
+            if (r.totalValue >= 16) return false;
           }
         }
+        // After a very short note (sixteenth or shorter), don't allow a large jump to a long note
+        if (result.length > 0) {
+          const lastRhythm = result[result.length - 1];
+          if (lastRhythm.totalValue <= 4 && r.totalValue >= 16) return false;
+        }
         // --- End Placement Rules ---
+
+        // --- Lookahead: prevent placing a rhythm that would leave an insoluble gap ---
+        // If placing this rhythm mid-measure leaves a remainder smaller than the
+        // shortest available non-rest rhythm, the measure can never be completed.
+        if (!r.pattern && !r.rest) {
+          const newMeasurePos = currentMeasurePosition + r.totalValue;
+          if (newMeasurePos > 0 && newMeasurePos < timeSig.tsPerMeasure) {
+            const remainder = timeSig.tsPerMeasure - newMeasurePos;
+            const nonRestCandidates = rhythms.filter(
+              (rr) => !rr.rest && !rr.pattern && rr.totalValue > 0
+            );
+            if (nonRestCandidates.length > 0) {
+              const minNonRest = nonRestCandidates.reduce(
+                (min, rr) => (rr.totalValue < min ? rr.totalValue : min),
+                nonRestCandidates[0].totalValue
+              );
+              if (remainder > 0 && remainder < minNonRest) return false;
+            }
+          }
+        }
+        // --- End Lookahead ---
 
         // --- Pattern Fit Check ---
         if (r.pattern) {
