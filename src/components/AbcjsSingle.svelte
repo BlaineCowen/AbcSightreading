@@ -13,9 +13,9 @@
   // --- Static Options ---
   const possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
   const timeSignatures = {
-    "4/4": { name: "4/4", tsPerMeasure: 32 },
-    "3/4": { name: "3/4", tsPerMeasure: 24 },
-    "2/4": { name: "2/4", tsPerMeasure: 16 },
+    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
+    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
   };
   const clefOptions = ["treble", "bass", "alto", "tenor"];
   const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];

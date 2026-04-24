@@ -1502,12 +1502,14 @@ function createConcatString(
         //   nextIsStart: nextNote?.isPatternStart,
         // });
 
-        // Insert a space at every quarter-note beat boundary so abcjs beams
-        // notes correctly within each beat. Non-pattern notes (quarter, half,
-        // whole) always get a space — they cannot beam with adjacent notes.
+        // Insert a space at every beam-group boundary so abcjs beams notes
+        // correctly within each beat. beamGroupSize drives this: 8 for simple
+        // time (quarter-note beat), 12 for compound time (dotted-quarter beat).
+        // Non-pattern notes (quarter, half, whole) always get a space.
         // The barline "|" already breaks beams at measure boundaries.
         const afterNote = tsCount + note.noteLength;
-        if (afterNote % 8 === 0 || !note.rhythm?.pattern) {
+        const beamGroupSize = params.timeSig.beamGroupSize ?? 8;
+        if (afterNote % beamGroupSize === 0 || !note.rhythm?.pattern) {
           measureString += " ";
         }
 
