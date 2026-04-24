@@ -1502,26 +1502,14 @@ function createConcatString(
         //   nextIsStart: nextNote?.isPatternStart,
         // });
 
-        // Add space if:
-        // 1. End of measure
-        // 2. Last note in sequence
-        // 3. Current note is end of pattern
-        // 4. Current note is not part of a pattern
-        const shouldAddSpace =
-          isEndOfMeasure ||
-          isLastNote ||
-          note.isPatternEnd ||
-          !note.rhythm?.pattern;
-
-        // if (shouldAddSpace) {
-        //   measureString += " ";
-        //   console.log(`Added space after note ${index} because:`, {
-        //     isEndOfMeasure,
-        //     isLastNote,
-        //     isPatternEnd: note.isPatternEnd,
-        //     notInPattern: !note.rhythm?.pattern,
-        //   });
-        // }
+        // Insert a space at every quarter-note beat boundary so abcjs beams
+        // notes correctly within each beat. Non-pattern notes (quarter, half,
+        // whole) always get a space — they cannot beam with adjacent notes.
+        // The barline "|" already breaks beams at measure boundaries.
+        const afterNote = tsCount + note.noteLength;
+        if (afterNote % 8 === 0 || !note.rhythm?.pattern) {
+          measureString += " ";
+        }
 
         tsCount += note.noteLength;
 
