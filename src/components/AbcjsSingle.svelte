@@ -395,6 +395,13 @@
   let pitchCursor: SVGLineElement | null = null;
   let displayScale = 2; // Scale for visual display
 
+  function getStaffWidth(scale: number): number {
+    const paper = document.getElementById("paper");
+    const containerWidth = paper?.clientWidth ?? 900;
+    // abcjs renders SVG at staffwidth * scale px wide; keep it within the container
+    return Math.max(200, Math.floor(containerWidth / scale) - 20);
+  }
+
   // Define possible keys
   // let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
 
@@ -580,7 +587,7 @@
         generateInline: true,
         generateTiming: true,
         scale: displayScale,
-        staffwidth: 1000,
+        staffwidth: getStaffWidth(displayScale),
         paddingTop: 50,
         paddingBottom: 50,
         wrap: {
@@ -692,7 +699,7 @@
       generateInline: true,
       generateTiming: true,
       scale: displayScale,
-      staffwidth: 1000,
+      staffwidth: getStaffWidth(displayScale),
       paddingTop: 50,
       paddingBottom: 50,
       wrap: {
