@@ -67,7 +67,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "eighthRest",
-    abcValue: ["4"],
+    abcValue: ["z4"],
     meterValue: [1 / 8],
     totalValue: 4,
     rest: true,
@@ -103,7 +103,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "quarterRest",
-    abcValue: ["8"],
+    abcValue: ["z8"],
     meterValue: [1 / 4],
     totalValue: 8,
     rest: true,
@@ -151,7 +151,7 @@ export const rhythms: Rhythm[] = [
   },
   {
     name: "halfRest",
-    abcValue: ["16"],
+    abcValue: ["z16"],
     meterValue: [1 / 2],
     totalValue: 16,
     rest: true,

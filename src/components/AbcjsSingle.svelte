@@ -252,13 +252,18 @@
     toneSynth.triggerAttackRelease(`${note}${octave}`, "8n");
   };
 
+  const SELECTABLE_RESTS = new Set([
+    "eighthRest",
+    "quarterRest",
+    "halfRest",
+    "wholeRest",
+  ]);
+
   let filterRhythms = rhythms.filter((rhythm) => {
-    console.log("Available rhythm:", rhythm.name, rhythm); // Log full rhythm objects
-    return (
-      !rhythm.name.includes("thirtySecond") &&
-      rhythm.name !== "dotQuarter" &&
-      !rhythm.name.toLowerCase().includes("rest")
-    );
+    if (rhythm.name.includes("thirtySecond")) return false;
+    if (rhythm.name === "dotQuarter") return false;
+    if (rhythm.rest) return SELECTABLE_RESTS.has(rhythm.name);
+    return true;
   });
 
   const rhythmSvgs = Object.fromEntries(
@@ -266,7 +271,8 @@
       .filter(
         (rhythm) =>
           !rhythm.name.includes("thirtySecond") &&
-          !rhythm.name.toLowerCase().includes("rest")
+          rhythm.name !== "dotQuarter" &&
+          (!rhythm.rest || SELECTABLE_RESTS.has(rhythm.name))
       )
       .map((rhythm) => [
         rhythm.name,

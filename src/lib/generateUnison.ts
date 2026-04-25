@@ -1482,7 +1482,11 @@ function createConcatString(
           }
         }
 
-        measureString += `${processedNoteName}${note.noteLength}`;
+        if (note.rhythm?.rest) {
+          measureString += `z${note.noteLength} `;
+        } else {
+          measureString += `${processedNoteName}${note.noteLength}`;
+        }
 
         const isEndOfMeasure =
           tsCount + note.noteLength >= params.timeSig.tsPerMeasure;
