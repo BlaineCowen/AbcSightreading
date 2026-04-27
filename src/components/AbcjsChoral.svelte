@@ -107,7 +107,7 @@
   };
 
   let selectedTimeSignature = "4/4";
-  let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Am", "Em", "Dm", "Gm", "Cm"];
+  let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"];
   let selectedKey = "C";
   let measures = 8;
   let maxSkip = 4;

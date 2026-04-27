@@ -148,7 +148,7 @@ export const uilPresets: Record<string, UILPreset> = {
     label: "UIL Level 5",
     level: 5,
     // Major and minor keys up to 4 sharps or flats
-    allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Am", "Em", "Dm", "Gm", "Cm"],
+    allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"],
     // Full harmonic range including secondary dominants, seventh chords, and minor mode
     allowedChordNames: [
       "1", "2", "3", "4", "5", "6", "7",
