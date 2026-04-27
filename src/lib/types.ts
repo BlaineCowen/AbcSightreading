@@ -34,6 +34,7 @@ export interface VoiceNote extends Note {
     | "double-flat"
     | null;
   isCadenceEnd?: boolean; // Flag if this note is the end of a cadence
+  wasRaised?: boolean; // true if accidental="natural" means raised (e.g. Bb→Bnat in F major)
 }
 
 export interface ChordPossibility {

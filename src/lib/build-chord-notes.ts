@@ -19,6 +19,10 @@ function isVoiceOrderValid(pitches: number[]): boolean {
   return true;
 }
 
+function isDiatonicStep(a: Note, b: Note): boolean {
+  return Math.abs(a.pitchValue - b.pitchValue) === 1;
+}
+
 // Helper function to shuffle an array (Fisher-Yates)
 function shuffleArray<T>(array: T[]): T[] {
   for (let i = array.length - 1; i > 0; i--) {
@@ -183,50 +187,132 @@ export function buildChordNotes(
     usedTriadDegrees: number[],
     otherVoiceNotes: VoiceNote[],
     maxSkip: number,
-    previousNote?: VoiceNote
+    previousNote?: VoiceNote,
+    useAccidentalsByStep?: boolean
   ): Note | null {
-    // Get all notes in range - strictly enforce the voice part range
-    let validNotes = voicePart.possibleNotes.filter((note) => {
-      // Double check range enforcement
-      if (
-        note.pitchValue < voicePart.range[0] ||
-        note.pitchValue > voicePart.range[1]
-      ) {
-        return false;
-      }
-      return true;
-    });
+    // Get all notes in range
+    let validNotes = voicePart.possibleNotes.filter(
+      (note) =>
+        note.pitchValue >= voicePart.range[0] &&
+        note.pitchValue <= voicePart.range[1]
+    );
 
-    // 1. First try unused chord tones
+    // Pre-compute forced resolution pitch before chord-tone filtering so we can
+    // open up all chord tones (not just unused ones) when a resolution is forced.
+    let forcedPitch: number | undefined;
+    if (useAccidentalsByStep && previousNote && !previousNote.rest) {
+      if (
+        previousNote.accidental === "sharp" ||
+        previousNote.accidental === "double-sharp" ||
+        (previousNote.accidental === "natural" && previousNote.wasRaised === true)
+      ) {
+        forcedPitch = previousNote.pitchValue + 1;
+      } else if (
+        previousNote.accidental === "flat" ||
+        previousNote.accidental === "double-flat" ||
+        (previousNote.accidental === "natural" && previousNote.wasRaised === false)
+      ) {
+        forcedPitch = previousNote.pitchValue - 1;
+      }
+    }
+
+    // Chord-tone filter — when a resolution is forced, open to all triad degrees
+    // so the resolution note is reachable even if its degree was already "used".
     const availableTriadDegrees = chord.triadNotes.filter(
       (deg) => !usedTriadDegrees.includes(deg)
     );
+    const degreesToUse =
+      forcedPitch !== undefined
+        ? chord.triadNotes
+        : availableTriadDegrees.length > 0
+        ? availableTriadDegrees
+        : [chord.triadNotes[0], chord.triadNotes[2]];
 
-    let degreesToUse = availableTriadDegrees;
-    if (degreesToUse.length === 0) {
-      // If no unused tones, allow root or fifth
-      degreesToUse = [chord.triadNotes[0], chord.triadNotes[2]];
-    }
+    validNotes = validNotes.filter((note) => degreesToUse.includes(note.degree));
 
-    // Filter by chord tones
-    validNotes = validNotes.filter((note) =>
-      degreesToUse.includes(note.degree)
-    );
-
-    // Apply voice leading if we have a previous note
+    // Max-skip voice leading
     if (previousNote && !previousNote.rest) {
       validNotes = validNotes.filter(
         (note) => Math.abs(note.pitchValue - previousNote.pitchValue) <= maxSkip
       );
     }
 
-    // Check voice crossing - ensure strict ordering with no equal pitches allowed
+    // Resolution-range guard: a chromatic note whose resolution pitch (pv±1) falls
+    // outside this voice's range must be excluded — even on the first note of a phrase
+    // — otherwise forcedPitch silently fails on the next chord.
+    if (useAccidentalsByStep) {
+      const willBeSharpGlobal = chord.sharpScaleDegree !== undefined && chord.sharpScaleDegree !== null;
+      const willBeFlatGlobal  = chord.flatScaleDegree  !== undefined && chord.flatScaleDegree  !== null;
+      if (willBeSharpGlobal || willBeFlatGlobal) {
+        const isAccidentalGlobal = (note: Note) =>
+          (willBeSharpGlobal && note.degree === chord.sharpScaleDegree) ||
+          (willBeFlatGlobal  && note.degree === chord.flatScaleDegree);
+        const resInRange = validNotes.filter((note) => {
+          if (isAccidentalGlobal(note)) {
+            const resPitch = willBeSharpGlobal ? note.pitchValue + 1 : note.pitchValue - 1;
+            return resPitch >= voicePart.range[0] && resPitch <= voicePart.range[1];
+          }
+          return true;
+        });
+        if (resInRange.length > 0) validNotes = resInRange;
+      }
+    }
+
+    // Accidental approach & resolution constraints (best-effort: skip if they'd empty the list)
+    if (useAccidentalsByStep && previousNote && !previousNote.rest) {
+      if (forcedPitch !== undefined) {
+        // Resolution: direct the voice to the specific pitch; fall back if impossible.
+        const resolved = validNotes.filter((note) => note.pitchValue === forcedPitch);
+        if (resolved.length > 0) validNotes = resolved;
+      } else {
+        // Natural accidental: require a diatonic step (best-effort).
+        if (previousNote.accidental === "natural") {
+          const stepped = validNotes.filter((note) => isDiatonicStep(note, previousNote));
+          if (stepped.length > 0) validNotes = stepped;
+        }
+
+        // Approach: a note that will carry an accidental must be approached by step.
+        const willBeSharp = chord.sharpScaleDegree !== undefined && chord.sharpScaleDegree !== null;
+        const willBeFlat = chord.flatScaleDegree !== undefined && chord.flatScaleDegree !== null;
+        if (willBeSharp || willBeFlat) {
+          const isAccidentalNote = (note: Note) =>
+            (willBeSharp && note.degree === chord.sharpScaleDegree) ||
+            (willBeFlat && note.degree === chord.flatScaleDegree);
+
+          const approached = validNotes.filter((note) => {
+            if (isAccidentalNote(note)) {
+              // Must be approached by step from the previous note.
+              if (!isDiatonicStep(note, previousNote)) return false;
+              // The resolution pitch (pv+1 for sharps, pv-1 for flats) must land
+              // within this voice's range — otherwise forcedPitch silently fails on
+              // the next chord (e.g. soprano F# at pv=31 top of [21,31] → G at pv=32
+              // is out of range, so soprano then incorrectly picks D).
+              const resPitch = willBeSharp
+                ? note.pitchValue + 1
+                : note.pitchValue - 1;
+              return resPitch >= voicePart.range[0] && resPitch <= voicePart.range[1];
+            }
+            return true;
+          });
+
+          if (approached.length > 0) {
+            validNotes = approached;
+          } else {
+            // Can't approach any note by step — use non-accidental chord tones.
+            // If none exist (all available tones are chromatic), fail this step so the
+            // retry loop can try a different voice ordering or chord progression.
+            const nonAccidental = validNotes.filter((note) => !isAccidentalNote(note));
+            validNotes = nonAccidental; // empty → returns null → triggers step retry
+          }
+        }
+      }
+    }
+
+    // Voice-crossing: strict ordering between voices
     validNotes = validNotes.filter((note) => {
       return otherVoiceNotes.every((otherNote) => {
         if (otherNote.order === undefined || voicePart.order === undefined)
           return true;
-
-        // Higher voices must be strictly higher than lower voices
         if (voicePart.order > otherNote.order) {
           return note.pitchValue > otherNote.pitchValue;
         } else {
@@ -347,12 +433,26 @@ export function buildChordNotes(
               // Include both root (root position) and 3rd (first inversion) as fallbacks,
               // mirroring the same inversion logic used in findValidBassNote.
               const invertibleDegrees = new Set([currentChord.root, currentChord.triadNotes[1]]);
-              const altNotes = bassPartInfo.possibleNotes.filter(
+              let altNotes = bassPartInfo.possibleNotes.filter(
                 (n) =>
                   invertibleDegrees.has(n.degree) &&
                   n.pitchValue >= bassPartInfo.range[0] &&
                   n.pitchValue <= bassPartInfo.range[1]
               );
+              // When accidentalsByStep is on, early retries (2–8) prefer non-chromatic bass
+              // notes so we don't land on an accidental that wasn't approached by step.
+              // Late retries (9+) fall back to allowing all notes (including chromatic) to
+              // escape voice-ordering deadlocks that only the chromatic 3rd can resolve.
+              // Exception: chromatic-bass inversions (V⁶/V, where chord.root === chromDeg)
+              // must always use the chromatic degree — skip the non-chromatic preference.
+              if (accidentalsByStep && stepRetryCount <= 8) {
+                const chromDeg = currentChord.sharpScaleDegree ?? currentChord.flatScaleDegree;
+                if (chromDeg !== undefined && chromDeg !== null && currentChord.root !== chromDeg) {
+                  const nonChromatic = altNotes.filter((n) => n.degree !== chromDeg);
+                  if (nonChromatic.length > 0) altNotes = nonChromatic;
+                  // else: only chromatic available, fall through to allow it
+                }
+              }
               if (altNotes.length > 0) {
                 chosenNote = altNotes[Math.floor(Math.random() * altNotes.length)];
                 applyAccidental = true;
@@ -362,8 +462,15 @@ export function buildChordNotes(
             let finalName = chosenNote.name;
             let finalAccidental = chosenNote.accidental ?? null;
             if (applyAccidental) {
+              // Retry: chosenNote.name has no prefix; build name and accidental fresh.
               const acc = determineAccidental(chosenNote.degree, currentChord, keySignatures, key);
               finalName = acc.accidental ? acc.prefix + chosenNote.name : chosenNote.name;
+              finalAccidental = acc.accidental;
+            } else {
+              // First attempt: chosenNote.name already has the accidental prefix
+              // (applied by findValidBassNote). Determine the accidental type only,
+              // without re-applying the prefix, so the VoiceNote.accidental field is set.
+              const acc = determineAccidental(chosenNote.degree, currentChord, keySignatures, key);
               finalAccidental = acc.accidental;
             }
 
@@ -374,6 +481,9 @@ export function buildChordNotes(
               rest: false,
               order: 0,
               accidental: finalAccidental,
+              wasRaised: finalAccidental === "natural"
+                ? currentChord.sharpScaleDegree === chosenNote.degree
+                : undefined,
               isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
             };
             stepNotesAttempt[bassVoiceIndex] = generatedBassNote;
@@ -407,7 +517,8 @@ export function buildChordNotes(
                 usedTriadDegrees,
                 otherVoiceNotes,
                 maxSkip,
-                stepNotesAttempt[originalVoiceIndex] as VoiceNote
+                voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
+                accidentalsByStep
               );
 
               if (!selectedNote) {
@@ -437,6 +548,10 @@ export function buildChordNotes(
                 order: voicePart.order,
                 accidental: accidentalInfo.accidental,
                 isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
+                wasRaised:
+                  accidentalInfo.accidental === "natural"
+                    ? currentChord.sharpScaleDegree === noteDegree
+                    : undefined,
               };
             } catch (e: any) {
               console.error(

@@ -28,6 +28,48 @@ export {
 } from "./types";
 
 /**
+ * Returns true if an UPPER voice in the previous chord has a diatonic neighbor of the
+ * next chord's chromatic degree. The root is excluded because it is typically in the bass,
+ * and the bass is excluded from taking the chromatic note when accidentalsByStep is on.
+ * Falls back to including the root for minor-key chords where the tonic (root of i) is
+ * the most natural approach to the raised leading tone.
+ */
+function hasApproachableAccidental(prevChord: Chord, nextChord: Chord): boolean {
+  const chromDeg = nextChord.sharpScaleDegree ?? nextChord.flatScaleDegree;
+  if (chromDeg === undefined || chromDeg === null) return true;
+  const adjDegrees = [(chromDeg - 1 + 7) % 7, (chromDeg + 1) % 7];
+
+  // Check non-root tones first (upper voices). The root is normally carried by the bass
+  // which cannot take the chromatic note when accidentalsByStep is on.
+  const nonRootTones = prevChord.triadNotes.filter((deg) => deg !== prevChord.root);
+  if (nonRootTones.some((deg) => adjDegrees.includes(deg))) return true;
+
+  // Fallback: allow the root as an approach source for minor-mode chords (e.g., i→V
+  // in harmonic minor, where the tonic A is adjacent to the raised leading tone G#).
+  // This is musically valid: the tonic in an upper voice can step to the leading tone.
+  if (nextChord.mode === "minor" || prevChord.mode === "minor") {
+    return prevChord.triadNotes.some((deg) => adjDegrees.includes(deg));
+  }
+
+  return false;
+}
+
+/**
+ * Returns true if at least one successor of `candChord` (within `availableChords`) contains
+ * the resolution tone for its chromatic degree. Raised degrees resolve up; flatted degrees down.
+ */
+function hasResolvableAccidental(candChord: Chord, availableChords: Chord[]): boolean {
+  const chromDeg = candChord.sharpScaleDegree ?? candChord.flatScaleDegree;
+  if (chromDeg === undefined || chromDeg === null) return true;
+  const isRaised = candChord.sharpScaleDegree !== undefined && candChord.sharpScaleDegree !== null;
+  const resolutionDeg = isRaised ? (chromDeg + 1) % 7 : (chromDeg - 1 + 7) % 7;
+  const possibleSuccessors = availableChords.filter((c) =>
+    candChord.nextChordPossibilities.some((p) => p.name === c.name)
+  );
+  return possibleSuccessors.some((c) => c.triadNotes.includes(resolutionDeg));
+}
+
+/**
  * Generates a chord progression and corresponding bass line, respecting cadences.
  */
 export function generateChordProgression(
@@ -37,7 +79,9 @@ export function generateChordProgression(
   maxSkip: number,
   key: string,
   finalRhythms: RhythmWithPattern[],
-  selectedCadences: Cadence[]
+  selectedCadences: Cadence[],
+  accidentalsByStep: boolean = false,
+  chromaticFrequency: number = 1
 ): { progression: Chord[]; bassLine: Note[] } {
   console.log(
     "\n=== Starting Chord Progression Generation (with Cadences) ==="
@@ -254,7 +298,8 @@ export function generateChordProgression(
           bassRange,
           undefined,
           maxSkip,
-          key
+          key,
+          accidentalsByStep
         );
         if (!firstBassNote) {
           console.log(
@@ -280,6 +325,22 @@ export function generateChordProgression(
       console.log(
         `Added first chord ${firstChord.name} with bass ${firstBassNote.name}`
       );
+
+      // Track whether the previous bass was a chromatic-bass note (V⁶/V style)
+      // that must resolve by step. Reset to undefined each outer attempt.
+      let forcedNextBassPitch: number | undefined = undefined;
+      {
+        const fc = firstChord;
+        const fChromDeg = fc.sharpScaleDegree ?? fc.flatScaleDegree;
+        if (
+          accidentalsByStep &&
+          fChromDeg !== undefined && fChromDeg !== null &&
+          fc.root === fChromDeg
+        ) {
+          const isRaised = fc.sharpScaleDegree !== undefined && fc.sharpScaleDegree !== null;
+          forcedNextBassPitch = firstBassNote.pitchValue + (isRaised ? 1 : -1);
+        }
+      }
 
       // Step 2: Generate remaining chords (Indices 1 to length-1)
       for (let i = 1; i < length; i++) {
@@ -413,10 +474,103 @@ export function generateChordProgression(
               );
             }
 
-            // Select from possibilities (weighted random)
-            const validPossibilities = prevChord.nextChordPossibilities.filter(
-              (p) => possibleNextChords.some((c) => c.name === p.name)
-            );
+            // Accidental approach feasibility: only allow secondary dominants when the
+            // previous chord contains a diatonic neighbor of the chromatic tone.
+            // This ensures at least one voice can approach the accidental by step.
+            if (accidentalsByStep) {
+              const approachable = possibleNextChords.filter((c) =>
+                hasApproachableAccidental(prevChord, c)
+              );
+              if (approachable.length > 0) possibleNextChords = approachable;
+
+              // Resolution feasibility: only pick a chromatic chord when at least one of
+              // its successors has the resolution tone, so the raised/lowered note can
+              // always be followed by the required step.
+              const resolvable = possibleNextChords.filter((c) =>
+                hasResolvableAccidental(c, currentAvailableChords)
+              );
+              if (resolvable.length > 0) possibleNextChords = resolvable;
+
+              // Direct resolution: if the PREVIOUS chord had a chromatic degree, the
+              // CURRENT chord must contain the resolution tone so forcedPitch can be
+              // satisfied. (hasResolvableAccidental only ensures a *future* successor has
+              // it — without this, e.g. V/V → ii is allowed even though ii lacks G.)
+              const chromDegPrev = prevChord.sharpScaleDegree ?? prevChord.flatScaleDegree;
+              if (chromDegPrev !== undefined && chromDegPrev !== null) {
+                const isRaisedPrev = prevChord.sharpScaleDegree !== undefined && prevChord.sharpScaleDegree !== null;
+                const resDeg = isRaisedPrev
+                  ? (chromDegPrev + 1) % 7
+                  : (chromDegPrev - 1 + 7) % 7;
+                const directResolving = possibleNextChords.filter((c) =>
+                  c.triadNotes.includes(resDeg)
+                );
+                if (directResolving.length > 0) possibleNextChords = directResolving;
+              }
+
+              // Cadence look-ahead resolution: if the NEXT position is cadence-forced,
+              // exclude current candidates whose chromatic degree doesn't resolve into
+              // that forced chord. Without this, e.g. V/V can be chosen here even though
+              // the next forced cadence chord (IV) has no G for F# to resolve into.
+              if (nextConstraint) {
+                const forcedNextChord = currentAvailableChords.find(
+                  (c) => c.name === nextConstraint.requiredChord.name
+                );
+                if (forcedNextChord) {
+                  const cadenceResolvable = possibleNextChords.filter((c) => {
+                    const chromDeg = c.sharpScaleDegree ?? c.flatScaleDegree;
+                    if (chromDeg === undefined || chromDeg === null) return true;
+                    const isRaised = c.sharpScaleDegree !== undefined && c.sharpScaleDegree !== null;
+                    const resDeg = isRaised ? (chromDeg + 1) % 7 : (chromDeg - 1 + 7) % 7;
+                    return forcedNextChord.triadNotes.includes(resDeg);
+                  });
+                  if (cadenceResolvable.length > 0) possibleNextChords = cadenceResolvable;
+                }
+              }
+
+              // Chromatic-bass approach: V⁶/V-type chords (chord.root === chromDeg) can
+              // only be selected when the previous bass note is exactly one diatonic step
+              // from any chromatic-bass pitch in the bass range.
+              const chromBassApproachable = possibleNextChords.filter((c) => {
+                const cChromDeg = c.sharpScaleDegree ?? c.flatScaleDegree;
+                if (cChromDeg === undefined || cChromDeg === null || c.root !== cChromDeg) return true;
+                for (let p = bassRange[0]; p <= bassRange[1]; p++) {
+                  if (getDiatonicDegree(p, keyInfo) === cChromDeg &&
+                      Math.abs(p - prevBassNote.pitchValue) === 1) {
+                    return true;
+                  }
+                }
+                return false;
+              });
+              if (chromBassApproachable.length > 0) possibleNextChords = chromBassApproachable;
+
+              // Bass resolution: if the previous chord had a chromatic bass (V⁶/V),
+              // only allow chords that can provide the forced resolution pitch in the bass.
+              if (forcedNextBassPitch !== undefined) {
+                const bassResolvable = possibleNextChords.filter((c) => {
+                  for (let p = bassRange[0]; p <= bassRange[1]; p++) {
+                    if (p === forcedNextBassPitch) {
+                      const deg = getDiatonicDegree(p, keyInfo);
+                      if (c.triadNotes.includes(deg)) return true;
+                    }
+                  }
+                  return false;
+                });
+                if (bassResolvable.length > 0) possibleNextChords = bassResolvable;
+              }
+            }
+
+            // Select from possibilities (weighted random).
+            // Boost chromatic chord weights by chromaticFrequency multiplier.
+            const validPossibilities = prevChord.nextChordPossibilities
+              .filter((p) => possibleNextChords.some((c) => c.name === p.name))
+              .map((p) => {
+                if (chromaticFrequency === 1) return p;
+                const chord = possibleNextChords.find((c) => c.name === p.name);
+                const isChromatic = chord &&
+                  ((chord.sharpScaleDegree !== undefined && chord.sharpScaleDegree !== null) ||
+                   (chord.flatScaleDegree !== undefined && chord.flatScaleDegree !== null));
+                return isChromatic ? { ...p, weight: p.weight * chromaticFrequency } : p;
+              });
             targetChord = selectNextChord(
               validPossibilities,
               possibleNextChords
@@ -444,7 +598,9 @@ export function generateChordProgression(
             bassRange,
             prevBassNote,
             effectiveMaxSkip,
-            key
+            key,
+            accidentalsByStep,
+            forcedNextBassPitch
           );
 
           if (currentBassNote) {
@@ -485,6 +641,19 @@ export function generateChordProgression(
             currentBassNote.name
           }`
         );
+
+        // Update forced bass pitch: set when this chord placed a chromatic bass
+        // note (V⁶/V style), requiring the next bass to resolve by step.
+        forcedNextBassPitch = undefined;
+        const newChromDeg = currentChord.sharpScaleDegree ?? currentChord.flatScaleDegree;
+        if (
+          accidentalsByStep &&
+          newChromDeg !== undefined && newChromDeg !== null &&
+          currentChord.root === newChromDeg
+        ) {
+          const isRaised = currentChord.sharpScaleDegree !== undefined && currentChord.sharpScaleDegree !== null;
+          forcedNextBassPitch = currentBassNote.pitchValue + (isRaised ? 1 : -1);
+        }
       } // End main chord generation loop (i)
 
       // Success for this outer attempt
@@ -574,12 +743,18 @@ function diatonicToChromatic(diatonic: number): number {
 // First inversion is the standard voice-leading tool for smooth stepwise bass motion
 // when root position would require a skip exceeding maxSkip (Aldwell/Schachter Ch. 8).
 // Second inversion (6/4) is avoided as it is dissonant in simple chorale style.
+// When accidentalsByStep is on, chromatically-altered degrees are excluded from the bass
+// UNLESS chord.root === chromDeg (chromatic-bass inversions like V⁶/V), in which case
+// step approach is enforced instead. forcedPitch forces the returned note to a specific
+// pitch value (used to enforce bass resolution after a chromatic-bass note).
 function findValidBassNote(
   chord: Chord,
   bassRange: [number, number],
   prevNote: Note | undefined,
   maxSkip: number,
-  key: string
+  key: string,
+  accidentalsByStep: boolean = false,
+  forcedPitch?: number
 ): Note | null {
   console.log("\n=== Finding Valid Bass Note ===");
   console.log("Chord:", chord);
@@ -589,8 +764,24 @@ function findValidBassNote(
   console.log("Key:", key);
 
   // Root and 3rd are both valid in the bass (root position and first inversion).
-  // The 5th (second inversion / 6/4) is dissonant in basic chorale writing and excluded.
+  // The 5th (second inversion / 6/4) is avoided for diatonic chords in basic chorale style.
   const targetDegrees = new Set([chord.root, chord.triadNotes[1]]);
+
+  // When accidentalsByStep is on, keep the chromatic degree out of the bass so it is
+  // always handled by an upper voice that can approach it by step.
+  // Exception: chromatic-bass inversions (V⁶/V) where chord.root === chromDeg — the
+  // chromatic degree IS the intended bass note. Leave targetDegrees intact and enforce
+  // step approach below after possibleNotes is built.
+  if (accidentalsByStep) {
+    const chromDeg = chord.sharpScaleDegree ?? chord.flatScaleDegree;
+    if (chromDeg !== undefined && chromDeg !== null && chord.root !== chromDeg) {
+      targetDegrees.delete(chromDeg);
+      if (targetDegrees.size < 2 && chord.triadNotes[2] !== undefined) {
+        targetDegrees.add(chord.triadNotes[2]); // 5th — second inversion as inversion fallback
+      }
+    }
+  }
+
   console.log("Target Degrees (root + 3rd):", [...targetDegrees]);
 
   const keyInfo = keySignatures[key];
@@ -598,7 +789,7 @@ function findValidBassNote(
     throw new Error(`Key signature not found for key: ${key}`);
   }
 
-  const possibleNotes: Note[] = [];
+  let possibleNotes: Note[] = [];
 
   // For each pitch in the bass range
   for (let pitch = bassRange[0]; pitch <= bassRange[1]; pitch++) {
@@ -610,30 +801,26 @@ function findValidBassNote(
 
     if (!targetDegrees.has(degree)) continue;
 
-    // Check if this degree needs an accidental based on the chord
+    // Apply accidental prefix using diatonic key-signature degrees (not chromatic pitch classes).
+    // Previous code incorrectly compared chromatic values against the diatonic-degree arrays,
+    // which produced ^B instead of =B in flat keys (e.g. F major, where B is degree 6 = flat).
     let finalNoteName = noteName;
-    const chromaticDegree = diatonicToChromatic(degree);
 
     if (chord.sharpScaleDegree === degree) {
-      // If this degree should be sharp in this chord
-      if (chord.type === "secondary-dominant") {
-        // For secondary dominants, check if the degree is already sharp/flat in key
-        if (keySignatures[key].sharps?.includes(chromaticDegree)) {
-          finalNoteName = "^^" + noteName; // Double sharp if already sharp
-        } else if (keySignatures[key].flats?.includes(chromaticDegree)) {
-          finalNoteName = "=" + noteName; // Natural if flat
-        } else {
-          finalNoteName = "^" + noteName; // Sharp if natural
-        }
+      if (keyInfo.sharps?.includes(degree)) {
+        finalNoteName = "^^" + noteName; // already sharp in key → double-sharp
+      } else if (keyInfo.flats?.includes(degree)) {
+        finalNoteName = "=" + noteName;  // flat in key → raise to natural
+      } else {
+        finalNoteName = "^" + noteName;  // natural in key → raise to sharp
       }
     } else if (chord.flatScaleDegree === degree) {
-      // If this degree should be flat in this chord
-      if (keySignatures[key].sharps?.includes(chromaticDegree)) {
-        finalNoteName = "=" + noteName; // Natural if sharp
-      } else if (keySignatures[key].flats?.includes(chromaticDegree)) {
-        finalNoteName = "__" + noteName; // Double flat if already flat
+      if (keyInfo.sharps?.includes(degree)) {
+        finalNoteName = "=" + noteName;  // sharp in key → lower to natural
+      } else if (keyInfo.flats?.includes(degree)) {
+        finalNoteName = "__" + noteName; // already flat in key → double-flat
       } else {
-        finalNoteName = "_" + noteName; // Flat if natural
+        finalNoteName = "_" + noteName;  // natural in key → lower to flat
       }
     }
 
@@ -648,6 +835,22 @@ function findValidBassNote(
     "Found possible notes:",
     possibleNotes.map((n) => `${n.name} (pitch: ${n.pitchValue}, degree: ${n.degree})`)
   );
+
+  // Chromatic-bass chord (V⁶/V): the chromatic degree is the intended bass.
+  // It must be approached by exactly one diatonic step from the previous bass note.
+  const chromDegBass = chord.sharpScaleDegree ?? chord.flatScaleDegree;
+  if (
+    accidentalsByStep &&
+    chromDegBass !== undefined && chromDegBass !== null &&
+    chord.root === chromDegBass
+  ) {
+    if (!prevNote) return null; // Cannot place chromatic bass without a previous note
+    const stepApproachable = possibleNotes.filter(
+      (n) => n.degree !== chromDegBass || Math.abs(n.pitchValue - prevNote.pitchValue) === 1
+    );
+    if (stepApproachable.length > 0) possibleNotes = stepApproachable;
+    else return null; // No step-approachable chromatic bass pitch in range
+  }
 
   // If no previous note, prefer root position (structural stability at phrase start).
   // Fall back to inversions only if no root is in range.
@@ -669,6 +872,14 @@ function findValidBassNote(
   );
 
   if (reachable.length === 0) return null;
+
+  // Forced resolution pitch: used when the previous bass was a chromatic-bass note
+  // (V⁶/V) that must resolve by step. Return the exact pitch or null to trigger retry.
+  if (forcedPitch !== undefined) {
+    const atForced = reachable.filter((n) => n.pitchValue === forcedPitch);
+    if (atForced.length > 0) return atForced[0];
+    return null;
+  }
 
   // Primary: prefer the note closest to the range midpoint (avoids extreme positions
   // that create dead ends when navigating with tight maxSkip in short ranges).

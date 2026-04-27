@@ -117,6 +117,8 @@
     5: 'a 6th', 6: 'a 7th', 7: 'an octave', 8: 'a 9th',
   };
   let nctProbability = 0.1;
+  let accidentalsByStep = true;
+  let chromaticFrequency = 1;
   let chordProgression: Chord[] = [];
   let renderedString = "";
   let selectedVoicing = "4 Part Mixed";
@@ -453,8 +455,9 @@
       bpm,
       selectedRhythms: validRhythms,
       chords: fullChordSet,
-      accidentalsByStep: true,
+      accidentalsByStep,
       nctProbability,
+      chromaticFrequency,
       allowedChordNames: userAllowedChords.size < allChordNames.length
         ? Array.from(userAllowedChords)
         : undefined,
@@ -659,6 +662,27 @@
                 <span class="text-sm font-semibold">{Math.round(nctProbability * 100)}%</span>
               </div>
               <p class="text-xs text-slate-400">Passing · Neighbor · Anticipation · Appoggiatura</p>
+            </div>
+
+            <!-- Accidentals by Step -->
+            <div class="space-y-1">
+              <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input type="checkbox" bind:checked={accidentalsByStep} class="accent-blue-500" />
+                Chromatic tones approached &amp; resolved by step
+              </label>
+              <p class="text-xs text-slate-400">Sharps resolve up · Flats resolve down</p>
+            </div>
+
+            <!-- Chromatic Frequency -->
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-500">Less</span>
+                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" />
+                <span class="text-xs text-slate-500">More</span>
+                <span class="text-sm font-semibold">{chromaticFrequency}×</span>
+              </div>
+              <p class="text-xs text-slate-400">Multiplies the weight of secondary dominants &amp; other chromatic chords</p>
             </div>
 
             <!-- Max Skip -->

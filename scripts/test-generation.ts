@@ -102,6 +102,7 @@ function applyUILRanges(voicings: Record<string, PartsObject>, levelKey: string)
 
 // ── Run N attempts for a single combination ────────────────────────────────
 const ATTEMPTS_PER_COMBO = 10;
+const ACCIDENTALS_BY_STEP_MODES = [false, true];
 
 interface Result {
   level: string;
@@ -139,44 +140,46 @@ for (const levelKey of allLevels) {
       }
 
       for (const timeSig of timeSignatures) {
-        const result: Result = {
-          level: levelKey,
-          key,
-          voicing: voicingName,
-          timeSig: timeSig.name,
-          passes: 0,
-          failures: 0,
-          errors: [],
-        };
+        for (const accidentalsByStep of ACCIDENTALS_BY_STEP_MODES) {
+          const result: Result = {
+            level: levelKey,
+            key,
+            voicing: voicingName,
+            timeSig: timeSig.name,
+            passes: 0,
+            failures: 0,
+            errors: [],
+          };
 
-        for (let attempt = 0; attempt < ATTEMPTS_PER_COMBO; attempt++) {
-          try {
-            silence(() =>
-              generateChoralExercise({
-                key,
-                timeSig,
-                partsObject,
-                measures,
-                maxSkip: preset.maxSkip,
-                bpm: 80,
-                selectedRhythms: allowedRhythms,
-                chords: allowedChords,
-                accidentalsByStep: false,
-                nctProbability: 0.1,
-                allowedChordNames: preset.allowedChordNames,
-              })
-            );
-            result.passes++;
-            totalPass++;
-          } catch (e: any) {
-            result.failures++;
-            totalFail++;
-            const msg = e?.message ?? String(e);
-            if (!result.errors.includes(msg)) result.errors.push(msg);
+          for (let attempt = 0; attempt < ATTEMPTS_PER_COMBO; attempt++) {
+            try {
+              silence(() =>
+                generateChoralExercise({
+                  key,
+                  timeSig,
+                  partsObject,
+                  measures,
+                  maxSkip: preset.maxSkip,
+                  bpm: 80,
+                  selectedRhythms: allowedRhythms,
+                  chords: allowedChords,
+                  accidentalsByStep,
+                  nctProbability: 0.1,
+                  allowedChordNames: preset.allowedChordNames,
+                })
+              );
+              result.passes++;
+              totalPass++;
+            } catch (e: any) {
+              result.failures++;
+              totalFail++;
+              const msg = e?.message ?? String(e);
+              if (!result.errors.includes(msg)) result.errors.push(msg);
+            }
           }
-        }
 
-        results.push(result);
+          results.push(result);
+        }
       }
     }
   }

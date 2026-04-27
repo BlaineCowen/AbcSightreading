@@ -16,6 +16,7 @@ export const chords: Chord[] = [
       { name: "6", weight: 9 },
       { name: "7", weight: 6 },
       { name: "5/5", weight: 10 },
+      { name: "5/5-6", weight: 6 },
       { name: "5/6", weight: 10 },
       { name: "5/2", weight: 10 },
       { name: "m4", weight: 10 },
@@ -62,6 +63,7 @@ export const chords: Chord[] = [
       { name: "4-6", weight: 15 },
       { name: "6-6", weight: 15 },
       { name: "5-6", weight: 15 },
+      { name: "5/5-6", weight: 12 },
     ],
     type: "mediant",
     sharpScaleDegree: undefined,
@@ -96,6 +98,7 @@ export const chords: Chord[] = [
       { name: "5", weight: 17 },
       { name: "6", weight: 17 },
       { name: "5/5", weight: 10 },
+      { name: "5/5-6", weight: 6 },
       { name: "5/6", weight: 10 },
     ],
     type: "dominant",
@@ -116,6 +119,7 @@ export const chords: Chord[] = [
       { name: "4", weight: 7 },
       { name: "7", weight: 9 },
       { name: "5/5", weight: 10 },
+      { name: "5/5-6", weight: 6 },
       { name: "5/6", weight: 15 },
     ],
     type: "mediant",
@@ -162,6 +166,24 @@ export const chords: Chord[] = [
     sharpScaleDegree: 3,
     flatScaleDegree: undefined,
     baseMultiplier: 10,
+  },
+  {
+    // V⁶/V: first inversion of V/V — chromatic 3rd (F# in C major) is in the bass.
+    // Only valid when the preceding bass note is a diatonic step away from the chromatic degree.
+    // Resolves: F#(3) → G(4) by step upward.
+    name: "5/5-6",
+    symbol: "V⁶/V",
+    root: 3,             // degree 3 (chromatically raised) is in the bass
+    chordFamily: "5/5",
+    triadNotes: [1, 3, 5],
+    nextChordPossibilities: [
+      { name: "5", weight: 50 },     // V (G bass) — F# resolves up to G by step
+      { name: "1-64", weight: 50 },  // I⁶₄ (G bass) — same step resolution
+    ],
+    type: "secondary-dominant",
+    sharpScaleDegree: 3,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
   },
   {
     name: "5/6",
@@ -230,7 +252,10 @@ export const chords: Chord[] = [
     root: 4,
     chordFamily: "1",
     triadNotes: [0, 2, 4],
-    nextChordPossibilities: [{ name: "5", weight: 100 }],
+    nextChordPossibilities: [
+      { name: "5", weight: 100 },
+      { name: "5/5-6", weight: 15 },
+    ],
     type: "predominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
@@ -346,6 +371,7 @@ export const chords: Chord[] = [
       { name: "1", weight: 10 },
       { name: "4", weight: 50 },
       { name: "6", weight: 9 },
+      { name: "5/5-6", weight: 18 },
       { name: "5/6", weight: 10 },
       { name: "5/2", weight: 10 },
       { name: "m4", weight: 10 },
