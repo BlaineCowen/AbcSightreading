@@ -357,17 +357,20 @@ export function generateRandomRhythmCombination(
           // );
           if (selectedRhythm.pattern) {
             for (let i = 0; i < selectedRhythm.abcValue.length; i++) {
-              const value = parseInt(selectedRhythm.abcValue[i]);
+              const noteAbcValue = selectedRhythm.abcValue[i];
+              const isNoteRest = noteAbcValue.startsWith("z");
+              const value = parseInt(noteAbcValue.replace(/^[a-z]+/i, ""));
               measureArray.push(value);
               measureRhythmArr.push({
                 ...selectedRhythm,
-                abcValue: [selectedRhythm.abcValue[i]],
+                abcValue: [noteAbcValue],
                 totalValue: value,
                 singleNoteValue: value,
                 isPatternNote: true,
                 isPatternStart: i === 0,
                 isPatternEnd: i === selectedRhythm.abcValue.length - 1,
                 patternIndex: i,
+                rest: isNoteRest,
               });
             }
           } else {
@@ -1436,7 +1439,7 @@ const flatSolfegeMap = { 1: "ra", 2: "me", 4: "se", 5: "le", 6: "te" };
 
 function createConcatString(
   partsObject: PartsObject,
-  params: { timeSig: { tsPerMeasure: number }; showSolfege: boolean }
+  params: { timeSig: { tsPerMeasure: number; beamGroupSize?: number }; showSolfege: boolean }
 ) {
   var concatString = "";
 
@@ -2274,11 +2277,7 @@ export function createNewSr(params: any) {
     for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
       var partName = Object.keys(partsObject.parts)[i];
       var smallName = partsObject.parts[partName].smallName;
-      var middleString = "";
-      if (clef === "treble-8") {
-        middleString = "octave=1";
-      }
-      headerString += `V:${smallName} ${middleString}\n`;
+      headerString += `V:${smallName}\n`;
     }
 
     var scoreString = "%%score ";

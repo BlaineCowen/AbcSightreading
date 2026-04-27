@@ -144,6 +144,16 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     );
   }
 
+  // Only allow cadences whose required chords exist in the filtered chord list.
+  // (e.g. Deceptive cadence requires vi, but UIL 1-4 don't allow it.)
+  const chordSymbols = new Set(chords.map((c) => c.symbol));
+  const compatibleCadences = allCadences.filter((cadence) =>
+    cadence.progression.every(
+      (step) => !step.requiredChord || chordSymbols.has(step.requiredChord)
+    )
+  );
+  const intermediaryCadences = compatibleCadences.filter((c) => !c.isFinal || c.type === "Half");
+
   for (let i = 0; i < numCadencePoints; i++) {
     const isLastCadence = i === numCadencePoints - 1;
 
@@ -151,10 +161,10 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       selectedCadences.push(perfectAuthenticCadence);
       console.log(`  Cadence Point ${i + 1} (Last): Forced Perfect Authentic`);
     } else {
-      // Select a random cadence for intermediate points
-      // For now, allow any cadence (including another PAC)
-      const randomIndex = Math.floor(Math.random() * allCadences.length);
-      const randomCadence = allCadences[randomIndex];
+      // Select a random compatible cadence for intermediate points
+      const pool = intermediaryCadences.length > 0 ? intermediaryCadences : compatibleCadences;
+      const randomIndex = Math.floor(Math.random() * pool.length);
+      const randomCadence = pool[randomIndex];
       selectedCadences.push(randomCadence);
       console.log(`  Cadence Point ${i + 1}: Selected ${randomCadence.type}`);
     }

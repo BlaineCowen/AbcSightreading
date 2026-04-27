@@ -112,15 +112,22 @@ export interface KeySignatureInfo {
 // --- End KeySignatureInfo ---
 
 // Add ClefType Enum
+//
+// abcjs has a +1 octave display bias built into its visual rendering
+// (independent of MIDI playback, which follows ABC standard pitches).
+// To make notes appear at the correct visual position relative to their
+// ABC pitch names, treble/bass voices use `octave=-1` to cancel that bias.
+// Tenor uses plain `treble` so the inherent +1 bias provides the
+// traditional treble-8-style display (one octave above sounding pitch).
 export enum ClefType {
-  Treble = "treble",
-  Bass = "bass",
+  Treble = "treble octave=-1",
+  Bass = "bass octave=-1",
   Alto = "alto",
   Tenor = "tenor",
   Percussion = "perc",
-  TrebleOctaveDown = "treble-8", // Example for Tenor voice
+  TrebleOctaveDown = "treble-8",
+  TrebleOctaveUp = "treble transpose=-12", // Tenor: inherent +1 octave display bias gives traditional treble-8 visual; transpose=-12 lowers MIDI playback by one octave so tenor sounds one octave below its displayed position.
   BassOctaveUp = "bass+8",
-  // Add others as needed
 }
 
 // Add PartDefinition type (used within PartsObject)

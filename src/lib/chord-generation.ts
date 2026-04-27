@@ -432,12 +432,18 @@ export function generateChordProgression(
           }
           console.log(`Trying chord ${targetChord.name} for index ${i}`);
 
-          // C. Find bass note for the target chord
+          // C. Find bass note for the target chord.
+          // At cadence-forced positions, allow larger bass leaps — cadential bass
+          // motion (V→I is a descending 5th) is disjunct by nature and not subject
+          // to the same stepwise maxSkip that governs the middle of phrases
+          // (Aldwell/Schachter: "bass lines are often quite disjunct, particularly
+          // at the ends of phrases").
+          const effectiveMaxSkip = constraint ? 7 : maxSkip;
           currentBassNote = findValidBassNote(
             targetChord,
             bassRange,
             prevBassNote,
-            maxSkip,
+            effectiveMaxSkip,
             key
           );
 
@@ -496,15 +502,32 @@ export function generateChordProgression(
       // --- Strategy for Retry: Remove Problematic Precursor ---
       if (progression.length > 0) {
         const problemPrecursor = progression[progression.length - 1];
-        console.log(
-          `Removing chord ${problemPrecursor.name} from available set for next attempt.`
+
+        // Protect chords that are essential for cadences or starting the progression.
+        // Removing these would make subsequent attempts structurally impossible.
+        const cadenceRequiredNames = new Set(
+          [...cadenceConstraints.values()].map((c) => c.requiredChord.name)
         );
-        availableChordsForAttempt = availableChordsForAttempt.filter(
-          (c) => c.name !== problemPrecursor.name
-        );
-        if (availableChordsForAttempt.length < 2) {
-          console.error("Too few chords remaining after removal. Aborting.");
-          outerAttempts = 0;
+        const isProtected =
+          problemPrecursor.type === "tonic" ||
+          problemPrecursor.type === "dominant" ||
+          cadenceRequiredNames.has(problemPrecursor.name);
+
+        if (isProtected) {
+          console.log(
+            `Chord ${problemPrecursor.name} is protected (${problemPrecursor.type}/cadence-required) — not removing from available set.`
+          );
+        } else {
+          console.log(
+            `Removing chord ${problemPrecursor.name} from available set for next attempt.`
+          );
+          availableChordsForAttempt = availableChordsForAttempt.filter(
+            (c) => c.name !== problemPrecursor.name
+          );
+          if (availableChordsForAttempt.length < 2) {
+            console.error("Too few chords remaining after removal. Aborting.");
+            outerAttempts = 0;
+          }
         }
       } else {
         console.log("Failed on first chord, cannot remove precursor.");
@@ -546,7 +569,11 @@ function diatonicToChromatic(diatonic: number): number {
   return semitones[diatonic];
 }
 
-// Helper function to find a valid bass note for a chord
+// Helper function to find a valid bass note for a chord.
+// Allows root position (5/3) and first inversion (6/3) — the 3rd in the bass.
+// First inversion is the standard voice-leading tool for smooth stepwise bass motion
+// when root position would require a skip exceeding maxSkip (Aldwell/Schachter Ch. 8).
+// Second inversion (6/4) is avoided as it is dissonant in simple chorale style.
 function findValidBassNote(
   chord: Chord,
   bassRange: [number, number],
@@ -561,9 +588,10 @@ function findValidBassNote(
   console.log("Max Skip:", maxSkip);
   console.log("Key:", key);
 
-  // Get target degree based on chord root
-  const targetDegree = chord.root;
-  console.log("Target Degree:", targetDegree);
+  // Root and 3rd are both valid in the bass (root position and first inversion).
+  // The 5th (second inversion / 6/4) is dissonant in basic chorale writing and excluded.
+  const targetDegrees = new Set([chord.root, chord.triadNotes[1]]);
+  console.log("Target Degrees (root + 3rd):", [...targetDegrees]);
 
   const keyInfo = keySignatures[key];
   if (!keyInfo) {
@@ -580,68 +608,88 @@ function findValidBassNote(
     // Use getDiatonicDegree to get the correct scale degree for this pitch in the current key
     const degree = getDiatonicDegree(pitch, keyInfo);
 
-    if (degree === targetDegree) {
-      // Check if this degree needs an accidental based on the chord
-      let finalNoteName = noteName;
-      const chromaticDegree = diatonicToChromatic(targetDegree);
+    if (!targetDegrees.has(degree)) continue;
 
-      if (chord.sharpScaleDegree === targetDegree) {
-        // If this degree should be sharp in this chord
-        if (chord.type === "secondary-dominant") {
-          // For secondary dominants, check if the degree is already sharp/flat in key
-          if (keySignatures[key].sharps?.includes(chromaticDegree)) {
-            finalNoteName = "^^" + noteName; // Double sharp if already sharp
-          } else if (keySignatures[key].flats?.includes(chromaticDegree)) {
-            finalNoteName = "=" + noteName; // Natural if flat
-          } else {
-            finalNoteName = "^" + noteName; // Sharp if natural
-          }
-        }
-      } else if (chord.flatScaleDegree === targetDegree) {
-        // If this degree should be flat in this chord
+    // Check if this degree needs an accidental based on the chord
+    let finalNoteName = noteName;
+    const chromaticDegree = diatonicToChromatic(degree);
+
+    if (chord.sharpScaleDegree === degree) {
+      // If this degree should be sharp in this chord
+      if (chord.type === "secondary-dominant") {
+        // For secondary dominants, check if the degree is already sharp/flat in key
         if (keySignatures[key].sharps?.includes(chromaticDegree)) {
-          finalNoteName = "=" + noteName; // Natural if sharp
+          finalNoteName = "^^" + noteName; // Double sharp if already sharp
         } else if (keySignatures[key].flats?.includes(chromaticDegree)) {
-          finalNoteName = "__" + noteName; // Double flat if already flat
+          finalNoteName = "=" + noteName; // Natural if flat
         } else {
-          finalNoteName = "_" + noteName; // Flat if natural
+          finalNoteName = "^" + noteName; // Sharp if natural
         }
       }
-
-      possibleNotes.push({
-        name: finalNoteName,
-        degree: targetDegree,
-        pitchValue: pitch,
-      });
+    } else if (chord.flatScaleDegree === degree) {
+      // If this degree should be flat in this chord
+      if (keySignatures[key].sharps?.includes(chromaticDegree)) {
+        finalNoteName = "=" + noteName; // Natural if sharp
+      } else if (keySignatures[key].flats?.includes(chromaticDegree)) {
+        finalNoteName = "__" + noteName; // Double flat if already flat
+      } else {
+        finalNoteName = "_" + noteName; // Flat if natural
+      }
     }
+
+    possibleNotes.push({
+      name: finalNoteName,
+      degree,
+      pitchValue: pitch,
+    });
   }
 
   console.log(
     "Found possible notes:",
-    possibleNotes.map((n) => `${n.name} (pitch: ${n.pitchValue})`)
+    possibleNotes.map((n) => `${n.name} (pitch: ${n.pitchValue}, degree: ${n.degree})`)
   );
 
-  // If no previous note, just take the middle note
+  // If no previous note, prefer root position (structural stability at phrase start).
+  // Fall back to inversions only if no root is in range.
   if (!prevNote) {
-    const middleIndex = Math.floor(possibleNotes.length / 2);
-    return possibleNotes[middleIndex] || null;
+    const rootNotes = possibleNotes.filter((n) => n.degree === chord.root);
+    const pool = rootNotes.length > 0 ? rootNotes : possibleNotes;
+    const middleIndex = Math.floor(pool.length / 2);
+    return pool[middleIndex] || null;
   }
 
-  // Sort by distance from previous note
-  possibleNotes.sort((a, b) => {
-    const distA = Math.abs(a.pitchValue - prevNote.pitchValue);
-    const distB = Math.abs(b.pitchValue - prevNote.pitchValue);
-    return distA - distB;
+  // Among reachable chord tones, prefer the one closest to the midpoint of the bass range.
+  // This "midrange preference" avoids landing on extreme positions that create dead ends
+  // (e.g., V root at the very bottom of the range where I root is 3+ steps away with maxSkip=2).
+  // Prefer root position over first inversion when both candidates score equally well.
+  const midpoint = (bassRange[0] + bassRange[1]) / 2;
+
+  const reachable = possibleNotes.filter(
+    (n) => Math.abs(n.pitchValue - prevNote.pitchValue) <= maxSkip
+  );
+
+  if (reachable.length === 0) return null;
+
+  // Primary: prefer the note closest to the range midpoint (avoids extreme positions
+  // that create dead ends when navigating with tight maxSkip in short ranges).
+  // Tiebreak 1: prefer root over inversion (structural stability).
+  // Tiebreak 2: prefer closer to prevNote (smooth voice leading).
+  return reachable.reduce((best, n) => {
+    const bestMidDist = Math.abs(best.pitchValue - midpoint);
+    const nMidDist = Math.abs(n.pitchValue - midpoint);
+    if (nMidDist < bestMidDist) return n;
+    if (nMidDist > bestMidDist) return best;
+    // Equal midrange: prefer root over inversion
+    const nIsRoot = n.degree === chord.root;
+    const bestIsRoot = best.degree === chord.root;
+    if (nIsRoot && !bestIsRoot) return n;
+    if (!nIsRoot && bestIsRoot) return best;
+    // Equal everything: prefer closer to prevNote
+    return Math.abs(n.pitchValue - prevNote.pitchValue) <
+      Math.abs(best.pitchValue - prevNote.pitchValue)
+      ? n
+      : best;
   });
-
-  // Return first note within maxSkip distance
-  for (const note of possibleNotes) {
-    if (Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip) {
-      return note;
-    }
-  }
-
-  return null;
 }
 
 /**

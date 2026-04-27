@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Eighth rest: filled oval + angled diagonal stem -->
+  <ellipse cx="52" cy="68" rx="14" ry="11" fill="currentColor"/>
+  <line x1="52" y1="75" x2="22" y2="155" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+  <!-- Eighth note: oval head + stem + flag -->
+  <ellipse cx="148" cy="158" rx="14" ry="10" transform="rotate(-20,148,158)" fill="currentColor"/>
+  <line x1="160" y1="152" x2="160" y2="50" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+  <path d="M160,50 C185,65 190,95 168,115" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+</svg>

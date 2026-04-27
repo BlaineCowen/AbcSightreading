@@ -7,6 +7,7 @@
   import * as Tone from "tone";
   import PianoIcon from "./ui/pianoIcon.svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
+  import PlaybackBar from "./PlaybackBar.svelte";
   import "abcjs/abcjs-audio.css";
   // import PitchVisualizer from "./PitchVisualizer.svelte";
 
@@ -36,10 +37,21 @@
   const measureOptions = [1, 2, 4, 8, 12, 16];
   const maxSkipOptions = [1, 2, 3, 4, 5, 6, 7, 8];
 
+  // ── Tab state ─────────────────────────────────────────────────────────────
+  type Tab = 'setup' | 'rhythm' | 'notes' | 'range';
+  let selectedTab: Tab = 'setup';
+
+  // ── Skip interval names (matches choral) ──────────────────────────────────
+  const skipIntervalNames: Record<number, string> = {
+    1: 'a 2nd', 2: 'a 3rd', 3: 'a 4th', 4: 'a 5th',
+    5: 'a 6th', 6: 'a 7th', 7: 'an octave', 8: 'a 9th',
+  };
+
   // Audio and playback state
   let currentTune: any = null;
   let timingCallbacks: TimingCallbacks | null = null;
   let isPlaying = false;
+  let looping = false;
   let createSynth: any = null;
 
   // Add loading state
@@ -253,7 +265,7 @@
   };
 
   const SELECTABLE_RESTS = new Set([
-    "eighthRest",
+    "eighthRestEighth",
     "quarterRest",
     "halfRest",
     "wholeRest",
@@ -401,11 +413,11 @@
   let pitchCursor: SVGLineElement | null = null;
   let displayScale = 2; // Scale for visual display
 
-  function getStaffWidth(scale: number): number {
+  function getStaffWidth(): number {
     const paper = document.getElementById("paper");
     const containerWidth = paper?.clientWidth ?? 900;
-    // abcjs renders SVG at staffwidth * scale px wide; keep it within the container
-    return Math.max(200, Math.floor(containerWidth / scale) - 20);
+    // staffwidth controls how many measures fit per line; responsive: "resize" handles visual zoom
+    return Math.max(200, Math.floor(containerWidth / displayScale) - 20);
   }
 
   // Define possible keys
@@ -458,10 +470,22 @@
     }
   }
 
-  // Add this state variable
-  let optionsVisible = true;
+  // ── Dirty indicators ──────────────────────────────────────────────────────
+  const DEFAULTS = {
+    key: 'F', clef: 'treble', timeSig: '4/4', measures: 8,
+    maxSkip: 4, scaleDegrees: [1, 3, 5], range: { min: 17, max: 21 },
+    rhythmNames: ['eighthEighth', 'quarter'],
+  };
+  $: setupDirty = selectedKey !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
+    selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
+  $: rhythmDirty = JSON.stringify(selectedRhythms.map((r: Rhythm) => r.name).sort()) !==
+    JSON.stringify([...DEFAULTS.rhythmNames].sort());
+  $: notesDirty = maxSkip !== DEFAULTS.maxSkip ||
+    JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
+    selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
+    accidentalsFollowStep !== false || moveEighthNotes !== false || showSolfege !== false;
+  $: rangeDirty = selectedRange.min !== DEFAULTS.range.min || selectedRange.max !== DEFAULTS.range.max;
 
-  // Add these localStorage functions
   const STORAGE_KEY = "sightReadingOptions";
 
   // Save options whenever they change
@@ -592,8 +616,9 @@
         generateDownload: true,
         generateInline: true,
         generateTiming: true,
-        scale: displayScale,
-        staffwidth: getStaffWidth(displayScale),
+        responsive: "resize",
+        scale: 1,
+        staffwidth: getStaffWidth(),
         paddingTop: 50,
         paddingBottom: 50,
         wrap: {
@@ -704,8 +729,8 @@
       generateDownload: true,
       generateInline: true,
       generateTiming: true,
-      scale: displayScale,
-      staffwidth: getStaffWidth(displayScale),
+      scale: 1,
+      staffwidth: getStaffWidth(),
       paddingTop: 50,
       paddingBottom: 50,
       wrap: {
@@ -1005,7 +1030,6 @@
       return;
     }
 
-    optionsVisible = false;
     isLoading = true;
     error = null;
 
@@ -1330,6 +1354,20 @@
     return Tone.Frequency(keyMap[key], "midi").toFrequency();
   }
 
+  // ── PlaybackBar handlers ───────────────────────────────────────────────────
+  function handleRestart() { stopMusic(); playMusic(); }
+  function handleToggleLoop() { looping = !looping; }
+  function handleBpmChange(newBpm: number) {
+    tempo = newBpm;
+    bpm = newBpm;
+    if (currentTune && originalTuneString) rerenderTune();
+  }
+  function handleShare() {
+    updateUrlFromState();
+    navigator.clipboard.writeText(window.location.href).then(() => alert('Link copied to clipboard!'));
+  }
+  function handlePrint() { window.print(); }
+
   onDestroy(() => {
     if (droneOscillator) {
       droneOscillator.stop();
@@ -1404,478 +1442,332 @@
   }
 </script>
 
-<div class="w-full min-h-screen">
-  <main class="flex flex-col items-center w-full pb-20 min-h-screen">
-    <!-- <PitchVisualizer {selectedKey} {selectableArray} /> -->
+<div class="w-full pb-24">
+  <main class="flex flex-col items-center w-full min-h-screen">
 
-    <!-- Options and Controls in constrained width -->
-    <div
-      class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4"
-    >
-      <!-- Options Panel -->
-      <div
-        class="w-full bg-white shadow-md rounded-lg p-2 md:p-4 my-4 transition-all duration-300"
-      >
-        <!-- Header with minimize button -->
-        <div class="flex justify-between items-center mb-2">
-          <h2 class="text-lg font-semibold">Options</h2>
+    <!-- Tab panel -->
+    <div class="w-full max-w-4xl mx-auto px-2 md:px-4">
+      <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4">
+
+        <!-- Tab bar -->
+        <div class="flex items-center border-b border-slate-200">
+          {#each ['setup', 'rhythm', 'notes', 'range'] as tab}
+            <button
+              type="button"
+              class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
+                {selectedTab === tab
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'}"
+              on:click={() => (selectedTab = tab)}
+            >
+              {({'setup':'Setup','rhythm':'Rhythm','notes':'Notes','range':'Range'})[tab] ?? tab}
+              {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'notes' && notesDirty) || (tab === 'range' && rangeDirty)}
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
+              {/if}
+            </button>
+          {/each}
+
+          <!-- Generate button always visible in tab bar -->
           <button
-            class="p-1 hover:bg-gray-100 rounded"
-            on:click={() => (optionsVisible = !optionsVisible)}
+            class="ml-auto mr-3 my-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-5 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            on:click={handleClick}
+            disabled={isLoading}
           >
-            {#if optionsVisible}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            {:else}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            {/if}
+            {isLoading ? '...' : '▶ Generate'}
           </button>
         </div>
 
-        <!-- Options content with transition -->
-        {#if optionsVisible}
-          <div class="space-y-4 overflow-hidden transition-all duration-300">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Clef Selection -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Clef</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each clefOptions as clef}
-                    <button
-                      class="px-2 md:px-3 py-1 rounded text-sm {selectedClef ===
-                      clef
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => updateClef(clef)}
-                    >
-                      {clef}
-                    </button>
-                  {/each}
-                </div>
-              </div>
+        <!-- Tab content -->
+        <div class="p-4">
 
-              <!-- Time Signature -->
+          <!-- Setup Tab -->
+          {#if selectedTab === 'setup'}
+            <div class="grid grid-cols-2 gap-6">
               <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Time Signature</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each Object.keys(timeSignatures) as timeSig}
-                    <button
-                      class="px-3 py-1 rounded {selectedTimeSignature ===
-                      timeSig
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (selectedTimeSignature = timeSig)}
-                    >
-                      {timeSig}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Number of Measures -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Measures</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each measureOptions as option}
-                    <button
-                      class="px-3 py-1 rounded {measures === option
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (measures = option)}
-                    >
-                      {option}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Max Skip -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Max Skip</h2>
-                <div class="flex flex-wrap gap-2">
-                  {#each maxSkipOptions as option}
-                    <button
-                      class="px-3 py-1 rounded {maxSkip === option
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => (maxSkip = option)}
-                    >
-                      {option}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Key Selection -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Key</h2>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
                 <div class="flex flex-wrap gap-2">
                   {#each possibleKeys as key}
                     <button
-                      class="px-3 py-1 rounded {selectedKey === key
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
+                      class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                       on:click={() => (selectedKey = key)}
-                    >
-                      {key}
-                    </button>
+                    >{key}</button>
                   {/each}
                 </div>
               </div>
 
-              <!-- check range selector   -->
               <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Range</h2>
-
-                <RangeSelector
-                  range={selectedRange}
-                  clef={selectedClef}
-                  onRangeChange={handleRangeChange}
-                />
-              </div>
-
-              <!-- select scale degrees -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Scale Degrees</h2>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Clef</p>
                 <div class="flex flex-wrap gap-2">
-                  {#each sharpScaleDegrees as degree}
+                  {#each clefOptions as clef}
                     <button
-                      class="px-2 py-1 rounded {selectedSharpDegrees.has(
-                        degree.value
-                      )
-                        ? 'bg-gray-600 text-white'
-                        : 'bg-gray-100'} {degree.value === 1
-                        ? 'ml-5'
-                        : degree.value === 4
-                          ? 'ml-10'
-                          : ''}"
-                      on:click={() => toggleSharpDegree(degree.value)}
-                    >
-                      {degree.display}
-                    </button>
+                      class="px-3 py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={() => updateClef(clef)}
+                    >{clef}</button>
                   {/each}
                 </div>
-                <div class="flex flex-wrap gap-2">
-                  {#each scaleDegrees as degree}
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
+                <div class="flex gap-2">
+                  {#each Object.keys(timeSignatures) as ts}
                     <button
-                      class="px-3 py-1 rounded {selectedScaleDegrees.has(degree)
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100'}"
-                      on:click={() => toggleScaleDegree(degree)}
-                    >
-                      {degree}
-                    </button>
+                      class="px-3 py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={() => (selectedTimeSignature = ts)}
+                    >{ts}</button>
                   {/each}
                 </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
                 <div class="flex flex-wrap gap-2">
-                  {#each flatScaleDegrees as degree}
+                  {#each measureOptions as opt}
                     <button
-                      class="px-2 py-1 rounded {selectedFlatDegrees.has(
-                        degree.value
-                      )
-                        ? 'bg-gray-600 text-white'
-                        : 'bg-gray-100'} {degree.value === 2
-                        ? 'ml-5'
-                        : degree.value === 5
-                          ? 'ml-10'
-                          : ''}"
-                      on:click={() => toggleFlatDegree(degree.value)}
-                    >
-                      {degree.display}
-                    </button>
+                      class="px-3 py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={() => (measures = opt)}
+                    >{opt}</button>
                   {/each}
-                </div>
-              </div>
-
-              <!-- move eighth notes -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Move 8th Notes</h2>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    class="px-3 py-1 rounded {moveEighthNotes
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100'}"
-                    on:click={() => (moveEighthNotes = !moveEighthNotes)}
-                  >
-                    {moveEighthNotes ? "On" : "Off"}
-                  </button>
-                </div>
-              </div>
-
-              <!-- accidentals follow step -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Accidentals Follow Step</h2>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    class="px-3 py-1 rounded {accidentalsFollowStep
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100'}"
-                    on:click={() =>
-                      (accidentalsFollowStep = !accidentalsFollowStep)}
-                  >
-                    {accidentalsFollowStep ? "On" : "Off"}
-                  </button>
-                </div>
-              </div>
-
-              <!-- show solfege -->
-              <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Show Solfege</h2>
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    class="px-3 py-1 rounded {showSolfege
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100'}"
-                    on:click={() => (showSolfege = !showSolfege)}
-                  >
-                    {showSolfege ? "On" : "Off"}
-                  </button>
                 </div>
               </div>
             </div>
 
-            <!-- Rhythm Selection -->
-            <div class="space-y-2">
-              <h2 class="text-lg font-semibold">Rhythms</h2>
+          <!-- Rhythm Tab -->
+          {:else if selectedTab === 'rhythm'}
+            <div class="space-y-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Select Allowed Rhythms</p>
               <div class="flex flex-wrap gap-2">
                 {#each Object.values(filterRhythms) as rhythm}
                   <button
-                    class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded {selectedRhythms.some(
-                      // @ts-ignore
-                      (r) => r.name === rhythm.name
-                    )
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100'}"
+                    class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded
+                      {selectedRhythms.some((r) => r?.name === rhythm.name)
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => {
-                      if (
-                        selectedRhythms.some(
-                          (
-                            // @ts-ignore
-                            r
-                          ) => r.name === rhythm.name
-                        )
-                      ) {
-                        selectedRhythms = selectedRhythms.filter(
-                          // @ts-ignore
-                          (r) => r.name !== rhythm.name
-                        );
+                      if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
+                        selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
                       } else {
                         selectedRhythms = [...selectedRhythms, rhythm];
                       }
                     }}
                   >
                     {#await rhythmSvgs[rhythm.name]}
-                      <!-- Loading state -->
-                      <span>...</span>
+                      <span class="text-xs">…</span>
                     {:then svg}
-                      <span
-                        class="rhythm-icon w-full h-full flex items-center justify-center"
-                      >
+                      <span class="rhythm-icon w-full h-full flex items-center justify-center">
                         {@html svg.default}
                       </span>
                     {:catch}
-                      <span>{rhythm.name}</span>
+                      <span class="text-xs">{rhythm.name}</span>
                     {/await}
                   </button>
                 {/each}
               </div>
             </div>
-          </div>
-        {/if}
-        <!-- Create Button -->
 
-        <button
-          class="w-full mt-4 bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          on:click={handleClick}
-          disabled={isLoading}
-        >
-          {isLoading ? "Generating..." : "Generate Exercise"}
-        </button>
-
-        {#if error}
-          <div class="mt-4 p-4 bg-red-100 text-red-700 rounded-md">
-            {error}
-          </div>
-        {/if}
-      </div>
-
-      <!-- Audio Controls -->
-      <div class="w-full p-4">
-        <!-- Volume Controls Row -->
-        <div class="flex flex-wrap items-center justify-center gap-4 mb-4">
-          <!-- Piano Volume -->
-          <div class="flex items-center gap-2">
-            <button class="flex-shrink-0" on:click={toggleMute}>
-              <PianoIcon />
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              bind:value={masterVolume}
-              on:input={handleVolumeChange}
-              class="w-20 md:w-24"
-              aria-label="Master volume"
-            />
-          </div>
-
-          <!-- Metronome Volume -->
-          <div class="flex items-center gap-2">
-            <button on:click={() => (isMetronomeOn = !isMetronomeOn)}>
-              <MetronomeIcon />
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              bind:value={metronomeVolume}
-              on:input={handleMetronomeVolumeChange}
-              class="w-20 md:w-24"
-              aria-label="Metronome volume"
-            />
-          </div>
-
-          <!-- Drone Control -->
-          <div class="flex items-center gap-2">
-            <button
-              class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded text-sm"
-              on:click={toggleDrone}
-            >
-              {dronePlaying ? "Stop Drone" : "Start Drone"}
-            </button>
-            {#if dronePlaying}
-              <div class="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="-60"
-                  max="0"
-                  step="1"
-                  value={currentDroneVolume}
-                  on:input={handleDroneVolumeChange}
-                  class="w-20 md:w-32"
-                  aria-label="Drone volume"
-                />
-                <span class="text-xs md:text-sm">{currentDroneVolume}dB</span>
+          <!-- Notes Tab -->
+          {:else if selectedTab === 'notes'}
+            <div class="space-y-5">
+              <!-- Scale Degrees -->
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Scale Degrees</p>
+                <div class="flex flex-wrap gap-2">
+                  {#each sharpScaleDegrees as degree}
+                    <button
+                      class="px-2 py-1 rounded text-sm
+                        {selectedSharpDegrees.has(degree.value) ? 'bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200'}
+                        {degree.value === 1 ? 'ml-5' : degree.value === 4 ? 'ml-10' : ''}"
+                      on:click={() => toggleSharpDegree(degree.value)}
+                    >{degree.display}</button>
+                  {/each}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#each scaleDegrees as degree}
+                    <button
+                      class="px-3 py-1 rounded text-sm {selectedScaleDegrees.has(degree) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={() => toggleScaleDegree(degree)}
+                    >{degree}</button>
+                  {/each}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#each flatScaleDegrees as degree}
+                    <button
+                      class="px-2 py-1 rounded text-sm
+                        {selectedFlatDegrees.has(degree.value) ? 'bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200'}
+                        {degree.value === 2 ? 'ml-5' : degree.value === 5 ? 'ml-10' : ''}"
+                      on:click={() => toggleFlatDegree(degree.value)}
+                    >{degree.display}</button>
+                  {/each}
+                </div>
               </div>
-            {/if}
-          </div>
-        </div>
 
-        <!-- Playback Controls Row -->
-        <div class="flex justify-center items-center gap-3">
-          <button
-            class="flex-1 max-w-24 py-3 px-4 rounded-lg font-semibold text-white transition-colors {!currentTune
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700'}"
-            disabled={!currentTune}
-            on:click={isPlaying ? pauseMusic : playMusic}
-          >
-            {isPlaying ? "Pause" : "Play"}
-          </button>
-          <button
-            class="flex-1 max-w-24 py-3 px-4 rounded-lg font-semibold text-white transition-colors {!currentTune
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-red-500 hover:bg-red-600 active:bg-red-700'}"
-            disabled={!currentTune}
-            on:click={stopMusic}
-          >
-            Stop
-          </button>
+              <!-- Max Skip -->
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
+                <div class="flex items-center gap-3">
+                  <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                    on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}>−</button>
+                  <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
+                  <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                    on:click={() => { if (maxSkip < 8) maxSkip += 1; }}>+</button>
+                  <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
+                </div>
+              </div>
 
-          <!-- Tempo Controls -->
-          <div class="flex items-center gap-2 ml-4">
-            <span class="text-sm font-medium">Tempo:</span>
-            <input
-              type="range"
-              min="30"
-              max="120"
-              bind:value={tempo}
-              on:input={() => {
-                if (currentTune && originalTuneString) {
-                  rerenderTune();
-                }
-              }}
-              class="w-20"
-            />
-            <span class="text-sm w-8 text-center">{tempo}</span>
-          </div>
+              <!-- Toggles -->
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Accidentals Follow Step</p>
+                <button
+                  class="px-3 py-1 rounded text-sm {accidentalsFollowStep ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
+                >{accidentalsFollowStep ? 'On' : 'Off'}</button>
+              </div>
 
-          <!-- Scale Controls -->
-          <div class="flex items-center gap-2 ml-4">
-            <span class="text-sm font-medium">Scale:</span>
-            <button
-              class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
-              on:click={() => {
-                displayScale = Math.max(0.5, displayScale - 0.1);
-                if (currentTune && originalTuneString) {
-                  rerenderTune();
-                }
-              }}
-            >
-              −
-            </button>
-            <span class="text-sm w-12 text-center"
-              >{displayScale.toFixed(1)}x</span
-            >
-            <button
-              class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
-              on:click={() => {
-                displayScale = Math.min(3, displayScale + 0.1);
-                if (currentTune && originalTuneString) {
-                  rerenderTune();
-                }
-              }}
-            >
-              +
-            </button>
-          </div>
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Move 8th Notes</p>
+                <button
+                  class="px-3 py-1 rounded text-sm {moveEighthNotes ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={() => (moveEighthNotes = !moveEighthNotes)}
+                >{moveEighthNotes ? 'On' : 'Off'}</button>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Show Solfege</p>
+                <button
+                  class="px-3 py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={() => (showSolfege = !showSolfege)}
+                >{showSolfege ? 'On' : 'Off'}</button>
+              </div>
+            </div>
+
+          <!-- Range Tab -->
+          {:else if selectedTab === 'range'}
+            <div class="space-y-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Note Range</p>
+              <RangeSelector
+                range={selectedRange}
+                clef={selectedClef}
+                onRangeChange={handleRangeChange}
+              />
+            </div>
+          {/if}
+
         </div>
       </div>
     </div>
 
-    <!-- Music Display - Full Width with Margins -->
-    {#if currentTune || isLoading}
-      <div class="w-full px-4 md:px-8 pb-20">
-        <div
-          id="paper"
-          class="bg-white rounded-lg shadow-md my-4 py-10mx-auto"
-          style="-webkit-overflow-scrolling: touch;"
-        >
-          {#if isLoading}
-            <div class="flex items-center justify-center h-48">
-              <div class="text-gray-500">Generating exercise...</div>
-            </div>
-          {/if}
+    {#if error}
+      <div class="w-full max-w-4xl mx-auto px-2 md:px-4">
+        <div class="p-4 bg-red-100 text-red-700 rounded-md text-sm">
+          {error}
         </div>
       </div>
     {/if}
 
-    <!-- padding -->
-    <div class="h-96"></div>
+    <!-- Music Display -->
+    <div class="w-full px-2">
+      <div
+        id="paper"
+        class="bg-white rounded-lg shadow-md my-2"
+      >
+        {#if isLoading}
+          <div class="flex items-center justify-center h-48">
+            <div class="text-slate-500 text-sm">Generating exercise…</div>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <div class="h-4"></div>
   </main>
+
+  <!-- Secondary sticky bar (unison-specific audio controls) -->
+  <div class="fixed bottom-[48px] left-0 right-0 bg-slate-800 text-slate-100 px-4 py-1.5 flex items-center gap-4 flex-wrap z-40 shadow-lg border-t border-slate-700">
+    <!-- Piano volume -->
+    <div class="flex items-center gap-2">
+      <button class="flex-shrink-0 opacity-80 hover:opacity-100" on:click={toggleMute} title="Toggle piano">
+        <PianoIcon />
+      </button>
+      <input
+        type="range" min="0" max="1" step="0.05"
+        bind:value={masterVolume}
+        on:input={handleVolumeChange}
+        class="w-16 accent-blue-400"
+        aria-label="Piano volume"
+      />
+    </div>
+
+    <!-- Metronome volume -->
+    <div class="flex items-center gap-2">
+      <button class="flex-shrink-0 opacity-80 hover:opacity-100" on:click={() => (isMetronomeOn = !isMetronomeOn)} title="Toggle metronome">
+        <MetronomeIcon />
+      </button>
+      <input
+        type="range" min="0" max="1" step="0.05"
+        bind:value={metronomeVolume}
+        on:input={handleMetronomeVolumeChange}
+        class="w-16 accent-blue-400"
+        aria-label="Metronome volume"
+      />
+    </div>
+
+    <!-- Divider -->
+    <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+
+    <!-- Drone -->
+    <div class="flex items-center gap-2">
+      <button
+        class="rounded px-2 py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+        on:click={toggleDrone}
+      >{dronePlaying ? 'Drone On' : 'Drone'}</button>
+      {#if dronePlaying}
+        <input
+          type="range" min="-60" max="0" step="1"
+          value={currentDroneVolume}
+          on:input={handleDroneVolumeChange}
+          class="w-16 accent-amber-400"
+          aria-label="Drone volume"
+        />
+        <span class="text-xs text-slate-400">{currentDroneVolume}dB</span>
+      {/if}
+    </div>
+
+    <!-- Divider -->
+    <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+
+    <!-- Scale -->
+    <div class="flex items-center gap-2 ml-auto">
+      <span class="text-xs text-slate-400 uppercase tracking-wide">Size</span>
+      <button
+        class="bg-slate-600 hover:bg-slate-500 rounded px-2 py-0.5 text-sm"
+        on:click={() => { displayScale = Math.max(0.5, displayScale - 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
+      >−</button>
+      <span class="text-xs font-bold w-8 text-center">{displayScale.toFixed(1)}x</span>
+      <button
+        class="bg-slate-600 hover:bg-slate-500 rounded px-2 py-0.5 text-sm"
+        on:click={() => { displayScale = Math.min(3, displayScale + 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
+      >+</button>
+    </div>
+  </div>
+
+  <!-- Sticky playback bar -->
+  <PlaybackBar
+    {isPlaying}
+    bpm={tempo}
+    {looping}
+    voiceNames={[]}
+    mutedVoices={new Set()}
+    hasExercise={currentTune !== null}
+    onPlay={playMusic}
+    onPause={pauseMusic}
+    onStop={stopMusic}
+    onRestart={handleRestart}
+    onBpmChange={handleBpmChange}
+    onToggleLoop={handleToggleLoop}
+    onToggleMute={() => {}}
+    onShare={handleShare}
+    onPrint={handlePrint}
+  />
 </div>
 
 <style>

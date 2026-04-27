@@ -166,7 +166,7 @@ export function buildChordNotes(
   }
 
   let totalLoopFails = 0;
-  const maxTotalLoopFails = 10;
+  const maxTotalLoopFails = 30;
 
   function findPreviousGeneratedPitch(voiceNotes: VoiceNote[]): number | null {
     for (let i = voiceNotes.length - 1; i >= 0; i--) {
@@ -307,7 +307,7 @@ export function buildChordNotes(
         return false;
       }
 
-      const maxStepRetries = 5;
+      const maxStepRetries = 20;
       let stepRetryCount = 0;
       let stepSuccess = false;
 
@@ -320,28 +320,60 @@ export function buildChordNotes(
         const pitchCheckArray: number[] = new Array(voiceParts.length).fill(0);
         let stepGenerationFailed = false;
 
-        // Process Bass First - Use the provided bassLine
+        // Process Bass First
         const bassPartInfo = voiceParts.find((vp) => vp.order === 0);
         const otherPartsInfo = voiceParts.filter((vp) => vp.order !== 0);
         const shuffledOtherParts = shuffleArray([...otherPartsInfo]);
 
-        // Process Bass First using the provided bassLine
         if (!bassPartInfo) {
           console.error("Bass part definition not found!");
           stepGenerationFailed = true;
         } else {
           const bassVoiceIndex = voiceParts.findIndex((vp) => vp.order === 0);
-
           const bassNote = bassLine[chordIndex];
+
           if (!bassNote) {
             console.error(`Bass note missing for chord index ${chordIndex}`);
             stepGenerationFailed = true;
           } else {
+            // First attempt: use the pre-generated bass note.
+            // On retries: pick a different chord-root note from the bass part's
+            // range to escape ordering deadlocks caused by a bass note that
+            // sits too high for the tenor to fit above it.
+            let chosenNote: Note = bassNote;
+            let applyAccidental = false;
+
+            if (stepRetryCount > 1) {
+              // Include both root (root position) and 3rd (first inversion) as fallbacks,
+              // mirroring the same inversion logic used in findValidBassNote.
+              const invertibleDegrees = new Set([currentChord.root, currentChord.triadNotes[1]]);
+              const altNotes = bassPartInfo.possibleNotes.filter(
+                (n) =>
+                  invertibleDegrees.has(n.degree) &&
+                  n.pitchValue >= bassPartInfo.range[0] &&
+                  n.pitchValue <= bassPartInfo.range[1]
+              );
+              if (altNotes.length > 0) {
+                chosenNote = altNotes[Math.floor(Math.random() * altNotes.length)];
+                applyAccidental = true;
+              }
+            }
+
+            let finalName = chosenNote.name;
+            let finalAccidental = chosenNote.accidental ?? null;
+            if (applyAccidental) {
+              const acc = determineAccidental(chosenNote.degree, currentChord, keySignatures, key);
+              finalName = acc.accidental ? acc.prefix + chosenNote.name : chosenNote.name;
+              finalAccidental = acc.accidental;
+            }
+
             const generatedBassNote: VoiceNote = {
-              ...bassNote,
+              ...chosenNote,
+              name: finalName,
               length: rhythm.totalValue,
               rest: false,
               order: 0,
+              accidental: finalAccidental,
               isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
             };
             stepNotesAttempt[bassVoiceIndex] = generatedBassNote;

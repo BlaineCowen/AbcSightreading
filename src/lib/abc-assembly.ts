@@ -66,11 +66,7 @@ export function assembleAbcString(
 
   // V: Voice part headers
   voiceParts.forEach((part) => {
-    let middleString = "";
-    if (part.clef === "treble-8") {
-      middleString = "octave=1";
-    }
-    abcString += `V:${part.smallName} clef=${part.clef} name="${part.name}" snm="${part.smallName}" ${middleString}\n`;
+    abcString += `V:${part.smallName} clef=${part.clef} name="${part.name}" snm="${part.smallName}"\n`;
   });
 
   // K: Key signature

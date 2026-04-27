@@ -55,55 +55,55 @@
     "4 Part Mixed": {
       numofParts: 4,
       parts: {
-        Soprano: { order: 3, smallName: "S", clef: ClefType.Treble, range: [14, 21], currentRange: [14, 21] },
-        Alto:    { order: 2, smallName: "A", clef: ClefType.Treble, range: [12, 16], currentRange: [12, 16] },
-        Tenor:   { order: 1, smallName: "T", clef: ClefType.TrebleOctaveDown, range: [7, 14], currentRange: [7, 14] },
-        Bass:    { order: 0, smallName: "B", clef: ClefType.Bass, range: [2, 9], currentRange: [2, 9] },
+        Soprano: { order: 3, smallName: "S",  clef: ClefType.Treble,        range: [21, 35], currentRange: [25, 32] },
+        Alto:    { order: 2, smallName: "A",  clef: ClefType.Treble,        range: [14, 32], currentRange: [21, 28] },
+        Tenor:   { order: 1, smallName: "T",  clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
+        Bass:    { order: 0, smallName: "B",  clef: ClefType.Bass,          range: [2,  21], currentRange: [9,  18] },
       },
     },
     "3 Part Mixed": {
       numofParts: 3,
       parts: {
-        Soprano:  { order: 2, smallName: "S", clef: ClefType.Treble, range: [15, 23], currentRange: [15, 23] },
-        Alto:     { order: 1, smallName: "A", clef: ClefType.Treble, range: [14, 21], currentRange: [14, 21] },
-        Baritone: { order: 0, smallName: "B", clef: ClefType.Bass, range: [6, 14], currentRange: [6, 14] },
+        Soprano:  { order: 2, smallName: "S",  clef: ClefType.Treble, range: [21, 35], currentRange: [25, 32] },
+        Alto:     { order: 1, smallName: "A",  clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
+        Baritone: { order: 0, smallName: "B",  clef: ClefType.Bass,   range: [2,  21], currentRange: [9,  18] },
       },
     },
     "3 Part Treble": {
       numofParts: 3,
       parts: {
-        Soprano1: { order: 2, smallName: "S1", clef: ClefType.Treble, range: [15, 23], currentRange: [15, 23] },
-        Soprano2: { order: 1, smallName: "S2", clef: ClefType.Treble, range: [15, 22], currentRange: [15, 22] },
-        Alto:     { order: 0, smallName: "A",  clef: ClefType.Treble, range: [14, 21], currentRange: [14, 21] },
+        Soprano1: { order: 2, smallName: "S1", clef: ClefType.Treble, range: [21, 35], currentRange: [25, 32] },
+        Soprano2: { order: 1, smallName: "S2", clef: ClefType.Treble, range: [18, 32], currentRange: [22, 29] },
+        Alto:     { order: 0, smallName: "A",  clef: ClefType.Treble, range: [14, 30], currentRange: [21, 27] },
       },
     },
     "3 Part Tenor/Bass": {
       numofParts: 3,
       parts: {
-        Tenor:    { order: 2, smallName: "T",  clef: ClefType.TrebleOctaveDown, range: [10, 32], currentRange: [8, 17] },
-        Baritone: { order: 1, smallName: "B1", clef: ClefType.Bass, range: [0, 18], currentRange: [6, 17] },
-        Bass:     { order: 0, smallName: "B2", clef: ClefType.Bass, range: [0, 15], currentRange: [4, 15] },
+        Tenor:    { order: 2, smallName: "T",  clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
+        Baritone: { order: 1, smallName: "B1", clef: ClefType.Bass,          range: [2,  18], currentRange: [6,  16] },
+        Bass:     { order: 0, smallName: "B2", clef: ClefType.Bass,          range: [2,  13], currentRange: [2,  11] },
       },
     },
     "2 Part Treble": {
       numofParts: 2,
       parts: {
-        Soprano: { order: 1, smallName: "S", clef: ClefType.Treble, range: [20, 32], currentRange: [16, 25] },
-        Alto:    { order: 0, smallName: "A", clef: ClefType.Treble, range: [15, 25], currentRange: [15, 23] },
+        Soprano: { order: 1, smallName: "S", clef: ClefType.Treble, range: [21, 35], currentRange: [25, 32] },
+        Alto:    { order: 0, smallName: "A", clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
       },
     },
     Unison: {
       numofParts: 1,
       parts: {
-        Unison: { order: 0, smallName: "V", clef: ClefType.Treble, range: [20, 32], currentRange: [16, 25] },
+        Unison: { order: 0, smallName: "V", clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
       },
     },
   };
 
   let timeSignatures: Record<string, TimeSignature> = {
-    "4/4": { name: "4/4", tsPerMeasure: 32 },
-    "3/4": { name: "3/4", tsPerMeasure: 24 },
-    "2/4": { name: "2/4", tsPerMeasure: 16 },
+    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
+    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
   };
 
   let selectedTimeSignature = "4/4";
@@ -127,8 +127,8 @@
 
   const chordGroups: Record<string, string[]> = {
     Diatonic: ['1','2','3','4','5','5-7','6','7'],
-    Inversions: ['1-6','1-64','1-7','2-6','4-6','4-64','5-6','5-64','6-6','m4'],
-    'Secondary Dominants': ['5/5','5/6','5/2'],
+    Inversions: ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'],
+    'Chromatic Chords': ['5/5','5/6','5/2','m4','1-7'],
   };
 
   // ── Rhythm state ───────────────────────────────────────────────────────────
@@ -252,6 +252,15 @@
     );
     maxSkip = p.maxSkip;
     userAllowedChords = new Set(p.allowedChordNames ?? allChordNames);
+    if (p.voiceRanges) {
+      for (const voicingDef of Object.values(possibleVoicing)) {
+        for (const [partName, partDef] of Object.entries(voicingDef.parts)) {
+          if (p.voiceRanges[partName]) {
+            partDef.currentRange = [...p.voiceRanges[partName]];
+          }
+        }
+      }
+    }
     activePresetLabel = p.label;
     // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
@@ -450,8 +459,6 @@
 
       await initSynth(renderedTune);
       generatedBpm = bpm;
-      await synthControl.play();
-      isPlaying = true;
     } catch (error: unknown) {
       console.error("Error generating exercise:", error);
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`);

@@ -24,6 +24,8 @@ export interface UILPreset {
   maxSkip: number;
   /** UIL level number */
   level: number;
+  /** Voice ranges by part name → [min, max] noteArray indices */
+  voiceRanges?: Record<string, [number, number]>;
 }
 
 export const uilPresets: Record<string, UILPreset> = {
@@ -40,6 +42,12 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["2 Part Treble", "3 Part Tenor/Bass", "Unison"],
     measureRange: [24, 28],
     maxSkip: 2,
+    voiceRanges: {
+      Soprano: [22, 30], Soprano1: [22, 30], Soprano2: [22, 29],
+      Alto: [21, 29],
+      Tenor: [19, 24], Baritone: [14, 20], Bass: [14, 21],
+      Unison: [21, 28],
+    },
   },
 
   "UIL 2": {
@@ -63,6 +71,12 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [28, 32],
     maxSkip: 3,
+    voiceRanges: {
+      Soprano: [22, 30], Soprano1: [22, 30], Soprano2: [22, 29],
+      Alto: [21, 28],
+      Tenor: [17, 24], Baritone: [14, 21], Bass: [14, 21],
+      Unison: [21, 28],
+    },
   },
 
   "UIL 3": {
@@ -88,6 +102,12 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
+    voiceRanges: {
+      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 30],
+      Alto: [19, 28],
+      Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
+      Unison: [21, 30],
+    },
   },
 
   "UIL 4": {
@@ -116,6 +136,12 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [36, 48],
     maxSkip: 5,
+    voiceRanges: {
+      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 29],
+      Alto: [19, 28],
+      Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
+      Unison: [21, 30],
+    },
   },
 
   "UIL 5": {
@@ -162,5 +188,11 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [48, 56],
     maxSkip: 6,
+    voiceRanges: {
+      Soprano: [21, 31], Soprano1: [21, 32], Soprano2: [20, 31],
+      Alto: [19, 28],
+      Tenor: [15, 24], Baritone: [12, 22], Bass: [11, 21],
+      Unison: [21, 30],
+    },
   },
 };
