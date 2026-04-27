@@ -64,6 +64,7 @@ export interface Chord {
   flatScaleDegree?: number; // Optional: Diatonic degree (0-6) to be flatted
   // Add any other essential properties from ChordSet.ts if needed (e.g., chordFamily?)
   chordFamily?: string;
+  mode?: "major" | "minor";
 }
 
 export interface Rhythm {
@@ -158,6 +159,7 @@ export type Cadence = {
   progression: CadenceStep[];
   isFinal: boolean;
   strength?: number | string;
+  mode?: "major" | "minor";
 };
 
 // --- Array of Cadence Definitions (Updated) ---
@@ -207,5 +209,47 @@ export const allCadences: Cadence[] = [
     ],
     isFinal: false,
     strength: "weak",
+  },
+
+  // --- Minor mode cadences ---
+  {
+    type: "Perfect Authentic",
+    mode: "minor",
+    progression: [
+      { function: ChordType.Predominant, requiredChord: "iv" },
+      { function: ChordType.Dominant, requiredChord: "V" },
+      { function: ChordType.Tonic, requiredChord: "i" },
+    ],
+    isFinal: true,
+    strength: "strong",
+  },
+  {
+    type: "Half",
+    mode: "minor",
+    progression: [
+      { function: ChordType.Dominant, requiredChord: "V" },
+    ],
+    isFinal: false,
+    strength: "weak",
+  },
+  {
+    type: "Deceptive",
+    mode: "minor",
+    progression: [
+      { function: ChordType.Dominant, requiredChord: "V" },
+      { function: ChordType.Mediant, requiredChord: "VI" },
+    ],
+    isFinal: false,
+    strength: "weak",
+  },
+  {
+    type: "Plagal",
+    mode: "minor",
+    progression: [
+      { function: ChordType.Predominant, requiredChord: "iv" },
+      { function: ChordType.Tonic, requiredChord: "i" },
+    ],
+    isFinal: false,
+    strength: "moderate",
   },
 ];

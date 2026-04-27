@@ -9,4 +9,5 @@ export interface Chord {
   sharpScaleDegree: number | undefined;
   flatScaleDegree: number | undefined;
   baseMultiplier: number;
+  mode?: "major" | "minor";
 }

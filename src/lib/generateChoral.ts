@@ -63,10 +63,17 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     allowedChordNames,
   } = params;
 
+  const isMinor = key.endsWith('m');
+
   // Filter chord list if allowedChordNames is specified (UIL presets etc.)
-  const chords = allowedChordNames && allowedChordNames.length > 0
+  const allowedPool = allowedChordNames && allowedChordNames.length > 0
     ? params.chords.filter((c) => allowedChordNames.includes(c.name))
     : params.chords;
+
+  // Further restrict to the correct mode so major and minor chords never mix.
+  const chords = allowedPool.filter((c) =>
+    isMinor ? c.mode === "minor" : c.mode !== "minor"
+  );
 
   // --- Input Validation ---
   if (!selectedRhythms || selectedRhythms.length === 0) {
@@ -134,9 +141,10 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   const numCadencePoints = Math.floor(measures / 4);
   const selectedCadences: Cadence[] = [];
 
-  // Ensure we have Perfect Authentic defined
+  // Ensure we have a mode-appropriate Perfect Authentic cadence
   const perfectAuthenticCadence = allCadences.find(
-    (c) => c.type === "Perfect Authentic"
+    (c) => c.type === "Perfect Authentic" &&
+      (!c.mode || c.mode === (isMinor ? "minor" : "major"))
   );
   if (!perfectAuthenticCadence) {
     throw new Error(
@@ -144,14 +152,16 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     );
   }
 
-  // Only allow cadences whose required chords exist in the filtered chord list.
-  // (e.g. Deceptive cadence requires vi, but UIL 1-4 don't allow it.)
+  // Only allow cadences that match the current mode AND whose required chords
+  // exist in the filtered chord list.
   const chordSymbols = new Set(chords.map((c) => c.symbol));
-  const compatibleCadences = allCadences.filter((cadence) =>
-    cadence.progression.every(
+  const compatibleCadences = allCadences.filter((cadence) => {
+    if (cadence.mode && cadence.mode !== (isMinor ? "minor" : "major")) return false;
+    if (!cadence.mode && isMinor) return false; // exclude legacy major-only cadences in minor
+    return cadence.progression.every(
       (step) => !step.requiredChord || chordSymbols.has(step.requiredChord)
-    )
-  );
+    );
+  });
   const intermediaryCadences = compatibleCadences.filter((c) => !c.isFinal || c.type === "Half");
 
   for (let i = 0; i < numCadencePoints; i++) {

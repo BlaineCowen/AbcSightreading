@@ -107,7 +107,7 @@
   };
 
   let selectedTimeSignature = "4/4";
-  let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+  let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Am", "Em", "Dm", "Gm", "Cm"];
   let selectedKey = "C";
   let measures = 8;
   let maxSkip = 4;
@@ -122,14 +122,27 @@
   let selectedVoicing = "4 Part Mixed";
 
   // ── Chord state ────────────────────────────────────────────────────────────
-  const allChordNames = fullChordSet.map((c) => c.name);
-  let userAllowedChords: Set<string> = new Set(allChordNames);
+  function isMinorKey(k: string): boolean { return k.endsWith('m'); }
 
-  const chordGroups: Record<string, string[]> = {
+  const majorChordNames = fullChordSet.filter((c) => c.mode !== 'minor').map((c) => c.name);
+  const minorChordNames = fullChordSet.filter((c) => c.mode === 'minor').map((c) => c.name);
+  const allChordNames = fullChordSet.map((c) => c.name); // for UIL preset compatibility
+
+  let userAllowedChords: Set<string> = new Set(majorChordNames);
+
+  const majorChordGroups: Record<string, string[]> = {
     Diatonic: ['1','2','3','4','5','5-7','6','7'],
     Inversions: ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'],
     'Chromatic Chords': ['5/5','5/6','5/2','m4','1-7'],
   };
+  const minorChordGroups: Record<string, string[]> = {
+    Diatonic: ['m_i','m_iv','m_V','m_V7','m_VI','m_VII'],
+    'Predominant': ['m_iid'],
+    'Other': ['m_i6','m_III','m_viid'],
+  };
+
+  $: chordGroups = isMinorKey(selectedKey) ? minorChordGroups : majorChordGroups;
+  $: currentModeChordNames = isMinorKey(selectedKey) ? minorChordNames : majorChordNames;
 
   // ── Rhythm state ───────────────────────────────────────────────────────────
   let filterRhythms: Record<string, Rhythm> = Object.fromEntries(
@@ -160,7 +173,7 @@
   $: rhythmDirty = JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
     JSON.stringify([...DEFAULTS.rhythmNames].sort());
   $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
-    userAllowedChords.size !== allChordNames.length;
+    userAllowedChords.size !== currentModeChordNames.length;
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
 
@@ -468,7 +481,7 @@
 
 <div class="w-full pb-20">
   <!-- Print title (hidden on screen, shown on print) -->
-  <p class="print-title">{selectedKey} major · {selectedTimeSignature} · {selectedVoicing}</p>
+  <p class="print-title">{selectedKey} {isMinorKey(selectedKey) ? 'minor' : 'major'} · {selectedTimeSignature} · {selectedVoicing}</p>
 
   <!-- Preset bar -->
   <PresetDropdown
@@ -535,7 +548,14 @@
                 {#each possibleKeys as key}
                   <button
                     class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => (selectedKey = key)}
+                    on:click={() => {
+                      const wasMinor = isMinorKey(selectedKey);
+                      const nowMinor = isMinorKey(key);
+                      selectedKey = key;
+                      if (wasMinor !== nowMinor) {
+                        userAllowedChords = new Set(nowMinor ? minorChordNames : majorChordNames);
+                      }
+                    }}
                   >{key}</button>
                 {/each}
               </div>

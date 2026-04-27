@@ -149,24 +149,11 @@ export const uilPresets: Record<string, UILPreset> = {
     level: 5,
     // Major and minor keys up to 4 sharps or flats
     allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Am", "Em", "Dm", "Gm", "Cm"],
-    // Full harmonic range including secondary dominants and seventh chords
+    // Full harmonic range including secondary dominants, seventh chords, and minor mode
     allowedChordNames: [
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "5-7",
-      "5/5",
-      "5/6",
-      "5/2",
-      "m4",
-      "1-7",
-      "2-6",
-      "4-64",
-      "6-6",
+      "1", "2", "3", "4", "5", "6", "7",
+      "5-7", "5/5", "5/6", "5/2", "m4", "1-7", "2-6", "4-64", "6-6",
+      "m_i", "m_i6", "m_iv", "m_iid", "m_V", "m_V7", "m_VI", "m_VII", "m_III", "m_viid",
     ],
     // All rhythm types
     allowedRhythmNames: [
