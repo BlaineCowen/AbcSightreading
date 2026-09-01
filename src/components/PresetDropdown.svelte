@@ -1,5 +1,6 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
+  import { ChevronDown, X, Plus } from "lucide-svelte";
   import { getPresets, savePreset, deletePreset } from '../lib/preset-storage';
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount } from 'svelte';
@@ -9,6 +10,7 @@
   export let onSelectBuiltin: (type: 'uil' | 'difficulty', key: string) => void;
   export let onSelectSaved: (preset: SavedPreset) => void;
   export let onDelete: ((id: string, name: string) => void) | undefined = undefined;
+  export let hideUILLevels: boolean = false;
 
   let savedPresets: SavedPreset[] = [];
   let showSaveInput = false;
@@ -66,12 +68,14 @@
       on:change={handleSelectChange}
     >
       <option value="" disabled selected hidden>Choose a preset…</option>
-      <option value="" disabled>── UIL Levels ──</option>
-      <option value="uil:UIL 1">UIL 1 — Beginner choir</option>
-      <option value="uil:UIL 2">UIL 2 — Easy</option>
-      <option value="uil:UIL 3">UIL 3 — Medium</option>
-      <option value="uil:UIL 4">UIL 4 — Hard</option>
-      <option value="uil:UIL 5">UIL 5 — Advanced</option>
+      {#if !hideUILLevels}
+        <option value="" disabled>── UIL Levels ──</option>
+        <option value="uil:UIL 1">UIL 1 — Beginner choir</option>
+        <option value="uil:UIL 2">UIL 2 — Easy</option>
+        <option value="uil:UIL 3">UIL 3 — Medium</option>
+        <option value="uil:UIL 4">UIL 4 — Hard</option>
+        <option value="uil:UIL 5">UIL 5 — Advanced</option>
+      {/if}
       <option value="" disabled>── Difficulty ──</option>
       <option value="diff:Beginner">Beginner</option>
       <option value="diff:Intermediate">Intermediate</option>
@@ -83,7 +87,7 @@
         {/each}
       {/if}
     </select>
-    <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▼</span>
+    <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><ChevronDown size={14} /></span>
   </div>
 
   <!-- Save input -->
@@ -100,9 +104,9 @@
     <button class="text-sm text-slate-500 underline" on:click={() => showSaveInput = false}>Cancel</button>
   {:else}
     <button
-      class="border border-dashed border-slate-400 text-slate-500 rounded px-2 py-1 text-xs hover:border-slate-600"
+      class="flex items-center gap-1 border border-dashed border-slate-400 text-slate-500 rounded px-2 py-1 text-xs hover:border-slate-600"
       on:click={() => showSaveInput = true}
-    >+ Save Current</button>
+    ><Plus size={14} /> Save Current</button>
   {/if}
 
   {#if savedPresets.length > 0}
@@ -119,7 +123,7 @@
             class="text-slate-400 hover:text-red-500 leading-none"
             on:click={() => handleDelete(preset.id)}
             title="Delete preset"
-          >×</button>
+          ><X size={12} /></button>
         </span>
       {/each}
     </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import abcjs from "abcjs";
+  import { RefreshCw, Minus, Plus } from "lucide-svelte";
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import {
@@ -200,9 +201,25 @@
     "3/4": "ddd 76 77 77 60 30 30",
   };
 
+  /** Magnification is container / (staffwidth + 30), so a fixed staffwidth of
+   *  ~740 renders at under half size on a phone. Measure the container instead. */
+  function scoreLayout() {
+    const cw = document.getElementById("paper")?.clientWidth ?? 900;
+    return {
+      staffwidth: Math.max(160, Math.min(740, cw - 30)),
+      measuresPerLine: cw < 480 ? 2 : 4,
+    };
+  }
+
   async function renderTune() {
     const mod = await import("abcjs");
-    const result = mod.renderAbc("paper", renderedString, { responsive: "resize", scale: 1.5 });
+    const { staffwidth, measuresPerLine } = scoreLayout();
+    // No `scale`: abcjs discards it when responsive:"resize" is set.
+    const result = mod.renderAbc("paper", renderedString, {
+      responsive: "resize",
+      staffwidth,
+      wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
+    });
     return result;
   }
 
@@ -482,7 +499,7 @@
   }
 </script>
 
-<div class="w-full pb-20">
+<div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + 1rem)">
   <!-- Print title (hidden on screen, shown on print) -->
   <p class="print-title">{selectedKey} {isMinorKey(selectedKey) ? 'minor' : 'major'} · {selectedTimeSignature} · {selectedVoicing}</p>
 
@@ -495,17 +512,18 @@
     onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
   />
 
-  <main class="flex flex-col items-center w-full max-w-4xl mx-auto">
+  <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
 
     <!-- Tab panel -->
     <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4 no-print">
 
       <!-- Tab bar -->
-      <div class="flex items-center border-b border-slate-200">
+      <div class="flex items-stretch border-b border-slate-200">
+          <div class="flex items-center overflow-x-auto tab-scroll">
         {#each ['setup', 'rhythm', 'harmony', 'ranges'] as tab}
           <button
             type="button"
-            class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
+            class="px-4 py-3 sm:py-2 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap
               {selectedTab === tab
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'}"
@@ -517,13 +535,14 @@
             {/if}
           </button>
         {/each}
+        </div>
 
         <!-- Generate button always visible in tab bar -->
         <button
-          class="ml-auto mr-3 my-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-5 py-1.5 text-sm"
+          class="ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-4 py-2 text-sm"
           on:click={handleClick}
         >
-          ▶ Generate
+          <RefreshCw size={16} /><span>Generate</span>
         </button>
       </div>
 
@@ -532,13 +551,13 @@
 
         <!-- Setup Tab -->
         {#if selectedTab === 'setup'}
-          <div class="grid grid-cols-2 gap-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voicing</p>
               <div class="flex flex-wrap gap-2">
                 {#each Object.keys(possibleVoicing) as voicing}
                   <button
-                    class="px-3 py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => (selectedVoicing = voicing)}
                   >{voicing}</button>
                 {/each}
@@ -550,7 +569,7 @@
               <div class="flex flex-wrap gap-2">
                 {#each possibleKeys as key}
                   <button
-                    class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => {
                       const wasMinor = isMinorKey(selectedKey);
                       const nowMinor = isMinorKey(key);
@@ -566,10 +585,10 @@
 
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
-              <div class="flex gap-2">
+              <div class="flex flex-wrap gap-2">
                 {#each Object.keys(timeSignatures) as ts}
                   <button
-                    class="px-3 py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => (selectedTimeSignature = ts)}
                   >{ts}</button>
                 {/each}
@@ -578,10 +597,10 @@
 
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
-              <div class="flex gap-2">
+              <div class="flex flex-wrap gap-2">
                 {#each measureOptions as opt}
                   <button
-                    class="px-3 py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => (measures = opt)}
                   >{opt}</button>
                 {/each}
@@ -635,7 +654,7 @@
                     {#if chord}
                       <button
                         type="button"
-                        class="px-3 py-1 rounded text-sm font-medium
+                        class="px-3 py-2 sm:py-1 rounded text-sm font-medium
                           {userAllowedChords.has(chordName)
                             ? 'bg-blue-500 text-white'
                             : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
@@ -655,7 +674,7 @@
             <!-- NCT Probability -->
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Non-Chord Tone Amount</p>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3">
                 <span class="text-xs text-slate-500">None</span>
                 <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" />
                 <span class="text-xs text-slate-500">Heavy</span>
@@ -676,7 +695,7 @@
             <!-- Chromatic Frequency -->
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3">
                 <span class="text-xs text-slate-500">Less</span>
                 <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" />
                 <span class="text-xs text-slate-500">More</span>
@@ -688,12 +707,12 @@
             <!-- Max Skip -->
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3">
                 <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
-                  on:click={() => { if (maxSkip > maxSkipRange[0]) maxSkip -= 1; }}>−</button>
+                  on:click={() => { if (maxSkip > maxSkipRange[0]) maxSkip -= 1; }}><Minus size={16} /></button>
                 <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
                 <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
-                  on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}>+</button>
+                  on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}><Plus size={16} /></button>
                 <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
               </div>
             </div>
@@ -758,6 +777,13 @@
 </div>
 
 <style>
+  .tab-scroll {
+    scrollbar-width: none;
+  }
+  .tab-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
   :global(.rhythm-icon svg) {
     width: 100%;
     height: 100%;

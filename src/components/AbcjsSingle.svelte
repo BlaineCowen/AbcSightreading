@@ -5,8 +5,8 @@
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import * as Tone from "tone";
-  import PianoIcon from "./ui/pianoIcon.svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
+  import { Piano, Minus, Plus, RefreshCw } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import "abcjs/abcjs-audio.css";
   // import PitchVisualizer from "./PitchVisualizer.svelte";
@@ -424,13 +424,20 @@
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
   let playbackCursor: SVGLineElement | null = null; // Follows playback
-  let displayScale = 2; // Scale for visual display
+  /** Phones get one measure-line of music at 1x; desktop keeps the 2x default. */
+  const NARROW = 640; // Tailwind's `sm`
+  const isNarrow = () =>
+    typeof window !== "undefined" && window.innerWidth < NARROW;
+  let displayScale = isNarrow() ? 1 : 2; // Scale for visual display
 
   function getStaffWidth(): number {
     const paper = document.getElementById("paper");
-    const containerWidth = paper?.clientWidth ?? 900;
-    // staffwidth controls how many measures fit per line; responsive: "resize" handles visual zoom
-    return Math.max(200, Math.floor(containerWidth / displayScale) - 20);
+    const containerWidth = paper?.clientWidth ?? (isNarrow() ? 340 : 900);
+    // staffwidth controls how many measures fit per line; responsive: "resize"
+    // handles the visual zoom. The floor has to stay below a phone's container
+    // width or it discards the measurement and the score renders too wide.
+    // 140 is about the narrowest that still engraves a clef + key + one measure.
+    return Math.max(140, Math.floor(containerWidth / displayScale) - 30);
   }
 
   // Define possible keys
@@ -620,13 +627,14 @@
       generateDownload: true,
       generateInline: true,
       generateTiming: true,
+      // No `scale` and no padding* here on purpose: with responsive:"resize"
+      // abcjs discards `scale` outright, and it only reads lowercase
+      // padding* keys, so the camelCase ones never did anything. staffwidth is
+      // the only real zoom lever.
       responsive: "resize",
-      scale: 1,
       staffwidth: getStaffWidth(),
-      paddingTop: 50,
-      paddingBottom: 50,
       wrap: {
-        preferredMeasuresPerLine: 4,
+        preferredMeasuresPerLine: isNarrow() ? 2 : 4,
         minSpacing: 1.5,
         maxSpacing: 5,
       },
@@ -783,6 +791,7 @@
 
       selectableArray = visualObj[0].getSelectableArray();
       currentTune = visualObj[0];
+      lastRenderWidth = document.getElementById("paper")?.clientWidth ?? 0;
 
       await attachCursorAndTiming();
 
@@ -1391,9 +1400,16 @@
   // ── PlaybackBar handlers ───────────────────────────────────────────────────
   function handleRestart() { stopMusic(); playMusic(); }
   function handleToggleLoop() { looping = !looping; }
+  /** Live readout while dragging - cheap, no re-render. */
   function handleBpmChange(newBpm: number) {
     tempo = newBpm;
     bpm = newBpm;
+  }
+
+  /** Commit on release: re-rendering per input event would stop playback and
+   *  re-render dozens of times during a single drag. */
+  function handleBpmCommit(newBpm: number) {
+    handleBpmChange(newBpm);
     if (currentTune && originalTuneString) rerenderTune();
   }
   function handleShare() {
@@ -1402,7 +1418,52 @@
   }
   function handlePrint() { window.print(); }
 
+  // abcjs's responsive mode scales the score but never reflows it, so a real
+  // width change needs a re-render. Observe the container rather than the
+  // window: it also catches layout changes that fire no resize event, and it
+  // runs after layout so clientWidth is already settled.
+  let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastRenderWidth = 0;
+  let paperObserver: ResizeObserver | null = null;
+
+  function onPaperResize() {
+    const paper = document.getElementById("paper");
+    if (!paper) return;
+    // Hysteresis: re-rendering changes #paper's height, which would otherwise
+    // feed straight back into this observer.
+    if (Math.abs(paper.clientWidth - lastRenderWidth) < 24) return;
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyViewportChange, 250);
+  }
+
+  /** rerenderTune() calls stopMusic(), which tears down startTime/pausedAt and
+   *  the timing callbacks - so never re-render mid-exercise. Defer instead. */
+  function applyViewportChange() {
+    if (!currentTune || !originalTuneString) return;
+    if (isPlaying || metronomeRunning) {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(applyViewportChange, 500);
+      return;
+    }
+    lastRenderWidth = document.getElementById("paper")?.clientWidth ?? 0;
+    rerenderTune();
+  }
+
+  onMount(() => {
+    const paper = document.getElementById("paper");
+    if (paper && typeof ResizeObserver !== "undefined") {
+      lastRenderWidth = paper.clientWidth;
+      paperObserver = new ResizeObserver(onPaperResize);
+      paperObserver.observe(paper);
+    }
+    // Belt and braces for browsers that coalesce the observer on rotation.
+    window.addEventListener("orientationchange", onPaperResize);
+  });
+
   onDestroy(() => {
+    paperObserver?.disconnect();
+    window.removeEventListener("orientationchange", onPaperResize);
+    if (resizeTimer) clearTimeout(resizeTimer);
     stopStandaloneMetronome();
     if (droneOscillator) {
       droneOscillator.stop();
@@ -1460,19 +1521,20 @@
   }
 </script>
 
-<div class="w-full pb-24">
-  <main class="flex flex-col items-center w-full min-h-screen">
+<div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + 1rem)">
+  <main class="flex flex-col items-center w-full">
 
     <!-- Tab panel -->
     <div class="w-full max-w-4xl mx-auto px-2 md:px-4">
       <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4">
 
         <!-- Tab bar -->
-        <div class="flex items-center border-b border-slate-200">
+        <div class="flex items-stretch border-b border-slate-200">
+          <div class="flex items-center overflow-x-auto tab-scroll">
           {#each visibleTabs as tab}
             <button
               type="button"
-              class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
+              class="px-4 py-3 sm:py-2 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap
                 {selectedTab === tab
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-slate-500 hover:text-slate-700'}"
@@ -1484,14 +1546,16 @@
               {/if}
             </button>
           {/each}
+          </div>
 
           <!-- Generate button always visible in tab bar -->
           <button
-            class="ml-auto mr-3 my-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-5 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            class="ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             on:click={handleClick}
             disabled={isLoading}
           >
-            {isLoading ? '...' : '▶ Generate'}
+            <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
+            <span>Generate</span>
           </button>
         </div>
 
@@ -1500,16 +1564,16 @@
 
           <!-- Setup Tab -->
           {#if selectedTab === 'setup'}
-            <div class="grid grid-cols-2 gap-6">
-              <div class="space-y-2 col-span-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div class="space-y-2 col-span-1 sm:col-span-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mode</p>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    class="px-3 py-1 rounded text-sm {!rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {!rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => (rhythmOnly = false)}
                   >Pitched</button>
                   <button
-                    class="px-3 py-1 rounded text-sm {rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => (rhythmOnly = true)}
                   >Rhythm only</button>
                 </div>
@@ -1521,7 +1585,7 @@
                   <div class="flex flex-wrap gap-2">
                     {#each possibleKeys as key}
                       <button
-                        class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        class="px-3 py-2 sm:py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                         on:click={() => (selectedKey = key)}
                       >{key}</button>
                     {/each}
@@ -1533,7 +1597,7 @@
                   <div class="flex flex-wrap gap-2">
                     {#each clefOptions as clef}
                       <button
-                        class="px-3 py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        class="px-3 py-2 sm:py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                         on:click={() => updateClef(clef)}
                       >{clef}</button>
                     {/each}
@@ -1543,10 +1607,10 @@
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                   {#each Object.keys(timeSignatures) as ts}
                     <button
-                      class="px-3 py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                       on:click={() => { selectedTimeSignature = ts; metronomeBeat = 0; }}
                     >{ts}</button>
                   {/each}
@@ -1558,7 +1622,7 @@
                 <div class="flex flex-wrap gap-2">
                   {#each measureOptions as opt}
                     <button
-                      class="px-3 py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      class="px-3 py-2 sm:py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                       on:click={() => (measures = opt)}
                     >{opt}</button>
                   {/each}
@@ -1608,9 +1672,9 @@
                 <div class="flex flex-wrap gap-2">
                   {#each sharpScaleDegrees as degree}
                     <button
-                      class="px-2 py-1 rounded text-sm
+                      class="px-2 py-2 sm:py-1 rounded text-sm
                         {selectedSharpDegrees.has(degree.value) ? 'bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200'}
-                        {degree.value === 1 ? 'ml-5' : degree.value === 4 ? 'ml-10' : ''}"
+                        {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
                       on:click={() => toggleSharpDegree(degree.value)}
                     >{degree.display}</button>
                   {/each}
@@ -1618,7 +1682,7 @@
                 <div class="flex flex-wrap gap-2">
                   {#each scaleDegrees as degree}
                     <button
-                      class="px-3 py-1 rounded text-sm {selectedScaleDegrees.has(degree) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      class="px-3 py-2 sm:py-1 rounded text-sm {selectedScaleDegrees.has(degree) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                       on:click={() => toggleScaleDegree(degree)}
                     >{degree}</button>
                   {/each}
@@ -1626,9 +1690,9 @@
                 <div class="flex flex-wrap gap-2">
                   {#each flatScaleDegrees as degree}
                     <button
-                      class="px-2 py-1 rounded text-sm
+                      class="px-2 py-2 sm:py-1 rounded text-sm
                         {selectedFlatDegrees.has(degree.value) ? 'bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200'}
-                        {degree.value === 2 ? 'ml-5' : degree.value === 5 ? 'ml-10' : ''}"
+                        {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
                       on:click={() => toggleFlatDegree(degree.value)}
                     >{degree.display}</button>
                   {/each}
@@ -1638,12 +1702,14 @@
               <!-- Max Skip -->
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
-                <div class="flex items-center gap-3">
-                  <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
-                    on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}>−</button>
+                <div class="flex flex-wrap items-center gap-3">
+                  <button type="button" class="flex items-center justify-center h-10 w-10 sm:h-8 sm:w-8 bg-slate-100 rounded hover:bg-slate-200"
+                    aria-label="Decrease max skip"
+                    on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
                   <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
-                  <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
-                    on:click={() => { if (maxSkip < 8) maxSkip += 1; }}>+</button>
+                  <button type="button" class="flex items-center justify-center h-10 w-10 sm:h-8 sm:w-8 bg-slate-100 rounded hover:bg-slate-200"
+                    aria-label="Increase max skip"
+                    on:click={() => { if (maxSkip < 8) maxSkip += 1; }}><Plus size={16} /></button>
                   <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
                 </div>
               </div>
@@ -1652,7 +1718,7 @@
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Accidentals Follow Step</p>
                 <button
-                  class="px-3 py-1 rounded text-sm {accidentalsFollowStep ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  class="px-3 py-2 sm:py-1 rounded text-sm {accidentalsFollowStep ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
                 >{accidentalsFollowStep ? 'On' : 'Off'}</button>
               </div>
@@ -1660,7 +1726,7 @@
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Move 8th Notes</p>
                 <button
-                  class="px-3 py-1 rounded text-sm {moveEighthNotes ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  class="px-3 py-2 sm:py-1 rounded text-sm {moveEighthNotes ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (moveEighthNotes = !moveEighthNotes)}
                 >{moveEighthNotes ? 'On' : 'Off'}</button>
               </div>
@@ -1668,7 +1734,7 @@
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Show Solfege</p>
                 <button
-                  class="px-3 py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (showSolfege = !showSolfege)}
                 >{showSolfege ? 'On' : 'Off'}</button>
               </div>
@@ -1715,85 +1781,10 @@
     <div class="h-4"></div>
   </main>
 
-  <!-- Secondary sticky bar (unison-specific audio controls) -->
-  <div class="fixed bottom-[48px] left-0 right-0 bg-slate-800 text-slate-100 px-4 py-1.5 flex items-center gap-4 flex-wrap z-40 shadow-lg border-t border-slate-700">
-    <!-- Piano volume -->
-    <div class="flex items-center gap-2">
-      <button class="flex-shrink-0 opacity-80 hover:opacity-100" on:click={toggleMute} title={rhythmOnly ? 'Toggle snare' : 'Toggle piano'}>
-        <PianoIcon />
-      </button>
-      <input
-        type="range" min="0" max="1" step="0.05"
-        bind:value={masterVolume}
-        on:input={handleVolumeChange}
-        class="w-16 accent-blue-400"
-        aria-label={rhythmOnly ? 'Snare volume' : 'Piano volume'}
-      />
-    </div>
-
-    <!-- Metronome volume -->
-    <div class="flex items-center gap-2">
-      <button class="flex-shrink-0 opacity-80 hover:opacity-100" on:click={() => (isMetronomeOn = !isMetronomeOn)} title="Toggle metronome">
-        <MetronomeIcon />
-      </button>
-      <input
-        type="range" min="0" max="1" step="0.05"
-        bind:value={metronomeVolume}
-        on:input={handleMetronomeVolumeChange}
-        class="w-16 accent-blue-400"
-        aria-label="Metronome volume"
-      />
-      <button
-        class="rounded px-2 py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
-        on:click={toggleStandaloneMetronome}
-        disabled={isPlaying}
-        aria-pressed={metronomeRunning}
-        title="Free-running click, no playback"
-      >{metronomeRunning ? 'Click On' : 'Click'}</button>
-    </div>
-
-    {#if !rhythmOnly}
-      <!-- Divider -->
-      <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
-
-      <!-- Drone (sounds the tonic, so pitched mode only) -->
-      <div class="flex items-center gap-2">
-        <button
-          class="rounded px-2 py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
-          on:click={toggleDrone}
-        >{dronePlaying ? 'Drone On' : 'Drone'}</button>
-        {#if dronePlaying}
-          <input
-            type="range" min="-60" max="0" step="1"
-            value={currentDroneVolume}
-            on:input={handleDroneVolumeChange}
-            class="w-16 accent-amber-400"
-            aria-label="Drone volume"
-          />
-          <span class="text-xs text-slate-400">{currentDroneVolume}dB</span>
-        {/if}
-      </div>
-    {/if}
-
-    <!-- Divider -->
-    <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
-
-    <!-- Scale -->
-    <div class="flex items-center gap-2 ml-auto">
-      <span class="text-xs text-slate-400 uppercase tracking-wide">Size</span>
-      <button
-        class="bg-slate-600 hover:bg-slate-500 rounded px-2 py-0.5 text-sm"
-        on:click={() => { displayScale = Math.max(0.5, displayScale - 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
-      >−</button>
-      <span class="text-xs font-bold w-8 text-center">{displayScale.toFixed(1)}x</span>
-      <button
-        class="bg-slate-600 hover:bg-slate-500 rounded px-2 py-0.5 text-sm"
-        on:click={() => { displayScale = Math.min(3, displayScale + 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
-      >+</button>
-    </div>
-  </div>
-
-  <!-- Sticky playback bar -->
+  <!-- Sticky playback bar. The unison-only audio controls ride in its "extra"
+       slot, so mobile gets one bar instead of two stacked ones. Slot content is
+       compiled in this component's scope, so every handler below still binds
+       directly to local state. -->
   <PlaybackBar
     {isPlaying}
     bpm={tempo}
@@ -1806,19 +1797,104 @@
     onStop={stopMusic}
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
+    onBpmCommit={handleBpmCommit}
     onToggleLoop={handleToggleLoop}
     onToggleMute={() => {}}
     onShare={handleShare}
     onPrint={handlePrint}
-  />
+  >
+    <svelte:fragment slot="extra">
+      <!-- Instrument volume (the snare level in rhythm-only mode) -->
+      <div class="flex items-center gap-2">
+        <button
+          class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8"
+          on:click={toggleMute}
+          title={rhythmOnly ? 'Toggle snare' : 'Toggle piano'}
+          aria-label={rhythmOnly ? 'Toggle snare' : 'Toggle piano'}
+        >
+          <Piano size={22} />
+        </button>
+        <input
+          type="range" min="0" max="1" step="0.05"
+          bind:value={masterVolume}
+          on:input={handleVolumeChange}
+          class="w-16 accent-blue-400"
+          aria-label={rhythmOnly ? 'Snare volume' : 'Piano volume'}
+        />
+      </div>
+
+      <!-- Metronome -->
+      <div class="flex items-center gap-2">
+        <button
+          class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8"
+          on:click={() => (isMetronomeOn = !isMetronomeOn)}
+          title="Toggle metronome"
+          aria-label="Toggle metronome click during playback"
+          aria-pressed={isMetronomeOn}
+        >
+          <MetronomeIcon size={22} />
+        </button>
+        <input
+          type="range" min="0" max="1" step="0.05"
+          bind:value={metronomeVolume}
+          on:input={handleMetronomeVolumeChange}
+          class="w-16 accent-blue-400"
+          aria-label="Metronome volume"
+        />
+        <button
+          class="rounded px-3 py-2 sm:py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+          on:click={toggleStandaloneMetronome}
+          disabled={isPlaying}
+          aria-pressed={metronomeRunning}
+          title="Free-running click, no playback"
+        >{metronomeRunning ? 'Click On' : 'Click'}</button>
+      </div>
+
+      {#if !rhythmOnly}
+        <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+
+        <!-- Drone (sounds the tonic, so pitched mode only) -->
+        <div class="flex items-center gap-2">
+          <button
+            class="rounded px-3 py-2 sm:py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+            on:click={toggleDrone}
+            aria-pressed={dronePlaying}
+          >{dronePlaying ? 'Drone On' : 'Drone'}</button>
+          {#if dronePlaying}
+            <input
+              type="range" min="-60" max="0" step="1"
+              value={currentDroneVolume}
+              on:input={handleDroneVolumeChange}
+              class="w-16 accent-amber-400"
+              aria-label="Drone volume"
+            />
+            <span class="text-xs text-slate-400">{currentDroneVolume}dB</span>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+
+      <!-- Display size -->
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-400 uppercase tracking-wide">Size</span>
+        <button
+          class="flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6"
+          on:click={() => { displayScale = Math.max(0.5, displayScale - 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
+          aria-label="Decrease score size"
+        ><Minus size={14} /></button>
+        <span class="text-xs font-bold w-8 text-center">{displayScale.toFixed(1)}x</span>
+        <button
+          class="flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6"
+          on:click={() => { displayScale = Math.min(3, displayScale + 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
+          aria-label="Increase score size"
+        ><Plus size={14} /></button>
+      </div>
+    </svelte:fragment>
+  </PlaybackBar>
 </div>
 
 <style>
-  :global(html, body) {
-    overflow-x: hidden;
-    max-width: 100vw;
-  }
-
   :global(.abcjs-cursor) {
     stroke: #1411c4;
     stroke-width: 2;
@@ -1861,11 +1937,11 @@
   }
 
   /* Ensure SVG content is properly displayed and centered */
-  :global(#paper svg) {
-    display: block;
-    width: auto !important;
-    height: auto !important;
-    margin: 0 auto;
-    max-width: 100%;
+  /* Horizontal-scroll fallback for a score too wide to shrink further */
+  .tab-scroll {
+    scrollbar-width: none;
+  }
+  .tab-scroll::-webkit-scrollbar {
+    display: none;
   }
 </style>
