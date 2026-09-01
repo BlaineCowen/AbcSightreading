@@ -574,6 +574,23 @@
    * Initializes the audio synthesis engine and buffer
    * @returns {Promise<boolean>} Success status of initialization
    */
+  /** Loudest sample in the buffer, sampled with a stride so it stays cheap.
+   *  abcjs silently omits any note whose sample did not load (place-note.js),
+   *  so a fully-skipped tune yields a correctly-sized buffer full of zeroes -
+   *  present, schedulable and completely silent. */
+  function peakAmplitude(buffer: AudioBuffer): number {
+    let peak = 0;
+    const stride = 64;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+      const data = buffer.getChannelData(channel);
+      for (let i = 0; i < data.length; i += stride) {
+        const v = Math.abs(data[i]);
+        if (v > peak) peak = v;
+      }
+    }
+    return peak;
+  }
+
   async function initAudio() {
     if (!currentTune) {
       console.warn("No tune available - generate one first");
@@ -616,15 +633,18 @@
     audioBuffer = await createSynth.getAudioBuffer();
 
     const bufferSeconds = audioBuffer?.duration ?? 0;
+    const peak = audioBuffer ? peakAmplitude(audioBuffer) : 0;
     console.info(
-      `[audio] ctx=${audioContext.state} initDuration=${initResult?.duration ?? "?"} buffer=${bufferSeconds.toFixed(2)}s gain=${gainNode?.gain.value.toFixed(2)}`
+      `[audio] ctx=${audioContext.state} initDuration=${initResult?.duration ?? "?"} buffer=${bufferSeconds.toFixed(2)}s peak=${peak.toFixed(4)} gain=${gainNode?.gain.value.toFixed(2)}`
     );
 
-    if (!audioBuffer || bufferSeconds === 0) {
+    // A silent buffer is the failure being chased: it passes every other check,
+    // so the cursor runs and the metronome clicks with no instrument at all.
+    if (!audioBuffer || bufferSeconds === 0 || peak < 0.0001) {
       error =
-        "The instrument audio came back empty, so only the metronome would play. Press Play again to retry.";
+        "The instrument sounds did not load, so only the metronome would play. Press Play again to retry.";
       audioBuffer = null;
-      createSynth = null; // force a clean rebuild next time
+      createSynth = null; // drop the synth so the next attempt refetches cleanly
       return false;
     }
     return true;
