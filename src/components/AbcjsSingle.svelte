@@ -620,6 +620,15 @@
       visualObj: currentTune,
       options: {
         qpm: tempo,
+        // Serve the samples from our own origin. abcjs defaults to
+        // paulrosen.github.io, which locked-down networks block - and a blocked
+        // sample is skipped silently, leaving only the metronome audible.
+        soundFontUrl: "/api/soundfont/",
+        // abcjs only applies its 3x boost when it recognises its own default
+        // URL (create-synth.js:50-57); a custom URL silently drops to 1.0. We
+        // proxy the identical FluidR3_GM files, so restore it or everything
+        // plays a third as loud.
+        soundFontVolumeMultiplier: 3.0,
         // No drum parameters - we'll use our synthetic metronome
       },
     });
