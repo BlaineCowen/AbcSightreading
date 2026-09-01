@@ -4,11 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+This project uses **bun** (`bun.lockb` is committed, and `package.json` declares
+`engines.bun >= 1.2.0`). Use bun for installs so the lockfile stays authoritative —
+running `npm install` here produces a stray `package-lock.json` that should not be
+committed.
+
 ```sh
-npm run dev        # Start dev server at localhost:4321
-npm run build      # Build for production
-npm run preview    # Preview production build
-npx astro check    # TypeScript type checking
+bun install        # Install dependencies
+bun run dev        # Start dev server at localhost:4321
+bun run build      # Build for production
+bun run preview    # Preview production build
+bunx astro check   # TypeScript type checking
 ```
 
 No automated test suite — logic is validated manually via the browser UI.
