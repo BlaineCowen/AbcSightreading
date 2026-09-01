@@ -579,17 +579,26 @@
       console.warn("No tune available - generate one first");
       return false;
     }
-    // Ensure AudioContext is running
+    // Ensure AudioContext is running. resume() never settles while the browser
+    // is still withholding autoplay permission, so awaiting it bare hangs
+    // playMusic forever and Play just appears dead. Time it out and say so.
     if (audioContext.state === "suspended") {
-      await audioContext.resume();
+      await Promise.race([
+        audioContext.resume(),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+      if (audioContext.state === "suspended") {
+        error =
+          "Your browser is blocking audio until you interact with the page. Click anywhere on the page, then press Play again.";
+        return false;
+      }
     }
     if (!createSynth) {
       createSynth = new abcjs.synth.CreateSynth();
     }
 
-    // We don't need midiBuffer anymore. We'll get the full AudioBuffer.
-    // The init call loads the required instrument sounds.
-    await createSynth.init({
+    // The init call loads the required instrument sounds over the network.
+    const initResult = await createSynth.init({
       audioContext: audioContext, // Pass our context to abcjs
       visualObj: currentTune,
       options: {
@@ -597,11 +606,27 @@
         // No drum parameters - we'll use our synthetic metronome
       },
     });
+
+    // abcjs reports unfetchable samples in `error` and then skips those notes
+    // silently at playback time, which sounds exactly like "only the metronome
+    // plays". Don't swallow that.
+    const loadErrors: string[] = initResult?.error ?? [];
+    if (loadErrors.length > 0) {
+      console.warn("Instrument samples failed to load:", loadErrors);
+    }
+    if (loadErrors.length > 0 && !initResult?.loaded?.length && !initResult?.cached?.length) {
+      error =
+        "Could not load the instrument sounds (network problem). The metronome will still play — press Play again to retry.";
+      audioBuffer = null;
+      createSynth = null; // force a clean refetch next time
+      return false;
+    }
+
     // prime() gets it ready to create the buffer
     await createSynth.prime();
     // This gets the entire playable audio file.
     audioBuffer = await createSynth.getAudioBuffer();
-    return true;
+    return !!audioBuffer;
   }
 
   /**
@@ -855,8 +880,8 @@
    * (0 = downbeat of the count-in) is playing right now.
    * `startTime` is kept as the audioContext time of timeline position 0.
    */
-  function scheduleAudioFrom(timelinePos: number) {
-    if (!audioBuffer) return;
+  function scheduleAudioFrom(timelinePos: number): boolean {
+    if (!audioBuffer) return false;
 
     const countIn = getCountInDuration();
     const node = audioContext.createBufferSource();
@@ -877,6 +902,7 @@
       // Past the count-in: the buffer offset is the timeline position minus it.
       node.start(audioContext.currentTime, timelinePos - countIn);
     }
+    return true;
   }
 
   /**
@@ -893,10 +919,20 @@
       alert("Please generate a tune first!");
       return;
     }
-    // Make sure audio is initialized and we have a buffer.
-    if (!audioBuffer) {
-      const audioInitialized = await initAudio();
-      if (!audioInitialized || !audioBuffer) return;
+    // Block re-renders while we set up: rerenderTune() clears audioBuffer, and
+    // isPlaying is still false during the await below, so nothing else would
+    // hold it off.
+    isStartingPlayback = true;
+    try {
+      // Make sure audio is initialized and we have a buffer. Re-check after the
+      // await - a re-render during it can have cleared the buffer underneath us.
+      for (let attempt = 0; attempt < 2 && !audioBuffer; attempt++) {
+        const audioInitialized = await initAudio();
+        if (!audioInitialized) return;
+      }
+      if (!audioBuffer) return;
+    } finally {
+      isStartingPlayback = false;
     }
 
     // Playback drives its own click from beatCallback, so hand off here rather
@@ -906,12 +942,15 @@
     // A pause left us a position on the timeline; anything else starts over.
     let resumeFrom = pausedAt;
     if (resumeFrom >= getTimelineDuration()) resumeFrom = 0;
+
+    // Never start the cursor and metronome without the instrument audio - that
+    // is what produced a click-only playthrough.
+    if (!scheduleAudioFrom(resumeFrom)) {
+      console.warn("No audio buffer to schedule; not starting playback.");
+      return;
+    }
     pausedAt = 0;
     isPlaying = true;
-
-    // Audio and cursor are both driven from the same timeline position, so
-    // they stay in sync no matter how many times you pause and resume.
-    scheduleAudioFrom(resumeFrom);
 
     if (timingCallbacks) {
       if (resumeFrom > 0) {
@@ -1424,6 +1463,8 @@
   // runs after layout so clientWidth is already settled.
   let resizeTimer: ReturnType<typeof setTimeout> | null = null;
   let lastRenderWidth = 0;
+  /** True while playMusic is awaiting audio init, when isPlaying is still false. */
+  let isStartingPlayback = false;
   let paperObserver: ResizeObserver | null = null;
 
   function onPaperResize() {
@@ -1440,7 +1481,7 @@
    *  the timing callbacks - so never re-render mid-exercise. Defer instead. */
   function applyViewportChange() {
     if (!currentTune || !originalTuneString) return;
-    if (isPlaying || metronomeRunning) {
+    if (isPlaying || isStartingPlayback || metronomeRunning) {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(applyViewportChange, 500);
       return;
