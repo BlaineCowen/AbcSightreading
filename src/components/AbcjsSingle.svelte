@@ -607,26 +607,27 @@
       },
     });
 
-    // abcjs reports unfetchable samples in `error` and then skips those notes
-    // silently at playback time, which sounds exactly like "only the metronome
-    // plays". Don't swallow that.
-    const loadErrors: string[] = initResult?.error ?? [];
-    if (loadErrors.length > 0) {
-      console.warn("Instrument samples failed to load:", loadErrors);
-    }
-    if (loadErrors.length > 0 && !initResult?.loaded?.length && !initResult?.cached?.length) {
-      error =
-        "Could not load the instrument sounds (network problem). The metronome will still play — press Play again to retry.";
-      audioBuffer = null;
-      createSynth = null; // force a clean refetch next time
-      return false;
-    }
-
+    // init() resolves { status, duration } (create-synth.js resolveData). A zero
+    // duration means nothing was primed - abcjs skips notes whose samples are
+    // missing without raising, which sounds exactly like "only the click plays".
     // prime() gets it ready to create the buffer
     await createSynth.prime();
     // This gets the entire playable audio file.
     audioBuffer = await createSynth.getAudioBuffer();
-    return !!audioBuffer;
+
+    const bufferSeconds = audioBuffer?.duration ?? 0;
+    console.info(
+      `[audio] ctx=${audioContext.state} initDuration=${initResult?.duration ?? "?"} buffer=${bufferSeconds.toFixed(2)}s gain=${gainNode?.gain.value.toFixed(2)}`
+    );
+
+    if (!audioBuffer || bufferSeconds === 0) {
+      error =
+        "The instrument audio came back empty, so only the metronome would play. Press Play again to retry.";
+      audioBuffer = null;
+      createSynth = null; // force a clean rebuild next time
+      return false;
+    }
+    return true;
   }
 
   /**
