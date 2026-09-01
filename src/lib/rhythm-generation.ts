@@ -6,6 +6,21 @@ import type {
 } from "./types";
 
 /**
+ * Length in 32nd-note units of one element of a rhythm's `abcValue`.
+ * Rest elements are written with a leading "z" (e.g. eighthRestEighth is
+ * ["z4", "4"]), so a bare parseInt would yield NaN and silently corrupt every
+ * running total downstream.
+ */
+function abcDuration(abcVal: string): number {
+  return parseInt(String(abcVal).replace(/^[a-z]+/i, ""), 10);
+}
+
+/** True when an `abcValue` element is a rest. */
+function isRestValue(abcVal: string): boolean {
+  return String(abcVal).startsWith("z");
+}
+
+/**
  * Generates a random rhythm array, ensuring the longest single rhythm ends each 4-measure block.
  * Filters rhythms to:
  * - Exclude notes < quarter note (totalValue < 8).
@@ -47,7 +62,7 @@ export function generateRandomRhythm(
       if (r.pattern) {
         // Check if any note within the pattern is < quarter note
         const containsShortNote = r.abcValue.some(
-          (abcVal) => parseInt(abcVal) < 8
+          (abcVal) => abcDuration(abcVal) < 8
         );
         if (containsShortNote) {
           return false; // Exclude patterns containing short notes
@@ -241,7 +256,7 @@ export function generateRandomRhythm(
         // --- Pattern Fit Check ---
         if (r.pattern) {
           const patternTotal = r.abcValue.reduce(
-            (sum, v) => sum + parseInt(v),
+            (sum, v) => sum + abcDuration(v),
             0
           );
           if (currentBeat + patternTotal > sectionEndTarget) return false;
@@ -321,7 +336,10 @@ export function generateRandomRhythm(
       if (selectedRhythm.pattern) {
         let patternBeat = 0;
         selectedRhythm.abcValue.forEach((abcVal, i) => {
-          const noteValue = parseInt(abcVal);
+          // A pattern element carries its own rest marker, so the rest flag
+          // comes from the element rather than from the pattern as a whole.
+          const noteValue = abcDuration(abcVal);
+          const isRest = isRestValue(abcVal);
           const noteRhythm: RhythmWithPattern = {
             ...selectedRhythm,
             name: selectedRhythm.name,
@@ -334,7 +352,7 @@ export function generateRandomRhythm(
             patternIndex: i,
             weight: selectedRhythm.weight,
             pattern: true,
-            rest: selectedRhythm.rest,
+            rest: isRest,
             oddsWeight: selectedRhythm.oddsWeight,
             maxRng: selectedRhythm.maxRng,
             symbol: selectedRhythm.symbol,

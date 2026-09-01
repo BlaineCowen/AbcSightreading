@@ -72,6 +72,12 @@
   let isMetronomeOn = true;
   let metronomeVolume = 0.5;
 
+  // Standalone metronome: clicks on its own, with no playback and no cursor.
+  let metronomeRunning = false;
+  let metronomeTimer: ReturnType<typeof setInterval> | null = null;
+  let nextClickTime = 0;
+  let metronomeBeat = 0;
+
   // Initialize Web Audio API components
   onMount(() => {
     if (typeof window !== "undefined") {
@@ -188,6 +194,8 @@
         getParam("accidentalsFollowStep") === "true";
     if (urlParams.has("showSolfege"))
       options.showSolfege = getParam("showSolfege") === "true";
+    if (urlParams.has("rhythmOnly"))
+      options.rhythmOnly = getParam("rhythmOnly") === "true";
 
     return Object.keys(options).length > 0 ? options : null;
   }
@@ -323,6 +331,7 @@
           moveEighthNotes: urlOptions.moveEighthNotes || false,
           accidentalsFollowStep: urlOptions.accidentalsFollowStep || true,
           showSolfege: urlOptions.showSolfege || false,
+          rhythmOnly: urlOptions.rhythmOnly || false,
         };
       }
     }
@@ -363,6 +372,7 @@
           moveEighthNotes: options.moveEighthNotes || false,
           accidentalsFollowStep: options.accidentalsFollowStep || true,
           showSolfege: options.showSolfege || false,
+          rhythmOnly: options.rhythmOnly || false,
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -387,6 +397,7 @@
       moveEighthNotes: false,
       accidentalsFollowStep: false,
       showSolfege: false,
+      rhythmOnly: false,
     };
   }
 
@@ -406,11 +417,13 @@
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
   let tempo = initialState.bpm;
   let showSolfege = initialState.showSolfege || false;
+  let rhythmOnly = initialState.rhythmOnly || false;
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
+  let playbackCursor: SVGLineElement | null = null; // Follows playback
   let displayScale = 2; // Scale for visual display
 
   function getStaffWidth(): number {
@@ -486,6 +499,10 @@
     accidentalsFollowStep !== false || moveEighthNotes !== false || showSolfege !== false;
   $: rangeDirty = selectedRange.min !== DEFAULTS.range.min || selectedRange.max !== DEFAULTS.range.max;
 
+  // Notes and Range only mean something when there are pitches to control.
+  $: visibleTabs = (rhythmOnly ? ['setup', 'rhythm'] : ['setup', 'rhythm', 'notes', 'range']) as Tab[];
+  $: if (!visibleTabs.includes(selectedTab)) selectedTab = 'setup';
+
   const STORAGE_KEY = "sightReadingOptions";
 
   // Save options whenever they change
@@ -505,6 +522,7 @@
       moveEighthNotes,
       accidentalsFollowStep,
       showSolfege,
+      rhythmOnly,
     };
     try {
       console.log("Saving options:", options);
@@ -539,6 +557,7 @@
     params.set("moveEighthNotes", moveEighthNotes.toString());
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
     params.set("showSolfege", showSolfege.toString());
+    params.set("rhythmOnly", rhythmOnly.toString());
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     history.replaceState({}, "", newUrl);
@@ -590,13 +609,153 @@
   }
 
   /**
-   * Rerenders the tune with current tempo and scale settings
+   * Shared abcjs render options.
+   * Both the first render and any rerender must use these so the display size
+   * (displayScale) survives generating a new exercise -- `responsive: "resize"`
+   * is what actually turns the narrowed staffwidth into visual zoom.
+   */
+  function getAbcOptions() {
+    return {
+      add_classes: true,
+      generateDownload: true,
+      generateInline: true,
+      generateTiming: true,
+      responsive: "resize",
+      scale: 1,
+      staffwidth: getStaffWidth(),
+      paddingTop: 50,
+      paddingBottom: 50,
+      wrap: {
+        preferredMeasuresPerLine: 4,
+        minSpacing: 1.5,
+        maxSpacing: 5,
+      },
+      clickListener: async (event: any) => {
+        // Every note on the rhythm staff is the same placeholder pitch, so
+        // playing it back would be meaningless.
+        if (rhythmOnly) return;
+        if (event.pitches && event.pitches.length > 0) {
+          await playNote(event.pitches[0].name);
+        }
+      },
+    };
+  }
+
+  /**
+   * Creates an SVG line inside the rendered staff, used for the cursors.
+   * @param {string} className - The class to put on the line
+   * @returns {SVGLineElement|null} The created cursor element
+   */
+  function createSvgCursor(className: string): SVGLineElement | null {
+    const svg = document.querySelector("#paper svg");
+    if (!svg) return null;
+
+    const cursor = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "line"
+    );
+    cursor.setAttribute("class", className);
+    cursor.setAttributeNS(null, "x1", "0");
+    cursor.setAttributeNS(null, "y1", "0");
+    cursor.setAttributeNS(null, "x2", "0");
+    cursor.setAttributeNS(null, "y2", "0");
+    svg.appendChild(cursor);
+    return cursor as SVGLineElement;
+  }
+
+  /** Parks the playback cursor off-screen (used at stop and at the end). */
+  function hidePlaybackCursor() {
+    if (!playbackCursor) return;
+    playbackCursor.setAttribute("x1", "0");
+    playbackCursor.setAttribute("x2", "0");
+    playbackCursor.setAttribute("y1", "0");
+    playbackCursor.setAttribute("y2", "0");
+  }
+
+  /**
+   * (Re)builds the cursors and the TimingCallbacks for the current tune.
+   * Every render path goes through this so the cursor always moves the same
+   * element and the timing state is never left over from a previous tune.
+   */
+  async function attachCursorAndTiming() {
+    // Wait for the SVG to land in the DOM before attaching cursors to it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    playbackCursor = createSvgCursor("abcjs-cursor");
+    pitchCursor = createSvgCursor("abcjs-pitch-cursor");
+    updatePitchCursor(0); // Static indicator on the first note
+
+    if (timingCallbacks) {
+      timingCallbacks.stop();
+      timingCallbacks = null;
+    }
+
+    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+
+    timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
+      beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
+        if (isMetronomeOn) {
+          // Play a click sound on each beat
+          const beatInMeasure = beatNumber % beatsPerMeasure;
+          playMetronomeClick(beatInMeasure === 0);
+        }
+        if (!playbackCursor) return;
+        if (beatNumber >= totalBeats) {
+          hidePlaybackCursor();
+          return;
+        }
+        // position.left is undefined during the count-in measure.
+        if (position && typeof position.left === "number") {
+          const x = Math.max(0, position.left - 2);
+          const cursorHeight = position.height;
+          const shortenBy = cursorHeight * 0.15;
+          const startY = position.top + shortenBy;
+          const endY = position.top + position.height + cursorHeight * 0.15;
+
+          playbackCursor.setAttribute("x1", x.toString());
+          playbackCursor.setAttribute("x2", x.toString());
+          playbackCursor.setAttribute("y1", startY.toString());
+          playbackCursor.setAttribute("y2", endY.toString());
+        }
+      },
+      lineEndCallback: (data: any) => {
+        // Auto-scroll to keep the next line in view
+        const paperDiv = document.getElementById("paper");
+        if (!paperDiv) return;
+        if (!data || data.top === undefined) return;
+
+        const paperRect = paperDiv.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const currentScrollY = window.scrollY;
+
+        // data.top is relative to the SVG, so add the paper div's position
+        const absoluteLineTop = data.top + paperRect.top + currentScrollY;
+        const scrollOffset = viewportHeight * 0.1;
+        const targetScrollTop = absoluteLineTop - scrollOffset;
+
+        window.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: "smooth",
+        });
+      },
+      qpm: tempo,
+      extraMeasuresAtBeginning: 1, // This creates the count-in period where metronome plays
+      lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
+    });
+  }
+
+  /**
+   * Rerenders the tune with current tempo and display size settings
    */
   async function rerenderTune() {
     if (!originalTuneString || !currentTune) {
       console.warn("No original tune string available for rerendering");
       return;
     }
+
+    // The old audio buffer and note timings belong to the old render, so any
+    // playback in flight has to end here rather than run against stale state.
+    stopMusic();
 
     try {
       // Update the tempo in the ABC string
@@ -611,30 +770,11 @@
         paperDiv.innerHTML = "";
       }
 
-      const abcOptions = {
-        add_classes: true,
-        generateDownload: true,
-        generateInline: true,
-        generateTiming: true,
-        responsive: "resize",
-        scale: 1,
-        staffwidth: getStaffWidth(),
-        paddingTop: 50,
-        paddingBottom: 50,
-        wrap: {
-          preferredMeasuresPerLine: 4,
-          minSpacing: 1.5,
-          maxSpacing: 5,
-        },
-        clickListener: async (event: any) => {
-          console.log("clickListener", event);
-          if (event.pitches && event.pitches.length > 0) {
-            await playNote(event.pitches[0].name);
-          }
-        },
-      };
-
-      const visualObj = abcjs.renderAbc("paper", updatedTuneString, abcOptions);
+      const visualObj = abcjs.renderAbc(
+        "paper",
+        updatedTuneString,
+        getAbcOptions()
+      );
 
       // Check if rendering was successful
       if (!visualObj || !visualObj[0]) {
@@ -644,74 +784,9 @@
       selectableArray = visualObj[0].getSelectableArray();
       currentTune = visualObj[0];
 
-      // Recreate timing callbacks with new tempo
-      if (timingCallbacks) {
-        timingCallbacks.stop();
-      }
+      await attachCursorAndTiming();
 
-      const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
-      timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
-        beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
-          if (isMetronomeOn) {
-            const beatInMeasure = beatNumber % beatsPerMeasure;
-            playMetronomeClick(beatInMeasure === 0);
-          }
-          if (position && pitchCursor && typeof position.left === "number") {
-            if (beatNumber === totalBeats) {
-              pitchCursor.setAttribute("x1", "0");
-              pitchCursor.setAttribute("x2", "0");
-              pitchCursor.setAttribute("y1", "0");
-              pitchCursor.setAttribute("y2", "0");
-            } else {
-              const x = Math.max(0, position.left - 2);
-              const cursorHeight = position.height;
-              const shortenBy = cursorHeight * 0.15;
-              const startY = position.top + shortenBy;
-              const endY = position.top + position.height + cursorHeight * 0.15;
-
-              pitchCursor.setAttribute("x1", x.toString());
-              pitchCursor.setAttribute("x2", x.toString());
-              pitchCursor.setAttribute("y1", startY.toString());
-              pitchCursor.setAttribute("y2", endY.toString());
-            }
-          }
-        },
-        lineEndCallback: (data: any) => {
-          console.log("🔄 lineEndCallback triggered with data:", data);
-          const paperDiv = document.getElementById("paper");
-          if (!paperDiv) {
-            console.warn("❌ Paper div not found");
-            return;
-          }
-
-          if (!data || data.top === undefined) {
-            console.warn("❌ Invalid data from lineEndCallback:", data);
-            return;
-          }
-
-          const paperRect = paperDiv.getBoundingClientRect();
-          const viewportHeight = window.innerHeight;
-          const currentScrollY = window.scrollY;
-          const absoluteLineTop = data.top + paperRect.top + currentScrollY;
-          const scrollOffset = viewportHeight * 0.1;
-          const targetScrollTop = absoluteLineTop - scrollOffset;
-
-          window.scrollTo({
-            top: Math.max(0, targetScrollTop),
-            behavior: "smooth",
-          });
-        },
-        qpm: tempo,
-        extraMeasuresAtBeginning: 1,
-        lineEndAnticipation: 500,
-      });
-
-      // Recreate cursor elements
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      pitchCursor = createPitchCursor();
-      updatePitchCursor(0);
-
-      // Reset audio buffer since tempo changed
+      // Reset audio buffer since tempo may have changed
       audioBuffer = null;
       createSynth = null;
     } catch (err) {
@@ -724,35 +799,17 @@
    * @returns {Promise<any>} The rendered visual object
    */
   async function renderTune(): Promise<any> {
-    const abcOptions = {
-      add_classes: true,
-      generateDownload: true,
-      generateInline: true,
-      generateTiming: true,
-      scale: 1,
-      staffwidth: getStaffWidth(),
-      paddingTop: 50,
-      paddingBottom: 50,
-      wrap: {
-        preferredMeasuresPerLine: 4,
-        minSpacing: 1.5,
-        maxSpacing: 5,
-      },
-      clickListener: async (event: any) => {
-        console.log("clickListener", event);
-        if (event.pitches && event.pitches.length > 0) {
-          await playNote(event.pitches[0].name);
-        }
-      },
-    };
-
     // Clear any existing content in the paper div
     const paperDiv = document.getElementById("paper");
     if (paperDiv) {
       paperDiv.innerHTML = "";
     }
 
-    const visualObj = abcjs.renderAbc("paper", renderedString[0], abcOptions);
+    const visualObj = abcjs.renderAbc(
+      "paper",
+      renderedString[0],
+      getAbcOptions()
+    );
 
     // Check if rendering was successful
     if (!visualObj || !visualObj[0]) {
@@ -760,125 +817,57 @@
     }
 
     selectableArray = visualObj[0].getSelectableArray();
-    console.log("selectableArray", selectableArray);
 
     // Set currentTune early so the conditional shows the container
     currentTune = visualObj[0];
 
-    /**
-     * Creates a cursor element for tracking playback position
-     * @returns {SVGLineElement|null} The created cursor element
-     */
-    function createCursor() {
-      const svg = document.querySelector("#paper svg");
-      if (!svg) return null;
-
-      const cursor = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "line"
-      );
-      cursor.setAttribute("class", "abcjs-cursor");
-      cursor.setAttributeNS(null, "x1", "0");
-      cursor.setAttributeNS(null, "y1", "0");
-      cursor.setAttributeNS(null, "x2", "0");
-      cursor.setAttributeNS(null, "y2", "0");
-      svg.appendChild(cursor);
-      return cursor;
-    }
-
-    // Wait for SVG to be rendered
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const cursor = createCursor();
-    pitchCursor = createPitchCursor();
-    updatePitchCursor(0); // Position cursor at first note
-
-    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
-
-    // Create new timing callbacks with line end callback
-    timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
-      beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
-        if (isMetronomeOn) {
-          // Play a click sound on each beat
-          const beatInMeasure = beatNumber % beatsPerMeasure;
-          playMetronomeClick(beatInMeasure === 0);
-        }
-        if (position && cursor && typeof position.left === "number") {
-          if (beatNumber === totalBeats) {
-            cursor.setAttribute("x1", "0");
-            cursor.setAttribute("x2", "0");
-            cursor.setAttribute("y1", "0");
-            cursor.setAttribute("y2", "0");
-          } else {
-            const x = Math.max(0, position.left - 2);
-            const cursorHeight = position.height;
-            const shortenBy = cursorHeight * 0.15;
-            const startY = position.top + shortenBy;
-            const endY = position.top + position.height + cursorHeight * 0.15;
-
-            cursor.setAttribute("x1", x.toString());
-            cursor.setAttribute("x2", x.toString());
-            cursor.setAttribute("y1", startY.toString());
-            cursor.setAttribute("y2", endY.toString());
-          }
-        }
-      },
-      lineEndCallback: (data: any) => {
-        console.log("🔄 lineEndCallback triggered with data:", data);
-
-        // Auto-scroll to keep the next line in the center of the viewport
-        const paperDiv = document.getElementById("paper");
-        if (!paperDiv) {
-          console.warn("❌ Paper div not found");
-          return;
-        }
-
-        if (!data || data.top === undefined) {
-          console.warn("❌ Invalid data from lineEndCallback:", data);
-          return;
-        }
-
-        console.log("📍 Paper div found, calculating scroll position...");
-
-        const paperRect = paperDiv.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        const currentScrollY = window.scrollY;
-
-        console.log("📊 Layout info:", {
-          paperRect: paperRect,
-          viewportHeight: viewportHeight,
-          currentScrollY: currentScrollY,
-          dataTop: data.top,
-          dataBottom: data.bottom || "undefined",
-        });
-
-        // Calculate target scroll position to center the next line
-        // data.top is relative to the SVG, so we need to add the paper div's position
-        const absoluteLineTop = data.top + paperRect.top + currentScrollY;
-
-        // Adjustable scroll offset - increase this to scroll further ahead
-        const scrollOffset = viewportHeight * 0.1; // Scroll to 30% from top instead of center
-        const targetScrollTop = absoluteLineTop - scrollOffset;
-
-        console.log("🎯 Scroll calculation:", {
-          absoluteLineTop: absoluteLineTop,
-          scrollOffset: scrollOffset,
-          targetScrollTop: targetScrollTop,
-          finalScrollTop: Math.max(0, targetScrollTop),
-        });
-
-        window.scrollTo({
-          top: Math.max(0, targetScrollTop),
-          behavior: "smooth",
-        });
-
-        console.log("✅ Scroll command sent");
-      },
-      qpm: tempo,
-      extraMeasuresAtBeginning: 1, // This creates the count-in period where metronome plays
-      lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
-    });
+    await attachCursorAndTiming();
 
     return visualObj;
+  }
+
+  /**
+   * Length of the one-measure count-in, in seconds.
+   * The cursor timeline (extraMeasuresAtBeginning: 1) includes this measure,
+   * but the rendered audio buffer starts at the first real note.
+   */
+  function getCountInDuration(): number {
+    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+    return (60 / tempo) * beatsPerMeasure;
+  }
+
+  /** Total length of the timeline: count-in + the audio itself. */
+  function getTimelineDuration(): number {
+    return getCountInDuration() + (audioBuffer ? audioBuffer.duration : 0);
+  }
+
+  /**
+   * Schedules the audio buffer so that timeline position `timelinePos`
+   * (0 = downbeat of the count-in) is playing right now.
+   * `startTime` is kept as the audioContext time of timeline position 0.
+   */
+  function scheduleAudioFrom(timelinePos: number) {
+    if (!audioBuffer) return;
+
+    const countIn = getCountInDuration();
+    const node = audioContext.createBufferSource();
+    node.buffer = audioBuffer;
+    node.connect(gainNode);
+    node.onended = () => {
+      // Ignore nodes we already replaced or stopped by hand.
+      if (node !== sourceNode) return;
+      if (isPlaying) stopMusic();
+    };
+    sourceNode = node;
+
+    startTime = audioContext.currentTime - timelinePos;
+    if (timelinePos < countIn) {
+      // Still inside the count-in: schedule the music for when it ends.
+      node.start(startTime + countIn, 0);
+    } else {
+      // Past the count-in: the buffer offset is the timeline position minus it.
+      node.start(audioContext.currentTime, timelinePos - countIn);
+    }
   }
 
   /**
@@ -888,10 +877,6 @@
     // If already playing, do nothing.
     if (isPlaying) {
       return;
-    }
-    // If we are paused, just resume.
-    if (pausedAt > 0) {
-      return resumeMusic();
     }
 
     // Ensure we have a tune to play.
@@ -905,63 +890,27 @@
       if (!audioInitialized || !audioBuffer) return;
     }
 
-    if (!audioBuffer) return;
+    // Playback drives its own click from beatCallback, so hand off here rather
+    // than at the top - a Play press that bails out above must not silence it.
+    stopStandaloneMetronome();
 
-    // Calculate count-in duration based on time signature
-    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
-    const beatsPerMinute = tempo;
-    const countInDuration = (60 / beatsPerMinute) * beatsPerMeasure; // Duration in seconds for count-in
-
+    // A pause left us a position on the timeline; anything else starts over.
+    let resumeFrom = pausedAt;
+    if (resumeFrom >= getTimelineDuration()) resumeFrom = 0;
+    pausedAt = 0;
     isPlaying = true;
 
-    // Start the visual cursor and metronome immediately
+    // Audio and cursor are both driven from the same timeline position, so
+    // they stay in sync no matter how many times you pause and resume.
+    scheduleAudioFrom(resumeFrom);
+
     if (timingCallbacks) {
-      timingCallbacks.start();
-    }
-
-    // Delay the piano playback to allow count-in
-    setTimeout(() => {
-      if (!isPlaying) return; // Check if we've been stopped during count-in
-
-      // We have a buffer, let's play it.
-      sourceNode = audioContext.createBufferSource();
-      sourceNode.buffer = audioBuffer;
-      sourceNode.connect(gainNode);
-
-      // When the song is over, clean up.
-      sourceNode.onended = () => {
-        if (isPlaying) {
-          // only if it finished naturally, not if stopped
-          stopMusic();
-        }
-      };
-
-      sourceNode.start(0);
-      startTime = audioContext.currentTime - countInDuration; // Adjust for count-in time
-    }, countInDuration * 1000); // Convert to milliseconds
-  }
-
-  function resumeMusic() {
-    if (isPlaying || !pausedAt || !audioBuffer) return;
-
-    sourceNode = audioContext.createBufferSource();
-    sourceNode.buffer = audioBuffer;
-    sourceNode.connect(gainNode);
-
-    sourceNode.onended = () => {
-      if (isPlaying) {
-        stopMusic();
+      if (resumeFrom > 0) {
+        timingCallbacks.start(resumeFrom, "seconds");
+      } else {
+        // 0 forces a full reset so a previous pause can't leak into this run.
+        timingCallbacks.start(0);
       }
-    };
-
-    sourceNode.start(0, pausedAt); // Start from where we paused
-    // Adjust startTime to account for the pause
-    startTime = audioContext.currentTime - pausedAt;
-    pausedAt = 0; // Clear paused state
-    isPlaying = true;
-
-    if (timingCallbacks) {
-      timingCallbacks.start(); // Resumes from paused state
     }
   }
 
@@ -969,14 +918,32 @@
    * Pauses music playback
    */
   function pauseMusic() {
-    if (!isPlaying || !sourceNode) return;
-    pausedAt = audioContext.currentTime - startTime;
-    sourceNode.onended = null; // Prevent onended from firing on a manual stop
-    sourceNode.stop();
-    sourceNode = null;
+    if (!isPlaying) return;
+
+    // Where we are on the timeline, count-in included. Works during the
+    // count-in too, when the buffer hasn't started sounding yet.
+    pausedAt = Math.min(
+      Math.max(0, audioContext.currentTime - startTime),
+      getTimelineDuration()
+    );
+
+    stopSourceNode();
     isPlaying = false;
     if (timingCallbacks) {
       timingCallbacks.pause();
+    }
+  }
+
+  /** Tears down the current buffer source without triggering its onended. */
+  function stopSourceNode() {
+    if (!sourceNode) return;
+    const node = sourceNode;
+    sourceNode = null;
+    node.onended = null;
+    try {
+      node.stop();
+    } catch (e) {
+      // Already stopped, or never scheduled - nothing to do.
     }
   }
 
@@ -987,17 +954,23 @@
     isPlaying = false;
     pausedAt = 0;
     startTime = 0;
-    if (sourceNode) {
-      sourceNode.onended = null;
-      sourceNode.stop();
-      sourceNode = null;
-    }
+    stopSourceNode();
     if (timingCallbacks) {
       timingCallbacks.stop();
     }
+    hidePlaybackCursor();
   }
 
-  function playMetronomeClick(isDownbeat: boolean) {
+  /**
+   * @param {boolean} isDownbeat - Accent this click (beat 1 of the measure)
+   * @param {number} when - audioContext time to sound at; defaults to right now.
+   *   The standalone metronome passes an exact future time so its clicks are
+   *   sample-accurate rather than drifting with the timer that queues them.
+   */
+  function playMetronomeClick(
+    isDownbeat: boolean,
+    when: number = audioContext ? audioContext.currentTime : 0
+  ) {
     if (!audioContext || metronomeGainNode.gain.value === 0) return;
 
     const osc = audioContext.createOscillator();
@@ -1005,25 +978,85 @@
 
     osc.frequency.value = isDownbeat ? 1000 : 800;
 
-    clickGain.gain.setValueAtTime(isDownbeat ? 2 : 1, audioContext.currentTime);
+    clickGain.gain.setValueAtTime(isDownbeat ? 2 : 1, when);
 
-    clickGain.gain.exponentialRampToValueAtTime(
-      0.001,
-      audioContext.currentTime + 0.03
-    );
+    clickGain.gain.exponentialRampToValueAtTime(0.001, when + 0.03);
 
     osc.connect(clickGain);
     clickGain.connect(metronomeGainNode);
-    osc.start(audioContext.currentTime);
-    osc.stop(audioContext.currentTime + 0.03);
+    osc.start(when);
+    osc.stop(when + 0.03);
   }
+
+  // Lookahead scheduling: a coarse timer queues clicks slightly ahead of time at
+  // exact audioContext times, so the pulse doesn't drift the way a bare
+  // setInterval would.
+  const METRONOME_TICK_MS = 25; // how often we look for clicks to queue
+  const METRONOME_LOOKAHEAD = 0.1; // how far ahead (seconds) we queue them
+  const METRONOME_MAX_PER_TICK = 64; // belt-and-braces: never spin
+
+  function scheduleMetronomeClicks() {
+    if (!audioContext) return;
+
+    // Clamp to 30-600 BPM so a corrupt stored tempo can't stall or spin the loop.
+    const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
+    const beatsPerMeasure = parseInt(selectedTimeSignature[0]) || 4;
+
+    // A backgrounded tab throttles this timer to ~1s, so we can come back to
+    // find the next click is already overdue. Web Audio clamps a past start
+    // time to "now", so queueing the backlog would fire several clicks at once
+    // as one loud pop. Resync instead, and re-establish the downbeat.
+    if (nextClickTime < audioContext.currentTime) {
+      nextClickTime = audioContext.currentTime + 0.05;
+      metronomeBeat = 0;
+    }
+
+    const horizon = audioContext.currentTime + METRONOME_LOOKAHEAD;
+    let guard = 0;
+    while (nextClickTime < horizon && guard++ < METRONOME_MAX_PER_TICK) {
+      playMetronomeClick(metronomeBeat % beatsPerMeasure === 0, nextClickTime);
+      nextClickTime += secondsPerBeat;
+      metronomeBeat++;
+    }
+  }
+
+  /** Starts the click on its own - no exercise audio, no cursor. */
+  async function startStandaloneMetronome() {
+    // Playback drives its own click; two sources would beat against each other.
+    if (metronomeRunning || isPlaying || !audioContext) return;
+
+    // The button click is the user gesture that unlocks audio.
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
+    metronomeBeat = 0;
+    nextClickTime = audioContext.currentTime + 0.05;
+    metronomeRunning = true;
+    metronomeTimer = setInterval(scheduleMetronomeClicks, METRONOME_TICK_MS);
+    scheduleMetronomeClicks(); // don't wait a full tick for the first click
+  }
+
+  function stopStandaloneMetronome() {
+    metronomeRunning = false;
+    if (metronomeTimer) {
+      clearInterval(metronomeTimer);
+      metronomeTimer = null;
+    }
+  }
+
+  function toggleStandaloneMetronome() {
+    if (metronomeRunning) stopStandaloneMetronome();
+    else startStandaloneMetronome();
+  }
+
 
   /**
    * Handles the generate button click, creates new sight reading exercise
    */
   async function handleClick() {
-    // Client-side validation
-    if (!validateSettings(selectedScaleDegrees, maxSkip)) {
+    // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
+    if (!rhythmOnly && !validateSettings(selectedScaleDegrees, maxSkip)) {
       error =
         "The gap between selected scale degrees is larger than the Max Skip. Please increase Max Skip or select more notes to fill the gap.";
       isLoading = false;
@@ -1062,7 +1095,8 @@
         selectedClef: selectedClef,
         selectedTimeSignature: selectedTimeSignature,
         key: selectedKey,
-        showSolfege: showSolfege,
+        showSolfege: rhythmOnly ? false : showSolfege,
+        rhythmOnly: rhythmOnly,
         moveOnEighthNotes: moveEighthNotes,
         accidentalsFollowStep: accidentalsFollowStep,
         partsObject: {
@@ -1369,6 +1403,7 @@
   function handlePrint() { window.print(); }
 
   onDestroy(() => {
+    stopStandaloneMetronome();
     if (droneOscillator) {
       droneOscillator.stop();
       droneOscillator = null;
@@ -1402,23 +1437,6 @@
   }
 
   // Add this function to create the pitch cursor
-  function createPitchCursor() {
-    const svg = document.querySelector("#paper svg");
-    if (!svg) return null;
-
-    const cursor = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "line"
-    );
-    cursor.setAttribute("class", "abcjs-pitch-cursor");
-    cursor.setAttributeNS(null, "x1", "0");
-    cursor.setAttributeNS(null, "y1", "0");
-    cursor.setAttributeNS(null, "x2", "0");
-    cursor.setAttributeNS(null, "y2", "0");
-    svg.appendChild(cursor);
-    return cursor;
-  }
-
   // Add this function to update the pitch cursor position
   function updatePitchCursor(index: number) {
     if (!pitchCursor || !selectableArray[index]) return;
@@ -1451,7 +1469,7 @@
 
         <!-- Tab bar -->
         <div class="flex items-center border-b border-slate-200">
-          {#each ['setup', 'rhythm', 'notes', 'range'] as tab}
+          {#each visibleTabs as tab}
             <button
               type="button"
               class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors
@@ -1483,29 +1501,45 @@
           <!-- Setup Tab -->
           {#if selectedTab === 'setup'}
             <div class="grid grid-cols-2 gap-6">
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
+              <div class="space-y-2 col-span-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mode</p>
                 <div class="flex flex-wrap gap-2">
-                  {#each possibleKeys as key}
-                    <button
-                      class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => (selectedKey = key)}
-                    >{key}</button>
-                  {/each}
+                  <button
+                    class="px-3 py-1 rounded text-sm {!rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (rhythmOnly = false)}
+                  >Pitched</button>
+                  <button
+                    class="px-3 py-1 rounded text-sm {rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (rhythmOnly = true)}
+                  >Rhythm only</button>
                 </div>
               </div>
 
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Clef</p>
-                <div class="flex flex-wrap gap-2">
-                  {#each clefOptions as clef}
-                    <button
-                      class="px-3 py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => updateClef(clef)}
-                    >{clef}</button>
-                  {/each}
+              {#if !rhythmOnly}
+                <div class="space-y-2">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
+                  <div class="flex flex-wrap gap-2">
+                    {#each possibleKeys as key}
+                      <button
+                        class="px-3 py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        on:click={() => (selectedKey = key)}
+                      >{key}</button>
+                    {/each}
+                  </div>
                 </div>
-              </div>
+
+                <div class="space-y-2">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Clef</p>
+                  <div class="flex flex-wrap gap-2">
+                    {#each clefOptions as clef}
+                      <button
+                        class="px-3 py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        on:click={() => updateClef(clef)}
+                      >{clef}</button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
@@ -1513,7 +1547,7 @@
                   {#each Object.keys(timeSignatures) as ts}
                     <button
                       class="px-3 py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => (selectedTimeSignature = ts)}
+                      on:click={() => { selectedTimeSignature = ts; metronomeBeat = 0; }}
                     >{ts}</button>
                   {/each}
                 </div>
@@ -1685,7 +1719,7 @@
   <div class="fixed bottom-[48px] left-0 right-0 bg-slate-800 text-slate-100 px-4 py-1.5 flex items-center gap-4 flex-wrap z-40 shadow-lg border-t border-slate-700">
     <!-- Piano volume -->
     <div class="flex items-center gap-2">
-      <button class="flex-shrink-0 opacity-80 hover:opacity-100" on:click={toggleMute} title="Toggle piano">
+      <button class="flex-shrink-0 opacity-80 hover:opacity-100" on:click={toggleMute} title={rhythmOnly ? 'Toggle snare' : 'Toggle piano'}>
         <PianoIcon />
       </button>
       <input
@@ -1693,7 +1727,7 @@
         bind:value={masterVolume}
         on:input={handleVolumeChange}
         class="w-16 accent-blue-400"
-        aria-label="Piano volume"
+        aria-label={rhythmOnly ? 'Snare volume' : 'Piano volume'}
       />
     </div>
 
@@ -1709,28 +1743,37 @@
         class="w-16 accent-blue-400"
         aria-label="Metronome volume"
       />
-    </div>
-
-    <!-- Divider -->
-    <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
-
-    <!-- Drone -->
-    <div class="flex items-center gap-2">
       <button
-        class="rounded px-2 py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
-        on:click={toggleDrone}
-      >{dronePlaying ? 'Drone On' : 'Drone'}</button>
-      {#if dronePlaying}
-        <input
-          type="range" min="-60" max="0" step="1"
-          value={currentDroneVolume}
-          on:input={handleDroneVolumeChange}
-          class="w-16 accent-amber-400"
-          aria-label="Drone volume"
-        />
-        <span class="text-xs text-slate-400">{currentDroneVolume}dB</span>
-      {/if}
+        class="rounded px-2 py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+        on:click={toggleStandaloneMetronome}
+        disabled={isPlaying}
+        aria-pressed={metronomeRunning}
+        title="Free-running click, no playback"
+      >{metronomeRunning ? 'Click On' : 'Click'}</button>
     </div>
+
+    {#if !rhythmOnly}
+      <!-- Divider -->
+      <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+
+      <!-- Drone (sounds the tonic, so pitched mode only) -->
+      <div class="flex items-center gap-2">
+        <button
+          class="rounded px-2 py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+          on:click={toggleDrone}
+        >{dronePlaying ? 'Drone On' : 'Drone'}</button>
+        {#if dronePlaying}
+          <input
+            type="range" min="-60" max="0" step="1"
+            value={currentDroneVolume}
+            on:input={handleDroneVolumeChange}
+            class="w-16 accent-amber-400"
+            aria-label="Drone volume"
+          />
+          <span class="text-xs text-slate-400">{currentDroneVolume}dB</span>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Divider -->
     <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
@@ -1776,12 +1819,11 @@
     max-width: 100vw;
   }
 
-  /* :global(.abcjs-cursor) {
-    padding-bottom: 20%;
-    stroke: blue;
+  :global(.abcjs-cursor) {
+    stroke: #1411c4;
     stroke-width: 2;
     pointer-events: none;
-  } */
+  }
 
   :global(.abcjs-pitch-cursor) {
     stroke: #1411c4;

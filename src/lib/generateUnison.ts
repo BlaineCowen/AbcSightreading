@@ -1558,6 +1558,86 @@ function createConcatString(
   return concatString;
 }
 
+/** The single line of a 1-line staff sits at pitch 6, which abcjs writes as `B`.
+ *  Every rhythm-only note uses it, and %%percmap turns it into a snare hit. */
+const RHYTHM_STAFF_NOTE = "B";
+
+/**
+ * Builds a rhythm-only exercise: a one-line percussion staff with no pitches,
+ * every note sounding as an identical acoustic snare stroke.
+ *
+ * Rhythm durations are already chosen independently of pitch, so this skips the
+ * whole chord/voice-leading engine and only runs the rhythm generator. It reuses
+ * createConcatString unchanged -- that function reads only name, noteLength and
+ * rhythm off each note, so a fixed pitch is all it needs.
+ */
+function createRhythmOnlySr(params: any) {
+  const timeSig = params.timeSig;
+  const measures = params.measures;
+
+  const numCadences = Math.ceil(measures / 4);
+  const selectedCadences: Cadence[] = Array(numCadences).fill({ type: "V-I" });
+
+  const randRhythmObjects = generateRandomRhythm(
+    timeSig,
+    measures,
+    params.rhythms,
+    selectedCadences,
+    true // disable the "quarter note or longer" filter
+  );
+
+  if (!randRhythmObjects || randRhythmObjects.length === 0) {
+    console.error("❌ generateRandomRhythm returned no rhythmObjects!");
+    throw new Error("Failed to generate rhythm objects");
+  }
+
+  const chordNoteObject = randRhythmObjects.map((rhythm) => ({
+    partName: "Unison",
+    noteLength: rhythm.totalValue,
+    name: RHYTHM_STAFF_NOTE,
+    degree: 0,
+    pitchValue: 0,
+    chord: null,
+    rhythm: rhythm,
+    isPatternStart: rhythm.isPatternStart === true,
+    isPatternEnd: rhythm.isPatternEnd === true,
+    patternIndex: rhythm.patternIndex ?? null,
+  }));
+
+  const partsObject = {
+    numofParts: 1,
+    parts: {
+      Unison: {
+        order: 0,
+        smallName: "U",
+        selectedRange: [0, 0],
+        chordNoteObject,
+      },
+    },
+  };
+
+  const tuneBody = createConcatString(partsObject as PartsObject, {
+    timeSig: timeSig,
+    showSolfege: false, // no scale degrees to name in rhythm-only mode
+  });
+
+  // clef=perc is what puts the synth on the percussion kit (MIDI program 128),
+  // which in turn is what makes %%percmap take effect. %%MIDI beat with equal
+  // values removes abcjs's default downbeat accent so every stroke is identical.
+  const renderedString =
+    `X:1 \n` +
+    `M:${timeSig.name}\n` +
+    `L:1/32\n` +
+    `%%percmap ${RHYTHM_STAFF_NOTE} acoustic-snare normal\n` +
+    `%%MIDI beat 100 100 100 1\n` +
+    `V:U\n` +
+    `K:C clef=perc stafflines=1 \n` +
+    `%            End of header, start of tune body: \n` +
+    `${tuneBody}`;
+
+  return [renderedString, []];
+}
+
 export function createNewSr(params: any) {
   try {
     // console.log("=== UNISON SIGHT READING GENERATION START ===");
@@ -1586,6 +1666,12 @@ export function createNewSr(params: any) {
     if (!params.selectedRhythms || params.selectedRhythms.length === 0) {
       console.error("❌ No rhythms selected in params.selectedRhythms!");
       throw new Error("No rhythms selected");
+    }
+
+    // Rhythm-only exercises need no key, range or scale degrees, so they branch
+    // off before the pitch-related validation below.
+    if (params.rhythmOnly) {
+      return createRhythmOnlySr(params);
     }
 
     if (!params.selectedTimeSignature) {
