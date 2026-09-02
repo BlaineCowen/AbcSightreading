@@ -1875,13 +1875,13 @@
     onPrint={handlePrint}
   >
     <svelte:fragment slot="extra">
-      <!-- Instrument volume (the snare level in rhythm-only mode) -->
+      <!-- Instrument volume (the percussion level in rhythm-only mode) -->
       <div class="flex items-center gap-2">
         <button
           class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8"
           on:click={toggleMute}
-          title={rhythmOnly ? 'Toggle snare' : 'Toggle piano'}
-          aria-label={rhythmOnly ? 'Toggle snare' : 'Toggle piano'}
+          title={rhythmOnly ? 'Toggle percussion' : 'Toggle piano'}
+          aria-label={rhythmOnly ? 'Toggle percussion' : 'Toggle piano'}
         >
           <Piano size={22} />
         </button>
@@ -1890,7 +1890,7 @@
           bind:value={masterVolume}
           on:input={handleVolumeChange}
           class="w-16 accent-blue-400"
-          aria-label={rhythmOnly ? 'Snare volume' : 'Piano volume'}
+          aria-label={rhythmOnly ? 'Percussion volume' : 'Piano volume'}
         />
       </div>
 

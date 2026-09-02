@@ -1562,6 +1562,12 @@ function createConcatString(
  *  Every rhythm-only note uses it, and %%percmap turns it into a snare hit. */
 const RHYTHM_STAFF_NOTE = "B";
 
+/** GM percussion voice for the rhythm staff. Claves has the sharpest onset of
+ *  the usable drums in FluidR3_GM - 4.6ms to peak against acoustic-snare's
+ *  12.4ms - and decays in 358ms, so consecutive eighth notes stay distinct
+ *  instead of smearing. */
+const RHYTHM_STAFF_DRUM = "claves";
+
 /**
  * Builds a rhythm-only exercise: a one-line percussion staff with no pitches,
  * every note sounding as an identical acoustic snare stroke.
@@ -1628,7 +1634,7 @@ function createRhythmOnlySr(params: any) {
     `X:1 \n` +
     `M:${timeSig.name}\n` +
     `L:1/32\n` +
-    `%%percmap ${RHYTHM_STAFF_NOTE} acoustic-snare normal\n` +
+    `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
     `%%MIDI beat 100 100 100 1\n` +
     `V:U\n` +
     `K:C clef=perc stafflines=1 \n` +
