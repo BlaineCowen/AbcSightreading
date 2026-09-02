@@ -1629,13 +1629,15 @@ function createRhythmOnlySr(params: any) {
 
   // clef=perc is what puts the synth on the percussion kit (MIDI program 128),
   // which in turn is what makes %%percmap take effect. %%MIDI beat with equal
-  // values removes abcjs's default downbeat accent so every stroke is identical.
+  // values removes abcjs's default downbeat accent so every stroke is identical;
+  // 127 is the maximum velocity, because the claves sample is intrinsically
+  // quiet (raw peak 0.16 against a piano note's 0.3-0.5).
   const renderedString =
     `X:1 \n` +
     `M:${timeSig.name}\n` +
     `L:1/32\n` +
     `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
-    `%%MIDI beat 100 100 100 1\n` +
+    `%%MIDI beat 127 127 127 1\n` +
     `V:U\n` +
     `K:C clef=perc stafflines=1 \n` +
     `%            End of header, start of tune body: \n` +

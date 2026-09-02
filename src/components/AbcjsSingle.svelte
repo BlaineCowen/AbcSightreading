@@ -628,7 +628,10 @@
         // URL (create-synth.js:50-57); a custom URL silently drops to 1.0. We
         // proxy the identical FluidR3_GM files, so restore it or everything
         // plays a third as loud.
-        soundFontVolumeMultiplier: 3.0,
+        // Rhythm-only plays one intrinsically quiet sample (claves peaks at
+        // 0.16 of full scale), so give it extra gain. 4.0 x velocity 127 lands
+        // the rendered buffer near 0.84 peak - loud, still short of clipping.
+        soundFontVolumeMultiplier: rhythmOnly ? 4.0 : 3.0,
         // No drum parameters - we'll use our synthetic metronome
       },
     });
@@ -781,8 +784,13 @@
           playbackCursor.setAttribute("y2", endY.toString());
         }
       },
-      lineEndCallback: (data: any) => {
-        // Auto-scroll to keep the next line in view
+      lineEndCallback: (data: any, _ev: any, info: any) => {
+        // Auto-scroll to keep the next line in view.
+        // Line 0 is handled up front by scrollToFirstSystem() when playback
+        // starts, so that move happens across the count-in instead of landing
+        // 500ms before the first note (lineEndAnticipation) as a sudden jump.
+        if (info?.line === 0) return;
+
         const paperDiv = document.getElementById("paper");
         if (!paperDiv) return;
         if (!data || data.top === undefined) return;
@@ -897,6 +905,22 @@
     return visualObj;
   }
 
+  /** Brings the first system to the reading position. Called when playback
+   *  starts, so the page settles during the count-in rather than lurching just
+   *  as the music begins. Measured from the rendered rect, so no unit
+   *  conversion is needed. */
+  function scrollToFirstSystem() {
+    const firstStaff = document
+      .getElementById("paper")
+      ?.querySelector(".abcjs-staff");
+    if (!firstStaff) return;
+    const top = firstStaff.getBoundingClientRect().top + window.scrollY;
+    const target = Math.max(0, top - window.innerHeight * 0.1);
+    // A tiny nudge reads as a glitch; only move if it is genuinely elsewhere.
+    if (Math.abs(target - window.scrollY) < 24) return;
+    window.scrollTo({ top: target, behavior: "smooth" });
+  }
+
   /**
    * Length of the one-measure count-in, in seconds.
    * The cursor timeline (extraMeasuresAtBeginning: 1) includes this measure,
@@ -988,6 +1012,9 @@
     }
     pausedAt = 0;
     isPlaying = true;
+
+    // Settle the page during the count-in, not on the downbeat.
+    if (resumeFrom === 0) scrollToFirstSystem();
 
     if (timingCallbacks) {
       if (resumeFrom > 0) {
