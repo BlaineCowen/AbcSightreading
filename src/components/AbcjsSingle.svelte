@@ -787,14 +787,21 @@
         if (!paperDiv) return;
         if (!data || data.top === undefined) return;
 
-        const paperRect = paperDiv.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        const currentScrollY = window.scrollY;
+        const svg = paperDiv.querySelector("svg");
+        if (!svg) return;
 
-        // data.top is relative to the SVG, so add the paper div's position
-        const absoluteLineTop = data.top + paperRect.top + currentScrollY;
-        const scrollOffset = viewportHeight * 0.1;
-        const targetScrollTop = absoluteLineTop - scrollOffset;
+        // data.top is in abcjs's internal drawing units, which are the SVG's
+        // viewBox units - not CSS pixels. responsive:"resize" scales the SVG up
+        // to the container by exactly displayScale, so the offset has to be
+        // scaled the same way. Without this every target is short by that
+        // factor, and because the error grows with the line's depth it only
+        // becomes obvious near the end of a long score.
+        const svgRect = svg.getBoundingClientRect();
+        const viewBoxHeight = svg.viewBox?.baseVal?.height || 0;
+        const scale = viewBoxHeight ? svgRect.height / viewBoxHeight : 1;
+
+        const absoluteLineTop = svgRect.top + window.scrollY + data.top * scale;
+        const targetScrollTop = absoluteLineTop - window.innerHeight * 0.1;
 
         window.scrollTo({
           top: Math.max(0, targetScrollTop),
@@ -1848,6 +1855,13 @@
         {/if}
       </div>
     </div>
+
+    <!-- While playing, leave a viewport's worth of room below the score. The
+         document otherwise ends at the last system, so the browser clamps the
+         scroll and the final lines can never rise to the reading position. -->
+    {#if isPlaying}
+      <div aria-hidden="true" class="w-full" style="height: 75vh"></div>
+    {/if}
 
     <div class="h-4"></div>
   </main>
