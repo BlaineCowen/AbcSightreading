@@ -1474,7 +1474,28 @@
   }
 
   // ── PlaybackBar handlers ───────────────────────────────────────────────────
-  function handleRestart() { stopMusic(); playMusic(); }
+  /** Moves the playback cursor to the first note without sounding anything.
+   *  Coordinates are abcjs drawing units, the same space beatCallback uses. */
+  function parkPlaybackCursorAtStart() {
+    const first = selectableArray[0];
+    if (!playbackCursor || !first?.absEl || !first?.staffPos) {
+      hidePlaybackCursor();
+      return;
+    }
+    const x = Math.max(0, first.absEl.x - 2);
+    playbackCursor.setAttribute("x1", String(x));
+    playbackCursor.setAttribute("x2", String(x));
+    playbackCursor.setAttribute("y1", String(first.staffPos.top - 10));
+    playbackCursor.setAttribute("y2", String(first.staffPos.top + 80));
+  }
+
+  /** Back-to-start cues the top and leaves it there. Starting playback is the
+   *  Play button's job - this used to call playMusic() and take that decision
+   *  away from you. */
+  function handleRestart() {
+    stopMusic();
+    parkPlaybackCursorAtStart();
+  }
   function handleToggleLoop() { looping = !looping; }
   /** Live readout while dragging - cheap, no re-render. */
   function handleBpmChange(newBpm: number) {

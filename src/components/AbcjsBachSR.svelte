@@ -1,19 +1,19 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import abcjs from "abcjs";
-  import { RefreshCw, Minus, Plus } from "lucide-svelte";
+  import { RefreshCw, Minus, Plus, TriangleAlert } from "lucide-svelte";
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import {
-    generateChoralExercise,
-    type GenerateChoralParams,
-  } from "../lib/generateChoral";
+    generateBachSR,
+    type GenerateBachSRParams,
+  } from "../lib/bach-sr/generate";
+  import { BachSRGenerationError, type Violation } from "../lib/bach-sr/validate";
   import type { TimeSignature, PartsObject } from "../lib/types";
   import { ClefType } from "../lib/types";
   import type { Chord } from "../lib/types";
   import type { Rhythm } from "../resources/rhythms";
   import RangeSelector from "./ui/rangeSelector.svelte";
-  import { uilPresets } from "../lib/uil-presets";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PresetDropdown from "./PresetDropdown.svelte";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
@@ -47,15 +47,34 @@
     Advanced: { maxSkip: 6, rhythms: ["quarter", "half", "dotHalf", "eighth", "dotQuarterEighth", "eighthEighth", "dotHalfQuarter"], bpm: 100 },
   };
 
-  let activeUILLevel: string | null = null;
-
   // ── Generation parameters ──────────────────────────────────────────────────
-  const measureOptions = [2, 4, 8, 16];
+  const measureOptions = [4, 8, 12, 16];
 
   let possibleVoicing: Record<string, PartsObject> = {
     "4 Part Mixed": {
       numofParts: 4,
       parts: {
+        // Bach chorale norms in SOUNDED pitch. The pitch values below are
+        // noteArray indices (pitch 14 = "C" written, sounds C4 in treble).
+        // Each clef applies its own shift to playback, so the pitch values
+        // chosen here account for that:
+        //   • Treble + octave=-1 (S, A): sounded = written - 1 octave
+        //     → pitch 21 = "c" sounds C4; pitch 33 = "a'" sounds A5
+        //   • Treble + transpose=-12 (T): sounded = written - 1 octave
+        //     → pitch 14 = "C" sounds C3; pitch 25 = "g" sounds G4
+        //   • Bass + octave=-1 (B): sounded = written - 1 octave
+        //     → pitch 9 = "E," sounds E2; pitch 22 = "d" sounds D4
+        // Bach norms: S=C4–A5 / D4–E5, A=G3–D5 / B3–A4,
+        //             T=C3–G4 / D3–D4, B=E2–D4 / G2–C4
+        // Pitch values are noteArray indices. Each clef applies its own
+        // playback shift on top of the abc letter:
+        //   • Treble + octave=-1 (S, A): sounded = written - 1 octave
+        //   • Treble + transpose=-12 (T): sounded = written - 1 octave
+        //   • Bass   + octave=-1 (B):   sounded = written - 1 octave
+        // The chord-tone search uses `range` as its working zone (so it
+        // already corresponds to a Bach-typical sounded band), and the
+        // bass-octave picker additionally prefers `currentRange` as a
+        // tiebreaker among equidistant candidates.
         Soprano: { order: 3, smallName: "S",  clef: ClefType.Treble,        range: [21, 35], currentRange: [25, 32] },
         Alto:    { order: 2, smallName: "A",  clef: ClefType.Treble,        range: [14, 32], currentRange: [21, 28] },
         Tenor:   { order: 1, smallName: "T",  clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
@@ -93,12 +112,6 @@
         Alto:    { order: 0, smallName: "A", clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
       },
     },
-    Unison: {
-      numofParts: 1,
-      parts: {
-        Unison: { order: 0, smallName: "V", clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
-      },
-    },
   };
 
   let timeSignatures: Record<string, TimeSignature> = {
@@ -117,35 +130,23 @@
     1: 'a 2nd', 2: 'a 3rd', 3: 'a 4th', 4: 'a 5th',
     5: 'a 6th', 6: 'a 7th', 7: 'an octave', 8: 'a 9th',
   };
-  let nctProbability = 0.1;
+  let nctProbability = 0.15;
   let accidentalsByStep = true;
-  let chromaticFrequency = 1;
   let chordProgression: Chord[] = [];
   let renderedString = "";
   let selectedVoicing = "4 Part Mixed";
 
-  // ── Chord state ────────────────────────────────────────────────────────────
+  // Condensed view: 2 staves (S+A treble, T+B bass) for easier visual analysis.
+  let condensedView = true;
+
+  // Validation state. Set when the validator surfaces a hard-violation error
+  // (after the reroll budget is exhausted) or soft warnings on a successful
+  // generation.
+  let generationError: BachSRGenerationError | null = null;
+  let softWarnings: Violation[] = [];
+  let attempts = 0;
+
   function isMinorKey(k: string): boolean { return k.endsWith('m'); }
-
-  const majorChordNames = fullChordSet.filter((c) => c.mode !== 'minor').map((c) => c.name);
-  const minorChordNames = fullChordSet.filter((c) => c.mode === 'minor').map((c) => c.name);
-  const allChordNames = fullChordSet.map((c) => c.name); // for UIL preset compatibility
-
-  let userAllowedChords: Set<string> = new Set(majorChordNames);
-
-  const majorChordGroups: Record<string, string[]> = {
-    Diatonic: ['1','2','3','4','5','5-7','6','7'],
-    Inversions: ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'],
-    'Chromatic Chords': ['5/5','5/6','5/2','m4','1-7'],
-  };
-  const minorChordGroups: Record<string, string[]> = {
-    Diatonic: ['m_i','m_iv','m_V','m_V7','m_VI','m_VII'],
-    'Predominant': ['m_iid'],
-    'Other': ['m_i6','m_III','m_viid'],
-  };
-
-  $: chordGroups = isMinorKey(selectedKey) ? minorChordGroups : majorChordGroups;
-  $: currentModeChordNames = isMinorKey(selectedKey) ? minorChordNames : majorChordNames;
 
   // ── Rhythm state ───────────────────────────────────────────────────────────
   let filterRhythms: Record<string, Rhythm> = Object.fromEntries(
@@ -167,7 +168,7 @@
   // ── Non-default badge logic ────────────────────────────────────────────────
   const DEFAULTS = {
     voicing: '4 Part Mixed', key: 'C', timeSig: '4/4', measures: 8,
-    maxSkip: 4, nctProbability: 0.1,
+    maxSkip: 4, nctProbability: 0.15,
     rhythmNames: ['quarter', 'half', 'dotHalf'],
   };
 
@@ -175,8 +176,7 @@
     selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
     JSON.stringify([...DEFAULTS.rhythmNames].sort());
-  $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
-    userAllowedChords.size !== currentModeChordNames.length;
+  $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability;
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
 
@@ -184,7 +184,6 @@
     selectedKey, selectedTimeSignature, selectedVoicing, measures, maxSkip,
     Math.round(nctProbability * 100),
     selectedRhythms.map(r => r.name).sort().join(','),
-    [...userAllowedChords].sort().join(','),
   ].join('|');
 
   $: if (_presetParamSig && _currentParamSig !== _presetParamSig && activePresetLabel) {
@@ -201,6 +200,37 @@
     "3/4": "ddd 76 77 77 60 30 30",
   };
 
+  /**
+   * Post-process the assembled ABC for the condensed (2-staff piano-score) view.
+   *  - %%score [S A] [T B]   — group voices onto two staves
+   *  - V:T uses bass clef (with octave + transpose adjustments) so it appears
+   *    on the SAME staff as the bass voice
+   *  - V:A and V:B get stems-down so the upper voice on each staff stems up
+   *    and the lower voice stems down (standard piano-score convention)
+   */
+  function condenseAbc(abc: string): string {
+    let s = abc;
+    // abcjs %%score syntax: PARENTHESES group voices onto a single staff.
+    // Brackets/braces are just visual decoration and DON'T merge staves.
+    s = s.replace(/^%%score\s+S\s+A\s+T\s+B/m, "%%score (S A) (T B)");
+    // Stems: top voice on each staff up, bottom voice down (piano-score
+    // convention). Soprano + Tenor get stems up; Alto + Bass get stems down.
+    s = s.replace(/^V:S\s+clef=treble octave=-1.*$/m,
+      'V:S clef=treble octave=-1 name="Soprano" snm="S" stem=up');
+    s = s.replace(/^V:A\s+clef=treble octave=-1.*$/m,
+      'V:A clef=treble octave=-1 name="Alto" snm="A" stem=down');
+    // Tenor on bass staff: use `bass octave=-1` only — DO NOT add transpose=-12.
+    // abcjs's `octave=-1` already shifts BOTH display and playback down by an
+    // octave (see abc_parse_music.js:1111: el.pitch += 7 * octave). Adding
+    // transpose=-12 on top double-shifts playback to one octave below the
+    // intended sounding pitch.
+    s = s.replace(/^V:T\s+clef=treble transpose=-12.*$/m,
+      'V:T clef=bass octave=-1 name="Tenor" snm="T" stem=up');
+    s = s.replace(/^V:B\s+clef=bass octave=-1.*$/m,
+      'V:B clef=bass octave=-1 name="Bass" snm="B" stem=down');
+    return s;
+  }
+
   /** Magnification is container / (staffwidth + 30), so a fixed staffwidth of
    *  ~740 renders at under half size on a phone. Measure the container instead. */
   function scoreLayout() {
@@ -213,14 +243,57 @@
 
   async function renderTune() {
     const mod = await import("abcjs");
+    const abcToRender = condensedView ? condenseAbc(renderedString) : renderedString;
     const { staffwidth, measuresPerLine } = scoreLayout();
     // No `scale`: abcjs discards it when responsive:"resize" is set.
-    const result = mod.renderAbc("paper", renderedString, {
+    const result = mod.renderAbc("paper", abcToRender, {
       responsive: "resize",
       staffwidth,
       wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
+      clickListener: handleNoteClick,
     });
     return result;
+  }
+
+  // Plays the clicked note(s) as a brief audio event. Lazy-init a small
+  // synth on first click so we don't spin up audio context until needed.
+  let clickSynth: any = null;
+  let clickAudioContext: AudioContext | null = null;
+  async function handleNoteClick(
+    abcElem: any,
+    _tuneNumber: any,
+    _classes: any,
+    _analysis: any,
+    _drag: any,
+    _mouseEvent: any
+  ) {
+    if (!abcElem || !abcElem.midiPitches || abcElem.midiPitches.length === 0) return;
+    try {
+      const mod = await import("abcjs");
+      if (!clickAudioContext) {
+        const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext;
+        clickAudioContext = new Ctor();
+      }
+      if (clickAudioContext.state === "suspended") {
+        await clickAudioContext.resume();
+      }
+      if (!clickSynth) {
+        clickSynth = new mod.synth.CreateSynth();
+        await clickSynth.init({
+          audioContext: clickAudioContext,
+          visualObj: renderedTune,
+          millisecondsPerMeasure: 1000,
+        });
+      }
+      // Play just this beat's pitches at a short duration.
+      mod.synth.playEvent(
+        abcElem.midiPitches,
+        abcElem.midiGraceNotePitches ?? [],
+        1000 // measure-ms reference; the pitches carry their own duration
+      );
+    } catch (err) {
+      console.warn("note click playback failed:", err);
+    }
   }
 
   function buildAudioParams() {
@@ -228,6 +301,11 @@
       drum: drumBeats[selectedTimeSignature] ?? '',
       drumBars: 1,
       drumIntro: 1,
+      // Bach SR adds chord-symbol annotations above the soprano staff for
+      // analysis. abcjs's synth would otherwise play these as a chordal
+      // accompaniment on top of the voices — disable so playback is
+      // VOICES ONLY (what the singers actually sing).
+      chordsOff: true,
     };
   }
 
@@ -268,39 +346,12 @@
     bpm = p.bpm;
     selectedRhythms = allRhythms.filter((r) => p.rhythms.includes(r.name));
     activePresetLabel = name;
-    activeUILLevel = null;
-    // Use setTimeout so the signature captures post-update values
-    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
-  }
-
-  function applyUILPreset(levelKey: string) {
-    const p = uilPresets[levelKey];
-    if (!p) return;
-    activeUILLevel = levelKey;
-    possibleKeys = p.allowedKeys;
-    if (!p.allowedKeys.includes(selectedKey)) selectedKey = p.allowedKeys[0];
-    selectedRhythms = allRhythms.filter(
-      (r) => p.allowedRhythmNames.includes(r.name) && !r.name.toLowerCase().includes("rest")
-    );
-    maxSkip = p.maxSkip;
-    userAllowedChords = new Set(p.allowedChordNames ?? allChordNames);
-    if (p.voiceRanges) {
-      for (const voicingDef of Object.values(possibleVoicing)) {
-        for (const [partName, partDef] of Object.entries(voicingDef.parts)) {
-          if (p.voiceRanges[partName]) {
-            partDef.currentRange = [...p.voiceRanges[partName]];
-          }
-        }
-      }
-    }
-    activePresetLabel = p.label;
-    // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
   function applyBuiltinPreset(type: 'uil' | 'difficulty', key: string) {
-    if (type === 'uil') applyUILPreset(key);
-    else applyDifficultyPreset(key);
+    // UIL is hidden on Bach SR, but defensively ignore it if it ever fires.
+    if (type === 'difficulty') applyDifficultyPreset(key);
   }
 
   function applySavedPreset(preset: SavedPreset) {
@@ -312,7 +363,6 @@
     maxSkip = p.maxSkip;
     bpm = p.bpm;
     selectedRhythms = allRhythms.filter((r) => p.selectedRhythmNames.includes(r.name));
-    userAllowedChords = p.allowedChordNames ? new Set(p.allowedChordNames) : new Set(allChordNames);
     nctProbability = p.nctProbability;
     const ranges = p.voiceRanges;
     if (ranges && possibleVoicing[p.voicing]) {
@@ -323,8 +373,6 @@
       possibleVoicing = { ...possibleVoicing };
     }
     activePresetLabel = preset.name;
-    activeUILLevel = null;
-    // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
@@ -337,7 +385,6 @@
       maxSkip,
       bpm,
       selectedRhythmNames: selectedRhythms.map((r) => r.name),
-      allowedChordNames: userAllowedChords.size < allChordNames.length ? Array.from(userAllowedChords) : undefined,
       nctProbability,
       voiceRanges: Object.fromEntries(
         Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {}).map(
@@ -463,7 +510,7 @@
       return;
     }
 
-    const params: GenerateChoralParams = {
+    const params: GenerateBachSRParams = {
       key: selectedKey,
       timeSig: timeSignatures[selectedTimeSignature],
       partsObject: possibleVoicing[selectedVoicing],
@@ -474,16 +521,18 @@
       chords: fullChordSet,
       accidentalsByStep,
       nctProbability,
-      chromaticFrequency,
-      allowedChordNames: userAllowedChords.size < allChordNames.length
-        ? Array.from(userAllowedChords)
-        : undefined,
     };
 
+    // Reset validation state for this generation.
+    generationError = null;
+    softWarnings = [];
+
     try {
-      const { abcString, chordProgression: generatedProgression } = generateChoralExercise(params);
-      renderedString = abcString;
-      chordProgression = generatedProgression as Chord[];
+      const result = generateBachSR(params);
+      renderedString = result.abcString;
+      chordProgression = result.chordProgression as Chord[];
+      softWarnings = result.softWarnings ?? [];
+      attempts = result.attempts ?? 1;
 
       const tune = await renderTune();
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
@@ -493,8 +542,14 @@
       await initSynth(renderedTune);
       generatedBpm = bpm;
     } catch (error: unknown) {
-      console.error("Error generating exercise:", error);
-      alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof BachSRGenerationError) {
+        // Validator-budget exhaustion — show structured error rather than
+        // emit invalid counterpoint.
+        generationError = error;
+      } else {
+        console.error("Error generating exercise:", error);
+        alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 </script>
@@ -510,12 +565,19 @@
     onSelectBuiltin={applyBuiltinPreset}
     onSelectSaved={applySavedPreset}
     onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
+    hideUILLevels={true}
   />
 
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
 
+    <!-- Preview banner -->
+    <div class="w-full bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-md px-3 py-2 mt-3 mb-2 no-print">
+      <strong>Bach SR — Preview.</strong> Phase 1 currently delegates to the existing choral generator.
+      Soprano-first chorale algorithm lands in Phase 2.
+    </div>
+
     <!-- Tab panel -->
-    <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4 no-print">
+    <div class="tab-panel w-full bg-white shadow-md rounded-lg my-2 no-print">
 
       <!-- Tab bar -->
       <div class="flex items-stretch border-b border-slate-200">
@@ -570,14 +632,7 @@
                 {#each possibleKeys as key}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => {
-                      const wasMinor = isMinorKey(selectedKey);
-                      const nowMinor = isMinorKey(key);
-                      selectedKey = key;
-                      if (wasMinor !== nowMinor) {
-                        userAllowedChords = new Set(nowMinor ? minorChordNames : majorChordNames);
-                      }
-                    }}
+                    on:click={() => (selectedKey = key)}
                   >{key}</button>
                 {/each}
               </div>
@@ -605,6 +660,19 @@
                   >{opt}</button>
                 {/each}
               </div>
+            </div>
+
+            <div class="space-y-1 col-span-1 sm:col-span-2">
+              <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  bind:checked={condensedView}
+                  class="accent-blue-500"
+                  on:change={() => { if (renderedString) renderTune(); }}
+                />
+                Condensed view (2 staves: S+A treble, T+B bass) with chord symbols
+              </label>
+              <p class="text-xs text-slate-400">Easier for harmonic + voice-leading analysis</p>
             </div>
           </div>
 
@@ -641,46 +709,19 @@
             </div>
           </div>
 
-        <!-- Harmony Tab -->
+        <!-- Harmony Tab — simplified (no chord-pool toggles or chromatic-frequency slider) -->
         {:else if selectedTab === 'harmony'}
           <div class="space-y-5">
-            <!-- Chord toggles -->
-            {#each Object.entries(chordGroups) as [groupName, chordNames]}
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{groupName}</p>
-                <div class="flex flex-wrap gap-2">
-                  {#each chordNames as chordName}
-                    {@const chord = fullChordSet.find(c => c.name === chordName)}
-                    {#if chord}
-                      <button
-                        type="button"
-                        class="px-3 py-2 sm:py-1 rounded text-sm font-medium
-                          {userAllowedChords.has(chordName)
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
-                        on:click={() => {
-                          const next = new Set(userAllowedChords);
-                          if (next.has(chordName)) next.delete(chordName);
-                          else next.add(chordName);
-                          userAllowedChords = next;
-                        }}
-                      >{chord.symbol}</button>
-                    {/if}
-                  {/each}
-                </div>
-              </div>
-            {/each}
-
-            <!-- NCT Probability -->
+            <!-- NCT Density -->
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Non-Chord Tone Amount</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Non-Chord Tone Density</p>
               <div class="flex flex-wrap items-center gap-3">
                 <span class="text-xs text-slate-500">None</span>
-                <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" />
+                <input type="range" min="0" max="0.5" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" />
                 <span class="text-xs text-slate-500">Heavy</span>
                 <span class="text-sm font-semibold">{Math.round(nctProbability * 100)}%</span>
               </div>
-              <p class="text-xs text-slate-400">Passing · Neighbor · Anticipation · Appoggiatura</p>
+              <p class="text-xs text-slate-400">Suspensions · Coordinated passing · Anticipations · Neighbors</p>
             </div>
 
             <!-- Accidentals by Step -->
@@ -690,18 +731,6 @@
                 Chromatic tones approached &amp; resolved by step
               </label>
               <p class="text-xs text-slate-400">Sharps resolve up · Flats resolve down</p>
-            </div>
-
-            <!-- Chromatic Frequency -->
-            <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
-              <div class="flex flex-wrap items-center gap-3">
-                <span class="text-xs text-slate-500">Less</span>
-                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" />
-                <span class="text-xs text-slate-500">More</span>
-                <span class="text-sm font-semibold">{chromaticFrequency}×</span>
-              </div>
-              <p class="text-xs text-slate-400">Multiplies the weight of secondary dominants &amp; other chromatic chords</p>
             </div>
 
             <!-- Max Skip -->
@@ -743,6 +772,56 @@
     <div id="audio" class="hidden"></div>
 
     <!-- Sheet music -->
+    {#if generationError}
+      <div class="w-full bg-rose-50 border border-rose-300 text-rose-900 rounded-md px-4 py-3 mt-2 mb-2 no-print">
+        <div class="flex items-start gap-3">
+          <TriangleAlert size={20} class="shrink-0" />
+          <div class="flex-1">
+            <p class="font-semibold text-sm">Couldn't generate a clean exercise after {generationError.attempts} attempts.</p>
+            <p class="text-xs text-rose-800 mt-1">
+              The counterpoint validator rejected every candidate. Click <strong>Generate</strong> again — different
+              random seeds usually succeed. Persistent failure may indicate the chord pool / voicing is too tight.
+            </p>
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs font-medium hover:underline">Show what failed</summary>
+              <div class="mt-2 max-h-40 overflow-y-auto bg-white rounded border border-rose-200 px-2 py-1 text-xs font-mono space-y-1">
+                {#each generationError.violations.filter((v) => v.severity === 'hard').slice(0, 12) as v}
+                  <div>
+                    <span class="text-rose-600 font-semibold">{v.type}</span>
+                    <span class="text-slate-500"> @ t={v.time}</span>
+                    {#if v.voicePair}<span class="text-slate-700"> [voices {v.voicePair.join('+')}]</span>{/if}
+                    <div class="text-slate-600 pl-3">{v.description}</div>
+                  </div>
+                {/each}
+                {#if generationError.violations.filter((v) => v.severity === 'hard').length > 12}
+                  <div class="text-slate-400">…and {generationError.violations.filter((v) => v.severity === 'hard').length - 12} more</div>
+                {/if}
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    {#if softWarnings.length > 0 && !generationError}
+      <div class="w-full bg-amber-50 border border-amber-200 text-amber-900 rounded-md px-3 py-2 mt-2 mb-1 no-print text-xs">
+        <details>
+          <summary class="cursor-pointer">
+            ⓘ {softWarnings.length} informational counterpoint warning{softWarnings.length === 1 ? '' : 's'}
+            {#if attempts > 1} · generated on attempt #{attempts}{/if}
+          </summary>
+          <div class="mt-2 space-y-1 font-mono">
+            {#each softWarnings.slice(0, 8) as v}
+              <div>
+                <span class="font-semibold">{v.type}</span> @ t={v.time}
+                <div class="text-slate-600 pl-3">{v.description}</div>
+              </div>
+            {/each}
+          </div>
+        </details>
+      </div>
+    {/if}
+
     <div id="paper" class="bg-white rounded-lg shadow-md w-full my-2"></div>
 
     <!-- Chord progression display -->
@@ -750,6 +829,28 @@
       <div class="text-center mt-2 mb-4 no-print">
         <p class="text-slate-500 text-sm">{chordProgression.map((c) => c.symbol).join('  ')}</p>
       </div>
+    {/if}
+
+    <!-- ABC source (for copy-paste / debugging) -->
+    {#if renderedString}
+      <details class="w-full max-w-3xl bg-slate-50 border border-slate-200 rounded-md mt-2 mb-4 no-print">
+        <summary class="px-3 py-2 text-xs font-semibold text-slate-500 cursor-pointer hover:bg-slate-100">
+          ABC source (click to expand · use the Copy button to paste back here)
+        </summary>
+        <div class="px-3 pb-3 space-y-2">
+          <textarea
+            class="w-full h-48 text-xs font-mono bg-white border border-slate-300 rounded p-2"
+            readonly
+            on:focus={(e) => e.currentTarget.select()}
+          >{renderedString}</textarea>
+          <button
+            class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+            on:click={() => {
+              navigator.clipboard.writeText(renderedString);
+            }}
+          >Copy ABC</button>
+        </div>
+      </details>
     {/if}
 
     <div class="h-4"></div>

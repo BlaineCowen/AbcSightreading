@@ -101,8 +101,8 @@
         class={iconBtn}
         disabled={!hasExercise}
         on:click={onRestart}
-        title="Restart"
-        aria-label="Restart"
+        title="Back to start"
+        aria-label="Back to start"
       ><SkipBack size={18} /></button>
 
       {#if isPlaying}
