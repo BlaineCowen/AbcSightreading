@@ -294,6 +294,20 @@ export const rhythms: Rhythm[] = [
     weight: 5,
   },
   {
+    // Syncopation: the quarter straddles the beat, so the figure is two beats
+    // long and only fits starting on a beat. Kodály names it syn-co-pa.
+    name: "eighthQuarterEighth",
+    abcValue: ["4", "8", "4"],
+    meterValue: [1 / 8, 1 / 4, 1 / 8],
+    totalValue: 16,
+    rest: false,
+    oddsWeight: 5,
+    maxRng: 0,
+    pattern: true,
+    symbol: "𝄙𝄘𝄙",
+    weight: 5,
+  },
+  {
     name: "dotHalfQuarter",
     abcValue: ["24", "8"],
     meterValue: [3 / 4, 1 / 4],

@@ -1700,6 +1700,12 @@ function createRhythmOnlySr(params: any) {
     `L:1/32\n` +
     `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
     `%%MIDI beat 127 127 127 1\n` +
+    // Syllables ride as annotations, whose default 12pt is sized for chord
+    // symbols above the staff. At that size adjacent syllables under a short
+    // note collide - "syn" and "co" touch at 0px under an eighth-quarter pair.
+    (params.showRhythmSyllables === true
+      ? `%%annotationfont Helvetica 10\n`
+      : "") +
     `V:U\n` +
     `K:C clef=perc stafflines=1 \n` +
     `%            End of header, start of tune body: \n` +
