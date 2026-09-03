@@ -700,7 +700,15 @@
       responsive: "resize",
       staffwidth: getStaffWidth(),
       wrap: {
-        preferredMeasuresPerLine: isNarrow() ? 2 : 4,
+        // Syllables sit under every note, so a measure needs more width or
+        // abcjs pushes colliding annotations onto a second row - "(sh)" and the
+        // eighth after it are the tight pair. Fewer measures per line is a more
+        // predictable lever than shrinking the text further.
+        preferredMeasuresPerLine: isNarrow()
+          ? 2
+          : rhythmOnly && showRhythmSyllables
+            ? 3
+            : 4,
         minSpacing: 1.5,
         maxSpacing: 5,
       },

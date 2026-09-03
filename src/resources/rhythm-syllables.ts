@@ -36,14 +36,14 @@ export const kodaly: SyllableSystem = {
     // The "(i)" marks where beat two falls, so the second downbeat is felt.
     dotQuarterEighth: ["ta-(i)", "ti"],
     dotHalfQuarter: ["tu-u-u", "ta"],
-    // Not currently generated - there is no eighthQuarterEighth in rhythms.ts -
-    // but this is the standard name for the figure, ready for when it is added.
+    // The standard name for the syncopation figure, where the quarter straddles
+    // the beat.
     eighthQuarterEighth: ["syn", "co", "pa"],
   },
   slots: ["ti", "ki", "ti", "ki"],
   beat: "ta",
   sustain: (beats: number) => "tu" + "-u".repeat(Math.max(0, beats - 1)),
-  rest: "sh",
+  rest: "(sh)",
 };
 
 export const syllableSystems: Record<string, SyllableSystem> = {
