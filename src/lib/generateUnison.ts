@@ -3,6 +3,10 @@ import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
 import { noteArray } from "../resources/noteArray";
 import { generateRandomRhythm } from "./rhythm-generation";
+import {
+  defaultSyllableSystem,
+  type SyllableSystem,
+} from "../resources/rhythm-syllables";
 import type { Cadence, RhythmWithPattern } from "./types";
 
 // interface AbcObject {
@@ -1437,9 +1441,49 @@ const flatSolfege = ["re", "me", "se", "le", "te"];
 const sharpSolfegeMap = { 0: "di", 1: "ri", 3: "fi", 4: "si", 5: "li" };
 const flatSolfegeMap = { 1: "ra", 2: "me", 4: "se", 5: "le", 6: "te" };
 
+/**
+ * The rhythm syllable for one note.
+ *
+ * @param offsetInMeasure - where the note starts, in 32nd-note units from the
+ *   barline. createConcatString's `tsCount` is exactly this.
+ * @param beatUnits - length of one beat in 32nd-note units (8 for a quarter).
+ *
+ * Resolution order: a named figure wins outright (so a system can spell out
+ * anything, rests included), then rests, then notes of a beat or longer, and
+ * finally the note's position on the sixteenth grid within its beat. That last
+ * rule is what makes an eighth read "ti" on the beat and "ki" off it, and it
+ * generalises to figures nobody has enumerated.
+ */
+function rhythmSyllableFor(
+  note: ChordNoteObject,
+  offsetInMeasure: number,
+  beatUnits: number,
+  system: SyllableSystem
+): string {
+  const named = note.rhythm?.name ? system.byName[note.rhythm.name] : undefined;
+  const fromName = named?.[note.patternIndex ?? 0];
+  if (fromName !== undefined) return fromName;
+
+  if (note.rhythm?.rest) return system.rest;
+
+  if (note.noteLength >= beatUnits) {
+    const beats = Math.round(note.noteLength / beatUnits);
+    return beats <= 1 ? system.beat : system.sustain(beats);
+  }
+
+  const slotWidth = beatUnits / system.slots.length;
+  const slot = Math.floor((offsetInMeasure % beatUnits) / slotWidth);
+  return system.slots[slot % system.slots.length];
+}
+
 function createConcatString(
   partsObject: PartsObject,
-  params: { timeSig: { tsPerMeasure: number; beamGroupSize?: number }; showSolfege: boolean }
+  params: {
+    timeSig: { tsPerMeasure: number; beamGroupSize?: number };
+    showSolfege: boolean;
+    showRhythmSyllables?: boolean;
+    syllableSystem?: SyllableSystem;
+  }
 ) {
   var concatString = "";
 
@@ -1483,6 +1527,19 @@ function createConcatString(
             processedNoteName = "=" + noteKey;
             activeAccidentals.set(noteKey, "=");
           }
+        }
+
+        // Rhythm syllables ride as ABC annotations rather than a w: lyric
+        // line, because lyrics skip rests entirely (abc_parse.js) and the rest
+        // needs to carry a syllable too.
+        if (params.showRhythmSyllables) {
+          const syllable = rhythmSyllableFor(
+            note,
+            tsCount,
+            params.timeSig.beamGroupSize ?? 8,
+            params.syllableSystem ?? defaultSyllableSystem
+          );
+          if (syllable) measureString += `"_${syllable}"`;
         }
 
         if (note.rhythm?.rest) {
@@ -1534,6 +1591,10 @@ function createConcatString(
     if (params.showSolfege) {
       let solfegeString = "w: ";
       singlePartObject.chordNoteObject.forEach((note: ChordNoteObject) => {
+        // ABC aligns lyrics to notes only - a rest consumes no slot - so
+        // emitting a token here would shift every later syllable one note left.
+        if (note.rhythm?.rest) return;
+
         let syllable = "";
         const accidentalMatch = note.name.match(/[_^=]+/);
         const accidental = accidentalMatch ? accidentalMatch[0] : null;
@@ -1625,6 +1686,7 @@ function createRhythmOnlySr(params: any) {
   const tuneBody = createConcatString(partsObject as PartsObject, {
     timeSig: timeSig,
     showSolfege: false, // no scale degrees to name in rhythm-only mode
+    showRhythmSyllables: params.showRhythmSyllables === true,
   });
 
   // clef=perc is what puts the synth on the percussion kit (MIDI program 128),

@@ -196,6 +196,8 @@
       options.showSolfege = getParam("showSolfege") === "true";
     if (urlParams.has("rhythmOnly"))
       options.rhythmOnly = getParam("rhythmOnly") === "true";
+    if (urlParams.has("showRhythmSyllables"))
+      options.showRhythmSyllables = getParam("showRhythmSyllables") === "true";
 
     return Object.keys(options).length > 0 ? options : null;
   }
@@ -332,6 +334,7 @@
           accidentalsFollowStep: urlOptions.accidentalsFollowStep || true,
           showSolfege: urlOptions.showSolfege || false,
           rhythmOnly: urlOptions.rhythmOnly || false,
+          showRhythmSyllables: urlOptions.showRhythmSyllables || false,
         };
       }
     }
@@ -373,6 +376,7 @@
           accidentalsFollowStep: options.accidentalsFollowStep || true,
           showSolfege: options.showSolfege || false,
           rhythmOnly: options.rhythmOnly || false,
+          showRhythmSyllables: options.showRhythmSyllables || false,
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -398,6 +402,7 @@
       accidentalsFollowStep: false,
       showSolfege: false,
       rhythmOnly: false,
+      showRhythmSyllables: false,
     };
   }
 
@@ -418,6 +423,7 @@
   let tempo = initialState.bpm;
   let showSolfege = initialState.showSolfege || false;
   let rhythmOnly = initialState.rhythmOnly || false;
+  let showRhythmSyllables = initialState.showRhythmSyllables || false;
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
@@ -530,6 +536,7 @@
       accidentalsFollowStep,
       showSolfege,
       rhythmOnly,
+      showRhythmSyllables,
     };
     try {
       console.log("Saving options:", options);
@@ -565,6 +572,7 @@
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
     params.set("showSolfege", showSolfege.toString());
     params.set("rhythmOnly", rhythmOnly.toString());
+    params.set("showRhythmSyllables", showRhythmSyllables.toString());
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     history.replaceState({}, "", newUrl);
@@ -1209,6 +1217,7 @@
         key: selectedKey,
         showSolfege: rhythmOnly ? false : showSolfege,
         rhythmOnly: rhythmOnly,
+        showRhythmSyllables: rhythmOnly && showRhythmSyllables,
         moveOnEighthNotes: moveEighthNotes,
         accidentalsFollowStep: accidentalsFollowStep,
         partsObject: {
@@ -1787,6 +1796,22 @@
                   </button>
                 {/each}
               </div>
+
+              {#if rhythmOnly}
+                <!-- Only meaningful on the one-line rhythm staff, where there
+                     are no scale degrees and Show Solfege is unavailable. -->
+                <div class="space-y-2 pt-1">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Rhythm Syllables
+                  </p>
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm {showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (showRhythmSyllables = !showRhythmSyllables)}
+                    aria-pressed={showRhythmSyllables}
+                  >{showRhythmSyllables ? 'On' : 'Off'}</button>
+                  <p class="text-xs text-slate-400">Kodály — ta, ti-ti, ti-ki-ti-ki</p>
+                </div>
+              {/if}
             </div>
 
           <!-- Notes Tab -->
