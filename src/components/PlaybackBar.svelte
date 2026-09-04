@@ -11,6 +11,7 @@
   import Link2 from "lucide-svelte/icons/link-2";
   import Printer from "lucide-svelte/icons/printer";
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
+  import RefreshCw from "lucide-svelte/icons/refresh-cw";
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
@@ -30,6 +31,9 @@
   /** Called on release. Consumers whose BPM change is expensive should re-render
    *  here instead of in onBpmChange. */
   export let onBpmCommit: ((bpm: number) => void) | null = null;
+  /** Omit to leave Generate out of the bar entirely. */
+  export let onGenerate: (() => void) | null = null;
+  export let isGenerating: boolean = false;
 
   function handleBpmInput(e: Event) {
     onBpmChange(+(e.target as HTMLInputElement).value);
@@ -94,9 +98,23 @@
          flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:px-4"
   style="padding-bottom: env(safe-area-inset-bottom, 0px)"
 >
-  <!-- Primary transport row -->
-  <div class="flex items-center gap-2 sm:gap-4 flex-nowrap sm:flex-wrap px-3 py-2 sm:p-0 sm:py-2">
+  <!-- Transport. sm:order-last + sm:ml-auto park this whole group at the right
+       of the desktop row, after the mixer controls spliced in below. -->
+  <div class="flex items-center gap-2 sm:gap-4 flex-nowrap sm:flex-wrap px-3 py-2 sm:p-0 sm:py-2
+              sm:order-last sm:ml-auto">
     <div class="flex gap-2 items-center">
+      {#if onGenerate}
+        <button
+          class="flex items-center justify-center gap-1.5 shrink-0 bg-green-600 hover:bg-green-700 text-white font-bold rounded px-3 sm:px-4 h-11 sm:h-8 text-sm disabled:opacity-50"
+          on:click={onGenerate}
+          disabled={isGenerating}
+          title="Generate a new exercise"
+          aria-label="Generate a new exercise"
+        >
+          <RefreshCw size={16} class={isGenerating ? "animate-spin" : ""} />
+          <span class="hidden sm:inline">Generate</span>
+        </button>
+      {/if}
       <button
         class={iconBtn}
         disabled={!hasExercise}
@@ -130,7 +148,7 @@
       ><Square size={18} /></button>
 
       <button
-        class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 {looping
+        class="hidden sm:flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 {looping
           ? 'bg-amber-500 text-white'
           : 'bg-slate-600 hover:bg-slate-500'}"
         on:click={onToggleLoop}
@@ -200,6 +218,14 @@
         />
       </div>
 
+      <button
+        class="sm:hidden flex items-center gap-1 rounded px-3 py-2 text-xs font-semibold {looping
+          ? 'bg-amber-500 text-white'
+          : 'bg-slate-600 hover:bg-slate-500'}"
+        on:click={onToggleLoop}
+        aria-pressed={looping}
+      ><Repeat size={14} /> Loop</button>
+
       <slot name="extra" />
 
       {#if voiceNames.length > 1}
@@ -217,7 +243,7 @@
         </div>
       {/if}
 
-      <div class="flex gap-2 sm:ml-auto">
+      <div class="flex gap-2">
         <button class={chipBtn} on:click={onShare} title="Copy share link">
           <Link2 size={14} /> Share
         </button>

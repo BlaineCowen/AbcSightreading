@@ -870,6 +870,7 @@
     onStop={handleStop}
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
+    onGenerate={handleClick}
     onToggleLoop={handleToggleLoop}
     onToggleMute={handleToggleMute}
     onShare={handleShare}

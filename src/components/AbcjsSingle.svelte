@@ -1964,6 +1964,8 @@
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
     onBpmCommit={handleBpmCommit}
+    onGenerate={handleClick}
+    isGenerating={isLoading}
     onToggleLoop={handleToggleLoop}
     onToggleMute={() => {}}
     onShare={handleShare}
