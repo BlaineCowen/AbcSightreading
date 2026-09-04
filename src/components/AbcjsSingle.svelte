@@ -956,8 +956,15 @@
    * Schedules the audio buffer so that timeline position `timelinePos`
    * (0 = downbeat of the count-in) is playing right now.
    * `startTime` is kept as the audioContext time of timeline position 0.
+   *
+   * `timelineZero` overrides that anchor with an exact audioContext time, which
+   * a loop repeat uses to butt up against the previous pass instead of starting
+   * from `currentTime` at whatever moment `onended` happened to be delivered.
    */
-  function scheduleAudioFrom(timelinePos: number): boolean {
+  function scheduleAudioFrom(
+    timelinePos: number,
+    timelineZero?: number
+  ): boolean {
     if (!audioBuffer) return false;
 
     const countIn = getCountInDuration();
@@ -967,11 +974,13 @@
     node.onended = () => {
       // Ignore nodes we already replaced or stopped by hand.
       if (node !== sourceNode) return;
-      if (isPlaying) stopMusic();
+      if (!isPlaying) return;
+      if (looping) startLoopRepeat();
+      else stopMusic();
     };
     sourceNode = node;
 
-    startTime = audioContext.currentTime - timelinePos;
+    startTime = timelineZero ?? audioContext.currentTime - timelinePos;
     if (timelinePos < countIn) {
       // Still inside the count-in: schedule the music for when it ends.
       node.start(startTime + countIn, 0);
@@ -980,6 +989,28 @@
       node.start(audioContext.currentTime, timelinePos - countIn);
     }
     return true;
+  }
+
+  /**
+   * Loop repeat: re-arms the buffer and the cursor for another pass.
+   *
+   * `onended` fires as the previous pass ends, so the new timeline zero is the
+   * old one plus the full timeline - anchoring there keeps the repeats butted
+   * together instead of drifting by however late the event was delivered. The
+   * count-in measure repeats with it, which gives a breath between passes.
+   */
+  function startLoopRepeat() {
+    // The node that just ended is spent; drop it before scheduling its successor
+    // so stopSourceNode() inside stopMusic() can't try to stop it again.
+    const nextZero = startTime + getTimelineDuration();
+    sourceNode = null;
+    timingCallbacks?.stop();
+    pausedAt = 0;
+    if (!scheduleAudioFrom(0, nextZero)) {
+      stopMusic();
+      return;
+    }
+    timingCallbacks?.start(0);
   }
 
   /**
