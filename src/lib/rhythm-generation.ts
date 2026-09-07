@@ -217,6 +217,12 @@ export function generateRandomRhythm(
   }
   // --- End Validation ---
 
+  // Reserving a long note for the cadence is itself a choice that can dead-end:
+  // it carves a tail off the block, and what is left may not tile even when the
+  // whole block would. A block that fails this way is refilled once without the
+  // reservation. Holds the start beat of the block that opted out.
+  let cadenceOptOutAt = -1;
+
   const usedRhythms = new Set<string>();
   const rhythmCounts = new Map<string, number>();
   rhythms.forEach((r) => rhythmCounts.set(r.name, 0));
@@ -234,7 +240,7 @@ export function generateRandomRhythm(
     let sectionEndTarget = blockEndTarget;
 
     // Target beat *before* placing the final long note, if enforcing cadence
-    if (enforceCadence) {
+    if (enforceCadence && currentBeat !== cadenceOptOutAt) {
       sectionEndTarget = blockEndTarget - longestDuration;
     }
 
@@ -252,14 +258,52 @@ export function generateRandomRhythm(
       `Looping: currentBeat=${currentBeat}, blockEndTarget=${blockEndTarget}, sectionEndTarget=${sectionEndTarget}, cadenceIndex=${cadenceIndex}`
     );
 
+    // The fill is a depth-first walk, and a greedy walk can paint itself into a
+    // corner: a half rest in 3/4 leaves 8 units that nothing can occupy, and no
+    // amount of looking one step ahead catches every such case. So each choice
+    // is recorded, and a dead end rewinds to the last one, marks it unusable at
+    // that position, and takes a different route. A selection is only refused
+    // once every route has been tried.
+    const blockStartBeat = currentBeat;
+    const blockStartResultLen = result.length;
+    let fillFailed = false;
+    const trail: { beat: number; resultLen: number; name: string }[] = [];
+    const blocked = new Map<number, Set<string>>();
+    let backtracks = 0;
+    const maxBacktracks = 400;
+
+    const backtrack = (): boolean => {
+      if (trail.length === 0 || backtracks >= maxBacktracks) return false;
+      backtracks++;
+      const step = trail.pop() as { beat: number; resultLen: number; name: string };
+      // Everything explored beyond this decision belongs to the subtree we are
+      // abandoning, so its exclusions no longer apply.
+      for (const beat of [...blocked.keys()]) {
+        if (beat > step.beat) blocked.delete(beat);
+      }
+      const excluded = blocked.get(step.beat) ?? new Set<string>();
+      excluded.add(step.name);
+      blocked.set(step.beat, excluded);
+
+      result.length = step.resultLen;
+      currentBeat = step.beat;
+      const count = rhythmCounts.get(step.name) ?? 0;
+      if (count > 0) rhythmCounts.set(step.name, count - 1);
+      return true;
+    };
+
     // --- Inner loop: Fill until sectionEndTarget ---
     while (currentBeat < sectionEndTarget) {
       const remainingBeatsInSection = sectionEndTarget - currentBeat;
       const currentMeasurePosition = currentBeat % timeSig.tsPerMeasure;
       const measureRemaining = timeSig.tsPerMeasure - currentMeasurePosition;
 
+      // Choices already shown to dead-end from this exact position.
+      const blockedHere = blocked.get(currentBeat);
+
       // Filter possible rhythms using the already filtered list
       let possibleRhythms = rhythms.filter((r) => {
+        if (blockedHere?.has(r.name)) return false;
         // Basic length check for this section
         if (r.totalValue > remainingBeatsInSection) return false;
         // Check measure fit. A note may run past the barline only when ties
@@ -319,6 +363,7 @@ export function generateRandomRhythm(
         // Ensure we are looking at the initially filtered 'rhythms' list
         const exactFitForMeasure = rhythms.find(
           (r) =>
+            !blockedHere?.has(r.name) &&
             r.totalValue === measureRemaining && // Exactly fits the measure
             r.totalValue <= remainingBeatsInSection && // Also fits in the section
             r.totalValue > 0 && // Must have a positive duration
@@ -335,6 +380,7 @@ export function generateRandomRhythm(
           const bestFittingFallback = rhythms
             .filter(
               (r) =>
+                !blockedHere?.has(r.name) &&
                 (r.totalValue <= measureRemaining || canCrossBarline(r)) && // Must fit the measure, or be allowed to tie past it
                 crossesCleanly(r, measureRemaining) && // ...and split into two undotted halves
                 r.totalValue <= remainingBeatsInSection && // Must fit in the section
@@ -352,11 +398,14 @@ export function generateRandomRhythm(
             console.log(
               `[Debug] Fallback (2): No exact fit. Using largest fitting rhythm: ${possibleRhythms[0].name} (value: ${possibleRhythms[0].totalValue})`
             );
+          } else if (backtrack()) {
+            // Rewound to the previous choice with that route excluded; retry.
+            continue;
           } else {
             console.error(
-              `CRITICAL: Fallback failed. Cannot find any rhythm to fit at beat ${currentBeat}. Remaining in section: ${remainingBeatsInSection}, Remaining in measure: ${measureRemaining}. Aborting block.`
+              `CRITICAL: no rhythm fits at beat ${currentBeat} and every route has been tried (${backtracks} backtracks). Remaining in section: ${remainingBeatsInSection}, remaining in measure: ${measureRemaining}.`
             );
-            currentBeat = sectionEndTarget; // Force moving to next section/cadence placement
+            fillFailed = true;
             break; // Break from the inner while loop
           }
         }
@@ -378,6 +427,12 @@ export function generateRandomRhythm(
           break;
         }
       }
+
+      trail.push({
+        beat: currentBeat,
+        resultLen: result.length,
+        name: selectedRhythm.name,
+      });
 
       // Add selected rhythm(s) to result
       if (selectedRhythm.pattern) {
@@ -425,6 +480,22 @@ export function generateRandomRhythm(
         (rhythmCounts.get(selectedRhythm.name) || 0) + 1
       );
     } // --- End Inner loop ---
+
+    if (fillFailed) {
+      // Every route through this block failed. If the only thing constraining
+      // it was the reserved cadence note, hand the block back and refill it
+      // without one before giving up.
+      if (sectionEndTarget < blockEndTarget && cadenceOptOutAt !== blockStartBeat) {
+        console.warn(
+          `Refilling the block at ${blockStartBeat} without a reserved cadence note.`
+        );
+        result.length = blockStartResultLen;
+        currentBeat = blockStartBeat;
+        cadenceOptOutAt = blockStartBeat;
+        continue;
+      }
+      currentBeat = sectionEndTarget; // Give up on this block.
+    }
 
     // --- Place Cadence Note (Longest Single Rhythm) ---
     // Check if we are at a cadence point (or the very end) AND if the block was long enough
