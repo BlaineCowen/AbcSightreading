@@ -8,6 +8,11 @@
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import { Piano, Minus, Plus, RefreshCw } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
+  import {
+    defaultSyllableSystem,
+    isSyllableSystemId,
+    syllableSystems,
+  } from "../resources/rhythm-syllables";
   import "abcjs/abcjs-audio.css";
   // import PitchVisualizer from "./PitchVisualizer.svelte";
 
@@ -199,6 +204,11 @@
     if (urlParams.has("showRhythmSyllables"))
       options.showRhythmSyllables = getParam("showRhythmSyllables") === "true";
 
+    const syllableSystem = getParam("syllableSystem");
+    if (isSyllableSystemId(syllableSystem)) {
+      options.syllableSystemId = syllableSystem;
+    }
+
     return Object.keys(options).length > 0 ? options : null;
   }
 
@@ -335,6 +345,8 @@
           showSolfege: urlOptions.showSolfege || false,
           rhythmOnly: urlOptions.rhythmOnly || false,
           showRhythmSyllables: urlOptions.showRhythmSyllables || false,
+          syllableSystemId:
+            urlOptions.syllableSystemId || defaultSyllableSystem.id,
         };
       }
     }
@@ -377,6 +389,10 @@
           showSolfege: options.showSolfege || false,
           rhythmOnly: options.rhythmOnly || false,
           showRhythmSyllables: options.showRhythmSyllables || false,
+          // Options saved before counting existed have no id at all.
+          syllableSystemId: isSyllableSystemId(options.syllableSystemId)
+            ? options.syllableSystemId
+            : defaultSyllableSystem.id,
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -403,6 +419,7 @@
       showSolfege: false,
       rhythmOnly: false,
       showRhythmSyllables: false,
+      syllableSystemId: defaultSyllableSystem.id,
     };
   }
 
@@ -424,6 +441,8 @@
   let showSolfege = initialState.showSolfege || false;
   let rhythmOnly = initialState.rhythmOnly || false;
   let showRhythmSyllables = initialState.showRhythmSyllables || false;
+  let syllableSystemId =
+    initialState.syllableSystemId || defaultSyllableSystem.id;
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
@@ -537,6 +556,7 @@
       showSolfege,
       rhythmOnly,
       showRhythmSyllables,
+      syllableSystemId,
     };
     try {
       console.log("Saving options:", options);
@@ -573,6 +593,7 @@
     params.set("showSolfege", showSolfege.toString());
     params.set("rhythmOnly", rhythmOnly.toString());
     params.set("showRhythmSyllables", showRhythmSyllables.toString());
+    params.set("syllableSystem", syllableSystemId);
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     history.replaceState({}, "", newUrl);
@@ -1257,6 +1278,7 @@
         showSolfege: rhythmOnly ? false : showSolfege,
         rhythmOnly: rhythmOnly,
         showRhythmSyllables: rhythmOnly && showRhythmSyllables,
+        syllableSystemId,
         moveOnEighthNotes: moveEighthNotes,
         accidentalsFollowStep: accidentalsFollowStep,
         partsObject: {
@@ -1848,7 +1870,23 @@
                     on:click={() => (showRhythmSyllables = !showRhythmSyllables)}
                     aria-pressed={showRhythmSyllables}
                   >{showRhythmSyllables ? 'On' : 'Off'}</button>
-                  <p class="text-xs text-slate-400">Kodály — ta, ti-ti, ti-ki-ti-ki</p>
+
+                  {#if showRhythmSyllables}
+                    <!-- Driven by the registry, so a new system is a data
+                         change here as well as in the generator. -->
+                    <div class="flex flex-wrap gap-2 pt-1">
+                      {#each Object.values(syllableSystems) as system}
+                        <button
+                          class="px-3 py-2 sm:py-1 rounded text-sm {syllableSystemId === system.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                          on:click={() => (syllableSystemId = system.id)}
+                          aria-pressed={syllableSystemId === system.id}
+                        >{system.label}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-slate-400">
+                      {syllableSystems[syllableSystemId].hint}
+                    </p>
+                  {/if}
                 </div>
               {/if}
             </div>

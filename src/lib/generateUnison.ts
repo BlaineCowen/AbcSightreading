@@ -5,6 +5,11 @@ import { noteArray } from "../resources/noteArray";
 import { generateRandomRhythm } from "./rhythm-generation";
 import {
   defaultSyllableSystem,
+  isSyllableSystemId,
+  resolveSyllable,
+  syllableSystems,
+  type PositionContext,
+  type SyllableContext,
   type SyllableSystem,
 } from "../resources/rhythm-syllables";
 import type { Cadence, RhythmWithPattern } from "./types";
@@ -1447,33 +1452,91 @@ const flatSolfegeMap = { 1: "ra", 2: "me", 4: "se", 5: "le", 6: "te" };
  * @param offsetInMeasure - where the note starts, in 32nd-note units from the
  *   barline. createConcatString's `tsCount` is exactly this.
  * @param beatUnits - length of one beat in 32nd-note units (8 for a quarter).
+ * @param tsPerMeasure - length of a measure, same units. Only needed so beat
+ *   numbers wrap: a note long enough to run past the barline carries on into
+ *   beat 1 of the next measure, not a beat 4 of a 3/4 measure.
  *
  * Resolution order: a named figure wins outright (so a system can spell out
- * anything, rests included), then rests, then notes of a beat or longer, and
- * finally the note's position on the sixteenth grid within its beat. That last
- * rule is what makes an eighth read "ti" on the beat and "ki" off it, and it
- * generalises to figures nobody has enumerated.
+ * anything, rests included), then rests, then the note's metric position -
+ * decorated for however many further downbeats the note runs through.
+ *
+ * The positional label comes from the beat rule when the note starts on a beat
+ * and fills exactly one, and otherwise from its slot on the sixteenth grid.
+ * That is what makes an eighth read "ti" on the beat and "ki" off it under
+ * Kodaly, and "1" or "&" under counting, and it generalises to figures nobody
+ * has enumerated. Deriving it from the *starting* position rather than from
+ * duration is what keeps a beat-long note that straddles the beat - the quarter
+ * inside the syncopation figure - from claiming the downbeat's name.
  */
 function rhythmSyllableFor(
   note: ChordNoteObject,
   offsetInMeasure: number,
   beatUnits: number,
+  tsPerMeasure: number,
   system: SyllableSystem
 ): string {
-  const named = note.rhythm?.name ? system.byName[note.rhythm.name] : undefined;
-  const fromName = named?.[note.patternIndex ?? 0];
-  if (fromName !== undefined) return fromName;
+  const beatsPerMeasure = Math.max(1, Math.round(tsPerMeasure / beatUnits));
+  const beatNumberAt = (beatIndex: number) =>
+    (((beatIndex % beatsPerMeasure) + beatsPerMeasure) % beatsPerMeasure) + 1;
 
-  if (note.rhythm?.rest) return system.rest;
-
-  if (note.noteLength >= beatUnits) {
-    const beats = Math.round(note.noteLength / beatUnits);
-    return beats <= 1 ? system.beat : system.sustain(beats);
+  // Beats whose downbeat falls strictly inside this note. A quarter never
+  // crosses one; a half crosses one; a whole crosses three.
+  const firstBeat = Math.floor(offsetInMeasure / beatUnits);
+  const lastBeat = Math.floor(
+    (offsetInMeasure + note.noteLength - 1) / beatUnits
+  );
+  const crossedBeats: number[] = [];
+  for (let b = firstBeat + 1; b <= lastBeat; b++) {
+    crossedBeats.push(beatNumberAt(b));
   }
 
+  const position: PositionContext = {
+    beatNumber: beatNumberAt(firstBeat),
+    beatsPerMeasure,
+    offsetInMeasure,
+    beatUnits,
+    noteLength: note.noteLength,
+    patternIndex: note.patternIndex ?? 0,
+    rest: note.rhythm?.rest === true,
+    crossedBeats,
+  };
+
+  const onBeat = offsetInMeasure % beatUnits === 0;
   const slotWidth = beatUnits / system.slots.length;
   const slot = Math.floor((offsetInMeasure % beatUnits) / slotWidth);
-  return system.slots[slot % system.slots.length];
+  const startLabel =
+    onBeat && note.noteLength >= beatUnits
+      ? resolveSyllable(system.beat, position)
+      : resolveSyllable(system.slots[slot % system.slots.length], position);
+
+  const ctx: SyllableContext = { ...position, startLabel };
+
+  const named = note.rhythm?.name ? system.byName[note.rhythm.name] : undefined;
+  const fromName = named?.[note.patternIndex ?? 0];
+  if (fromName !== undefined) return resolveSyllable(fromName, ctx);
+
+  if (note.rhythm?.rest) return resolveSyllable(system.rest, ctx);
+
+  return crossedBeats.length
+    ? resolveSyllable(system.sustain, ctx)
+    : startLabel;
+}
+
+/**
+ * Only the system's id crosses the wire - a SyllableSystem holds functions,
+ * which would not survive JSON. An unrecognised id falls back to the default
+ * rather than throwing, so an old shared link still renders; it is loud about
+ * it, because silently reading Kodaly when you asked for counting is the kind
+ * of thing that takes an hour to spot.
+ */
+function resolveSyllableSystem(id: unknown): SyllableSystem {
+  if (isSyllableSystemId(id)) return syllableSystems[id];
+  if (id !== undefined && id !== null) {
+    console.warn(
+      `Unknown syllable system ${JSON.stringify(id)}; falling back to ${defaultSyllableSystem.id}.`
+    );
+  }
+  return defaultSyllableSystem;
 }
 
 function createConcatString(
@@ -1537,6 +1600,7 @@ function createConcatString(
             note,
             tsCount,
             params.timeSig.beamGroupSize ?? 8,
+            params.timeSig.tsPerMeasure,
             params.syllableSystem ?? defaultSyllableSystem
           );
           if (syllable) measureString += `"_${syllable}"`;
@@ -1687,6 +1751,7 @@ function createRhythmOnlySr(params: any) {
     timeSig: timeSig,
     showSolfege: false, // no scale degrees to name in rhythm-only mode
     showRhythmSyllables: params.showRhythmSyllables === true,
+    syllableSystem: resolveSyllableSystem(params.syllableSystemId),
   });
 
   // clef=perc is what puts the synth on the percussion kit (MIDI program 128),
