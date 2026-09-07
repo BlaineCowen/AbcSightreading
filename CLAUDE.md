@@ -14,10 +14,14 @@ bun install        # Install dependencies
 bun run dev        # Start dev server at localhost:4321
 bun run build      # Build for production
 bun run preview    # Preview production build
-bunx astro check   # TypeScript type checking
+bunx astro check   # TypeScript type checking - clean, keep it that way
 bun run check:rhythm  # Rhythm generation property checks (see below)
 bun test           # Unit tests in tests/unit/
 ```
+
+`astro check` reports **0 errors and 0 warnings**. It sat at 4 errors for a long
+time, which made it useless as a gate — nobody could tell a new error from the
+standing ones. Treat any error as a regression.
 
 ### Tests
 
