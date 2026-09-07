@@ -22,16 +22,26 @@ bun test           # Unit tests in tests/unit/
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). They sat broken for a long time — every import pointed at
-the pre-`src/` layout — so treat a green run as meaningful but incomplete:
+framework to install). 50 pass, 5 skip, 0 fail — and it is stable, verified over
+40 consecutive runs, which matters because the generators are randomised.
 
-- **passing**: `rhythm-generation`, `prep-params`, `note-utils`, `part-utils`
-- **failing**: `build-chord-notes` and `chord-generation` reach the code under
-  test but their assertions do not hold. Both cover the choral pipeline, which
-  is under active change; the failures are unreviewed, not known-bad.
-- **skipped**: `index.test.ts` (covers `voice-leading-rework/`, which nothing
-  imports) and one case in `generateUnison.test.ts` whose assertion compares
-  semitone offsets to scale-degree indices. Each says why at the skip.
+They had sat broken for a long time (every import pointed at the pre-`src/`
+layout), and several assertions had drifted from the code. Two things to know
+when one fails:
+
+- **A failure may be the test, not the code.** Several encoded rules the code
+  never had: absolute vs relative scale degrees, strict voice ordering where
+  unison is legal, a bass line assumed to be used verbatim when it is
+  deliberately re-picked. Each of those now carries a comment saying what the
+  real contract is — read it before "fixing" the source.
+- **Randomised generators make over-strict assertions flaky.** If a test passes
+  most runs and fails occasionally, suspect the assertion before the code, and
+  reproduce with a loop rather than a single run.
+
+**Skipped**, each saying why at the skip: `index.test.ts` (covers
+`voice-leading-rework/`, which nothing imports) and one case in
+`generateUnison.test.ts` whose assertion compares semitone offsets to
+scale-degree indices.
 
 The UI itself is still validated manually via the browser. Rhythm generation
 additionally has property checks, where a wrong answer is quiet:

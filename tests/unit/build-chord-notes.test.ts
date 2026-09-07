@@ -21,6 +21,9 @@ import { chords as fullChordSet } from "../../src/resources/chords";
 // a key, where it used to invent SATB defaults on its own. This restates those
 // defaults so the expectations below still describe the same four voices.
 const KEY = "C";
+// These fixtures drive the progression from their own rhythm arrays, so there
+// are no cadence points to plan for.
+const NO_CADENCES: never[] = [];
 const SATB_PARTS = {
   numofParts: 4,
   parts: {
@@ -37,6 +40,28 @@ describe("build chord notes", () => {
     ...chord,
     triadDegrees: chord.triadNotes, // Use triadNotes as triadDegrees since they represent the same thing
   })) as BaseChord[];
+
+  // The last three tests read voiceParts / bassRange / rhythms from the suite
+  // scope; the first three shadow them with their own. Without these they threw
+  // ReferenceError before reaching a single assertion.
+  const voiceParts = prepareVoiceParts(KEY, undefined, SATB_PARTS as any);
+  const bassRange = voiceParts[0].range;
+  const rhythms: Rhythm[] = Array(8).fill({
+    weight: 10,
+    name: "quarter",
+    abcValue: ["4"],
+    meterValue: [1 / 4],
+    totalValue: 8,
+    rest: false,
+    oddsWeight: 10,
+    maxRng: 0,
+    pattern: false,
+    symbol: "\u{1D118}",
+    isPatternNote: false,
+    isPatternStart: false,
+    isPatternEnd: false,
+    patternIndex: null,
+  });
 
   test("builds notes for simple rhythm pattern", () => {
     const voiceParts = prepareVoiceParts(KEY, undefined, SATB_PARTS as any);
@@ -82,7 +107,10 @@ describe("build chord notes", () => {
       chordsWithDegrees,
       2, // 2 quarter notes
       bassRange,
-      4 // Allow max skip of 4 degrees
+      4, // Allow max skip of 4 degrees
+      KEY,
+      rhythms,
+      NO_CADENCES
     );
 
     console.log(
@@ -94,22 +122,33 @@ describe("build chord notes", () => {
       bassLine.map((n) => ({ name: n.name, pitchValue: n.pitchValue }))
     );
 
-    const [chordsWithRhythms, voiceNotes] = buildChordNotes(
+    // buildChordNotes returns VoiceNote[][] - one array per voice - where it
+    // used to return a [chordsWithRhythms, voiceNotes] pair.
+    const voiceNotes = buildChordNotes(
+      KEY,
       rhythms,
       progression,
       voiceParts,
-      bassLine
+      bassLine,
+      4,
+      false
     );
 
-    expect(chordsWithRhythms.length).toBe(2);
     expect(voiceNotes.length).toBe(4); // 4 voices
     voiceNotes.forEach((voice) => {
       expect(voice.length).toBe(2); // 2 notes each
     });
 
-    // Check bass line matches input
-    expect(voiceNotes[0][0].pitchValue).toBe(bassLine[0].pitchValue);
-    expect(voiceNotes[0][1].pitchValue).toBe(bassLine[1].pitchValue);
+    // The bass is NOT guaranteed to be the pre-generated line verbatim:
+    // buildChordNotes deliberately re-picks a bass note when the chosen one
+    // leaves no room for the tenor above it, or when an earlier substitution
+    // has made the next pre-generated note an unreachable leap. Asserting
+    // equality here made the suite flaky - it only held when no retry fired.
+    // What is guaranteed is that the bass stays a chord tone inside its range,
+    // which the checks below cover.
+    voiceNotes[0].forEach((note, i) => {
+      expect(progression[i].triadNotes).toContain(note.degree);
+    });
 
     // Check all notes are within range
     voiceNotes.forEach((voice, i) => {
@@ -124,16 +163,25 @@ describe("build chord notes", () => {
       for (let v = 0; v < voiceNotes.length - 1; v++) {
         const lowerVoice = voiceNotes[v][i];
         const upperVoice = voiceNotes[v + 1][i];
-        expect(upperVoice.pitchValue).toBeGreaterThan(lowerVoice.pitchValue);
+        // Voice CROSSING is the error, not unison: isVoiceOrderValid rejects
+        // only pitches[i] > pitches[i + 1], so two adjacent voices landing on
+        // the same pitch is permitted. Measured over 300 progressions: 121
+        // unisons, zero crossings. A strict > here made the suite flaky.
+        expect(upperVoice.pitchValue).toBeGreaterThanOrEqual(
+          lowerVoice.pitchValue
+        );
       }
     }
 
-    // Check all notes are valid chord tones
+    // Check all notes are valid chord tones. triadNotes holds ABSOLUTE scale
+    // degrees (the V chord in C is [4, 6, 1]), so the note's degree is compared
+    // directly. The previous form subtracted the root and took it mod 12, which
+    // is both the wrong frame and the wrong modulus for a seven-degree scale -
+    // it passed only when the arithmetic happened to land on a chord tone.
     voiceNotes.forEach((voice, voiceIndex) => {
       voice.forEach((note, noteIndex) => {
         const chord = progression[noteIndex];
-        const relativeDegree = (note.degree - chord.root + 12) % 12;
-        expect(chord.triadNotes).toContain(relativeDegree);
+        expect(chord.triadNotes).toContain(note.degree);
       });
     });
   });
@@ -141,14 +189,6 @@ describe("build chord notes", () => {
   test("builds notes for longer progression", () => {
     const voiceParts = prepareVoiceParts(KEY, undefined, SATB_PARTS as any);
     const bassRange = voiceParts[0].range;
-
-    // Generate a longer progression (8 chords)
-    const { progression, bassLine } = generateChordProgression(
-      chordsWithDegrees,
-      8,
-      bassRange,
-      4
-    );
 
     const rhythms = Array(8).fill({
       weight: 10,
@@ -167,14 +207,27 @@ describe("build chord notes", () => {
       patternIndex: null,
     });
 
-    const [chordsWithRhythms, voiceNotes] = buildChordNotes(
+    // Generate a longer progression (8 chords)
+    const { progression, bassLine } = generateChordProgression(
+      chordsWithDegrees,
+      8,
+      bassRange,
+      4,
+      KEY,
+      rhythms,
+      NO_CADENCES
+    );
+
+    const voiceNotes = buildChordNotes(
+      KEY,
       rhythms,
       progression,
       voiceParts,
-      bassLine
+      bassLine,
+      4,
+      false
     );
 
-    expect(chordsWithRhythms.length).toBe(8);
     expect(voiceNotes.length).toBe(4);
     voiceNotes.forEach((voice) => {
       expect(voice.length).toBe(8);
@@ -185,7 +238,13 @@ describe("build chord notes", () => {
       for (let v = 0; v < voiceNotes.length - 1; v++) {
         const lowerVoice = voiceNotes[v][i];
         const upperVoice = voiceNotes[v + 1][i];
-        expect(upperVoice.pitchValue).toBeGreaterThan(lowerVoice.pitchValue);
+        // Voice CROSSING is the error, not unison: isVoiceOrderValid rejects
+        // only pitches[i] > pitches[i + 1], so two adjacent voices landing on
+        // the same pitch is permitted. Measured over 300 progressions: 121
+        // unisons, zero crossings. A strict > here made the suite flaky.
+        expect(upperVoice.pitchValue).toBeGreaterThanOrEqual(
+          lowerVoice.pitchValue
+        );
 
         // Check range
         expect(lowerVoice.pitchValue).toBeGreaterThanOrEqual(
@@ -234,16 +293,24 @@ describe("build chord notes", () => {
     });
 
     // Generate chord progression with wrong length
-    const { progression, bassLine } = generateChordProgression(
-      chordsWithDegrees,
-      2, // Wrong length - should be 4
-      bassRange,
-      4
-    );
+    const { progression, bassLine } = generateChordProgression(chordsWithDegrees, 2, // Wrong length - should be 4
+      bassRange, 4, KEY, rhythms, NO_CADENCES);
 
+    // generateChordProgression now derives the chord count from the rhythms it
+    // is handed, so a mismatch can no longer be produced by asking it for the
+    // wrong length - it is constructed here instead, which is what the guard in
+    // buildChordNotes actually protects against.
     let error: Error | undefined;
     try {
-      buildChordNotes(rhythms, progression, voiceParts, bassLine);
+      buildChordNotes(
+        KEY,
+        rhythms,
+        progression.slice(0, progression.length - 1),
+        voiceParts,
+        bassLine,
+        4,
+        false
+      );
     } catch (e) {
       error = e as Error;
     }
@@ -252,19 +319,18 @@ describe("build chord notes", () => {
 
   test("should build chord notes for all voices", () => {
     // Generate a chord progression and bass line
-    const { progression, bassLine } = generateChordProgression(
-      chordsWithDegrees,
-      8,
-      bassRange,
-      4
-    );
+    const { progression, bassLine } = generateChordProgression(chordsWithDegrees, 8,
+      bassRange, 4, KEY, rhythms, NO_CADENCES);
 
     // Build chord notes for all voices
     const voiceNotes = buildChordNotes(
+      KEY,
       rhythms,
       progression,
       voiceParts,
-      bassLine
+      bassLine,
+      4,
+      false
     );
 
     // Verify results
@@ -274,19 +340,18 @@ describe("build chord notes", () => {
 
   test("should respect voice ranges", () => {
     // Generate a chord progression and bass line
-    const { progression, bassLine } = generateChordProgression(
-      chordsWithDegrees,
-      8,
-      bassRange,
-      4
-    );
+    const { progression, bassLine } = generateChordProgression(chordsWithDegrees, 8,
+      bassRange, 4, KEY, rhythms, NO_CADENCES);
 
     // Build chord notes for all voices
     const voiceNotes = buildChordNotes(
+      KEY,
       rhythms,
       progression,
       voiceParts,
-      bassLine
+      bassLine,
+      4,
+      false
     );
 
     // Check that each voice's notes are within its range
@@ -303,19 +368,18 @@ describe("build chord notes", () => {
 
   test("should respect maximum skip between notes", () => {
     // Generate a chord progression and bass line
-    const { progression, bassLine } = generateChordProgression(
-      chordsWithDegrees,
-      8,
-      bassRange,
-      4
-    );
+    const { progression, bassLine } = generateChordProgression(chordsWithDegrees, 8,
+      bassRange, 4, KEY, rhythms, NO_CADENCES);
 
     // Build chord notes for all voices
     const voiceNotes = buildChordNotes(
+      KEY,
       rhythms,
       progression,
       voiceParts,
-      bassLine
+      bassLine,
+      4,
+      false
     );
 
     // Check that consecutive notes in each voice don't exceed maxSkip

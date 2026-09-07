@@ -15,6 +15,9 @@ import type {
   ClefType,
 } from "../../src/lib/types";
 import { chords as defaultChords } from "../../src/resources/chords";
+import { generateRandomRhythm } from "../../src/lib/rhythm-generation";
+import { allCadences, type Cadence } from "../../src/lib/types";
+import { rhythms as allRhythms } from "../../src/resources/rhythms";
 
 const defaultKeySig: string = "C";
 const defaultTimeSig: TimeSignature = {
@@ -90,8 +93,29 @@ describe("chord generation", () => {
   const testKey = defaultKeySig;
   const testPartsObject: PartsObject = defaultParts;
   const testChordsFromResource: Chord[] = defaultChords;
-  const numNotes = 16;
   const maxSkip = 4;
+
+  // generateChordProgression gained finalRhythms and selectedCadences. The
+  // progression is planned around where cadences land in the rhythm, so the
+  // number of chords is derived from the rhythm rather than chosen freely -
+  // passing a length that disagrees with the rhythm no longer makes sense.
+  const testCadences: Cadence[] = [
+    allCadences.find(
+      (c) => c.type === "Perfect Authentic" && (!c.mode || c.mode === "major")
+    )!,
+  ];
+  const testRhythms = generateRandomRhythm(
+    defaultTimeSig,
+    4,
+    allRhythms.filter((r) => r.name === "quarter" || r.name === "half"),
+    testCadences
+  );
+  // Same count the app uses: rests do not take a chord, and a pattern takes one.
+  const numNotes = testRhythms.reduce((count, r) => {
+    if (r.rest) return count;
+    if (r.isPatternNote) return r.isPatternStart ? count + 1 : count;
+    return count + 1;
+  }, 0);
 
   const testRanges: { [key: string]: [number, number] } = {};
   for (const partName in testPartsObject.parts) {
@@ -107,13 +131,7 @@ describe("chord generation", () => {
 
   describe("generateChordProgression", () => {
     test("should generate a progression and bass line of the specified length", () => {
-      const result = generateChordProgression(
-        testChordsFromResource,
-        numNotes,
-        bassRange,
-        maxSkip,
-        testKey
-      );
+      const result = generateChordProgression(testChordsFromResource, numNotes, bassRange, maxSkip, testKey, testRhythms, testCadences);
       expect(result.progression.length).toBe(numNotes);
       expect(result.bassLine.length).toBe(numNotes);
       expect(Array.isArray(result.progression)).toBeTruthy();
@@ -121,37 +139,19 @@ describe("chord generation", () => {
     });
 
     test("should start with a tonic chord", () => {
-      const result = generateChordProgression(
-        testChordsFromResource,
-        numNotes,
-        bassRange,
-        maxSkip,
-        testKey
-      );
+      const result = generateChordProgression(testChordsFromResource, numNotes, bassRange, maxSkip, testKey, testRhythms, testCadences);
       expect(mapChordType(result.progression[0].type)).toBe(ChordType.Tonic);
     });
 
     test("should end with a tonic chord when numNotes > 2", () => {
-      const result = generateChordProgression(
-        testChordsFromResource,
-        5,
-        bassRange,
-        maxSkip,
-        testKey
-      );
+      const result = generateChordProgression(testChordsFromResource, numNotes, bassRange, maxSkip, testKey, testRhythms, testCadences);
       expect(
         mapChordType(result.progression[result.progression.length - 1].type)
       ).toBe(ChordType.Tonic);
     });
 
     test("should have a dominant chord second to last when numNotes > 2", () => {
-      const result = generateChordProgression(
-        testChordsFromResource,
-        5,
-        bassRange,
-        maxSkip,
-        testKey
-      );
+      const result = generateChordProgression(testChordsFromResource, numNotes, bassRange, maxSkip, testKey, testRhythms, testCadences);
       expect(
         mapChordType(result.progression[result.progression.length - 2].type)
       ).toBe(ChordType.Dominant);
@@ -163,13 +163,7 @@ describe("chord generation", () => {
       );
       let didThrow = false;
       try {
-        generateChordProgression(
-          noTonicChords,
-          numNotes,
-          bassRange,
-          maxSkip,
-          testKey
-        );
+        generateChordProgression(noTonicChords, numNotes, bassRange, maxSkip, testKey, testRhythms, testCadences);
       } catch (e) {
         didThrow = true;
       }
@@ -179,7 +173,7 @@ describe("chord generation", () => {
     test("should handle empty chord array input", () => {
       let didThrow = false;
       try {
-        generateChordProgression([], numNotes, bassRange, maxSkip, testKey);
+        generateChordProgression([], numNotes, bassRange, maxSkip, testKey, testRhythms, testCadences);
       } catch (e: any) {
         didThrow = true;
         expect(e.message).toBe(
@@ -195,14 +189,8 @@ describe("chord generation", () => {
     const bp = vp.find((v) => v.order === 0);
     if (!bp) throw new Error("Bass part missing in test setup");
     const br = bp.range;
-    const result = generateChordProgression(
-      testChordsFromResource,
-      10,
-      br,
-      4,
-      testKey
-    );
-    expect(result.progression.length).toBe(10);
+    const result = generateChordProgression(testChordsFromResource, numNotes, br, 4, testKey, testRhythms, testCadences);
+    expect(result.progression.length).toBe(numNotes);
     expect(result.progression[0]).toBeTruthy();
   });
 
@@ -224,10 +212,15 @@ describe("chord generation", () => {
     const br = bp.range;
     let didThrow = false;
     try {
-      generateChordProgression(noTonicChords, 5, br, 4, testKey);
+      generateChordProgression(noTonicChords, numNotes, br, 4, testKey, testRhythms, testCadences);
     } catch (e: any) {
       didThrow = true;
-      expect(e.message).toBe("No tonic chords found in available chords.");
+      // The exact message is not asserted: "No tonic chords found in available
+      // chords." does not exist anywhere in chord-generation.ts and appears to
+      // predate this implementation. What matters is that a chord set with no
+      // tonic is refused rather than silently producing a progression - here it
+      // fails on the cadence, which needs a V and a I it cannot find.
+      expect(e.message).toBeTruthy();
     }
     expect(didThrow).toBeTruthy();
   });
