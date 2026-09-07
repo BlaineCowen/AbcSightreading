@@ -89,6 +89,27 @@ export function generateRandomRhythm(
   const canCrossBarline = (r: Rhythm) =>
     allowTiesAcrossBarline && !r.pattern && !r.rest;
 
+  /** Durations that need a dot: dotted eighth, quarter and half, in 32nds. */
+  const DOTTED_UNITS = new Set([6, 12, 24]);
+
+  /**
+   * A note split across a barline must land on two plainly written halves. A
+   * dotted note either side of the tie reads as an addition rather than a
+   * continuation - a whole note starting on beat 4 of 4/4 would come out
+   * "quarter tied to dotted half" - so those crossings are refused and the
+   * rhythm is placed somewhere it can be written cleanly instead.
+   *
+   * Notes never exceed one measure (filtered above), so a crossing splits in
+   * exactly two.
+   */
+  const crossesCleanly = (r: Rhythm, measureRemaining: number) => {
+    if (r.totalValue <= measureRemaining) return true; // does not cross
+    return (
+      !DOTTED_UNITS.has(measureRemaining) &&
+      !DOTTED_UNITS.has(r.totalValue - measureRemaining)
+    );
+  };
+
   /**
    * Would placing this rhythm here leave a hole nothing can fill? If the
    * remainder of the measure is shorter than the shortest note available, the
@@ -245,6 +266,7 @@ export function generateRandomRhythm(
         // are on, in which case the writer splits it into tied notes either
         // side of the bar. Patterns and rests never cross one.
         if (r.totalValue > measureRemaining && !canCrossBarline(r)) return false;
+        if (!crossesCleanly(r, measureRemaining)) return false;
 
         // --- Placement Rules ---
         // In L:1/32: quarter-note beat positions are multiples of 8.
@@ -314,6 +336,7 @@ export function generateRandomRhythm(
             .filter(
               (r) =>
                 (r.totalValue <= measureRemaining || canCrossBarline(r)) && // Must fit the measure, or be allowed to tie past it
+                crossesCleanly(r, measureRemaining) && // ...and split into two undotted halves
                 r.totalValue <= remainingBeatsInSection && // Must fit in the section
                 r.totalValue > 0 && // Must have a positive duration
                 // Placing a note the lookahead rejected is what leaves a
