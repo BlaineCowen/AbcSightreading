@@ -2,8 +2,8 @@ import {
   getNotesInRange,
   getScaleDegree,
   getPitchValue,
-} from "../lib/note-utils";
-import type { Key, Note } from "../lib/note-utils";
+} from "../../src/lib/note-utils";
+import type { Key, Note } from "../../src/lib/note-utils";
 
 describe("Note Utilities", () => {
   const CMajor: Key = {

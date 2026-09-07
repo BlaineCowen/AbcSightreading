@@ -1735,33 +1735,29 @@ function createRhythmOnlySr(params: any) {
   const numCadences = Math.ceil(measures / 4);
   const selectedCadences: Cadence[] = Array(numCadences).fill({ type: "V-I" });
 
-  const randRhythmObjects = generateRandomRhythm(
-    timeSig,
-    measures,
-    params.rhythms,
-    selectedCadences,
-    true, // disable the "quarter note or longer" filter
-    params.allowTiesAcrossBarline === true
-  );
-
-  // A failed fill abandons the block and returns whatever the cadence step
-  // managed to place, so an incomplete result is the symptom to check for -
-  // a length test alone lets a one-note stub through, and the writer then
-  // drops it silently because its measure never completes.
-  const generatedUnits = (randRhythmObjects ?? []).reduce(
-    (sum, r) => sum + r.totalValue,
-    0
-  );
-  if (generatedUnits !== measures * timeSig.tsPerMeasure) {
-    console.error(
-      `❌ generateRandomRhythm filled ${generatedUnits}/${measures * timeSig.tsPerMeasure} units`
+  // generateRandomRhythm throws when it cannot fill the measures; unison is the
+  // only caller with a ties toggle, so it adds that hint to the message.
+  let randRhythmObjects;
+  try {
+    randRhythmObjects = generateRandomRhythm(
+      timeSig,
+      measures,
+      params.rhythms,
+      selectedCadences,
+      true, // disable the "quarter note or longer" filter
+      params.allowTiesAcrossBarline === true
     );
-    // The usual cause is a selection that cannot tile the measure - half notes
-    // alone in 3/4, say. Ties across the barline make any such selection
-    // workable, so point at the setting rather than at the generator.
+  } catch (err) {
+    const base = err instanceof Error ? err.message : "Rhythm generation failed.";
     throw new Error(
-      `The selected rhythms can't fill a ${timeSig.name} measure. Add a shorter rhythm, or turn on "Ties across barline".`
+      params.allowTiesAcrossBarline === true
+        ? base
+        : `${base} Or turn on "Ties across barline".`
     );
+  }
+
+  if (!randRhythmObjects || randRhythmObjects.length === 0) {
+    throw new Error(`The selected rhythms can't fill a ${timeSig.name} measure.`);
   }
 
   const chordNoteObject = randRhythmObjects.map((rhythm) => ({
@@ -1914,6 +1910,14 @@ export function createNewSr(params: any) {
 
     // console.log("📋 Import chords:", importChords);
 
+    // These reach generateChord as GenerateChordParams, which declares them as
+    // Set<number> and calls .has() on them. The client sends arrays (the params
+    // travel as JSON, where a Set cannot survive), so convert here - passing the
+    // array straight through threw "sharpScaleDegrees.has is not a function" the
+    // moment a chord actually carried an altered scale degree.
+    var sharpScaleDegrees = new Set<number>(params.selectedSharpDegrees || []);
+    var flatScaleDegrees = new Set<number>(params.selectedFlatDegrees || []);
+
     console.log("🔍 Sharp scale degrees:", sharpScaleDegrees);
     console.log("🔍 Flat scale degrees:", flatScaleDegrees);
     console.log("🔍 Natural scale degrees:", params.scaleDegrees);
@@ -1989,8 +1993,6 @@ export function createNewSr(params: any) {
     var timeSig = params.timeSig;
     var bpm = params.bpm;
     var measures = params.measures;
-    var sharpScaleDegrees = params.selectedSharpDegrees || [];
-    var flatScaleDegrees = params.selectedFlatDegrees || [];
 
     // console.log("🔍 Extracted parameters:", {
     //   clef,
@@ -2083,22 +2085,25 @@ export function createNewSr(params: any) {
       type: "V-I",
     });
 
-    const randRhythmObjects = generateRandomRhythm(
-      params.timeSig,
-      params.measures,
-      params.rhythms,
-      selectedCadences,
-      true, // <-- This is the new flag to disable the filter
-      params.allowTiesAcrossBarline === true
-    );
-    const randNoteLengths = randRhythmObjects.map((r) => r.totalValue);
-
-    if (!randRhythmObjects || randRhythmObjects.length === 0) {
-      console.error("❌ generateRandomRhythm returned no rhythmObjects!");
+    let randRhythmObjects;
+    try {
+      randRhythmObjects = generateRandomRhythm(
+        params.timeSig,
+        params.measures,
+        params.rhythms,
+        selectedCadences,
+        true, // <-- This is the new flag to disable the filter
+        params.allowTiesAcrossBarline === true
+      );
+    } catch (err) {
+      const base = err instanceof Error ? err.message : "Rhythm generation failed.";
       throw new Error(
-        `The selected rhythms can't fill a ${params.timeSig.name} measure. Add a shorter rhythm, or turn on "Ties across barline".`
+        params.allowTiesAcrossBarline === true
+          ? base
+          : `${base} Or turn on "Ties across barline".`
       );
     }
+    const randNoteLengths = randRhythmObjects.map((r) => r.totalValue);
 
     // console.log("🔍 Generating chord progression...");
     // console.log("📊 Chord progression params:", {

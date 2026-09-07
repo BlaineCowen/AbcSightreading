@@ -15,11 +15,26 @@ bun run dev        # Start dev server at localhost:4321
 bun run build      # Build for production
 bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking
-bun run check:rhythm  # Rhythm generation checks (see below)
+bun run check:rhythm  # Rhythm generation property checks (see below)
+bun test           # Unit tests in tests/unit/
 ```
 
-Most logic is validated manually via the browser UI — there is no unit test
-framework. The exception is **rhythm generation**, where a wrong answer is quiet:
+### Tests
+
+`tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
+framework to install). They sat broken for a long time — every import pointed at
+the pre-`src/` layout — so treat a green run as meaningful but incomplete:
+
+- **passing**: `rhythm-generation`, `prep-params`, `note-utils`, `part-utils`
+- **failing**: `build-chord-notes` and `chord-generation` reach the code under
+  test but their assertions do not hold. Both cover the choral pipeline, which
+  is under active change; the failures are unreviewed, not known-bad.
+- **skipped**: `index.test.ts` (covers `voice-leading-rework/`, which nothing
+  imports) and one case in `generateUnison.test.ts` whose assertion compares
+  semitone offsets to scale-degree indices. Each says why at the skip.
+
+The UI itself is still validated manually via the browser. Rhythm generation
+additionally has property checks, where a wrong answer is quiet:
 a malformed measure still renders, a misaligned lyric still prints, a note tied
 across a barline still plays. `scripts/check-rhythm.ts` asserts those properties
 directly against the generator (no dev server needed), over every one- and

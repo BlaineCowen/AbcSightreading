@@ -1,4 +1,4 @@
-import { buildChordNotes } from "../lib/build-chord-notes";
+import { buildChordNotes } from "../../src/lib/build-chord-notes";
 import {
   type GeneratedChord,
   type VoicePart,
@@ -7,15 +7,29 @@ import {
   type RhythmWithPattern,
   type BaseChord,
   ChordType,
-} from "../lib/types";
+} from "../../src/lib/types";
 import { describe, expect, test } from "bun:test";
 import {
   generateChordProgression,
   mapChordType,
-} from "../lib/chord-generation";
-import { prepareVoiceParts } from "../lib/prep-params";
-import { generateRandomRhythm } from "../lib/rhythm-generation";
-import { chords as fullChordSet } from "../resources/chords";
+} from "../../src/lib/chord-generation";
+import { prepareVoiceParts } from "../../src/lib/prep-params";
+import { generateRandomRhythm } from "../../src/lib/rhythm-generation";
+import { chords as fullChordSet } from "../../src/resources/chords";
+
+// prepareVoiceParts now takes its part definitions from a PartsObject and needs
+// a key, where it used to invent SATB defaults on its own. This restates those
+// defaults so the expectations below still describe the same four voices.
+const KEY = "C";
+const SATB_PARTS = {
+  numofParts: 4,
+  parts: {
+    bass: { order: 0, smallName: "b", clef: "bass", range: [0, 14] as [number, number] },
+    tenor: { order: 1, smallName: "t", clef: "bass", range: [7, 21] as [number, number] },
+    alto: { order: 2, smallName: "a", clef: "treble", range: [14, 28] as [number, number] },
+    soprano: { order: 3, smallName: "s", clef: "treble", range: [21, 35] as [number, number] },
+  },
+};
 
 describe("build chord notes", () => {
   // Convert chords to include triadDegrees
@@ -25,7 +39,7 @@ describe("build chord notes", () => {
   })) as BaseChord[];
 
   test("builds notes for simple rhythm pattern", () => {
-    const voiceParts = prepareVoiceParts();
+    const voiceParts = prepareVoiceParts(KEY, undefined, SATB_PARTS as any);
     const bassRange = voiceParts[0].range;
 
     const rhythms: Rhythm[] = [
@@ -125,7 +139,7 @@ describe("build chord notes", () => {
   });
 
   test("builds notes for longer progression", () => {
-    const voiceParts = prepareVoiceParts();
+    const voiceParts = prepareVoiceParts(KEY, undefined, SATB_PARTS as any);
     const bassRange = voiceParts[0].range;
 
     // Generate a longer progression (8 chords)
@@ -199,7 +213,7 @@ describe("build chord notes", () => {
   });
 
   test("throws error when chord count doesn't match rhythm positions", () => {
-    const voiceParts = prepareVoiceParts();
+    const voiceParts = prepareVoiceParts(KEY, undefined, SATB_PARTS as any);
     const bassRange = voiceParts[0].range;
 
     const rhythms = Array(4).fill({

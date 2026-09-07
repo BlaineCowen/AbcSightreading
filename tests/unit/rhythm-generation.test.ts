@@ -1,9 +1,9 @@
-import type { Rhythm } from "../resources/rhythms";
+import type { Rhythm } from "../../src/resources/rhythms";
 import {
   generateRandomRhythm,
   type RhythmWithPattern,
   type TimeSig,
-} from "../lib/rhythm-generation";
+} from "../../src/lib/rhythm-generation";
 
 describe("Rhythm Array Generation", () => {
   // Test data
@@ -98,7 +98,7 @@ describe("Rhythm Array Generation", () => {
   test("should generate all rests", () => {
     const measures = 1;
     const allowedRhythms = [quarterRest, eighthRest];
-    const result = generateRandomRhythm(commonTime, measures, allowedRhythms);
+    const result = generateRandomRhythm(commonTime, measures, allowedRhythms, []);
 
     // All rhythms should be rests
     result.forEach((rhythm) => {
@@ -113,7 +113,7 @@ describe("Rhythm Array Generation", () => {
   test("should generate simple pattern with quarters, eighths, and dotted pattern", () => {
     const measures = 1;
     const allowedRhythms = [quarterNote, eighthNote, dottedQuarterEighth];
-    const result = generateRandomRhythm(commonTime, measures, allowedRhythms);
+    const result = generateRandomRhythm(commonTime, measures, allowedRhythms, []);
 
     // Total should add up to one measure
     const total = result.reduce((sum, rhythm) => sum + rhythm.totalValue, 0);
@@ -135,7 +135,7 @@ describe("Rhythm Array Generation", () => {
     const allowedRhythms = [halfNote];
 
     expect(() => {
-      generateRandomRhythm(threeFourTime, measures, allowedRhythms);
+      generateRandomRhythm(threeFourTime, measures, allowedRhythms, []);
     }).toThrow();
   });
 
@@ -152,7 +152,7 @@ describe("Rhythm Array Generation", () => {
   for (let i = 1; i <= 5; i++) {
     test(`random rhythm test ${i}`, () => {
       const measures = Math.floor(Math.random() * 3) + 1; // 1-3 measures
-      const result = generateRandomRhythm(commonTime, measures, randomRhythms);
+      const result = generateRandomRhythm(commonTime, measures, randomRhythms, []);
 
       // Total should add up to correct number of measures
       const total = result.reduce((sum, rhythm) => sum + rhythm.totalValue, 0);
@@ -186,7 +186,7 @@ describe("Rhythm Array Generation", () => {
     };
 
     expect(() => {
-      generateRandomRhythm(commonTime, measures, [invalidRhythm]);
+      generateRandomRhythm(commonTime, measures, [invalidRhythm], []);
     }).toThrow();
   });
 });

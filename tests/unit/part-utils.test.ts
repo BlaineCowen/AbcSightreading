@@ -2,8 +2,8 @@ import {
   enrichVoiceParts,
   isNoteInRange,
   type VoicePart,
-} from "../lib/part-utils";
-import type { Key, Note } from "../lib/note-utils";
+} from "../../src/lib/part-utils";
+import type { Key, Note } from "../../src/lib/note-utils";
 
 describe("Part Utilities", () => {
   const CMajor: Key = {

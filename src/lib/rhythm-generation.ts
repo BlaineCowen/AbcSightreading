@@ -552,5 +552,18 @@ export function generateRandomRhythm(
   console.log(
     `generateRandomRhythm finished. Generated ${result.length} steps, ${finalGeneratedBeats}/${totalBeats} beats.`
   );
+
+  // A short result is never usable: the caller lays it out measure by measure,
+  // so the missing beats surface as a measure that does not add up rather than
+  // as an error. Unison used to check this itself and choral never did, which
+  // left choral silently producing malformed measures for any selection that
+  // cannot tile the meter. Fail here instead, once, for every caller.
+  if (finalGeneratedBeats !== totalBeats) {
+    throw new Error(
+      `The selected rhythms can't fill ${measures} measure(s) of ${timeSig.name} ` +
+        `(filled ${finalGeneratedBeats} of ${totalBeats}). Add a shorter rhythm.`
+    );
+  }
+
   return result;
 }

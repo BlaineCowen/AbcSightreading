@@ -5,16 +5,16 @@ import {
   type Chord,
   type Note,
   ChordType,
-} from "../lib/chord-generation";
-import { prepareVoiceParts } from "../lib/prep-params";
+} from "../../src/lib/chord-generation";
+import { prepareVoiceParts } from "../../src/lib/prep-params";
 import type {
   VoicePart,
   PartsObject,
   TimeSignature,
   PartDefinition,
   ClefType,
-} from "../lib/types";
-import { chords as defaultChords } from "../resources/chords";
+} from "../../src/lib/types";
+import { chords as defaultChords } from "../../src/resources/chords";
 
 const defaultKeySig: string = "C";
 const defaultTimeSig: TimeSignature = {
@@ -98,7 +98,7 @@ describe("chord generation", () => {
     testRanges[partName] = testPartsObject.parts[partName].range;
   }
 
-  const voiceParts: VoicePart[] = prepareVoiceParts(testKey, testRanges);
+  const voiceParts: VoicePart[] = prepareVoiceParts(testKey, testRanges, testPartsObject);
   const bassPart = voiceParts.find((vp) => vp.order === 0);
   if (!bassPart) {
     throw new Error("Test setup failed: Bass part not found.");
@@ -191,7 +191,7 @@ describe("chord generation", () => {
   });
 
   test("generates valid chord progression with full chord set", () => {
-    const vp = prepareVoiceParts(testKey, testRanges);
+    const vp = prepareVoiceParts(testKey, testRanges, testPartsObject);
     const bp = vp.find((v) => v.order === 0);
     if (!bp) throw new Error("Bass part missing in test setup");
     const br = bp.range;
@@ -218,7 +218,7 @@ describe("chord generation", () => {
         baseMultiplier: 1,
       },
     ];
-    const vp = prepareVoiceParts(testKey, testRanges);
+    const vp = prepareVoiceParts(testKey, testRanges, testPartsObject);
     const bp = vp.find((v) => v.order === 0);
     if (!bp) throw new Error("Bass part missing in test setup");
     const br = bp.range;

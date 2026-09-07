@@ -2,14 +2,44 @@ import {
   prepareVoiceParts,
   validateVoiceParts,
   generatePossibleNotes,
-} from "../lib/prep-params";
-import type { VoicePart, Note } from "$lib/types";
+} from "../../src/lib/prep-params";
+import type { VoicePart, Note } from "../../src/lib/types";
 import { describe, expect, test } from "bun:test";
-import { noteArray } from "../resources/noteArray";
+import { noteArray } from "../../src/resources/noteArray";
 
 const NOTE_NAMES = ["C", "D", "E", "F", "G", "A", "B"];
 
 type VoiceRanges = { [key: string]: [number, number] };
+
+// prepareVoiceParts / generatePossibleNotes / validateVoiceParts all gained a
+// `key` parameter, and prepareVoiceParts now takes the part definitions from a
+// PartsObject rather than inventing them from the range keys. These helpers
+// restate the old defaults so the expectations below still describe the same
+// four SATB parts, in the same order.
+const KEY = "C";
+
+const PART_DEFS: Record<string, { order: number; smallName: string; clef: string; range: [number, number] }> = {
+  bass: { order: 0, smallName: "b", clef: "bass", range: [0, 14] },
+  tenor: { order: 1, smallName: "t", clef: "bass", range: [7, 21] },
+  alto: { order: 2, smallName: "a", clef: "treble", range: [14, 28] },
+  soprano: { order: 3, smallName: "s", clef: "treble", range: [21, 35] },
+};
+
+/** A PartsObject covering exactly the voices named in `ranges`, in SATB order. */
+function partsFor(ranges?: VoiceRanges) {
+  const names = ranges ? Object.keys(ranges) : Object.keys(PART_DEFS);
+  const parts: Record<string, any> = {};
+  for (const name of names) {
+    const def = PART_DEFS[name] ?? {
+      order: Object.keys(parts).length,
+      smallName: name[0],
+      clef: "treble",
+      range: ranges?.[name] ?? [0, 14],
+    };
+    parts[name] = { ...def, range: ranges?.[name] ?? def.range };
+  }
+  return { numofParts: names.length, parts };
+}
 
 describe("Voice Part Preparation", () => {
   test("prepareVoiceParts creates valid voice parts", () => {
@@ -20,7 +50,7 @@ describe("Voice Part Preparation", () => {
       soprano: [21, 35] as [number, number],
     };
 
-    const voiceParts = prepareVoiceParts(ranges);
+    const voiceParts = prepareVoiceParts(KEY, ranges, partsFor(ranges));
     expect(voiceParts.length).toBe(4);
 
     // Check bass voice part
@@ -81,17 +111,17 @@ describe("Voice Part Preparation", () => {
       {
         smallName: "b",
         range: [0, 12] as [number, number],
-        possibleNotes: generatePossibleNotes([0, 12]),
+        possibleNotes: generatePossibleNotes([0, 12], KEY),
       },
       {
         smallName: "t",
         range: [12, 24] as [number, number],
-        possibleNotes: generatePossibleNotes([12, 24]),
+        possibleNotes: generatePossibleNotes([12, 24], KEY),
       },
     ];
 
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
       expect(true).toBe(true);
     } catch (e) {
       expect(true).toBe(false);
@@ -103,17 +133,17 @@ describe("Voice Part Preparation", () => {
       {
         smallName: "b",
         range: [0, 12] as [number, number],
-        possibleNotes: generatePossibleNotes([0, 12]),
+        possibleNotes: generatePossibleNotes([0, 12], KEY),
       },
       {
         smallName: "t",
         range: [24, 36] as [number, number],
-        possibleNotes: generatePossibleNotes([24, 36]),
+        possibleNotes: generatePossibleNotes([24, 36], KEY),
       },
     ];
 
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
       expect(true).toBe(false);
     } catch (e) {
       expect(true).toBe(true);
@@ -125,12 +155,12 @@ describe("Voice Part Preparation", () => {
       {
         smallName: "b",
         range: [-1, 12] as [number, number],
-        possibleNotes: generatePossibleNotes([-1, 12]),
+        possibleNotes: generatePossibleNotes([-1, 12], KEY),
       },
     ];
 
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
       expect(true).toBe(false);
     } catch (e) {
       expect(true).toBe(true);
@@ -142,17 +172,17 @@ describe("Voice Part Preparation", () => {
       {
         smallName: "b",
         range: [0, 15] as [number, number],
-        possibleNotes: generatePossibleNotes([0, 15]),
+        possibleNotes: generatePossibleNotes([0, 15], KEY),
       },
       {
         smallName: "t",
         range: [7, 21] as [number, number],
-        possibleNotes: generatePossibleNotes([7, 21]),
+        possibleNotes: generatePossibleNotes([7, 21], KEY),
       },
     ];
 
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
       expect(true).toBe(true);
     } catch (e) {
       expect(true).toBe(false);
@@ -164,17 +194,17 @@ describe("Voice Part Preparation", () => {
       {
         smallName: "b",
         range: [0, 7] as [number, number],
-        possibleNotes: generatePossibleNotes([0, 7]),
+        possibleNotes: generatePossibleNotes([0, 7], KEY),
       },
       {
         smallName: "t",
         range: [8, 14] as [number, number],
-        possibleNotes: generatePossibleNotes([8, 14]),
+        possibleNotes: generatePossibleNotes([8, 14], KEY),
       },
     ];
 
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
       expect(true).toBe(true);
     } catch (e) {
       expect(true).toBe(false);
@@ -196,7 +226,7 @@ describe("Voice Part Preparation", () => {
 
     let error: Error | undefined;
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
     } catch (e) {
       error = e as Error;
     }
@@ -206,7 +236,7 @@ describe("Voice Part Preparation", () => {
 
 describe("prepareVoiceParts", () => {
   test("returns default voice parts when no ranges provided", () => {
-    const voiceParts = prepareVoiceParts();
+    const voiceParts = prepareVoiceParts(KEY, undefined, partsFor());
     expect(voiceParts.length).toBe(4);
     expect(voiceParts[0].smallName).toBe("b"); // bass
     // Check first note (C0)
@@ -256,7 +286,7 @@ describe("prepareVoiceParts", () => {
       alto: [12, 24] as [number, number],
       soprano: [18, 30] as [number, number],
     };
-    const voiceParts = prepareVoiceParts(customRanges);
+    const voiceParts = prepareVoiceParts(KEY, customRanges, partsFor(customRanges));
     expect(voiceParts.length).toBe(4);
     expect(voiceParts[0].range[0]).toBe(0);
     expect(voiceParts[0].range[1]).toBe(12);
@@ -312,7 +342,7 @@ describe("prepareVoiceParts", () => {
     };
     let error: Error | undefined;
     try {
-      prepareVoiceParts(invalidRanges as any);
+      prepareVoiceParts(KEY, invalidRanges as any, partsFor());
     } catch (e) {
       error = e as Error;
     }
@@ -328,7 +358,7 @@ describe("prepareVoiceParts", () => {
     };
     let error: Error | undefined;
     try {
-      prepareVoiceParts(invalidRanges);
+      prepareVoiceParts(KEY, invalidRanges, partsFor(invalidRanges));
     } catch (e) {
       error = e as Error;
     }
@@ -342,27 +372,27 @@ describe("validateVoiceParts", () => {
       {
         range: [0, 12],
         smallName: "b",
-        possibleNotes: generatePossibleNotes([0, 12]),
+        possibleNotes: generatePossibleNotes([0, 12], KEY),
       },
       {
         range: [6, 18],
         smallName: "t",
-        possibleNotes: generatePossibleNotes([6, 18]),
+        possibleNotes: generatePossibleNotes([6, 18], KEY),
       },
       {
         range: [12, 24],
         smallName: "a",
-        possibleNotes: generatePossibleNotes([12, 24]),
+        possibleNotes: generatePossibleNotes([12, 24], KEY),
       },
       {
         range: [18, 30],
         smallName: "s",
-        possibleNotes: generatePossibleNotes([18, 30]),
+        possibleNotes: generatePossibleNotes([18, 30], KEY),
       },
     ];
     let error: Error | undefined;
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
     } catch (e) {
       error = e as Error;
     }
@@ -372,7 +402,7 @@ describe("validateVoiceParts", () => {
   test("throws error for empty array", () => {
     let error: Error | undefined;
     try {
-      validateVoiceParts([]);
+      validateVoiceParts([], KEY);
     } catch (e) {
       error = e as Error;
     }
@@ -384,17 +414,17 @@ describe("validateVoiceParts", () => {
       {
         range: [0, 12] as [number, number],
         smallName: "",
-        possibleNotes: generatePossibleNotes([0, 12]),
+        possibleNotes: generatePossibleNotes([0, 12], KEY),
       },
       {
         range: [6, 18] as [number, number],
         smallName: "t",
-        possibleNotes: generatePossibleNotes([6, 18]),
+        possibleNotes: generatePossibleNotes([6, 18], KEY),
       },
     ];
     let error: Error | undefined;
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
     } catch (e) {
       error = e as Error;
     }
@@ -406,17 +436,17 @@ describe("validateVoiceParts", () => {
       {
         range: [-1, 12] as [number, number],
         smallName: "b",
-        possibleNotes: generatePossibleNotes([-1, 12]),
+        possibleNotes: generatePossibleNotes([-1, 12], KEY),
       },
       {
         range: [6, 18] as [number, number],
         smallName: "t",
-        possibleNotes: generatePossibleNotes([6, 18]),
+        possibleNotes: generatePossibleNotes([6, 18], KEY),
       },
     ];
     let error: Error | undefined;
     try {
-      validateVoiceParts(voiceParts);
+      validateVoiceParts(voiceParts, KEY);
     } catch (e) {
       error = e as Error;
     }

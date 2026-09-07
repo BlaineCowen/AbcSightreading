@@ -32,7 +32,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "check:rhythm": "bun run scripts/check-rhythm.ts"
+    "check:rhythm": "bun run scripts/check-rhythm.ts",
+    "test": "bun test tests/unit"
   },
   "type": "module"
 }
