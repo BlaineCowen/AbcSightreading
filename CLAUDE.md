@@ -15,9 +15,28 @@ bun run dev        # Start dev server at localhost:4321
 bun run build      # Build for production
 bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking
+bun run check:rhythm  # Rhythm generation checks (see below)
 ```
 
-No automated test suite — logic is validated manually via the browser UI.
+Most logic is validated manually via the browser UI — there is no unit test
+framework. The exception is **rhythm generation**, where a wrong answer is quiet:
+a malformed measure still renders, a misaligned lyric still prints, a note tied
+across a barline still plays. `scripts/check-rhythm.ts` asserts those properties
+directly against the generator (no dev server needed), over every one- and
+two-rhythm selection in each time signature with ties on and off:
+
+- every emitted measure sums to exactly one measure
+- generation succeeds on **exactly** the selections a reference solver proves
+  solvable — this is what catches a dead end, where the search fails on
+  something a different route would have filled
+- a note split across a barline never lands on a dotted note
+- the `w:` lyric line keeps one slot per ABC note element, so ties do not shift
+  solfège
+- each rhythm-syllable system spells the standard figures correctly
+
+Run it after touching `rhythm-generation.ts`, `generateUnison.ts`, or
+`rhythm-syllables.ts`. Both halves are meant to be mutation-tested: break a rule
+in the generator and the corresponding check should fail.
 
 ## Tech Stack
 

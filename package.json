@@ -31,7 +31,8 @@
     "start": "astro dev --host",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "check:rhythm": "bun run scripts/check-rhythm.ts"
   },
   "type": "module"
 }
