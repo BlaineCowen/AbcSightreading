@@ -301,6 +301,16 @@
       drum: drumBeats[selectedTimeSignature] ?? '',
       drumBars: 1,
       drumIntro: 1,
+      // Samples come through our own origin: abcjs otherwise fetches them from
+      // paulrosen.github.io, which locked-down networks block, and a blocked
+      // fetch yields a silent buffer rather than an error - playback looks fine
+      // and only the drum track is audible. See src/pages/api/soundfont/.
+      soundFontUrl: "/api/soundfont/",
+      // abcjs picks the volume multiplier from the URL, and only recognises its
+      // own CDN addresses - any other URL silently drops to 1.0. The proxy
+      // serves those exact FluidR3_GM samples, so restate the 3.0 it would have
+      // chosen; without this the fix would land as a 3x drop in volume.
+      soundFontVolumeMultiplier: 3.0,
       // Bach SR adds chord-symbol annotations above the soprano staff for
       // analysis. abcjs's synth would otherwise play these as a chordal
       // accompaniment on top of the voices — disable so playback is
