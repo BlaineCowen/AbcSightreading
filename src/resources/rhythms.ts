@@ -270,6 +270,18 @@ export const rhythms: Rhythm[] = [
     weight: 6,
   },
   {
+    name: "sixteenthEighthSixteenth",
+    abcValue: ["2", "4", "2"],
+    meterValue: [1 / 16, 1 / 8, 1 / 16],
+    totalValue: 8,
+    rest: false,
+    oddsWeight: 6,
+    maxRng: 0,
+    pattern: true,
+    symbol: "𝄚𝄙𝄚",
+    weight: 6,
+  },
+  {
     name: "dotEighthSixteenth",
     abcValue: ["6", "2"],
     meterValue: [3 / 16, 1 / 16],

@@ -4,6 +4,7 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
+  import { selectableRhythms } from "../lib/selectable-rhythms";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import { Piano, Minus, Plus, RefreshCw } from "lucide-svelte";
@@ -288,28 +289,36 @@
     toneSynth.triggerAttackRelease(`${note}${octave}`, "8n");
   };
 
-  const SELECTABLE_RESTS = new Set([
-    "eighthRestEighth",
-    "quarterRest",
-    "halfRest",
-    "wholeRest",
-  ]);
+  // The selectable set is shared with scripts/check-rhythm.ts, so the checks
+  // there exercise exactly what the UI offers.
+  let filterRhythms = selectableRhythms;
 
-  let filterRhythms = rhythms.filter((rhythm) => {
-    if (rhythm.name.includes("thirtySecond")) return false;
-    if (rhythm.name === "dotQuarter") return false;
-    if (rhythm.rest) return SELECTABLE_RESTS.has(rhythm.name);
-    return true;
-  });
+  const DEFAULT_RHYTHM_NAMES = ["eighthEighth", "quarter"];
+
+  /**
+   * Resolve saved rhythm names against the *selectable* set, not the full list.
+   * A stale link or an old save can name something the UI never offers - a
+   * sixteenth rest, whose 2-unit length is shorter than a beat - and letting one
+   * through puts notes off the beat grid that the barlines, the rhythm syllables
+   * and the fill's measure arithmetic all assume.
+   *
+   * Falls back to the defaults when nothing resolves: the previous `|| [...]`
+   * could never fire, because .filter() always returns an array, so a bad
+   * ?rhythms= left the selection empty and generation refused outright.
+   */
+  function resolveSelectedRhythms(names: unknown): Rhythm[] {
+    const wanted = Array.isArray(names) ? names : [];
+    const resolved = wanted
+      .map((name) => filterRhythms.find((r) => r.name === name))
+      .filter(Boolean) as Rhythm[];
+    if (resolved.length > 0) return resolved;
+    return DEFAULT_RHYTHM_NAMES.map((name) =>
+      filterRhythms.find((r) => r.name === name)
+    ).filter(Boolean) as Rhythm[];
+  }
 
   const rhythmSvgs = Object.fromEntries(
-    rhythms
-      .filter(
-        (rhythm) =>
-          !rhythm.name.includes("thirtySecond") &&
-          rhythm.name !== "dotQuarter" &&
-          (!rhythm.rest || SELECTABLE_RESTS.has(rhythm.name))
-      )
+    selectableRhythms
       .map((rhythm) => [
         rhythm.name,
         import(`../assets/svgs/${rhythm.name}.svg?raw`),
@@ -334,12 +343,7 @@
           selectedSharpDegrees: new Set(urlOptions.selectedSharpDegrees || []),
           selectedFlatDegrees: new Set(urlOptions.selectedFlatDegrees || []),
           selectedKey: urlOptions.selectedKey || "F",
-          selectedRhythms: (urlOptions.selectedRhythms || [])
-            .map((name: string) => rhythms.find((r) => r.name === name))
-            .filter(Boolean) || [
-            rhythms.find((r) => r.name === "eighthEighth"),
-            rhythms.find((r) => r.name === "quarter"),
-          ],
+          selectedRhythms: resolveSelectedRhythms(urlOptions.selectedRhythms),
           selectedTimeSignature: urlOptions.selectedTimeSignature || "4/4",
           measures: urlOptions.measures || 8,
           maxSkip: urlOptions.maxSkip || 4,
@@ -379,12 +383,7 @@
           selectedSharpDegrees: new Set(options.selectedSharpDegrees || []),
           selectedFlatDegrees: new Set(options.selectedFlatDegrees || []),
           selectedKey: options.selectedKey || "F",
-          selectedRhythms: (options.selectedRhythms || [])
-            .map((name: string) => rhythms.find((r) => r.name === name))
-            .filter(Boolean) || [
-            rhythms.find((r) => r.name === "eighthEighth"),
-            rhythms.find((r) => r.name === "quarter"),
-          ],
+          selectedRhythms: resolveSelectedRhythms(options.selectedRhythms),
           selectedTimeSignature: ts,
           measures: options.measures || 8,
           maxSkip: options.maxSkip || 4,
@@ -412,10 +411,7 @@
       selectedSharpDegrees: new Set(),
       selectedFlatDegrees: new Set(),
       selectedKey: "F",
-      selectedRhythms: [
-        rhythms.find((r) => r.name === "eighthEighth"),
-        rhythms.find((r) => r.name === "quarter"),
-      ],
+      selectedRhythms: resolveSelectedRhythms([]),
       selectedTimeSignature: "4/4",
       measures: 8,
       maxSkip: 4,
