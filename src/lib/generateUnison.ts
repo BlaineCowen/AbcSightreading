@@ -1556,6 +1556,10 @@ function createConcatString(
     var measureString = "";
     var tsCount = 0;
     let activeAccidentals = new Map<string, string>();
+    // A note split across a barline becomes several ABC note elements, and the
+    // w: lyric line gets one slot per element - so the solfege pass below has
+    // to know how many each note produced or every later syllable shifts left.
+    const tiedContinuations: number[] = [];
 
     if (partsObject.numofParts && partsObject.numofParts > 1) {
       concatString += `[V:${part}] `;
@@ -1595,66 +1599,85 @@ function createConcatString(
         // Rhythm syllables ride as ABC annotations rather than a w: lyric
         // line, because lyrics skip rests entirely (abc_parse.js) and the rest
         // needs to carry a syllable too.
-        if (params.showRhythmSyllables) {
-          const syllable = rhythmSyllableFor(
-            note,
-            tsCount,
-            params.timeSig.beamGroupSize ?? 8,
-            params.timeSig.tsPerMeasure,
-            params.syllableSystem ?? defaultSyllableSystem
-          );
-          if (syllable) measureString += `"_${syllable}"`;
-        }
+        //
+        // Computed once, from the note's whole length, and printed on the
+        // attack. A tied continuation is not re-articulated so it carries no
+        // syllable - and since a sustain already names the beats it runs
+        // through, the attack still says where the note lands ("3_(1)").
+        const syllable = params.showRhythmSyllables
+          ? rhythmSyllableFor(
+              note,
+              tsCount,
+              params.timeSig.beamGroupSize ?? 8,
+              params.timeSig.tsPerMeasure,
+              params.syllableSystem ?? defaultSyllableSystem
+            )
+          : "";
 
-        if (note.rhythm?.rest) {
-          measureString += `z${note.noteLength} `;
-        } else {
-          measureString += `${processedNoteName}${note.noteLength}`;
-        }
-
-        const isEndOfMeasure =
-          tsCount + note.noteLength >= params.timeSig.tsPerMeasure;
-        const isLastNote =
-          index === singlePartObject.chordNoteObject.length - 1;
-        const nextNote = singlePartObject.chordNoteObject[index + 1];
-
-        // Debug log for pattern checking
-        // console.log(`Concat Note ${index}:`, {
-        //   name: note.name,
-        //   length: note.noteLength,
-        //   rhythm: note.rhythm?.name,
-        //   pattern: note.rhythm?.pattern,
-        //   isPatternStart: note.isPatternStart,
-        //   isPatternEnd: note.isPatternEnd,
-        //   nextIsPattern: nextNote?.rhythm?.pattern,
-        //   nextIsStart: nextNote?.isPatternStart,
-        // });
-
-        // Insert a space at every beam-group boundary so abcjs beams notes
-        // correctly within each beat. beamGroupSize drives this: 8 for simple
-        // time (quarter-note beat), 12 for compound time (dotted-quarter beat).
-        // Non-pattern notes (quarter, half, whole) always get a space.
-        // The barline "|" already breaks beams at measure boundaries.
-        const afterNote = tsCount + note.noteLength;
+        // A note longer than the room left in the measure is written as tied
+        // notes either side of the barline. The generator only produces one
+        // when ties are enabled, so ordinarily this runs a single pass.
         const beamGroupSize = params.timeSig.beamGroupSize ?? 8;
-        if (afterNote % beamGroupSize === 0 || !note.rhythm?.pattern) {
-          measureString += " ";
+        let lengthLeft = note.noteLength;
+        let isAttack = true;
+        let segments = 0;
+
+        while (lengthLeft > 0) {
+          segments++;
+          const roomInMeasure = params.timeSig.tsPerMeasure - tsCount;
+          const segment = Math.min(lengthLeft, roomInMeasure);
+          const isFinalSegment = segment === lengthLeft;
+
+          if (isAttack && syllable) measureString += `"_${syllable}"`;
+
+          if (note.rhythm?.rest) {
+            // Rests are not tied; a split rest is just two rests.
+            measureString += `z${segment} `;
+          } else {
+            measureString += `${processedNoteName}${segment}`;
+            if (!isFinalSegment) measureString += "-";
+          }
+
+          lengthLeft -= segment;
+          tsCount += segment;
+          isAttack = false;
+
+          // Insert a space at every beam-group boundary so abcjs beams notes
+          // correctly within each beat. beamGroupSize drives this: 8 for simple
+          // time (quarter-note beat), 12 for compound time (dotted-quarter beat).
+          // Non-pattern notes (quarter, half, whole) always get a space.
+          // The barline "|" already breaks beams at measure boundaries.
+          if (tsCount % beamGroupSize === 0 || !note.rhythm?.pattern) {
+            measureString += " ";
+          }
+
+          if (tsCount >= params.timeSig.tsPerMeasure) {
+            concatString += measureString + "|";
+            measureString = "";
+            activeAccidentals.clear();
+            tsCount = 0;
+          }
         }
 
-        tsCount += note.noteLength;
-
-        if (tsCount >= params.timeSig.tsPerMeasure) {
-          concatString += measureString + "|";
-          tsCount = 0;
-        }
+        tiedContinuations[index] = segments - 1;
       }
     );
+
+    // A measure only reaches concatString when it completes. Anything left
+    // over means the note list did not fill its last measure; emit it rather
+    // than dropping it, so a short exercise is visible instead of blank.
+    if (measureString.trim().length > 0) {
+      console.warn("Incomplete final measure in generated rhythm.");
+      concatString += measureString + "|";
+      measureString = "";
+    }
 
     concatString += "\n";
 
     if (params.showSolfege) {
       let solfegeString = "w: ";
-      singlePartObject.chordNoteObject.forEach((note: ChordNoteObject) => {
+      singlePartObject.chordNoteObject.forEach(
+        (note: ChordNoteObject, index: number) => {
         // ABC aligns lyrics to notes only - a rest consumes no slot - so
         // emitting a token here would shift every later syllable one note left.
         if (note.rhythm?.rest) return;
@@ -1675,6 +1698,9 @@ function createConcatString(
           syllable = solfege[note.degree];
         }
         solfegeString += syllable + " ";
+        // "_" holds the previous syllable over the next note element, which is
+        // exactly what a tied continuation needs: one syllable, sung through.
+        solfegeString += "_ ".repeat(tiedContinuations[index] ?? 0);
       });
       concatString += solfegeString + "\n";
     }
@@ -1714,12 +1740,28 @@ function createRhythmOnlySr(params: any) {
     measures,
     params.rhythms,
     selectedCadences,
-    true // disable the "quarter note or longer" filter
+    true, // disable the "quarter note or longer" filter
+    params.allowTiesAcrossBarline === true
   );
 
-  if (!randRhythmObjects || randRhythmObjects.length === 0) {
-    console.error("❌ generateRandomRhythm returned no rhythmObjects!");
-    throw new Error("Failed to generate rhythm objects");
+  // A failed fill abandons the block and returns whatever the cadence step
+  // managed to place, so an incomplete result is the symptom to check for -
+  // a length test alone lets a one-note stub through, and the writer then
+  // drops it silently because its measure never completes.
+  const generatedUnits = (randRhythmObjects ?? []).reduce(
+    (sum, r) => sum + r.totalValue,
+    0
+  );
+  if (generatedUnits !== measures * timeSig.tsPerMeasure) {
+    console.error(
+      `❌ generateRandomRhythm filled ${generatedUnits}/${measures * timeSig.tsPerMeasure} units`
+    );
+    // The usual cause is a selection that cannot tile the measure - half notes
+    // alone in 3/4, say. Ties across the barline make any such selection
+    // workable, so point at the setting rather than at the generator.
+    throw new Error(
+      `The selected rhythms can't fill a ${timeSig.name} measure. Add a shorter rhythm, or turn on "Ties across barline".`
+    );
   }
 
   const chordNoteObject = randRhythmObjects.map((rhythm) => ({
@@ -2046,13 +2088,16 @@ export function createNewSr(params: any) {
       params.measures,
       params.rhythms,
       selectedCadences,
-      true // <-- This is the new flag to disable the filter
+      true, // <-- This is the new flag to disable the filter
+      params.allowTiesAcrossBarline === true
     );
     const randNoteLengths = randRhythmObjects.map((r) => r.totalValue);
 
     if (!randRhythmObjects || randRhythmObjects.length === 0) {
       console.error("❌ generateRandomRhythm returned no rhythmObjects!");
-      throw new Error("Failed to generate rhythm objects");
+      throw new Error(
+        `The selected rhythms can't fill a ${params.timeSig.name} measure. Add a shorter rhythm, or turn on "Ties across barline".`
+      );
     }
 
     // console.log("🔍 Generating chord progression...");
@@ -2552,6 +2597,9 @@ export function createNewSr(params: any) {
           }
         : "No params",
     });
-    return [null, null];
+    // Returning a null pair here used to read as success at the API boundary
+    // (it is still an array), so every failure surfaced as a blank score with
+    // no message. Rethrow and let the route report it.
+    throw error;
   }
 }

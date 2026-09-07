@@ -38,7 +38,8 @@ export function generateRandomRhythm(
   measures: number,
   availableRhythms: Rhythm[],
   selectedCadences: Cadence[],
-  disableRhythmFilter: boolean = false
+  disableRhythmFilter: boolean = false,
+  allowTiesAcrossBarline: boolean = false
 ): RhythmWithPattern[] {
   let rhythms = [...availableRhythms]; // Start with all available rhythms
 
@@ -79,6 +80,39 @@ export function generateRandomRhythm(
       "No rhythms available after filtering for quarter notes or longer (value >= 8 and <= measure length)."
     );
   }
+
+  /**
+   * May this rhythm run past the barline? Only a plain note can: a pattern is
+   * a beamed group that has to stay inside one measure, and a rest that spans
+   * a barline is just two rests, which reads worse than keeping it whole.
+   */
+  const canCrossBarline = (r: Rhythm) =>
+    allowTiesAcrossBarline && !r.pattern && !r.rest;
+
+  /**
+   * Would placing this rhythm here leave a hole nothing can fill? If the
+   * remainder of the measure is shorter than the shortest note available, the
+   * measure can never be completed. With ties on there is no such thing: any
+   * note can start in the gap and spill over the barline.
+   */
+  const leavesInsolubleGap = (r: Rhythm, measurePosition: number) => {
+    if (r.pattern || r.rest || allowTiesAcrossBarline) return false;
+    const newMeasurePos = measurePosition + r.totalValue;
+    if (newMeasurePos <= 0 || newMeasurePos >= timeSig.tsPerMeasure) {
+      return false;
+    }
+    const remainder = timeSig.tsPerMeasure - newMeasurePos;
+    if (remainder <= 0) return false;
+    const nonRestCandidates = rhythms.filter(
+      (rr) => !rr.rest && !rr.pattern && rr.totalValue > 0
+    );
+    if (nonRestCandidates.length === 0) return false;
+    const minNonRest = nonRestCandidates.reduce(
+      (min, rr) => (rr.totalValue < min ? rr.totalValue : min),
+      nonRestCandidates[0].totalValue
+    );
+    return remainder < minNonRest;
+  };
 
   const result: RhythmWithPattern[] = [];
   const totalBeats = measures * timeSig.tsPerMeasure;
@@ -207,8 +241,10 @@ export function generateRandomRhythm(
       let possibleRhythms = rhythms.filter((r) => {
         // Basic length check for this section
         if (r.totalValue > remainingBeatsInSection) return false;
-        // Check measure fit
-        if (r.totalValue > measureRemaining) return false;
+        // Check measure fit. A note may run past the barline only when ties
+        // are on, in which case the writer splits it into tied notes either
+        // side of the bar. Patterns and rests never cross one.
+        if (r.totalValue > measureRemaining && !canCrossBarline(r)) return false;
 
         // --- Placement Rules ---
         // In L:1/32: quarter-note beat positions are multiples of 8.
@@ -233,24 +269,7 @@ export function generateRandomRhythm(
         // --- End Placement Rules ---
 
         // --- Lookahead: prevent placing a rhythm that would leave an insoluble gap ---
-        // If placing this rhythm mid-measure leaves a remainder smaller than the
-        // shortest available non-rest rhythm, the measure can never be completed.
-        if (!r.pattern && !r.rest) {
-          const newMeasurePos = currentMeasurePosition + r.totalValue;
-          if (newMeasurePos > 0 && newMeasurePos < timeSig.tsPerMeasure) {
-            const remainder = timeSig.tsPerMeasure - newMeasurePos;
-            const nonRestCandidates = rhythms.filter(
-              (rr) => !rr.rest && !rr.pattern && rr.totalValue > 0
-            );
-            if (nonRestCandidates.length > 0) {
-              const minNonRest = nonRestCandidates.reduce(
-                (min, rr) => (rr.totalValue < min ? rr.totalValue : min),
-                nonRestCandidates[0].totalValue
-              );
-              if (remainder > 0 && remainder < minNonRest) return false;
-            }
-          }
-        }
+        if (leavesInsolubleGap(r, currentMeasurePosition)) return false;
         // --- End Lookahead ---
 
         // --- Pattern Fit Check ---
@@ -294,9 +313,14 @@ export function generateRandomRhythm(
           const bestFittingFallback = rhythms
             .filter(
               (r) =>
-                r.totalValue <= measureRemaining && // Must fit in the measure
+                (r.totalValue <= measureRemaining || canCrossBarline(r)) && // Must fit the measure, or be allowed to tie past it
                 r.totalValue <= remainingBeatsInSection && // Must fit in the section
-                r.totalValue > 0 // Must have a positive duration
+                r.totalValue > 0 && // Must have a positive duration
+                // Placing a note the lookahead rejected is what leaves a
+                // measure that can never be completed - and the abort that
+                // follows drops the rest of the bar, running two half-filled
+                // measures together.
+                !leavesInsolubleGap(r, currentMeasurePosition)
             )
             .sort((a, b) => b.totalValue - a.totalValue); // Sort descending to get largest fit first
 

@@ -204,6 +204,10 @@
     if (urlParams.has("showRhythmSyllables"))
       options.showRhythmSyllables = getParam("showRhythmSyllables") === "true";
 
+    if (urlParams.has("allowTiesAcrossBarline"))
+      options.allowTiesAcrossBarline =
+        getParam("allowTiesAcrossBarline") === "true";
+
     const syllableSystem = getParam("syllableSystem");
     if (isSyllableSystemId(syllableSystem)) {
       options.syllableSystemId = syllableSystem;
@@ -347,6 +351,7 @@
           showRhythmSyllables: urlOptions.showRhythmSyllables || false,
           syllableSystemId:
             urlOptions.syllableSystemId || defaultSyllableSystem.id,
+          allowTiesAcrossBarline: urlOptions.allowTiesAcrossBarline || false,
         };
       }
     }
@@ -393,6 +398,7 @@
           syllableSystemId: isSyllableSystemId(options.syllableSystemId)
             ? options.syllableSystemId
             : defaultSyllableSystem.id,
+          allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -420,6 +426,7 @@
       rhythmOnly: false,
       showRhythmSyllables: false,
       syllableSystemId: defaultSyllableSystem.id,
+      allowTiesAcrossBarline: false,
     };
   }
 
@@ -443,6 +450,7 @@
   let showRhythmSyllables = initialState.showRhythmSyllables || false;
   let syllableSystemId =
     initialState.syllableSystemId || defaultSyllableSystem.id;
+  let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
@@ -557,6 +565,7 @@
       rhythmOnly,
       showRhythmSyllables,
       syllableSystemId,
+      allowTiesAcrossBarline,
     };
     try {
       console.log("Saving options:", options);
@@ -594,6 +603,7 @@
     params.set("rhythmOnly", rhythmOnly.toString());
     params.set("showRhythmSyllables", showRhythmSyllables.toString());
     params.set("syllableSystem", syllableSystemId);
+    params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     history.replaceState({}, "", newUrl);
@@ -1279,6 +1289,7 @@
         rhythmOnly: rhythmOnly,
         showRhythmSyllables: rhythmOnly && showRhythmSyllables,
         syllableSystemId,
+        allowTiesAcrossBarline,
         moveOnEighthNotes: moveEighthNotes,
         accidentalsFollowStep: accidentalsFollowStep,
         partsObject: {
@@ -1856,6 +1867,25 @@
                     {/await}
                   </button>
                 {/each}
+              </div>
+
+              <!-- Applies in both modes: without it, a selection that cannot
+                   tile the measure (half notes alone in 3/4) has no valid
+                   output at all. -->
+              <div class="space-y-2 pt-1">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Ties Across Barline
+                </p>
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm {allowTiesAcrossBarline ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
+                  aria-pressed={allowTiesAcrossBarline}
+                >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
+                <p class="text-xs text-slate-400">
+                  {allowTiesAcrossBarline
+                    ? 'A long note may run past the barline, written as tied notes.'
+                    : 'Every note stays inside its measure.'}
+                </p>
               </div>
 
               {#if rhythmOnly}
