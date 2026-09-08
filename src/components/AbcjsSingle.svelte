@@ -818,6 +818,19 @@
 
     const xOf = (t: SVGTextElement) => parseFloat(t.getAttribute("x") || "0");
     const yOf = (t: SVGTextElement) => parseFloat(t.getAttribute("y") || "0");
+    const lineOf = (el: Element) =>
+      (el.getAttribute("class") || "").match(/abcjs-l(\d+)/)?.[1] ?? null;
+
+    // Where each system's staff ends. A held note that is the last one on its
+    // line has no following annotation to measure against, and guessing a width
+    // ran the last beat past the staff and off the edge of the drawing.
+    const staffEnd = new Map<string, number>();
+    svg.querySelectorAll(".abcjs-staff").forEach((staff) => {
+      const line = lineOf(staff);
+      if (line === null) return;
+      const box = (staff as SVGGraphicsElement).getBBox();
+      staffEnd.set(line, box.x + box.width);
+    });
 
     annotations.forEach((text, index) => {
       // A redraw re-renders from the ABC, so the full string is back; but keep
@@ -834,10 +847,17 @@
       // the note's beats divide it evenly. That is exact for every whole-beat
       // note - a half, a dotted half, a whole - and off by a fraction of one
       // note's width for a dotted value, which is not worth more machinery.
+      //
+      // The last note on a line has no next annotation to measure against, so
+      // the span runs to the end of that line's staff. Clamped either way: a
+      // note held to the end of a system must not push its counts past the
+      // barline and out of the drawing.
       const next = annotations[index + 1];
       const sameRow = next && Math.abs(yOf(next) - yOf(text)) < 1;
       const start = xOf(text);
-      const end = sameRow ? xOf(next) : start + 40 * (held.length + 1);
+      const rowEnd = staffEnd.get(lineOf(text) ?? "") ?? start + 40 * (held.length + 1);
+      const end = Math.min(sameRow ? xOf(next) : rowEnd, rowEnd);
+      if (end <= start) return;
       const step = (end - start) / (held.length + 1);
 
       text.dataset.heldCount = full;
