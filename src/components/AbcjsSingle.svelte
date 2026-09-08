@@ -786,9 +786,114 @@
    * Every render path goes through this so the cursor always moves the same
    * element and the timing state is never left over from a previous tune.
    */
+  /** Marks the decorations this adds, so a redraw can clear its own work. */
+  const HELD_COUNT_CLASS = "held-count-mark";
+
+  /**
+   * Spreads a held count across the beats it actually occupies.
+   *
+   * The counting system emits a held note as one annotation - "1_(2)_(3)" - and
+   * abcjs centres that whole string under the notehead. It reads badly and, worse,
+   * it is untruthful: the (2) and (3) sit next to the 1 rather than above beats 2
+   * and 3, so the counting does not line up with the notes it is meant to teach.
+   *
+   * So the annotation is taken apart here: the attack keeps its place, each held
+   * beat is redrawn where that beat actually falls, and a rule joins them, which
+   * is how the marking is written by hand.
+   *
+   * Only counting produces "_" - Kodaly's sustains use hyphens ("tu-u-u") - so
+   * nothing else is touched, and an untouched annotation still reads correctly
+   * on its own if this never runs.
+   */
+  function decorateHeldCounts() {
+    const svg = document.querySelector("#paper svg");
+    if (!svg) return;
+
+    svg.querySelectorAll("." + HELD_COUNT_CLASS).forEach((el) => el.remove());
+
+    const annotations = Array.from(
+      svg.querySelectorAll("text.abcjs-annotation")
+    ) as SVGTextElement[];
+    if (annotations.length === 0) return;
+
+    const xOf = (t: SVGTextElement) => parseFloat(t.getAttribute("x") || "0");
+    const yOf = (t: SVGTextElement) => parseFloat(t.getAttribute("y") || "0");
+
+    annotations.forEach((text, index) => {
+      // A redraw re-renders from the ABC, so the full string is back; but keep
+      // the original around in case this is ever called twice on one render.
+      const full = text.dataset.heldCount ?? text.textContent ?? "";
+      if (!full.includes("_")) return;
+
+      const parts = full.split("_");
+      const attack = parts[0];
+      const held = parts.slice(1);
+      if (held.length === 0) return;
+
+      // The span from this annotation to the next one is the note's width, and
+      // the note's beats divide it evenly. That is exact for every whole-beat
+      // note - a half, a dotted half, a whole - and off by a fraction of one
+      // note's width for a dotted value, which is not worth more machinery.
+      const next = annotations[index + 1];
+      const sameRow = next && Math.abs(yOf(next) - yOf(text)) < 1;
+      const start = xOf(text);
+      const end = sameRow ? xOf(next) : start + 40 * (held.length + 1);
+      const step = (end - start) / (held.length + 1);
+
+      text.dataset.heldCount = full;
+      text.textContent = attack;
+
+      // Clone the annotation rather than building a text node: abcjs sets the
+      // font through several attributes, and a hand-made copy came out heavier
+      // than the count it belongs with.
+      const marks: SVGTextElement[] = [];
+      held.forEach((label, i) => {
+        const mark = text.cloneNode(false) as SVGTextElement;
+        delete mark.dataset.heldCount;
+        mark.setAttribute(
+          "class",
+          (text.getAttribute("class") || "") + " " + HELD_COUNT_CLASS
+        );
+        mark.setAttribute("x", String(start + step * (i + 1)));
+        mark.textContent = label;
+        svg.appendChild(mark);
+        marks.push(mark);
+      });
+
+      // The rule runs between the labels, never through them. It sits at about
+      // mid-digit height so it reads as the dash of "1 - 2 - 3"; along the
+      // baseline it just looked like an underscore between the numbers.
+      const boxes = [text, ...marks].map((el) => {
+        const b = el.getBBox();
+        return { left: b.x, right: b.x + b.width };
+      });
+      const fontSize = parseFloat(window.getComputedStyle(text).fontSize) || 12;
+      const ruleY = yOf(text) - fontSize * 0.28;
+      for (let i = 0; i < boxes.length - 1; i++) {
+        const from = boxes[i].right + 2;
+        const to = boxes[i + 1].left - 2;
+        if (to - from < 3) continue;
+        const rule = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "line"
+        );
+        rule.setAttribute("class", HELD_COUNT_CLASS);
+        rule.setAttribute("x1", String(from));
+        rule.setAttribute("x2", String(to));
+        rule.setAttribute("y1", String(ruleY));
+        rule.setAttribute("y2", String(ruleY));
+        rule.setAttribute("stroke", window.getComputedStyle(text).fill);
+        rule.setAttribute("stroke-width", String(Math.max(1, fontSize * 0.09)));
+        svg.appendChild(rule);
+      }
+    });
+  }
+
   async function attachCursorAndTiming() {
     // Wait for the SVG to land in the DOM before attaching cursors to it.
     await new Promise((resolve) => setTimeout(resolve, 0));
+
+    decorateHeldCounts();
 
     playbackCursor = createSvgCursor("abcjs-cursor");
     pitchCursor = createSvgCursor("abcjs-pitch-cursor");

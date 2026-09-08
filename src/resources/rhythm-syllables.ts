@@ -92,10 +92,21 @@ export const kodaly: SyllableSystem = {
   rest: "(sh)",
 };
 
-/** Held notes and rests both spell out the beats they run through, so a student
- *  can see where the next downbeat lands inside a long note. */
-const heldBeats = (c: SyllableContext) =>
-  c.crossedBeats.map((n) => `_(${n})`).join("");
+/**
+ * Held notes and rests spell out the beats they run through, so a student can
+ * see where the next downbeat lands inside a long note. The "_" is a separator,
+ * not decoration: AbcjsSingle splits on it to redraw each held beat above the
+ * beat it actually marks, joined by a rule. Left undecorated the text still
+ * reads correctly on its own ("1_2_3").
+ *
+ * A held note's beats are bare, since the rule already says the note is being
+ * held. A rest keeps its parentheses throughout, because there the parentheses
+ * mean something else - nothing is sounding at all.
+ */
+const heldBeats = (c: SyllableContext, parenthesised = false) =>
+  c.crossedBeats
+    .map((n) => (parenthesised ? `_(${n})` : `_${n}`))
+    .join("");
 
 export const counting: SyllableSystem = {
   id: "counting",
@@ -108,7 +119,7 @@ export const counting: SyllableSystem = {
   beat: (c) => String(c.beatNumber),
   sustain: (c) => c.startLabel + heldBeats(c),
   // A rest is counted silently, which is what the parentheses mean.
-  rest: (c) => `(${c.startLabel})` + heldBeats(c),
+  rest: (c) => `(${c.startLabel})` + heldBeats(c, true),
 };
 
 /** The ids the client may ask for. Only this string crosses the wire, so keep
