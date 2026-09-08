@@ -1038,6 +1038,18 @@
       return;
     }
     timingCallbacks?.start(0);
+
+    // The pass that just ended left the cursor collapsed past the last note and
+    // the page scrolled to the final system. Put both back now, during the
+    // count-in, which is exactly what playMusic() does for a fresh start - the
+    // repeat previously began with no cursor and the score still at the bottom,
+    // and only caught up when the first note sounded.
+    //
+    // Parking after start(0) is deliberate: the count-in's beatCallback reports
+    // no position (position.left is undefined until the first real note), so it
+    // will not overwrite this.
+    parkPlaybackCursorAtStart();
+    scrollToFirstSystem();
   }
 
   /**
