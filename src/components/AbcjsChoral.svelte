@@ -107,6 +107,19 @@
     "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
   };
 
+  /** Off draws nothing; smooth glides with the music; note lands on each note. */
+  const cursorModes = ["off", "smooth", "note"] as const;
+  type CursorMode = (typeof cursorModes)[number];
+  const cursorModeLabels: Record<CursorMode, string> = {
+    off: "Off",
+    smooth: "Smooth",
+    note: "Note by note",
+  };
+  const isCursorMode = (v: unknown): v is CursorMode =>
+    typeof v === "string" && (cursorModes as readonly string[]).includes(v);
+  let cursorMode: CursorMode = "smooth";
+  let playbackCursor: SVGLineElement | null = null;
+
   let selectedTimeSignature = "4/4";
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"];
   let selectedKey = "C";
@@ -223,6 +236,49 @@
     return result;
   }
 
+  /**
+   * The cursor is drawn here rather than by abcjs: `cursorControl` is only a
+   * set of callbacks, and abcjs draws nothing of its own from it. Recreated
+   * after every render, since renderAbc replaces the whole SVG.
+   */
+  function createPlaybackCursor() {
+    const svg = document.querySelector("#paper svg");
+    if (!svg) {
+      playbackCursor = null;
+      return;
+    }
+    const line = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "line"
+    );
+    line.setAttribute("class", "abcjs-cursor");
+    ["x1", "y1", "x2", "y2"].forEach((a) => line.setAttribute(a, "0"));
+    svg.appendChild(line);
+    playbackCursor = line as SVGLineElement;
+  }
+
+  function hidePlaybackCursor() {
+    if (!playbackCursor) return;
+    ["x1", "y1", "x2", "y2"].forEach((a) =>
+      playbackCursor!.setAttribute(a, "0")
+    );
+  }
+
+  /** Places the cursor at an x with the staff's vertical extent. */
+  function movePlaybackCursor(left: number, top: number, height: number) {
+    if (!playbackCursor) return;
+    const x = Math.max(0, left - 2);
+    const overhang = height * 0.15;
+    playbackCursor.setAttribute("x1", String(x));
+    playbackCursor.setAttribute("x2", String(x));
+    playbackCursor.setAttribute("y1", String(top + overhang));
+    playbackCursor.setAttribute("y2", String(top + height + overhang));
+  }
+
+  // Clearing it the moment the setting changes, rather than waiting for the
+  // next callback to leave it frozen mid-staff.
+  $: if (cursorMode === "off" && playbackCursor) hidePlaybackCursor();
+
   function buildAudioParams() {
     return {
       drum: drumBeats[selectedTimeSignature] ?? '',
@@ -248,6 +304,8 @@
     selectedKey = p.get("key") || "C";
     measures = parseInt(p.get("measures") || "8");
     bpm = parseInt(p.get("bpm") || "60");
+    const cursor = p.get("cursor");
+    if (isCursorMode(cursor)) cursorMode = cursor;
     const preset = p.get("preset");
     if (preset && builtinPresets[preset]) applyDifficultyPreset(preset);
   }
@@ -259,6 +317,7 @@
     p.set("voicing", selectedVoicing);
     p.set("measures", measures.toString());
     p.set("bpm", bpm.toString());
+    p.set("cursor", cursorMode);
     window.history.replaceState({}, "", `?${p.toString()}`);
   }
 
@@ -443,14 +502,30 @@
 
     const cursorControl = {
       extraMeasuresAtBeginning: 1,
-      beatSubdivisions: 2,
+      // Held at 16 whatever the cursor mode is. abcjs reads this once when
+      // playback starts, so pinning it lets the mode be changed mid-session -
+      // the callbacks read cursorMode live - without rebuilding the synth.
+      beatSubdivisions: 16,
       onFinished: () => {
         isPlaying = false;
+        hidePlaybackCursor();
         if (looping && synthControl) {
           synthControl.play().then(() => { isPlaying = true; });
         }
       },
+      // abcjs interpolates position.left between the surrounding notes on every
+      // call, which is what makes this glide rather than step.
+      onBeat: (_beatNumber: number, _totalBeats: number, _totalTime: number, position: any) => {
+        if (cursorMode !== "smooth") return;
+        // position.left is undefined through the count-in.
+        if (position && typeof position.left === "number") {
+          movePlaybackCursor(position.left, position.top, position.height);
+        }
+      },
       onEvent: (event: any) => {
+        if (cursorMode === "note" && event && typeof event.left === "number") {
+          movePlaybackCursor(event.left, event.top, event.height);
+        }
         if (event?.elements?.[0]?.[0]) {
           const el = event.elements[0][0] as HTMLElement;
           el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -499,6 +574,7 @@
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
       tune[0].setTiming();
       renderedTune = tune[0];
+      createPlaybackCursor();
 
       await initSynth(renderedTune);
       generatedBpm = bpm;
@@ -615,6 +691,26 @@
                   >{opt}</button>
                 {/each}
               </div>
+            </div>
+
+            <div class="space-y-2 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
+              <div class="flex flex-wrap gap-2">
+                {#each cursorModes as mode}
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm {cursorMode === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (cursorMode = mode)}
+                    aria-pressed={cursorMode === mode}
+                  >{cursorModeLabels[mode]}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-slate-400">
+                {cursorMode === "off"
+                  ? "No cursor during playback."
+                  : cursorMode === "smooth"
+                    ? "Travels along with the music."
+                    : "Lands on each note and waits there."}
+              </p>
             </div>
           </div>
 

@@ -198,3 +198,11 @@ body {
   margin-bottom: 8px;
   text-align: center;
 }
+
+/* The playback cursor. Drawn by hand in AbcjsSingle and AbcjsChoral rather than
+   by abcjs, so the rule lives here instead of inside one component's <style>. */
+.abcjs-cursor {
+  stroke: #1411c4;
+  stroke-width: 2;
+  pointer-events: none;
+}

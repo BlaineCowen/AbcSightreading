@@ -5,6 +5,10 @@
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import { selectableRhythms } from "../lib/selectable-rhythms";
+  import {
+    metronomeClickFor,
+    newMetronomeBeatState,
+  } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import { Piano, Minus, Plus, RefreshCw } from "lucide-svelte";
@@ -25,6 +29,18 @@
     "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
   };
   const clefOptions = ["treble", "bass", "alto", "tenor"];
+  /** Off draws nothing; smooth glides with the music; note lands on each note. */
+  const cursorModes = ["off", "smooth", "note"] as const;
+  type CursorMode = (typeof cursorModes)[number];
+  const cursorModeLabels: Record<CursorMode, string> = {
+    off: "Off",
+    smooth: "Smooth",
+    note: "Note by note",
+  };
+  const isCursorMode = (v: unknown): v is CursorMode =>
+    typeof v === "string" && (cursorModes as readonly string[]).includes(v);
+  /** Whole beat the metronome last sounded; see src/lib/metronome-beats.ts. */
+  let metronomeBeats = newMetronomeBeatState();
   const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];
   const sharpScaleDegrees = [
     { display: "♯1", value: 1 },
@@ -209,6 +225,11 @@
       options.allowTiesAcrossBarline =
         getParam("allowTiesAcrossBarline") === "true";
 
+    const cursor = getParam("cursor");
+    if (isCursorMode(cursor)) {
+      options.cursorMode = cursor;
+    }
+
     const syllableSystem = getParam("syllableSystem");
     if (isSyllableSystemId(syllableSystem)) {
       options.syllableSystemId = syllableSystem;
@@ -356,6 +377,9 @@
           syllableSystemId:
             urlOptions.syllableSystemId || defaultSyllableSystem.id,
           allowTiesAcrossBarline: urlOptions.allowTiesAcrossBarline || false,
+          cursorMode: isCursorMode(urlOptions.cursorMode)
+            ? urlOptions.cursorMode
+            : "smooth",
         };
       }
     }
@@ -398,6 +422,9 @@
             ? options.syllableSystemId
             : defaultSyllableSystem.id,
           allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
+          cursorMode: isCursorMode(options.cursorMode)
+            ? options.cursorMode
+            : "smooth",
         };
       } catch (e) {
         console.error("Error loading saved options:", e);
@@ -423,6 +450,7 @@
       showRhythmSyllables: false,
       syllableSystemId: defaultSyllableSystem.id,
       allowTiesAcrossBarline: false,
+      cursorMode: "smooth",
     };
   }
 
@@ -447,6 +475,10 @@
   let syllableSystemId =
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
+  let cursorMode: CursorMode = initialState.cursorMode || "smooth";
+  // Turning the cursor off should clear it at once, not leave the last
+  // position frozen on the staff until playback next moves it.
+  $: if (cursorMode === "off" && playbackCursor) hidePlaybackCursor();
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
@@ -562,6 +594,7 @@
       showRhythmSyllables,
       syllableSystemId,
       allowTiesAcrossBarline,
+      cursorMode,
     };
     try {
       console.log("Saving options:", options);
@@ -600,6 +633,7 @@
     params.set("showRhythmSyllables", showRhythmSyllables.toString());
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
+    params.set("cursor", cursorMode);
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     history.replaceState({}, "", newUrl);
@@ -909,6 +943,17 @@
     });
   }
 
+  /** Places the cursor at an x with the staff's vertical extent. */
+  function movePlaybackCursor(left: number, top: number, height: number) {
+    if (!playbackCursor) return;
+    const x = Math.max(0, left - 2);
+    const overhang = height * 0.15;
+    playbackCursor.setAttribute("x1", String(x));
+    playbackCursor.setAttribute("x2", String(x));
+    playbackCursor.setAttribute("y1", String(top + overhang));
+    playbackCursor.setAttribute("y2", String(top + height + overhang));
+  }
+
   async function attachCursorAndTiming() {
     // Wait for the SVG to land in the DOM before attaching cursors to it.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -925,32 +970,43 @@
     }
 
     const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+    // Reset per attach: beatCallback now fires many times per beat, so the
+    // metronome tracks which whole beat it last sounded rather than firing on
+    // every call.
+    metronomeBeats = newMetronomeBeatState();
 
     timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
       beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
-        if (isMetronomeOn) {
-          // Play a click sound on each beat
-          const beatInMeasure = beatNumber % beatsPerMeasure;
-          playMetronomeClick(beatInMeasure === 0);
-        }
+        // With beatSubdivisions below, beatNumber arrives fractional - 0,
+        // 0.0625, 0.125 ... - so the click is tied to the whole beat rather
+        // than to the callback. Without this the metronome fires once per
+        // subdivision, which is sixteen clicks a beat.
+        const beat = metronomeClickFor(
+          metronomeBeats,
+          beatNumber,
+          beatsPerMeasure
+        );
+        if (isMetronomeOn && beat.click) playMetronomeClick(beat.isDownbeat);
+
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
           hidePlaybackCursor();
           return;
         }
-        // position.left is undefined during the count-in measure.
+        if (cursorMode !== "smooth") return;
+        // position.left is undefined during the count-in measure. abcjs
+        // interpolates it between the surrounding notes on every call, which is
+        // what makes this mode glide rather than step.
         if (position && typeof position.left === "number") {
-          const x = Math.max(0, position.left - 2);
-          const cursorHeight = position.height;
-          const shortenBy = cursorHeight * 0.15;
-          const startY = position.top + shortenBy;
-          const endY = position.top + position.height + cursorHeight * 0.15;
-
-          playbackCursor.setAttribute("x1", x.toString());
-          playbackCursor.setAttribute("x2", x.toString());
-          playbackCursor.setAttribute("y1", startY.toString());
-          playbackCursor.setAttribute("y2", endY.toString());
+          movePlaybackCursor(position.left, position.top, position.height);
         }
+      },
+      // Fires once at each note's onset, so the cursor lands on the note and
+      // stays there for its full length.
+      eventCallback: (event: any) => {
+        if (cursorMode !== "note" || !playbackCursor || !event) return;
+        if (typeof event.left !== "number") return;
+        movePlaybackCursor(event.left, event.top, event.height);
       },
       lineEndCallback: (data: any, _ev: any, info: any) => {
         // Auto-scroll to keep the next line in view.
@@ -987,6 +1043,10 @@
       qpm: tempo,
       extraMeasuresAtBeginning: 1, // This creates the count-in period where metronome plays
       lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
+      // Held at 16 whatever the mode is. abcjs reads this once when playback
+      // starts, so pinning it lets the cursor mode be switched mid-session -
+      // the callbacks read cursorMode live - without rebuilding the tune.
+      beatSubdivisions: 16,
     });
   }
 
@@ -1719,6 +1779,10 @@
    *  Coordinates are abcjs drawing units, the same space beatCallback uses. */
   function parkPlaybackCursorAtStart() {
     const first = selectableArray[0];
+    if (cursorMode === "off") {
+      hidePlaybackCursor();
+      return;
+    }
     if (!playbackCursor || !first?.absEl || !first?.staffPos) {
       hidePlaybackCursor();
       return;
@@ -1917,6 +1981,26 @@
                     on:click={() => (rhythmOnly = true)}
                   >Rhythm only</button>
                 </div>
+              </div>
+
+              <div class="space-y-2 col-span-1 sm:col-span-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
+                <div class="flex flex-wrap gap-2">
+                  {#each cursorModes as mode}
+                    <button
+                      class="px-3 py-2 sm:py-1 rounded text-sm {cursorMode === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={() => (cursorMode = mode)}
+                      aria-pressed={cursorMode === mode}
+                    >{cursorModeLabels[mode]}</button>
+                  {/each}
+                </div>
+                <p class="text-xs text-slate-400">
+                  {cursorMode === "off"
+                    ? "No cursor during playback."
+                    : cursorMode === "smooth"
+                      ? "Travels along with the music."
+                      : "Lands on each note and waits there."}
+                </p>
               </div>
 
               {#if !rhythmOnly}
@@ -2295,12 +2379,6 @@
 </div>
 
 <style>
-  :global(.abcjs-cursor) {
-    stroke: #1411c4;
-    stroke-width: 2;
-    pointer-events: none;
-  }
-
   :global(.abcjs-pitch-cursor) {
     stroke: #1411c4;
     stroke-width: 2;
