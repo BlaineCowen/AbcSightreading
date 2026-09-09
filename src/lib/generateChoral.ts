@@ -4,9 +4,17 @@ import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
 import { assembleAbcString } from "./abc-assembly";
 import { generateNonChordTones } from "./non-chord-tone-gen";
+import { nctPatternsFor } from "./nct-patterns";
+import { canAppearInChoral } from "./selectable-rhythms";
+import {
+  applyVoiceTexture,
+  mergeRestsWithinMeasures,
+  type VoiceTexture,
+} from "./voice-texture";
 // Separate imports for types and values
 import type {
   Chord,
+  Note,
   Rhythm,
   VoicePart,
   VoiceNote,
@@ -18,6 +26,8 @@ import { allCadences } from "./types"; // Import the value separately
 
 // Interface for the main function parameters
 export interface GenerateChoralParams {
+  /** Whether parts may enter late or drop out; see voice-texture.ts. */
+  voiceTexture?: VoiceTexture;
   key: string;
   timeSig: TimeSignature;
   partsObject: PartsObject; // Contains info about voices, ranges, clefs
@@ -119,18 +129,33 @@ export function generateChoralExercise(params: GenerateChoralParams): {
 
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
-    if (r.totalValue < 8 || r.totalValue > timeSig.tsPerMeasure) {
-      return false; // Exclude shorter than quarter or longer than measure
+    // A figure shorter than a quarter is excluded as a *standalone* rhythm,
+    // because every standalone note takes its own chord - a bare eighth would
+    // mean the harmony changing twice a beat. Longer than a measure has nowhere
+    // to fit. Shared with the picker so it can show what will be ignored rather
+    // than dropping it silently.
+    if (!canAppearInChoral(r, timeSig.tsPerMeasure)) {
+      return false;
     }
-    if (r.pattern && r.abcValue.some((abcVal) => parseInt(abcVal) < 8)) {
-      return false; // Exclude patterns containing notes shorter than quarter
-    }
+    // A *pattern* used to be excluded too if it contained anything shorter than
+    // a quarter, which is every eighth-bearing rhythm there is. The effect was
+    // that a choral exercise could never contain an eighth note at any level:
+    // dotQuarterEighth, eighthEighth, eighthQuarterEighth and the rest were all
+    // silently dropped, so UIL 2 listed a dotted quarter-eighth that could not
+    // appear. Unison never had this restriction - it passes
+    // disableRhythmFilter, with the comment "disable the quarter note or longer
+    // filter".
+    //
+    // Patterns are safe where standalone short notes are not: a pattern takes
+    // one chord for the whole figure (build-chord-notes only advances the chord
+    // index at isPatternEnd), so a dotted quarter plus an eighth is sung over a
+    // single harmony rather than changing chord on the eighth.
     return true;
   });
 
-  const patternRhythms = params.selectedRhythms.filter(
-    (r) => r.pattern === true
-  );
+  // The decoration vocabulary is its own library, not the user's rhythm menu -
+  // see nct-patterns.ts. The menu still sets the difficulty ceiling.
+  const patternRhythms = nctPatternsFor(params.selectedRhythms);
 
   if (mainRhythms.length === 0) {
     throw new Error(
@@ -138,7 +163,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     );
   }
   console.log(
-    `  Filtered ${params.selectedRhythms.length} input rhythms into ${mainRhythms.length} main rhythms and ${patternRhythms.length} pattern rhythms for NCT.`
+    `  Filtered ${params.selectedRhythms.length} input rhythms into ${mainRhythms.length} main rhythms; ${patternRhythms.length} NCT patterns available.`
   );
 
   // 1.5 Generate Cadence Plan
@@ -196,7 +221,10 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     timeSig,
     measures,
     mainRhythms,
-    selectedCadences
+    selectedCadences,
+    // The filtering above has already been done, and generateRandomRhythm's own
+    // copy of it would re-apply the pattern restriction just removed.
+    true
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
 
@@ -286,17 +314,31 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       console.log(`  Voice assignment failed (attempt ${chordalAttempt + 1}), retrying with new progression...`);
     }
   }
-  const finalVoiceNotes = voiceNotes!;
+  // 4.5 Voice texture - silence individual parts so they can enter one at a
+  // time or drop out. Runs before decoration on purpose: the NCT pass skips
+  // rests, so a silenced note is never decorated, and its cross-voice guards
+  // then see the texture that will actually sound.
+  const finalVoiceNotes = applyVoiceTexture(voiceNotes!, {
+    texture: params.voiceTexture ?? "full",
+    measures,
+    tsPerMeasure: timeSig.tsPerMeasure,
+  });
 
   // 5. Apply Non-Chord Tone Generation
   console.log("5. Applying Non-Chord Tone Generation...");
   console.log(`  NCT probability: ${nctProbability}`);
-  const notesWithNCTs: VoiceNote[][] = finalVoiceNotes.map((partNotes, index) => {
+  // Voices are decorated in turn, each seeing the voices already decorated
+  // rather than the original chord tones. Passing the undecorated set to every
+  // voice let two of them place a decoration at the same instant, each checked
+  // against the other's *original* note - so they could clash with each other
+  // and nothing noticed.
+  const notesWithNCTs: VoiceNote[][] = [...finalVoiceNotes];
+  finalVoiceNotes.forEach((partNotes, index) => {
     console.log(`  Processing voice index ${index} for NCTs...`);
-    return generateNonChordTones(
+    notesWithNCTs[index] = generateNonChordTones(
       partNotes,
       patternRhythms,
-      finalVoiceNotes,
+      notesWithNCTs,
       index,
       nctProbability,
       key
@@ -317,8 +359,15 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   console.log(
     `  Params: voiceNotes count=${notesWithNCTs.length}, voiceParts count=${voiceParts.length}, rhythms count=${finalRhythms.length}, key=${key}, timeSig=${timeSig.name}, metadata=${JSON.stringify(abcParams)}`
   );
+  // Adjacent rests inside a measure become one rest, so a silent measure reads
+  // as a whole rest rather than four quarter rests. Last, after everything
+  // time-based has run.
+  const tidied = notesWithNCTs.map((voice) =>
+    mergeRestsWithinMeasures(voice, timeSig.tsPerMeasure)
+  );
+
   const abcString = assembleAbcString(
-    notesWithNCTs,
+    tidied,
     voiceParts,
     finalRhythms,
     key,

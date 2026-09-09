@@ -85,6 +85,12 @@ export const kodaly: SyllableSystem = {
     // The standard name for the syncopation figure, where the quarter straddles
     // the beat.
     eighthQuarterEighth: ["syn", "co", "pa"],
+    // The reverse of dotQuarterEighth. Named rather than derived for the same
+    // reason as the others, and for one more: the sustain rule spells a held
+    // note by the beats it crosses, not by its length, so deriving this gave
+    // "tu-u" - identical to a half note, though this is a beat and a half
+    // starting off the beat. The "a" is beat two, landing inside the long note.
+    eighthDotQuarter: ["ti", "ti-a"],
   },
   slots: ["ti", "ki", "ti", "ki"],
   beat: "ta",

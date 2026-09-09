@@ -1,7 +1,10 @@
 const STORAGE_KEY = 'abcsr_presets';
 
 export interface PresetParams {
+  /** The key most recently used. Kept for presets saved before `keys` existed. */
   key: string;
+  /** The pool of keys to randomise between. Optional for the same reason. */
+  keys?: string[];
   timeSig: string;
   voicing: string;
   measures: number;
@@ -10,6 +13,9 @@ export interface PresetParams {
   selectedRhythmNames: string[];
   allowedChordNames: string[] | undefined;
   nctProbability: number;
+  /** Whether parts may enter late or drop out. Optional: presets saved before
+   *  this existed must still load. */
+  voiceTexture?: "full" | "staggered" | "independent";
   voiceRanges: Record<string, [number, number]>;
 }
 

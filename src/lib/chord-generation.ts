@@ -37,21 +37,27 @@ export {
 function hasApproachableAccidental(prevChord: Chord, nextChord: Chord): boolean {
   const chromDeg = nextChord.sharpScaleDegree ?? nextChord.flatScaleDegree;
   if (chromDeg === undefined || chromDeg === null) return true;
-  const adjDegrees = [(chromDeg - 1 + 7) % 7, (chromDeg + 1) % 7];
 
-  // Check non-root tones first (upper voices). The root is normally carried by the bass
-  // which cannot take the chromatic note when accidentalsByStep is on.
-  const nonRootTones = prevChord.triadNotes.filter((deg) => deg !== prevChord.root);
-  if (nonRootTones.some((deg) => adjDegrees.includes(deg))) return true;
+  // The chromatic degree's own natural form counts, and is in fact the smoothest
+  // approach there is: one voice holds the letter and inflects it, G to G# for
+  // V/vi, C to C# for V/ii, F to F# for V/V. Leaving it out was what made two of
+  // the four secondary dominants unreachable - V/vi and V/ii could never be
+  // chosen in a major key, from any chord, because their raised note has no
+  // *neighbour* degree in I, V, vi or I6, only its own natural form.
+  const approachDegrees = [
+    chromDeg,
+    (chromDeg - 1 + 7) % 7,
+    (chromDeg + 1) % 7,
+  ];
 
-  // Fallback: allow the root as an approach source for minor-mode chords (e.g., i→V
-  // in harmonic minor, where the tonic A is adjacent to the raised leading tone G#).
-  // This is musically valid: the tonic in an upper voice can step to the leading tone.
-  if (nextChord.mode === "minor" || prevChord.mode === "minor") {
-    return prevChord.triadNotes.some((deg) => adjDegrees.includes(deg));
-  }
-
-  return false;
+  // Every tone counts, the root included. The root is carried by the bass, which
+  // cannot take the chromatic note while accidentalsByStep is on - but in four
+  // parts the root is normally *doubled*, so it is sounding in an upper voice as
+  // well, and that voice is free to move to the accidental. The minor-mode
+  // branch below already conceded exactly this ("the tonic in an upper voice can
+  // step to the leading tone"); it is no less true in a major key, and treating
+  // the two differently is what blocked vi -> V/vi.
+  return prevChord.triadNotes.some((deg) => approachDegrees.includes(deg));
 }
 
 /**

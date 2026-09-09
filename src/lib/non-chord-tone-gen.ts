@@ -3,7 +3,6 @@
 // and parallel-motion checking are applied before committing each NCT.
 
 import type { VoiceNote, Rhythm } from "./types";
-import { getRandomElement } from "./utils";
 import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
 import { getDiatonicDegree } from "./prep-params";
@@ -12,6 +11,8 @@ import { getDiatonicDegree } from "./prep-params";
 interface NctFunctionParams {
   currentNote: VoiceNote;
   nextNote: VoiceNote | null;
+  /** Nearest sounding note before this one; a suspension is built from it. */
+  prevNote: VoiceNote | null;
   patternRhythm: Rhythm;
   allNotes: VoiceNote[][];
   currentPartIndex: number;
@@ -23,8 +24,20 @@ type NctFunction = (params: NctFunctionParams) => VoiceNote[] | null;
 
 interface NctDefinition {
   name: string;
-  check: (currentNote: VoiceNote, nextNote: VoiceNote | null) => boolean;
+  check: (
+    currentNote: VoiceNote,
+    nextNote: VoiceNote | null,
+    prevNote: VoiceNote | null,
+    patternRhythm: Rhythm
+  ) => boolean;
   generator: NctFunction;
+  /**
+   * Relative likelihood when more than one type fits. Without this the pick was
+   * uniform over whatever was eligible, which is not how the style behaves:
+   * passing and neighbour motion is the ordinary currency, an accented
+   * appoggiatura is a colour.
+   */
+  weight: number;
 }
 // ---------------------------
 
@@ -69,17 +82,106 @@ function createNewNote(
 // --- Parallel-motion check ---
 
 /**
+ * Look up the pitch sounding in `voice` at absolute time `t`. Returns null
+ * for rests or when t is past the voice's end. Time-aligned access means
+ * this works correctly even when voice arrays have different lengths from
+ * uneven NCT subdivisions across voices.
+ */
+function pitchAtTimeLocal(voice: VoiceNote[], t: number): number | null {
+  let cumT = 0;
+  let last: VoiceNote | null = null;
+  for (const note of voice) {
+    if (cumT > t) break;
+    last = note.rest ? null : note;
+    cumT += note.length;
+  }
+  return last ? last.pitchValue : null;
+}
+
+/**
+ * Cumulative time of the FIRST n entries in a voice — i.e., the absolute
+ * start time of voice[n].
+ */
+function timeAtIndex(voice: VoiceNote[], n: number): number {
+  let t = 0;
+  for (let i = 0; i < n && i < voice.length; i++) {
+    t += voice[i].length;
+  }
+  return t;
+}
+
+/**
  * Returns true if the proposed nctNotes introduce a parallel P5 or P8 against
- * any other voice.
+ * any other voice. Uses TIME-ALIGNED lookup so it works correctly when other
+ * voices have been subdivided unevenly by an earlier NCT pass (e.g., coord-NCT
+ * suspensions). The previous index-based variant assumed array indices aligned
+ * with chord positions, which broke after uneven subdivision.
  *
  * Pitch values are diatonic (7 per octave), so:
  *   |a – b| % 7 === 4  →  perfect fifth
  *   |a – b| % 7 === 0 and |a – b| > 0  →  octave
- *
- * We check the motion from the first NCT note to the last NCT note against the
- * corresponding motion in every other voice (allNotes[v][noteIndex] →
- * allNotes[v][noteIndex + 1]).
  */
+/**
+ * Returns true if a proposed NCT would sound a diatonic SECOND against another
+ * voice — two parts a step apart, which is the harshest vertical clash in this
+ * style and reads as a changed harmony rather than as decoration.
+ *
+ * Only a true step counts, not its compound. A ninth between soprano and bass
+ * is ordinary wide spacing; a second between neighbouring voices, especially
+ * low in the texture, is the sound being complained about.
+ *
+ * Time-aligned like checkParallelMotion, since other voices may already have
+ * been subdivided unevenly by an earlier NCT pass, so array indices do not line
+ * up with chord positions.
+ *
+ * Each decoration is checked across its whole duration, not just at its own
+ * onset: another voice can move *while* this note is still sounding, and that
+ * sonority is just as audible. Checking onsets alone left a residue of clashes
+ * that only appeared once decoration density went up.
+ */
+function checkClashesWithOtherVoices(
+  nctNotes: VoiceNote[],
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number
+): boolean {
+  const currentVoice = allNotes[currentPartIndex];
+  let t = timeAtIndex(currentVoice, noteIndex);
+
+  for (const nct of nctNotes) {
+    if (!nct.rest) {
+      const end = t + nct.length;
+      for (let v = 0; v < allNotes.length; v++) {
+        if (v === currentPartIndex) continue;
+        // Every moment this note could meet a new pitch in that voice: its own
+        // onset, plus each onset in the other voice before this note ends.
+        for (const at of onsetsWithin(allNotes[v], t, end)) {
+          const other = pitchAtTimeLocal(allNotes[v], at);
+          if (other === null) continue;
+          if (Math.abs(other - nct.pitchValue) === 1) return true;
+        }
+      }
+    }
+    t += nct.length;
+  }
+  return false;
+}
+
+/**
+ * `start`, then every note onset in `voice` strictly inside (start, end).
+ * Sorted, so the caller walks the sonority changes in order.
+ */
+function onsetsWithin(voice: VoiceNote[], start: number, end: number): number[] {
+  const times = [start];
+  let t = 0;
+  for (const note of voice) {
+    if (t >= end) break;
+    if (t > start) times.push(t);
+    t += note.length;
+  }
+  return times;
+}
+
 function checkParallelMotion(
   nctNotes: VoiceNote[],
   noteIndex: number,
@@ -95,34 +197,43 @@ function checkParallelMotion(
   const currentDir = Math.sign(lastNct.pitchValue - firstNct.pitchValue);
   if (currentDir === 0) return false; // stationary — no parallel motion possible
 
+  // Compute the time of the NCT motion in absolute (piece) time. The current
+  // voice has its OWN cumulative time; the NCT replaces the note at noteIndex
+  // (whose start = sum of lengths up to noteIndex). The motion runs from that
+  // start to the end of the original note.
+  const currentVoice = allNotes[currentPartIndex];
+  const tStart = timeAtIndex(currentVoice, noteIndex);
+  const originalLength = currentVoice[noteIndex]?.length ?? firstNct.length + lastNct.length;
+  const tEnd = tStart + originalLength;
+
   for (let v = 0; v < allNotes.length; v++) {
     if (v === currentPartIndex) continue;
 
-    const prevOther = allNotes[v][noteIndex];
-    const nextOther = allNotes[v][noteIndex + 1];
-    if (!prevOther || prevOther.rest || !nextOther || nextOther.rest) continue;
+    const prevOtherPitch = pitchAtTimeLocal(allNotes[v], tStart);
+    const nextOtherPitch = pitchAtTimeLocal(allNotes[v], tEnd);
+    if (prevOtherPitch === null || nextOtherPitch === null) continue;
 
-    const otherDir = Math.sign(nextOther.pitchValue - prevOther.pitchValue);
+    const otherDir = Math.sign(nextOtherPitch - prevOtherPitch);
     if (otherDir === 0) continue; // other voice is stationary — no parallel motion
-
     if (currentDir !== otherDir) continue; // contrary/oblique — fine
 
     // Both voices moving the same direction: check intervals
-    const intervalBefore = Math.abs(firstNct.pitchValue - prevOther.pitchValue) % 7;
-    const intervalAfter = Math.abs(lastNct.pitchValue - nextOther.pitchValue) % 7;
-    const rawIntervalAfter = Math.abs(lastNct.pitchValue - nextOther.pitchValue);
+    const rawIntervalBefore = Math.abs(firstNct.pitchValue - prevOtherPitch);
+    const rawIntervalAfter = Math.abs(lastNct.pitchValue - nextOtherPitch);
+    const intervalBefore = rawIntervalBefore % 7;
+    const intervalAfter = rawIntervalAfter % 7;
 
     const isParallelFifth = intervalBefore === 4 && intervalAfter === 4;
     const isParallelOctave =
       intervalBefore === 0 &&
       intervalAfter === 0 &&
-      Math.abs(firstNct.pitchValue - prevOther.pitchValue) > 0 &&
+      rawIntervalBefore > 0 &&
       rawIntervalAfter > 0;
 
     if (isParallelFifth || isParallelOctave) {
       console.warn(
         `NCT_GEN: Parallel ${isParallelFifth ? "5th" : "octave"} detected ` +
-          `between voice ${currentPartIndex} and ${v} at index ${noteIndex}. Rejecting NCT.`
+          `between voice ${currentPartIndex} and ${v} at t=${tStart}. Rejecting NCT.`
       );
       return true;
     }
@@ -142,6 +253,11 @@ function checkParallelMotion(
  * @param currentPartIndex - Index of the current voice in allNotes.
  * @param probability - Chance (0–1) of attempting to subdivide a note.
  * @param key - Active key signature string (e.g. "C", "G", "Bb").
+ * @param enabledNctTypes - Optional. Filter the NCT type pool to only these
+ *   names (e.g. ["Passing Tone", "Neighbor Tone"]). Default: all four types.
+ *   Used by Bach SR to disable Anticipation and Appoggiatura (which need
+ *   strong/weak-beat awareness and leap-into-dissonance approach respectively
+ *   — features the current implementation doesn't honor; see Phase 4).
  */
 export function generateNonChordTones(
   notesToProcess: VoiceNote[],
@@ -149,7 +265,8 @@ export function generateNonChordTones(
   allNotes: VoiceNote[][],
   currentPartIndex: number,
   probability: number = 0.1,
-  key: string = "C"
+  key: string = "C",
+  enabledNctTypes?: string[]
 ): VoiceNote[] {
   const outputNotes: VoiceNote[] = [];
 
@@ -164,12 +281,16 @@ export function generateNonChordTones(
     return [...notesToProcess];
   }
 
-  const nctLibrary: NctDefinition[] = [
-    { name: "Passing Tone", check: checkPassingTone, generator: generatePassingTone },
-    { name: "Neighbor Tone", check: checkNeighborTone, generator: generateNeighborTone },
-    { name: "Anticipation", check: checkAnticipation, generator: generateAnticipation },
-    { name: "Appoggiatura", check: checkAppoggiatura, generator: generateAppoggiatura },
+  const fullNctLibrary: NctDefinition[] = [
+    { name: "Suspension", check: checkSuspension, generator: generateSuspension, weight: 10 },
+    { name: "Passing Tone", check: checkPassingTone, generator: generatePassingTone, weight: 10 },
+    { name: "Neighbor Tone", check: checkNeighborTone, generator: generateNeighborTone, weight: 8 },
+    { name: "Anticipation", check: checkAnticipation, generator: generateAnticipation, weight: 4 },
+    { name: "Appoggiatura", check: checkAppoggiatura, generator: generateAppoggiatura, weight: 3 },
   ];
+  const nctLibrary = enabledNctTypes
+    ? fullNctLibrary.filter((d) => enabledNctTypes.includes(d.name))
+    : fullNctLibrary;
 
   for (let i = 0; i < notesToProcess.length; i++) {
     const originalNote = notesToProcess[i];
@@ -179,6 +300,16 @@ export function generateNonChordTones(
     for (let j = i + 1; j < notesToProcess.length; j++) {
       if (!notesToProcess[j].rest) {
         nextNote = notesToProcess[j];
+        break;
+      }
+    }
+
+    // Nearest sounding note behind this one. An appoggiatura is defined by
+    // being *approached by leap*, so the checks need to see backwards as well.
+    let prevNote: VoiceNote | null = null;
+    for (let j = i - 1; j >= 0; j--) {
+      if (!notesToProcess[j].rest) {
+        prevNote = notesToProcess[j];
         break;
       }
     }
@@ -207,6 +338,26 @@ export function generateNonChordTones(
       `NCT_GEN: Triggered for note ${i}: ${originalNote.name} (${originalNote.length}), nextNote: ${nextNote?.name ?? "None"}`
     );
 
+    // Prefer moving with a voice that has already been decorated, when the two
+    // are a 3rd or a 6th apart. Falls through to an independent decoration if
+    // there is nothing to mirror or the result would break a rule.
+    const mirrored = tryParallelDecoration(
+      originalNote,
+      i,
+      allNotes,
+      currentPartIndex,
+      key
+    );
+    if (
+      mirrored &&
+      !checkParallelMotion(mirrored, i, allNotes, currentPartIndex) &&
+      !checkClashesWithOtherVoices(mirrored, i, allNotes, currentPartIndex)
+    ) {
+      console.log(`NCT_GEN: Generated ${mirrored.length} notes for Parallel Motion.`);
+      outputNotes.push(...mirrored);
+      continue;
+    }
+
     const originalDuration = originalNote.length;
 
     const possibleRhythmicReplacements = patternNctRhythms.filter(
@@ -218,17 +369,20 @@ export function generateNonChordTones(
       continue;
     }
 
-    const selectedPatternRhythm = getRandomElement(possibleRhythmicReplacements);
-    if (!selectedPatternRhythm) {
-      outputNotes.push(originalNote);
-      continue;
+    // Type and rhythm are chosen together. Picking the rhythm first and then
+    // asking which types fit wastes the attempt whenever the two do not match -
+    // and they often will not, now that a type can require a particular number
+    // of notes (a passing tone across a 4th needs a three-note pattern).
+    const candidates: { def: NctDefinition; pattern: Rhythm }[] = [];
+    for (const def of nctLibrary) {
+      for (const pattern of possibleRhythmicReplacements) {
+        if (def.check(originalNote, nextNote, prevNote, pattern)) {
+          candidates.push({ def, pattern });
+        }
+      }
     }
 
-    const possibleNctTypes = nctLibrary.filter((nct) =>
-      nct.check(originalNote, nextNote)
-    );
-
-    if (possibleNctTypes.length === 0) {
+    if (candidates.length === 0) {
       console.log(
         `NCT_GEN: No suitable NCT type for note ${i} (${originalNote.name} -> ${nextNote?.name ?? "None"}). Keeping original.`
       );
@@ -236,11 +390,13 @@ export function generateNonChordTones(
       continue;
     }
 
-    const selectedNctDefinition = getRandomElement(possibleNctTypes);
-    if (!selectedNctDefinition) {
+    const chosen = pickWeightedCandidate(candidates);
+    if (!chosen) {
       outputNotes.push(originalNote);
       continue;
     }
+    const selectedNctDefinition = chosen.def;
+    const selectedPatternRhythm = chosen.pattern;
 
     console.log(
       `NCT_GEN: Attempting ${selectedNctDefinition.name} with rhythm: ${selectedPatternRhythm.name}`
@@ -249,6 +405,7 @@ export function generateNonChordTones(
     const generatedNctNotes = selectedNctDefinition.generator({
       currentNote: originalNote,
       nextNote,
+      prevNote,
       patternRhythm: selectedPatternRhythm,
       allNotes,
       currentPartIndex,
@@ -260,6 +417,15 @@ export function generateNonChordTones(
       // Parallel-motion guard: revert to original if a P5 or P8 would result
       if (checkParallelMotion(generatedNctNotes, i, allNotes, currentPartIndex)) {
         console.log(`NCT_GEN: Parallel motion violation — keeping original note at ${i}.`);
+        outputNotes.push(originalNote);
+        continue;
+      }
+
+      // Clash guard: a decoration must not sound a second against another part.
+      if (
+        checkClashesWithOtherVoices(generatedNctNotes, i, allNotes, currentPartIndex)
+      ) {
+        console.log(`NCT_GEN: Would clash with another voice — keeping original note at ${i}.`);
         outputNotes.push(originalNote);
         continue;
       }
@@ -279,97 +445,344 @@ export function generateNonChordTones(
 
 // ======== NCT Check Functions ==========
 
-function checkPassingTone(currentNote: VoiceNote, nextNote: VoiceNote | null): boolean {
-  if (
-    !nextNote ||
-    currentNote.pitchValue === undefined ||
-    nextNote.pitchValue === undefined
-  )
-    return false;
-  // Possible when the interval to the next chord tone is a diatonic 3rd (2–4 semitones)
-  const pitchDiff = Math.abs(currentNote.pitchValue - nextNote.pitchValue);
-  return pitchDiff >= 2 && pitchDiff <= 4;
+/**
+ * `pitchValue` indexes `noteArray`, which is **diatonic** - one entry per letter
+ * name. So a difference of 1 is a 2nd, 2 is a 3rd, 3 a 4th, 4 a 5th. These
+ * checks used to read like semitone tests (the old comment here said "2-4
+ * semitones"), which is what let a passing tone fire on a leap it could not
+ * fill.
+ */
+function diatonicGap(a: VoiceNote, b: VoiceNote | null): number | null {
+  if (!b || a.pitchValue === undefined || b.pitchValue === undefined) return null;
+  return Math.abs(a.pitchValue - b.pitchValue);
 }
 
-function checkNeighborTone(currentNote: VoiceNote, nextNote: VoiceNote | null): boolean {
-  if (
-    !nextNote ||
-    currentNote.pitchValue === undefined ||
-    nextNote.pitchValue === undefined
-  )
-    return false;
-  // Possible when next note is same pitch or a step away
-  const pitchDiff = Math.abs(currentNote.pitchValue - nextNote.pitchValue);
-  return pitchDiff <= 2;
+/**
+ * A suspension holds a pitch over from the previous chord into this one, where
+ * it is now dissonant, and resolves it **down** by step onto the chord tone.
+ *
+ * So it fits wherever the previous note sits exactly one diatonic step *above*
+ * this one: holding that pitch and falling a step lands precisely on this chord
+ * tone, which is the note being decorated.
+ *
+ * The held pitch is reliably a genuine dissonance, without needing to consult
+ * the chord: a triad's members are a 3rd apart, so the note one step above any
+ * member is never another member.
+ *
+ * This is the one common non-chord tone the generator never had, and it is the
+ * idiomatic answer to stepwise descent - which is a large share of this music.
+ * Without it, a descending step could only ever be decorated as an anticipation.
+ */
+function checkSuspension(
+  currentNote: VoiceNote,
+  _nextNote: VoiceNote | null,
+  prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  if (patternRhythm.abcValue.length !== 2) return false;
+  if (!prevNote || prevNote.pitchValue === undefined) return false;
+  if (currentNote.pitchValue === undefined) return false;
+  return prevNote.pitchValue === currentNote.pitchValue + 1;
 }
 
-function checkAnticipation(currentNote: VoiceNote, nextNote: VoiceNote | null): boolean {
-  if (
-    !nextNote ||
-    currentNote.pitchValue === undefined ||
-    nextNote.pitchValue === undefined
-  )
-    return false;
-  // Anticipation: current and next are a step apart
-  const pitchDiff = Math.abs(currentNote.pitchValue - nextNote.pitchValue);
-  return pitchDiff <= 2;
+/**
+ * A passing tone fills the space between two chord tones a **3rd** apart, with
+ * the one step that lies between them.
+ *
+ * The figure needs one note per step of the journey: a 3rd is two notes (the
+ * chord tone and one passing note), a 4th is three, a 5th is four. So the gap
+ * has to equal the number of notes in the pattern - which is why the pattern is
+ * now chosen together with the type rather than before it.
+ *
+ * This previously admitted 3rds, 4ths and 5ths while the generator inserted
+ * exactly one step, so on a 4th it stepped once and left the rest of the gap,
+ * reading as an arbitrary leap. Nearly half of what it admitted was that case.
+ * With three- and four-note patterns available those leaps are filled properly
+ * instead of declined.
+ */
+function checkPassingTone(
+  currentNote: VoiceNote,
+  nextNote: VoiceNote | null,
+  _prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  const gap = diatonicGap(currentNote, nextNote);
+  return gap !== null && gap >= 2 && gap === patternRhythm.abcValue.length;
 }
 
-function checkAppoggiatura(currentNote: VoiceNote, nextNote: VoiceNote | null): boolean {
-  if (
-    !nextNote ||
-    currentNote.pitchValue === undefined ||
-    nextNote.pitchValue === undefined
-  )
-    return false;
-  // Appoggiatura resolves by step to the next chord tone
-  const pitchDiff = Math.abs(currentNote.pitchValue - nextNote.pitchValue);
-  return pitchDiff >= 1 && pitchDiff <= 2;
+/**
+ * A neighbour tone steps away and **comes back**, so it belongs where the next
+ * chord tone is the same pitch we started on.
+ *
+ * Was `<= 2`, identical to the anticipation test, so the two always fired
+ * together and split the same ground arbitrarily. Where the next note is a step
+ * away and the neighbour moves toward it, the figure is not a neighbour at all -
+ * it is an anticipation, and is now generated as one.
+ *
+ * Two notes give a single neighbour; three give a double neighbour, stepping to
+ * one side and then the other before the chord tone returns.
+ */
+function checkNeighborTone(
+  currentNote: VoiceNote,
+  nextNote: VoiceNote | null,
+  _prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  const n = patternRhythm.abcValue.length;
+  return diatonicGap(currentNote, nextNote) === 0 && (n === 2 || n === 3);
+}
+
+/**
+ * An anticipation sounds the *next* chord's pitch early, so there has to be a
+ * next pitch to sound: on a repeated note it produced the same pitch twice - not
+ * a non-chord tone at all, just a note chopped in half. That was about a third
+ * of all decorations. Requiring a real step or 3rd of movement removes it.
+ */
+function checkAnticipation(
+  currentNote: VoiceNote,
+  nextNote: VoiceNote | null,
+  _prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  if (patternRhythm.abcValue.length !== 2) return false;
+  const gap = diatonicGap(currentNote, nextNote);
+  return gap !== null && gap >= 1 && gap <= 2;
+}
+
+/**
+ * An appoggiatura is an accented dissonance **approached by leap** and resolved
+ * by step - the leap is what distinguishes it from a passing tone or a
+ * suspension, and it is the only thing that makes the accent sound intentional.
+ *
+ * `generateAppoggiatura` always resolves to the current chord tone by step, so
+ * the resolution half is guaranteed; what was never checked is the approach. The
+ * old test looked at the *next* note instead, which has no bearing on the figure.
+ */
+function checkAppoggiatura(
+  currentNote: VoiceNote,
+  _nextNote: VoiceNote | null,
+  prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  if (patternRhythm.abcValue.length !== 2) return false;
+  const approach = diatonicGap(currentNote, prevNote);
+  return approach !== null && approach >= 2;
+}
+
+/**
+ * Weighted pick over (type, pattern) pairs, so the type is chosen by how
+ * ordinary it is in the style. A type that fits several patterns is not thereby
+ * made more likely: its weight is shared across its own pairs.
+ */
+function pickWeightedCandidate(
+  candidates: { def: NctDefinition; pattern: Rhythm }[]
+): { def: NctDefinition; pattern: Rhythm } | null {
+  if (candidates.length === 0) return null;
+  const countFor = new Map<string, number>();
+  for (const c of candidates) {
+    countFor.set(c.def.name, (countFor.get(c.def.name) ?? 0) + 1);
+  }
+  const weightOf = (c: { def: NctDefinition }) =>
+    c.def.weight / (countFor.get(c.def.name) ?? 1);
+
+  const total = candidates.reduce((sum, c) => sum + weightOf(c), 0);
+  if (total <= 0) return candidates[0];
+  let roll = Math.random() * total;
+  for (const c of candidates) {
+    roll -= weightOf(c);
+    if (roll < 0) return c;
+  }
+  return candidates[candidates.length - 1];
 }
 
 // ======== NCT Generator Functions ==========
 
+function generateSuspension(params: NctFunctionParams): VoiceNote[] | null {
+  const { currentNote, prevNote, patternRhythm, key } = params;
+  if (!prevNote || patternRhythm.abcValue.length !== 2) return null;
+
+  const heldPitch = prevNote.pitchValue;
+  const resolutionPitch = currentNote.pitchValue;
+  if (heldPitch === undefined || resolutionPitch === undefined) return null;
+
+  const len1 = parseInt(patternRhythm.abcValue[0]);
+  const len2 = parseInt(patternRhythm.abcValue[1]);
+  if (isNaN(len1) || isNaN(len2) || len1 <= 0 || len2 <= 0) return null;
+  // The dissonance must be the accented half, so it cannot be the shorter note.
+  // No pattern in the library is short-then-long today, but item 5 adds an
+  // eighth + dotted quarter, and a suspension on that shape would put the
+  // dissonance on the offbeat and the resolution on the accent - backwards.
+  if (len1 < len2) return null;
+
+  const suspended = createNewNote(currentNote, heldPitch, len1, key);
+  const resolution = createNewNote(currentNote, resolutionPitch, len2, key);
+  if (suspended && currentNote.chordSymbol) {
+    suspended.chordSymbol = currentNote.chordSymbol;
+  }
+
+  return suspended && resolution ? [suspended, resolution] : null;
+}
+
+/**
+ * The notes of `voice` that exactly tile [start, end), or null if they do not.
+ *
+ * Used to spot a decoration another voice has already been given: it will be
+ * several notes filling precisely the span of the single chord tone this voice
+ * is still deciding about, because every decoration preserves its duration.
+ */
+function notesSpanning(
+  voice: VoiceNote[],
+  start: number,
+  end: number
+): VoiceNote[] | null {
+  let t = 0;
+  const inside: VoiceNote[] = [];
+  for (const note of voice) {
+    if (t >= end) break;
+    if (t >= start) inside.push(note);
+    else if (t + note.length > start) return null; // a note straddles the start
+    t += note.length;
+  }
+  if (inside.length === 0) return null;
+  const covered = inside.reduce((sum, n) => sum + n.length, 0);
+  return covered === end - start ? inside : null;
+}
+
+/**
+ * Mirror a decoration another voice has already been given, moving with it in
+ * parallel 3rds or 6ths.
+ *
+ * Two voices decorating together is the most idiomatic thing this generator was
+ * missing, and it was impossible until voices were decorated **in turn**: while
+ * every voice was handed the others' undecorated lines, there was nothing to
+ * mirror. The figure is copied by contour - the same rhythm and the same
+ * sequence of steps - starting from this voice's own chord tone, so the two
+ * parts stay a consistent distance apart.
+ *
+ * Only 3rds and 6ths qualify. Mirroring at a 5th or an octave would be parallel
+ * 5ths and octaves by construction, which is the one thing the style forbids
+ * outright; the compound forms count, so a 10th is as good as a 3rd.
+ *
+ * A **pair** of voices moving together is the idiom. Left unchecked this
+ * cascades - the third voice mirrors the first, the fourth mirrors it too - and
+ * the whole texture ends up in lockstep, which is not decoration any more, just
+ * a faster surface. So a figure is joined by one voice and no more.
+ */
+function tryParallelDecoration(
+  originalNote: VoiceNote,
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number,
+  key: string
+): VoiceNote[] | null {
+  const myPitch = originalNote.pitchValue;
+  if (myPitch === undefined || originalNote.rest) return null;
+
+  const start = timeAtIndex(allNotes[currentPartIndex], noteIndex);
+  const end = start + originalNote.length;
+
+  // How many voices are already subdivided across exactly this span.
+  let alreadyMoving = 0;
+  for (let v = 0; v < allNotes.length; v++) {
+    if (v === currentPartIndex) continue;
+    const group = notesSpanning(allNotes[v], start, end);
+    if (group && group.length >= 2) alreadyMoving++;
+  }
+  if (alreadyMoving !== 1) return null;
+
+  for (let v = 0; v < allNotes.length; v++) {
+    if (v === currentPartIndex) continue;
+    const theirs = notesSpanning(allNotes[v], start, end);
+    if (!theirs || theirs.length < 2) continue;
+    if (theirs.some((n) => n.rest || n.pitchValue === undefined)) continue;
+
+    const theirFirst = theirs[0].pitchValue;
+    const apart = Math.abs(myPitch - theirFirst) % 7;
+    if (apart !== 2 && apart !== 5) continue; // not a 3rd or a 6th
+
+    const notes: VoiceNote[] = [];
+    let ok = true;
+    for (let k = 0; k < theirs.length; k++) {
+      const delta = theirs[k].pitchValue - theirFirst;
+      const note = createNewNote(originalNote, myPitch + delta, theirs[k].length, key);
+      if (!note) {
+        ok = false;
+        break;
+      }
+      if (k === 0 && originalNote.chordSymbol) {
+        note.chordSymbol = originalNote.chordSymbol;
+      }
+      notes.push(note);
+    }
+    if (ok && notes.length === theirs.length) return notes;
+  }
+  return null;
+}
+
+/** Each note's length in 32nd units, or null if the pattern is malformed. */
+function patternLengths(patternRhythm: Rhythm): number[] | null {
+  const lengths = patternRhythm.abcValue.map((v) => parseInt(v));
+  if (lengths.some((l) => isNaN(l) || l <= 0)) return null;
+  return lengths;
+}
+
+/**
+ * Walks stepwise from the chord tone toward the next one, one note per step.
+ * Two notes cross a 3rd, three cross a 4th, four cross a 5th - the check has
+ * already matched the gap to the pattern's note count.
+ */
 function generatePassingTone(params: NctFunctionParams): VoiceNote[] | null {
   const { currentNote, nextNote, patternRhythm, key } = params;
-  if (!nextNote || patternRhythm.abcValue.length !== 2) return null;
+  if (!nextNote) return null;
 
   const pitch1 = currentNote.pitchValue;
   const pitch2 = nextNote.pitchValue;
   if (pitch1 === undefined || pitch2 === undefined) return null;
 
-  // Diatonic step toward next note
+  const lengths = patternLengths(patternRhythm);
+  if (!lengths || lengths.length < 2) return null;
+
   const direction = pitch1 < pitch2 ? 1 : -1;
-  const passingPitch = pitch1 + direction;
-
-  const len1 = parseInt(patternRhythm.abcValue[0]);
-  const len2 = parseInt(patternRhythm.abcValue[1]);
-  if (isNaN(len1) || isNaN(len2) || len1 <= 0 || len2 <= 0) return null;
-
-  const note1 = createNewNote(currentNote, pitch1, len1, key);
-  const note2 = createNewNote(currentNote, passingPitch, len2, key);
-
-  return note1 && note2 ? [note1, note2] : null;
+  const notes: VoiceNote[] = [];
+  for (let k = 0; k < lengths.length; k++) {
+    const note = createNewNote(currentNote, pitch1 + direction * k, lengths[k], key);
+    if (!note) return null;
+    // The first sub-note inherits the chord-start tag; the rest are mid-chord.
+    if (k === 0 && currentNote.chordSymbol) note.chordSymbol = currentNote.chordSymbol;
+    notes.push(note);
+  }
+  return notes;
 }
 
+/**
+ * Two notes: chord tone, then a step to one side, and the chord tone returns as
+ * the next note. Three notes: a double neighbour - chord tone, one side, the
+ * other side - which then resolves back to the chord tone. That figure only
+ * makes sense when the note returns, which is what the check guarantees.
+ */
 function generateNeighborTone(params: NctFunctionParams): VoiceNote[] | null {
   const { currentNote, patternRhythm, key } = params;
-  if (patternRhythm.abcValue.length !== 2) return null;
 
   const pitch1 = currentNote.pitchValue;
   if (pitch1 === undefined) return null;
 
-  // Diatonic step up or down
+  const lengths = patternLengths(patternRhythm);
+  if (!lengths || lengths.length < 2 || lengths.length > 3) return null;
+
   const direction = Math.random() < 0.5 ? 1 : -1;
-  const neighborPitch = pitch1 + direction;
+  const pitches =
+    lengths.length === 2
+      ? [pitch1, pitch1 + direction]
+      : [pitch1, pitch1 + direction, pitch1 - direction];
 
-  const len1 = parseInt(patternRhythm.abcValue[0]);
-  const len2 = parseInt(patternRhythm.abcValue[1]);
-  if (isNaN(len1) || isNaN(len2) || len1 <= 0 || len2 <= 0) return null;
-
-  const note1 = createNewNote(currentNote, pitch1, len1, key);
-  const note2 = createNewNote(currentNote, neighborPitch, len2, key);
-
-  return note1 && note2 ? [note1, note2] : null;
+  const notes: VoiceNote[] = [];
+  for (let k = 0; k < lengths.length; k++) {
+    const note = createNewNote(currentNote, pitches[k], lengths[k], key);
+    if (!note) return null;
+    if (k === 0 && currentNote.chordSymbol) note.chordSymbol = currentNote.chordSymbol;
+    notes.push(note);
+  }
+  return notes;
 }
 
 function generateAnticipation(params: NctFunctionParams): VoiceNote[] | null {

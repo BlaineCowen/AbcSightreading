@@ -274,6 +274,10 @@ const SYLLABLE_TABLE: Record<string, Record<string, string[]>> = {
     dotQuarterEighth: ["ta-(i)", "ti"],
     dotHalfQuarter: ["tu-u-u", "ta"],
     eighthQuarterEighth: ["syn", "co", "pa"],
+    // Named in rhythm-syllables.ts rather than derived: the sustain rule spells
+    // a held note by the beats it crosses, so deriving this gave "tu-u",
+    // identical to a half note. The "a" is beat two, inside the long note.
+    eighthDotQuarter: ["ti", "ti-a"],
     wholeRest: ["(sh)"],
   },
   counting: {
@@ -289,6 +293,7 @@ const SYLLABLE_TABLE: Record<string, Record<string, string[]>> = {
     dotQuarterEighth: ["1_2", "&"],
     dotHalfQuarter: ["1_2_3", "4"],
     eighthQuarterEighth: ["1", "&_2", "&"],
+    eighthDotQuarter: ["1", "&_2"],
     wholeRest: ["(1)_(2)_(3)_(4)"],
   },
 };

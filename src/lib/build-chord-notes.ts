@@ -9,6 +9,20 @@ import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
 import { generatePossibleNotes } from "./prep-params";
 
+/** Find the index of the highest-order voice in a voiceParts array (the
+ *  "soprano" or top voice). Returns -1 if voiceParts is empty. */
+function findHighestOrderVoiceIndex(voiceParts: VoicePart[]): number {
+  let bestIdx = -1;
+  let bestOrder = -Infinity;
+  for (let i = 0; i < voiceParts.length; i++) {
+    if (voiceParts[i].order > bestOrder) {
+      bestOrder = voiceParts[i].order;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
 // Function to check voice leading (Ensure this is defined or imported)
 function isVoiceOrderValid(pitches: number[]): boolean {
   for (let i = 0; i < pitches.length - 1; i++) {
@@ -32,7 +46,7 @@ function shuffleArray<T>(array: T[]): T[] {
   return array;
 }
 
-function determineAccidental(
+export function determineAccidental(
   degree: number,
   chord: Chord,
   keySignatures: any,
@@ -128,7 +142,13 @@ function getMaxSkip(defaultValue: number = 4, minValue: number = 2): number {
 }
 
 /**
- * Builds chord notes for all voices based on rhythms and chord progression
+ * Builds chord notes for all voices based on rhythms and chord progression.
+ *
+ * @param presetSoprano  Optional. When provided (length must equal the number
+ *   of chord positions), the highest-order voice is filled directly from this
+ *   array rather than computed by the chord-tone search. Used by the Bach SR
+ *   pipeline to inject a pre-sketched soprano melody. Pattern-continuation
+ *   steps still use the existing logic — only chord-start steps use the preset.
  */
 export function buildChordNotes(
   key: string,
@@ -137,7 +157,8 @@ export function buildChordNotes(
   voiceParts: VoicePart[],
   bassLine: Note[],
   maxSkip: number,
-  accidentalsByStep: boolean
+  accidentalsByStep: boolean,
+  presetSoprano?: VoiceNote[]
 ): VoiceNote[][] {
   const keyInfo = keySignatures[key];
   if (!keyInfo) throw new Error(`Key signature not found for key: ${key}`);
@@ -172,6 +193,11 @@ export function buildChordNotes(
   let totalLoopFails = 0;
   const maxTotalLoopFails = 30;
 
+  const maxVoiceOrder = voiceParts.reduce(
+    (m, vp) => (vp.order > m ? vp.order : m),
+    -Infinity
+  );
+
   function findPreviousGeneratedPitch(voiceNotes: VoiceNote[]): number | null {
     for (let i = voiceNotes.length - 1; i >= 0; i--) {
       if (!voiceNotes[i].rest) {
@@ -188,7 +214,15 @@ export function buildChordNotes(
     otherVoiceNotes: VoiceNote[],
     maxSkip: number,
     previousNote?: VoiceNote,
-    useAccidentalsByStep?: boolean
+    useAccidentalsByStep?: boolean,
+    /** Parallel arrays to otherVoiceNotes — each entry is the PREVIOUS note
+     *  of the corresponding other voice. Used for parallel 5/8ve detection.
+     *  When undefined or empty, parallel checking is skipped. */
+    otherVoicesPrev?: (VoiceNote | undefined)[],
+    /** The CHORD that was active for `previousNote`. Used to detect diatonic
+     *  leading-tone resolution (LT in V/V7/vii° → must step up to tonic) and
+     *  chordal-7th resolution (7th of V7 → must step down). */
+    previousChord?: Chord
   ): Note | null {
     // Get all notes in range
     let validNotes = voicePart.possibleNotes.filter(
@@ -197,10 +231,37 @@ export function buildChordNotes(
         note.pitchValue <= voicePart.range[1]
     );
 
+    // Outer voices = soprano (top order) and bass (order 0). Inner voices are
+    // the rest. The LT-resolution rule is strict for outer voices but relaxed
+    // for inner voices, which may drop the LT to keep the chord complete.
+    const isOuterVoice =
+      voicePart.order === 0 || voicePart.order === maxVoiceOrder;
+
+    // Detect the LT-resolution case (V/vii°→I, where the previous voice held
+    // the LT and the current chord contains tonic). In minor mode the LT is
+    // chromatically raised (G→G# in Am), so the previous note carries a sharp
+    // accidental — that's the path that fires the chromatic block below.
+    const isLeadingToneResolution =
+      previousNote &&
+      !previousNote.rest &&
+      previousNote.degree === 6 &&
+      previousChord &&
+      (previousChord.type === "dominant" ||
+        previousChord.type === "dominant-inversion" ||
+        previousChord.type === "leading-tone") &&
+      chord.triadNotes.includes(0);
+
     // Pre-compute forced resolution pitch before chord-tone filtering so we can
     // open up all chord tones (not just unused ones) when a resolution is forced.
     let forcedPitch: number | undefined;
-    if (useAccidentalsByStep && previousNote && !previousNote.rest) {
+    if (
+      useAccidentalsByStep &&
+      previousNote &&
+      !previousNote.rest &&
+      // Skip the chromatic resolution force ONLY for the LT case in inner voices.
+      // Other chromatic notes (raised 4 in V/V, etc.) still resolve in any voice.
+      !(isLeadingToneResolution && !isOuterVoice)
+    ) {
       if (
         previousNote.accidental === "sharp" ||
         previousNote.accidental === "double-sharp" ||
@@ -216,11 +277,58 @@ export function buildChordNotes(
       }
     }
 
+    // Diatonic leading-tone resolution (Phase 3.2): the LT in OUTER voices
+    // (soprano or bass) must resolve up to tonic. Inner voices may drop the
+    // LT to the 5th of I to keep the chord complete (otherwise the chord
+    // ends without a 3rd because the LT-holder steals the doubling target).
+    if (
+      isOuterVoice &&
+      forcedPitch === undefined &&
+      previousNote &&
+      !previousNote.rest &&
+      !previousNote.accidental &&
+      previousNote.degree === 6 &&
+      previousChord &&
+      (previousChord.type === "dominant" ||
+        previousChord.type === "dominant-inversion" ||
+        previousChord.type === "leading-tone") &&
+      previousChord.sharpScaleDegree !== 6 &&
+      chord.triadNotes.includes(0)
+    ) {
+      forcedPitch = previousNote.pitchValue + 1;
+    }
+
+    // Chordal-7th resolution (Phase 3.3): if the previous note was the 7th of
+    // a V7-style chord, force step down by one diatonic step. We detect a
+    // "7th-style" chord by looking at the previous chord having 4 triad tones
+    // (root + 3 + 5 + 7) — the last element is the 7th degree.
+    if (
+      forcedPitch === undefined &&
+      previousNote &&
+      !previousNote.rest &&
+      previousChord &&
+      previousChord.triadNotes.length >= 4
+    ) {
+      const seventhDegree =
+        previousChord.triadNotes[previousChord.triadNotes.length - 1];
+      if (previousNote.degree === seventhDegree) {
+        // The 7th resolves DOWN by step. The resolved pitch should be a
+        // chord tone of the new chord; if not, fall through (no force) so
+        // the voice is free to find another note.
+        const candidatePitch = previousNote.pitchValue - 1;
+        forcedPitch = candidatePitch;
+      }
+    }
+
     // Chord-tone filter — when a resolution is forced, open to all triad degrees
     // so the resolution note is reachable even if its degree was already "used".
     const availableTriadDegrees = chord.triadNotes.filter(
       (deg) => !usedTriadDegrees.includes(deg)
     );
+    // Fallback when every chord tone has already been assigned (4 voices on
+    // a 3-tone triad must double something). Use [root, 5th] as the safe
+    // generic preference; the "no double LT/7th" filter further down
+    // tightens this when the chord is a dominant or seventh.
     const degreesToUse =
       forcedPitch !== undefined
         ? chord.triadNotes
@@ -229,6 +337,30 @@ export function buildChordNotes(
         : [chord.triadNotes[0], chord.triadNotes[2]];
 
     validNotes = validNotes.filter((note) => degreesToUse.includes(note.degree));
+
+    // Soft doubling preference: avoid doubling the LT or chordal 7th (only
+    // applied when the resulting filter still has options). The "available
+    // triad degrees" filter handles the common case automatically.
+    const isDominantFn =
+      chord.type === "dominant" ||
+      chord.type === "dominant-inversion" ||
+      chord.type === "leading-tone";
+    const ltDegree = isDominantFn && chord.triadNotes.includes(6) ? 6 : undefined;
+    const seventhDegree =
+      chord.triadNotes.length >= 4
+        ? chord.triadNotes[chord.triadNotes.length - 1]
+        : undefined;
+    const forbidDoubling = new Set<number>();
+    for (const used of usedTriadDegrees) {
+      if (ltDegree !== undefined && used === ltDegree) forbidDoubling.add(used);
+      if (seventhDegree !== undefined && used === seventhDegree) forbidDoubling.add(used);
+    }
+    if (forbidDoubling.size > 0) {
+      const noDouble = validNotes.filter((n) => !forbidDoubling.has(n.degree));
+      if (noDouble.length > 0) validNotes = noDouble;
+      // else: fall through (chord-tone constraints didn't permit avoiding
+      // the doubling — the validator's soft `doubled-lt` warning will note it).
+    }
 
     // Max-skip voice leading
     if (previousNote && !previousNote.rest) {
@@ -308,18 +440,151 @@ export function buildChordNotes(
       }
     }
 
-    // Voice-crossing: strict ordering between voices
+    // Voice OVERLAP between ADJACENT voice pairs only (e.g. bass-tenor,
+    // tenor-alto, alto-soprano). When an already-assigned adjacent voice
+    // has CURRENT pitch that crosses past THIS voice's PREVIOUS pitch,
+    // strict counterpoint forbids it. The overlap is between fixed
+    // pitches (other-curr and this-prev), independent of candidate choice —
+    // detection means returning null to force step retry with a different
+    // bass alternate or shuffle order. Non-adjacent overlap (e.g. bass
+    // above alto's prev) is far less audible and rarely flagged in Bach.
+    if (
+      previousNote &&
+      !previousNote.rest &&
+      otherVoicesPrev &&
+      otherVoiceNotes.length > 0 &&
+      voicePart.order !== undefined
+    ) {
+      for (let i = 0; i < otherVoiceNotes.length; i++) {
+        const otherCurr = otherVoiceNotes[i];
+        if (!otherCurr || otherCurr.rest) continue;
+        if (otherCurr.order === undefined) continue;
+        // Adjacent only: difference of exactly 1 voice-order.
+        if (Math.abs(otherCurr.order - voicePart.order) !== 1) continue;
+        if (otherCurr.order < voicePart.order) {
+          // Other (lower) — its curr shouldn't reach OR exceed our prev.
+          if (otherCurr.pitchValue >= previousNote.pitchValue) return null;
+        } else {
+          // Other (upper) — its curr shouldn't drop to OR below our prev.
+          if (otherCurr.pitchValue <= previousNote.pitchValue) return null;
+        }
+      }
+    }
+
+    // Parallel 5ths/8ves: filter out candidates whose motion against any
+    // already-assigned voice creates a parallel perfect fifth or octave.
+    // Pitch values are diatonic indices (7 per octave), so:
+    //   |a - b| % 7 === 4 → fifth
+    //   |a - b| % 7 === 0 (and > 0) → octave/unison
+    const _PARALLEL_DEBUG =
+      typeof process !== "undefined" && process.env?.BACH_PARALLEL_DEBUG === "1";
+    if (
+      previousNote &&
+      !previousNote.rest &&
+      otherVoicesPrev &&
+      otherVoicesPrev.length === otherVoiceNotes.length
+    ) {
+      if (_PARALLEL_DEBUG) {
+        console.error(
+          `[PFilter] voice ${voicePart.smallName} prev=${previousNote.pitchValue} ` +
+          `candidates=${validNotes.map((n) => n.pitchValue).join(",")} ` +
+          `others=${otherVoiceNotes.map((n, i) => `${n.pitchValue}(prev=${otherVoicesPrev[i]?.pitchValue})`).join(", ")}`
+        );
+      }
+      const noParallels = validNotes.filter((candidate) => {
+        for (let i = 0; i < otherVoiceNotes.length; i++) {
+          const otherCurr = otherVoiceNotes[i];
+          const otherPrev = otherVoicesPrev[i];
+          if (!otherPrev || otherPrev.rest || otherCurr.rest) continue;
+          // Both voices must be moving for parallel motion to apply.
+          if (candidate.pitchValue === previousNote.pitchValue) continue;
+          if (otherCurr.pitchValue === otherPrev.pitchValue) continue;
+          // Same direction?
+          const thisDir = Math.sign(candidate.pitchValue - previousNote.pitchValue);
+          const otherDir = Math.sign(otherCurr.pitchValue - otherPrev.pitchValue);
+          if (thisDir !== otherDir) continue;
+          // Compute interval mods
+          const intvBefore = Math.abs(previousNote.pitchValue - otherPrev.pitchValue);
+          const intvAfter = Math.abs(candidate.pitchValue - otherCurr.pitchValue);
+          const modBefore = intvBefore % 7;
+          const modAfter = intvAfter % 7;
+          // Parallel fifth (both intervals are perfect 5ths)
+          if (modBefore === 4 && modAfter === 4) {
+            if (_PARALLEL_DEBUG) console.error(`[PFilter] reject ${voicePart.smallName}=${candidate.pitchValue} (P5 vs voice-${i}: ${otherPrev.pitchValue}→${otherCurr.pitchValue}, prev=${previousNote.pitchValue})`);
+            return false;
+          }
+          // Parallel octave or unison (both intervals are 0 mod 7, both > 0
+          // for octave; OR both 0 = unisons which are also forbidden)
+          if (modBefore === 0 && modAfter === 0 && intvBefore > 0 && intvAfter > 0) {
+            if (_PARALLEL_DEBUG) console.error(`[PFilter] reject ${voicePart.smallName}=${candidate.pitchValue} (P8 vs voice-${i}: ${otherPrev.pitchValue}→${otherCurr.pitchValue}, prev=${previousNote.pitchValue})`);
+            return false;
+          }
+          // Parallel unison: both at zero distance (both voices on same pitch
+          // moving to same pitch) — also forbidden.
+          if (intvBefore === 0 && intvAfter === 0) {
+            if (_PARALLEL_DEBUG) console.error(`[PFilter] reject ${voicePart.smallName}=${candidate.pitchValue} (unison vs voice-${i})`);
+            return false;
+          }
+        }
+        return true;
+      });
+      // Strict-when-possible: if every candidate creates a parallel, fail
+      // this step (return null below) so the outer retry mechanism can pick
+      // a different bass alternate or voice-shuffle order. After many
+      // failed retries, the bass-fallback (root → 3rd) usually finds a
+      // direction that opens up new tenor/alto candidates.
+      if (_PARALLEL_DEBUG) {
+        console.error(
+          `[PFilter] result: ${noParallels.length}/${validNotes.length} survive — ` +
+          (noParallels.length > 0 ? `using [${noParallels.map(n => n.pitchValue).join(",")}]` : `STRICT-FAIL`)
+        );
+      }
+      validNotes = noParallels;
+    }
+
+    // Voice-crossing: enforce ordering between voices, but allow momentary
+    // unisons (baroque counterpoint permits two voices sharing a pitch as
+    // long as it's not approached/left in parallel motion — the parallel-
+    // unison filter above already catches that case).
     validNotes = validNotes.filter((note) => {
       return otherVoiceNotes.every((otherNote) => {
         if (otherNote.order === undefined || voicePart.order === undefined)
           return true;
         if (voicePart.order > otherNote.order) {
-          return note.pitchValue > otherNote.pitchValue;
+          return note.pitchValue >= otherNote.pitchValue;
         } else {
-          return note.pitchValue < otherNote.pitchValue;
+          return note.pitchValue <= otherNote.pitchValue;
         }
       });
     });
+
+    // Adjacent voices a diatonic step apart is the harshest vertical interval
+    // this texture can produce, and it is what started the whole clash
+    // investigation. Measured, it is rare and it is always the same chord: a V7
+    // whose 7th lands in the alto directly beneath the root in the soprano
+    // (B, d f g), 4 times in 2867 sonorities.
+    //
+    // Strict-when-possible, the same shape as the parallel filter above: when
+    // no candidate survives, fail the step and let the retry re-pick a bass
+    // alternate or a different voice-shuffle order. Left as a mere preference
+    // it still let the clash through, because the cases that produce it are
+    // exactly the ones where spacing has boxed the alto in - the only way out
+    // is to go back and place a different note somewhere else.
+    //
+    // Adjacent voices only, which is sufficient: two non-adjacent voices a step
+    // apart would need the voice between them to be crossing, and the filter
+    // above has already ruled that out.
+    const withoutAdjacentSeconds = validNotes.filter((note) =>
+      otherVoiceNotes.every((otherNote) => {
+        if (!otherNote || otherNote.rest) return true;
+        if (otherNote.order === undefined || voicePart.order === undefined) {
+          return true;
+        }
+        if (Math.abs(otherNote.order - voicePart.order) !== 1) return true;
+        return Math.abs(note.pitchValue - otherNote.pitchValue) !== 1;
+      })
+    );
+    validNotes = withoutAdjacentSeconds;
 
     if (validNotes.length === 0) {
       return null;
@@ -362,6 +627,28 @@ export function buildChordNotes(
     voiceParts.forEach((part) => {
       part.chordNotes = [];
     });
+
+    // Identify the soprano-equivalent (highest-order non-bass voice) when a
+    // preset soprano is provided. Used to inject pre-sketched melody pitches.
+    const sopranoVoiceIndex = presetSoprano
+      ? findHighestOrderVoiceIndex(voiceParts)
+      : -1;
+
+    /**
+     * Where the bass owes a resolution.
+     *
+     * An accidental in the bass has to move on by step - up if raised, down if
+     * lowered. Upper voices already do this through forcedPitch in
+     * findValidVoiceNote, and they manage it 100% of the time; the bass had no
+     * equivalent, so a chromatic bass note went wherever the chord tones
+     * allowed. G# walked to C rather than up to A.
+     *
+     * Kept as a preference rather than a rule: if the next chord simply has no
+     * tone at the resolution pitch, forcing it would fail the whole generation,
+     * and a generation that fails is worse than a resolution that does not
+     * happen.
+     */
+    let owedBassResolution: number | undefined;
 
     for (let stepIndex = 0; stepIndex < rhythms.length; stepIndex++) {
       const rhythm = rhythms[stepIndex];
@@ -408,8 +695,54 @@ export function buildChordNotes(
 
         // Process Bass First
         const bassPartInfo = voiceParts.find((vp) => vp.order === 0);
-        const otherPartsInfo = voiceParts.filter((vp) => vp.order !== 0);
+        // When a soprano preset is provided AND this step is a chord-start,
+        // the highest-order voice is pre-filled and excluded from the search.
+        const isChordStartStep =
+          !rhythm.isPatternNote || rhythm.isPatternStart;
+        const useSopranoPreset =
+          presetSoprano !== undefined &&
+          sopranoVoiceIndex >= 0 &&
+          isChordStartStep &&
+          chordIndex < presetSoprano.length;
+        const otherPartsInfo = voiceParts.filter(
+          (vp) =>
+            vp.order !== 0 &&
+            !(useSopranoPreset && vp === voiceParts[sopranoVoiceIndex])
+        );
         const shuffledOtherParts = shuffleArray([...otherPartsInfo]);
+
+        if (useSopranoPreset) {
+          const sopNote = presetSoprano![chordIndex];
+          // Apply chord-driven accidental display: the preset stores only
+          // pitch + base name (no prefix). When the current chord raises or
+          // lowers the soprano's degree (e.g. raised LT in minor V), the
+          // chromatic prefix and accidental field must be set so abcjs renders
+          // the right pitch and the resolution rule for the next chord fires.
+          const baseName = noteArray[sopNote.pitchValue];
+          const accidentalInfo = determineAccidental(
+            sopNote.degree,
+            currentChord,
+            keySignatures,
+            key
+          );
+          const finalName = accidentalInfo.accidental
+            ? accidentalInfo.prefix + baseName
+            : baseName;
+          const adjusted: VoiceNote = {
+            ...sopNote,
+            name: finalName,
+            length: rhythm.totalValue,
+            order: voiceParts[sopranoVoiceIndex].order,
+            accidental: accidentalInfo.accidental,
+            wasRaised:
+              accidentalInfo.accidental === "natural"
+                ? currentChord.sharpScaleDegree === sopNote.degree
+                : undefined,
+            isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
+          };
+          stepNotesAttempt[sopranoVoiceIndex] = adjusted;
+          pitchCheckArray[sopranoVoiceIndex] = adjusted.pitchValue;
+        }
 
         if (!bassPartInfo) {
           console.error("Bass part definition not found!");
@@ -429,7 +762,23 @@ export function buildChordNotes(
             let chosenNote: Note = bassNote;
             let applyAccidental = false;
 
-            if (stepRetryCount > 1) {
+            // Once any bass note has been substituted, the rest of bassLine is
+            // no longer measured from the note actually used - generateChordProgression
+            // built that chain against its own choices. So a pre-generated note
+            // can be an unreachable leap from where the bass really is, and it
+            // has to be re-picked exactly like a retry.
+            const prevBassNote =
+              bassPartInfo.chordNotes[bassPartInfo.chordNotes.length - 1];
+            const unreachableFromPrev =
+              prevBassNote !== undefined &&
+              !prevBassNote.rest &&
+              Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) > maxSkip;
+
+            const missesOwedResolution =
+              owedBassResolution !== undefined &&
+              bassNote.pitchValue !== owedBassResolution;
+
+            if (stepRetryCount > 1 || unreachableFromPrev || missesOwedResolution) {
               // Include both root (root position) and 3rd (first inversion) as fallbacks,
               // mirroring the same inversion logic used in findValidBassNote.
               const invertibleDegrees = new Set([currentChord.root, currentChord.triadNotes[1]]);
@@ -439,22 +788,78 @@ export function buildChordNotes(
                   n.pitchValue >= bassPartInfo.range[0] &&
                   n.pitchValue <= bassPartInfo.range[1]
               );
-              // When accidentalsByStep is on, early retries (2–8) prefer non-chromatic bass
-              // notes so we don't land on an accidental that wasn't approached by step.
-              // Late retries (9+) fall back to allowing all notes (including chromatic) to
-              // escape voice-ordering deadlocks that only the chromatic 3rd can resolve.
-              // Exception: chromatic-bass inversions (V⁶/V, where chord.root === chromDeg)
-              // must always use the chromatic degree — skip the non-chromatic preference.
+              // When accidentalsByStep is on, keep the chromatic degree out of the
+              // bass at every retry, not just the early ones.
+              //
+              // This is a deadlock escape: it swaps in a different chord tone when
+              // the planned bass cannot be reached. Nothing here arms a resolution
+              // for what it picks - forcedNextBassPitch was computed back in
+              // chord-generation for the bass it *planned*. So a chromatic note
+              // substituted in at this point is under no obligation to resolve,
+              // and it did not: with V/vi reachable, G# entered the bass and went
+              // to C rather than up to A in 49 of 60 exercises.
+              //
+              // A chromatic bass note should be deliberate - that is what the
+              // explicit chromatic-bass chords are for (V⁶/V, where
+              // chord.root === chromDeg), and those carry their own approach and
+              // resolution rules. They are exempted below, as before.
+              // Retries 9+ may still fall back to the accidental: it is the escape
+              // of last resort, and refusing it outright costs whole generations
+              // on a restrictive chord list. With the 5th now available above, it
+              // is reached far less often than it was.
               if (accidentalsByStep && stepRetryCount <= 8) {
                 const chromDeg = currentChord.sharpScaleDegree ?? currentChord.flatScaleDegree;
                 if (chromDeg !== undefined && chromDeg !== null && currentChord.root !== chromDeg) {
+                  // Give the escape the 5th to work with instead of the accidental.
+                  // findValidBassNote already does exactly this when it drops the
+                  // chromatic degree, and a second inversion is a far smaller price
+                  // than an unresolved accidental in the bass. Without it, refusing
+                  // the chromatic note here costs real generations - 5 in 60 at the
+                  // top of the chromatic slider.
+                  const fifth = currentChord.triadNotes[2];
+                  if (fifth !== undefined) {
+                    const withFifth = bassPartInfo.possibleNotes.filter(
+                      (n) =>
+                        n.degree === fifth &&
+                        n.pitchValue >= bassPartInfo.range[0] &&
+                        n.pitchValue <= bassPartInfo.range[1]
+                    );
+                    altNotes = [...altNotes, ...withFifth];
+                  }
                   const nonChromatic = altNotes.filter((n) => n.degree !== chromDeg);
                   if (nonChromatic.length > 0) altNotes = nonChromatic;
                   // else: only chromatic available, fall through to allow it
                 }
               }
               if (altNotes.length > 0) {
-                chosenNote = altNotes[Math.floor(Math.random() * altNotes.length)];
+                // This substitution exists to escape ordering deadlocks, but it
+                // was picking at random with no regard for how far the bass had
+                // to leap to get there - which is how a bass line that left
+                // generateChordProgression inside maxSkip came back out with a
+                // ninth in it. Prefer candidates within maxSkip; if the deadlock
+                // leaves none, take the nearest, so the escape still happens but
+                // with the smallest leap available.
+                let pool = altNotes;
+                if (prevBassNote && !prevBassNote.rest) {
+                  const distance = (n: Note) =>
+                    Math.abs(n.pitchValue - prevBassNote.pitchValue);
+                  const within = altNotes.filter((n) => distance(n) <= maxSkip);
+                  pool =
+                    within.length > 0
+                      ? within
+                      : [
+                          altNotes.reduce((best, n) =>
+                            distance(n) < distance(best) ? n : best
+                          ),
+                        ];
+                }
+                if (owedBassResolution !== undefined) {
+                  const resolving = pool.filter(
+                    (n) => n.pitchValue === owedBassResolution
+                  );
+                  if (resolving.length > 0) pool = resolving;
+                }
+                chosenNote = pool[Math.floor(Math.random() * pool.length)];
                 applyAccidental = true;
               }
             }
@@ -486,6 +891,13 @@ export function buildChordNotes(
                 : undefined,
               isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
             };
+            owedBassResolution =
+              finalAccidental === "sharp"
+                ? generatedBassNote.pitchValue + 1
+                : finalAccidental === "flat"
+                  ? generatedBassNote.pitchValue - 1
+                  : undefined;
+
             stepNotesAttempt[bassVoiceIndex] = generatedBassNote;
             pitchCheckArray[bassVoiceIndex] = generatedBassNote.pitchValue;
           }
@@ -506,10 +918,27 @@ export function buildChordNotes(
                 .filter((note): note is VoiceNote => note !== null)
                 .map((note) => note.degree);
 
-              // Get other voice notes from this step
+              // Get other voice notes from this step (current step's pitches)
               const otherVoiceNotes = stepNotesAttempt.filter(
                 (note, idx) => note !== null && idx !== originalVoiceIndex
               ) as VoiceNote[];
+
+              // Parallel array: each other voice's PREVIOUS chord-tone note,
+              // used by the parallel-5/8ve filter inside findValidVoiceNote.
+              const otherVoicesPrev: (VoiceNote | undefined)[] = [];
+              for (let idx = 0; idx < stepNotesAttempt.length; idx++) {
+                if (stepNotesAttempt[idx] === null) continue;
+                if (idx === originalVoiceIndex) continue;
+                const prevForOther = voiceParts[idx].chordNotes.at(-1) as
+                  | VoiceNote
+                  | undefined;
+                otherVoicesPrev.push(prevForOther);
+              }
+
+              // The previous chord (one position back) drives diatonic LT and
+              // chordal-7th resolution rules.
+              const previousChord =
+                chordIndex > 0 ? chordProgression[chordIndex - 1] : undefined;
 
               const selectedNote = findValidVoiceNote(
                 voicePart,
@@ -518,7 +947,9 @@ export function buildChordNotes(
                 otherVoiceNotes,
                 maxSkip,
                 voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
-                accidentalsByStep
+                accidentalsByStep,
+                otherVoicesPrev,
+                previousChord
               );
 
               if (!selectedNote) {
@@ -625,6 +1056,10 @@ export function buildChordNotes(
 
   while (totalLoopFails < maxTotalLoopFails) {
     if (processRhythms(rhythms, progression, voiceParts, bassLine, maxSkip)) {
+      // Sort each voice's chordNotes by their position in the rhythm list to
+      // ensure consistent ordering with the input. (No-op for current usage —
+      // chordNotes are pushed in order already — but defensive for callers
+      // that pass voiceParts with pre-existing state.)
       return voiceParts.map((part) => part.chordNotes);
     }
     totalLoopFails++;

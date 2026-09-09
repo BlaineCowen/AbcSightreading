@@ -9,6 +9,11 @@
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import {
+    canAppearInChoral,
+    containsRest,
+    isSelectableRhythm,
+  } from "../lib/selectable-rhythms";
+  import {
     generateChoralExercise,
     type GenerateChoralParams,
   } from "../lib/generateChoral";
@@ -112,6 +117,17 @@
   };
 
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
+  const voiceTextures = ["full", "staggered", "independent"] as const;
+  type TextureMode = (typeof voiceTextures)[number];
+  const voiceTextureLabels: Record<TextureMode, string> = {
+    full: "All voices",
+    staggered: "Staggered entrances",
+    independent: "Independent parts",
+  };
+  const isVoiceTextureMode = (v: unknown): v is TextureMode =>
+    typeof v === "string" && (voiceTextures as readonly string[]).includes(v);
+  let voiceTexture: TextureMode = "full";
+
   const cursorModes = ["off", "smooth", "beat", "note"] as const;
   type CursorMode = (typeof cursorModes)[number];
   const cursorModeLabels: Record<CursorMode, string> = {
@@ -130,6 +146,14 @@
   let selectedTimeSignature = "4/4";
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"];
   let selectedKey = "C";
+  /**
+   * The keys to choose between. Generation picks one at random, so a teacher can
+   * set "any of F, C, G" and get a different one each time rather than drilling
+   * the same key. `selectedKey` is whichever was drawn most recently - it drives
+   * the chord picker's mode and the printed title, so the page always says which
+   * key you actually got.
+   */
+  let selectedKeys: Set<string> = new Set(["C"]);
   let measures = 8;
   let maxSkip = 4;
   const maxSkipRange = [2, 8];
@@ -168,10 +192,20 @@
   $: currentModeChordNames = isMinorKey(selectedKey) ? minorChordNames : majorChordNames;
 
   // ── Rhythm state ───────────────────────────────────────────────────────────
+  // isSelectableRhythm is the shared rule for "what a user may pick" - it is
+  // what drops the bare dotted quarter, and unison has always used it.
+  //
+  // Plain rests are offered; a *pattern* containing a rest is not. Choral counts
+  // one chord per pattern and skips rests when counting, so a figure like
+  // eighthRestEighth is counted as zero chord positions while build-chord-notes
+  // still consumes one for its pitched half - the progression runs short and
+  // generation fails outright. Unison counts a chord for every step including
+  // rests, so the same figure is fine there.
+  const choralSelectable = (r: Rhythm) =>
+    isSelectableRhythm(r) && !(r.pattern === true && containsRest(r));
+
   let filterRhythms: Record<string, Rhythm> = Object.fromEntries(
-    allRhythms
-      .filter((r) => !r.name.includes("thirtySecond") && !r.name.toLowerCase().includes("rest"))
-      .map((r) => [r.name, r])
+    allRhythms.filter(choralSelectable).map((r) => [r.name, r])
   );
 
   let selectedRhythms: Rhythm[] = allRhythms.filter(
@@ -180,7 +214,7 @@
 
   const rhythmSvgs = Object.fromEntries(
     allRhythms
-      .filter((r) => !r.name.includes("thirtySecond") && !r.name.toLowerCase().includes("rest"))
+      .filter(choralSelectable)
       .map((r) => [r.name, import(`../assets/svgs/${r.name}.svg?raw`)])
   );
 
@@ -188,11 +222,14 @@
   const DEFAULTS = {
     voicing: '4 Part Mixed', key: 'C', timeSig: '4/4', measures: 8,
     maxSkip: 4, nctProbability: 0.1,
+    voiceTexture: 'full',
     rhythmNames: ['quarter', 'half', 'dotHalf'],
   };
 
-  $: setupDirty = selectedVoicing !== DEFAULTS.voicing || selectedKey !== DEFAULTS.key ||
-    selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
+  $: setupDirty = selectedVoicing !== DEFAULTS.voicing ||
+    [...selectedKeys].sort().join(",") !== DEFAULTS.key ||
+    selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures ||
+    voiceTexture !== DEFAULTS.voiceTexture;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
     JSON.stringify([...DEFAULTS.rhythmNames].sort());
   $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
@@ -365,23 +402,29 @@
   function loadParams() {
     const p = new URLSearchParams(window.location.search);
     selectedVoicing = p.get("voices") || "4 Part Mixed";
-    selectedKey = p.get("key") || "C";
+    const keyParam = p.get("key") || "C";
+    const keyList = keyParam.split(",").map((k) => k.trim()).filter(Boolean);
+    selectedKeys = new Set(keyList.length ? keyList : ["C"]);
+    selectedKey = keyList[0] ?? "C";
     measures = parseInt(p.get("measures") || "8");
     bpm = parseInt(p.get("bpm") || "60");
     const cursor = p.get("cursor");
     if (isCursorMode(cursor)) cursorMode = cursor;
+    const texture = p.get("texture");
+    if (isVoiceTextureMode(texture)) voiceTexture = texture;
     const preset = p.get("preset");
     if (preset && builtinPresets[preset]) applyDifficultyPreset(preset);
   }
 
   function updateURLParams() {
     const p = new URLSearchParams();
-    p.set("key", selectedKey);
+    p.set("key", [...selectedKeys].join(","));
     p.set("timeSig", selectedTimeSignature);
     p.set("voicing", selectedVoicing);
     p.set("measures", measures.toString());
     p.set("bpm", bpm.toString());
     p.set("cursor", cursorMode);
+    p.set("texture", voiceTexture);
     window.history.replaceState({}, "", `?${p.toString()}`);
   }
 
@@ -406,14 +449,59 @@
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
+  // What the active UIL level allows, or null when no level is active. Used to
+  // dim options rather than remove them - the point of the change is that
+  // nothing disappears, so a reader can still see the whole vocabulary and step
+  // outside the level deliberately.
+  $: activePreset = activeUILLevel ? uilPresets[activeUILLevel] : null;
+  $: presetKeys = activePreset ? new Set(activePreset.allowedKeys) : null;
+  $: presetVoicings = activePreset?.allowedVoicings?.length
+    ? new Set(activePreset.allowedVoicings)
+    : null;
+  $: presetRhythmNames = activePreset ? new Set(activePreset.allowedRhythmNames) : null;
+  $: presetChordNames = activePreset ? new Set(activePreset.allowedChordNames) : null;
+  /** Dimmed-but-clickable: outside the level, not forbidden. */
+  const outside = (allowed: Set<string> | null, name: string) =>
+    allowed !== null && !allowed.has(name);
+
+  // A rhythm can be ticked and still never appear - too short to take its own
+  // chord, or longer than a measure. Previously the generator just dropped it.
+  $: unusableRhythmNames = new Set(
+    selectedRhythms
+      .filter(
+        (r) =>
+          !canAppearInChoral(
+            r,
+            timeSignatures[selectedTimeSignature]?.tsPerMeasure ?? 32
+          )
+      )
+      .map((r) => r.name)
+  );
+
   function applyUILPreset(levelKey: string) {
     const p = uilPresets[levelKey];
     if (!p) return;
     activeUILLevel = levelKey;
-    possibleKeys = p.allowedKeys;
+    // The key list is no longer replaced. Taking the other keys away meant a
+    // preset silently removed choices instead of describing them; they are all
+    // still here, and the ones outside the level are dimmed instead.
+    // Select every key the level allows, so generating randomises between them.
+    selectedKeys = new Set(p.allowedKeys);
     if (!p.allowedKeys.includes(selectedKey)) selectedKey = p.allowedKeys[0];
+    // allowedVoicings and measureRange are declared by every preset and were
+    // never read, so a level that says "4-part mixed, 24-28 measures" did
+    // neither. They apply now.
+    if (p.allowedVoicings?.length && !p.allowedVoicings.includes(selectedVoicing)) {
+      selectedVoicing = p.allowedVoicings[0];
+    }
+    if (p.measureRange) {
+      const [lo, hi] = p.measureRange;
+      measures = Math.min(hi, Math.max(lo, measures));
+    }
+    // Presets declare their own rests in allowedRhythmNames - every UIL level
+    // lists wholeRest/halfRest/quarterRest - so they are no longer stripped here.
     selectedRhythms = allRhythms.filter(
-      (r) => p.allowedRhythmNames.includes(r.name) && !r.name.toLowerCase().includes("rest")
+      (r) => p.allowedRhythmNames.includes(r.name) && choralSelectable(r)
     );
     maxSkip = p.maxSkip;
     userAllowedChords = new Set(p.allowedChordNames ?? allChordNames);
@@ -439,6 +527,7 @@
   function applySavedPreset(preset: SavedPreset) {
     const { params: p } = preset;
     selectedKey = p.key;
+    selectedKeys = new Set(p.keys?.length ? p.keys : [p.key]);
     selectedTimeSignature = p.timeSig;
     selectedVoicing = p.voicing;
     measures = p.measures;
@@ -447,6 +536,8 @@
     selectedRhythms = allRhythms.filter((r) => p.selectedRhythmNames.includes(r.name));
     userAllowedChords = p.allowedChordNames ? new Set(p.allowedChordNames) : new Set(allChordNames);
     nctProbability = p.nctProbability;
+    // Optional, so presets saved before voice texture existed still load.
+    if (isVoiceTextureMode(p.voiceTexture)) voiceTexture = p.voiceTexture;
     const ranges = p.voiceRanges;
     if (ranges && possibleVoicing[p.voicing]) {
       for (const [partName, range] of Object.entries(ranges)) {
@@ -464,6 +555,7 @@
   function getCurrentParams(): PresetParams {
     return {
       key: selectedKey,
+      keys: [...selectedKeys],
       timeSig: selectedTimeSignature,
       voicing: selectedVoicing,
       measures,
@@ -472,6 +564,7 @@
       selectedRhythmNames: selectedRhythms.map((r) => r.name),
       allowedChordNames: userAllowedChords.size < allChordNames.length ? Array.from(userAllowedChords) : undefined,
       nctProbability,
+      voiceTexture,
       voiceRanges: Object.fromEntries(
         Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {}).map(
           ([name, part]) => [name, part.currentRange as [number, number]]
@@ -616,8 +709,27 @@
       return;
     }
 
+    // Draw the key for this exercise. With one key selected this is that key, so
+    // nothing changes for the ordinary case.
+    const keyPool = [...selectedKeys];
+    const drawnKey = keyPool[Math.floor(Math.random() * keyPool.length)] ?? selectedKey;
+    selectedKey = drawnKey;
+
+    // The chord picker only ever shows one mode at a time, so a pool spanning
+    // major and minor can leave the ticked chords belonging to the wrong one.
+    // Keep whatever still applies to the key actually drawn; if that leaves
+    // nothing, use the whole vocabulary for that mode rather than generating
+    // from an empty set.
+    const drawnModeChordNames = isMinorKey(drawnKey) ? minorChordNames : majorChordNames;
+    const chordsForDrawnKey = [...userAllowedChords].filter((n) =>
+      drawnModeChordNames.includes(n)
+    );
+    const effectiveChordNames = chordsForDrawnKey.length
+      ? chordsForDrawnKey
+      : drawnModeChordNames;
+
     const params: GenerateChoralParams = {
-      key: selectedKey,
+      key: drawnKey,
       timeSig: timeSignatures[selectedTimeSignature],
       partsObject: possibleVoicing[selectedVoicing],
       measures,
@@ -627,10 +739,12 @@
       chords: fullChordSet,
       accidentalsByStep,
       nctProbability,
+      voiceTexture,
       chromaticFrequency,
-      allowedChordNames: userAllowedChords.size < allChordNames.length
-        ? Array.from(userAllowedChords)
-        : undefined,
+      allowedChordNames:
+        effectiveChordNames.length < drawnModeChordNames.length
+          ? effectiveChordNames
+          : undefined,
     };
 
     try {
@@ -713,7 +827,8 @@
               <div class="flex flex-wrap gap-2">
                 {#each Object.keys(possibleVoicing) as voicing}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {outside(presetVoicings, voicing) && selectedVoicing !== voicing ? 'opacity-40' : ''}"
+                    title={outside(presetVoicings, voicing) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                     on:click={() => (selectedVoicing = voicing)}
                   >{voicing}</button>
                 {/each}
@@ -725,8 +840,19 @@
               <div class="flex flex-wrap gap-2">
                 {#each possibleKeys as key}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedKeys.has(key) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {outside(presetKeys, key) && !selectedKeys.has(key) ? 'opacity-40' : ''}"
+                    title={outside(presetKeys, key) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                     on:click={() => {
+                      const next = new Set(selectedKeys);
+                      if (next.has(key) && next.size > 1) {
+                        next.delete(key);
+                        selectedKeys = next;
+                        // Keep the displayed key inside the pool.
+                        if (selectedKey === key) selectedKey = [...next][0];
+                        return;
+                      }
+                      next.add(key);
+                      selectedKeys = next;
                       const wasMinor = isMinorKey(selectedKey);
                       const nowMinor = isMinorKey(key);
                       selectedKey = key;
@@ -737,6 +863,18 @@
                   >{key}</button>
                 {/each}
               </div>
+              {#if selectedKeys.size > 1}
+                <p class="text-xs text-slate-400">
+                  {selectedKeys.size} keys selected — one is drawn at random each
+                  time you generate. Click a key to remove it.
+                </p>
+              {/if}
+              {#if activePreset}
+                <p class="text-xs text-slate-400">
+                  Dimmed keys are outside {activePreset.label}, not removed — pick
+                  one and you simply leave the level.
+                </p>
+              {/if}
             </div>
 
             <div class="space-y-2">
@@ -761,6 +899,30 @@
                   >{opt}</button>
                 {/each}
               </div>
+            </div>
+
+            <div class="space-y-2 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voice texture</p>
+              <div class="flex flex-wrap gap-2">
+                {#each voiceTextures as mode}
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm {voiceTexture === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => (voiceTexture = mode)}
+                    aria-pressed={voiceTexture === mode}
+                  >{voiceTextureLabels[mode]}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-slate-400">
+                {voiceTexture === "full"
+                  ? "Every part sings throughout, apart from rests in the rhythm."
+                  : voiceTexture === "staggered"
+                    ? measures < 8
+                      ? "Parts enter one at a time, lowest first — needs 8 measures or more."
+                      : "Parts enter one at a time, lowest first."
+                    : measures < 12
+                      ? "Entrances, plus parts dropping out — tacet passages need 12 measures or more."
+                      : "Entrances, plus parts dropping out for a few measures at a time."}
+              </p>
             </div>
 
             <div class="space-y-2 sm:col-span-2">
@@ -793,10 +955,17 @@
             <div class="flex flex-wrap gap-2">
               {#each Object.values(filterRhythms) as rhythm}
                 <button
-                  class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded
+                  class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded relative
                     {selectedRhythms.some((r) => r?.name === rhythm.name)
                       ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200'}"
+                      : 'bg-slate-100 hover:bg-slate-200'}
+                    {outside(presetRhythmNames, rhythm.name) && !selectedRhythms.some((r) => r?.name === rhythm.name) ? 'opacity-40' : ''}
+                    {unusableRhythmNames.has(rhythm.name) ? 'ring-2 ring-amber-400' : ''}"
+                  title={unusableRhythmNames.has(rhythm.name)
+                    ? `Selected, but cannot appear in ${selectedTimeSignature}`
+                    : outside(presetRhythmNames, rhythm.name)
+                      ? `Outside ${activePreset?.label ?? 'this level'}`
+                      : undefined}
                   on:click={() => {
                     if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
                       selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
@@ -817,6 +986,18 @@
                 </button>
               {/each}
             </div>
+            {#if unusableRhythmNames.size > 0}
+              <p class="text-xs text-amber-600">
+                Ringed in amber: selected, but cannot appear in {selectedTimeSignature}.
+                A rhythm has to be at least a quarter note and fit inside one measure.
+              </p>
+            {/if}
+            {#if activePreset}
+              <p class="text-xs text-slate-400">
+                Dimmed rhythms are outside {activePreset.label}. They are still
+                available — picking one just takes you off the level.
+              </p>
+            {/if}
           </div>
 
         <!-- Harmony Tab -->
@@ -835,7 +1016,9 @@
                         class="px-3 py-2 sm:py-1 rounded text-sm font-medium
                           {userAllowedChords.has(chordName)
                             ? 'bg-blue-500 text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}"
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}
+                          {outside(presetChordNames, chordName) && !userAllowedChords.has(chordName) ? 'opacity-40' : ''}"
+                        title={outside(presetChordNames, chordName) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                         on:click={() => {
                           const next = new Set(userAllowedChords);
                           if (next.has(chordName)) next.delete(chordName);

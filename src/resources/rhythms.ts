@@ -306,6 +306,26 @@ export const rhythms: Rhythm[] = [
     weight: 5,
   },
   {
+    // The reverse of dotQuarterEighth: the short note first, so the long one
+    // begins off the beat. Two beats long and only fits starting on a beat.
+    //
+    // Added in place of the bare dotted quarter, which was removed: on its own a
+    // dotted quarter is one and a half beats, so it leaves everything after it
+    // starting off the beat with nothing to resolve against. Paired with the
+    // eighth here, the figure closes its own syncopation and lands the next note
+    // back on a beat.
+    name: "eighthDotQuarter",
+    abcValue: ["4", "12"],
+    meterValue: [1 / 8, 3 / 8],
+    totalValue: 16,
+    rest: false,
+    oddsWeight: 4,
+    maxRng: 0,
+    pattern: true,
+    symbol: "\ud834\udd19\ud834\udd18\u2022",
+    weight: 4,
+  },
+  {
     // Syncopation: the quarter straddles the beat, so the figure is two beats
     // long and only fits starting on a beat. Kodály names it syn-co-pa.
     name: "eighthQuarterEighth",

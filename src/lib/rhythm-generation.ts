@@ -141,7 +141,18 @@ export function generateRandomRhythm(
   let cadenceIndex = 0; // Track which cadence we are working towards
 
   // --- Find Longest Single Rhythm (Needed for cadence points) ---
-  const singleRhythms = rhythms.filter((r) => !r.pattern && r.totalValue > 0);
+  // Rests are excluded: a cadence is an arrival, and a phrase cannot end on
+  // silence. Without this the pick below - a `.find()`, so it takes whatever the
+  // user ticked first - would happily choose a whole rest, and every cadence in
+  // the exercise would be silent.
+  //
+  // It also failed silently rather than loudly. chord-generation only inspects
+  // rhythms reachable through chordIndicesMap, which skips rests, so a rest
+  // cadence note is never seen: isCadenceEnd goes unread, cadencePlanIndex never
+  // advances, and every cadence constraint is quietly dropped.
+  const singleRhythms = rhythms.filter(
+    (r) => !r.pattern && !r.rest && r.totalValue > 0
+  );
   const enforceCadence = singleRhythms.length > 0;
   let longestSingleRhythm: Rhythm = {
     name: "",
@@ -224,8 +235,46 @@ export function generateRandomRhythm(
   let cadenceOptOutAt = -1;
 
   const usedRhythms = new Set<string>();
-  const rhythmCounts = new Map<string, number>();
-  rhythms.forEach((r) => rhythmCounts.set(r.name, 0));
+  /**
+   * How much *time* each rhythm has been given, in 32nd units - not how many
+   * times it has been picked.
+   *
+   * The variety rule below damps a rhythm that has already been used a lot. When
+   * that was counted in occurrences it systematically favoured long notes, for a
+   * reason that has nothing to do with musical variety: filling a 4/4 measure
+   * takes four quarter notes but only one whole note, so the quarter's counter
+   * rose four times as fast for exactly the same amount of music. The quarter was
+   * being punished for doing its job, and the whole note's effective weight ended
+   * up higher than the quarter's despite being set lower.
+   *
+   * Measuring time instead makes a measure of quarters and a measure of whole
+   * notes count the same.
+   */
+  const rhythmTimeUsed = new Map<string, number>();
+  rhythms.forEach((r) => rhythmTimeUsed.set(r.name, 0));
+  const measuresUsedBy = (name: string) =>
+    (rhythmTimeUsed.get(name) ?? 0) / timeSig.tsPerMeasure;
+
+  /**
+   * A note that fills a whole measure is a place where the music stops moving.
+   * That is what you want at the end of a phrase, where it reads as arrival, and
+   * not in the middle of one, where it just reads as empty.
+   *
+   * Phrases here are the four-measure blocks the cadence logic already works in,
+   * and the cadence note at the end of each block is placed separately - so this
+   * only affects full-measure notes the weighted picker chooses *mid-phrase*.
+   *
+   * It is a bias and never a ban: a selection of nothing but whole notes still
+   * has to be fillable, and the rhythm checks assert that generation succeeds on
+   * exactly the selections a reference solver proves solvable.
+   */
+  const MID_PHRASE_FULL_MEASURE_PENALTY = 0.25;
+  const phrasePenaltyFor = (r: Rhythm, beat: number): number => {
+    if (r.totalValue < timeSig.tsPerMeasure) return 1;
+    const measure = Math.floor(beat / timeSig.tsPerMeasure);
+    const endsAPhrase = measure % 4 === 3 || measure === measures - 1;
+    return endsAPhrase ? 1 : MID_PHRASE_FULL_MEASURE_PENALTY;
+  };
 
   // --- Main Generation Loop ---
   while (currentBeat < totalBeats) {
@@ -287,8 +336,11 @@ export function generateRandomRhythm(
 
       result.length = step.resultLen;
       currentBeat = step.beat;
-      const count = rhythmCounts.get(step.name) ?? 0;
-      if (count > 0) rhythmCounts.set(step.name, count - 1);
+      const undone = rhythms.find((r) => r.name === step.name);
+      if (undone) {
+        const used = rhythmTimeUsed.get(step.name) ?? 0;
+        rhythmTimeUsed.set(step.name, Math.max(0, used - undone.totalValue));
+      }
       return true;
     };
 
@@ -413,8 +465,8 @@ export function generateRandomRhythm(
 
       // Select rhythm randomly (weighted)
       const weights = possibleRhythms.map((r) => {
-        const count = rhythmCounts.get(r.name) || 0;
-        return Math.max(1, 5 - count) * r.weight; // Example weighting
+        const variety = Math.max(1, 5 - measuresUsedBy(r.name));
+        return variety * r.weight * phrasePenaltyFor(r, currentBeat);
       });
       const totalWeight = weights.reduce((a, b) => a + b, 0);
       let random = Math.random() * totalWeight;
@@ -474,10 +526,10 @@ export function generateRandomRhythm(
         result.push(rhythmWithPattern);
         currentBeat += selectedRhythm.totalValue;
       }
-      // Update counts
-      rhythmCounts.set(
+      // Update usage
+      rhythmTimeUsed.set(
         selectedRhythm.name,
-        (rhythmCounts.get(selectedRhythm.name) || 0) + 1
+        (rhythmTimeUsed.get(selectedRhythm.name) || 0) + selectedRhythm.totalValue
       );
     } // --- End Inner loop ---
 
