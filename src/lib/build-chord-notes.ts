@@ -799,10 +799,22 @@ export function buildChordNotes(
             if (stepRetryCount > 1 || unreachableFromPrev || missesOwedResolution) {
               // Include both root (root position) and 3rd (first inversion) as fallbacks,
               // mirroring the same inversion logic used in findValidBassNote.
+              // Root and 3rd - plus, when the bass owes a resolution from an
+              // accidental, whatever pays it.
+              //
+              // The debt is often payable only by the chord's *5th*, which this
+              // set does not otherwise hold, so it could not be paid however
+              // hard the choice below preferred it. Diagnosed by naming both
+              // chords at every unresolved bass accidental: the failures were
+              // all a chromatic chord resolving into the wrong inversion of its
+              // target - V6/V -> V6 rather than V, V/vi -> vi6 rather than vi.
               const invertibleDegrees = new Set([currentChord.root, currentChord.triadNotes[1]]);
               let altNotes = bassPartInfo.possibleNotes.filter(
                 (n) =>
-                  invertibleDegrees.has(n.degree) &&
+                  (invertibleDegrees.has(n.degree) ||
+                    (owedBassResolution !== undefined &&
+                      n.pitchValue === owedBassResolution &&
+                      currentChord.triadNotes.includes(n.degree))) &&
                   n.pitchValue >= bassPartInfo.range[0] &&
                   n.pitchValue <= bassPartInfo.range[1]
               );
