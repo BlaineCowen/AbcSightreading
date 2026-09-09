@@ -1223,7 +1223,13 @@
       ?.querySelector(".abcjs-staff");
     if (!firstStaff) return;
     const top = firstStaff.getBoundingClientRect().top + window.scrollY;
-    const target = Math.max(0, top - window.innerHeight * 0.1);
+    // A tenth of the viewport, but never less than the fixed navbar needs. That
+    // bar is 4rem tall and slides back into view on any upward scroll - which
+    // this is - so on a short viewport a 10% margin is not enough and it lands
+    // on top of the first system.
+    const navbarClearance = 80;
+    const margin = Math.max(navbarClearance, window.innerHeight * 0.1);
+    const target = Math.max(0, top - margin);
     // A tiny nudge reads as a glitch; only move if it is genuinely elsewhere.
     if (Math.abs(target - window.scrollY) < 24) return;
     window.scrollTo({ top: target, behavior: "smooth" });

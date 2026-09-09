@@ -1236,6 +1236,25 @@
 
 <style>
   /*
+   * Keep auto-scrolling clear of the navbar.
+   *
+   * The navbar is fixed, 4rem tall, and reveals itself on *any* upward scroll
+   * (Navbar.svelte). Scrolling back to the top for a repeat is an upward
+   * scroll, so it slides back down over the first system exactly as the music
+   * arrives there.
+   *
+   * scroll-margin-top is what this property is for: the browser leaves the gap
+   * when scrolling an element into view, so the notes clear the navbar whether
+   * it happens to be showing or not. Better than suppressing the navbar during
+   * programmatic scrolls, which would have to guess when one is happening.
+   */
+  :global(#paper),
+  :global(#paper .abcjs-note),
+  :global(#paper .abcjs-staff) {
+    scroll-margin-top: 5rem;
+  }
+
+  /*
    * The generating overlay.
    *
    * Both animations are opacity and transform only. That matters: generation
