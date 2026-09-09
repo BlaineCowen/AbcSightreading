@@ -14,5 +14,10 @@ export default defineConfig({
     ssr: {
       noExternal: ["abcjs"],
     },
+    server: {
+      // Allow access from any host (Tailscale, LAN, phones, etc.) during dev.
+      // Vite blocks non-localhost hostnames by default for security.
+      allowedHosts: true,
+    },
   },
 });

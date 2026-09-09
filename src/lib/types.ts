@@ -13,7 +13,14 @@ export interface Note {
 }
 
 export interface VoicePart {
-  range: [number, number]; // min and max pitch values
+  range: [number, number]; // working min and max pitch values (used by chord-tone search)
+  /** Full pitch range (max possible). Available for guards that want to step
+   *  outside the tessitura when voice leading needs more room. Optional for
+   *  back-compat with callers that don't populate it. */
+  fullRange?: [number, number];
+  /** Tessitura — the comfortable band within `range`/`fullRange`. Used by
+   *  the bass-octave preference and the validator's tessitura check. */
+  currentRange?: [number, number];
   smallName: string;
   possibleNotes: Note[];
   name: string; // Full name, e.g., "Soprano"
@@ -35,6 +42,9 @@ export interface VoiceNote extends Note {
     | null;
   isCadenceEnd?: boolean; // Flag if this note is the end of a cadence
   wasRaised?: boolean; // true if accidental="natural" means raised (e.g. Bb→Bnat in F major)
+  /** Chord symbol annotation displayed above this note (e.g. "I", "V7", "vi").
+   *  Typically only set on the chord-start note of the highest voice. */
+  chordSymbol?: string;
 }
 
 export interface ChordPossibility {
@@ -176,6 +186,20 @@ export const allCadences: Cadence[] = [
     strength: "strong",
   },
   {
+    // Cadential 6/4 ornament: PD → I⁶₄ → V → I. The I⁶₄ "leans" on the V's
+    // root in the bass and resolves down by step (5th of I → 5th of V, 3rd
+    // of I → 3rd of V). Idiomatic Bach cadence ornament.
+    type: "Perfect Authentic 6/4",
+    progression: [
+      { function: ChordType.Predominant },
+      { function: ChordType.Predominant, requiredChord: "I⁶₄" },
+      { function: ChordType.Dominant, requiredChord: "V" },
+      { function: ChordType.Tonic, requiredChord: "I" },
+    ],
+    isFinal: true,
+    strength: "strong",
+  },
+  {
     type: "Imperfect Authentic",
     progression: [
       { function: ChordType.Predominant },
@@ -218,6 +242,19 @@ export const allCadences: Cadence[] = [
     mode: "minor",
     progression: [
       { function: ChordType.Predominant, requiredChord: "iv" },
+      { function: ChordType.Dominant, requiredChord: "V" },
+      { function: ChordType.Tonic, requiredChord: "i" },
+    ],
+    isFinal: true,
+    strength: "strong",
+  },
+  {
+    // Minor-mode cadential 6/4: iv → i⁶₄ → V → i.
+    type: "Perfect Authentic 6/4",
+    mode: "minor",
+    progression: [
+      { function: ChordType.Predominant, requiredChord: "iv" },
+      { function: ChordType.Predominant, requiredChord: "i⁶₄" },
       { function: ChordType.Dominant, requiredChord: "V" },
       { function: ChordType.Tonic, requiredChord: "i" },
     ],

@@ -77,11 +77,19 @@ export function assembleAbcString(
   const numVoices = voiceParts.length;
   const beatsPerMeasure = timeSig.tsPerMeasure;
 
+  // Strip leading accidental characters (^, _, =) to get the bare pitch+octave key.
+  const basePitch = (noteName: string) => noteName.replace(/^[\^_=]+/, "");
+
   for (let voiceIndex = 0; voiceIndex < numVoices; voiceIndex++) {
     const part = voiceParts[voiceIndex];
     const partSmallName = part.smallName;
     let partString = `[V:${partSmallName}] `;
     let measureCount = 0;
+
+    // Tracks which pitch+octave strings have been altered within the current measure.
+    // Key = bare pitch string (e.g. "A,", "F"); value = the accidental type applied.
+    // Cleared at every barline so accidentals don't bleed across measures.
+    const measureAccidentals = new Map<string, string>();
 
     const notesForPart = allVoiceNotes[voiceIndex];
 
@@ -99,28 +107,31 @@ export function assembleAbcString(
       if (note.rest) {
         partString += `z${note.length}`;
       } else {
-        // Simplify accidental handling: Assume note.name might already contain ^, _, =
-        // If note.name doesn't have it, but note.accidental does, this needs adjustment
-        // based on how note names and accidentals are consistently generated.
-        // For now, directly use note.name as it might include the accidental prefix.
-        partString += `${note.name}${note.length}`;
+        const base = basePitch(note.name);
 
-        // --- Original Accidental Handling (Commented Out) ---
-        // if (note.accidental === "sharp") {
-        //   partString += "^";
-        // } else if (note.accidental === "flat") {
-        //   partString += "_";
-        // } else if (note.accidental === "natural") {
-        //   partString += "=";
-        // } else if (note.accidental === "double-sharp") {
-        //   partString += "^^";
-        // } else if (note.accidental === "double-flat") {
-        //   partString += "__";
-        // }
-        // // Remove any existing accidentals from the note name
-        // const cleanNoteName = note.name.replace(/[_^=]/g, "");
-        // partString += `${cleanNoteName}${note.length}`;
-        // --- End Original ---
+        // Chord-symbol annotation (e.g. "I", "V7", "V/V"). The leading "^"
+        // makes it a TEXT annotation positioned above the note rather than a
+        // chord-symbol token — abcjs's chord-symbol parser would otherwise
+        // interpret slashes as slash-chord notation (e.g. "V/V" → V over V)
+        // and render only the part before the slash.
+        if (note.chordSymbol) {
+          partString += `"^${note.chordSymbol}"`;
+        }
+
+        if (note.accidental) {
+          // Explicit accidental — record it so we can cancel it for diatonic notes later.
+          measureAccidentals.set(base, note.accidental);
+          partString += `${note.name}${note.length}`;
+        } else {
+          // Diatonic note. If the same pitch was altered earlier in this measure, abcjs
+          // will carry the prior accidental. Add an explicit natural to cancel it.
+          if (measureAccidentals.has(base)) {
+            measureAccidentals.delete(base);
+            partString += `=${base}${note.length}`;
+          } else {
+            partString += `${note.name}${note.length}`;
+          }
+        }
       }
       partString += " "; // Add space after note/rest
 
@@ -130,6 +141,7 @@ export function assembleAbcString(
       if (measureCount >= beatsPerMeasure) {
         partString += "| ";
         measureCount = measureCount % beatsPerMeasure; // Handle any overflow
+        measureAccidentals.clear(); // Accidentals don't carry across barlines
       }
     }
 

@@ -25,6 +25,10 @@ export const chords: Chord[] = [
       { name: "4-64", weight: 30 },
       { name: "6-6", weight: 15 },
       { name: "5-7", weight: 10 },
+      // Bass-variety additions: I→V⁶ creates stepwise bass C-B (and resolves
+      // back to C via V⁶→I), one of Bach's signature patterns.
+      { name: "5-6", weight: 14 },
+      { name: "1-6", weight: 8 },
     ],
     type: "tonic",
     sharpScaleDegree: undefined,
@@ -81,6 +85,9 @@ export const chords: Chord[] = [
       { name: "2", weight: 13 },
       { name: "5", weight: 39 },
       { name: "7", weight: 15 },
+      // IV→I⁶ creates stepwise descending bass F→E (or I⁶→ii: E→D after).
+      { name: "1-6", weight: 12 },
+      { name: "5-6", weight: 8 },
     ],
     type: "predominant",
     sharpScaleDegree: undefined,
@@ -100,6 +107,11 @@ export const chords: Chord[] = [
       { name: "5/5", weight: 10 },
       { name: "5/5-6", weight: 6 },
       { name: "5/6", weight: 10 },
+      // Rare-but-allowable when soprano steps to a degree none of 1/5/6
+      // cover (e.g. F in C major needs degree 3, only in IV/ii/I⁶).
+      { name: "4", weight: 3 },
+      { name: "2", weight: 3 },
+      { name: "1-6", weight: 3 },
     ],
     type: "dominant",
     sharpScaleDegree: undefined,
@@ -145,7 +157,11 @@ export const chords: Chord[] = [
     root: 4,
     chordFamily: "5-7",
     triadNotes: [4, 6, 1, 3],
-    nextChordPossibilities: [{ name: "1", weight: 100 }],
+    nextChordPossibilities: [
+      { name: "1", weight: 100 },
+      { name: "6", weight: 8 },
+      { name: "1-6", weight: 4 },
+    ],
     type: "dominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
@@ -355,7 +371,11 @@ export const chords: Chord[] = [
     root: 6,
     chordFamily: "5",
     triadNotes: [4, 6, 1],
-    nextChordPossibilities: [{ name: "1", weight: 100 }],
+    nextChordPossibilities: [
+      { name: "1", weight: 100 },
+      { name: "6", weight: 6 },
+      { name: "1-6", weight: 3 },
+    ],
     type: "dominant-inversion",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
@@ -423,7 +443,24 @@ export const chords: Chord[] = [
       { name: "m_i", weight: 10 },
       { name: "m_VI", weight: 10 },
     ],
-    type: "tonic",
+    type: "tonic-inversion",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // Minor cadential 6/4: i in 2nd inversion (5th of i in the bass = degree 4),
+    // routed at cadences as iv → i⁶₄ → V → i. Same diatonic notes as i but the
+    // bass walks 4 → 4 → 4 → 0 (G→G→G→C in Cm: the bass holds the V's root).
+    name: "m_i64",
+    symbol: "i⁶₄",
+    mode: "minor",
+    root: 4,
+    triadNotes: [0, 2, 4],
+    nextChordPossibilities: [
+      { name: "m_V", weight: 100 },
+    ],
+    type: "predominant",
     sharpScaleDegree: undefined,
     flatScaleDegree: undefined,
     baseMultiplier: 1,
@@ -439,6 +476,7 @@ export const chords: Chord[] = [
       { name: "m_i", weight: 20 },
       { name: "m_iid", weight: 15 },
       { name: "m_VII", weight: 10 },
+      { name: "m_i64", weight: 10 }, // cadential 6/4 ornament
     ],
     type: "predominant",
     sharpScaleDegree: undefined,
@@ -470,6 +508,11 @@ export const chords: Chord[] = [
     nextChordPossibilities: [
       { name: "m_i", weight: 85 },
       { name: "m_VI", weight: 15 },
+      // Rare but allowable Bach minor-mode transitions when soprano steps to
+      // a note that none of i/VI cover (e.g. E→D needs degree 3, only in iv/ii°).
+      { name: "m_iv", weight: 4 },
+      { name: "m_iid", weight: 3 },
+      { name: "m_i6", weight: 3 },
     ],
     type: "dominant",
     sharpScaleDegree: 6,
@@ -484,6 +527,8 @@ export const chords: Chord[] = [
     triadNotes: [4, 6, 1, 3],
     nextChordPossibilities: [
       { name: "m_i", weight: 100 },
+      { name: "m_VI", weight: 8 },
+      { name: "m_i6", weight: 4 },
     ],
     type: "dominant",
     sharpScaleDegree: 6,
@@ -551,6 +596,8 @@ export const chords: Chord[] = [
     triadNotes: [6, 1, 3],
     nextChordPossibilities: [
       { name: "m_i", weight: 100 },
+      { name: "m_VI", weight: 8 },
+      { name: "m_i6", weight: 4 },
     ],
     type: "leading-tone",
     sharpScaleDegree: 6,

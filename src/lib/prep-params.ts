@@ -102,6 +102,12 @@ export function prepareVoiceParts(
     });
     return {
       range,
+      // Carry through the original full range and the tessitura. The
+      // chord-tone search uses `range` (which is the working range, set
+      // from the user's tessitura), but downstream rules want to know
+      // the FULL allowed range and the tessitura band separately.
+      fullRange: partDef.range,
+      currentRange: partDef.currentRange ?? partDef.range,
       smallName: partDef.smallName,
       possibleNotes: generatePossibleNotes(range, key),
       name,
