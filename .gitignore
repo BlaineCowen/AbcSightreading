@@ -32,3 +32,16 @@ summaries.md
 # TODO.md
 TODO.md
 package-lock.json
+
+# stale Next.js build output - this project is Astro; the directory was tracked
+# by mistake and has been removed
+.next/
+
+# agent + tooling working directories
+.playwright-mcp/
+.superpowers/
+
+# stray debugging output: saved generator params and screenshots dropped at the
+# repo root
+/p.json
+/*.png
