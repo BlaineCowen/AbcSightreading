@@ -870,6 +870,30 @@
       staffEnd.set(line, box.x + box.width);
     });
 
+    // Notes and counts per system, in reading order. A note tied across a line
+    // break is split by the writer, and the continuation carries no count of
+    // its own - so a system that opens with a tie has a note sitting to the
+    // left of its first count, which is how that case is recognised below.
+    const notesByLine = new Map<string, number[]>();
+    svg.querySelectorAll(".abcjs-note").forEach((note) => {
+      const line = lineOf(note);
+      if (line === null) return;
+      const list = notesByLine.get(line) ?? [];
+      list.push((note as SVGGraphicsElement).getBBox().x);
+      notesByLine.set(line, list);
+    });
+    notesByLine.forEach((xs) => xs.sort((a, b) => a - b));
+
+    const annsByLine = new Map<string, SVGTextElement[]>();
+    annotations.forEach((t) => {
+      const line = lineOf(t);
+      if (line === null) return;
+      const list = annsByLine.get(line) ?? [];
+      list.push(t);
+      annsByLine.set(line, list);
+    });
+    annsByLine.forEach((list) => list.sort((a, b) => xOf(a) - xOf(b)));
+
     annotations.forEach((text, index) => {
       // A redraw re-renders from the ABC, so the full string is back; but keep
       // the original around in case this is ever called twice on one render.
@@ -890,13 +914,45 @@
       // the span runs to the end of that line's staff. Clamped either way: a
       // note held to the end of a system must not push its counts past the
       // barline and out of the drawing.
-      const next = annotations[index + 1];
-      const sameRow = next && Math.abs(yOf(next) - yOf(text)) < 1;
+      const line = lineOf(text) ?? "";
       const start = xOf(text);
-      const rowEnd = staffEnd.get(lineOf(text) ?? "") ?? start + 40 * (held.length + 1);
-      const end = Math.min(sameRow ? xOf(next) : rowEnd, rowEnd);
-      if (end <= start) return;
-      const step = (end - start) / (held.length + 1);
+      const rowEnd = staffEnd.get(line) ?? start + 40 * (held.length + 1);
+
+      // Does this note tie over the end of the system? A note split at a
+      // barline ends the first segment exactly on that barline, so every beat
+      // it crosses happens in the continuation - and if the barline is also a
+      // line break, those beats belong to the NEXT system. Drawn here they end
+      // up crammed against the final barline, marking beats that visibly
+      // happen a line later.
+      const rowAnns = annsByLine.get(line) ?? [];
+      const nextLine = String(Number(line) + 1);
+      const nextNotes = notesByLine.get(nextLine) ?? [];
+      const nextAnns = annsByLine.get(nextLine) ?? [];
+      const tiesOverLineBreak =
+        rowAnns[rowAnns.length - 1] === text &&
+        nextNotes.length > 0 &&
+        nextAnns.length > 0 &&
+        nextNotes[0] < xOf(nextAnns[0]) - 2;
+
+      // Where each held beat is drawn, and the y it sits on.
+      let markXs: number[] = [];
+      let markY = yOf(text);
+      if (tiesOverLineBreak) {
+        const contStart = nextNotes[0];
+        const contEnd =
+          nextNotes[1] ?? staffEnd.get(nextLine) ?? contStart + 40;
+        markY = yOf(nextAnns[0]);
+        markXs = held.map(
+          (_, i) => contStart + ((contEnd - contStart) * i) / held.length
+        );
+      } else {
+        const next = annotations[index + 1];
+        const sameRow = next && Math.abs(yOf(next) - yOf(text)) < 1;
+        const end = Math.min(sameRow ? xOf(next) : rowEnd, rowEnd);
+        if (end <= start) return;
+        const step = (end - start) / (held.length + 1);
+        markXs = held.map((_, i) => start + step * (i + 1));
+      }
 
       text.dataset.heldCount = full;
       text.textContent = attack;
@@ -908,11 +964,16 @@
       held.forEach((label, i) => {
         const mark = text.cloneNode(false) as SVGTextElement;
         delete mark.dataset.heldCount;
-        mark.setAttribute(
-          "class",
-          (text.getAttribute("class") || "") + " " + HELD_COUNT_CLASS
+        // A mark that moved to the next system must not keep the class of the
+        // one it came from, or anything grouping by line later reads it as
+        // belonging to the wrong staff.
+        const cls = (text.getAttribute("class") || "").replace(
+          /abcjs-l\d+/,
+          tiesOverLineBreak ? `abcjs-l${nextLine}` : `abcjs-l${line}`
         );
-        mark.setAttribute("x", String(start + step * (i + 1)));
+        mark.setAttribute("class", cls + " " + HELD_COUNT_CLASS);
+        mark.setAttribute("x", String(markXs[i]));
+        mark.setAttribute("y", String(markY));
         mark.textContent = label;
         svg.appendChild(mark);
         marks.push(mark);
@@ -926,11 +987,9 @@
         return { left: b.x, right: b.x + b.width };
       });
       const fontSize = parseFloat(window.getComputedStyle(text).fontSize) || 12;
-      const ruleY = yOf(text) - fontSize * 0.28;
-      for (let i = 0; i < boxes.length - 1; i++) {
-        const from = boxes[i].right + 2;
-        const to = boxes[i + 1].left - 2;
-        if (to - from < 3) continue;
+      const stroke = window.getComputedStyle(text).fill;
+      const drawRule = (from: number, to: number, y: number) => {
+        if (to - from < 3) return;
         const rule = document.createElementNS(
           "http://www.w3.org/2000/svg",
           "line"
@@ -938,11 +997,25 @@
         rule.setAttribute("class", HELD_COUNT_CLASS);
         rule.setAttribute("x1", String(from));
         rule.setAttribute("x2", String(to));
-        rule.setAttribute("y1", String(ruleY));
-        rule.setAttribute("y2", String(ruleY));
-        rule.setAttribute("stroke", window.getComputedStyle(text).fill);
+        rule.setAttribute("y1", String(y - fontSize * 0.28));
+        rule.setAttribute("y2", String(y - fontSize * 0.28));
+        rule.setAttribute("stroke", stroke);
         rule.setAttribute("stroke-width", String(Math.max(1, fontSize * 0.09)));
         svg.appendChild(rule);
+      };
+
+      if (tiesOverLineBreak) {
+        // Never join the attack to a mark on the next system - that rule would
+        // be drawn as a diagonal across the page. The attack instead runs to
+        // the end of its own staff, which reads as "still going".
+        drawRule(boxes[0].right + 2, rowEnd, yOf(text));
+        for (let i = 1; i < boxes.length - 1; i++) {
+          drawRule(boxes[i].right + 2, boxes[i + 1].left - 2, markY);
+        }
+      } else {
+        for (let i = 0; i < boxes.length - 1; i++) {
+          drawRule(boxes[i].right + 2, boxes[i + 1].left - 2, yOf(text));
+        }
       }
     });
   }
