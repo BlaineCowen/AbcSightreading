@@ -224,7 +224,12 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     selectedCadences,
     // The filtering above has already been done, and generateRandomRhythm's own
     // copy of it would re-apply the pattern restriction just removed.
-    true
+    true,
+    false,
+    // A choral exercise is sung, not drilled: quarters and halves carry it and
+    // the fast figures are punctuation. A unison rhythm exercise is the
+    // opposite, so this is not the generator's default.
+    { favorLongerNotes: true }
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
 

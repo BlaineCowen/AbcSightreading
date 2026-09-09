@@ -897,25 +897,31 @@ function findValidBassNote(
     return null;
   }
 
-  // Primary: prefer the note closest to the range midpoint (avoids extreme positions
-  // that create dead ends when navigating with tight maxSkip in short ranges).
-  // Tiebreak 1: prefer root over inversion (structural stability).
-  // Tiebreak 2: prefer closer to prevNote (smooth voice leading).
+  // How far the bass has to move, and how far from the middle of its range it
+  // lands, scored together rather than in strict order.
+  //
+  // Midrange used to be the *primary* criterion and distance from the previous
+  // note only the second tiebreak, so the line kept being pulled back toward
+  // the centre of the range instead of moving smoothly - 35% of bass intervals
+  // came out wider than a 3rd with decoration switched off. Staying off the
+  // extremes still matters, because a bass at the very bottom of its range can
+  // leave the next chord unreachable under a tight maxSkip, so it survives here
+  // as a weighted term rather than an override.
+  const MIDRANGE_PULL = 0.35;
+  const cost = (n: Note) =>
+    Math.abs(n.pitchValue - prevNote.pitchValue) +
+    MIDRANGE_PULL * Math.abs(n.pitchValue - midpoint);
+
   return reachable.reduce((best, n) => {
-    const bestMidDist = Math.abs(best.pitchValue - midpoint);
-    const nMidDist = Math.abs(n.pitchValue - midpoint);
-    if (nMidDist < bestMidDist) return n;
-    if (nMidDist > bestMidDist) return best;
-    // Equal midrange: prefer root over inversion
+    const nCost = cost(n);
+    const bestCost = cost(best);
+    if (nCost < bestCost) return n;
+    if (nCost > bestCost) return best;
+    // Equal cost: prefer root position over an inversion.
     const nIsRoot = n.degree === chord.root;
     const bestIsRoot = best.degree === chord.root;
     if (nIsRoot && !bestIsRoot) return n;
-    if (!nIsRoot && bestIsRoot) return best;
-    // Equal everything: prefer closer to prevNote
-    return Math.abs(n.pitchValue - prevNote.pitchValue) <
-      Math.abs(best.pitchValue - prevNote.pitchValue)
-      ? n
-      : best;
+    return best;
   });
 }
 

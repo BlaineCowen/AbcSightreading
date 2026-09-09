@@ -33,13 +33,50 @@ function isRestValue(abcVal: string): boolean {
  * @returns Array of rhythm objects with pattern and cadence information.
  * @throws Error if requirements can't be met.
  */
+export type RhythmOptions = {
+  /**
+   * Bias the surface toward slower notes.
+   *
+   * Choral wants this; a unison rhythm drill does not - there the fast figures
+   * are the exercise, and the reader ticked them deliberately.
+   *
+   * Weights alone cannot express this. Every figure that fills one beat
+   * competes at the same moment - quarter (10), two eighths (8), four
+   * sixteenths (6), dotted-eighth-sixteenth (6) - so a sixteenth figure won
+   * roughly a third of every beat in the piece. Measured on a 48-measure UIL 5
+   * exercise: a sixteenth figure every 1.4 measures, where the level wants
+   * something nearer one every 36.
+   */
+  favorLongerNotes?: boolean;
+};
+
+/** The shortest note inside a figure, in 32nd units. */
+function shortestNoteIn(rhythm: Rhythm): number {
+  const values = rhythm.abcValue
+    .map((v) => abcDuration(v))
+    .filter((v) => v > 0);
+  return values.length ? Math.min(...values) : rhythm.totalValue;
+}
+
+/**
+ * How much to damp a figure for its speed. A quarter note or slower is
+ * unchanged; eighths are uncommon; sixteenths are an event.
+ */
+function speedFactorFor(rhythm: Rhythm): number {
+  const shortest = shortestNoteIn(rhythm);
+  if (shortest >= 8) return 1;
+  if (shortest >= 4) return 0.15;
+  return 0.012;
+}
+
 export function generateRandomRhythm(
   timeSig: TimeSignature,
   measures: number,
   availableRhythms: Rhythm[],
   selectedCadences: Cadence[],
   disableRhythmFilter: boolean = false,
-  allowTiesAcrossBarline: boolean = false
+  allowTiesAcrossBarline: boolean = false,
+  options: RhythmOptions = {}
 ): RhythmWithPattern[] {
   let rhythms = [...availableRhythms]; // Start with all available rhythms
 
@@ -466,7 +503,8 @@ export function generateRandomRhythm(
       // Select rhythm randomly (weighted)
       const weights = possibleRhythms.map((r) => {
         const variety = Math.max(1, 5 - measuresUsedBy(r.name));
-        return variety * r.weight * phrasePenaltyFor(r, currentBeat);
+        const speed = options.favorLongerNotes ? speedFactorFor(r) : 1;
+        return variety * r.weight * phrasePenaltyFor(r, currentBeat) * speed;
       });
       const totalWeight = weights.reduce((a, b) => a + b, 0);
       let random = Math.random() * totalWeight;
