@@ -776,7 +776,21 @@ function findValidBassNote(
 
   // Root and 3rd are both valid in the bass (root position and first inversion).
   // The 5th (second inversion / 6/4) is avoided for diatonic chords in basic chorale style.
-  const targetDegrees = new Set([chord.root, chord.triadNotes[1]]);
+  //
+  // Unless the entry *is* an inversion. V⁶, I⁶₄, V⁴₂ and the rest name the note
+  // that belongs in the bass; offering a second option there does not give the
+  // bass freedom, it silently turns the chord into a different inversion with a
+  // different obligation. V⁴₂ has its seventh in the bass and must fall to I⁶ -
+  // but this set also offered it the leading tone, which is V⁶₅, and then the
+  // fall never happened. Measured: V⁴₂ landed on I⁶ every time and still moved
+  // its bass correctly only 42% of the time.
+  //
+  // A triad in first inversion hid this, because its root and its triadNotes[1]
+  // happen to be the same degree. Sevenths and 6/4 chords do not.
+  const isInversionEntry = chord.root !== chord.triadNotes[0];
+  const targetDegrees = isInversionEntry
+    ? new Set([chord.root])
+    : new Set([chord.root, chord.triadNotes[1]]);
 
   // When accidentalsByStep is on, keep the chromatic degree out of the bass so it is
   // always handled by an upper voice that can approach it by step.

@@ -209,7 +209,7 @@ export function buildChordNotes(
    * An attempt costs about a millisecond, so paying for length here is cheap
    * next to refusing to generate at all.
    */
-  const maxTotalLoopFails = Math.max(30, chordPositions * 16);
+  const maxTotalLoopFails = Math.max(30, chordPositions * 64);
 
   const maxVoiceOrder = voiceParts.reduce(
     (m, vp) => (vp.order > m ? vp.order : m),
@@ -808,7 +808,12 @@ export function buildChordNotes(
               // chords at every unresolved bass accidental: the failures were
               // all a chromatic chord resolving into the wrong inversion of its
               // target - V6/V -> V6 rather than V, V/vi -> vi6 rather than vi.
-              const invertibleDegrees = new Set([currentChord.root, currentChord.triadNotes[1]]);
+              // An inversion entry names the note that belongs in its bass; only a
+              // root-position entry may also take its third. See findValidBassNote.
+              const invertibleDegrees =
+                currentChord.root !== currentChord.triadNotes[0]
+                  ? new Set([currentChord.root])
+                  : new Set([currentChord.root, currentChord.triadNotes[1]]);
               let altNotes = bassPartInfo.possibleNotes.filter(
                 (n) =>
                   (invertibleDegrees.has(n.degree) ||

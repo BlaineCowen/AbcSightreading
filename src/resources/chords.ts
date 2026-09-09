@@ -8,6 +8,9 @@ export const chords: Chord[] = [
     root: 0,
     chordFamily: "1",
     nextChordPossibilities: [
+      { name: "1-7-42", weight: 6 },
+      { name: "5-7-43", weight: 8 },
+      { name: "5-7-65", weight: 8 },
       { name: "5/2-6", weight: 8 },
       { name: "1", weight: 10 },
       { name: "2", weight: 12 },
@@ -43,6 +46,7 @@ export const chords: Chord[] = [
     chordFamily: "2",
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [
+      { name: "5-7-65", weight: 10 },
       { name: "2", weight: 10 },
       { name: "5", weight: 70 },
       { name: "5-64", weight: 20 },
@@ -82,6 +86,8 @@ export const chords: Chord[] = [
     chordFamily: "4",
     triadNotes: [3, 5, 0],
     nextChordPossibilities: [
+      { name: "5-7-42", weight: 8 },
+      { name: "5-7-43", weight: 8 },
       { name: "1", weight: 22 },
       { name: "2", weight: 13 },
       { name: "5", weight: 39 },
@@ -127,6 +133,7 @@ export const chords: Chord[] = [
     chordFamily: "6",
     triadNotes: [5, 0, 2],
     nextChordPossibilities: [
+      { name: "5-7-42", weight: 6 },
       { name: "1", weight: 12 },
       { name: "2", weight: 30 },
       { name: "3", weight: 8 },
@@ -273,6 +280,83 @@ export const chords: Chord[] = [
     baseMultiplier: 1,
   },
   {
+    // V6/5. The leading tone is in the bass and must rise, so this can only go
+    // to I in root position - which is what the entry for `1` gives when the
+    // resolution is owed.
+    name: "5-7-65",
+    symbol: "V⁶₅",
+    root: 6,
+    chordFamily: "5-7",
+    triadNotes: [4, 6, 1, 3],
+    nextChordPossibilities: [{ name: "1", weight: 100 }],
+    type: "dominant-inversion",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // V4/3. The 5th is in the bass and is free, so either inversion of I works.
+    name: "5-7-43",
+    symbol: "V⁴₃",
+    root: 1,
+    chordFamily: "5-7",
+    triadNotes: [4, 6, 1, 3],
+    nextChordPossibilities: [
+      { name: "1", weight: 60 },
+      { name: "1-6", weight: 40 },
+    ],
+    type: "dominant-inversion",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // V4/2. The seventh is in the bass and a seventh falls, so this resolves to
+    // I6 and to nothing else - the case that started this: a bass note whose
+    // inversion determines the only chord that can follow it.
+    name: "5-7-42",
+    symbol: "V⁴₂",
+    root: 3,
+    chordFamily: "5-7",
+    triadNotes: [4, 6, 1, 3],
+    nextChordPossibilities: [{ name: "1-6", weight: 100 }],
+    type: "dominant-inversion",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // V4/2 of IV: the flattened seventh (Bb in C) is in the bass and falls a
+    // step to A, so IV6 is the only resolution.
+    name: "1-7-42",
+    symbol: "V⁴₂/IV",
+    root: 6,
+    chordFamily: "1-7",
+    triadNotes: [0, 2, 4, 6],
+    nextChordPossibilities: [{ name: "4-6", weight: 100 }],
+    type: "secondary-dominant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: 6,
+    baseMultiplier: 1,
+  },
+  {
+    // iv6: the flattened 6th (Ab in C) sits in the bass and falls to G. The only
+    // borrowed chord that puts a lowered degree in the bass.
+    name: "m4-6",
+    symbol: "iv⁶",
+    root: 5,
+    chordFamily: "m4",
+    triadNotes: [3, 5, 0],
+    nextChordPossibilities: [
+      { name: "5", weight: 60 },
+      { name: "5-7", weight: 40 },
+    ],
+    type: "predominant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: 5,
+    baseMultiplier: 1,
+  },
+  {
     name: "m4",
     symbol: "iv",
     root: 3,
@@ -290,10 +374,13 @@ export const chords: Chord[] = [
   },
   {
     name: "1-7",
-    symbol: "I⁷",
+    symbol: "V⁷/IV",
     root: 0,
     chordFamily: "1-7",
-    triadNotes: [2, 4, 6],
+    // C E G Bb. The root was missing from this list, unlike every other seventh
+    // chord (V7 is [4,6,1,3]), which left the chord three notes and put its
+    // flattened 7th out of reach of the bass entirely.
+    triadNotes: [0, 2, 4, 6],
     nextChordPossibilities: [
       { name: "4", weight: 100 },
       { name: "4-64", weight: 100 },
@@ -359,6 +446,7 @@ export const chords: Chord[] = [
     chordFamily: "4",
     triadNotes: [3, 5, 0],
     nextChordPossibilities: [
+      { name: "m4-6", weight: 6 },
       { name: "5/6-6", weight: 10 },
       { name: "1", weight: 15 },
       { name: "5", weight: 30 },
@@ -433,6 +521,7 @@ export const chords: Chord[] = [
     chordFamily: "1",
     triadNotes: [0, 2, 4],
     nextChordPossibilities: [
+      { name: "m4-6", weight: 8 },
       { name: "1", weight: 10 },
       { name: "4", weight: 50 },
       { name: "6", weight: 9 },
