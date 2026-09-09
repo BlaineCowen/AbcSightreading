@@ -36,16 +36,32 @@ export type MetronomeClick = {
  * @param beatNumber - as handed to abcjs's beatCallback; fractional between beats.
  * @param beatsPerMeasure - for picking out the downbeat.
  */
+/**
+ * True the first time a callback lands on a new whole beat.
+ *
+ * Both the metronome and the beat-by-beat cursor need exactly this: abcjs calls
+ * back many times per beat, and each wants to act once per beat. They keep
+ * separate state, since the metronome can be off while the cursor is stepping.
+ */
+export function crossedWholeBeat(
+  state: MetronomeBeatState,
+  beatNumber: number
+): boolean {
+  const wholeBeat = Math.floor(beatNumber);
+  if (wholeBeat === state.lastClickedBeat) return false;
+  state.lastClickedBeat = wholeBeat;
+  return true;
+}
+
 export function metronomeClickFor(
   state: MetronomeBeatState,
   beatNumber: number,
   beatsPerMeasure: number
 ): MetronomeClick {
-  const wholeBeat = Math.floor(beatNumber);
-  if (wholeBeat === state.lastClickedBeat) {
+  if (!crossedWholeBeat(state, beatNumber)) {
     return { click: false, isDownbeat: false };
   }
-  state.lastClickedBeat = wholeBeat;
+  const wholeBeat = state.lastClickedBeat;
   return {
     click: true,
     isDownbeat: beatsPerMeasure > 0 && wholeBeat % beatsPerMeasure === 0,

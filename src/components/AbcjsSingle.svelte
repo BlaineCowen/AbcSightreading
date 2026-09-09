@@ -6,6 +6,7 @@
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import { selectableRhythms } from "../lib/selectable-rhythms";
   import {
+    crossedWholeBeat,
     metronomeClickFor,
     newMetronomeBeatState,
   } from "../lib/metronome-beats";
@@ -30,17 +31,20 @@
   };
   const clefOptions = ["treble", "bass", "alto", "tenor"];
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
-  const cursorModes = ["off", "smooth", "note"] as const;
+  const cursorModes = ["off", "smooth", "beat", "note"] as const;
   type CursorMode = (typeof cursorModes)[number];
   const cursorModeLabels: Record<CursorMode, string> = {
     off: "Off",
     smooth: "Smooth",
+    beat: "Beat by beat",
     note: "Note by note",
   };
   const isCursorMode = (v: unknown): v is CursorMode =>
     typeof v === "string" && (cursorModes as readonly string[]).includes(v);
   /** Whole beat the metronome last sounded; see src/lib/metronome-beats.ts. */
   let metronomeBeats = newMetronomeBeatState();
+  /** Tracked separately, since the metronome can be off while the cursor steps. */
+  let cursorBeats = newMetronomeBeatState();
   const scaleDegrees = [1, 2, 3, 4, 5, 6, 7];
   const sharpScaleDegrees = [
     { display: "♯1", value: 1 },
@@ -974,6 +978,7 @@
     // metronome tracks which whole beat it last sounded rather than firing on
     // every call.
     metronomeBeats = newMetronomeBeatState();
+    cursorBeats = newMetronomeBeatState();
 
     timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
       beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
@@ -993,10 +998,12 @@
           hidePlaybackCursor();
           return;
         }
-        if (cursorMode !== "smooth") return;
-        // position.left is undefined during the count-in measure. abcjs
-        // interpolates it between the surrounding notes on every call, which is
-        // what makes this mode glide rather than step.
+        if (cursorMode !== "smooth" && cursorMode !== "beat") return;
+        // Beat mode steps once per beat; smooth takes every callback, which is
+        // where abcjs's interpolation between notes shows up.
+        const stepped = crossedWholeBeat(cursorBeats, beatNumber);
+        if (cursorMode === "beat" && !stepped) return;
+        // position.left is undefined during the count-in measure.
         if (position && typeof position.left === "number") {
           movePlaybackCursor(position.left, position.top, position.height);
         }
@@ -1999,7 +2006,9 @@
                     ? "No cursor during playback."
                     : cursorMode === "smooth"
                       ? "Travels along with the music."
-                      : "Lands on each note and waits there."}
+                      : cursorMode === "beat"
+                        ? "Steps on every beat."
+                        : "Lands on each note and waits there."}
                 </p>
               </div>
 

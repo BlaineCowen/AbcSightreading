@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  crossedWholeBeat,
   metronomeClickFor,
   newMetronomeBeatState,
 } from "../../src/lib/metronome-beats";
@@ -76,5 +77,15 @@ describe("metronome beat gating", () => {
       if (metronomeClickFor(state, beatNumber, 4).click) seen.push(beatNumber);
     }
     expect(seen).toEqual([0, 3.4, 7.2, 11.1]);
+  });
+
+  test("crossedWholeBeat fires once per beat, for the beat cursor", () => {
+    // The beat-by-beat cursor steps on this rather than on every callback.
+    const state = newMetronomeBeatState();
+    let steps = 0;
+    for (let i = 0; i < 12 * 16; i++) {
+      if (crossedWholeBeat(state, i / 16)) steps++;
+    }
+    expect(steps).toBe(12);
   });
 });

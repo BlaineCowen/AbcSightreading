@@ -1,4 +1,8 @@
 <script lang="ts">
+  import {
+    crossedWholeBeat,
+    newMetronomeBeatState,
+  } from "../lib/metronome-beats";
   import { onMount, onDestroy } from "svelte";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus } from "lucide-svelte";
@@ -108,17 +112,20 @@
   };
 
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
-  const cursorModes = ["off", "smooth", "note"] as const;
+  const cursorModes = ["off", "smooth", "beat", "note"] as const;
   type CursorMode = (typeof cursorModes)[number];
   const cursorModeLabels: Record<CursorMode, string> = {
     off: "Off",
     smooth: "Smooth",
+    beat: "Beat by beat",
     note: "Note by note",
   };
   const isCursorMode = (v: unknown): v is CursorMode =>
     typeof v === "string" && (cursorModes as readonly string[]).includes(v);
   let cursorMode: CursorMode = "smooth";
   let playbackCursor: SVGLineElement | null = null;
+  /** Whole-beat tracker for the beat-by-beat cursor. */
+  let cursorBeats = newMetronomeBeatState();
 
   let selectedTimeSignature = "4/4";
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"];
@@ -229,6 +236,10 @@
     const { staffwidth, measuresPerLine } = scoreLayout();
     // No `scale`: abcjs discards it when responsive:"resize" is set.
     const result = mod.renderAbc("paper", renderedString, {
+      // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
+      // the cursor works out how tall a system is. Without it the SVG carries
+      // no staff groups at all and the cursor can only cover one voice.
+      add_classes: true,
       responsive: "resize",
       staffwidth,
       wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
@@ -257,6 +268,58 @@
     playbackCursor = line as SVGLineElement;
   }
 
+  /**
+   * Vertical extent of each system, from the top of its first staff to the
+   * bottom of its last. A choral system is four staves, and abcjs reports a
+   * position whose top/height describe only the ONE voice that event belongs
+   * to - so a cursor drawn from it covers a single staff and looks wrong
+   * against SATB. Measured per render, since the SVG is rebuilt each time.
+   */
+  let systemExtents: { top: number; bottom: number }[] = [];
+
+  function measureSystemExtents() {
+    systemExtents = [];
+    const svg = document.querySelector("#paper svg");
+    if (!svg) return;
+    const byLine = new Map<string, { top: number; bottom: number }>();
+    svg.querySelectorAll(".abcjs-staff").forEach((staff) => {
+      const line = (staff.getAttribute("class") || "").match(/abcjs-l(\d+)/)?.[1];
+      if (line === undefined) return;
+      const box = (staff as SVGGraphicsElement).getBBox();
+      const seen = byLine.get(line);
+      byLine.set(line, {
+        top: seen ? Math.min(seen.top, box.y) : box.y,
+        bottom: seen ? Math.max(seen.bottom, box.y + box.height) : box.y + box.height,
+      });
+    });
+    systemExtents = [...byLine.values()].sort((a, b) => a.top - b.top);
+  }
+
+  /**
+   * The system a reported position belongs to, so the cursor spans its staves.
+   *
+   * Matched by overlap rather than containment: abcjs reports a band that
+   * starts above the top staff line - it leaves room for stems and ledgers -
+   * so testing whether its top sits inside a staff never matched, and every
+   * position fell through to the raw values.
+   */
+  function systemExtentFor(top: number, height: number) {
+    // Measured on first use rather than straight after render: responsive
+    // resizing is still settling at that point.
+    if (systemExtents.length === 0) measureSystemExtents();
+    const bottom = top + height;
+    let best: { top: number; bottom: number } | null = null;
+    let bestOverlap = 0;
+    for (const e of systemExtents) {
+      const overlap = Math.min(bottom, e.bottom) - Math.max(top, e.top);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        best = e;
+      }
+    }
+    return best ?? { top, bottom };
+  }
+
   function hidePlaybackCursor() {
     if (!playbackCursor) return;
     ["x1", "y1", "x2", "y2"].forEach((a) =>
@@ -264,15 +327,16 @@
     );
   }
 
-  /** Places the cursor at an x with the staff's vertical extent. */
+  /** Places the cursor at an x, spanning the whole system it falls in. */
   function movePlaybackCursor(left: number, top: number, height: number) {
     if (!playbackCursor) return;
+    const span = systemExtentFor(top, height);
+    const overhang = (span.bottom - span.top) * 0.04;
     const x = Math.max(0, left - 2);
-    const overhang = height * 0.15;
     playbackCursor.setAttribute("x1", String(x));
     playbackCursor.setAttribute("x2", String(x));
-    playbackCursor.setAttribute("y1", String(top + overhang));
-    playbackCursor.setAttribute("y2", String(top + height + overhang));
+    playbackCursor.setAttribute("y1", String(span.top - overhang));
+    playbackCursor.setAttribute("y2", String(span.bottom + overhang));
   }
 
   // Clearing it the moment the setting changes, rather than waiting for the
@@ -515,8 +579,12 @@
       },
       // abcjs interpolates position.left between the surrounding notes on every
       // call, which is what makes this glide rather than step.
-      onBeat: (_beatNumber: number, _totalBeats: number, _totalTime: number, position: any) => {
-        if (cursorMode !== "smooth") return;
+      onBeat: (beatNumber: number, _totalBeats: number, _totalTime: number, position: any) => {
+        if (cursorMode !== "smooth" && cursorMode !== "beat") return;
+        // Beat mode steps once per beat; smooth takes every callback, which is
+        // where abcjs's interpolation between notes shows up.
+        const stepped = crossedWholeBeat(cursorBeats, beatNumber);
+        if (cursorMode === "beat" && !stepped) return;
         // position.left is undefined through the count-in.
         if (position && typeof position.left === "number") {
           movePlaybackCursor(position.left, position.top, position.height);
@@ -575,6 +643,8 @@
       tune[0].setTiming();
       renderedTune = tune[0];
       createPlaybackCursor();
+      systemExtents = []; // re-measured lazily once layout has settled
+      cursorBeats = newMetronomeBeatState();
 
       await initSynth(renderedTune);
       generatedBpm = bpm;
@@ -709,7 +779,9 @@
                   ? "No cursor during playback."
                   : cursorMode === "smooth"
                     ? "Travels along with the music."
-                    : "Lands on each note and waits there."}
+                    : cursorMode === "beat"
+                      ? "Steps on every beat."
+                      : "Lands on each note and waits there."}
               </p>
             </div>
           </div>
