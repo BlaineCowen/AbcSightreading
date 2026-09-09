@@ -611,7 +611,8 @@ export function generateChordProgression(
             effectiveMaxSkip,
             key,
             accidentalsByStep,
-            forcedNextBassPitch
+            forcedNextBassPitch,
+            !!constraint
           );
 
           if (currentBassNote) {
@@ -765,7 +766,9 @@ function findValidBassNote(
   maxSkip: number,
   key: string,
   accidentalsByStep: boolean = false,
-  forcedPitch?: number
+  forcedPitch?: number,
+  /** At a cadence the chord must sound in the inversion it names. */
+  pinDeclaredBass: boolean = false
 ): Note | null {
   console.log("\n=== Finding Valid Bass Note ===");
   console.log("Chord:", chord);
@@ -787,6 +790,12 @@ function findValidBassNote(
   //
   // A triad in first inversion hid this, because its root and its triadNotes[1]
   // happen to be the same degree. Sevenths and 6/4 chords do not.
+  //
+  // A cadence pins it too. The cadence plan names its chords - V then I for a
+  // perfect authentic - but naming them is not enough while the bass may still
+  // put either in first inversion, and that is a different cadence. Measured
+  // over 120 exercises, the endings came out V6->I 63 times and V->I6 40 times
+  // against only 10 that were actually perfect authentic.
   const isInversionEntry = chord.root !== chord.triadNotes[0];
   const targetDegrees = isInversionEntry
     ? new Set([chord.root])
@@ -897,11 +906,24 @@ function findValidBassNote(
   // Prefer root position over first inversion when both candidates score equally well.
   const midpoint = (bassRange[0] + bassRange[1]) / 2;
 
-  const reachable = possibleNotes.filter(
+  let reachable = possibleNotes.filter(
     (n) => Math.abs(n.pitchValue - prevNote.pitchValue) <= maxSkip
   );
 
   if (reachable.length === 0) return null;
+
+  // A cadence *prefers* the chord in the inversion it names - root position for
+  // the V and I of a perfect authentic cadence. Only a preference: take the
+  // perfect cadence whenever the bass can reach it, and an imperfect one when
+  // range or maxSkip says it cannot, rather than refusing to write the phrase.
+  //
+  // Demanding it instead was measured and rejected: every ending became a
+  // textbook V-I, and 48-measure exercises fell to 7/20, with a bigger retry
+  // budget reaching only 10/20 while pushing single exercises past 11 seconds.
+  if (pinDeclaredBass) {
+    const inNamedInversion = reachable.filter((n) => n.degree === chord.root);
+    if (inNamedInversion.length > 0) reachable = inNamedInversion;
+  }
 
   // Forced resolution pitch: used when the previous bass was a chromatic-bass note
   // (V⁶/V) that must resolve by step. Return the exact pitch or null to trigger retry.

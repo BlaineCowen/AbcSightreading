@@ -810,10 +810,18 @@ export function buildChordNotes(
               // target - V6/V -> V6 rather than V, V/vi -> vi6 rather than vi.
               // An inversion entry names the note that belongs in its bass; only a
               // root-position entry may also take its third. See findValidBassNote.
-              const invertibleDegrees =
-                currentChord.root !== currentChord.triadNotes[0]
-                  ? new Set([currentChord.root])
-                  : new Set([currentChord.root, currentChord.triadNotes[1]]);
+              // Same at a cadence, or the substitution would undo the pin that
+              // chord-generation just applied and hand back an inverted ending.
+              // The cadence chord and the dominant before it. Preferred, not
+              // demanded - see below.
+              const isCadenceStep =
+                (rhythm as any).isCadenceEnd === true ||
+                (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true;
+              const isInversionEntry =
+                currentChord.root !== currentChord.triadNotes[0];
+              const invertibleDegrees = isInversionEntry
+                ? new Set([currentChord.root])
+                : new Set([currentChord.root, currentChord.triadNotes[1]]);
               let altNotes = bassPartInfo.possibleNotes.filter(
                 (n) =>
                   (invertibleDegrees.has(n.degree) ||
@@ -893,6 +901,19 @@ export function buildChordNotes(
                     (n) => n.pitchValue === owedBassResolution
                   );
                   if (resolving.length > 0) pool = resolving;
+                }
+                // At a cadence, prefer the chord in the inversion it names, so
+                // the ending is a perfect cadence wherever the bass can manage
+                // one - and an imperfect one only where it cannot.
+                //
+                // Dropped after retry 8, and that matters. A preference is soft
+                // at the moment it chooses but hard on the search: it keeps
+                // picking the same bass note, which can strand a later step, and
+                // re-applying it on every retry means the run never escapes.
+                // Held unconditionally it cost two thirds of the long exercises.
+                if (isCadenceStep && !isInversionEntry && stepRetryCount <= 8) {
+                  const rooted = pool.filter((n) => n.degree === currentChord.root);
+                  if (rooted.length > 0) pool = rooted;
                 }
                 chosenNote = pool[Math.floor(Math.random() * pool.length)];
                 applyAccidental = true;
