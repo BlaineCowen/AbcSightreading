@@ -540,10 +540,15 @@ export function generateChordProgression(
                 const cChromDeg = c.sharpScaleDegree ?? c.flatScaleDegree;
                 if (cChromDeg === undefined || cChromDeg === null || c.root !== cChromDeg) return true;
                 for (let p = bassRange[0]; p <= bassRange[1]; p++) {
-                  if (getDiatonicDegree(p, keyInfo) === cChromDeg &&
-                      Math.abs(p - prevBassNote.pitchValue) === 1) {
-                    return true;
-                  }
+                  if (getDiatonicDegree(p, keyInfo) !== cChromDeg) continue;
+                  // A step away, or the same letter inflected. The second is how
+                  // a chromatic bass note is normally reached - G to G# under
+                  // V6/vi, C to C# under V6/ii - and it shares a diatonic index
+                  // with its natural form, so a strict `=== 1` ruled it out and
+                  // with it every approach to these chords. That is why the
+                  // chromatic inversions never appeared: not weighting, not
+                  // resolution, just an approach that could never be satisfied.
+                  if (Math.abs(p - prevBassNote.pitchValue) <= 1) return true;
                 }
                 return false;
               });
@@ -851,8 +856,13 @@ function findValidBassNote(
     chord.root === chromDegBass
   ) {
     if (!prevNote) return null; // Cannot place chromatic bass without a previous note
+    // A diatonic step, or the same letter inflected - G to G# under V6/vi,
+    // C to C# under V6/ii. The second shares a diatonic index with its natural
+    // form, so `=== 1` excluded it, and with it every approach those two chords
+    // have: V6/V survived only because its own approaches (E to F#) happen to
+    // be true steps.
     const stepApproachable = possibleNotes.filter(
-      (n) => n.degree !== chromDegBass || Math.abs(n.pitchValue - prevNote.pitchValue) === 1
+      (n) => n.degree !== chromDegBass || Math.abs(n.pitchValue - prevNote.pitchValue) <= 1
     );
     if (stepApproachable.length > 0) possibleNotes = stepApproachable;
     else return null; // No step-approachable chromatic bass pitch in range

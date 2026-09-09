@@ -8,6 +8,7 @@ export const chords: Chord[] = [
     root: 0,
     chordFamily: "1",
     nextChordPossibilities: [
+      { name: "5/2-6", weight: 8 },
       { name: "1", weight: 10 },
       { name: "2", weight: 12 },
       { name: "3", weight: 1 },
@@ -101,6 +102,7 @@ export const chords: Chord[] = [
     chordFamily: "5",
     triadNotes: [4, 6, 1],
     nextChordPossibilities: [
+      { name: "5/6-6", weight: 8 },
       { name: "1", weight: 83 },
       { name: "5", weight: 17 },
       { name: "6", weight: 17 },
@@ -232,6 +234,45 @@ export const chords: Chord[] = [
     baseMultiplier: 1,
   },
   {
+    // V⁶/vi: first inversion of V/vi, so the chromatic 3rd (G# in C major) is
+    // the bass note rather than an inner voice. Approached by step from G or A
+    // and resolved G# → A, both enforced because chord.root === sharpScaleDegree.
+    //
+    // Without this the chromatic note could only reach the bass through the
+    // deadlock escape in build-chord-notes, which owes it no resolution - it
+    // arrived by accident and wandered off.
+    name: "5/6-6",
+    symbol: "V⁶/vi",
+    root: 4,
+    chordFamily: "5/6",
+    triadNotes: [2, 4, 6],
+    nextChordPossibilities: [
+      { name: "6", weight: 50 },
+      { name: "6-6", weight: 50 },
+    ],
+    type: "secondary-dominant",
+    sharpScaleDegree: 4,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // V⁶/ii: the same idea a step lower. C# in the bass, approached from C or D,
+    // resolving C# → D.
+    name: "5/2-6",
+    symbol: "V⁶/ii",
+    root: 0,
+    chordFamily: "5/2",
+    triadNotes: [5, 0, 2],
+    nextChordPossibilities: [
+      { name: "2", weight: 50 },
+      { name: "2-6", weight: 50 },
+    ],
+    type: "secondary-dominant",
+    sharpScaleDegree: 0,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
     name: "m4",
     symbol: "iv",
     root: 3,
@@ -269,6 +310,7 @@ export const chords: Chord[] = [
     chordFamily: "1",
     triadNotes: [0, 2, 4],
     nextChordPossibilities: [
+      { name: "5/6-6", weight: 10 },
       { name: "5", weight: 100 },
       { name: "5/5-6", weight: 15 },
     ],
@@ -317,6 +359,7 @@ export const chords: Chord[] = [
     chordFamily: "4",
     triadNotes: [3, 5, 0],
     nextChordPossibilities: [
+      { name: "5/6-6", weight: 10 },
       { name: "1", weight: 15 },
       { name: "5", weight: 30 },
       { name: "5-6", weight: 20 },
@@ -338,6 +381,7 @@ export const chords: Chord[] = [
     chordFamily: "4",
     triadNotes: [3, 5, 0],
     nextChordPossibilities: [
+      { name: "5/2-6", weight: 10 },
       { name: "1", weight: 100 },
       { name: "5-64", weight: 50 },
     ],
@@ -353,6 +397,7 @@ export const chords: Chord[] = [
     chordFamily: "6",
     triadNotes: [5, 0, 2],
     nextChordPossibilities: [
+      { name: "5/2-6", weight: 8 },
       { name: "1", weight: 12 },
       { name: "2", weight: 30 },
       { name: "3", weight: 8 },

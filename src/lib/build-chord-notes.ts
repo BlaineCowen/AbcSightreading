@@ -191,7 +191,25 @@ export function buildChordNotes(
   }
 
   let totalLoopFails = 0;
-  const maxTotalLoopFails = 30;
+  /**
+   * Retries scale with the length of the exercise.
+   *
+   * A failure here restarts the *whole* piece, so if a single chord position
+   * succeeds with probability p, the run succeeds with roughly p^n - the odds
+   * fall away geometrically as the exercise gets longer. A flat budget of 30
+   * was fine for the 8-measure default and hopeless beyond that: measured at
+   * 20 runs each, 24 measures generated 20/20, 32 measures 13/20, and 48
+   * measures only 3/20, all failing with "Failed to build valid notes after
+   * max attempts".
+   *
+   * That went unnoticed while nothing set a long exercise. The UIL presets
+   * declare 24-56 measures and their measureRange had never been read, so in
+   * practice everything ran at the 8-measure default.
+   *
+   * An attempt costs about a millisecond, so paying for length here is cheap
+   * next to refusing to generate at all.
+   */
+  const maxTotalLoopFails = Math.max(30, chordPositions * 16);
 
   const maxVoiceOrder = voiceParts.reduce(
     (m, vp) => (vp.order > m ? vp.order : m),

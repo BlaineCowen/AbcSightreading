@@ -181,6 +181,10 @@
     Diatonic: ['1','2','3','4','5','5-7','6','7'],
     Inversions: ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'],
     'Chromatic Chords': ['5/5','5/6','5/2','m4','1-7'],
+    // The chromatic-bass inversions. These are the only way the raised note
+    // reaches the bass deliberately, with its approach and resolution enforced,
+    // so they belong in front of the user rather than buried in the chord set.
+    'Chromatic Bass': ['5/5-6','5/6-6','5/2-6'],
   };
   const minorChordGroups: Record<string, string[]> = {
     Diatonic: ['m_i','m_iv','m_V','m_V7','m_VI','m_VII'],
