@@ -16,6 +16,8 @@ export interface PresetParams {
   /** Whether parts may enter late or drop out. Optional: presets saved before
    *  this existed must still load. */
   voiceTexture?: "full" | "staggered" | "independent";
+  /** Per-rhythm frequency multipliers. Optional, for presets saved before it. */
+  rhythmBias?: Record<string, number>;
   voiceRanges: Record<string, [number, number]>;
 }
 

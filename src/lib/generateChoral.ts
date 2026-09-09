@@ -28,6 +28,8 @@ import { allCadences } from "./types"; // Import the value separately
 export interface GenerateChoralParams {
   /** Whether parts may enter late or drop out; see voice-texture.ts. */
   voiceTexture?: VoiceTexture;
+  /** Per-rhythm frequency multipliers, by rhythm name. 1 leaves one alone. */
+  rhythmBias?: Record<string, number>;
   key: string;
   timeSig: TimeSignature;
   partsObject: PartsObject; // Contains info about voices, ranges, clefs
@@ -229,7 +231,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     // A choral exercise is sung, not drilled: quarters and halves carry it and
     // the fast figures are punctuation. A unison rhythm exercise is the
     // opposite, so this is not the generator's default.
-    { favorLongerNotes: true }
+    { favorLongerNotes: true, weightBias: params.rhythmBias }
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
 

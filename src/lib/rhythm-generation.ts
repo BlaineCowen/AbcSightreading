@@ -48,6 +48,14 @@ export type RhythmOptions = {
    * something nearer one every 36.
    */
   favorLongerNotes?: boolean;
+  /**
+   * Per-rhythm multipliers, by rhythm name. 1 leaves a rhythm alone.
+   *
+   * Applied on top of the speed damping, so the defaults stay sensible and this
+   * only expresses "I want more of this one" or "less of that one" - which is a
+   * judgement about the exercise, not something the generator can guess.
+   */
+  weightBias?: Record<string, number>;
 };
 
 /** The shortest note inside a figure, in 32nd units. */
@@ -66,7 +74,7 @@ function speedFactorFor(rhythm: Rhythm): number {
   const shortest = shortestNoteIn(rhythm);
   if (shortest >= 8) return 1;
   if (shortest >= 4) return 0.15;
-  return 0.012;
+  return 0.006;
 }
 
 export function generateRandomRhythm(
@@ -504,7 +512,11 @@ export function generateRandomRhythm(
       const weights = possibleRhythms.map((r) => {
         const variety = Math.max(1, 5 - measuresUsedBy(r.name));
         const speed = options.favorLongerNotes ? speedFactorFor(r) : 1;
-        return variety * r.weight * phrasePenaltyFor(r, currentBeat) * speed;
+        const bias = options.weightBias?.[r.name] ?? 1;
+        // Never zero: a rhythm turned all the way down still has to be
+        // placeable, or a selection of nothing else has no way to fill a bar.
+        const biased = Math.max(0.001, bias);
+        return variety * r.weight * phrasePenaltyFor(r, currentBeat) * speed * biased;
       });
       const totalWeight = weights.reduce((a, b) => a + b, 0);
       let random = Math.random() * totalWeight;

@@ -205,6 +205,34 @@
   // still consumes one for its pitched half - the progression runs short and
   // generation fails outright. Unison counts a chord for every step including
   // rests, so the same figure is fine there.
+  /**
+   * How often each rhythm should turn up, by name. Anything absent is 1.
+   *
+   * The generator already leans toward slower notes, which is right for a sung
+   * exercise, but "right" varies by level and by what a director is drilling
+   * this week. Rather than guess a number per rhythm, this is the knob.
+   */
+  const rhythmFrequencies = [
+    { label: "Rare", value: 0.25 },
+    { label: "Normal", value: 1 },
+    { label: "Often", value: 4 },
+  ] as const;
+  let rhythmBias: Record<string, number> = {};
+  /**
+   * Takes the map as an argument rather than closing over it. Svelte tracks what
+   * the *template* reads, so a helper that quietly reaches for `rhythmBias`
+   * creates no dependency and the buttons never restyle - they were changing the
+   * value and showing the old one.
+   */
+  const frequencyOf = (bias: Record<string, number>, name: string) =>
+    bias[name] ?? 1;
+  function setFrequency(name: string, value: number) {
+    const next = { ...rhythmBias };
+    if (value === 1) delete next[name];
+    else next[name] = value;
+    rhythmBias = next;
+  }
+
   const choralSelectable = (r: Rhythm) =>
     isSelectableRhythm(r) && !(r.pattern === true && containsRest(r));
 
@@ -235,7 +263,8 @@
     selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures ||
     voiceTexture !== DEFAULTS.voiceTexture;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
-    JSON.stringify([...DEFAULTS.rhythmNames].sort());
+    JSON.stringify([...DEFAULTS.rhythmNames].sort()) ||
+    Object.keys(rhythmBias).length > 0;
   $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
     userAllowedChords.size !== currentModeChordNames.length;
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
@@ -440,6 +469,16 @@
     if (isCursorMode(cursor)) cursorMode = cursor;
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
+    const bias = p.get("bias");
+    if (bias) {
+      const parsed: Record<string, number> = {};
+      for (const pair of bias.split(",")) {
+        const [name, raw] = pair.split(":");
+        const value = Number(raw);
+        if (name && Number.isFinite(value) && value > 0) parsed[name] = value;
+      }
+      rhythmBias = parsed;
+    }
     const preset = p.get("preset");
     if (preset && builtinPresets[preset]) applyDifficultyPreset(preset);
   }
@@ -453,6 +492,12 @@
     p.set("bpm", bpm.toString());
     p.set("cursor", cursorMode);
     p.set("texture", voiceTexture);
+    const biasPairs = Object.entries(rhythmBias);
+    if (biasPairs.length) {
+      p.set("bias", biasPairs.map(([n, v]) => `${n}:${v}`).join(","));
+    } else {
+      p.delete("bias");
+    }
     window.history.replaceState({}, "", `?${p.toString()}`);
   }
 
@@ -566,6 +611,7 @@
     nctProbability = p.nctProbability;
     // Optional, so presets saved before voice texture existed still load.
     if (isVoiceTextureMode(p.voiceTexture)) voiceTexture = p.voiceTexture;
+    rhythmBias = p.rhythmBias ? { ...p.rhythmBias } : {};
     const ranges = p.voiceRanges;
     if (ranges && possibleVoicing[p.voicing]) {
       for (const [partName, range] of Object.entries(ranges)) {
@@ -593,6 +639,7 @@
       allowedChordNames: userAllowedChords.size < allChordNames.length ? Array.from(userAllowedChords) : undefined,
       nctProbability,
       voiceTexture,
+      rhythmBias,
       voiceRanges: Object.fromEntries(
         Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {}).map(
           ([name, part]) => [name, part.currentRange as [number, number]]
@@ -819,6 +866,7 @@
       accidentalsByStep,
       nctProbability,
       voiceTexture,
+      rhythmBias,
       chromaticFrequency,
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
@@ -1072,6 +1120,41 @@
                 </button>
               {/each}
             </div>
+            {#if selectedRhythms.length > 0}
+              <div class="space-y-2 pt-1">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  How often
+                </p>
+                <div class="space-y-1.5">
+                  {#each selectedRhythms.filter((r) => r) as rhythm}
+                    <div class="flex items-center gap-3">
+                      <span class="rhythm-icon-sm w-8 h-8 shrink-0 flex items-center justify-center">
+                        {#await rhythmSvgs[rhythm.name] then svg}
+                          {@html svg.default}
+                        {:catch}
+                          <span class="text-[10px]">{rhythm.name}</span>
+                        {/await}
+                      </span>
+                      <div class="flex flex-wrap gap-1">
+                        {#each rhythmFrequencies as freq}
+                          <button
+                            class="px-2 py-1 rounded text-xs {frequencyOf(rhythmBias, rhythm.name) === freq.value
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}"
+                            on:click={() => setFrequency(rhythm.name, freq.value)}
+                            aria-pressed={frequencyOf(rhythmBias, rhythm.name) === freq.value}
+                          >{freq.label}</button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+                <p class="text-xs text-slate-400">
+                  Sixteenths are kept rare on purpose — a sung exercise lives on
+                  quarters and halves. Turn one up here if you want to drill it.
+                </p>
+              </div>
+            {/if}
             {#if unusableRhythmNames.size > 0}
               <p class="text-xs text-amber-600">
                 Ringed in amber: selected, but cannot appear in {selectedTimeSignature}.
@@ -1235,6 +1318,13 @@
 </div>
 
 <style>
+  /* The little rhythm glyphs beside the frequency buttons. */
+  .rhythm-icon-sm :global(svg) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
   /*
    * Keep auto-scrolling clear of the navbar.
    *
