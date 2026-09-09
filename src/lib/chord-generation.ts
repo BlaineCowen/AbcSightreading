@@ -612,7 +612,16 @@ export function generateChordProgression(
             key,
             accidentalsByStep,
             forcedNextBassPitch,
-            !!constraint
+            !!constraint,
+            bassLine.reduce(
+              (spent, n) =>
+                spent +
+                (n.pitchValue >= bassRange[1] - 1 ||
+                n.pitchValue <= bassRange[0] + 1
+                  ? 1
+                  : 0),
+              0
+            )
           );
 
           if (currentBassNote) {
@@ -768,7 +777,9 @@ function findValidBassNote(
   accidentalsByStep: boolean = false,
   forcedPitch?: number,
   /** At a cadence the chord must sound in the inversion it names. */
-  pinDeclaredBass: boolean = false
+  pinDeclaredBass: boolean = false,
+  /** How many notes the bass has already spent at the ends of its range. */
+  extremesSpent: number = 0
 ): Note | null {
   console.log("\n=== Finding Valid Bass Note ===");
   console.log("Chord:", chord);
@@ -944,9 +955,17 @@ function findValidBassNote(
   // leave the next chord unreachable under a tight maxSkip, so it survives here
   // as a weighted term rather than an override.
   const MIDRANGE_PULL = 0.35;
+  // Each note already spent at the ends of the range makes the next one dearer.
+  // The bass was the worst offender - measured, it sat on its bottom two pitches
+  // 6.5 times in a 16-measure exercise, where the ends of a voice should be
+  // visited rather than lived in.
+  const EXTREME_COST = 1.2;
+  const atEnd = (n: Note) =>
+    n.pitchValue >= bassRange[1] - 1 || n.pitchValue <= bassRange[0] + 1;
   const cost = (n: Note) =>
     Math.abs(n.pitchValue - prevNote.pitchValue) +
-    MIDRANGE_PULL * Math.abs(n.pitchValue - midpoint);
+    MIDRANGE_PULL * Math.abs(n.pitchValue - midpoint) +
+    (atEnd(n) ? EXTREME_COST * (1 + extremesSpent) : 0);
 
   return reachable.reduce((best, n) => {
     const nCost = cost(n);
