@@ -3,7 +3,7 @@
     crossedWholeBeat,
     newMetronomeBeatState,
   } from "../lib/metronome-beats";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus } from "lucide-svelte";
   import { chords as fullChordSet } from "../resources/chords";
@@ -380,6 +380,30 @@
     playbackCursor.setAttribute("y2", String(span.bottom + overhang));
   }
 
+  /**
+   * Puts the cursor back on the first note and scrolls the score up to meet it.
+   *
+   * abcjs only moves the cursor from its playback callbacks, and those do not
+   * fire while paused - so rewinding the audio left the cursor sitting wherever
+   * it stopped, which reads as it being stuck. Nothing was broken underneath;
+   * it just was not told.
+   */
+  function parkCursorAtStart() {
+    if (!playbackCursor || cursorMode === "off") return;
+    const firstNote = document.querySelector<SVGGraphicsElement>(
+      "#paper svg .abcjs-note"
+    );
+    if (!firstNote) {
+      hidePlaybackCursor();
+      return;
+    }
+    const box = firstNote.getBBox();
+    movePlaybackCursor(box.x, box.y, box.height);
+    document
+      .querySelector("#paper")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   // Clearing it the moment the setting changes, rather than waiting for the
   // next callback to leave it frozen mid-staff.
   $: if (cursorMode === "off" && playbackCursor) hidePlaybackCursor();
@@ -600,19 +624,34 @@
     isPlaying = false;
   }
 
-  async function handleStop() {
+  /**
+   * Rewind to the top: stop the audio, and put the cursor back with it.
+   *
+   * Both Stop and Back-to-start used to do only the audio half. abcjs moves the
+   * cursor from its playback callbacks and those do not fire while paused, so
+   * the cursor stayed wherever it had stopped - the score was cued to the
+   * beginning while the marker sat in the middle of a line, which reads as the
+   * cursor being stuck.
+   */
+  function rewindToStart() {
     if (!synthControl) return;
     synthControl.pause();
     synthControl.seek(0);
     isPlaying = false;
+    // Beat mode steps only when the beat number changes, and this still held
+    // the beat we paused on - so after rewinding it would sit out the first
+    // beat of the replay before catching up.
+    cursorBeats = newMetronomeBeatState();
+    parkCursorAtStart();
+  }
+
+  async function handleStop() {
+    rewindToStart();
   }
 
   /** Back-to-start cues the top and leaves it there; Play starts playback. */
   function handleRestart() {
-    if (!synthControl) return;
-    synthControl.pause();
-    synthControl.seek(0);
-    isPlaying = false;
+    rewindToStart();
   }
 
   function handleToggleLoop() {
@@ -704,7 +743,43 @@
   }
 
   // ── Main generate handler ─────────────────────────────────────────────────
+  /**
+   * True while an exercise is being built.
+   *
+   * Generation runs on the main thread, so nothing repaints while it is
+   * working: setting this and calling straight into the generator would show
+   * the overlay only *after* the wait it was meant to cover. The two frames
+   * below give the browser a chance to paint first, and the overlay's own
+   * animations are opacity and transform only, which keep running on the
+   * compositor even while the main thread is blocked.
+   *
+   * The overlay is drawn immediately but fades in on a delay, so the ordinary
+   * 8-measure exercise - about 30-120ms - finishes before anything is visible
+   * and there is no flicker. A 48-measure one takes 300ms to nearly 2s, and
+   * that is what this is for.
+   */
+  let isGenerating = false;
+
+  /**
+   * Resolves once the browser has painted - or after a short wait, whichever
+   * comes first.
+   *
+   * The timeout is not belt-and-braces: a hidden tab stops firing
+   * requestAnimationFrame altogether, so waiting on it alone deadlocks and the
+   * exercise is never generated at all. Verified - with the tab backgrounded,
+   * no frame arrived in 1.2s and Generate simply did nothing. Showing the
+   * overlay is worth one frame of delay; it is not worth refusing to work.
+   */
+  const painted = () =>
+    Promise.race([
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      ),
+      new Promise<void>((resolve) => setTimeout(resolve, 60)),
+    ]);
+
   async function handleClick() {
+    if (isGenerating) return; // ignore a second click while working
     updateURLParams();
 
     const validRhythms = selectedRhythms.filter((r): r is Rhythm => r !== undefined);
@@ -751,6 +826,10 @@
           : undefined,
     };
 
+    isGenerating = true;
+    await tick();
+    await painted();
+
     try {
       const { abcString, chordProgression: generatedProgression } = generateChoralExercise(params);
       renderedString = abcString;
@@ -769,6 +848,8 @@
     } catch (error: unknown) {
       console.error("Error generating exercise:", error);
       alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      isGenerating = false;
     }
   }
 </script>
@@ -813,8 +894,9 @@
 
         <!-- Generate button always visible in tab bar -->
         <button
-          class="ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-4 py-2 text-sm"
+          class="ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-lg px-4 py-2 text-sm"
           on:click={handleClick}
+          disabled={isGenerating}
         >
           <RefreshCw size={16} /><span>Generate</span>
         </button>
@@ -1108,7 +1190,17 @@
     <div id="audio" class="hidden"></div>
 
     <!-- Sheet music -->
-    <div id="paper" class="bg-white rounded-lg shadow-md w-full my-2"></div>
+    <div class="relative w-full" class:min-h-40={isGenerating}>
+      <div id="paper" class="bg-white rounded-lg shadow-md w-full my-2"></div>
+      {#if isGenerating}
+        <div class="generating-overlay" aria-live="polite">
+          <div class="generating-inner">
+            <div class="generating-spinner" aria-hidden="true"></div>
+            <p class="text-sm font-medium text-slate-500">Writing the exercise…</p>
+          </div>
+        </div>
+      {/if}
+    </div>
 
     <!-- Chord progression display -->
     {#if chordProgression.length > 0}
@@ -1143,6 +1235,60 @@
 </div>
 
 <style>
+  /*
+   * The generating overlay.
+   *
+   * Both animations are opacity and transform only. That matters: generation
+   * blocks the main thread, and those are the two properties a browser can
+   * animate on the compositor, so the spinner keeps turning through a block
+   * that would freeze anything driven by JavaScript or by layout.
+   *
+   * The fade is delayed, so a fast exercise finishes before the overlay is
+   * ever visible and the screen does not flash on every click.
+   */
+  .generating-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.72);
+    opacity: 0;
+    animation: generating-fade 180ms ease-out 220ms forwards;
+    z-index: 5;
+    /* Promote to its own layer. Without this Chrome runs the fade on the main
+     * thread, which is precisely the thread generation is blocking - measured
+     * with getAnimations(), currentTime stayed at 0 through a 700ms block, so
+     * the overlay mounted and never appeared. */
+    will-change: opacity;
+  }
+  .generating-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .generating-spinner {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid rgba(37, 99, 235, 0.2);
+    border-top-color: rgb(37, 99, 235);
+    animation: generating-spin 720ms linear infinite;
+    will-change: transform;
+  }
+  @keyframes generating-fade {
+    to { opacity: 1; }
+  }
+  @keyframes generating-spin {
+    to { transform: rotate(360deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .generating-spinner { animation: none; }
+    .generating-overlay { animation-duration: 1ms; }
+  }
+
   .tab-scroll {
     scrollbar-width: none;
   }
