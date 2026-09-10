@@ -152,11 +152,17 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [36, 48],
     maxSkip: 5,
+    // Level 4 says only "expands slightly beyond Level 3", so this is Level 3's
+    // documented ranges opened downward by a third and left at the same ceiling.
+    // Downward, deliberately: a singer reads more comfortably below the top of
+    // the range than above it, and the old ranges pinned the soprano at its
+    // ceiling because the bottom of its range sat in tenor territory and could
+    // never be used. Soprano notes in the top quarter of the range: 41% -> 24%.
     voiceRanges: {
-      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 29],
-      Alto: [19, 28],
-      Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
-      Unison: [21, 30],
+      Soprano: [26, 32], Soprano1: [26, 32], Soprano2: [24, 31],
+      Alto: [22, 29],
+      Tenor: [19, 25], Baritone: [17, 24], Bass: [14, 21],
+      Unison: [22, 29],
     },
   },
 
@@ -193,11 +199,16 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [48, 56],
     maxSkip: 6,
+    // "Fully extended vocal ranges" - Level 3's documented ranges opened a third
+    // downward and a step up, so this is the only level whose ceiling rises
+    // above the documented Level 3 top. Soprano notes in the top quarter of the
+    // range: 42% -> 29%, and the soprano finally uses its lower half at all
+    // (0.03 -> 1.45 notes per exercise at the bottom).
     voiceRanges: {
-      Soprano: [21, 31], Soprano1: [21, 32], Soprano2: [20, 31],
-      Alto: [19, 28],
-      Tenor: [15, 24], Baritone: [12, 22], Bass: [11, 21],
-      Unison: [21, 30],
+      Soprano: [26, 33], Soprano1: [26, 33], Soprano2: [24, 32],
+      Alto: [22, 30],
+      Tenor: [19, 26], Baritone: [17, 25], Bass: [14, 22],
+      Unison: [22, 30],
     },
   },
 };
