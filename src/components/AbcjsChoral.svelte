@@ -761,10 +761,32 @@
     isPlaying = true;
   }
 
-  async function handlePause() {
+  /**
+   * Pause, and leave the controller able to start again.
+   *
+   * abcjs's play() is a TOGGLE - `isStarted = !isStarted` - while its pause()
+   * never touches isStarted. So pausing through pause() alone leaves isStarted
+   * true, and the next Play flips it to false and calls pause() again: the first
+   * press after a Stop does nothing at all, and only a second press plays. That
+   * is the "sound stops when I stop the exercise and start over" report, and it
+   * applied to every one of our pause calls - the transport, Stop, muting a
+   * voice, and changing the playback sound.
+   *
+   * Playing to the end was never affected: abcjs's own finished() resets
+   * isStarted, which is why this only ever showed up after stopping by hand.
+   *
+   * Setting isStarted directly is abcjs's own pattern - setWarp does exactly
+   * this before restarting.
+   */
+  function pausePlayback() {
     if (!synthControl) return;
     synthControl.pause();
+    synthControl.isStarted = false;
     isPlaying = false;
+  }
+
+  async function handlePause() {
+    pausePlayback();
   }
 
   /**
@@ -778,9 +800,8 @@
    */
   function rewindToStart() {
     if (!synthControl) return;
-    synthControl.pause();
+    pausePlayback();
     synthControl.seek(0);
-    isPlaying = false;
     // Beat mode steps only when the beat number changes, and this still held
     // the beat we paused on - so after rewinding it would sit out the first
     // beat of the replay before catching up.
@@ -821,7 +842,7 @@
     updateURLParams();
     if (!renderedString) return;
     renderedString = withInstrument(renderedString, program);
-    if (isPlaying) { synthControl?.pause(); isPlaying = false; }
+    if (isPlaying) pausePlayback();
     // renderTune *returns* the tune and does not assign renderedTune - so the
     // result has to be taken here. Dropping it re-rendered the score correctly
     // and then handed the synth the previous tune, which still carried the old
@@ -843,7 +864,7 @@
     else next.add(voiceName);
     mutedVoices = next;
     if (renderedTune) {
-      if (isPlaying) { synthControl?.pause(); isPlaying = false; }
+      if (isPlaying) pausePlayback();
       initSynth(renderedTune);
     }
   }
