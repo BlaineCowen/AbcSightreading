@@ -39,14 +39,35 @@ export const uilPresets: Record<string, UILPreset> = {
     // Whole, half, quarter notes and rests
     allowedRhythmNames: ["whole", "half", "quarter", "wholeRest", "halfRest", "quarterRest"],
     // Treble: SA, Tenor-Bass: TB
-    allowedVoicings: ["2 Part Treble", "3 Part Tenor/Bass", "Unison"],
+    // The doc's level 1 is "Treble: SA" and "Tenor-Bass: TB" - two parts either
+    // way. The app has no two-part tenor-bass voicing, and the three-part one
+    // cannot be written at this level: three men inside these ranges, moving by
+    // no more than a third (maxSkip 2) on I, IV and V alone, failed 100% of the
+    // time - before any of this session's range work as well. An option that
+    // never produces an exercise is worse than one that is not offered.
+    allowedVoicings: ["2 Part Treble", "Unison"],
     measureRange: [24, 28],
     maxSkip: 2,
+    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
+    // it, because the doc's floors sit at the very bottom of each part and a
+    // range a singer cannot actually use is the same as no range at all.
+    //
+    // The undivided Soprano is capped at F5 at every level. The doc allows its
+    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
+    // a soprano section reading at sight should not be sent above F. Soprano1
+    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
+    // where it is exactly that divided top part.
+    //
+    // The lower voices are wider and more separated than the doc's columns.
+    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
+    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
+    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
+    // where the Alto is the anchor that has to come down.
     voiceRanges: {
-      Soprano: [22, 30], Soprano1: [22, 30], Soprano2: [22, 29],
-      Alto: [21, 29],
-      Tenor: [19, 24], Baritone: [14, 20], Bass: [14, 21],
-      Unison: [21, 28],
+      Soprano: [27, 31], Soprano1: [27, 31], Soprano2: [25, 30],
+      Alto: [22, 28],
+      Tenor: [19, 25], Baritone: [16, 23], Bass: [13, 21],
+      Unison: [22, 28],
     },
   },
 
@@ -71,18 +92,26 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [28, 32],
     maxSkip: 3,
-    // Derived from notes/uil-criteria.md, which gives these as sounding MIDI:
-    // Sop 72-80, Sop II 69-77, Alto 65-74, Ten 60-68, Bari 57-65, Bass 52-60.
-    // Every clef this app uses carries an octave=-1 or transpose=-12, so a
-    // pitchValue sounds an octave below its nominal ABC pitch - the indices
-    // below are the doc's pitches with that shift applied, rounded inward to a
-    // diatonic note. The ranges these replaced sounded a fourth to a fifth too
-    // low and were three to five notes too wide.
+    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
+    // it, because the doc's floors sit at the very bottom of each part and a
+    // range a singer cannot actually use is the same as no range at all.
+    //
+    // The undivided Soprano is capped at F5 at every level. The doc allows its
+    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
+    // a soprano section reading at sight should not be sent above F. Soprano1
+    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
+    // where it is exactly that divided top part.
+    //
+    // The lower voices are wider and more separated than the doc's columns.
+    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
+    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
+    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
+    // where the Alto is the anchor that has to come down.
     voiceRanges: {
-      Soprano: [28, 32], Soprano1: [28, 32], Soprano2: [26, 31],
-      Alto: [24, 29],
-      Tenor: [21, 25], Baritone: [19, 24], Bass: [16, 21],
-      Unison: [24, 29],
+      Soprano: [27, 31], Soprano1: [27, 32], Soprano2: [24, 30],
+      Alto: [22, 29],
+      Tenor: [18, 25], Baritone: [15, 24], Bass: [12, 21],
+      Unison: [22, 29],
     },
   },
 
@@ -109,18 +138,26 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
-    // Derived from notes/uil-criteria.md, which gives these as sounding MIDI:
-    // Sop 72-80, Sop II 69-77, Alto 65-74, Ten 60-68, Bari 57-65, Bass 52-60.
-    // Every clef this app uses carries an octave=-1 or transpose=-12, so a
-    // pitchValue sounds an octave below its nominal ABC pitch - the indices
-    // below are the doc's pitches with that shift applied, rounded inward to a
-    // diatonic note. The ranges these replaced sounded a fourth to a fifth too
-    // low and were three to five notes too wide.
+    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
+    // it, because the doc's floors sit at the very bottom of each part and a
+    // range a singer cannot actually use is the same as no range at all.
+    //
+    // The undivided Soprano is capped at F5 at every level. The doc allows its
+    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
+    // a soprano section reading at sight should not be sent above F. Soprano1
+    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
+    // where it is exactly that divided top part.
+    //
+    // The lower voices are wider and more separated than the doc's columns.
+    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
+    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
+    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
+    // where the Alto is the anchor that has to come down.
     voiceRanges: {
-      Soprano: [28, 32], Soprano1: [28, 32], Soprano2: [26, 31],
-      Alto: [24, 29],
-      Tenor: [21, 25], Baritone: [19, 24], Bass: [16, 21],
-      Unison: [24, 29],
+      Soprano: [26, 31], Soprano1: [27, 32], Soprano2: [24, 30],
+      Alto: [21, 29],
+      Tenor: [18, 25], Baritone: [15, 24], Bass: [12, 21],
+      Unison: [21, 29],
     },
   },
 
@@ -152,17 +189,26 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [36, 48],
     maxSkip: 5,
-    // Level 4 says only "expands slightly beyond Level 3", so this is Level 3's
-    // documented ranges opened downward by a third and left at the same ceiling.
-    // Downward, deliberately: a singer reads more comfortably below the top of
-    // the range than above it, and the old ranges pinned the soprano at its
-    // ceiling because the bottom of its range sat in tenor territory and could
-    // never be used. Soprano notes in the top quarter of the range: 41% -> 24%.
+    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
+    // it, because the doc's floors sit at the very bottom of each part and a
+    // range a singer cannot actually use is the same as no range at all.
+    //
+    // The undivided Soprano is capped at F5 at every level. The doc allows its
+    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
+    // a soprano section reading at sight should not be sent above F. Soprano1
+    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
+    // where it is exactly that divided top part.
+    //
+    // The lower voices are wider and more separated than the doc's columns.
+    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
+    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
+    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
+    // where the Alto is the anchor that has to come down.
     voiceRanges: {
-      Soprano: [26, 32], Soprano1: [26, 32], Soprano2: [24, 31],
-      Alto: [22, 29],
-      Tenor: [19, 25], Baritone: [17, 24], Bass: [14, 21],
-      Unison: [22, 29],
+      Soprano: [26, 31], Soprano1: [26, 32], Soprano2: [23, 30],
+      Alto: [21, 29],
+      Tenor: [17, 25], Baritone: [14, 24], Bass: [11, 21],
+      Unison: [21, 29],
     },
   },
 
@@ -199,16 +245,26 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [48, 56],
     maxSkip: 6,
-    // "Fully extended vocal ranges" - Level 3's documented ranges opened a third
-    // downward and a step up, so this is the only level whose ceiling rises
-    // above the documented Level 3 top. Soprano notes in the top quarter of the
-    // range: 42% -> 29%, and the soprano finally uses its lower half at all
-    // (0.03 -> 1.45 notes per exercise at the bottom).
+    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
+    // it, because the doc's floors sit at the very bottom of each part and a
+    // range a singer cannot actually use is the same as no range at all.
+    //
+    // The undivided Soprano is capped at F5 at every level. The doc allows its
+    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
+    // a soprano section reading at sight should not be sent above F. Soprano1
+    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
+    // where it is exactly that divided top part.
+    //
+    // The lower voices are wider and more separated than the doc's columns.
+    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
+    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
+    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
+    // where the Alto is the anchor that has to come down.
     voiceRanges: {
-      Soprano: [26, 33], Soprano1: [26, 33], Soprano2: [24, 32],
-      Alto: [22, 30],
-      Tenor: [19, 26], Baritone: [17, 25], Bass: [14, 22],
-      Unison: [22, 30],
+      Soprano: [25, 31], Soprano1: [26, 33], Soprano2: [23, 30],
+      Alto: [21, 30],
+      Tenor: [17, 26], Baritone: [14, 25], Bass: [11, 22],
+      Unison: [21, 30],
     },
   },
 };
