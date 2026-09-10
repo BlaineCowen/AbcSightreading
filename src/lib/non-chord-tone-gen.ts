@@ -270,6 +270,17 @@ function checkParallelMotion(
  *   strong/weak-beat awareness and leap-into-dissonance approach respectively
  *   — features the current implementation doesn't honor; see Phase 4).
  */
+/** Does every pitch in a decoration sit inside the singer's range? */
+function figureInRange(
+  figure: VoiceNote[] | null,
+  voiceRange: [number, number] | undefined
+): boolean {
+  if (!figure) return false;
+  if (!voiceRange) return true;
+  const [low, high] = voiceRange;
+  return figure.every((n) => n.rest || (n.pitchValue >= low && n.pitchValue <= high));
+}
+
 export function generateNonChordTones(
   notesToProcess: VoiceNote[],
   nctRhythms: Rhythm[],
@@ -277,7 +288,19 @@ export function generateNonChordTones(
   currentPartIndex: number,
   probability: number = 0.1,
   key: string = "C",
-  enabledNctTypes?: string[]
+  enabledNctTypes?: string[],
+  /**
+   * The singer's range, as [low, high] pitch values.
+   *
+   * Decoration never checked it. A neighbour tone a step below the bass's lowest
+   * note is out of range and nothing noticed: measured against the UIL ranges,
+   * every voice sat exactly inside its range with decoration off and every voice
+   * broke out of it with decoration on - the bass by a third.
+   *
+   * Optional so existing callers keep working; unset means no check, which is
+   * the old behaviour.
+   */
+  voiceRange?: [number, number]
 ): VoiceNote[] {
   const outputNotes: VoiceNote[] = [];
 
@@ -423,6 +446,13 @@ export function generateNonChordTones(
       noteIndex: i,
       key,
     });
+
+    // A decoration that leaves the singer's range is not a decoration.
+    if (!figureInRange(generatedNctNotes, voiceRange)) {
+      console.log(`NCT_GEN: out of range — keeping original note at ${i}.`);
+      outputNotes.push(originalNote);
+      continue;
+    }
 
     if (generatedNctNotes && generatedNctNotes.length > 0) {
       // Parallel-motion guard: revert to original if a P5 or P8 would result

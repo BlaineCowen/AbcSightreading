@@ -71,11 +71,18 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [28, 32],
     maxSkip: 3,
+    // Derived from notes/uil-criteria.md, which gives these as sounding MIDI:
+    // Sop 72-80, Sop II 69-77, Alto 65-74, Ten 60-68, Bari 57-65, Bass 52-60.
+    // Every clef this app uses carries an octave=-1 or transpose=-12, so a
+    // pitchValue sounds an octave below its nominal ABC pitch - the indices
+    // below are the doc's pitches with that shift applied, rounded inward to a
+    // diatonic note. The ranges these replaced sounded a fourth to a fifth too
+    // low and were three to five notes too wide.
     voiceRanges: {
-      Soprano: [22, 30], Soprano1: [22, 30], Soprano2: [22, 29],
-      Alto: [21, 28],
-      Tenor: [17, 24], Baritone: [14, 21], Bass: [14, 21],
-      Unison: [21, 28],
+      Soprano: [28, 32], Soprano1: [28, 32], Soprano2: [26, 31],
+      Alto: [24, 29],
+      Tenor: [21, 25], Baritone: [19, 24], Bass: [16, 21],
+      Unison: [24, 29],
     },
   },
 
@@ -102,11 +109,18 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
+    // Derived from notes/uil-criteria.md, which gives these as sounding MIDI:
+    // Sop 72-80, Sop II 69-77, Alto 65-74, Ten 60-68, Bari 57-65, Bass 52-60.
+    // Every clef this app uses carries an octave=-1 or transpose=-12, so a
+    // pitchValue sounds an octave below its nominal ABC pitch - the indices
+    // below are the doc's pitches with that shift applied, rounded inward to a
+    // diatonic note. The ranges these replaced sounded a fourth to a fifth too
+    // low and were three to five notes too wide.
     voiceRanges: {
-      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 30],
-      Alto: [19, 28],
-      Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
-      Unison: [21, 30],
+      Soprano: [28, 32], Soprano1: [28, 32], Soprano2: [26, 31],
+      Alto: [24, 29],
+      Tenor: [21, 25], Baritone: [19, 24], Bass: [16, 21],
+      Unison: [24, 29],
     },
   },
 

@@ -232,8 +232,19 @@ export function buildChordNotes(
    */
   const extremeUses = new Map<number, number>();
   const EXTREME_MARGIN = 1; // the top and bottom two pitches of a range
-  const isExtremeFor = (pitch: number, low: number, high: number) =>
-    pitch >= high - EXTREME_MARGIN || pitch <= low + EXTREME_MARGIN;
+  /**
+   * A range needs a middle before its ends are worth avoiding.
+   *
+   * The UIL ranges are narrow - a fifth or a sixth, five or six diatonic notes -
+   * and with a margin of one that marks four notes out of five as an extreme.
+   * The rule then charges nearly every candidate the same, which is no rule at
+   * all, and the tally it keeps runs away. Below six notes there is no middle to
+   * aim at, so it stands down.
+   */
+  const isExtremeFor = (pitch: number, low: number, high: number) => {
+    if (high - low < 5) return false;
+    return pitch >= high - EXTREME_MARGIN || pitch <= low + EXTREME_MARGIN;
+  };
 
   const maxVoiceOrder = voiceParts.reduce(
     (m, vp) => (vp.order > m ? vp.order : m),

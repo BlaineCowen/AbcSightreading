@@ -350,7 +350,10 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       notesWithNCTs,
       index,
       nctProbability,
-      key
+      key,
+      undefined,
+      // Decoration has to stay inside the singer's range like everything else.
+      voiceParts[index]?.range
     );
   });
   console.log(`  Finished NCT generation.`);
