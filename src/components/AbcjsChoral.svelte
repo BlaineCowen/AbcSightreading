@@ -657,6 +657,12 @@
           }
         }
       }
+      // Reassign, or none of this reaches the page. The loop above mutates the
+      // part definitions in place, and Svelte tracks assignment - so the ranges
+      // were applied to generation but the Voice Ranges tab went on showing the
+      // old ones, and `rangesDirty` never recomputed. applySavedPreset has
+      // always done this; the UIL path never did.
+      possibleVoicing = { ...possibleVoicing };
     }
     activePresetLabel = p.label;
     // Use setTimeout so the signature captures post-update values

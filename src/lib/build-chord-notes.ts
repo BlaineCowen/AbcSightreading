@@ -660,7 +660,7 @@ export function buildChordNotes(
       // exercise; re-ordering candidates that are all already legal cannot.
       const [rangeLow, rangeHigh] = voicePart.range;
       const centre = (rangeLow + rangeHigh) / 2;
-      const TESSITURA_PULL = 0.35;
+      const TESSITURA_PULL = 0.8;
 
       // Each extreme note already spent makes the next one dearer. A rising
       // cost rather than a cap: the first is nearly free, a fourth has to be
@@ -668,7 +668,7 @@ export function buildChordNotes(
       // no other note, it can still be taken. A cap would instead leave the
       // step unsatisfiable, and that is what becomes a failed exercise.
       const spent = extremeUses.get(voicePart.order) ?? 0;
-      const EXTREME_COST = 1.2;
+      const EXTREME_COST = 3;
       const cost = (n: Note) =>
         Math.abs(n.pitchValue - previousNote.pitchValue) +
         TESSITURA_PULL * Math.abs(n.pitchValue - centre) +
