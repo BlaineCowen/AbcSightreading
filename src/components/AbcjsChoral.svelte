@@ -175,11 +175,39 @@
   const minorChordNames = fullChordSet.filter((c) => c.mode === 'minor').map((c) => c.name);
   const allChordNames = fullChordSet.map((c) => c.name); // for UIL preset compatibility
 
+  /**
+   * Inversions are never a choice. A chord in first inversion is the same
+   * harmony as the chord in root position - "V" names the dominant, not one
+   * spelling of it - so asking the user to tick V6 separately from V invites
+   * them to switch off the bass line's whole vocabulary without meaning to.
+   * Every failed generation we chased came from a search left with too few
+   * legal bass notes, and this was the biggest single source of that.
+   *
+   * So: no picker entry, always in the allowed set, in both modes.
+   */
+  const majorInversions = ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'];
+  const minorInversions = ['m_i6'];
+
+  /**
+   * Whatever the user picked, plus the inversions they never had to pick.
+   *
+   * Mode-aware, because the two chord vocabularies are disjoint: adding the
+   * minor inversion to a major selection would leave the set permanently one
+   * name larger than the mode's full list, which is what the unsaved-changes
+   * badge compares against.
+   */
+  function withInversions(names: Iterable<string>): Set<string> {
+    const set = new Set(names);
+    for (const name of isMinorKey(selectedKey) ? minorInversions : majorInversions) {
+      set.add(name);
+    }
+    return set;
+  }
+
   let userAllowedChords: Set<string> = new Set(majorChordNames);
 
   const majorChordGroups: Record<string, string[]> = {
     Diatonic: ['1','2','3','4','5','5-7','6','7'],
-    Inversions: ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'],
     'Chromatic Chords': ['5/5','5/6','5/2','m4','1-7'],
     // The chromatic-bass inversions. These are the only way the raised note
     // reaches the bass deliberately, with its approach and resolution enforced,
@@ -189,7 +217,7 @@
   const minorChordGroups: Record<string, string[]> = {
     Diatonic: ['m_i','m_iv','m_V','m_V7','m_VI','m_VII'],
     'Predominant': ['m_iid'],
-    'Other': ['m_i6','m_III','m_viid'],
+    'Other': ['m_III','m_viid'],
   };
 
   $: chordGroups = isMinorKey(selectedKey) ? minorChordGroups : majorChordGroups;
@@ -558,6 +586,14 @@
     // The key list is no longer replaced. Taking the other keys away meant a
     // preset silently removed choices instead of describing them; they are all
     // still here, and the ones outside the level are dimmed instead.
+    // Rests are punctuation in a sung exercise, not material. The levels list
+    // them, so they stay available - just turned down.
+    const restBias: Record<string, number> = {};
+    for (const r of allRhythms) {
+      if (r.rest && p.allowedRhythmNames.includes(r.name)) restBias[r.name] = 0.25;
+    }
+    rhythmBias = restBias;
+
     // Select every key the level allows, so generating randomises between them.
     selectedKeys = new Set(p.allowedKeys);
     if (!p.allowedKeys.includes(selectedKey)) selectedKey = p.allowedKeys[0];
@@ -567,17 +603,18 @@
     if (p.allowedVoicings?.length && !p.allowedVoicings.includes(selectedVoicing)) {
       selectedVoicing = p.allowedVoicings[0];
     }
-    if (p.measureRange) {
-      const [lo, hi] = p.measureRange;
-      measures = Math.min(hi, Math.max(lo, measures));
-    }
+    // Every preset starts at 8 measures. The levels declare 24-56, but that is
+    // the length of a real UIL sight-reading example, not what you want when
+    // you press Generate to drill a phrase - and the form rules that would make
+    // a 24+ measure exercise hold together do not exist yet.
+    measures = 8;
     // Presets declare their own rests in allowedRhythmNames - every UIL level
     // lists wholeRest/halfRest/quarterRest - so they are no longer stripped here.
     selectedRhythms = allRhythms.filter(
       (r) => p.allowedRhythmNames.includes(r.name) && choralSelectable(r)
     );
     maxSkip = p.maxSkip;
-    userAllowedChords = new Set(p.allowedChordNames ?? allChordNames);
+    userAllowedChords = withInversions(p.allowedChordNames ?? allChordNames);
     if (p.voiceRanges) {
       for (const voicingDef of Object.values(possibleVoicing)) {
         for (const [partName, partDef] of Object.entries(voicingDef.parts)) {
@@ -607,7 +644,7 @@
     maxSkip = p.maxSkip;
     bpm = p.bpm;
     selectedRhythms = allRhythms.filter((r) => p.selectedRhythmNames.includes(r.name));
-    userAllowedChords = p.allowedChordNames ? new Set(p.allowedChordNames) : new Set(allChordNames);
+    userAllowedChords = withInversions(p.allowedChordNames ?? allChordNames);
     nctProbability = p.nctProbability;
     // Optional, so presets saved before voice texture existed still load.
     if (isVoiceTextureMode(p.voiceTexture)) voiceTexture = p.voiceTexture;
@@ -991,7 +1028,10 @@
                       const nowMinor = isMinorKey(key);
                       selectedKey = key;
                       if (wasMinor !== nowMinor) {
-                        userAllowedChords = new Set(nowMinor ? minorChordNames : majorChordNames);
+                        userAllowedChords = new Set([
+                          ...(nowMinor ? minorChordNames : majorChordNames),
+                          ...(nowMinor ? minorInversions : majorInversions),
+                        ]);
                       }
                     }}
                   >{key}</button>
@@ -1189,7 +1229,7 @@
                           {outside(presetChordNames, chordName) && !userAllowedChords.has(chordName) ? 'opacity-40' : ''}"
                         title={outside(presetChordNames, chordName) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                         on:click={() => {
-                          const next = new Set(userAllowedChords);
+                          const next = withInversions(userAllowedChords);
                           if (next.has(chordName)) next.delete(chordName);
                           else next.add(chordName);
                           userAllowedChords = next;

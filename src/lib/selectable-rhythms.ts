@@ -53,5 +53,10 @@ export function canAppearInChoral(
   rhythm: Rhythm,
   tsPerMeasure: number
 ): boolean {
-  return rhythm.totalValue >= 8 && rhythm.totalValue <= tsPerMeasure;
+  if (rhythm.totalValue < 8 || rhythm.totalValue > tsPerMeasure) return false;
+  // A rest as long as a measure silences the whole choir for a bar, because
+  // choral rests are block rests - every voice sings the same rhythm, so one
+  // rest is everybody's rest. A bar of nothing is not an exercise.
+  if (rhythm.rest && rhythm.totalValue >= tsPerMeasure) return false;
+  return true;
 }

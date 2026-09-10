@@ -199,6 +199,16 @@ export function generateRandomRhythm(
     (r) => !r.pattern && !r.rest && r.totalValue > 0
   );
   const enforceCadence = singleRhythms.length > 0;
+  /**
+   * What an *interior* phrase ending gets, when it is shorter than the final
+   * one. Every phrase used to end on the longest note available, which in an
+   * 8-measure exercise means a whole note at bar 4 and another at bar 8 - a
+   * quarter of the piece standing still. Measured: 2.00 whole notes per exercise
+   * from cadences against 0.18 from everywhere else, so the cadences were the
+   * whole of the complaint.
+   */
+  let interiorCadenceRhythm: Rhythm | null = null;
+
   let longestSingleRhythm: Rhythm = {
     name: "",
     abcValue: [],
@@ -222,6 +232,7 @@ export function generateRandomRhythm(
     const halfFill = singleRhythms.find(
       (r) => r.totalValue === timeSig.tsPerMeasure / 2
     );
+    interiorCadenceRhythm = halfFill || measureFill || null;
     longestSingleRhythm =
       measureFill ||
       halfFill ||
@@ -313,7 +324,7 @@ export function generateRandomRhythm(
    * has to be fillable, and the rhythm checks assert that generation succeeds on
    * exactly the selections a reference solver proves solvable.
    */
-  const MID_PHRASE_FULL_MEASURE_PENALTY = 0.25;
+  const MID_PHRASE_FULL_MEASURE_PENALTY = 0.1;
   const phrasePenaltyFor = (r: Rhythm, beat: number): number => {
     if (r.totalValue < timeSig.tsPerMeasure) return 1;
     const measure = Math.floor(beat / timeSig.tsPerMeasure);
@@ -333,9 +344,17 @@ export function generateRandomRhythm(
     const blockEndTarget = Math.min(beatsAtNextCadence, totalBeats);
     let sectionEndTarget = blockEndTarget;
 
-    // Target beat *before* placing the final long note, if enforcing cadence
+    // Target beat *before* placing the final long note, if enforcing cadence.
+    // The space reserved has to match the note that will actually go there:
+    // interior phrase endings take the shorter note, and reserving the long
+    // one for them would leave the bar short.
+    const finalBlock = blockEndTarget >= totalBeats;
+    const cadenceDuration =
+      !finalBlock && interiorCadenceRhythm
+        ? interiorCadenceRhythm.totalValue
+        : longestDuration;
     if (enforceCadence && currentBeat !== cadenceOptOutAt) {
-      sectionEndTarget = blockEndTarget - longestDuration;
+      sectionEndTarget = blockEndTarget - cadenceDuration;
     }
 
     // Handle edge case: If the block is shorter than the longest note
@@ -611,8 +630,14 @@ export function generateRandomRhythm(
         console.log(
           `Placing cadence note (${longestSingleRhythm.name}) at beat ${currentBeat}`
         );
+        // The last phrase ending gets the long note; the ones on the way there
+        // settle for half of it, so the piece keeps moving between phrases.
+        const chosenCadenceRhythm =
+          !finalBlock && interiorCadenceRhythm
+            ? interiorCadenceRhythm
+            : longestSingleRhythm;
         const cadenceRhythm: RhythmWithPattern = {
-          ...longestSingleRhythm,
+          ...chosenCadenceRhythm,
           isPatternNote: false,
           isPatternStart: false,
           isPatternEnd: false,
@@ -621,7 +646,10 @@ export function generateRandomRhythm(
           cadenceType: selectedCadences[cadenceIndex]?.type || "Unknown", // Add cadence type
         };
         result.push(cadenceRhythm);
-        currentBeat += longestDuration;
+        // Advance by the note actually placed, not by the longest available - an
+        // interior cadence takes the shorter one, and stepping past the long
+        // duration left that much of the bar unwritten.
+        currentBeat += chosenCadenceRhythm.totalValue;
         cadenceIndex++; // Move to the next planned cadence
       } else {
         // This case should ideally not be reached due to outer loop condition
