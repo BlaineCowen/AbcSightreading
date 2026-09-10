@@ -315,10 +315,7 @@ export function buildChordNotes(
     if (
       useAccidentalsByStep &&
       previousNote &&
-      !previousNote.rest &&
-      // Skip the chromatic resolution force ONLY for the LT case in inner voices.
-      // Other chromatic notes (raised 4 in V/V, etc.) still resolve in any voice.
-      !(isLeadingToneResolution && !isOuterVoice)
+      !previousNote.rest
     ) {
       if (
         previousNote.accidental === "sharp" ||
@@ -919,6 +916,18 @@ export function buildChordNotes(
               const invertibleDegrees = isInversionEntry
                 ? new Set([currentChord.root])
                 : new Set([currentChord.root, currentChord.triadNotes[1]]);
+              // Not narrowed further here, though it is tempting: a
+              // root-position chord whose THIRD is the altered degree - which in
+              // minor is every single V - can still be inverted into the bass by
+              // this escape, where findValidBassNote would refuse it. Excluding
+              // it was tried and measured. Ungated it takes minor bass
+              // accidentals to zero but costs 3-Part Treble 5% -> 31% failures,
+              // because the lowest of three treble voices needs that option;
+              // gated so it yields late, the bass is back to 42% approached by
+              // step and the exclusion has bought nothing. Same shape as the
+              // approach-by-step attempt further down: this escape runs only
+              // where the search is already stuck, so narrowing it removes the
+              // escape itself.
               let altNotes = bassPartInfo.possibleNotes.filter(
                 (n) =>
                   (invertibleDegrees.has(n.degree) ||
