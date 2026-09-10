@@ -237,7 +237,16 @@
    * So: no picker entry, always in the allowed set, in both modes.
    */
   const majorInversions = ['1-6','1-64','2-6','4-6','4-64','5-6','5-64','6-6'];
-  const minorInversions = ['m_i6'];
+  const minorInversions = [
+    // Deliberately NOT 'm_i64'. The cadential six-four is defined and major
+    // grants its equivalent, but in minor it has never actually been
+    // reachable - no preset lists it - and switching it on measured 3-Part
+    // Treble from 1.3% to 5.5% failures on its own, which an ablation over
+    // all eight pinned to this chord alone. It also does nothing for the bass
+    // accidentals this set was added to fix: its bass is degree 4, diatonic.
+    // Worth having, as its own change, measured on its own terms.
+    'm_i6','m_iid6','m_iv6','m_iv64','m_V6','m_V64','m_VI6','m_viid6',
+  ];
 
   /**
    * Whatever the user picked, plus the inversions they never had to pick.

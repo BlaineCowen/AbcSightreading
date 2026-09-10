@@ -956,7 +956,17 @@ export function buildChordNotes(
               // of last resort, and refusing it outright costs whole generations
               // on a restrictive chord list. With the 5th now available above, it
               // is reached far less often than it was.
-              if (accidentalsByStep && stepRetryCount <= 8) {
+              //
+              // The 5th is added at EVERY retry, and only the chromatic
+              // exclusion is released after 8. Guarding both together meant the
+              // pool got smaller and more chromatic at exactly the retry where
+              // the search was most desperate: at 9+ the whole block was
+              // skipped, so the 5th - the non-chromatic alternative this was
+              // written to provide - vanished and the escape was left choosing
+              // between the root and the altered degree. In minor that is every
+              // V, and it is where the unapproached bass accidentals came from.
+              // Widening a pool cannot cost a generation.
+              if (accidentalsByStep) {
                 const chromDeg = currentChord.sharpScaleDegree ?? currentChord.flatScaleDegree;
                 if (chromDeg !== undefined && chromDeg !== null && currentChord.root !== chromDeg) {
                   // Give the escape the 5th to work with instead of the accidental.
@@ -975,9 +985,11 @@ export function buildChordNotes(
                     );
                     altNotes = [...altNotes, ...withFifth];
                   }
-                  const nonChromatic = altNotes.filter((n) => n.degree !== chromDeg);
-                  if (nonChromatic.length > 0) altNotes = nonChromatic;
-                  // else: only chromatic available, fall through to allow it
+                  if (stepRetryCount <= 8) {
+                    const nonChromatic = altNotes.filter((n) => n.degree !== chromDeg);
+                    if (nonChromatic.length > 0) altNotes = nonChromatic;
+                    // else: only chromatic available, fall through to allow it
+                  }
                 }
               }
               if (altNotes.length > 0) {

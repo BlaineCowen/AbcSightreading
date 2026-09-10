@@ -568,6 +568,13 @@ export const chords: Chord[] = [
       { name: "m_iid", weight: 8 },
       { name: "m_III", weight: 5 },
       { name: "m_i6", weight: 5 },
+      { name: "m_iv6", weight: 12 },
+      { name: "m_iid6", weight: 10 },
+      { name: "m_V6", weight: 16 },
+      { name: "m_VI6", weight: 3 },
+      { name: "m_iv64", weight: 5 },
+      { name: "m_viid", weight: 3 },
+      { name: "m_viid6", weight: 10 },
     ],
     type: "tonic",
     sharpScaleDegree: undefined,
@@ -586,6 +593,9 @@ export const chords: Chord[] = [
       { name: "m_iid", weight: 20 },
       { name: "m_i", weight: 10 },
       { name: "m_VI", weight: 10 },
+      { name: "m_iv6", weight: 15 },
+      { name: "m_iid6", weight: 15 },
+      { name: "m_V64", weight: 8 },
     ],
     type: "tonic-inversion",
     sharpScaleDegree: undefined,
@@ -621,6 +631,10 @@ export const chords: Chord[] = [
       { name: "m_iid", weight: 15 },
       { name: "m_VII", weight: 10 },
       { name: "m_i64", weight: 10 }, // cadential 6/4 ornament
+      { name: "m_iid6", weight: 12 },
+      { name: "m_V6", weight: 13 },
+      { name: "m_viid", weight: 2 },
+      { name: "m_viid6", weight: 8 },
     ],
     type: "predominant",
     sharpScaleDegree: undefined,
@@ -657,6 +671,7 @@ export const chords: Chord[] = [
       { name: "m_iv", weight: 4 },
       { name: "m_iid", weight: 3 },
       { name: "m_i6", weight: 3 },
+      { name: "m_VI6", weight: 3 },
     ],
     type: "dominant",
     sharpScaleDegree: 6,
@@ -673,6 +688,7 @@ export const chords: Chord[] = [
       { name: "m_i", weight: 100 },
       { name: "m_VI", weight: 8 },
       { name: "m_i6", weight: 4 },
+      { name: "m_VI6", weight: 2 },
     ],
     type: "dominant",
     sharpScaleDegree: 6,
@@ -691,6 +707,9 @@ export const chords: Chord[] = [
       { name: "m_VII", weight: 20 },
       { name: "m_V", weight: 15 },
       { name: "m_i", weight: 5 },
+      { name: "m_iv6", weight: 15 },
+      { name: "m_iid6", weight: 15 },
+      { name: "m_viid6", weight: 6 },
     ],
     type: "mediant",
     sharpScaleDegree: undefined,
@@ -708,6 +727,7 @@ export const chords: Chord[] = [
       { name: "m_i", weight: 30 },
       { name: "m_V", weight: 20 },
       { name: "m_VI", weight: 10 },
+      { name: "m_i6", weight: 10 },
     ],
     type: "subtonic",
     sharpScaleDegree: undefined,
@@ -725,6 +745,8 @@ export const chords: Chord[] = [
       { name: "m_iv", weight: 25 },
       { name: "m_VII", weight: 20 },
       { name: "m_V", weight: 15 },
+      { name: "m_VI6", weight: 6 },
+      { name: "m_iv6", weight: 10 },
     ],
     type: "mediant",
     sharpScaleDegree: undefined,
@@ -742,6 +764,144 @@ export const chords: Chord[] = [
       { name: "m_i", weight: 100 },
       { name: "m_VI", weight: 8 },
       { name: "m_i6", weight: 4 },
+    ],
+    type: "leading-tone",
+    sharpScaleDegree: 6,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  // ---------------------------------------------------------------------
+  // Minor inversions.
+  //
+  // Major carries eight of these and minor carried exactly one (i⁶), which is
+  // the whole reason a minor bass behaves worse than a major one. The bass
+  // search picks from the notes its chord names; with one inversion in the
+  // vocabulary it runs out of legal notes constantly, falls through to the
+  // deadlock escape in build-chord-notes, and the escape improvises an
+  // inversion with none of the approach or resolution rules attached. That is
+  // where the unapproached accidentals came from - not from the escape being
+  // wrong, but from it being reached at all.
+  //
+  // Naming these properly routes them back through findValidBassNote, which
+  // enforces both rules. V⁶ in particular is a chromatic-bass chord in the same
+  // sense as V⁶/V: root === sharpScaleDegree, so the raised leading tone is in
+  // the bass *deliberately*, approached by step and resolved upward.
+  // ---------------------------------------------------------------------
+  {
+    // ii°⁶ - the standard way to use ii° in minor. Root position puts the
+    // diminished 5th above the bass, which is why practice inverts it.
+    name: "m_iid6",
+    symbol: "ii°⁶",
+    mode: "minor",
+    root: 3,
+    triadNotes: [1, 3, 5],
+    nextChordPossibilities: [
+      { name: "m_V", weight: 60 },
+      { name: "m_V7", weight: 20 },
+      { name: "m_i64", weight: 20 },
+      { name: "m_V6", weight: 14 },
+    ],
+    type: "predominant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    name: "m_iv6",
+    symbol: "iv⁶",
+    mode: "minor",
+    root: 5,
+    triadNotes: [3, 5, 0],
+    nextChordPossibilities: [
+      { name: "m_V", weight: 50 },
+      { name: "m_V7", weight: 20 },
+      { name: "m_i64", weight: 20 },
+      { name: "m_i", weight: 15 },
+      { name: "m_iid6", weight: 10 },
+    ],
+    type: "predominant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // Pedal six-four: the bass holds the tonic while iv sounds over it, so it
+    // only makes sense moving to and from i.
+    name: "m_iv64",
+    symbol: "iv⁶₄",
+    mode: "minor",
+    root: 0,
+    triadNotes: [3, 5, 0],
+    nextChordPossibilities: [
+      { name: "m_i", weight: 100 },
+      { name: "m_i6", weight: 10 },
+    ],
+    type: "predominant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // V⁶ - the raised leading tone IS the bass note here, which is the point.
+    // root === sharpScaleDegree marks it as a chromatic-bass chord, so
+    // findValidBassNote demands a stepwise approach and arms the resolution.
+    // It resolves to i in root position: the leading tone rises to the tonic.
+    name: "m_V6",
+    symbol: "V⁶",
+    mode: "minor",
+    root: 6,
+    triadNotes: [4, 6, 1],
+    nextChordPossibilities: [{ name: "m_i", weight: 100 }],
+    type: "dominant",
+    sharpScaleDegree: 6,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    // Passing six-four between i and i⁶. The bass is the 5th of the chord -
+    // degree 1 - so no accidental reaches the bass here even though the chord
+    // still raises its own leading tone in an upper voice.
+    name: "m_V64",
+    symbol: "V⁶₄",
+    mode: "minor",
+    root: 1,
+    triadNotes: [4, 6, 1],
+    nextChordPossibilities: [
+      { name: "m_i6", weight: 60 },
+      { name: "m_i", weight: 40 },
+    ],
+    type: "dominant",
+    sharpScaleDegree: 6,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    name: "m_VI6",
+    symbol: "VI⁶",
+    mode: "minor",
+    root: 0,
+    triadNotes: [5, 0, 2],
+    nextChordPossibilities: [
+      { name: "m_iv", weight: 30 },
+      { name: "m_iid6", weight: 25 },
+      { name: "m_V", weight: 20 },
+      { name: "m_iv6", weight: 15 },
+      { name: "m_VII", weight: 10 },
+    ],
+    type: "mediant",
+    sharpScaleDegree: undefined,
+    flatScaleDegree: undefined,
+    baseMultiplier: 1,
+  },
+  {
+    name: "m_viid6",
+    symbol: "vii°⁶",
+    mode: "minor",
+    root: 1,
+    triadNotes: [6, 1, 3],
+    nextChordPossibilities: [
+      { name: "m_i", weight: 100 },
+      { name: "m_i6", weight: 20 },
     ],
     type: "leading-tone",
     sharpScaleDegree: 6,
