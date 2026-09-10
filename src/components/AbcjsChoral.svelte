@@ -363,6 +363,8 @@
 
   // ── Voice names for playback bar ───────────────────────────────────────────
   $: voiceNames = Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {});
+  /** No exercise yet and nothing being written - show the shape of a score. */
+  $: showScorePlaceholder = !renderedTune && !isGenerating;
 
   // ── Synth helpers ──────────────────────────────────────────────────────────
   const drumBeats: Record<string, string> = {
@@ -590,6 +592,10 @@
   }
 
   onMount(() => {
+    // Astro 4 leaves a `client:only` fallback in the DOM after the island
+    // hydrates - it is not swapped out - so the skeleton would sit on top of the
+    // real UI forever. Take it down as soon as there is something to replace it.
+    document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     loadParams();
   });
 
@@ -1592,7 +1598,35 @@
 
     <!-- Sheet music -->
     <div class="relative w-full" class:min-h-40={isGenerating}>
-      <div id="paper" class="bg-white rounded-lg shadow-md w-full my-2"></div>
+      <!-- Kept in the DOM even while hidden: renderAbc finds it by id, and it
+           is un-hidden before renderTune measures its width. -->
+      <div
+        id="paper"
+        class="bg-white rounded-lg shadow-md w-full my-2"
+        class:hidden={showScorePlaceholder}
+      ></div>
+
+      <!-- Before the first exercise exists, #paper is an empty white card that
+           reads as something failing to load. Show the shape of a score instead.
+           A sibling rather than a child, because renderAbc empties #paper. -->
+      {#if showScorePlaceholder}
+        <div
+          class="bg-white rounded-lg shadow-md w-full my-2 p-6 flex flex-col gap-5"
+          aria-hidden="true"
+        >
+          {#each voiceNames as _}
+            <div class="skel-staff">
+              {#each [0, 1, 2, 3, 4] as _line}
+                <div class="skel-staff-line"></div>
+              {/each}
+            </div>
+          {/each}
+          <p class="text-center text-sm text-slate-400">
+            Press Generate to write an exercise.
+          </p>
+        </div>
+      {/if}
+
       {#if isGenerating}
         <div class="generating-overlay" aria-live="polite">
           <div class="generating-inner">

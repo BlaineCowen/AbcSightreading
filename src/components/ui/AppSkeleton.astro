@@ -1,0 +1,65 @@
+---
+/**
+ * What the page shows before the Svelte island hydrates.
+ *
+ * Both generators mount with `client:only`, which renders nothing at all on the
+ * server - so until the JavaScript arrives the page is a heading over an empty
+ * void. In dev that is 94 unbundled modules and 23.5 MB decoded, which on a
+ * phone is a long look at nothing, and reads as the page being broken rather
+ * than busy.
+ *
+ * This stands in with the shape of the real thing: preset bar, tab strip,
+ * control panel, score. Matching the actual layout matters more than looking
+ * pretty - the point is that nothing jumps when the real UI replaces it.
+ */
+interface Props {
+  /** Staves to draw in the score area: four for choral, one for rhythm. */
+  staves?: number;
+  /** Rows of controls in the panel. */
+  rows?: number;
+}
+const { staves = 4, rows = 3 } = Astro.props;
+---
+
+<div class="skel-page" aria-hidden="true" data-skeleton>
+  <!-- Preset bar -->
+  <div class="flex items-center gap-3">
+    <div class="skel" style="width: 5rem; height: 0.75rem;"></div>
+    <div class="skel" style="width: 11rem; height: 2.25rem;"></div>
+    <div class="skel" style="width: 7rem; height: 2.25rem;"></div>
+  </div>
+
+  <!-- Tab strip and the Generate button -->
+  <div class="bg-white rounded-lg shadow-md w-full p-4 flex flex-col gap-4">
+    <div class="flex items-center justify-between">
+      <div class="flex gap-4">
+        {[4, 4.5, 5, 5.5].map((w) => (
+          <div class="skel" style={`width: ${w}rem; height: 1rem;`}></div>
+        ))}
+      </div>
+      <div class="skel" style="width: 7rem; height: 2.25rem;"></div>
+    </div>
+
+    <!-- Control rows: a label over a row of buttons -->
+    {Array.from({ length: rows }).map(() => (
+      <div class="flex flex-col gap-2">
+        <div class="skel" style="width: 6rem; height: 0.7rem;"></div>
+        <div class="flex flex-wrap gap-2">
+          {[4, 5.5, 4.5, 6, 5].map((w) => (
+            <div class="skel" style={`width: ${w}rem; height: 2rem;`}></div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  <!-- The score -->
+  <div class="bg-white rounded-lg shadow-md w-full p-6 flex flex-col gap-5">
+    <div class="skel mx-auto" style="width: 16rem; height: 1.5rem;"></div>
+    {Array.from({ length: staves }).map(() => (
+      <div class="skel-staff">
+        {[0, 1, 2, 3, 4].map(() => <div class="skel-staff-line"></div>)}
+      </div>
+    ))}
+  </div>
+</div>

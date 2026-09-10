@@ -121,6 +121,10 @@
 
   // Initialize Web Audio API components
   onMount(() => {
+    // Astro 4 leaves a `client:only` fallback in the DOM after the island
+    // hydrates - it is not swapped out - so the skeleton would sit on top of the
+    // real UI forever. Take it down as soon as there is something to replace it.
+    document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     if (typeof window !== "undefined") {
       audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)();
