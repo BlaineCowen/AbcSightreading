@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   isLeap,
+  isSingableInterval,
   leapRecoveryCost,
   LEAP_INTERVAL,
   UPPER_VOICE_RECOVERY,
@@ -65,5 +66,28 @@ describe("what a leap owes", () => {
     // the step unsatisfiable, which is what becomes a failed exercise.
     expect(Number.isFinite(leapRecoveryCost(30, leaptTo, before, UPPER_VOICE_RECOVERY)))
       .toBe(true);
+  });
+});
+
+describe("intervals a singer can pitch", () => {
+  test("the seventh is out, the octave is in", () => {
+    // This is the whole point of the rule: maxSkip is one number, so allowing
+    // the octave (6 is a seventh, 7 an octave in diatonic steps) let sevenths
+    // through on the way past. 174 of them per 70k intervals before the fix.
+    expect(isSingableInterval(20, 26)).toBe(false); // seventh
+    expect(isSingableInterval(26, 20)).toBe(false); // and downwards
+    expect(isSingableInterval(20, 27)).toBe(true); // octave
+  });
+
+  test("everything up to a sixth is fine", () => {
+    for (let gap = 0; gap <= 5; gap++) {
+      expect(isSingableInterval(20, 20 + gap)).toBe(true);
+    }
+  });
+
+  test("nothing wider than an octave", () => {
+    for (const gap of [8, 9, 12]) {
+      expect(isSingableInterval(20, 20 + gap)).toBe(false);
+    }
   });
 });

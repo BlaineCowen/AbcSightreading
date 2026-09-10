@@ -183,9 +183,9 @@ export const chords: Chord[] = [
     chordFamily: "5/5",
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [
-      { name: "5", weight: 30 },
-      { name: "5-6", weight: 30 },
-      { name: "5-64", weight: 30 },
+      { name: "5", weight: 70 },
+      { name: "5-6", weight: 15 },
+      { name: "5-64", weight: 15 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: 3,
@@ -202,8 +202,10 @@ export const chords: Chord[] = [
     chordFamily: "5/5",
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [
-      { name: "5", weight: 50 },     // V (G bass) — F# resolves up to G by step
-      { name: "1-64", weight: 50 },  // I⁶₄ (G bass) — same step resolution
+      { name: "5", weight: 70 },     // V (G bass) — F# resolves up to G by step
+      // I⁶₄ (G bass) — the same step resolution, and then the cadential
+      // six-four falls to V. Correct, and deliberately the rarer path.
+      { name: "1-64", weight: 30 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: 3,
@@ -217,8 +219,11 @@ export const chords: Chord[] = [
     chordFamily: "5/6",
     triadNotes: [2, 4, 6],
     nextChordPossibilities: [
-      { name: "6", weight: 50 },
-      { name: "6-6", weight: 50 },
+      // A secondary dominant resolves to its target in root position. At 50/50
+      // this landed on vi⁶ half the time, which is a weak arrival and leaves
+      // the bass to jump away from a leading tone it should have stepped off.
+      { name: "6", weight: 85 },
+      { name: "6-6", weight: 15 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: 4,
@@ -232,8 +237,8 @@ export const chords: Chord[] = [
     chordFamily: "5/2",
     triadNotes: [5, 0, 2],
     nextChordPossibilities: [
-      { name: "2", weight: 50 },
-      { name: "2-6", weight: 50 },
+      { name: "2", weight: 85 },
+      { name: "2-6", weight: 15 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: 0,
@@ -254,8 +259,10 @@ export const chords: Chord[] = [
     chordFamily: "5/6",
     triadNotes: [2, 4, 6],
     nextChordPossibilities: [
-      { name: "6", weight: 50 },
-      { name: "6-6", weight: 50 },
+      // V⁶/vi puts the leading tone of vi in the bass, and it has to rise a
+      // step onto vi's root. vi⁶ puts a different note there, so the
+      // resolution never happens and the bass leaps away instead.
+      { name: "6", weight: 100 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: 4,
@@ -271,8 +278,8 @@ export const chords: Chord[] = [
     chordFamily: "5/2",
     triadNotes: [5, 0, 2],
     nextChordPossibilities: [
-      { name: "2", weight: 50 },
-      { name: "2-6", weight: 50 },
+      // Same as V⁶/vi: the bass is ii's leading tone and must step up to it.
+      { name: "2", weight: 100 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: 0,
@@ -383,7 +390,10 @@ export const chords: Chord[] = [
     triadNotes: [0, 2, 4, 6],
     nextChordPossibilities: [
       { name: "4", weight: 100 },
-      { name: "4-64", weight: 100 },
+      // A pedal six-four: the bass holds C while the seventh falls Bb->A.
+      // Genuine, but an idiom rather than the ordinary resolution - weighted
+      // level with IV it was turning up about half the time.
+      { name: "4-64", weight: 25 },
     ],
     type: "secondary-dominant",
     sharpScaleDegree: undefined,

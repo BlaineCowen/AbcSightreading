@@ -10,6 +10,7 @@ import { keySignatures } from "../resources/key-signatures";
 import { generatePossibleNotes } from "./prep-params";
 import {
   isLeap,
+  isSingableInterval,
   leapRecoveryCost,
   LEAP_SURCHARGE,
   UPPER_VOICE_RECOVERY,
@@ -413,6 +414,13 @@ export function buildChordNotes(
       validNotes = validNotes.filter(
         (note) => Math.abs(note.pitchValue - previousNote.pitchValue) <= maxSkip
       );
+      // And no sevenths, whatever maxSkip permits. Best-effort: a seventh is
+      // bad, but an unsatisfiable step is worse, so it yields if it would empty
+      // the list.
+      const singable = validNotes.filter((note) =>
+        isSingableInterval(note.pitchValue, previousNote.pitchValue)
+      );
+      if (singable.length > 0) validNotes = singable;
     }
 
     // Resolution-range guard: a chromatic note whose resolution pitch (pv±1) falls
@@ -951,12 +959,25 @@ export function buildChordNotes(
                 if (prevBassNote && !prevBassNote.rest) {
                   const distance = (n: Note) =>
                     Math.abs(n.pitchValue - prevBassNote.pitchValue);
-                  const within = altNotes.filter((n) => distance(n) <= maxSkip);
+                  // maxSkip *and* singable, so the escape cannot hand back a
+                  // seventh either. This is the path that put a ninth in the
+                  // bass: when nothing satisfies maxSkip it falls through to
+                  // "nearest", which is unbounded - so prefer the singable
+                  // candidates there too before giving up.
+                  const within = altNotes.filter(
+                    (n) =>
+                      distance(n) <= maxSkip &&
+                      isSingableInterval(n.pitchValue, prevBassNote.pitchValue)
+                  );
+                  const singableAlts = altNotes.filter((n) =>
+                    isSingableInterval(n.pitchValue, prevBassNote.pitchValue)
+                  );
+                  const lastResort = singableAlts.length > 0 ? singableAlts : altNotes;
                   pool =
                     within.length > 0
                       ? within
                       : [
-                          altNotes.reduce((best, n) =>
+                          lastResort.reduce((best, n) =>
                             distance(n) < distance(best) ? n : best
                           ),
                         ];

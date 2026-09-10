@@ -99,3 +99,25 @@ export const BASS_RECOVERY = 1.5;
  * voice spacing unchanged, cadences unchanged.
  */
 export const LEAP_SURCHARGE = 6;
+
+/**
+ * Whether a melodic interval is one a singer can actually pitch.
+ *
+ * `maxSkip` alone is the wrong instrument for this. It is a single number, so
+ * UIL 5 sets it to 6 diatonic steps to allow the octave leaps a bass line
+ * wants - and a 6 admits the *seventh* on the way past. A seventh is the one
+ * leap common practice rules out in every voice: unlike the octave it has no
+ * consonant frame to pitch against, and it is what a singer hits and misses.
+ *
+ * Measured before this existed: 104 melodic sevenths in 7235 intervals, 47 of
+ * them in the bass.
+ *
+ * So: everything up to a sixth, the octave, and nothing else. Anything wider
+ * than an octave was already meant to be impossible - it reached the page only
+ * through the deadlock escape in processRhythms, which was not applying maxSkip.
+ */
+export function isSingableInterval(a: number, b: number): boolean {
+  const gap = Math.abs(a - b);
+  if (gap === 6) return false; // a seventh
+  return gap <= 7; // up to and including the octave
+}

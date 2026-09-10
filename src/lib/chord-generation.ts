@@ -1,6 +1,10 @@
 // THIS FILE IS WORKING DONT TOUCH
 import { noteArray } from "../resources/noteArray";
-import { leapRecoveryCost, BASS_RECOVERY } from "./leap-recovery";
+import {
+  leapRecoveryCost,
+  isSingableInterval,
+  BASS_RECOVERY,
+} from "./leap-recovery";
 import { keySignatures } from "../resources/key-signatures";
 import {
   type Note,
@@ -927,6 +931,13 @@ function findValidBassNote(
   let reachable = possibleNotes.filter(
     (n) => Math.abs(n.pitchValue - prevNote.pitchValue) <= maxSkip
   );
+
+  // No sevenths in the bass either - see isSingableInterval. Best-effort, so a
+  // chord that can only be reached by one never becomes a failed exercise.
+  const singable = reachable.filter((n) =>
+    isSingableInterval(n.pitchValue, prevNote.pitchValue)
+  );
+  if (singable.length > 0) reachable = singable;
 
   if (reachable.length === 0) return null;
 
