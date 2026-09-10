@@ -25,6 +25,7 @@
   import { uilPresets } from "../lib/uil-presets";
   import { canFillExercise } from "../lib/rhythm-feasibility";
   import { unisonProbabilityFor } from "../lib/unison-spans";
+  import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
   import {
     INSTRUMENTS,
     DEFAULT_INSTRUMENT,
@@ -1138,6 +1139,11 @@
       // Level-driven rather than a control: it is what the level *is*, not a
       // preference, and it only ever applies to a two-voice texture.
       unisonProbability: unisonProbabilityFor(activeUILLevel ?? undefined),
+      // The consequent phrase opens with the antecedent's material and departs
+      // at the cadence - a parallel period. Level-driven for the same reason as
+      // unison: repetition is what the beginner repertoire is made of, and it
+      // thins as the writing is meant to become continuous.
+      rhymeProbability: rhymeProbabilityFor(activeUILLevel ?? undefined),
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames

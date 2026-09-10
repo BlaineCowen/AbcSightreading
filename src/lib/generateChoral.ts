@@ -4,6 +4,7 @@ import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
 import { assembleAbcString, type AbcDisplayOptions } from "./abc-assembly";
 import { applyUnisonSpans } from "./unison-spans";
+import { applyRhymingPhrases } from "./rhyming-phrases";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { nctPatternsFor } from "./nct-patterns";
 import { canAppearInChoral } from "./selectable-rhythms";
@@ -58,6 +59,12 @@ export interface GenerateChoralParams {
    * See unisonProbabilityFor in unison-spans.ts; 0 disables it entirely.
    */
   unisonProbability?: number;
+  /**
+   * How likely the exercise is to be built as parallel periods - the consequent
+   * phrase opening with the antecedent's material and departing only at the
+   * cadence. See rhymeProbabilityFor in rhyming-phrases.ts; 0 disables it.
+   */
+  rhymeProbability?: number;
 }
 
 /**
@@ -393,10 +400,21 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     probability: params.unisonProbability ?? 0,
   });
 
+  // The consequent phrase rhymes the antecedent, making the exercise a parallel
+  // period rather than two unrelated four-measure halves. After the unison
+  // splice, for the same reason that one runs after decoration: it copies the
+  // material as actually sung. Declines rather than fails - see the module.
+  const withRhyme = applyRhymingPhrases(withUnison, {
+    measures,
+    tsPerMeasure: timeSig.tsPerMeasure,
+    maxSkip,
+    probability: params.rhymeProbability ?? 0,
+  });
+
   // Adjacent rests inside a measure become one rest, so a silent measure reads
   // as a whole rest rather than four quarter rests. Last, after everything
   // time-based has run.
-  const tidied = withUnison.map((voice) =>
+  const tidied = withRhyme.map((voice) =>
     mergeRestsWithinMeasures(voice, timeSig.tsPerMeasure)
   );
 
