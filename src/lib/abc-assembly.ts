@@ -101,6 +101,40 @@ export function assembleAbcString(
   const numVoices = voiceParts.length;
   const beatsPerMeasure = timeSig.tsPerMeasure;
 
+  /**
+   * How wide one beam group is, in 32nd-note units - a quarter in simple time,
+   * a dotted quarter in compound. Already carried on every time signature.
+   */
+  const beamUnit = timeSig.beamGroupSize ?? 8;
+
+  /**
+   * Whether these two notes should be joined by a beam.
+   *
+   * ABC beams whatever is written without a space between it, so this decides
+   * where the spaces go. Choral put a space after *every* note, which meant
+   * nothing was ever beamed - two eighths on one beat came out as two separate
+   * flagged notes.
+   *
+   * Modern practice, and the rule here: a beam shows the beat. So notes beam
+   * together only while they stay inside one beat, and a beam never crosses from
+   * one beat into the next. Anything a quarter or longer has no flag to beam in
+   * the first place, and a rest ends the group.
+   *
+   * `startsAt` is the position of the first note within its measure.
+   */
+  const beamsTogether = (
+    note: VoiceNote,
+    next: VoiceNote | undefined,
+    startsAt: number
+  ): boolean => {
+    if (!next) return false;
+    if (note.rest || next.rest) return false;
+    if (note.length >= beamUnit || next.length >= beamUnit) return false;
+    // Same beat: the note must not carry the group over a beat boundary.
+    const endsAt = startsAt + note.length;
+    return Math.floor(startsAt / beamUnit) === Math.floor(endsAt / beamUnit);
+  };
+
   // Strip leading accidental characters (^, _, =) to get the bare pitch+octave key.
   const basePitch = (noteName: string) => noteName.replace(/^[\^_=]+/, "");
 
@@ -164,12 +198,19 @@ export function assembleAbcString(
           }
         }
       }
-      partString += " "; // Add space after note/rest
-
+      // A space breaks the beam; leaving it out is what joins the notes.
+      const startsAt = measureCount;
       measureCount += note.length;
+      const completesMeasure = measureCount >= beatsPerMeasure;
+      if (
+        completesMeasure ||
+        !beamsTogether(note, notesForPart[stepIndex + 1], startsAt)
+      ) {
+        partString += " ";
+      }
 
       // Add bar line if measure is complete
-      if (measureCount >= beatsPerMeasure) {
+      if (completesMeasure) {
         partString += "| ";
         measureCount = measureCount % beatsPerMeasure; // Handle any overflow
         measureAccidentals.clear(); // Accidentals don't carry across barlines
