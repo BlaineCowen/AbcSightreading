@@ -103,6 +103,12 @@ export interface RhythmWithPattern extends Rhythm {
   patternIndex?: number | null;
   isCadenceEnd?: boolean;
   cadenceType?: string;
+  /**
+   * The beat of breath that completes an interior phrase ending - a rest, or a
+   * pickup note when the selection has no rest. Distinct from isCadenceEnd,
+   * which advances the cadence plan and must fire exactly once per phrase.
+   */
+  isPhraseBreath?: boolean;
 }
 
 // Add TimeSignature type definition

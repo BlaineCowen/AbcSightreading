@@ -184,6 +184,7 @@ export function generateRandomRhythm(
   const totalBeats = measures * timeSig.tsPerMeasure;
   let currentBeat = 0;
   let cadenceIndex = 0; // Track which cadence we are working towards
+  const BEAT_UNIT = 8; // a quarter, in 32nd-note units
 
   // --- Find Longest Single Rhythm (Needed for cadence points) ---
   // Rests are excluded: a cadence is an arrival, and a phrase cannot end on
@@ -209,6 +210,35 @@ export function generateRandomRhythm(
    */
   let interiorCadenceRhythm: Rhythm | null = null;
 
+  /**
+   * A phrase ending is a note plus a breath, not a note.
+   *
+   * The interior cadence was a half note, which in 4/4 lands it on beat 3 and
+   * runs the arrival straight into the next phrase with nothing between them.
+   * Measured over 200 eight-measure exercises: the m4 cadence was a half note
+   * 100% of the time, a dotted half 0%, and something followed it as a rest in
+   * only 22%. The cadence was structurally there and rhythmically invisible.
+   *
+   * The idiomatic figure fills the cadence measure: a note held for all but the
+   * last beat, then that beat as a rest - or as a pickup note into the next
+   * phrase, which is the same shape and is what happens when rests are off. So
+   * the held note starts on beat 1, where an arrival belongs.
+   *
+   * Sized from the meter rather than named, so 4/4 gets a dotted half plus a
+   * quarter and 3/4 gets a half plus a quarter. 2/4 is left alone: the figure
+   * there would be a quarter and a quarter, which spends half the bar on the
+   * breath.
+   *
+   * The held note still has to be one the user selected - a level that has not
+   * taught the dotted half should not meet its first one at a cadence - so this
+   * is null at UIL 1 and 2 and the half-note ending stands.
+   */
+  let interiorCadenceFigure: {
+    held: Rhythm;
+    breath: Rhythm | null;
+    pickup: Rhythm | null;
+  } | null = null;
+
   let longestSingleRhythm: Rhythm = {
     name: "",
     abcValue: [],
@@ -233,6 +263,22 @@ export function generateRandomRhythm(
       (r) => r.totalValue === timeSig.tsPerMeasure / 2
     );
     interiorCadenceRhythm = halfFill || measureFill || null;
+
+    // The last beat of the cadence measure: a rest, or a pickup note into the
+    // next phrase. Both are kept where both were selected and one is chosen per
+    // cadence, because always resting made every interior phrase in the exercise
+    // end identically - correct, and mechanical to sing four times over.
+    const heldValue = timeSig.tsPerMeasure - BEAT_UNIT;
+    if (heldValue >= 16) {
+      const held = singleRhythms.find((r) => r.totalValue === heldValue);
+      const breath =
+        rhythms.find((r) => !r.pattern && r.rest && r.totalValue === BEAT_UNIT) ?? null;
+      const pickup =
+        rhythms.find((r) => !r.pattern && !r.rest && r.totalValue === BEAT_UNIT) ?? null;
+      if (held && (breath || pickup)) {
+        interiorCadenceFigure = { held, breath, pickup };
+      }
+    }
     longestSingleRhythm =
       measureFill ||
       halfFill ||
@@ -349,10 +395,13 @@ export function generateRandomRhythm(
     // interior phrase endings take the shorter note, and reserving the long
     // one for them would leave the bar short.
     const finalBlock = blockEndTarget >= totalBeats;
-    const cadenceDuration =
-      !finalBlock && interiorCadenceRhythm
-        ? interiorCadenceRhythm.totalValue
-        : longestDuration;
+    const cadenceDuration = !finalBlock
+      ? interiorCadenceFigure
+        ? interiorCadenceFigure.held.totalValue + BEAT_UNIT
+        : interiorCadenceRhythm
+          ? interiorCadenceRhythm.totalValue
+          : longestDuration
+      : longestDuration;
     if (enforceCadence && currentBeat !== cadenceOptOutAt) {
       sectionEndTarget = blockEndTarget - cadenceDuration;
     }
@@ -631,9 +680,11 @@ export function generateRandomRhythm(
           `Placing cadence note (${longestSingleRhythm.name}) at beat ${currentBeat}`
         );
         // The last phrase ending gets the long note; the ones on the way there
-        // settle for half of it, so the piece keeps moving between phrases.
-        const chosenCadenceRhythm =
-          !finalBlock && interiorCadenceRhythm
+        // settle for less, so the piece keeps moving between phrases.
+        const interiorFigure = !finalBlock ? interiorCadenceFigure : null;
+        const chosenCadenceRhythm = interiorFigure
+          ? interiorFigure.held
+          : !finalBlock && interiorCadenceRhythm
             ? interiorCadenceRhythm
             : longestSingleRhythm;
         const cadenceRhythm: RhythmWithPattern = {
@@ -650,6 +701,30 @@ export function generateRandomRhythm(
         // interior cadence takes the shorter one, and stepping past the long
         // duration left that much of the bar unwritten.
         currentBeat += chosenCadenceRhythm.totalValue;
+        // The breath after the arrival. Emphatically NOT marked isCadenceEnd:
+        // that flag drives cadencePlanIndex in chord-generation, and a second
+        // one here would consume the next phrase's planned cadence and leave the
+        // last phrase of the exercise with none.
+        if (interiorFigure) {
+          // Rest a little more often than not: the breath is the default shape
+          // of a phrase ending, and the pickup is the variation on it.
+          const tail =
+            interiorFigure.breath && interiorFigure.pickup
+              ? Math.random() < 0.6
+                ? interiorFigure.breath
+                : interiorFigure.pickup
+              : (interiorFigure.breath ?? interiorFigure.pickup)!;
+          result.push({
+            ...tail,
+            isPatternNote: false,
+            isPatternStart: false,
+            isPatternEnd: false,
+            patternIndex: null,
+            isCadenceEnd: false,
+            isPhraseBreath: true,
+          } as RhythmWithPattern);
+          currentBeat += tail.totalValue;
+        }
         cadenceIndex++; // Move to the next planned cadence
       } else {
         // This case should ideally not be reached due to outer loop condition
