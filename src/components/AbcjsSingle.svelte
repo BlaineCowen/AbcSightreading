@@ -20,6 +20,21 @@
     syllableSystems,
   } from "../resources/rhythm-syllables";
   import "abcjs/abcjs-audio.css";
+  import { withoutAnnotations } from "../lib/annotations";
+  import {
+    RHYTHM_SOUNDS,
+    DEFAULT_RHYTHM_SOUND,
+    isRhythmSoundId,
+    rhythmSoundFor,
+    withRhythmSound,
+    volumeMultiplierFor,
+  } from "../lib/rhythm-sounds";
+  import {
+    INSTRUMENTS,
+    DEFAULT_INSTRUMENT,
+    isInstrumentProgram,
+    withInstrument,
+  } from "../lib/instruments";
   // import PitchVisualizer from "./PitchVisualizer.svelte";
 
   // --- Static Options ---
@@ -224,6 +239,12 @@
       options.rhythmOnly = getParam("rhythmOnly") === "true";
     if (urlParams.has("showRhythmSyllables"))
       options.showRhythmSyllables = getParam("showRhythmSyllables") === "true";
+    // A shared link carries the clean copy - that is the point of it.
+    if (urlParams.has("annot")) options.annotationsShown = getParam("annot") !== "0";
+    const rs = getParam("rhythmSound");
+    if (isRhythmSoundId(rs)) options.rhythmSoundId = rs;
+    const inst = getParam("sound");
+    if (isInstrumentProgram(inst)) options.instrumentProgram = Number(inst);
 
     if (urlParams.has("allowTiesAcrossBarline"))
       options.allowTiesAcrossBarline =
@@ -476,6 +497,47 @@
   let showSolfege = initialState.showSolfege || false;
   let rhythmOnly = initialState.rhythmOnly || false;
   let showRhythmSyllables = initialState.showRhythmSyllables || false;
+  /**
+   * The master switch over everything printed alongside the notes - solfège
+   * lyrics and rhythm syllables both.
+   *
+   * Turning it off re-renders the same exercise clean, for handing out or for
+   * reading without the answers, and leaves the two settings above untouched so
+   * turning it back on restores exactly what was there.
+   */
+  let annotationsShown = initialState.annotationsShown !== false;
+
+  /**
+   * The rhythm staff's sound. Claves is a click with no duration, so a half note
+   * sounds like an eighth; the sustained options let a held note be heard held.
+   */
+  let rhythmSoundId: string = initialState.rhythmSoundId ?? DEFAULT_RHYTHM_SOUND;
+  /** The instrument for pitched exercises, shared with the choral page. */
+  let instrumentProgram: number = initialState.instrumentProgram ?? DEFAULT_INSTRUMENT;
+
+  /** Apply the chosen sound to an assembled exercise. */
+  function withChosenSound(abc: string): string {
+    return rhythmOnly
+      ? withRhythmSound(abc, rhythmSoundFor(rhythmSoundId))
+      : withInstrument(abc, instrumentProgram);
+  }
+
+  async function handleSoundChange(next: string | number) {
+    if (typeof next === "number") instrumentProgram = next;
+    else rhythmSoundId = next;
+    updateUrlFromState();
+    // The audio buffer is built from the old sound, so it has to go.
+    audioBuffer = null;
+    createSynth = null;
+    if (currentTune && originalTuneString) await rerenderTune();
+  }
+
+  /** Show or hide the annotations on the exercise already on screen. */
+  async function handleToggleAnnotations() {
+    annotationsShown = !annotationsShown;
+    updateUrlFromState();
+    if (currentTune && originalTuneString) await rerenderTune();
+  }
   let syllableSystemId =
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
@@ -625,6 +687,9 @@
       Array.from(selectedFlatDegrees).join(",")
     );
     params.set("key", selectedKey);
+    params.set("annot", annotationsShown ? "1" : "0");
+    params.set("rhythmSound", rhythmSoundId);
+    params.set("sound", String(instrumentProgram));
     params.set("rhythms", selectedRhythms.map((r: Rhythm) => r.name).join(","));
     params.set("timeSignature", selectedTimeSignature);
     params.set("measures", measures.toString());
@@ -704,7 +769,9 @@
         // Rhythm-only plays one intrinsically quiet sample (claves peaks at
         // 0.16 of full scale), so give it extra gain. 4.0 x velocity 127 lands
         // the rendered buffer near 0.84 peak - loud, still short of clipping.
-        soundFontVolumeMultiplier: rhythmOnly ? 4.0 : 3.0,
+        soundFontVolumeMultiplier: rhythmOnly
+          ? volumeMultiplierFor(rhythmSoundFor(rhythmSoundId))
+          : 3.0,
         // No drum parameters - we'll use our synthetic metronome
       },
     });
@@ -1145,10 +1212,16 @@
 
     try {
       // Update the tempo in the ABC string
-      const updatedTuneString = updateTempoInAbcString(
+      let updatedTuneString = updateTempoInAbcString(
         originalTuneString,
         tempo
       );
+      // Hiding is a render-time strip: originalTuneString keeps the annotated
+      // version, so showing them again costs nothing and never regenerates.
+      if (!annotationsShown) {
+        updatedTuneString = withoutAnnotations(updatedTuneString);
+      }
+      updatedTuneString = withChosenSound(updatedTuneString);
 
       // Clear any existing content in the paper div
       const paperDiv = document.getElementById("paper");
@@ -1194,7 +1267,11 @@
 
     const visualObj = abcjs.renderAbc(
       "paper",
-      renderedString[0],
+      withChosenSound(
+        annotationsShown
+          ? renderedString[0]
+          : withoutAnnotations(renderedString[0])
+      ),
       getAbcOptions()
     );
 
@@ -2067,6 +2144,50 @@
                     on:click={() => (rhythmOnly = true)}
                   >Rhythm only</button>
                 </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback sound</p>
+                <div class="flex flex-wrap gap-2">
+                  {#if rhythmOnly}
+                    {#each RHYTHM_SOUNDS as sound}
+                      <button
+                        class="px-3 py-2 sm:py-1 rounded text-sm {rhythmSoundId === sound.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        on:click={() => handleSoundChange(sound.id)}
+                        aria-pressed={rhythmSoundId === sound.id}
+                      >{sound.label}</button>
+                    {/each}
+                  {:else}
+                    {#each INSTRUMENTS as instrument}
+                      <button
+                        class="px-3 py-2 sm:py-1 rounded text-sm {instrumentProgram === instrument.program ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        on:click={() => handleSoundChange(instrument.program)}
+                        aria-pressed={instrumentProgram === instrument.program}
+                      >{instrument.label}</button>
+                    {/each}
+                  {/if}
+                </div>
+                <p class="text-xs text-slate-400">
+                  {rhythmOnly
+                    ? (rhythmSoundFor(rhythmSoundId).kind === "click"
+                        ? "A click — every note sounds the same length. Good for attacks."
+                        : "Sustains, so a held note is heard held.")
+                    : "Changes the sound straight away — the exercise stays as it is."}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm {annotationsShown ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={handleToggleAnnotations}
+                  aria-pressed={annotationsShown}
+                >{annotationsShown ? 'Shown' : 'Hidden'}</button>
+                <p class="text-xs text-slate-400">
+                  {annotationsShown
+                    ? "Solfège and rhythm syllables print with the notes."
+                    : "Hidden — the same exercise, printed clean."}
+                </p>
               </div>
 
               <div class="space-y-2 col-span-1 sm:col-span-2">

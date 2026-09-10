@@ -2564,6 +2564,11 @@ export function createNewSr(params: any) {
       `X:1 \n` +
       `M:${timeSig.name}\n` +
       `L:1/32\n` +
+      // Always emitted, even for the default piano, so changing instrument
+      // later is a replacement rather than an insertion into a header whose
+      // exact shape would have to be known. Same reasoning as the choral
+      // assembler.
+      `%%MIDI program 0\n` +
       `${scoreString}` +
       `${headerString}` +
       `K: ${keyRendered} clef=${clef} \n` +
