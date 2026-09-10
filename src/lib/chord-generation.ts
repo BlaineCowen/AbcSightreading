@@ -1,5 +1,6 @@
 // THIS FILE IS WORKING DONT TOUCH
 import { noteArray } from "../resources/noteArray";
+import { leapRecoveryCost, BASS_RECOVERY } from "./leap-recovery";
 import { keySignatures } from "../resources/key-signatures";
 import {
   type Note,
@@ -621,7 +622,11 @@ export function generateChordProgression(
                   ? 1
                   : 0),
               0
-            )
+            ),
+            // prevBassNote is bassLine[i - 1], so the note before it indexes
+            // the same way - counting from the end would be a different note
+            // whenever the line is not filled exactly to i.
+            bassLine[i - 2]
           );
 
           if (currentBassNote) {
@@ -779,7 +784,9 @@ function findValidBassNote(
   /** At a cadence the chord must sound in the inversion it names. */
   pinDeclaredBass: boolean = false,
   /** How many notes the bass has already spent at the ends of its range. */
-  extremesSpent: number = 0
+  extremesSpent: number = 0,
+  /** The note before `prevNote`, which says whether the bass just leapt. */
+  beforePrevNote?: Note
 ): Note | null {
   console.log("\n=== Finding Valid Bass Note ===");
   console.log("Chord:", chord);
@@ -965,7 +972,10 @@ function findValidBassNote(
   const cost = (n: Note) =>
     Math.abs(n.pitchValue - prevNote.pitchValue) +
     MIDRANGE_PULL * Math.abs(n.pitchValue - midpoint) +
-    (atEnd(n) ? EXTREME_COST * (1 + extremesSpent) : 0);
+    (atEnd(n) ? EXTREME_COST * (1 + extremesSpent) : 0) +
+    // A bass that just leapt prefers to step, but only prefers: root motion by
+    // fourths and fifths is the harmony talking, and it wins.
+    leapRecoveryCost(n.pitchValue, prevNote, beforePrevNote, BASS_RECOVERY);
 
   return reachable.reduce((best, n) => {
     const nCost = cost(n);

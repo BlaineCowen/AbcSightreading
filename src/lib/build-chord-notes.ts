@@ -8,6 +8,12 @@ import {
 import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
 import { generatePossibleNotes } from "./prep-params";
+import {
+  isLeap,
+  leapRecoveryCost,
+  LEAP_SURCHARGE,
+  UPPER_VOICE_RECOVERY,
+} from "./leap-recovery";
 
 /** Find the index of the highest-order voice in a voiceParts array (the
  *  "soprano" or top voice). Returns -1 if voiceParts is empty. */
@@ -257,7 +263,12 @@ export function buildChordNotes(
     /** The CHORD that was active for `previousNote`. Used to detect diatonic
      *  leading-tone resolution (LT in V/V7/vii° → must step up to tonic) and
      *  chordal-7th resolution (7th of V7 → must step down). */
-    previousChord?: Chord
+    previousChord?: Chord,
+    /** The note before `previousNote`, which is what says whether this voice
+     *  arrived at `previousNote` by a leap and now owes a step. */
+    noteBeforePrevious?: VoiceNote,
+    /** At a cadence the leap surcharge stands down - see below. */
+    isCadenceStep?: boolean
   ): Note | null {
     // Get all notes in range
     let validNotes = voicePart.possibleNotes.filter(
@@ -655,6 +666,20 @@ export function buildChordNotes(
         TESSITURA_PULL * Math.abs(n.pitchValue - centre) +
         (isExtremeFor(n.pitchValue, rangeLow, rangeHigh)
           ? EXTREME_COST * (1 + spent)
+          : 0) +
+        // A voice that just leapt owes the next note a step or a repeat.
+        leapRecoveryCost(
+          n.pitchValue,
+          previousNote,
+          noteBeforePrevious,
+          UPPER_VOICE_RECOVERY
+        ) +
+        // Not at a cadence. An authentic cadence wants the tonic on top, and
+        // the soprano often has to leap to get there - charged for it, the
+        // soprano settled for the third or fifth instead and tonic endings fell
+        // from 58% to 45%. The same stand-down the tessitura rule needed.
+        (!isCadenceStep && isLeap(previousNote.pitchValue, n.pitchValue)
+          ? LEAP_SURCHARGE
           : 0);
       selectedNote = validNotes.reduce((best, current) =>
         cost(current) < cost(best) ? current : best
@@ -1074,7 +1099,12 @@ export function buildChordNotes(
                 voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
                 accidentalsByStep,
                 otherVoicesPrev,
-                previousChord
+                previousChord,
+                voiceParts[originalVoiceIndex].chordNotes.at(-2) as
+                  | VoiceNote
+                  | undefined,
+                (rhythm as any).isCadenceEnd === true ||
+                  (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true
               );
 
               if (!selectedNote) {
