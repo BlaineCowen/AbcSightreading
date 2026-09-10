@@ -23,6 +23,7 @@
   import type { Rhythm } from "../resources/rhythms";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { uilPresets } from "../lib/uil-presets";
+  import { canFillExercise } from "../lib/rhythm-feasibility";
   import {
     INSTRUMENTS,
     DEFAULT_INSTRUMENT,
@@ -136,6 +137,27 @@
 
   /** Playback voice. See src/lib/instruments.ts for why the list is short. */
   let instrumentProgram: number = DEFAULT_INSTRUMENT;
+
+  /**
+   * Whether the chosen rhythms can actually tile the bar, worked out ahead of
+   * pressing Generate.
+   *
+   * Some selections simply cannot: a dotted quarter + eighth is 16 units, and in
+   * 3/4 a bar is 24 - with only half notes beside it there is no way to reach
+   * 24, so generation refuses every single time. Without this the only feedback
+   * was an alert on each press with nothing on the page changing, which reads as
+   * the app being stuck rather than as the selection being impossible.
+   *
+   * Choral never ties across a barline, hence the `false`.
+   */
+  $: rhythmsCanFill =
+    selectedRhythms.length === 0 ||
+    canFillExercise(
+      selectedRhythms.filter((r): r is Rhythm => r !== undefined),
+      timeSignatures[selectedTimeSignature].tsPerMeasure,
+      measures * timeSignatures[selectedTimeSignature].tsPerMeasure,
+      false
+    );
 
   const cursorModes = ["off", "smooth", "beat", "note"] as const;
   type CursorMode = (typeof cursorModes)[number];
@@ -980,6 +1002,13 @@
       alert("Please select at least one rhythm.");
       return;
     }
+    if (!rhythmsCanFill) {
+      alert(
+        `These rhythms cannot fill a bar of ${selectedTimeSignature}. ` +
+          `Add a shorter note - a quarter or an eighth - or change the time signature.`
+      );
+      return;
+    }
 
     // Draw the key for this exercise. With one key selected this is that key, so
     // nothing changes for the ordinary case.
@@ -1437,6 +1466,14 @@
 
     <!-- Hidden abcjs audio element -->
     <div id="audio" class="hidden"></div>
+
+    {#if !rhythmsCanFill}
+      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
+        The selected rhythms cannot fill a bar of {selectedTimeSignature}, so nothing
+        can be generated. Add a shorter note — a quarter or an eighth — or change
+        the time signature.
+      </p>
+    {/if}
 
     {#if audioNotice}
       <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">

@@ -20,6 +20,7 @@
  *   5. Syllable mapping - each system spells the standard figures correctly.
  */
 import { createNewSr } from "../src/lib/generateUnison";
+import { canFillExercise } from "../src/lib/rhythm-feasibility";
 import { selectableRhythms } from "../src/lib/selectable-rhythms";
 import { syllableSystems } from "../src/resources/rhythm-syllables";
 import type { Rhythm } from "../src/resources/rhythms";
@@ -99,6 +100,9 @@ const durationsIn = (measure: string) =>
   );
 
 // ── The reference solver ─────────────────────────────────────────────────────
+// Now lives in src/lib so the UI can warn before Generate is ever pressed. It is
+// still a separate implementation from the *generator*, which is what this check
+// exists to compare against.
 
 /**
  * Can this selection fill the exercise at all, under the generator's own rules?
@@ -106,50 +110,6 @@ const durationsIn = (measure: string) =>
  * randomly and gives up, this one enumerates. Where they disagree, one of them
  * is wrong, and that is the whole point of the check.
  */
-function solvable(
-  rhythms: Rhythm[],
-  tsPerMeasure: number,
-  totalUnits: number,
-  allowTies: boolean
-): boolean {
-  const DOTTED = new Set([6, 12, 24]);
-  const seen = new Set<number>();
-
-  const legal = (r: Rhythm, pos: number, lastShort: boolean) => {
-    const room = tsPerMeasure - (pos % tsPerMeasure);
-    const canCross = allowTies && !r.pattern && !r.rest;
-    if (r.totalValue > room && !canCross) return false;
-    // A crossing must split into two plainly written halves.
-    if (
-      r.totalValue > room &&
-      (DOTTED.has(room) || DOTTED.has(r.totalValue - room))
-    ) {
-      return false;
-    }
-    const p = (pos % tsPerMeasure) % 8;
-    if (tsPerMeasure >= 8) {
-      if ((p === 2 || p === 6) && r.totalValue >= 8) return false;
-      if (p === 4 && r.totalValue >= 16) return false;
-    }
-    if (lastShort && r.totalValue >= 16) return false;
-    return true;
-  };
-
-  const walk = (pos: number, lastShort: boolean): boolean => {
-    if (pos === totalUnits) return true;
-    if (pos > totalUnits) return false;
-    const key = pos * 2 + (lastShort ? 1 : 0);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    for (const r of rhythms) {
-      if (!legal(r, pos, lastShort)) continue;
-      if (walk(pos + r.totalValue, r.totalValue <= 4)) return true;
-    }
-    return false;
-  };
-  return walk(0, false);
-}
-
 // ── Every one- and two-rhythm selection ──────────────────────────────────────
 
 function selections(timeSig: TimeSig): Rhythm[][] {
@@ -181,7 +141,7 @@ function checkMeasuresAndCompleteness() {
         }
         checked++;
 
-        const canSolve = solvable(set, timeSig.tsPerMeasure, total, ties);
+        const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties);
         if (!!body !== canSolve) {
           fail(
             `completeness: ${label} generator=${body ? "ok" : "refused"} solver=${canSolve ? "solvable" : "impossible"}`
