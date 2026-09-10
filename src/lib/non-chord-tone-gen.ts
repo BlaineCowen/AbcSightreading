@@ -67,14 +67,25 @@ function createNewNote(
   const keyInfo = keySignatures[key];
   const degree = keyInfo ? getDiatonicDegree(newPitchValue, keyInfo) : 0;
 
+  // Staying on the same pitch means staying on the same *note*. If the note
+  // being decorated carries an accidental - a chromatic chord tone - then a
+  // decoration that holds that pitch has to carry it too, or the exercise reads
+  // Bb then B natural on two consecutive eighths and the singer is being asked
+  // to correct a note that was never wrong.
+  //
+  // Moving to a different pitch stays diatonic: a decoration ornaments the
+  // harmony, it does not introduce chromaticism of its own.
+  const holdsSamePitch = newPitchValue === originalNote.pitchValue;
+
   return {
-    name: baseName, // No explicit prefix — K: header handles key-sig accidentals
+    name: holdsSamePitch ? originalNote.name : baseName,
     degree,
     pitchValue: newPitchValue,
     length: newLength,
     rest: false,
     order: originalNote.order,
-    accidental: null,
+    accidental: holdsSamePitch ? originalNote.accidental ?? null : null,
+    wasRaised: holdsSamePitch ? originalNote.wasRaised : undefined,
     isCadenceEnd: false,
   };
 }
@@ -614,7 +625,9 @@ function generateSuspension(params: NctFunctionParams): VoiceNote[] | null {
   // dissonance on the offbeat and the resolution on the accent - backwards.
   if (len1 < len2) return null;
 
-  const suspended = createNewNote(currentNote, heldPitch, len1, key);
+  // The held note is the previous chord's note, so any accidental it carries is
+  // the one to keep.
+  const suspended = createNewNote(prevNote, heldPitch, len1, key);
   const resolution = createNewNote(currentNote, resolutionPitch, len2, key);
   if (suspended && currentNote.chordSymbol) {
     suspended.chordSymbol = currentNote.chordSymbol;
