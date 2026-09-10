@@ -3,6 +3,7 @@ import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
 import { assembleAbcString, type AbcDisplayOptions } from "./abc-assembly";
+import { applyUnisonSpans } from "./unison-spans";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { nctPatternsFor } from "./nct-patterns";
 import { canAppearInChoral } from "./selectable-rhythms";
@@ -52,6 +53,11 @@ export interface GenerateChoralParams {
   midiProgram?: number;
   /** Which annotations to print. Also changeable afterwards via `render`. */
   display?: AbcDisplayOptions;
+  /**
+   * How likely a two-part exercise is to open in unison before the parts split.
+   * See unisonProbabilityFor in unison-spans.ts; 0 disables it entirely.
+   */
+  unisonProbability?: number;
 }
 
 /**
@@ -376,10 +382,21 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   console.log(
     `  Params: voiceNotes count=${notesWithNCTs.length}, voiceParts count=${voiceParts.length}, rhythms count=${finalRhythms.length}, key=${key}, timeSig=${timeSig.name}, metadata=${JSON.stringify(abcParams)}`
   );
+  // Two parts singing together for a stretch, then splitting - the way beginner
+  // two-part music opens. After decoration deliberately: run before it and each
+  // voice gets its own passing tones, which breaks the unison a note at a time.
+  // Splicing here means both parts share the same decorated line.
+  const withUnison = applyUnisonSpans(notesWithNCTs, {
+    measures,
+    tsPerMeasure: timeSig.tsPerMeasure,
+    ranges: voiceParts.map((vp) => vp.range as [number, number]),
+    probability: params.unisonProbability ?? 0,
+  });
+
   // Adjacent rests inside a measure become one rest, so a silent measure reads
   // as a whole rest rather than four quarter rests. Last, after everything
   // time-based has run.
-  const tidied = notesWithNCTs.map((voice) =>
+  const tidied = withUnison.map((voice) =>
     mergeRestsWithinMeasures(voice, timeSig.tsPerMeasure)
   );
 
@@ -418,7 +435,10 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   return {
     abcString,
     chordProgression: chordProgression,
-    voiceNotes: notesWithNCTs,
+    // The notes as actually rendered - after the unison splice and the rest
+    // merge. Returning the pre-splice array made a two-part unison invisible to
+    // every caller that inspects voiceNotes, while the score showed it.
+    voiceNotes: tidied,
     voiceNames: voiceParts.map((vp) => vp.name),
     render,
   };

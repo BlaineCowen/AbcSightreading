@@ -24,6 +24,7 @@
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { uilPresets } from "../lib/uil-presets";
   import { canFillExercise } from "../lib/rhythm-feasibility";
+  import { unisonProbabilityFor } from "../lib/unison-spans";
   import {
     INSTRUMENTS,
     DEFAULT_INSTRUMENT,
@@ -1118,6 +1119,10 @@
       chromaticFrequency,
       midiProgram: instrumentProgram,
       display: displayOptions(),
+      // Two-part writing at the beginner levels opens in unison and splits.
+      // Level-driven rather than a control: it is what the level *is*, not a
+      // preference, and it only ever applies to a two-voice texture.
+      unisonProbability: unisonProbabilityFor(activeUILLevel ?? undefined),
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames
