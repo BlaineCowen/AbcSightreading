@@ -12,6 +12,12 @@ interface AbcMetadata {
   title: string;
   composer: string;
   tempo: number;
+  /**
+   * MIDI program for playback. Always emitted, even for the default piano, so
+   * that switching instrument later is a replacement in the string rather than
+   * an insertion into a header whose shape would have to be known.
+   */
+  midiProgram?: number;
 }
 
 /**
@@ -56,6 +62,9 @@ export function assembleAbcString(
   abcString += `M:${timeSig.name}\n`;
   abcString += `L:1/32\n`; // Base unit is 32nd notes
   abcString += `Q:1/4=${metadata.tempo}\n`;
+  // abcjs reads the playback instrument from here - it becomes a program event
+  // in the generated MIDI track, which create-synth maps to a sample folder.
+  abcString += `%%MIDI program ${metadata.midiProgram ?? 0}\n`;
 
   // %%score directive
   let scoreDirective = "%%score";

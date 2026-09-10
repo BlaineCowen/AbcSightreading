@@ -23,6 +23,12 @@
   import type { Rhythm } from "../resources/rhythms";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { uilPresets } from "../lib/uil-presets";
+  import {
+    INSTRUMENTS,
+    DEFAULT_INSTRUMENT,
+    isInstrumentProgram,
+    withInstrument,
+  } from "../lib/instruments";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PresetDropdown from "./PresetDropdown.svelte";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
@@ -127,6 +133,9 @@
   const isVoiceTextureMode = (v: unknown): v is TextureMode =>
     typeof v === "string" && (voiceTextures as readonly string[]).includes(v);
   let voiceTexture: TextureMode = "full";
+
+  /** Playback voice. See src/lib/instruments.ts for why the list is short. */
+  let instrumentProgram: number = DEFAULT_INSTRUMENT;
 
   const cursorModes = ["off", "smooth", "beat", "note"] as const;
   type CursorMode = (typeof cursorModes)[number];
@@ -495,6 +504,8 @@
     bpm = parseInt(p.get("bpm") || "60");
     const cursor = p.get("cursor");
     if (isCursorMode(cursor)) cursorMode = cursor;
+    const instrument = p.get("sound");
+    if (isInstrumentProgram(instrument)) instrumentProgram = Number(instrument);
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
     const bias = p.get("bias");
@@ -519,6 +530,7 @@
     p.set("measures", measures.toString());
     p.set("bpm", bpm.toString());
     p.set("cursor", cursorMode);
+    p.set("sound", String(instrumentProgram));
     p.set("texture", voiceTexture);
     const biasPairs = Object.entries(rhythmBias);
     if (biasPairs.length) {
@@ -696,8 +708,55 @@
   }
 
   // ── Playback controls ──────────────────────────────────────────────────────
+  /** Shown under the transport when the browser is holding audio back. */
+  let audioNotice = "";
+
+  /**
+   * Make sure the AudioContext is actually running before asking for sound.
+   *
+   * iOS suspends the context whenever the phone locks or the tab goes to the
+   * background, and nothing brings it back on its own. Everything else keeps
+   * working - the transport responds, the cursor moves - and there is simply no
+   * sound, until the page is reloaded. That is exactly how this was reported:
+   * playback stopped mid-session, on a phone.
+   *
+   * The resume has to happen inside the user's gesture, which is why it lives on
+   * Play rather than on a visibilitychange listener.
+   *
+   * `resume()` never settles while the browser is still withholding autoplay
+   * permission, so awaiting it bare leaves Play looking dead - the same trap
+   * initAudio hit in AbcjsSingle. Race it against a timeout and say what
+   * happened instead.
+   */
+  async function ensureAudioRunning(): Promise<boolean> {
+    try {
+      const mod = await import("abcjs");
+      // Null until abcjs has built one; then there is nothing to resume.
+      const ctx = mod.synth.activeAudioContext?.();
+      if (!ctx || ctx.state === "running") {
+        audioNotice = "";
+        return true;
+      }
+      await Promise.race([
+        ctx.resume(),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
+      if (ctx.state === "running") {
+        audioNotice = "";
+        return true;
+      }
+      audioNotice =
+        "Your browser is holding audio back. Tap anywhere on the page, then press Play again.";
+      return false;
+    } catch {
+      // Never let this check be the reason playback does not happen.
+      return true;
+    }
+  }
+
   async function handlePlay() {
     if (!synthControl) return;
+    if (!(await ensureAudioRunning())) return;
     await synthControl.play();
     isPlaying = true;
   }
@@ -747,6 +806,35 @@
     if (synthControl && generatedBpm > 0) {
       try { synthControl.setWarp(Math.round((newBpm / generatedBpm) * 100)); } catch {}
     }
+  }
+
+  /**
+   * Change the playback voice without regenerating the exercise.
+   *
+   * abcjs takes the instrument from a `%%MIDI program` directive inside the ABC,
+   * so it has to be re-parsed - but that is only a re-render and a synth
+   * re-init, not a new exercise. Regenerating here would throw away the one the
+   * singer is looking at, which is not what changing a sound should do.
+   */
+  async function handleInstrumentChange(program: number) {
+    instrumentProgram = program;
+    updateURLParams();
+    if (!renderedString) return;
+    renderedString = withInstrument(renderedString, program);
+    if (isPlaying) { synthControl?.pause(); isPlaying = false; }
+    // renderTune *returns* the tune and does not assign renderedTune - so the
+    // result has to be taken here. Dropping it re-rendered the score correctly
+    // and then handed the synth the previous tune, which still carried the old
+    // program: the button lit up, the URL updated, and playback stayed on the
+    // piano.
+    const tune = await renderTune();
+    if (!tune || tune.length === 0) return;
+    tune[0].setTiming();
+    renderedTune = tune[0];
+    createPlaybackCursor();
+    systemExtents = [];
+    cursorBeats = newMetronomeBeatState();
+    await initSynth(renderedTune);
   }
 
   function handleToggleMute(voiceName: string) {
@@ -905,6 +993,7 @@
       voiceTexture,
       rhythmBias,
       chromaticFrequency,
+      midiProgram: instrumentProgram,
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames
@@ -1096,6 +1185,22 @@
                     : measures < 12
                       ? "Entrances, plus parts dropping out — tacet passages need 12 measures or more."
                       : "Entrances, plus parts dropping out for a few measures at a time."}
+              </p>
+            </div>
+
+            <div class="space-y-2 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback sound</p>
+              <div class="flex flex-wrap gap-2">
+                {#each INSTRUMENTS as instrument}
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm {instrumentProgram === instrument.program ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => handleInstrumentChange(instrument.program)}
+                    aria-pressed={instrumentProgram === instrument.program}
+                  >{instrument.label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-slate-400">
+                Changes the sound straight away — the exercise stays as it is.
               </p>
             </div>
 
@@ -1311,6 +1416,12 @@
 
     <!-- Hidden abcjs audio element -->
     <div id="audio" class="hidden"></div>
+
+    {#if audioNotice}
+      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
+        {audioNotice}
+      </p>
+    {/if}
 
     <!-- Sheet music -->
     <div class="relative w-full" class:min-h-40={isGenerating}>

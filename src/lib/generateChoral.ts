@@ -48,6 +48,8 @@ export interface GenerateChoralParams {
   allowedChordNames?: string[];
   /** Weight multiplier for chromatic chords (secondary dominants, etc.). Default 1. */
   chromaticFrequency?: number;
+  /** MIDI program for playback; see src/lib/instruments.ts. */
+  midiProgram?: number;
 }
 
 /**
@@ -362,6 +364,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     // defaultLength: "1/32", // Removed, handled in assembleAbcString
     // key: key, // Removed, passed separately
     tempo: bpm,
+    midiProgram: params.midiProgram ?? 0,
   };
   console.log(
     `  Params: voiceNotes count=${notesWithNCTs.length}, voiceParts count=${voiceParts.length}, rhythms count=${finalRhythms.length}, key=${key}, timeSig=${timeSig.name}, metadata=${JSON.stringify(abcParams)}`
