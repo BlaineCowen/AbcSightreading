@@ -1030,6 +1030,21 @@ export function buildChordNotes(
                   const rooted = pool.filter((n) => n.degree === currentChord.root);
                   if (rooted.length > 0) pool = rooted;
                 }
+                // Not attempted here: restricting this pick so a chromatic
+                // bass note must be approached by step. It was tried four ways -
+                // as a preference at every retry, released after 8 and after 18
+                // retries, narrowed to only the chords whose accidental belongs
+                // in the bass, and by keeping the altered degree out of the bass
+                // entirely - and measured against ~1000 bass accidentals each
+                // time. Every version either bought nothing (77.9% approached by
+                // step against 79.3% for doing nothing, inside the spread) or
+                // bought compliance at a price no exercise should pay: 32% and
+                // 64% of 48-measure exercises failing outright.
+                //
+                // The reason is structural. This escape runs only on steps where
+                // the search is already stuck, so anything that narrows its
+                // choices removes the escape itself. The fix has to be earlier -
+                // in which chords the progression offers at all - not here.
                 chosenNote = pool[Math.floor(Math.random() * pool.length)];
                 applyAccidental = true;
               }
@@ -1062,12 +1077,29 @@ export function buildChordNotes(
                 : undefined,
               isCadenceEnd: (rhythm as any).isCadenceEnd ?? false,
             };
-            owedBassResolution =
-              finalAccidental === "sharp"
-                ? generatedBassNote.pitchValue + 1
-                : finalAccidental === "flat"
-                  ? generatedBassNote.pitchValue - 1
-                  : undefined;
+            // A natural is an accidental too, and it owes a resolution like any
+            // other. Which way it resolves depends on what it altered: in F
+            // major the raised 4th is B natural (from Bb) and rises, while in G
+            // major a lowered 7th is F natural (from F#) and falls. wasRaised is
+            // exactly that distinction, and the upper voices have always used
+            // it - the bass did not, so in flat keys, where every chromatic note
+            // is spelled as a natural, the bass owed no resolution at all and
+            // was free to leap away from it.
+            const bassResolvesUp =
+              finalAccidental === "sharp" ||
+              finalAccidental === "double-sharp" ||
+              (finalAccidental === "natural" &&
+                generatedBassNote.wasRaised === true);
+            const bassResolvesDown =
+              finalAccidental === "flat" ||
+              finalAccidental === "double-flat" ||
+              (finalAccidental === "natural" &&
+                generatedBassNote.wasRaised === false);
+            owedBassResolution = bassResolvesUp
+              ? generatedBassNote.pitchValue + 1
+              : bassResolvesDown
+                ? generatedBassNote.pitchValue - 1
+                : undefined;
 
             stepNotesAttempt[bassVoiceIndex] = generatedBassNote;
             pitchCheckArray[bassVoiceIndex] = generatedBassNote.pitchValue;
