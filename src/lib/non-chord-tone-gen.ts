@@ -455,6 +455,22 @@ export function generateNonChordTones(
     }
 
     if (generatedNctNotes && generatedNctNotes.length > 0) {
+      // The chord symbol belongs to the moment, not to the note, so it moves to
+      // whatever now sounds first at that moment.
+      //
+      // This used to be hand-rolled inside each generator, and two of the six -
+      // anticipation and appoggiatura - simply forgot. Their combined weight is
+      // 7 of 35, so about a fifth of the decorations on a labelled note deleted
+      // that chord's symbol outright, with nothing to show for it. Doing it once
+      // here cannot be forgotten by a generator added later.
+      //
+      // Element 0 always starts at the same instant as the note it replaced:
+      // every decoration preserves total duration, which notesSpanning already
+      // depends on.
+      if (originalNote.chordSymbol) {
+        generatedNctNotes[0].chordSymbol = originalNote.chordSymbol;
+      }
+
       // Parallel-motion guard: revert to original if a P5 or P8 would result
       if (checkParallelMotion(generatedNctNotes, i, allNotes, currentPartIndex)) {
         console.log(`NCT_GEN: Parallel motion violation — keeping original note at ${i}.`);
@@ -659,9 +675,6 @@ function generateSuspension(params: NctFunctionParams): VoiceNote[] | null {
   // the one to keep.
   const suspended = createNewNote(prevNote, heldPitch, len1, key);
   const resolution = createNewNote(currentNote, resolutionPitch, len2, key);
-  if (suspended && currentNote.chordSymbol) {
-    suspended.chordSymbol = currentNote.chordSymbol;
-  }
 
   return suspended && resolution ? [suspended, resolution] : null;
 }
@@ -752,9 +765,6 @@ function tryParallelDecoration(
         ok = false;
         break;
       }
-      if (k === 0 && originalNote.chordSymbol) {
-        note.chordSymbol = originalNote.chordSymbol;
-      }
       notes.push(note);
     }
     if (ok && notes.length === theirs.length) return notes;
@@ -791,7 +801,6 @@ function generatePassingTone(params: NctFunctionParams): VoiceNote[] | null {
     const note = createNewNote(currentNote, pitch1 + direction * k, lengths[k], key);
     if (!note) return null;
     // The first sub-note inherits the chord-start tag; the rest are mid-chord.
-    if (k === 0 && currentNote.chordSymbol) note.chordSymbol = currentNote.chordSymbol;
     notes.push(note);
   }
   return notes;
@@ -822,7 +831,6 @@ function generateNeighborTone(params: NctFunctionParams): VoiceNote[] | null {
   for (let k = 0; k < lengths.length; k++) {
     const note = createNewNote(currentNote, pitches[k], lengths[k], key);
     if (!note) return null;
-    if (k === 0 && currentNote.chordSymbol) note.chordSymbol = currentNote.chordSymbol;
     notes.push(note);
   }
   return notes;

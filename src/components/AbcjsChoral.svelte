@@ -138,6 +138,25 @@
   /** Playback voice. See src/lib/instruments.ts for why the list is short. */
   let instrumentProgram: number = DEFAULT_INSTRUMENT;
 
+  /** Solfège syllables under each staff. Off by default - a teaching aid, opted into. */
+  let showSolfege = false;
+  /**
+   * The master switch for everything printed alongside the notes.
+   *
+   * Turning it off re-writes the same exercise without syllables or chord
+   * symbols - the clean copy to hand out - and leaves `showSolfege` untouched,
+   * so turning it back on restores what was there.
+   */
+  let annotationsShown = true;
+
+  /**
+   * Re-writes the current exercise with different annotations.
+   *
+   * Held from the last generation so a display toggle costs a re-render rather
+   * than a new exercise; null until something has been generated.
+   */
+  let renderCurrent: ((display: any) => string) | null = null;
+
   /**
    * Whether the chosen rhythms can actually tile the bar, worked out ahead of
    * pressing Generate.
@@ -528,6 +547,10 @@
     if (isCursorMode(cursor)) cursorMode = cursor;
     const instrument = p.get("sound");
     if (isInstrumentProgram(instrument)) instrumentProgram = Number(instrument);
+    // A shared link carries the annotation state - the whole point of the clean
+    // copy is being able to send it.
+    showSolfege = p.get("solfege") === "1";
+    annotationsShown = p.get("annot") !== "0";
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
     const bias = p.get("bias");
@@ -553,6 +576,8 @@
     p.set("bpm", bpm.toString());
     p.set("cursor", cursorMode);
     p.set("sound", String(instrumentProgram));
+    p.set("solfege", showSolfege ? "1" : "0");
+    p.set("annot", annotationsShown ? "1" : "0");
     p.set("texture", voiceTexture);
     const biasPairs = Object.entries(rhythmBias);
     if (biasPairs.length) {
@@ -865,17 +890,21 @@
    * re-init, not a new exercise. Regenerating here would throw away the one the
    * singer is looking at, which is not what changing a sound should do.
    */
-  async function handleInstrumentChange(program: number) {
-    instrumentProgram = program;
-    updateURLParams();
+  /**
+   * Draw whatever is in `renderedString` and put the transport back together.
+   *
+   * Every step here is load-bearing. renderTune *returns* the tune and does not
+   * assign renderedTune, so the result has to be taken - dropping it re-rendered
+   * the score correctly and handed the synth the previous tune, which is how
+   * changing instrument once left playback on the piano. renderAbc replaces the
+   * whole SVG, so the cursor has to be rebuilt and the cached system extents
+   * thrown away. And the warp has to be re-applied: initSynth destroys and
+   * rebuilds the SynthController, which forgets any tempo the user has dialled
+   * in since generating.
+   */
+  async function applyRenderedString() {
     if (!renderedString) return;
-    renderedString = withInstrument(renderedString, program);
     if (isPlaying) pausePlayback();
-    // renderTune *returns* the tune and does not assign renderedTune - so the
-    // result has to be taken here. Dropping it re-rendered the score correctly
-    // and then handed the synth the previous tune, which still carried the old
-    // program: the button lit up, the URL updated, and playback stayed on the
-    // piano.
     const tune = await renderTune();
     if (!tune || tune.length === 0) return;
     tune[0].setTiming();
@@ -884,6 +913,44 @@
     systemExtents = [];
     cursorBeats = newMetronomeBeatState();
     await initSynth(renderedTune);
+    if (generatedBpm > 0 && bpm !== generatedBpm) {
+      try { synthControl?.setWarp(Math.round((bpm / generatedBpm) * 100)); } catch {}
+    }
+  }
+
+  /** What the assembler should print, given the two controls. */
+  function displayOptions() {
+    return {
+      chordSymbols: annotationsShown,
+      solfege: annotationsShown && showSolfege,
+      midiProgram: instrumentProgram,
+    };
+  }
+
+  /** Re-write the score with the current annotation settings. */
+  async function reRenderAnnotations() {
+    updateURLParams();
+    if (!renderCurrent) return;
+    renderedString = renderCurrent(displayOptions());
+    await applyRenderedString();
+  }
+
+  async function handleToggleSolfege() {
+    showSolfege = !showSolfege;
+    await reRenderAnnotations();
+  }
+
+  async function handleToggleAnnotations() {
+    annotationsShown = !annotationsShown;
+    await reRenderAnnotations();
+  }
+
+  async function handleInstrumentChange(program: number) {
+    instrumentProgram = program;
+    updateURLParams();
+    if (!renderedString) return;
+    renderedString = withInstrument(renderedString, program);
+    await applyRenderedString();
   }
 
   function handleToggleMute(voiceName: string) {
@@ -1050,6 +1117,7 @@
       rhythmBias,
       chromaticFrequency,
       midiProgram: instrumentProgram,
+      display: displayOptions(),
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames
@@ -1061,9 +1129,16 @@
     await painted();
 
     try {
-      const { abcString, chordProgression: generatedProgression } = generateChoralExercise(params);
+      const {
+        abcString,
+        chordProgression: generatedProgression,
+        render,
+      } = generateChoralExercise(params);
       renderedString = abcString;
       chordProgression = generatedProgression as Chord[];
+      // Kept so the annotation toggles can re-write this exercise instead of
+      // replacing it.
+      renderCurrent = render;
 
       const tune = await renderTune();
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
@@ -1257,6 +1332,29 @@
               </div>
               <p class="text-xs text-slate-400">
                 Changes the sound straight away — the exercise stays as it is.
+              </p>
+            </div>
+
+            <div class="space-y-2 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={handleToggleSolfege}
+                  aria-pressed={showSolfege}
+                >Solfège</button>
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm {annotationsShown ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={handleToggleAnnotations}
+                  aria-pressed={annotationsShown}
+                >{annotationsShown ? 'Shown' : 'Hidden'}</button>
+              </div>
+              <p class="text-xs text-slate-400">
+                {annotationsShown
+                  ? (showSolfege
+                      ? "Chord symbols above the top staff, solfège under each part."
+                      : "Chord symbols above the top staff.")
+                  : "Hidden — the same exercise, printed clean for sight-reading."}
               </p>
             </div>
 

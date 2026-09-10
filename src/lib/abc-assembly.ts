@@ -6,6 +6,20 @@ import {
   type Rhythm,
   type TimeSignature,
 } from "./types";
+import { solfegeLineFor } from "../resources/solfege";
+
+/**
+ * What to print alongside the notes.
+ *
+ * Both default off, so the plain score is what you get unless something asks for
+ * more. Teaching aids are opt-in; the clean copy is the baseline.
+ */
+export interface AbcDisplayOptions {
+  /** Roman numerals above the top staff. */
+  chordSymbols?: boolean;
+  /** Solfège syllables as a `w:` lyric line under each voice. */
+  solfege?: boolean;
+}
 
 // Interface for additional metadata needed for the ABC header
 interface AbcMetadata {
@@ -37,7 +51,8 @@ export function assembleAbcString(
   rhythms: Rhythm[],
   key: string,
   timeSig: TimeSignature,
-  metadata: AbcMetadata
+  metadata: AbcMetadata,
+  display: AbcDisplayOptions = {}
 ): string {
   console.log("Assembling ABC string with:");
   console.log(
@@ -113,19 +128,26 @@ export function assembleAbcString(
         accidental: note.accidental,
       });
 
+      // Chord-symbol annotation (e.g. "I", "V⁷", "V⁶/V").
+      //
+      // Emitted before the rest/note branch, not inside it: the symbols sit in
+      // one row above the top staff, and that voice can be resting there when
+      // the texture thins. Kept inside the note branch, every symbol over a rest
+      // silently vanished and the row thinned out with the texture.
+      //
+      // The leading "^" pins it above the staff as an annotation. A bare chord
+      // token does survive the parser - checked, "V/V" comes back intact rather
+      // than being read as a slash chord - but it would then be engraved in the
+      // chord font, and Roman-numeral analysis is an annotation, not a lead
+      // sheet chord.
+      if (display.chordSymbols && note.chordSymbol) {
+        partString += `"^${note.chordSymbol}"`;
+      }
+
       if (note.rest) {
         partString += `z${note.length}`;
       } else {
         const base = basePitch(note.name);
-
-        // Chord-symbol annotation (e.g. "I", "V7", "V/V"). The leading "^"
-        // makes it a TEXT annotation positioned above the note rather than a
-        // chord-symbol token — abcjs's chord-symbol parser would otherwise
-        // interpret slashes as slash-chord notation (e.g. "V/V" → V over V)
-        // and render only the part before the slash.
-        if (note.chordSymbol) {
-          partString += `"^${note.chordSymbol}"`;
-        }
 
         if (note.accidental) {
           // Explicit accidental — record it so we can cancel it for diatonic notes later.
@@ -161,6 +183,14 @@ export function assembleAbcString(
       partString = partString.slice(0, -2) + "|]";
     }
     abcString += partString + "\n";
+
+    // Solfège goes on its own `w:` line directly after this voice's body, which
+    // is how ABC attaches lyrics to a voice. One syllable per *note* - rests
+    // take no slot, or every later syllable would sit one note to the left.
+    if (display.solfege) {
+      const syllables = solfegeLineFor(notesForPart, key);
+      if (syllables.length > 0) abcString += `w: ${syllables.join(" ")}\n`;
+    }
   }
 
   return abcString;

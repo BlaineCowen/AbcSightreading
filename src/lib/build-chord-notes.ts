@@ -724,6 +724,15 @@ export function buildChordNotes(
     // A restart re-places every note, so the tally starts again with it.
     extremeUses.clear();
     let chordIndex = 0;
+    // Which chord last had its symbol written. A chord held across several
+    // rhythm steps is labelled once, on its first. Reset with the run: the outer
+    // loop re-enters this function on a restart, and a stale index would drop
+    // the opening chord's symbol without any sign of it.
+    let lastLabelledChordIndex = -1;
+    // A chord repeated in the progression is not a new label. I I V I prints
+    // "I V I", the way an analysis is actually written - the symbol marks where
+    // the harmony changes, not every time it is restruck.
+    let lastLabelledSymbol = "";
 
     // Clear existing chord notes
     voiceParts.forEach((part) => {
@@ -735,6 +744,10 @@ export function buildChordNotes(
     const sopranoVoiceIndex = presetSoprano
       ? findHighestOrderVoiceIndex(voiceParts)
       : -1;
+
+    // The voice that carries the chord symbols - always the top one, so they
+    // read as a single row above the score.
+    const topVoiceIndex = findHighestOrderVoiceIndex(voiceParts);
 
     /**
      * Where the bass owes a resolution.
@@ -1241,6 +1254,23 @@ export function buildChordNotes(
 
         // Check voice order using the correctly ordered pitchCheckArray
         if (isVoiceOrderValid(orderedPitches)) {
+          // Label the chord, once, on the top voice.
+          //
+          // The symbols form a single row above the top staff, so they always go
+          // to the same voice - including where that voice is resting, which the
+          // assembler prints over. Anything cleverer (following the highest
+          // *sounding* voice) moves the row down the page mid-system.
+          if (
+            chordIndex !== lastLabelledChordIndex &&
+            currentChord.symbol !== lastLabelledSymbol
+          ) {
+            const topVoice = stepNotesAttempt[topVoiceIndex];
+            if (topVoice) {
+              topVoice.chordSymbol = currentChord.symbol;
+              lastLabelledChordIndex = chordIndex;
+              lastLabelledSymbol = currentChord.symbol;
+            }
+          }
           stepNotesAttempt.forEach((note, voiceIndex) => {
             // Ensure we push to the correct original index in allVoiceNotes
             if (note) voiceParts[voiceIndex].chordNotes.push(note);

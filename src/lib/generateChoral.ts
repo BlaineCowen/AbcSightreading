@@ -2,7 +2,7 @@ import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
-import { assembleAbcString } from "./abc-assembly";
+import { assembleAbcString, type AbcDisplayOptions } from "./abc-assembly";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { nctPatternsFor } from "./nct-patterns";
 import { canAppearInChoral } from "./selectable-rhythms";
@@ -50,6 +50,8 @@ export interface GenerateChoralParams {
   chromaticFrequency?: number;
   /** MIDI program for playback; see src/lib/instruments.ts. */
   midiProgram?: number;
+  /** Which annotations to print. Also changeable afterwards via `render`. */
+  display?: AbcDisplayOptions;
 }
 
 /**
@@ -63,6 +65,8 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   chordProgression: Chord[];
   voiceNotes: VoiceNote[][];
   voiceNames: string[];
+  /** Re-write the same exercise with different annotations. See below. */
+  render: (display?: AbcDisplayOptions & { midiProgram?: number }) => string;
 } {
   console.log("--- generateChoralExercise START ---");
   console.log("Received params:", JSON.stringify(params, null, 2));
@@ -379,14 +383,34 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     mergeRestsWithinMeasures(voice, timeSig.tsPerMeasure)
   );
 
-  const abcString = assembleAbcString(
-    tidied,
-    voiceParts,
-    finalRhythms,
-    key,
-    timeSig,
-    abcParams
-  );
+  /**
+   * Re-write the score with different annotations, without regenerating it.
+   *
+   * Solfège and chord symbols change nothing about the music, so turning them on
+   * or off should not cost the singer the exercise on screen. Everything the
+   * assembler needs is captured here rather than handed back to the caller:
+   * `voiceParts` carries a possibleNotes list per part and a chordNotes array
+   * the builder mutates, and that is not something a UI component should be
+   * holding.
+   *
+   * `midiProgram` is threaded through because the instrument can be changed
+   * after generation. Re-assembling from the captured metadata alone would quietly
+   * reset playback to whatever instrument was chosen when the exercise was made.
+   */
+  const render = (
+    display: AbcDisplayOptions & { midiProgram?: number } = {}
+  ): string =>
+    assembleAbcString(
+      tidied,
+      voiceParts,
+      finalRhythms,
+      key,
+      timeSig,
+      { ...abcParams, midiProgram: display.midiProgram ?? abcParams.midiProgram },
+      display
+    );
+
+  const abcString = render(params.display ?? {});
 
   console.log(abcString);
 
@@ -396,5 +420,6 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     chordProgression: chordProgression,
     voiceNotes: notesWithNCTs,
     voiceNames: voiceParts.map((vp) => vp.name),
+    render,
   };
 }

@@ -289,7 +289,11 @@ export function mergeRestsWithinMeasures(
 
   while (i < voice.length) {
     const note = voice[i];
-    if (!note.rest || note.isCadenceEnd) {
+    // A rest carrying a chord symbol is left alone, exactly as a cadence note
+    // is. Merging spreads only the *first* rest of a run, so a top voice resting
+    // through a bar would collapse four symbols into one and the row would thin
+    // out wherever the texture did.
+    if (!note.rest || note.isCadenceEnd || note.chordSymbol) {
       merged.push({ ...note });
       t += note.length;
       i++;
@@ -304,6 +308,7 @@ export function mergeRestsWithinMeasures(
       j < voice.length &&
       voice[j].rest &&
       !voice[j].isCadenceEnd &&
+      !voice[j].chordSymbol &&
       t + total + voice[j].length <= measureEnd
     ) {
       total += voice[j].length;
