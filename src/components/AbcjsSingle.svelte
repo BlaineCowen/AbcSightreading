@@ -579,11 +579,38 @@
     if (currentTune && originalTuneString) await rerenderTune();
   }
 
-  /** Same, for the rhythm syllables under a rhythm-only exercise. */
-  async function handleToggleRhythmSyllables() {
-    showRhythmSyllables = !showRhythmSyllables;
+  /**
+   * The rhythm syllables: off, or one of the systems.
+   *
+   * One control where there used to be three - an on/off in the Rhythm tab, a
+   * system picker beneath it, and a second on/off under Annotations that did
+   * the same job by a different route. Which one you reached for changed what
+   * happened, and two of them disagreed about whether the exercise had to be
+   * made again.
+   *
+   * Off is a render-time strip, so it costs nothing and comes straight back.
+   * Changing SYSTEM cannot be: the syllables are written into the exercise as it
+   * is assembled, and unison keeps no note data to re-label from. So that one
+   * generates a new exercise, which is at least visibly something happening.
+   */
+  async function setRhythmSyllables(mode: "off" | string) {
+    const wasOff = !showRhythmSyllables;
+    if (mode === "off") {
+      showRhythmSyllables = false;
+      updateUrlFromState();
+      if (currentTune && originalTuneString) await rerenderTune();
+      return;
+    }
+    const systemChanged = mode !== syllableSystemId;
+    syllableSystemId = mode;
+    showRhythmSyllables = true;
     updateUrlFromState();
-    if (currentTune && originalTuneString) await rerenderTune();
+    if (systemChanged && currentTune) {
+      // A different system means different words on every note.
+      await handleClick();
+    } else if (wasOff && currentTune && originalTuneString) {
+      await rerenderTune();
+    }
   }
 
   /**
@@ -2265,35 +2292,26 @@
                 </p>
               </div>
 
+              <!-- Pitched exercises only. Rhythm-only has no scale degrees to
+                   name, and its syllables live in the Rhythm tab - the one
+                   place they are set. -->
+              {#if !rhythmOnly}
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
                 <div class="flex flex-wrap gap-2">
-                  {#if rhythmOnly}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={handleToggleRhythmSyllables}
-                      aria-pressed={showRhythmSyllables}
-                    >Rhythm syllables</button>
-                  {:else}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={handleToggleSolfege}
-                      aria-pressed={showSolfege}
-                    >Solfège</button>
-                  {/if}
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={handleToggleSolfege}
+                    aria-pressed={showSolfege}
+                  >Solfège</button>
                 </div>
                 <p class="text-xs text-slate-400">
-                  {#if rhythmOnly}
-                    {showRhythmSyllables
-                      ? "Syllables above each note."
-                      : "Clean - the same exercise, printed for reading."}
-                  {:else}
-                    {showSolfege
-                      ? "Solfège under the staff."
-                      : "Clean - the same exercise, printed for sight-reading."}
-                  {/if}
+                  {showSolfege
+                    ? "Solfège under the staff."
+                    : "Clean - the same exercise, printed for sight-reading."}
                 </p>
               </div>
+              {/if}
 
               <div class="space-y-2 col-span-1 sm:col-span-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
@@ -2420,34 +2438,34 @@
               </div>
 
               {#if rhythmOnly}
-                <!-- Only meaningful on the one-line rhythm staff, where there
-                     are no scale degrees and Show Solfege is unavailable. -->
+                <!-- The one place rhythm syllables are set. Only meaningful on
+                     the one-line staff, where there are no scale degrees and
+                     solfege is unavailable. -->
                 <div class="space-y-2 pt-1">
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Rhythm Syllables
                   </p>
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => (showRhythmSyllables = !showRhythmSyllables)}
-                    aria-pressed={showRhythmSyllables}
-                  >{showRhythmSyllables ? 'On' : 'Off'}</button>
-
-                  {#if showRhythmSyllables}
-                    <!-- Driven by the registry, so a new system is a data
-                         change here as well as in the generator. -->
-                    <div class="flex flex-wrap gap-2 pt-1">
-                      {#each Object.values(syllableSystems) as system}
-                        <button
-                          class="px-3 py-2 sm:py-1 rounded text-sm {syllableSystemId === system.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                          on:click={() => (syllableSystemId = system.id)}
-                          aria-pressed={syllableSystemId === system.id}
-                        >{system.label}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-slate-400">
-                      {syllableSystems[syllableSystemId].hint}
-                    </p>
-                  {/if}
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      class="px-3 py-2 sm:py-1 rounded text-sm {!showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={() => setRhythmSyllables('off')}
+                      aria-pressed={!showRhythmSyllables}
+                    >Off</button>
+                    <!-- Driven by the registry, so a new system is a data change
+                         here as well as in the generator. -->
+                    {#each Object.values(syllableSystems) as system}
+                      <button
+                        class="px-3 py-2 sm:py-1 rounded text-sm {showRhythmSyllables && syllableSystemId === system.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        on:click={() => setRhythmSyllables(system.id)}
+                        aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
+                      >{system.label}</button>
+                    {/each}
+                  </div>
+                  <p class="text-xs text-slate-400">
+                    {showRhythmSyllables
+                      ? syllableSystems[syllableSystemId].hint
+                      : 'No syllables. The exercise is unchanged - turning them back on costs nothing.'}
+                  </p>
                 </div>
               {/if}
             </div>
