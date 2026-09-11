@@ -40,12 +40,12 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedRhythmNames: ["whole", "half", "quarter", "wholeRest", "halfRest", "quarterRest"],
     // Treble: SA, Tenor-Bass: TB
     // The doc's level 1 is "Treble: SA" and "Tenor-Bass: TB" - two parts either
-    // way. The app has no two-part tenor-bass voicing, and the three-part one
+    // way. Both are offered now. The three-part tenor-bass voicing
     // cannot be written at this level: three men inside these ranges, moving by
     // no more than a third (maxSkip 2) on I, IV and V alone, failed 100% of the
     // time - before any of this session's range work as well. An option that
     // never produces an exercise is worse than one that is not offered.
-    allowedVoicings: ["2 Part Treble", "Unison"],
+    allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass", "Unison"],
     measureRange: [24, 28],
     maxSkip: 2,
     // Ceilings come from notes/uil-criteria.md; floors are opened downward from
@@ -89,7 +89,12 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarterRest",
     ],
     // Mixed: SATB, SAB; Treble: SSA/SA; Tenor-Bass: TBB/TB
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
+    // The doc names TB beside TBB here, and the three-part voicing fails 18% of
+    // the time at this level's maxSkip, so the two-part one is the usable half.
+    allowedVoicings: [
+      "4 Part Mixed", "3 Part Mixed", "2 Part Treble",
+      "3 Part Tenor/Bass", "2 Part Tenor/Bass",
+    ],
     measureRange: [28, 32],
     maxSkip: 3,
     // Ceilings come from notes/uil-criteria.md; floors are opened downward from

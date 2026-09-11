@@ -111,6 +111,26 @@
         Alto:    { order: 0, smallName: "A", clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
       },
     },
+    /**
+     * Two men's parts, which is what the UIL document actually asks for at the
+     * lower levels - level 1 is "Treble: SA" and "Tenor-Bass: TB", level 2 adds
+     * TBB beside TB. The app only had the three-part version, and three men
+     * moving by no more than a third is close to unwritable: measured over 200
+     * exercises on each level's own chords, rhythms and ranges, 3-Part
+     * Tenor/Bass fails 46% of the time at level 1 and 18% at level 2, where this
+     * fails 0%. A tenor-bass choir at level 1 had nothing to practise with at
+     * all - the level offered only treble voicings and unison.
+     *
+     * The bass gets the full bass range rather than the floor the three-part
+     * voicing gives it, since there is no baritone to fit above it.
+     */
+    "2 Part Tenor/Bass": {
+      numofParts: 2,
+      parts: {
+        Tenor: { order: 1, smallName: "T", clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
+        Bass:  { order: 0, smallName: "B", clef: ClefType.Bass,           range: [2,  21], currentRange: [9,  18] },
+      },
+    },
     Unison: {
       numofParts: 1,
       parts: {

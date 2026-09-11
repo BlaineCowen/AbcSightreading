@@ -1,5 +1,11 @@
 import type { VoiceNote } from "./types";
-import { isSingableInterval } from "./leap-recovery";
+import {
+  lastSounding,
+  firstSounding,
+  seamLeapOk,
+  seamResolutionOk,
+  parallelsAcross,
+} from "./splice-seams";
 
 /**
  * The consequent phrase rhymes the antecedent.
@@ -65,110 +71,9 @@ function sliceByTime(
   };
 }
 
-const lastSounding = (notes: VoiceNote[]): VoiceNote | undefined => {
-  for (let i = notes.length - 1; i >= 0; i--) if (!notes[i].rest) return notes[i];
-  return undefined;
-};
-const firstSounding = (notes: VoiceNote[]): VoiceNote | undefined => {
-  for (const n of notes) if (!n.rest) return n;
-  return undefined;
-};
 
-/**
- * Whether one voice can be joined at a seam without an unsingable jump.
- *
- * A rest on either side is not a seam at all - the singer breathes there and
- * the interval is not sung - so it passes.
- */
-function seamOk(
-  before: VoiceNote[],
-  after: VoiceNote[],
-  maxSkip: number
-): boolean {
-  const a = lastSounding(before);
-  const b = firstSounding(after);
-  if (!a || !b) return true;
-  const gap = Math.abs(b.pitchValue - a.pitchValue);
-  if (!isSingableInterval(a.pitchValue, b.pitchValue)) return false;
-  // A rest between the two notes means this is not a leap at all - the phrase
-  // has ended, the singer breathes, and the next entry is found rather than
-  // slurred into. maxSkip governs how far a line may move while it is being
-  // sung, which is a different question, so a rested seam is held only to being
-  // singable and to a fifth. Without this the tightest level, whose maxSkip is a
-  // third, refuses most periods on an interval nobody actually sings.
-  const rested =
-    before.some((n) => n.rest && n.length > 0 && before.indexOf(n) > before.indexOf(a)) ||
-    after.slice(0, after.indexOf(b)).some((n) => n.rest);
-  const allowed = rested ? Math.max(maxSkip, 4) : maxSkip;
-  return gap <= allowed;
-}
 
-/**
- * Whether an accidental sitting on a seam still gets the resolution it is owed.
- *
- * A chromatic note is written together with the note that resolves it - the
- * search arms `forcedNextBassPitch` and the leading-tone rules at the moment it
- * places the accidental. Splicing replaces whatever came next, so an accidental
- * immediately before a seam loses the resolution it was written with, and
- * nothing downstream notices. Measured: without this, the lowest voice's
- * accidentals resolved by step 95% -> 89% in major, and raised ones rose 92% ->
- * 88%. It is the same class of mistake as the parallels - a fault the search
- * would never allow, introduced at the join.
- *
- * A raised note rises and a lowered note falls; `wasRaised` is what tells the
- * two apart in flat keys, where every chromatic note is spelled as a natural.
- * A repeat of the same pitch is fine: the note is simply held and the
- * resolution comes after, which the splice has not touched.
- */
-function resolutionOk(before: VoiceNote[], after: VoiceNote[]): boolean {
-  const a = lastSounding(before);
-  const b = firstSounding(after);
-  if (!a || !b || !a.accidental) return true;
-  const delta = b.pitchValue - a.pitchValue;
-  if (delta === 0) return true;
-  const raised =
-    a.accidental === "sharp" ||
-    a.accidental === "double-sharp" ||
-    (a.accidental === "natural" && a.wasRaised === true);
-  return raised ? delta === 1 : delta === -1;
-}
 
-/**
- * Whether any pair of voices crosses a seam in parallel perfect intervals.
- *
- * The same rule the search itself applies in `findValidVoiceNote`: both voices
- * moving, in the same direction, into the same perfect interval - a fifth
- * (4 mod 7), an octave (0 mod 7), or a unison. Vetting melodic leaps alone was
- * not enough. Copying a phrase's opening onto another phrase joins two lines
- * that were never written against each other, and measured over 200 exercises
- * that roughly doubled the parallels at UIL 3 and 5 (74 -> 140) - faults the
- * search would never have allowed inside a phrase, appearing at the join.
- */
-function parallelsAcross(
-  prevs: (VoiceNote | undefined)[],
-  nexts: (VoiceNote | undefined)[]
-): boolean {
-  for (let a = 0; a < prevs.length; a++) {
-    for (let b = a + 1; b < prevs.length; b++) {
-      const a0 = prevs[a], a1 = nexts[a], b0 = prevs[b], b1 = nexts[b];
-      if (!a0 || !a1 || !b0 || !b1) continue;
-      // Belt and braces: a held voice is not in parallel motion with anything.
-      // Strictly redundant, since Math.sign of no movement is 0 and the
-      // direction test below then always differs - kept because the search's own
-      // filter is written this way and the two should read alike.
-      if (a0.pitchValue === a1.pitchValue) continue;
-      if (b0.pitchValue === b1.pitchValue) continue;
-      const dirA = Math.sign(a1.pitchValue - a0.pitchValue);
-      const dirB = Math.sign(b1.pitchValue - b0.pitchValue);
-      if (dirA !== dirB) continue; // contrary or oblique motion is fine
-      const before = Math.abs(a0.pitchValue - b0.pitchValue);
-      const after = Math.abs(a1.pitchValue - b1.pitchValue);
-      if (before % 7 === 4 && after % 7 === 4) return true; // fifths
-      if (before % 7 === 0 && after % 7 === 0) return true; // octaves and unisons
-    }
-  }
-  return false;
-}
 
 /**
  * Try to make one consequent rhyme its antecedent.
@@ -209,13 +114,13 @@ function rhymeOnce(
     // Seam one: into the borrowed opening. Empty when the target phrase starts
     // the exercise, and then there is no seam to vet at all.
     const beforeTarget = voices[i].slice(0, tgt.startIndex);
-    if (!seamOk(beforeTarget, src.notes, maxSkip)) return false;
-    if (!resolutionOk(beforeTarget, src.notes)) return false;
+    if (!seamLeapOk(beforeTarget, src.notes, maxSkip)) return false;
+    if (!seamResolutionOk(beforeTarget, src.notes)) return false;
     // Seam two: out of the borrowed material and into the target phrase's own
     // cadence, which is the part deliberately left alone.
     const afterTarget = voices[i].slice(tgt.endIndex + 1);
-    if (!seamOk(src.notes, afterTarget, maxSkip)) return false;
-    if (!resolutionOk(src.notes, afterTarget)) return false;
+    if (!seamLeapOk(src.notes, afterTarget, maxSkip)) return false;
+    if (!seamResolutionOk(src.notes, afterTarget)) return false;
   }
 
   // Both seams again, this time across voices rather than along one. Done after

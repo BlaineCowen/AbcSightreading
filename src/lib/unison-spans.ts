@@ -1,4 +1,5 @@
 import type { VoiceNote } from "./types";
+import { seamLeapOk, seamResolutionOk } from "./splice-seams";
 
 /**
  * Putting two parts in unison for a stretch.
@@ -26,6 +27,8 @@ export type UnisonSpanOptions = {
   tsPerMeasure: number;
   /** [low, high] per voice, index-aligned with `voiceNotes`. */
   ranges: [number, number][];
+  /** The widest leap either voice may sing, used to vet the two seams. */
+  maxSkip: number;
   /**
    * How likely the exercise is to use unison at all. Beginner levels want it
    * every time; it thins out as the parts are meant to become independent.
@@ -88,7 +91,8 @@ function unifySpan(
   voices: VoiceNote[][],
   from: number,
   to: number,
-  ranges: [number, number][]
+  ranges: [number, number][],
+  maxSkip: number
 ): boolean {
   const upper = sliceByTime(voices[0], from, to);
   const lower = sliceByTime(voices[1], from, to);
@@ -107,6 +111,23 @@ function unifySpan(
   const target = source === 0 ? 1 : 0;
   const slice = source === 0 ? upper : lower;
   const into = source === 0 ? lower : upper;
+
+  // The two seams, where the borrowed line meets what the target voice sang
+  // before and after it. Checking only that the notes were in range let this
+  // hand the singer a leap the search would never have written: measured on a
+  // two-part tenor/bass texture, intervals wider than maxSkip went from 93 to
+  // 332 and melodic sevenths from 1 to 19, purely from these joins.
+  //
+  // The parallel check the rhyme splice also applies is deliberately NOT used
+  // here - two parts moving together on one pitch is what a unison passage IS,
+  // so the rule that forbids it is the wrong rule for this pass.
+  const before = voices[target].slice(0, into.startIndex);
+  const after = voices[target].slice(into.endIndex + 1);
+  if (!seamLeapOk(before, slice.notes, maxSkip)) return false;
+  if (!seamLeapOk(slice.notes, after, maxSkip)) return false;
+  if (!seamResolutionOk(before, slice.notes)) return false;
+  if (!seamResolutionOk(slice.notes, after)) return false;
+
   const order = voices[target][into.startIndex].order;
   voices[target].splice(
     into.startIndex,
@@ -126,7 +147,7 @@ export function applyUnisonSpans(
   voiceNotes: VoiceNote[][],
   opts: UnisonSpanOptions
 ): VoiceNote[][] {
-  const { measures, tsPerMeasure, ranges, probability } = opts;
+  const { measures, tsPerMeasure, ranges, maxSkip, probability } = opts;
   const random = opts.random ?? Math.random;
 
   if (voiceNotes.length !== 2) return voiceNotes;
@@ -138,18 +159,38 @@ export function applyUnisonSpans(
 
   // The opening: two measures together, or one on a short exercise. Never more
   // than a quarter of the piece, or the split never gets heard.
+  //
+  // Both lengths are tried. A span is now vetted at its seams rather than only
+  // for range, so one that will not join is refused - and refusing the only
+  // candidate meant refusing the feature. Measured on 2-Part Treble at UIL 2,
+  // taking the first length and giving up dropped the exercises with any unison
+  // in them from 54% to 21%.
   const openingLength = Math.max(1, Math.min(2, Math.floor(measures / 4)));
-  unifySpan(out, 0, openingLength * tsPerMeasure, ranges);
+  for (let len = openingLength; len >= 1; len--) {
+    if (unifySpan(out, 0, len * tsPerMeasure, ranges, maxSkip)) break;
+  }
 
   // A later rejoin, on a longer exercise. Kept clear of the opening and of the
   // final measure, so the exercise still ends in two parts.
+  //
+  // Every legal position is tried, starting from a random one and wrapping, so
+  // the placement stays as varied as it was while a stretch where the parts
+  // happen to be close enough to join can actually be found. Joining a unison
+  // means one voice leaping onto the other's line, and at UIL 1 - maxSkip a
+  // third - only a few places in a line are near enough for that to be singable.
   if (measures >= 8) {
     const span = Math.max(1, Math.min(2, Math.floor(measures / 8)));
     const earliest = openingLength + 1;
     const latest = measures - 1 - span;
     if (latest >= earliest) {
-      const from = earliest + Math.floor(random() * (latest - earliest + 1));
-      unifySpan(out, from * tsPerMeasure, (from + span) * tsPerMeasure, ranges);
+      const slots = latest - earliest + 1;
+      const first = Math.floor(random() * slots);
+      for (let k = 0; k < slots; k++) {
+        const from = earliest + ((first + k) % slots);
+        if (unifySpan(out, from * tsPerMeasure, (from + span) * tsPerMeasure, ranges, maxSkip)) {
+          break;
+        }
+      }
     }
   }
 

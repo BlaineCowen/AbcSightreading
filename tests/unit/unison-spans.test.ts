@@ -35,7 +35,9 @@ const WIDE: [number, number][] = [
   [20, 32],
   [20, 32],
 ];
-const always = { probability: 1, random: () => 0 };
+// Wide enough that the seam checks never refuse these fixtures; the seams get
+// their own tests at the bottom.
+const always = { probability: 1, random: () => 0, maxSkip: 7 };
 
 const unisonCount = (v: VoiceNote[][]) =>
   v[0].filter((n, i) => !n.rest && n.pitchValue === v[1][i].pitchValue).length;
@@ -79,6 +81,7 @@ describe("unison spans", () => {
         measures: 16,
         tsPerMeasure: TS,
         ranges: WIDE,
+        maxSkip: 7,
         probability: 1,
       });
       const lastMeasureFrom = out[0].length - 4;
@@ -177,6 +180,7 @@ describe("unison spans", () => {
         measures: 16,
         tsPerMeasure: TS,
         ranges: WIDE,
+        maxSkip: 7,
         probability: 0,
       })
     ).toBe(input);
@@ -198,5 +202,126 @@ describe("unison spans", () => {
     expect(unisonProbabilityFor("UIL 4")).toBe(0);
     expect(unisonProbabilityFor("UIL 5")).toBe(0);
     expect(unisonProbabilityFor(undefined)).toBe(0);
+  });
+
+});
+
+/**
+ * Seam checks.
+ *
+ * The splice joins a borrowed line to what the target voice sang before and
+ * after it. Checking only that the notes were in range let it hand the singer a
+ * leap the search would never have written: measured on a two-part tenor/bass
+ * texture, intervals wider than maxSkip went from 93 to 332 and melodic sevenths
+ * from 1 to 19, purely from these joins.
+ *
+ * All of these use the LATER rejoin span, not the opening one. The opening
+ * starts at bar 1, so it has nothing before it and its entry seam is vacuous -
+ * a fixture built on it can only ever exercise half the checks.
+ *
+ * With `random: () => 0` and 16 measures: the opening takes bars 1-2 (notes
+ * 0-7) and the rejoin takes bars 4-5 (notes 12-19). The upper voice is the
+ * source, since it is tried first and these ranges let either reach the other.
+ */
+/**
+ * The contract is not "this particular window was left alone" - the pass now
+ * tries every legal position and takes one that joins, so a refusal in one place
+ * shows up as a splice somewhere else. What must hold is that it never
+ * INTRODUCES a fault: no interval the singer cannot manage, and no accidental
+ * left without the resolution it was written with.
+ */
+function run(upper: VoiceNote[], lower: VoiceNote[], maxSkip: number) {
+  const before = lower.map((n) => n.pitchValue);
+  const out = applyUnisonSpans([upper, lower], {
+    measures: 16,
+    tsPerMeasure: TS,
+    ranges: [
+      [8, 40],
+      [8, 40],
+    ],
+    maxSkip,
+    probability: 1,
+    random: () => 0,
+  });
+  return { after: out[1], before, spliced: out[1].some((n, i) => n.pitchValue !== before[i]) };
+}
+
+/** 64 quarters at one pitch, with individual notes overridden. */
+const line = (pitch: number, order: number, overrides: Record<number, number> = {}) =>
+  Array.from({ length: 64 }, (_, i) => note(overrides[i] ?? pitch, order));
+
+/** An interval the output has, that the input did not, and that is unsingable. */
+function introducedBadLeap(
+  before: number[],
+  after: VoiceNote[],
+  maxSkip: number
+): boolean {
+  for (let i = 1; i < after.length; i++) {
+    const was = Math.abs(before[i] - before[i - 1]);
+    const now = Math.abs(after[i].pitchValue - after[i - 1].pitchValue);
+    if (now === was) continue;
+    if (now > maxSkip || now === 6) return true;
+  }
+  return false;
+}
+
+/** Every accidental followed by the step it is owed, looking through repeats. */
+function resolutionsIntact(v: VoiceNote[]): boolean {
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i];
+    if (a.rest || !a.accidental) continue;
+    const b = v.slice(i + 1).find((n) => !n.rest && n.pitchValue !== a.pitchValue);
+    if (!b) continue;
+    const raised =
+      a.accidental === "sharp" || (a.accidental === "natural" && a.wasRaised === true);
+    if (raised ? b.pitchValue - a.pitchValue !== 1 : b.pitchValue - a.pitchValue !== -1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+describe("unison seams", () => {
+  test("it still joins the parts when the seams are fine", () => {
+    // The control. Without it, every assertion below is satisfied by a pass that
+    // simply never splices anything.
+    expect(run(line(28, 1), line(26, 0), 3).spliced).toBe(true);
+  });
+
+  test("no unsingable leap INTO the borrowed line", () => {
+    // Note 11 sits a sixth above the borrowed line, so the span that would start
+    // at note 12 cannot be entered. Its exit is a step, so only the entry check
+    // can refuse it.
+    const { before, after } = run(line(28, 1), line(26, 0, { 11: 34 }), 3);
+    expect(introducedBadLeap(before, after, 3)).toBe(false);
+  });
+
+  test("no unsingable leap OUT of it", () => {
+    // The mirror: note 20, where the target voice resumes, is a sixth away.
+    const { before, after } = run(line(28, 1), line(26, 0, { 20: 34 }), 3);
+    expect(introducedBadLeap(before, after, 3)).toBe(false);
+  });
+
+  test("an accidental running INTO a seam keeps its resolution", () => {
+    // Note 11 is raised and resolves up to note 12. The borrowed line sits a
+    // step BELOW it, which is the wrong way - and the leap is a step either way,
+    // so only the resolution check can refuse it.
+    const lower = line(26, 0, { 11: 29, 12: 30 });
+    lower[11] = { ...lower[11], accidental: "sharp", wasRaised: true } as VoiceNote;
+    const { after } = run(line(28, 1), lower, 3);
+    expect(resolutionsIntact(lower)).toBe(true); // the fixture starts out correct
+    expect(resolutionsIntact(after)).toBe(true);
+  });
+
+  test("and so does one running OUT of a seam", () => {
+    // The last note of the borrowed material is raised, so whatever the target
+    // voice resumes on must be a step above it.
+    // Note 20 of the SOURCE is the step that resolves it, so the source's own
+    // line is sound - the fault is only ever the target resuming somewhere else.
+    const upper = line(28, 1, { 20: 29 });
+    upper[19] = { ...upper[19], accidental: "sharp", wasRaised: true } as VoiceNote;
+    expect(resolutionsIntact(upper)).toBe(true);
+    const { after } = run(upper, line(26, 0), 3);
+    expect(resolutionsIntact(after)).toBe(true);
   });
 });
