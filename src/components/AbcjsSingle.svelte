@@ -4,6 +4,7 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
+  import { advance, rampEndBpm, startingState } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import { selectableRhythms } from "../lib/selectable-rhythms";
   import {
@@ -1229,6 +1230,7 @@
           hidePlaybackCursor();
           return;
         }
+        if (cursorSuppressed) return;
         if (cursorMode !== "smooth" && cursorMode !== "beat") return;
         // Beat mode steps once per beat; smooth takes every callback, which is
         // where abcjs's interpolation between notes shows up.
@@ -1242,6 +1244,7 @@
       // Fires once at each note's onset, so the cursor lands on the note and
       // stays there for its full length.
       eventCallback: (event: any) => {
+        if (cursorSuppressed) return;
         if (cursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
         movePlaybackCursor(event.left, event.top, event.height);
@@ -1252,6 +1255,7 @@
         // starts, so that move happens across the count-in instead of landing
         // 500ms before the first note (lineEndAnticipation) as a sudden jump.
         if (info?.line === 0) return;
+        if (cursorSuppressed) return; // a quiet repeat does not scroll either
 
         const paperDiv = document.getElementById("paper");
         if (!paperDiv) return;
@@ -1435,6 +1439,8 @@
       // Ignore nodes we already replaced or stopped by hand.
       if (node !== sourceNode) return;
       if (!isPlaying) return;
+      // A drill counts its passes, so it decides before the endless loop does.
+      if (drillRunning) return advanceDrill();
       if (looping) startLoopRepeat();
       else stopMusic();
     };
@@ -1685,7 +1691,19 @@
   /**
    * Handles the generate button click, creates new sight reading exercise
    */
+  /**
+   * Generate, as a user action.
+   *
+   * Pressing Generate during a drill ends it: an explicit ask for a new
+   * exercise outranks the schedule. The tempo goes back without a re-render,
+   * since generating is about to write a fresh tune at it anyway.
+   */
   async function handleClick() {
+    if (drillRunning) await stopDrill(false);
+    await generateExercise();
+  }
+
+  async function generateExercise() {
     // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
     if (!rhythmOnly && !validateSettings(selectedScaleDegrees, maxSkip)) {
       error =
@@ -1814,6 +1832,178 @@
     } finally {
       isLoading = false;
     }
+  }
+
+  /**
+   * Practice run: generate, play, repeat, generate the next, get faster.
+   *
+   * Sight-reading practice is not one exercise - it is a session. Running one
+   * by hand means pressing Generate, pressing Play, waiting, pressing Play
+   * again, nudging the tempo up, pressing Generate: six actions per exercise,
+   * every one of them a reason to stop paying attention to the music. This runs
+   * the whole session and leaves the reader's hands free.
+   *
+   * Built on the existing loop machinery rather than beside it. A repeat pass
+   * is exactly `startLoopRepeat()`, which already anchors the next pass to the
+   * end of the last so the count-in butts up against it instead of drifting by
+   * however late `onended` was delivered; the drill only decides whether to
+   * take another pass, move on, or stop.
+   */
+  let drillExercises = 4;
+  let drillRepeats = 2;
+  /** Added to the tempo for each NEW exercise, not for each repeat. */
+  let drillRampBpm = 0;
+  /** Silence before each new exercise starts, to read it first. */
+  let drillPreviewSeconds = 5;
+  /** Cursor and auto-scroll off for the repeats, so the reader holds their own place. */
+  let drillQuietRepeats = true;
+
+  let drillRunning = false;
+  let drillIndex = 0;
+  let drillRepeat = 0;
+  let drillStartBpm = 0;
+  /** Counts down during the look-at-it pause; 0 when not waiting. */
+  let drillCountdown = 0;
+  let drillTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Silences the cursor and the auto-scroll without touching `cursorMode`.
+   *
+   * The alternative - setting cursorMode to "off" for the repeats - writes the
+   * user's own setting away and into the URL, and any interruption mid-drill
+   * leaves it off for good.
+   */
+  let cursorSuppressed = false;
+
+  $: drillSettings = {
+    exercises: drillExercises,
+    repeats: drillRepeats,
+    rampBpm: drillRampBpm,
+  };
+  $: drillRampEndBpm = rampEndBpm(drillRunning ? drillStartBpm : bpm, drillSettings);
+
+  function clearDrillTimer() {
+    if (drillTimer !== null) {
+      clearTimeout(drillTimer);
+      drillTimer = null;
+    }
+  }
+
+  /** A pause the reader can see the end of, and that Stop can cut short. */
+  function drillPause(seconds: number): Promise<void> {
+    if (seconds <= 0) return Promise.resolve();
+    drillCountdown = seconds;
+    return new Promise<void>((resolve) => {
+      const tick = () => {
+        if (!drillRunning) {
+          drillCountdown = 0;
+          resolve();
+          return;
+        }
+        drillCountdown -= 1;
+        if (drillCountdown <= 0) {
+          drillCountdown = 0;
+          drillTimer = null;
+          resolve();
+          return;
+        }
+        drillTimer = setTimeout(tick, 1000);
+      };
+      drillTimer = setTimeout(tick, 1000);
+    });
+  }
+
+  async function startDrill() {
+    if (drillRunning || isLoading) return;
+    drillStartBpm = bpm;
+    const initial = startingState();
+    drillIndex = initial.index;
+    drillRepeat = initial.repeat;
+    drillRunning = true;
+    await runDrillExercise();
+  }
+
+  /**
+   * @param rerender - put the score back in step with the restored tempo.
+   *   Skipped when the caller is about to generate anyway, since generating
+   *   builds a fresh tune at whatever the tempo is by then.
+   */
+  async function stopDrill(rerender = true) {
+    if (!drillRunning) return;
+    drillRunning = false;
+    drillCountdown = 0;
+    cursorSuppressed = false;
+    clearDrillTimer();
+    stopMusic();
+    // The ramp moved the tempo; a drill that ended should not leave the slider
+    // somewhere the user did not put it, and pressing Start again should mean
+    // the same thing it meant the first time.
+    if (drillStartBpm > 0 && bpm !== drillStartBpm) {
+      handleBpmChange(drillStartBpm);
+      if (rerender && currentTune && originalTuneString) await rerenderTune();
+    }
+  }
+
+  /** Generate the next exercise, leave time to read it, then play it. */
+  async function runDrillExercise() {
+    if (!drillRunning) return;
+    cursorSuppressed = false;
+    try {
+      await generateExercise();
+    } catch (e) {
+      console.error("Practice run: generation failed", e);
+    }
+    if (!drillRunning) return; // stopped while it was generating
+    if (error || !currentTune) {
+      await stopDrill();
+      return;
+    }
+    await drillPause(drillPreviewSeconds);
+    if (!drillRunning) return;
+    await playMusic();
+    // playMusic returns without starting for any of several reasons - no audio
+    // buffer, a blocked AudioContext, a re-render mid-setup. The drill is
+    // driven forward by the buffer's `onended`, so a silent failure here is not
+    // a missed exercise, it is a run that sits on screen saying "pass 1 of 2"
+    // for ever. End it instead, and leave the reason on the page.
+    if (!isPlaying) {
+      error = error ?? "Playback could not start, so the practice run stopped.";
+      await stopDrill();
+    }
+  }
+
+  /**
+   * A pass just ended: take another, move to the next exercise, or finish.
+   *
+   * Called from the buffer's `onended`, which is where the loop decision
+   * already lives.
+   */
+  function advanceDrill() {
+    const { step, state } = advance(
+      { index: drillIndex, repeat: drillRepeat },
+      drillSettings,
+      bpm
+    );
+    drillIndex = state.index;
+    drillRepeat = state.repeat;
+
+    if (step.kind === "finish") {
+      void stopDrill();
+      return;
+    }
+    if (step.kind === "repeat") {
+      if (drillQuietRepeats) {
+        cursorSuppressed = true;
+        hidePlaybackCursor();
+      }
+      startLoopRepeat();
+      // startLoopRepeat calls stopMusic() if it cannot schedule the pass, and a
+      // stopped drill that still thinks it is running never ends.
+      if (!isPlaying) void stopDrill();
+      return;
+    }
+    stopMusic();
+    if (step.bpm !== bpm) handleBpmChange(step.bpm);
+    void runDrillExercise();
   }
 
   function validateSettings(
@@ -2383,6 +2573,128 @@
                       on:click={() => (measures = opt)}
                     >{opt}</button>
                   {/each}
+                </div>
+              </div>
+
+              <!-- Practice run -->
+              <div class="space-y-3 col-span-1 sm:col-span-2 border-t border-slate-200 pt-4 mt-1">
+                <div class="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Practice Run</p>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                      Generates and plays a whole session, hands free.
+                    </p>
+                  </div>
+                  {#if drillRunning}
+                    <button
+                      class="px-4 py-2 rounded text-sm font-semibold bg-red-600 hover:bg-red-700 text-white"
+                      on:click={() => stopDrill()}
+                    >Stop run</button>
+                  {:else}
+                    <button
+                      class="px-4 py-2 rounded text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white"
+                      on:click={startDrill}
+                      disabled={isLoading}
+                    >Start run</button>
+                  {/if}
+                </div>
+
+                {#if drillRunning}
+                  <p class="text-sm text-blue-700 bg-blue-50 rounded px-3 py-2" role="status">
+                    Exercise {drillIndex + 1} of {drillExercises}, pass {drillRepeat + 1} of {drillRepeats}
+                    {#if drillCountdown > 0}
+                      &middot; starts in {drillCountdown}s
+                    {/if}
+                    {#if drillRampBpm > 0}
+                      &middot; {bpm} BPM
+                    {/if}
+                  </p>
+                {/if}
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">New Exercises</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a run">
+                      {#each [1, 2, 4, 6, 8, 12] as n}
+                        <button
+                          class="px-3 py-2 sm:py-1 rounded text-sm {drillExercises === n ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                          on:click={() => (drillExercises = n)}
+                          aria-pressed={drillExercises === n}
+                        >{n}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-slate-400">A new exercise is written for each one.</p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Passes Each</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Passes of each exercise">
+                      {#each [1, 2, 3, 4] as n}
+                        <button
+                          class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeats === n ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                          on:click={() => (drillRepeats = n)}
+                          aria-pressed={drillRepeats === n}
+                        >{n}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-slate-400">How many times each exercise is played before the next.</p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Speed Ramp</p>
+                    <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Speed ramp">
+                      <input
+                        type="range" min="0" max="20" step="2"
+                        bind:value={drillRampBpm}
+                        class="w-40 accent-blue-500"
+                        aria-label="Tempo added per new exercise"
+                        disabled={drillRunning}
+                      />
+                      <span class="text-sm font-semibold whitespace-nowrap">+{drillRampBpm} BPM</span>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                      {#if drillRampBpm === 0}
+                        Every exercise at {bpm} BPM.
+                      {:else}
+                        Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the run ends.
+                      {/if}
+                    </p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Reading Time</p>
+                    <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Reading time">
+                      <input
+                        type="range" min="0" max="30" step="1"
+                        bind:value={drillPreviewSeconds}
+                        class="w-40 accent-blue-500"
+                        aria-label="Seconds to read a new exercise before it plays"
+                      />
+                      <span class="text-sm font-semibold whitespace-nowrap">{drillPreviewSeconds}s</span>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                      {drillPreviewSeconds === 0
+                        ? "Each new exercise starts straight away."
+                        : "Silence to scan a new exercise before it plays."}
+                    </p>
+                  </div>
+
+                  <div class="space-y-2 sm:col-span-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quiet Repeats</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Quiet repeats">
+                      <button
+                        class="px-3 py-2 sm:py-1 rounded text-sm {drillQuietRepeats ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                        on:click={() => (drillQuietRepeats = !drillQuietRepeats)}
+                        aria-label="Quiet repeats"
+                        aria-pressed={drillQuietRepeats}
+                      >{drillQuietRepeats ? 'On' : 'Off'}</button>
+                    </div>
+                    <p class="text-xs text-slate-400">
+                      {drillQuietRepeats
+                        ? "The cursor and the auto-scroll stop after the first pass, so the reader holds their own place."
+                        : "The cursor follows every pass."}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
