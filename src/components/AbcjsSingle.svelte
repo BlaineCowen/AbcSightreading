@@ -4,6 +4,7 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
+  import { rhythmLabel } from "../lib/rhythm-labels";
   import { selectableRhythms } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
@@ -2220,7 +2221,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div class="space-y-2 col-span-1 sm:col-span-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mode</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {!rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={() => (rhythmOnly = false)}
@@ -2234,7 +2235,7 @@
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback sound</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Playback sound">
                   {#if rhythmOnly}
                     {#each RHYTHM_SOUNDS as sound}
                       <button
@@ -2264,7 +2265,7 @@
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback transpose</p>
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
                     on:click={() => handleTransposeChange(transposeSemitones - 1)}
@@ -2298,7 +2299,7 @@
               {#if !rhythmOnly}
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                     on:click={handleToggleSolfege}
@@ -2315,7 +2316,7 @@
 
               <div class="space-y-2 col-span-1 sm:col-span-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
                   {#each cursorModes as mode}
                     <button
                       class="px-3 py-2 sm:py-1 rounded text-sm {cursorMode === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -2338,7 +2339,7 @@
               {#if !rhythmOnly}
                 <div class="space-y-2">
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
-                  <div class="flex flex-wrap gap-2">
+                  <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
                     {#each possibleKeys as key}
                       <button
                         class="px-3 py-2 sm:py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -2350,7 +2351,7 @@
 
                 <div class="space-y-2">
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Clef</p>
-                  <div class="flex flex-wrap gap-2">
+                  <div class="flex flex-wrap gap-2" role="group" aria-label="Clef">
                     {#each clefOptions as clef}
                       <button
                         class="px-3 py-2 sm:py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -2363,7 +2364,7 @@
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
                   {#each Object.keys(timeSignatures) as ts}
                     <button
                       class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -2375,7 +2376,7 @@
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Measures">
                   {#each measureOptions as opt}
                     <button
                       class="px-3 py-2 sm:py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -2390,13 +2391,15 @@
           {:else if selectedTab === 'rhythm'}
             <div class="space-y-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Select Allowed Rhythms</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms">
                 {#each Object.values(filterRhythms) as rhythm}
                   <button
                     class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded
                       {selectedRhythms.some((r) => r?.name === rhythm.name)
                         ? 'bg-blue-500 text-white'
                         : 'bg-slate-100 hover:bg-slate-200'}"
+                    aria-label={rhythmLabel(rhythm.name)}
+                    aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
                     on:click={() => {
                       if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
                         selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
@@ -2428,6 +2431,7 @@
                 <button
                   class="px-3 py-2 sm:py-1 rounded text-sm {allowTiesAcrossBarline ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
+                  aria-label="Ties across barline"
                   aria-pressed={allowTiesAcrossBarline}
                 >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
                 <p class="text-xs text-slate-400">
@@ -2445,7 +2449,7 @@
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Rhythm Syllables
                   </p>
-                  <div class="flex flex-wrap gap-2">
+                  <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
                     <button
                       class="px-3 py-2 sm:py-1 rounded text-sm {!showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                       on:click={() => setRhythmSyllables('off')}
@@ -2476,7 +2480,7 @@
               <!-- Scale Degrees -->
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Scale Degrees</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
                   {#each sharpScaleDegrees as degree}
                     <button
                       class="px-2 py-2 sm:py-1 rounded text-sm
@@ -2509,7 +2513,7 @@
               <!-- Max Skip -->
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
-                <div class="flex flex-wrap items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
                   <button type="button" class="flex items-center justify-center h-10 w-10 sm:h-8 sm:w-8 bg-slate-100 rounded hover:bg-slate-200"
                     aria-label="Decrease max skip"
                     on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
@@ -2527,6 +2531,8 @@
                 <button
                   class="px-3 py-2 sm:py-1 rounded text-sm {accidentalsFollowStep ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
+                  aria-label="Accidentals follow step"
+                  aria-pressed={accidentalsFollowStep}
                 >{accidentalsFollowStep ? 'On' : 'Off'}</button>
               </div>
 
@@ -2535,6 +2541,8 @@
                 <button
                   class="px-3 py-2 sm:py-1 rounded text-sm {moveEighthNotes ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (moveEighthNotes = !moveEighthNotes)}
+                  aria-label="Move 8th notes"
+                  aria-pressed={moveEighthNotes}
                 >{moveEighthNotes ? 'On' : 'Off'}</button>
               </div>
 
@@ -2543,6 +2551,8 @@
                 <button
                   class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={() => (showSolfege = !showSolfege)}
+                  aria-label="Show solfège"
+                  aria-pressed={showSolfege}
                 >{showSolfege ? 'On' : 'Off'}</button>
               </div>
             </div>

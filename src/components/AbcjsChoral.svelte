@@ -8,6 +8,7 @@
   import { RefreshCw, Minus, Plus } from "lucide-svelte";
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
+  import { rhythmLabel } from "../lib/rhythm-labels";
   import {
     canAppearInChoral,
     containsRest,
@@ -1393,7 +1394,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voicing</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Voicing">
                 {#each Object.keys(possibleVoicing) as voicing}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {outside(presetVoicings, voicing) && selectedVoicing !== voicing ? 'opacity-40' : ''}"
@@ -1406,7 +1407,7 @@
 
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
                 {#each possibleKeys as key}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {selectedKeys.has(key) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {outside(presetKeys, key) && !selectedKeys.has(key) ? 'opacity-40' : ''}"
@@ -1451,7 +1452,7 @@
 
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
                 {#each Object.keys(timeSignatures) as ts}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -1463,7 +1464,7 @@
 
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Measures">
                 {#each measureOptions as opt}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -1475,7 +1476,7 @@
 
             <div class="space-y-2 sm:col-span-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voice texture</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
                 {#each voiceTextures as mode}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {voiceTexture === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -1499,7 +1500,7 @@
 
             <div class="space-y-2 sm:col-span-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback sound</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Playback sound">
                 {#each INSTRUMENTS as instrument}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {instrumentProgram === instrument.program ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -1515,7 +1516,7 @@
 
             <div class="space-y-2 sm:col-span-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback transpose</p>
-              <div class="flex flex-wrap items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
                 <button
                   class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
                   on:click={() => handleTransposeChange(transposeSemitones - 1)}
@@ -1545,7 +1546,7 @@
 
             <div class="space-y-2 sm:col-span-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
                 <button
                   class="px-3 py-2 sm:py-1 rounded text-sm {showChords ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={handleToggleChords}
@@ -1572,7 +1573,7 @@
 
             <div class="space-y-2 sm:col-span-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
                 {#each cursorModes as mode}
                   <button
                     class="px-3 py-2 sm:py-1 rounded text-sm {cursorMode === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
@@ -1597,7 +1598,7 @@
         {:else if selectedTab === 'rhythm'}
           <div class="space-y-3">
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Select Allowed Rhythms</p>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms">
               {#each Object.values(filterRhythms) as rhythm}
                 <button
                   class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded relative
@@ -1611,6 +1612,8 @@
                     : outside(presetRhythmNames, rhythm.name)
                       ? `Outside ${activePreset?.label ?? 'this level'}`
                       : undefined}
+                  aria-label={rhythmLabel(rhythm.name)}
+                  aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
                   on:click={() => {
                     if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
                       selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
@@ -1636,9 +1639,9 @@
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   How often
                 </p>
-                <div class="space-y-1.5">
+                <div class="space-y-1.5" role="group" aria-label="How often">
                   {#each selectedRhythms.filter((r) => r) as rhythm}
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3" role="group" aria-label={`How often: ${rhythmLabel(rhythm.name)}`}>
                       <span class="rhythm-icon-sm w-8 h-8 shrink-0 flex items-center justify-center">
                         {#await rhythmSvgs[rhythm.name] then svg}
                           {@html svg.default}
@@ -1687,7 +1690,7 @@
             {#each Object.entries(chordGroups) as [groupName, chordNames]}
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{groupName}</p>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2" role="group" aria-label={groupName}>
                   {#each chordNames as chordName}
                     {@const chord = fullChordSet.find(c => c.name === chordName)}
                     {#if chord}
@@ -1721,9 +1724,9 @@
                  them is switched on. -->
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
-              <div class="flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Chromatic Chord Frequency">
                 <span class="text-xs text-slate-500">Less</span>
-                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" />
+                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" aria-label="Chromatic chord frequency" />
                 <span class="text-xs text-slate-500">More</span>
                 <span class="text-sm font-semibold">{chromaticFrequency}×</span>
               </div>
@@ -1736,9 +1739,9 @@
             <!-- NCT Probability -->
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Non-Chord Tone Amount</p>
-              <div class="flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Non-Chord Tone Amount">
                 <span class="text-xs text-slate-500">None</span>
-                <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" />
+                <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" aria-label="Non-chord tone amount" />
                 <span class="text-xs text-slate-500">Heavy</span>
                 <span class="text-sm font-semibold">{Math.round(nctProbability * 100)}%</span>
               </div>
@@ -1757,11 +1760,13 @@
             <!-- Max Skip -->
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
-              <div class="flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
                 <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                  aria-label="Narrower maximum skip"
                   on:click={() => { if (maxSkip > maxSkipRange[0]) maxSkip -= 1; }}><Minus size={16} /></button>
                 <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
                 <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                  aria-label="Wider maximum skip"
                   on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}><Plus size={16} /></button>
                 <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
               </div>
