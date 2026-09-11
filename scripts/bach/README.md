@@ -18,6 +18,10 @@ these scripts use.
 | `clashes.py` | Every vertical interval, by semitone, over chordified slices. |
 | `pairs.py` | The same, counted the way we count our own output - each pair of overlapping notes once - so the two are comparable. |
 | `dissonance.py` | For each minor 2nd / minor 9th: is the dissonant voice approached and left by step, where does it fall in the bar, which voices. |
+| `nct_by_chord.py` | Which non-chord tones appear over which Roman numeral, as intervals above the chord root. |
+| `nct_types.py` | Every non-chord tone classified by melodic shape - passing, neighbour, suspension, anticipation, appoggiatura, escape - with beat placement and voice. |
+| `iv_minor.py` | The specific worklist question: the 2nd above the root of iv in minor. |
+| `suspension_clash.py` | How often a suspension, as against a passing tone, creates a half step. |
 
 Each takes an optional chorale limit: `python3 scripts/bach/pairs.py 40`.
 
@@ -44,6 +48,33 @@ Also worth knowing, and not yet used: 55% of them fall on weak beats, 27% on
 downbeats (the suspensions), and they cluster between Alto-Bass (26%),
 Soprano-Alto (24%) and Tenor-Bass (23%) rather than in the outer pair -
 Soprano-Bass is only 6%.
+
+## What was taken from it, and what was not
+
+Three faults in the generator were fixed because the corpus showed the code was
+not doing what it claimed - none of them a style preference:
+
+- **`checkAnticipation` was not a definition of an anticipation.** It accepted a
+  step *or a third*, looking only forwards, which is a description of nearly
+  every melodic move.
+- **A weight meant "how often this wins when it is in the running"**, not how
+  often it appears, so a type that fits everywhere won uncontested. Anticipation
+  ran at 34% of decorations and stayed at 25% even when cut to a weight of 1
+  against a passing tone at 30.
+- **A suspension could land anywhere in the bar.** The held dissonance belongs on
+  the strong beat.
+
+Deliberately **not** taken, because they are this composer's taste rather than
+rules of harmony:
+
+- his exact mix (passing 50.1%, neighbour 17.9%, suspension 13.6%, appoggiatura
+  9.9%, anticipation 1.8%) - our weights are round numbers in that *order* only
+- his beat distribution per type
+- his habit of decorating the soprano less than the inner voices (8.3% vs 14.9%)
+
+A **escape tone** (step in, leap out) is 3.4% of his non-chord tones and we have
+no such decoration at all. That is a real gap rather than a preference, and is
+still open.
 
 ## Still open
 
