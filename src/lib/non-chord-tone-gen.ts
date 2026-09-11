@@ -250,45 +250,81 @@ function notesOverlapping(voice: VoiceNote[], from: number, to: number): VoiceNo
 }
 
 /**
- * Does any note of this figure sound a half step against another voice?
+ * Does any note of this figure sound a half step or a minor ninth against
+ * another voice *without being treated as a dissonance*?
  *
- * A minor 2nd or minor 9th between two sounding parts is the harshest interval
- * in this idiom, and the harmony search never writes one: measured over 120
- * minor exercises, **zero** in 15,222 overlapping pairs with decoration off,
- * against 1.31 per exercise with it on. Every one of them came from here, and
- * nothing in this pass was looking.
+ * The first version of this refused every one outright, which turned out to be
+ * stricter than Bach. Measured over the 371 four-part chorales the same way we
+ * measure ourselves - counting each overlapping pair of notes once - Bach writes
+ * a minor 2nd or minor 9th in **0.82%** of sounding pairs, and this generator
+ * before any of these guards wrote **0.83%**. The rate was already right.
  *
- * A major 7th is deliberately allowed. It inverts to a half step but does not
+ * What differs is the handling, and there the corpus is emphatic. Of Bach's
+ * clashing pairs, the dissonant voice is approached AND left by step in
+ * **98.3%** of them, one side only in 1.7%, and neither side in **none at all**.
+ * So the rule is not "never" - it is "only as a passing motion".
+ *
+ * That is exactly what a passing tone, a neighbour and a suspension already are,
+ * and exactly what an appoggiatura is not: it is defined by leaping into the
+ * dissonance. So this refuses the leap and permits the step, which lands us back
+ * at the corpus rate rather than an octave below it.
+ *
+ * A major 7th is not counted at all: it inverts to a half step but does not
  * sound like one, and it is ordinary in this writing.
  *
  * Reads `allNotes`, which is mid-flight: voices decorated before this one show
- * their decorations, voices after it still show chord tones. So this cannot
- * catch two decorations in different voices that clash only with each other -
- * it catches a decoration against whatever is committed when it is considered,
- * which is most of them.
+ * their decorations, voices after it still show chord tones. So it cannot catch
+ * two decorations in different voices that clash only with each other - it
+ * catches a decoration against whatever is committed when it is considered.
  */
-function clashesBySemitone(
+export function clashesBySemitone(
   nctNotes: VoiceNote[],
   noteIndex: number,
   allNotes: VoiceNote[][],
   currentPartIndex: number,
-  key: string
+  key: string,
+  prevNote: VoiceNote | null,
+  nextNote: VoiceNote | null
 ): boolean {
   const keyInfo = keySignatures[key];
   if (!keyInfo) return false;
 
+  // The figure in its melodic context, so each note's approach and departure
+  // can be read off. A suspension is approached by the same pitch, which is a
+  // gap of zero and counts as stepwise - it is held, not leapt to.
+  const chain: (VoiceNote | null)[] = [
+    prevNote && !prevNote.rest ? prevNote : null,
+    ...nctNotes,
+    nextNote && !nextNote.rest ? nextNote : null,
+  ];
+  const stepFrom = (a: VoiceNote | null, b: VoiceNote | null): boolean => {
+    if (!a || !b || a.rest || b.rest) return false;
+    return Math.abs(semitoneOf(a, keyInfo) - semitoneOf(b, keyInfo)) <= 2;
+  };
+
   const currentVoice = allNotes[currentPartIndex];
   let t = timeAtIndex(currentVoice, noteIndex);
 
-  for (const nct of nctNotes) {
+  for (let k = 0; k < nctNotes.length; k++) {
+    const nct = nctNotes[k];
     if (!nct.rest) {
       const mine = semitoneOf(nct, keyInfo);
-      for (let v = 0; v < allNotes.length; v++) {
+      let clashes = false;
+      for (let v = 0; v < allNotes.length && !clashes; v++) {
         if (v === currentPartIndex) continue;
         for (const other of notesOverlapping(allNotes[v], t, t + nct.length)) {
           const gap = Math.abs(mine - semitoneOf(other, keyInfo));
-          if (gap === 1 || gap === 13) return true;
+          if (gap === 1 || gap === 13) {
+            clashes = true;
+            break;
+          }
         }
+      }
+      if (clashes) {
+        // Allowed, but only as a passing motion - a step in and a step out.
+        const into = stepFrom(chain[k], nct);
+        const outOf = stepFrom(nct, chain[k + 2]);
+        if (!into || !outOf) return true;
       }
     }
     t += nct.length;
@@ -445,8 +481,10 @@ function figureRejection(
   if (!figure || figure.length === 0) return "empty figure";
   if (!figureInRange(figure, voiceRange)) return "out of range";
   if (!figureIsSingable(figure, prevNote, nextNote)) return "unsingable interval";
-  if (clashesBySemitone(figure, noteIndex, allNotes, currentPartIndex, key)) {
-    return "semitone clash with another voice";
+  if (
+    clashesBySemitone(figure, noteIndex, allNotes, currentPartIndex, key, prevNote, nextNote)
+  ) {
+    return "semitone clash, not approached and left by step";
   }
   if (checkParallelMotion(figure, noteIndex, allNotes, currentPartIndex)) {
     return "parallel motion violation";

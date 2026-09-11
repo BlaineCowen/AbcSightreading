@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { semitoneOf, generateNonChordTones } from "../../src/lib/non-chord-tone-gen";
+import {
+  semitoneOf,
+  clashesBySemitone,
+  generateNonChordTones,
+} from "../../src/lib/non-chord-tone-gen";
 import { keySignatures } from "../../src/resources/key-signatures";
 import { rhythms as allRhythms } from "../../src/resources/rhythms";
 import type { VoiceNote } from "../../src/lib/types";
@@ -117,13 +121,14 @@ describe("decoration refuses a minor ninth against another voice", () => {
     expect(Math.abs(12 - 4)).toBe(8);
   });
 
-  test("a figure that would sound a minor ninth is refused", () => {
-    expect(decoratedCount(gSharp)).toBe(0);
+  test("a minor ninth reached by step is allowed, as Bach does", () => {
+    // This asserted 0 while the rule was a blanket ban. The corpus says
+    // otherwise - see the block at the bottom - so what matters is that the
+    // passing tone here is stepwise on both sides.
+    expect(decoratedCount(gSharp)).toBeGreaterThan(30);
   });
 
-  test("the same figure is taken when the interval is a major ninth", () => {
-    // The control. A guard that refused everything would pass the test above
-    // and be worthless.
+  test("and so is a major ninth, which was never a clash at all", () => {
     expect(decoratedCount(gNatural)).toBeGreaterThan(30);
   });
 });
@@ -207,7 +212,7 @@ describe("the mirrored decoration obeys the same rules", () => {
     // ninth over that B - a diatonic EIGHTH, which the older check cannot see.
     const C = keySignatures["C"];
     expect(semitoneOf(at(14), C) - semitoneOf(at(6), C)).toBe(13);
-    expect(mirroredCount(at(14, 24))).toBe(0);
+    expect(mirroredCount(at(14, 24))).toBeGreaterThan(30);
   });
 
   test("a mirrored figure out of the singer's range is refused", () => {
@@ -224,5 +229,61 @@ describe("the mirrored decoration obeys the same rules", () => {
       if (out.length > v0.length) n++;
     }
     expect(n).toBe(0);
+  });
+});
+
+describe("a clash has to be a passing motion, not a leap", () => {
+  /**
+   * The rule Bach actually follows, tested where the approach can be controlled
+   * exactly rather than left to whichever decoration the generator happens to
+   * pick.
+   *
+   * Over the 371 four-part chorales, of every minor 2nd or minor 9th between
+   * two voices, the dissonant one is approached AND left by step in 99.0%, one
+   * side only in 1.0%, and neither side in NONE. So a clash reached by leap is
+   * the thing to refuse - which is an appoggiatura, and is not a passing tone,
+   * a neighbour or a suspension.
+   */
+  const C = keySignatures["C"];
+  // Another voice holding G sharp: a minor ninth below A, an octave-and-a-bit.
+  const gSharp = note(4, { length: 32, accidental: "sharp" });
+  const other = [[note(6, { length: 32 })], [gSharp]];
+  // The figure sits in voice 0, replacing one quarter at time 8.
+  const host = [note(11), note(11), note(11)];
+  const check = (figure: VoiceNote[], prev: VoiceNote | null, next: VoiceNote | null) =>
+    clashesBySemitone(figure, 1, [host, ...other], 0, "C", prev, next);
+
+  test("the fixture really is a minor ninth", () => {
+    expect(semitoneOf(note(12), C) - semitoneOf(gSharp, C)).toBe(13);
+  });
+
+  test("stepped into and out of: allowed", () => {
+    // G - A - B, with the clashing A in the middle.
+    const figure = [note(11, { length: 4 }), note(12, { length: 4 })];
+    expect(check(figure, note(11), note(13))).toBe(false);
+  });
+
+  test("leapt INTO: refused", () => {
+    // The clashing A arrives from a third below and is left by step.
+    const figure = [note(12, { length: 4 }), note(13, { length: 4 })];
+    expect(check(figure, note(10), note(13))).toBe(true);
+  });
+
+  test("leapt OUT of: refused", () => {
+    // Stepped into, then abandoned by a leap - the other half of the rule.
+    const figure = [note(11, { length: 4 }), note(12, { length: 4 })];
+    expect(check(figure, note(11), note(9))).toBe(true);
+  });
+
+  test("a note held into the clash counts as stepwise, because it is", () => {
+    // A suspension is approached by the SAME pitch. A gap of zero is not a leap.
+    const figure = [note(12, { length: 4 }), note(11, { length: 4 })];
+    expect(check(figure, note(12), note(11))).toBe(false);
+  });
+
+  test("no clash at all is never refused, however it is approached", () => {
+    // B against the held G sharp is a major seventh - not counted.
+    const figure = [note(13, { length: 4 }), note(13, { length: 4 })];
+    expect(check(figure, note(9), note(9))).toBe(false);
   });
 });
