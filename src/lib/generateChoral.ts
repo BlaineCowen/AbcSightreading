@@ -65,6 +65,16 @@ export interface GenerateChoralParams {
    * cadence. See rhymeProbabilityFor in rhyming-phrases.ts; 0 disables it.
    */
   rhymeProbability?: number;
+  /**
+   * Restrict decoration to particular non-chord-tone types by name - the names
+   * in the library in non-chord-tone-gen: "Suspension", "Passing Tone",
+   * "Neighbor Tone", "Anticipation", "Appoggiatura". Undefined means all of
+   * them, which is the normal case.
+   *
+   * The generator has always taken this; it was simply never reachable from
+   * here, so there was no way to ask which decoration a given fault came from.
+   */
+  enabledNctTypes?: string[];
 }
 
 /**
@@ -368,7 +378,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       index,
       nctProbability,
       key,
-      undefined,
+      params.enabledNctTypes,
       // Decoration has to stay inside the singer's range like everything else.
       voiceParts[index]?.range
     );
