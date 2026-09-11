@@ -4,7 +4,7 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
-  import { advance, rampEndBpm, startingState } from "../lib/practice-run";
+  import { PracticeRunner, rampEndBpm } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import { selectableRhythms } from "../lib/selectable-rhythms";
   import {
@@ -1912,98 +1912,79 @@
     });
   }
 
+  /**
+   * The runner, wired to this page.
+   *
+   * Everything it needs is a function here; it never touches a tune or a
+   * buffer itself. That is what lets a test drive a whole run - passes only
+   * end when audio ends, and an automated browser will not start audio at all.
+   */
+  let runner: PracticeRunner | null = null;
+
+  function makeRunner(): PracticeRunner {
+    return new PracticeRunner(
+      {
+        generate: async () => {
+          try {
+            await generateExercise();
+          } catch (e) {
+            console.error("Practice run: generation failed", e);
+          }
+        },
+        canPlay: () => !error && !!currentTune,
+        wait: (seconds) => drillPause(seconds),
+        play: () => playMusic(),
+        repeatPass: () => startLoopRepeat(),
+        isPlaying: () => isPlaying,
+        stopPlayback: () => stopMusic(),
+        getBpm: () => bpm,
+        setBpm: (next) => handleBpmChange(next),
+        setQuiet: (quiet) => {
+          cursorSuppressed = quiet;
+          if (quiet) hidePlaybackCursor();
+        },
+        rerender: async () => {
+          if (currentTune && originalTuneString) await rerenderTune();
+        },
+        onChange: ({ running, index, repeat }) => {
+          drillRunning = running;
+          drillIndex = index;
+          drillRepeat = repeat;
+          if (!running) {
+            drillCountdown = 0;
+            clearDrillTimer();
+          }
+        },
+        onError: (message) => {
+          error = error ?? message;
+        },
+      },
+      drillSettings,
+      { quietRepeats: drillQuietRepeats, readingSeconds: drillPreviewSeconds }
+    );
+  }
+
   async function startDrill() {
     if (drillRunning || isLoading) return;
     drillStartBpm = bpm;
-    const initial = startingState();
-    drillIndex = initial.index;
-    drillRepeat = initial.repeat;
-    drillRunning = true;
-    await runDrillExercise();
+    // Built fresh each time so a run uses the settings as they are at Start,
+    // and cannot be half-reconfigured while it is going.
+    runner = makeRunner();
+    await runner.start();
   }
 
   /**
    * @param rerender - put the score back in step with the restored tempo.
    *   Skipped when the caller is about to generate anyway, since generating
-   *   builds a fresh tune at whatever the tempo is by then.
+   *   writes a fresh exercise at whatever the tempo is by then.
    */
   async function stopDrill(rerender = true) {
-    if (!drillRunning) return;
-    drillRunning = false;
-    drillCountdown = 0;
-    cursorSuppressed = false;
-    clearDrillTimer();
-    stopMusic();
-    // The ramp moved the tempo; a drill that ended should not leave the slider
-    // somewhere the user did not put it, and pressing Start again should mean
-    // the same thing it meant the first time.
-    if (drillStartBpm > 0 && bpm !== drillStartBpm) {
-      handleBpmChange(drillStartBpm);
-      if (rerender && currentTune && originalTuneString) await rerenderTune();
-    }
+    await runner?.stop(rerender);
   }
 
-  /** Generate the next exercise, leave time to read it, then play it. */
-  async function runDrillExercise() {
-    if (!drillRunning) return;
-    cursorSuppressed = false;
-    try {
-      await generateExercise();
-    } catch (e) {
-      console.error("Practice run: generation failed", e);
-    }
-    if (!drillRunning) return; // stopped while it was generating
-    if (error || !currentTune) {
-      await stopDrill();
-      return;
-    }
-    await drillPause(drillPreviewSeconds);
-    if (!drillRunning) return;
-    await playMusic();
-    // playMusic returns without starting for any of several reasons - no audio
-    // buffer, a blocked AudioContext, a re-render mid-setup. The drill is
-    // driven forward by the buffer's `onended`, so a silent failure here is not
-    // a missed exercise, it is a run that sits on screen saying "pass 1 of 2"
-    // for ever. End it instead, and leave the reason on the page.
-    if (!isPlaying) {
-      error = error ?? "Playback could not start, so the practice run stopped.";
-      await stopDrill();
-    }
-  }
-
-  /**
-   * A pass just ended: take another, move to the next exercise, or finish.
-   *
-   * Called from the buffer's `onended`, which is where the loop decision
-   * already lives.
-   */
+  /** A pass just ended. Called from the buffer's `onended`. */
   function advanceDrill() {
-    const { step, state } = advance(
-      { index: drillIndex, repeat: drillRepeat },
-      drillSettings,
-      bpm
-    );
-    drillIndex = state.index;
-    drillRepeat = state.repeat;
-
-    if (step.kind === "finish") {
-      void stopDrill();
-      return;
-    }
-    if (step.kind === "repeat") {
-      if (drillQuietRepeats) {
-        cursorSuppressed = true;
-        hidePlaybackCursor();
-      }
-      startLoopRepeat();
-      // startLoopRepeat calls stopMusic() if it cannot schedule the pass, and a
-      // stopped drill that still thinks it is running never ends.
-      if (!isPlaying) void stopDrill();
-      return;
-    }
-    stopMusic();
-    if (step.bpm !== bpm) handleBpmChange(step.bpm);
-    void runDrillExercise();
+    runner?.passEnded();
   }
 
   function validateSettings(
