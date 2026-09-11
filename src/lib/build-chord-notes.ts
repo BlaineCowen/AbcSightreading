@@ -1068,6 +1068,30 @@ export function buildChordNotes(
                     const nonChromatic = altNotes.filter((n) => n.degree !== chromDeg);
                     if (nonChromatic.length > 0) altNotes = nonChromatic;
                     // else: only chromatic available, fall through to allow it
+                  } else {
+                    // Past retry 8 the blanket exclusion is gone, because
+                    // refusing the altered degree outright costs whole
+                    // generations. But there is a narrower thing still worth
+                    // refusing: a chromatic note the bass would have to LEAP to.
+                    //
+                    // That is the whole of what is left wrong here. Every
+                    // unapproached bass accidental traced to this branch, and
+                    // the escape cannot arm an approach - the previous note is
+                    // already written - so the only move available is to prefer
+                    // a candidate the bass can actually reach. Stepping onto the
+                    // altered note is fine and stays; leaping onto it is what a
+                    // reader trips over.
+                    //
+                    // A preference, not a rule: if nothing else is reachable the
+                    // leap stands, and the escape still escapes.
+                    const reachable = altNotes.filter(
+                      (n) =>
+                        n.degree !== chromDeg ||
+                        !prevBassNote ||
+                        prevBassNote.rest ||
+                        Math.abs(n.pitchValue - prevBassNote.pitchValue) <= 1
+                    );
+                    if (reachable.length > 0) altNotes = reachable;
                   }
                 }
               }
