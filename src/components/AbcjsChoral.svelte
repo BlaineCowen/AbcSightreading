@@ -5,7 +5,7 @@
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
   import abcjs from "abcjs";
-  import { RefreshCw, Minus, Plus } from "lucide-svelte";
+  import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight } from "lucide-svelte";
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
@@ -1211,6 +1211,61 @@
       new Promise<void>((resolve) => setTimeout(resolve, 60)),
     ]);
 
+  /**
+   * The last few exercises, so Generate is not a one-way door.
+   *
+   * Pressing Generate destroys what is on screen. That is usually what you
+   * want and occasionally a small disaster: a director generates, glances at
+   * it, generates again, and then wants the one before back - and the only way
+   * to get it was to keep generating and hope, because every exercise is new.
+   *
+   * An entry stores the exercise's `render`, not its ABC string. Re-running it
+   * with the CURRENT display options means going back shows the old exercise
+   * with the annotation settings you have now, which is right: solfège and
+   * chord symbols are a display preference, not part of the exercise.
+   *
+   * Append-only rather than browser-style, where going back and generating
+   * truncates the branch ahead. Everything in here is an exercise the user
+   * actually generated; silently destroying some of them to keep a tree shape
+   * buys nothing when the list is this short. Oldest falls off the front.
+   */
+  type HistoryEntry = {
+    render: (display: any) => string;
+    chordProgression: Chord[];
+    /** The tempo it was generated at, which is what playback warps against. */
+    bpm: number;
+    /** What it was: key, meter, voicing, as the panel would say it. */
+    label: string;
+  };
+  const HISTORY_LIMIT = 10;
+  let history: HistoryEntry[] = [];
+  let historyIndex = -1;
+
+  function pushHistory(entry: HistoryEntry) {
+    history = [...history, entry].slice(-HISTORY_LIMIT);
+    historyIndex = history.length - 1;
+  }
+
+  /**
+   * Show an exercise already generated, without regenerating it.
+   *
+   * Everything `applyRenderedString` needs is restored first - including
+   * `renderCurrent`, or the annotation toggles would go on re-writing whichever
+   * exercise happened to be the newest.
+   */
+  async function goToHistory(index: number) {
+    if (isGenerating) return;
+    if (index < 0 || index >= history.length || index === historyIndex) return;
+    const entry = history[index];
+    historyIndex = index;
+    renderCurrent = entry.render;
+    renderedString = entry.render(displayOptions());
+    chordProgression = entry.chordProgression;
+    generatedBpm = entry.bpm;
+    generationError = null;
+    await applyRenderedString();
+  }
+
   async function handleClick() {
     if (isGenerating) return; // ignore a second click while working
     updateURLParams();
@@ -1296,6 +1351,12 @@
       // Kept so the annotation toggles can re-write this exercise instead of
       // replacing it.
       renderCurrent = render;
+      pushHistory({
+        render,
+        chordProgression: chordProgression,
+        bpm,
+        label: `${drawnKey} ${isMinorKey(drawnKey) ? "minor" : "major"} · ${selectedTimeSignature} · ${selectedVoicing}`,
+      });
 
       const tune = await renderTune();
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
@@ -1376,9 +1437,36 @@
         {/each}
         </div>
 
+        <!-- Back through the exercises already generated this session. -->
+        {#if history.length > 1}
+          <div
+            class="ml-auto flex items-center gap-1 shrink-0 no-print"
+            role="group"
+            aria-label="Exercise history"
+          >
+            <button
+              class="flex items-center justify-center h-8 w-8 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              on:click={() => goToHistory(historyIndex - 1)}
+              disabled={historyIndex <= 0 || isGenerating}
+              aria-label="Previous exercise"
+              title={historyIndex > 0 ? history[historyIndex - 1].label : "No earlier exercise"}
+            ><ChevronLeft size={18} /></button>
+            <span class="text-xs text-slate-500 tabular-nums whitespace-nowrap" aria-live="polite">
+              {historyIndex + 1} of {history.length}
+            </span>
+            <button
+              class="flex items-center justify-center h-8 w-8 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              on:click={() => goToHistory(historyIndex + 1)}
+              disabled={historyIndex >= history.length - 1 || isGenerating}
+              aria-label="Next exercise"
+              title={historyIndex < history.length - 1 ? history[historyIndex + 1].label : "No later exercise"}
+            ><ChevronRight size={18} /></button>
+          </div>
+        {/if}
+
         <!-- Generate button always visible in tab bar -->
         <button
-          class="ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-lg px-4 py-2 text-sm"
+          class="{history.length > 1 ? 'ml-2' : 'ml-auto'} mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-lg px-4 py-2 text-sm"
           on:click={handleClick}
           disabled={isGenerating}
         >
