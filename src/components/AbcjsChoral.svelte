@@ -298,10 +298,32 @@
    * name larger than the mode's full list, which is what the unsaved-changes
    * badge compares against.
    */
+  /**
+   * A chromatic-bass inversion is the same harmony as the chord it inverts, so
+   * it is not a separate choice either - it simply comes with its parent.
+   *
+   * V⁶/V *is* V/V, with the raised note in the bass instead of above it. Asking
+   * the user to tick it separately invites them to switch off the only route by
+   * which that note reaches the bass deliberately, with its approach and
+   * resolution enforced. Tying it to the parent keeps the two together and
+   * takes a row of buttons off the panel.
+   */
+  const chromaticBassInversions: Record<string, string> = {
+    "5/5": "5/5-6",
+    "5/6": "5/6-6",
+    "5/2": "5/2-6",
+  };
+
   function withInversions(names: Iterable<string>): Set<string> {
     const set = new Set(names);
     for (const name of isMinorKey(selectedKey) ? minorInversions : majorInversions) {
       set.add(name);
+    }
+    // Follows the parent both ways: without the delete, one that was on once
+    // would linger after its parent was switched off.
+    for (const [parent, inversion] of Object.entries(chromaticBassInversions)) {
+      if (set.has(parent)) set.add(inversion);
+      else set.delete(inversion);
     }
     return set;
   }
@@ -311,10 +333,8 @@
   const majorChordGroups: Record<string, string[]> = {
     Diatonic: ['1','2','3','4','5','5-7','6','7'],
     'Chromatic Chords': ['5/5','5/6','5/2','m4','1-7'],
-    // The chromatic-bass inversions. These are the only way the raised note
-    // reaches the bass deliberately, with its approach and resolution enforced,
-    // so they belong in front of the user rather than buried in the chord set.
-    'Chromatic Bass': ['5/5-6','5/6-6','5/2-6'],
+    // No 'Chromatic Bass' row: those are inversions of the three secondary
+    // dominants above and come with them. See chromaticBassInversions.
   };
   const minorChordGroups: Record<string, string[]> = {
     Diatonic: ['m_i','m_iv','m_V','m_V7','m_VI','m_VII'],
@@ -1622,10 +1642,14 @@
                           {outside(presetChordNames, chordName) && !userAllowedChords.has(chordName) ? 'opacity-40' : ''}"
                         title={outside(presetChordNames, chordName) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                         on:click={() => {
-                          const next = withInversions(userAllowedChords);
+                          // Toggle first, THEN re-apply the inversions. The
+                          // other order grants a chromatic-bass inversion off
+                          // the parent's old state, so switching the parent off
+                          // left its inversion behind and it kept appearing.
+                          const next = new Set(userAllowedChords);
                           if (next.has(chordName)) next.delete(chordName);
                           else next.add(chordName);
-                          userAllowedChords = next;
+                          userAllowedChords = withInversions(next);
                         }}
                       >{chord.symbol}</button>
                     {/if}
@@ -1633,6 +1657,23 @@
                 </div>
               </div>
             {/each}
+
+            <!-- How often the chromatic chords above are reached for. Lives with
+                 them rather than further down: it does nothing unless one of
+                 them is switched on. -->
+            <div class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-xs text-slate-500">Less</span>
+                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" />
+                <span class="text-xs text-slate-500">More</span>
+                <span class="text-sm font-semibold">{chromaticFrequency}×</span>
+              </div>
+              <p class="text-xs text-slate-400">
+                How often the chromatic chords above are chosen. Each brings its
+                own first inversion with it, so the raised note can reach the bass.
+              </p>
+            </div>
 
             <!-- NCT Probability -->
             <div class="space-y-2">
@@ -1653,18 +1694,6 @@
                 Chromatic tones approached &amp; resolved by step
               </label>
               <p class="text-xs text-slate-400">Sharps resolve up · Flats resolve down</p>
-            </div>
-
-            <!-- Chromatic Frequency -->
-            <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
-              <div class="flex flex-wrap items-center gap-3">
-                <span class="text-xs text-slate-500">Less</span>
-                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" />
-                <span class="text-xs text-slate-500">More</span>
-                <span class="text-sm font-semibold">{chromaticFrequency}×</span>
-              </div>
-              <p class="text-xs text-slate-400">Multiplies the weight of secondary dominants &amp; other chromatic chords</p>
             </div>
 
             <!-- Max Skip -->
