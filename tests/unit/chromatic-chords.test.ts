@@ -112,5 +112,12 @@ describe("chromatic chords", () => {
       // Was around a third before the bass owed a resolution.
       expect(resolved / raised).toBeGreaterThan(0.7);
     }
-  });
+    // Twenty full eight-bar SATB generations with the chromatic slider at its
+    // maximum, and the search backtracks, so the time this takes varies by
+    // several seconds run to run. Against bun's 5s default it failed about one
+    // full-suite run in nine - as a timeout, not a wrong answer, which is the
+    // worst kind of red because it reads as a real regression. The sample size
+    // is what makes the ratio below mean anything, so the budget moves rather
+    // than the loop.
+  }, 30_000);
 });
