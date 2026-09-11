@@ -70,7 +70,11 @@ export const uilPresets: Record<string, UILPreset> = {
     voiceRanges: {
       Soprano: [27, 31], Soprano1: [27, 31], Soprano2: [25, 30],
       Alto: [22, 28],
-      Tenor: [19, 25], Baritone: [16, 23], Bass: [13, 21],
+      // Bass floors at G2, not the doc's B2. B2 is high for a bass - levels 4
+      // and 5 already sit at G2 - and it was the single bound that made
+      // 2-Part Tenor/Bass fail 30% of 16-measure exercises in 3/4. Opening
+      // it takes that to nil; nothing else about the voicing needed changing.
+      Tenor: [19, 25], Baritone: [16, 23], Bass: [11, 21],
       Unison: [22, 28],
     },
   },
@@ -95,9 +99,15 @@ export const uilPresets: Record<string, UILPreset> = {
     // Mixed: SATB, SAB; Treble: SSA/SA; Tenor-Bass: TBB/TB
     // The doc names TB beside TBB here, and the three-part voicing fails 18% of
     // the time at this level's maxSkip, so the two-part one is the usable half.
+    // No "3 Part Tenor/Bass". The doc names TBB here, but three men inside these
+    // ranges moving by no more than a fourth, on I, IV, V and V7 alone, cannot
+    // be written: 78% of 16-measure exercises failed outright, and opening every
+    // range by a fourth at both ends only brought that to 48%. The two-part
+    // voicing the doc names beside it fails 0%. An option that rarely produces
+    // an exercise is worse than one that is not offered - the same call as
+    // level 1.
     allowedVoicings: [
-      "4 Part Mixed", "3 Part Mixed", "2 Part Treble",
-      "3 Part Tenor/Bass", "2 Part Tenor/Bass",
+      "4 Part Mixed", "3 Part Mixed", "2 Part Treble", "2 Part Tenor/Bass",
     ],
     measureRange: [28, 32],
     maxSkip: 3,
@@ -217,7 +227,12 @@ export const uilPresets: Record<string, UILPreset> = {
     // where the Alto is the anchor that has to come down.
     voiceRanges: {
       Soprano: [26, 31], Soprano1: [26, 32], Soprano2: [23, 30],
-      Alto: [21, 29],
+      // A3, not middle C. The doc's floor of C4 is high for an alto, and it
+      // is what made 3-Part Treble unwritable at length: three treble parts
+      // crowded into a ninth failed 43% of 16-measure exercises, and this one
+      // change takes it to nil. Widening it does nothing to 4-Part Mixed,
+      // which was already at 0%.
+      Alto: [19, 29],
       Tenor: [17, 25], Baritone: [14, 24], Bass: [11, 21],
       Unison: [21, 29],
     },
@@ -272,7 +287,12 @@ export const uilPresets: Record<string, UILPreset> = {
     // where the Alto is the anchor that has to come down.
     voiceRanges: {
       Soprano: [25, 31], Soprano1: [26, 33], Soprano2: [23, 30],
-      Alto: [21, 30],
+      // A3, not middle C. The doc's floor of C4 is high for an alto, and it
+      // is what made 3-Part Treble unwritable at length: three treble parts
+      // crowded into a ninth failed 43% of 16-measure exercises, and this one
+      // change takes it to nil. Widening it does nothing to 4-Part Mixed,
+      // which was already at 0%.
+      Alto: [19, 30],
       Tenor: [17, 26], Baritone: [14, 25], Bass: [11, 22],
       Unison: [21, 30],
     },

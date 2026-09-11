@@ -216,7 +216,15 @@ export function buildChordNotes(
    * An attempt costs about a millisecond, so paying for length here is cheap
    * next to refusing to generate at all.
    */
-  const maxTotalLoopFails = Math.max(30, chordPositions * 64);
+  //
+  // Cut hard once the step loop learned to backtrack. A restart is no longer
+  // the recovery mechanism - rewinding a few steps is - so this is only for the
+  // case where backtracking has spent its own budget and the run is genuinely
+  // stuck. Left at chordPositions * 64 the two budgets multiply: a 16-measure
+  // exercise did roughly a million step-solves and took minutes rather than
+  // milliseconds. The better escape from a stuck run is a different
+  // progression, which the caller already tries ten of.
+  const maxTotalLoopFails = 8;
 
   /**
    * How many notes each voice has already placed at the very top or bottom of
@@ -762,7 +770,68 @@ export function buildChordNotes(
      */
     let owedBassResolution: number | undefined;
 
+    /**
+     * Rewind a few steps rather than throwing the whole piece away.
+     *
+     * A failed step used to return false, and the caller restarted from bar
+     * one. Every step has to succeed in one unbroken run for that to work, so
+     * the odds fall off geometrically with length - and measured, they do:
+     * 3-Part Treble at UIL 4 failed 3% of the time at 8 measures and **55% at
+     * 16**. The failing runs were not stuck on a hard chord either; they got
+     * 40-93% of the way through and then threw away forty good steps because
+     * the forty-first did not fit.
+     *
+     * So: undo the last few steps, and try them again. The choices are
+     * randomised, so a second pass through the same steps takes a different
+     * route, and the work before them survives. This is the same shape as the
+     * dead-end walk in rhythm-generation, which has always backtracked.
+     */
+    type Snapshot = {
+      chordIndex: number;
+      lastLabelledChordIndex: number;
+      lastLabelledSymbol: string;
+      owedBassResolution: number | undefined;
+      extremes: [number, number][];
+      noteCounts: number[];
+    };
+    const trail: Snapshot[] = [];
+    const snapshot = (): Snapshot => ({
+      chordIndex,
+      lastLabelledChordIndex,
+      lastLabelledSymbol,
+      owedBassResolution,
+      extremes: [...extremeUses.entries()],
+      noteCounts: voiceParts.map((vp) => vp.chordNotes.length),
+    });
+    const restore = (snap: Snapshot) => {
+      chordIndex = snap.chordIndex;
+      lastLabelledChordIndex = snap.lastLabelledChordIndex;
+      lastLabelledSymbol = snap.lastLabelledSymbol;
+      owedBassResolution = snap.owedBassResolution;
+      extremeUses.clear();
+      for (const [order, n] of snap.extremes) extremeUses.set(order, n);
+      voiceParts.forEach((vp, i) => {
+        vp.chordNotes.length = snap.noteCounts[i];
+      });
+    };
+    let backtracks = 0;
+    /**
+     * How often each step has turned out to be a dead end, so the rewind can
+     * deepen.
+     *
+     * A fixed one-to-three step rewind barely helped: what blocks a step is
+     * often decided much further back - a voice that camped at the top of its
+     * range ten steps ago leaves nothing singable here, and undoing two notes
+     * does not undo that. Going further each time a step fails again walks back
+     * out of the corner instead of pacing inside it.
+     */
+    const deadEnds = new Map<number, number>();
+    // Enough to rewind every step several times over; beyond that the texture
+    // itself is the problem and a new progression is the better answer.
+    const maxBacktracks = Math.max(60, rhythms.length * 8);
+
     for (let stepIndex = 0; stepIndex < rhythms.length; stepIndex++) {
+      trail[stepIndex] = snapshot();
       const rhythm = rhythms[stepIndex];
 
       if (rhythm.rest) {
@@ -1317,10 +1386,25 @@ export function buildChordNotes(
       }
 
       if (!stepSuccess) {
+        // Undo the last step or three and come at it again. Only the whole
+        // piece is abandoned once the budget is spent.
+        if (stepIndex > 0 && backtracks < maxBacktracks) {
+          backtracks++;
+          const seen = (deadEnds.get(stepIndex) ?? 0) + 1;
+          deadEnds.set(stepIndex, seen);
+          // Deeper every time this step fails again, to a limit - far enough to
+          // leave the corner, not so far that the whole piece is rewritten.
+          const back = 1 + Math.floor(Math.random() * Math.min(2 + seen, 16));
+          const to = Math.max(0, stepIndex - back);
+          restore(trail[to]);
+          stepIndex = to - 1; // the loop's ++ lands us back on `to`
+          continue;
+        }
         console.error(
           `Failed to generate valid notes for step ${stepIndex + 1} (Rhythm: ${
             rhythm.name
-          }, Chord: ${currentChord.symbol}) after ${maxStepRetries} attempts.`
+          }, Chord: ${currentChord.symbol}) after ${maxStepRetries} attempts ` +
+            `and ${backtracks} backtracks.`
         );
         return false; // Fail entire process
       }
