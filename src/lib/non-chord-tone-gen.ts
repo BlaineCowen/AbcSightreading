@@ -417,6 +417,46 @@ function figureIsSingable(
   return true;
 }
 
+/**
+ * Every rule a decoration has to pass, in one place.
+ *
+ * There are two ways a figure reaches the score - the generators below, and
+ * `tryParallelDecoration`, which mirrors a decoration another voice already has
+ * - and they had different rules. The mirrored path checked parallel motion and
+ * diatonic seconds and then committed, so it never saw the range check, the
+ * singability check, or the semitone check: measured, it was the *only*
+ * remaining source of minor ninths once the others were closed, 0.05 per
+ * exercise against 0.00 from every generator.
+ *
+ * Two entry points with two rule sets is the bug. One gate is the fix.
+ *
+ * Returns null when the figure is acceptable, or the reason it is not.
+ */
+function figureRejection(
+  figure: VoiceNote[] | null,
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number,
+  key: string,
+  voiceRange: [number, number] | undefined,
+  prevNote: VoiceNote | null,
+  nextNote: VoiceNote | null
+): string | null {
+  if (!figure || figure.length === 0) return "empty figure";
+  if (!figureInRange(figure, voiceRange)) return "out of range";
+  if (!figureIsSingable(figure, prevNote, nextNote)) return "unsingable interval";
+  if (clashesBySemitone(figure, noteIndex, allNotes, currentPartIndex, key)) {
+    return "semitone clash with another voice";
+  }
+  if (checkParallelMotion(figure, noteIndex, allNotes, currentPartIndex)) {
+    return "parallel motion violation";
+  }
+  if (checkClashesWithOtherVoices(figure, noteIndex, allNotes, currentPartIndex)) {
+    return "second against another voice";
+  }
+  return null;
+}
+
 export function generateNonChordTones(
   notesToProcess: VoiceNote[],
   nctRhythms: Rhythm[],
@@ -518,14 +558,17 @@ export function generateNonChordTones(
       currentPartIndex,
       key
     );
-    if (
-      mirrored &&
-      !checkParallelMotion(mirrored, i, allNotes, currentPartIndex) &&
-      !checkClashesWithOtherVoices(mirrored, i, allNotes, currentPartIndex)
-    ) {
-      console.log(`NCT_GEN: Generated ${mirrored.length} notes for Parallel Motion.`);
-      outputNotes.push(...mirrored);
-      continue;
+    if (mirrored) {
+      const why = figureRejection(
+        mirrored, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote
+      );
+      if (!why) {
+        if (originalNote.chordSymbol) mirrored[0].chordSymbol = originalNote.chordSymbol;
+        console.log(`NCT_GEN: Generated ${mirrored.length} notes for Parallel Motion.`);
+        outputNotes.push(...mirrored);
+        continue;
+      }
+      console.log(`NCT_GEN: mirrored decoration rejected (${why}) at ${i}.`);
     }
 
     const originalDuration = originalNote.length;
@@ -583,26 +626,11 @@ export function generateNonChordTones(
       key,
     });
 
-    // A decoration that leaves the singer's range is not a decoration.
-    if (!figureInRange(generatedNctNotes, voiceRange)) {
-      console.log(`NCT_GEN: out of range — keeping original note at ${i}.`);
-      outputNotes.push(originalNote);
-      continue;
-    }
-
-    // Nor is one that nobody can sing into or out of.
-    if (!figureIsSingable(generatedNctNotes, prevNote, nextNote)) {
-      console.log(`NCT_GEN: unsingable interval — keeping original note at ${i}.`);
-      outputNotes.push(originalNote);
-      continue;
-    }
-
-    // Nor one that grinds a half step against another part.
-    if (
-      generatedNctNotes &&
-      clashesBySemitone(generatedNctNotes, i, allNotes, currentPartIndex, key)
-    ) {
-      console.log(`NCT_GEN: semitone clash with another voice — keeping original note at ${i}.`);
+    const why = figureRejection(
+      generatedNctNotes, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote
+    );
+    if (why) {
+      console.log(`NCT_GEN: ${why} — keeping original note at ${i}.`);
       outputNotes.push(originalNote);
       continue;
     }
@@ -622,22 +650,6 @@ export function generateNonChordTones(
       // depends on.
       if (originalNote.chordSymbol) {
         generatedNctNotes[0].chordSymbol = originalNote.chordSymbol;
-      }
-
-      // Parallel-motion guard: revert to original if a P5 or P8 would result
-      if (checkParallelMotion(generatedNctNotes, i, allNotes, currentPartIndex)) {
-        console.log(`NCT_GEN: Parallel motion violation — keeping original note at ${i}.`);
-        outputNotes.push(originalNote);
-        continue;
-      }
-
-      // Clash guard: a decoration must not sound a second against another part.
-      if (
-        checkClashesWithOtherVoices(generatedNctNotes, i, allNotes, currentPartIndex)
-      ) {
-        console.log(`NCT_GEN: Would clash with another voice — keeping original note at ${i}.`);
-        outputNotes.push(originalNote);
-        continue;
       }
 
       console.log(`NCT_GEN: Generated ${generatedNctNotes.length} notes for ${selectedNctDefinition.name}.`);

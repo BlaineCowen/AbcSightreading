@@ -127,3 +127,102 @@ describe("decoration refuses a minor ninth against another voice", () => {
     expect(decoratedCount(gNatural)).toBeGreaterThan(30);
   });
 });
+
+describe("the older diatonic rule is still in the gate", () => {
+  /**
+   * `checkClashesWithOtherVoices` predates all of this and refuses a decoration
+   * a DIATONIC second from another part. It catches every true half step -
+   * measured over 120 minor exercises, zero minor 2nds get through - so it is
+   * carrying most of the weight and must not be lost in the refactor.
+   *
+   * The fixtures above all sit a ninth apart precisely so the semitone rule is
+   * the only thing that can fire; this one is a plain second, where only the
+   * older rule can.
+   */
+  const patterns = allRhythms.filter((r) => r.name === "eighthEighth");
+
+  test("a WHOLE-tone second from a held voice is refused", () => {
+    // A whole tone, deliberately: E-C on top so the passing tone is D, held C
+    // underneath. Diatonic gap 1, semitone gap 2 - so the semitone rule cannot
+    // fire and only the older one can. A half-step fixture would be refused by
+    // both and prove nothing about either.
+    const C = keySignatures["C"];
+    expect(semitoneOf(note(1), C) - semitoneOf(note(0), C)).toBe(2);
+    let decorated = 0;
+    for (let i = 0; i < 60; i++) {
+      const top = [note(2), note(0), note(2), note(0)]; // E C E C
+      const out = generateNonChordTones(
+        top.map((x) => ({ ...x })), patterns, [top, [note(0, { length: 32 })]], 0, 1,
+        "C", ["Passing Tone"], [0, 40]
+      );
+      if (out.length > top.length) decorated++;
+    }
+    expect(decorated).toBe(0);
+  });
+});
+
+describe("the mirrored decoration obeys the same rules", () => {
+  /**
+   * There are two ways a figure reaches the score: the generators, and
+   * `tryParallelDecoration`, which copies a decoration another voice already
+   * has when the two are a 3rd or 6th apart. They had **different rules** - the
+   * mirrored one checked parallel motion and diatonic seconds and then
+   * committed, so it never saw the range, singability or semitone checks.
+   *
+   * Measured, it was the only remaining source of minor ninths once the
+   * generators were closed: 0.05 per exercise against 0.00 from every one of
+   * the five types individually. Two entry points with two rule sets is the
+   * bug; one gate is the fix.
+   *
+   * `enabledNctTypes: []` leaves no generator able to run, so anything this
+   * produces came from the mirror and nothing else.
+   */
+  const patterns = allRhythms.filter((r) => r.name === "eighthEighth");
+  const at = (p: number, len = 8, over: Partial<VoiceNote> = {}) =>
+    note(p, { length: len, ...over });
+
+  const mirroredCount = (third: VoiceNote, runs = 60) => {
+    let n = 0;
+    for (let i = 0; i < runs; i++) {
+      // Being decorated: three quarters on B.
+      const v0 = [at(6), at(6), at(6)];
+      // Already decorated: two eighths, G then A, across the SECOND quarter -
+      // the span the mirror can copy onto.
+      const v1 = [at(4), at(4, 4), at(5, 4), at(4)];
+      const out = generateNonChordTones(
+        v0.map((x) => ({ ...x })), patterns, [v0, v1, [third]], 0, 1, "C", [], [0, 40]
+      );
+      if (out.length > v0.length) n++;
+    }
+    return n;
+  };
+
+  test("the fixture mirrors at all when nothing is in the way", () => {
+    // Without this the refusal below could just be the mirror never firing.
+    expect(mirroredCount(at(15, 24))).toBe(60);
+  });
+
+  test("a mirrored figure that would sound a minor ninth is refused", () => {
+    // The mirror of G-A a third up is B-C. C two octaves above sits a minor
+    // ninth over that B - a diatonic EIGHTH, which the older check cannot see.
+    const C = keySignatures["C"];
+    expect(semitoneOf(at(14), C) - semitoneOf(at(6), C)).toBe(13);
+    expect(mirroredCount(at(14, 24))).toBe(0);
+  });
+
+  test("a mirrored figure out of the singer's range is refused", () => {
+    // The mirrored path skipped the range check too, which was putting notes
+    // outside the part in real exercises: 6 across 750 to none.
+    let n = 0;
+    for (let i = 0; i < 60; i++) {
+      const v0 = [at(6), at(6), at(6)];
+      const v1 = [at(4), at(4, 4), at(5, 4), at(4)];
+      const out = generateNonChordTones(
+        v0.map((x) => ({ ...x })), patterns, [v0, v1, [at(15, 24)]], 0, 1, "C", [],
+        [0, 6] // B is the ceiling, so the mirror's C is over it
+      );
+      if (out.length > v0.length) n++;
+    }
+    expect(n).toBe(0);
+  });
+});
