@@ -34,6 +34,14 @@
   /** Omit to leave Generate out of the bar entirely. */
   export let onGenerate: (() => void) | null = null;
   export let isGenerating: boolean = false;
+  /**
+   * A line of state that belongs on screen wherever the reader is looking.
+   *
+   * A practice run reports its position here rather than in the settings panel:
+   * during a run the reader is watching the score, often with the panel shut or
+   * on another tab, which is exactly where the panel's own copy is not.
+   */
+  export let status: string | null = null;
 
   function handleBpmInput(e: Event) {
     onBpmChange(+(e.target as HTMLInputElement).value);
@@ -98,6 +106,15 @@
          flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:px-4"
   style="padding-bottom: env(safe-area-inset-bottom, 0px)"
 >
+  {#if status}
+    <!-- Full width and first, so it reads the same on a phone as on a desktop
+         and never competes with the transport for room. -->
+    <div
+      class="w-full sm:order-first sm:basis-full bg-slate-700/80 px-3 py-1.5 text-xs font-medium text-blue-200"
+      role="status"
+    >{status}</div>
+  {/if}
+
   <!-- Transport. sm:order-last + sm:ml-auto park this whole group at the right
        of the desktop row, after the mixer controls spliced in below. -->
   <div class="flex items-center gap-2 sm:gap-4 flex-nowrap sm:flex-wrap px-3 py-2 sm:p-0 sm:py-2

@@ -6,6 +6,11 @@
   import { rhythms, type Rhythm } from "../resources/rhythms";
   import { PracticeRunner, rampEndBpm } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
+  import {
+    firstSystemScrollTarget,
+    worthScrolling,
+    targetMoved,
+  } from "../lib/scroll-to-system";
   import { selectableRhythms } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
@@ -624,7 +629,14 @@
   function withChosenAnnotations(abc: string): string {
     let out = abc;
     if (!showSolfege) out = withoutLyrics(out);
-    if (!showRhythmSyllables) out = withoutQuotedText(out);
+    // Rhythm syllables belong to the one-line rhythm staff, where the control
+    // for them lives. A pitched exercise now carries them too - that is what
+    // lets a practice run show them on its repeats - so the setting alone is
+    // not enough to print them, or a value left over from rhythm-only mode (or
+    // carried in a shared link) would put syllables on a pitched exercise
+    // nobody asked to annotate.
+    const syllablesWanted = showRhythmSyllables && (rhythmOnly || drillRunning);
+    if (!syllablesWanted) out = withoutQuotedText(out);
     return out;
   }
   let syllableSystemId =
@@ -1381,22 +1393,49 @@
    *  starts, so the page settles during the count-in rather than lurching just
    *  as the music begins. Measured from the rendered rect, so no unit
    *  conversion is needed. */
-  function scrollToFirstSystem() {
+  /** Where the first system currently is, or null if there is no score. */
+  function firstSystemTarget(): number | null {
     const firstStaff = document
       .getElementById("paper")
       ?.querySelector(".abcjs-staff");
-    if (!firstStaff) return;
+    if (!firstStaff) return null;
     const top = firstStaff.getBoundingClientRect().top + window.scrollY;
-    // A tenth of the viewport, but never less than the fixed navbar needs. That
-    // bar is 4rem tall and slides back into view on any upward scroll - which
-    // this is - so on a short viewport a 10% margin is not enough and it lands
-    // on top of the first system.
-    const navbarClearance = 80;
-    const margin = Math.max(navbarClearance, window.innerHeight * 0.1);
-    const target = Math.max(0, top - margin);
-    // A tiny nudge reads as a glitch; only move if it is genuinely elsewhere.
-    if (Math.abs(target - window.scrollY) < 24) return;
-    window.scrollTo({ top: target, behavior: "smooth" });
+    return firstSystemScrollTarget(top, window.innerHeight);
+  }
+
+  /**
+   * Send the page back to the first system, and make sure it got there.
+   *
+   * Measuring once, immediately, is not enough when a pass has just redrawn the
+   * score. Annotations add a row to every system, so the whole layout moves and
+   * the document changes height - and when it shrinks, the browser clamps the
+   * scroll position out from under you. Aim in that moment and the scroll is
+   * aimed at a layout that no longer exists, which is how a repeat that turned
+   * the syllables on stopped short of the top.
+   *
+   * So: measure after the browser has actually laid the new score out, then
+   * check once more that the target has not moved. The second check keys off
+   * the TARGET moving and never off the distance still to travel - a smooth
+   * scroll in flight is always far from its destination, and re-issuing on that
+   * basis would restart the animation forever.
+   */
+  function scrollToFirstSystem() {
+    const aim = () => {
+      const target = firstSystemTarget();
+      if (target === null) return;
+      if (worthScrolling(target, window.scrollY)) {
+        window.scrollTo({ top: target, behavior: "smooth" });
+      }
+      setTimeout(() => {
+        const now = firstSystemTarget();
+        if (now === null || !targetMoved(target, now)) return;
+        if (!worthScrolling(now, window.scrollY)) return;
+        window.scrollTo({ top: now, behavior: "smooth" });
+      }, 450);
+    };
+    // Two frames: one for the browser to take the new score, one for it to lay
+    // it out. Measuring inside the same frame as the redraw reads the old page.
+    requestAnimationFrame(() => requestAnimationFrame(aim));
   }
 
   /**
@@ -1746,7 +1785,10 @@
         // so either can come back without regenerating the exercise.
         showSolfege: !rhythmOnly,
         rhythmOnly: rhythmOnly,
-        showRhythmSyllables: rhythmOnly,
+        // Written into a pitched exercise too, not just the rhythm staff, so a
+        // practice run can show them on its repeats. Stripped at render like
+        // the solfège, so nothing appears until something asks for it.
+        showRhythmSyllables: true,
         syllableSystemId,
         allowTiesAcrossBarline,
         moveOnEighthNotes: moveEighthNotes,
@@ -1872,6 +1914,19 @@
   let drillRepeatAnnotation: PassAnnotation = "same";
 
   /** The syllable system a repeat asks for, if it asks for one. */
+  /**
+   * Solfège names scale degrees, so it has nothing to say on the rhythm staff -
+   * a rhythm-only exercise is not written with it and the option would be a
+   * button that does nothing.
+   */
+  $: repeatAnnotationOptions = [
+    ["same", "Same"],
+    ["none", "None"],
+    ["kodaly", "Kodály"],
+    ["counting", "Counting"],
+    ...(rhythmOnly ? [] : [["solfege", "Solfège"]]),
+  ] as [PassAnnotation, string][];
+
   $: repeatSyllableSystem =
     drillRepeatAnnotation === "kodaly" || drillRepeatAnnotation === "counting"
       ? drillRepeatAnnotation
@@ -1916,6 +1971,19 @@
     rampBpm: drillRampBpm,
   };
   $: drillRampEndBpm = rampEndBpm(drillRunning ? drillStartBpm : bpm, drillSettings);
+
+  /**
+   * Where the run has got to, in one sentence.
+   *
+   * Derived once and shown in two places - the settings panel and the playback
+   * bar - so they cannot drift apart. The bar is the one that matters: during a
+   * run the reader is watching the score, not the panel.
+   */
+  $: drillStatusLine = drillRunning
+    ? `Practice run · exercise ${drillIndex + 1} of ${drillExercises}, pass ${drillRepeat + 1} of ${drillRepeats}` +
+      (drillCountdown > 0 ? ` · starts in ${drillCountdown}s` : "") +
+      (drillRampBpm > 0 ? ` · ${bpm} BPM` : "")
+    : null;
 
   function clearDrillTimer() {
     if (drillTimer !== null) {
@@ -2658,15 +2726,9 @@
                   {/if}
                 </div>
 
-                {#if drillRunning}
-                  <p class="text-sm text-blue-700 bg-blue-50 rounded px-3 py-2" role="status">
-                    Exercise {drillIndex + 1} of {drillExercises}, pass {drillRepeat + 1} of {drillRepeats}
-                    {#if drillCountdown > 0}
-                      &middot; starts in {drillCountdown}s
-                    {/if}
-                    {#if drillRampBpm > 0}
-                      &middot; {bpm} BPM
-                    {/if}
+                {#if drillStatusLine}
+                  <p class="text-sm text-blue-700 bg-blue-50 rounded px-3 py-2">
+                    {drillStatusLine}
                   </p>
                 {/if}
 
@@ -2770,7 +2832,7 @@
                       <div class="space-y-2">
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Repeat Annotations</p>
                         <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations on the repeats">
-                          {#each [['same', 'Same'], ['none', 'None'], ['kodaly', 'Kodály'], ['counting', 'Counting'], ['solfege', 'Solfège']] as [value, label]}
+                          {#each repeatAnnotationOptions as [value, label]}
                             <button
                               class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeatAnnotation === value ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                               on:click={() => (drillRepeatAnnotation = value)}
@@ -3045,6 +3107,7 @@
     onBpmCommit={handleBpmCommit}
     onGenerate={handleClick}
     isGenerating={isLoading}
+    status={drillStatusLine}
     onToggleLoop={handleToggleLoop}
     onToggleMute={() => {}}
     onShare={handleShare}

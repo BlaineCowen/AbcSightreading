@@ -2497,9 +2497,16 @@ export function createNewSr(params: any) {
     // console.log("🔍 Creating concatenated string...");
 
     // Remove the redundant loop and directly use createConcatString
+    // Both annotations are written in whatever the buttons say, and stripped
+    // when the score is drawn - that is what lets either be switched on without
+    // regenerating. Rhythm syllables used to be written only for the one-line
+    // rhythm staff, which left nothing for a pitched exercise to switch ON: a
+    // practice run asking for them on its repeats got silence.
     const tuneBody = createConcatString(partsObject as PartsObject, {
       timeSig: timeSig,
       showSolfege: params.showSolfege === true,
+      showRhythmSyllables: params.showRhythmSyllables === true,
+      syllableSystem: resolveSyllableSystem(params.syllableSystemId),
     });
 
     // console.log("✅ Tune body created, length:", tuneBody.length);
@@ -2569,6 +2576,11 @@ export function createNewSr(params: any) {
       // exact shape would have to be known. Same reasoning as the choral
       // assembler.
       `%%MIDI program 0\n` +
+      // Annotations default to 12pt, which is sized for chord symbols above a
+      // staff; at that size adjacent syllables under a short note collide.
+      (params.showRhythmSyllables === true
+        ? `%%annotationfont Helvetica 10\n`
+        : "") +
       `${scoreString}` +
       `${headerString}` +
       `K: ${keyRendered} clef=${clef} \n` +
