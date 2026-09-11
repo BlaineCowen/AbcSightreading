@@ -83,7 +83,7 @@
         Soprano: { order: 3, smallName: "S",  clef: ClefType.Treble,        range: [21, 35], currentRange: [25, 32] },
         Alto:    { order: 2, smallName: "A",  clef: ClefType.Treble,        range: [14, 32], currentRange: [21, 28] },
         Tenor:   { order: 1, smallName: "T",  clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
-        Bass:    { order: 0, smallName: "B",  clef: ClefType.Bass,          range: [2,  21], currentRange: [9,  18] },
+        Bass:    { order: 0, smallName: "B",  clef: ClefType.Bass,          range: [2, 24], currentRange: [9,  18] },
       },
     },
     "3 Part Mixed": {
@@ -91,7 +91,7 @@
       parts: {
         Soprano:  { order: 2, smallName: "S",  clef: ClefType.Treble, range: [21, 35], currentRange: [25, 32] },
         Alto:     { order: 1, smallName: "A",  clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
-        Baritone: { order: 0, smallName: "B",  clef: ClefType.Bass,   range: [2,  21], currentRange: [9,  18] },
+        Baritone: { order: 0, smallName: "B",  clef: ClefType.Bass,   range: [2, 26], currentRange: [9,  18] },
       },
     },
     "3 Part Treble": {
@@ -106,8 +106,8 @@
       numofParts: 3,
       parts: {
         Tenor:    { order: 2, smallName: "T",  clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
-        Baritone: { order: 1, smallName: "B1", clef: ClefType.Bass,          range: [2,  18], currentRange: [6,  16] },
-        Bass:     { order: 0, smallName: "B2", clef: ClefType.Bass,          range: [2,  13], currentRange: [2,  11] },
+        Baritone: { order: 1, smallName: "B1", clef: ClefType.Bass,          range: [2, 26], currentRange: [6,  16] },
+        Bass:     { order: 0, smallName: "B2", clef: ClefType.Bass,          range: [2, 24], currentRange: [2,  11] },
       },
     },
     "2 Part Treble": {
@@ -134,7 +134,7 @@
       numofParts: 2,
       parts: {
         Tenor: { order: 1, smallName: "T", clef: ClefType.TrebleOctaveUp, range: [11, 27], currentRange: [14, 23] },
-        Bass:  { order: 0, smallName: "B", clef: ClefType.Bass,           range: [2,  21], currentRange: [9,  18] },
+        Bass:  { order: 0, smallName: "B", clef: ClefType.Bass,           range: [2, 24], currentRange: [9,  18] },
       },
     },
   };
@@ -237,6 +237,39 @@
   let nctProbability = 0.1;
   let accidentalsByStep = true;
   let chromaticFrequency = 1;
+
+  /**
+   * Why the last Generate produced nothing.
+   *
+   * This used to be `alert()` with the thrown message - "Failed to build valid
+   * notes after max attempts" - which reads as the app breaking rather than the
+   * settings being hard, and cannot be read on a phone without dismissing it.
+   *
+   * Generation is a search and can genuinely come up empty. The useful thing is
+   * not the message but which setting to move, so the hint below names one.
+   */
+  let generationError: string | null = null;
+
+  /** The likeliest thing to change, given what is actually set. */
+  function failureHint(): string {
+    const parts = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {});
+    const narrowest = Math.min(
+      ...parts.map((p: any) => p.currentRange[1] - p.currentRange[0])
+    );
+    if (parts.length >= 3 && measures >= 16) {
+      return "Sixteen bars in three or more close parts is the hardest thing to ask for. Try 8 bars, or give a voice more room under Voice Ranges.";
+    }
+    if (parts.length >= 3 && narrowest <= 8) {
+      return "The voices are packed close together. Widening one of them under Voice Ranges usually does it.";
+    }
+    if (userAllowedChords.size <= 4) {
+      return "With this few chords there may be nowhere left for the bass to go. Switching one more on under Harmony usually does it.";
+    }
+    if (maxSkip <= 2) {
+      return "A largest leap of a third leaves the parts very little room. Raising it by one usually does it.";
+    }
+    return "The search is random, so pressing Generate again often works. If it keeps failing, widen a voice range or switch on another chord.";
+  }
   let chordProgression: Chord[] = [];
   let renderedString = "";
   /**
@@ -1180,17 +1213,19 @@
   async function handleClick() {
     if (isGenerating) return; // ignore a second click while working
     updateURLParams();
+    generationError = null;
 
+    // Same banner as a failed search: from the reader's side, pressing Generate
+    // and getting nothing is one situation however it came about.
     const validRhythms = selectedRhythms.filter((r): r is Rhythm => r !== undefined);
     if (validRhythms.length === 0) {
-      alert("Please select at least one rhythm.");
+      generationError = "No rhythms are selected, so there is nothing to write with. Pick at least one under Rhythm.";
       return;
     }
     if (!rhythmsCanFill) {
-      alert(
+      generationError =
         `These rhythms cannot fill a bar of ${selectedTimeSignature}. ` +
-          `Add a shorter note - a quarter or an eighth - or change the time signature.`
-      );
+        `Add a shorter note - a quarter or an eighth - or change the time signature.`;
       return;
     }
 
@@ -1244,6 +1279,7 @@
           : undefined,
     };
 
+    generationError = null;
     isGenerating = true;
     await tick();
     await painted();
@@ -1271,8 +1307,9 @@
       await initSynth(renderedTune);
       generatedBpm = bpm;
     } catch (error: unknown) {
+      // Kept for the console; the banner is what the reader gets.
       console.error("Error generating exercise:", error);
-      alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      generationError = failureHint();
     } finally {
       isGenerating = false;
     }
@@ -1293,6 +1330,27 @@
   />
 
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
+
+    {#if generationError}
+      <div
+        class="w-full mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 no-print"
+        role="status"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-amber-900">
+              Could not write an exercise with these settings
+            </p>
+            <p class="mt-1 text-sm text-amber-800">{generationError}</p>
+          </div>
+          <button
+            class="text-amber-500 hover:text-amber-700 text-xl leading-none"
+            on:click={() => (generationError = null)}
+            aria-label="Dismiss"
+          >&times;</button>
+        </div>
+      </div>
+    {/if}
 
     <!-- Tab panel -->
     <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4 no-print">
