@@ -1,4 +1,5 @@
 import type { VoiceNote } from "./types";
+import { noteArray } from "../resources/noteArray";
 import {
   lastSounding,
   firstSounding,
@@ -36,6 +37,8 @@ export type RhymingPhraseOptions = {
   tsPerMeasure: number;
   /** The widest leap any voice may sing, used to vet the two seams. */
   maxSkip: number;
+  /** [low, high] per voice, index-aligned with `voiceNotes`. */
+  ranges: [number, number][];
   /** How likely the exercise is to be built as periods at all. */
   probability: number;
   /** Injectable for tests. */
@@ -156,6 +159,163 @@ function rhymeOnce(
 }
 
 /**
+ * Which pitches the top voice could sing at one instant instead of the one it
+ * has.
+ *
+ * A substitute has to be a tone of the chord sounding there, or the harmony
+ * breaks - and the chord is not something this pass is given. It does not need
+ * to be: the other voices ARE the chord at that instant. So any scale degree
+ * they are sounding is a chord tone by construction, in whatever octave of the
+ * top voice's range it lands. That keeps the pass self-contained and cannot
+ * disagree with the harmony, because it is reading the harmony rather than
+ * re-deriving it.
+ *
+ * Doubling the note a lower voice already has is exactly what makes this a
+ * *different* chord tone rather than a wrong one.
+ */
+function chordToneAlternatives(
+  voices: VoiceNote[][],
+  topIndex: number,
+  at: number,
+  current: VoiceNote,
+  [low, high]: [number, number]
+): number[] {
+  const degrees = new Set<number>();
+  for (let v = 0; v < voices.length; v++) {
+    if (v === topIndex) continue;
+    const sounding = noteAt(voices[v], at);
+    if (sounding && !sounding.rest) degrees.add(((sounding.pitchValue % 7) + 7) % 7);
+  }
+  const out: number[] = [];
+  for (let pitch = low; pitch <= high; pitch++) {
+    if (pitch === current.pitchValue) continue;
+    if (degrees.has(((pitch % 7) + 7) % 7)) out.push(pitch);
+  }
+  return out;
+}
+
+/** The note sounding in a voice at a given time, if any. */
+function noteAt(voice: VoiceNote[], at: number): VoiceNote | undefined {
+  let t = 0;
+  for (const n of voice) {
+    if (at >= t && at < t + n.length) return n;
+    t += n.length;
+  }
+  return undefined;
+}
+
+/**
+ * Give the restatement a different top line at a note or two.
+ *
+ * A parallel period whose consequent is an exact copy reads as repetition
+ * rather than as a rhyme - the only difference is the cadence, which arrives
+ * four bars later. Changing one or two notes of the tune is what makes the
+ * second phrase answer the first instead of echoing it.
+ *
+ * Only the top voice, because that is the line anyone follows. Only interior
+ * notes: the first note is what makes the phrases recognisably the same, and the
+ * last one runs into the cadence the splice deliberately left alone.
+ *
+ * Every candidate is vetted the way the splice itself is - singable from both
+ * neighbours, inside the range, no parallel perfect intervals against the other
+ * voices on either side, and no accidental left without its resolution. A note
+ * with an accidental is never touched at all: it was written with a resolution
+ * that the surrounding notes provide, and swapping it silently voids that.
+ */
+function varyRestatement(
+  voices: VoiceNote[][],
+  start: number,
+  length: number,
+  ranges: [number, number][],
+  maxSkip: number,
+  random: () => number
+): number {
+  const topIndex = voices.reduce(
+    (best, v, i) => ((v[0]?.order ?? 0) > (voices[best][0]?.order ?? 0) ? i : best),
+    0
+  );
+  const top = voices[topIndex];
+  const range = ranges?.[topIndex];
+  // No range means no safe way to choose a substitute, so the restatement stays
+  // an exact copy. A period that echoes is still a period.
+  if (!range) return 0;
+
+  // Interior notes of the span, with the time each begins.
+  const slots: { index: number; at: number }[] = [];
+  let t = 0;
+  for (let i = 0; i < top.length; i++) {
+    if (t > start && t < start + length) slots.push({ index: i, at: t });
+    t += top[i].length;
+  }
+  // The last one leads into the cadence; leave it to the seam rules.
+  slots.pop();
+  if (slots.length === 0) return 0;
+
+  let changed = 0;
+  const wanted = slots.length >= 4 ? 2 : 1;
+  const offset = Math.floor(random() * slots.length);
+  for (let k = 0; k < slots.length && changed < wanted; k++) {
+    const { index, at } = slots[(offset + k) % slots.length];
+    const note = top[index];
+    if (note.rest || note.accidental) continue;
+    const prev = lastSounding(top.slice(0, index));
+    const next = firstSounding(top.slice(index + 1));
+    // Never two in a row - the phrase should still be recognisably the same one.
+    if (top[index - 1]?.varied || top[index + 1]?.varied) continue;
+
+    const candidates = chordToneAlternatives(voices, topIndex, at, note, range)
+      .filter((pitch) => {
+        const trial = { ...note, pitchValue: pitch };
+        if (prev && !seamLeapOk([prev], [trial], maxSkip)) return false;
+        if (next && !seamLeapOk([trial], [next], maxSkip)) return false;
+        if (prev && !seamResolutionOk([prev], [trial])) return false;
+        // The note after must still resolve whatever IT owes, unchanged - but a
+        // trial note carries no accidental, so only the approach side matters.
+        const others = voices.map((v, vi) =>
+          vi === topIndex ? undefined : noteAt(v, at)
+        );
+        const prevOthers = voices.map((v, vi) =>
+          vi === topIndex ? undefined : (prev ? noteAt(v, at - 1) : undefined)
+        );
+        const nextOthers = voices.map((v, vi) =>
+          vi === topIndex ? undefined : noteAt(v, at + note.length)
+        );
+        if (prev) {
+          const a = [...prevOthers]; a[topIndex] = prev;
+          const b = [...others]; b[topIndex] = trial;
+          if (parallelsAcross(a, b)) return false;
+        }
+        if (next) {
+          const a = [...others]; a[topIndex] = trial;
+          const b = [...nextOthers]; b[topIndex] = next;
+          if (parallelsAcross(a, b)) return false;
+        }
+        return true;
+      });
+    if (candidates.length === 0) continue;
+    // The nearest alternative, so the line keeps its shape and only its colour
+    // changes. A leap to the far side of the chord is a different tune, not a
+    // variation on this one.
+    const pick = candidates.reduce((best, c) =>
+      Math.abs(c - note.pitchValue) < Math.abs(best - note.pitchValue) ? c : best
+    );
+    // The name is what the assembler prints, so it has to be rebuilt from the
+    // new pitch rather than carried over - a substituted note keeping the old
+    // one's name renders as the note it replaced.
+    top[index] = {
+      ...note,
+      pitchValue: pick,
+      name: noteArray[pick],
+      degree: pick % 7,
+      accidental: null,
+      varied: true,
+    } as VoiceNote;
+    changed++;
+  }
+  return changed;
+}
+
+/**
  * Build the exercise out of parallel periods.
  *
  * Phrases pair up in order - the second rhymes the first, the fourth rhymes the
@@ -166,7 +326,7 @@ export function applyRhymingPhrases(
   voiceNotes: VoiceNote[][],
   opts: RhymingPhraseOptions
 ): VoiceNote[][] {
-  const { measures, tsPerMeasure, maxSkip, probability } = opts;
+  const { measures, tsPerMeasure, maxSkip, ranges, probability } = opts;
   const random = opts.random ?? Math.random;
 
   if (probability <= 0 || random() >= probability) return voiceNotes;
@@ -205,10 +365,14 @@ export function applyRhymingPhrases(
     let done = false;
     for (const rhymeMeasures of [PHRASE_MEASURES - 1, PHRASE_MEASURES - 2]) {
       for (const [from, to] of attempts) {
-        if (rhymeOnce(out, from, to, rhymeMeasures * tsPerMeasure, maxSkip)) {
-          done = true;
-          break;
-        }
+        const length = rhymeMeasures * tsPerMeasure;
+        if (!rhymeOnce(out, from, to, length, maxSkip)) continue;
+        // Vary the phrase that comes second, whichever way the material moved:
+        // the ear wants a statement and then an answer to it, and the answer is
+        // the later one.
+        varyRestatement(out, consequentStart, length, ranges, maxSkip, random);
+        done = true;
+        break;
       }
       if (done) break;
     }

@@ -409,6 +409,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     measures,
     tsPerMeasure: timeSig.tsPerMeasure,
     maxSkip,
+    ranges: voiceParts.map((vp) => vp.range as [number, number]),
     probability: params.rhymeProbability ?? 0,
   });
 

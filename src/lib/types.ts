@@ -41,6 +41,12 @@ export interface VoiceNote extends Note {
     | "double-flat"
     | null;
   isCadenceEnd?: boolean; // Flag if this note is the end of a cadence
+  /**
+   * Set on a note the rhyme pass swapped for a different tone of the same
+   * chord, so the restatement answers the first phrase instead of echoing it.
+   * Read only to keep two variations from landing side by side.
+   */
+  varied?: boolean;
   wasRaised?: boolean; // true if accidental="natural" means raised (e.g. Bb→Bnat in F major)
   /** Chord symbol annotation displayed above this note (e.g. "I", "V7", "vi").
    *  Typically only set on the chord-start note of the highest voice. */
