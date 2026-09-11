@@ -1,5 +1,6 @@
 ---
 import Navbar from "../components/Navbar.svelte";
+import FeedbackButton from "../components/FeedbackButton.svelte";
 import "../styles/globals.css";
 import "abcjs/abcjs-audio.css";
 
@@ -10,6 +11,14 @@ interface Props {
 
 const { title, description = "A music sight reading practice app" } =
   Astro.props;
+
+/**
+ * Where tester feedback goes. Set PUBLIC_FEEDBACK_EMAIL to switch the button
+ * on; with it unset there is no button, which is the right default for a
+ * public build - an address written into the markup is an address that gets
+ * scraped.
+ */
+const feedbackEmail = import.meta.env.PUBLIC_FEEDBACK_EMAIL;
 ---
 
 <!doctype html>
@@ -33,5 +42,10 @@ const { title, description = "A music sight reading practice app" } =
     <main class="container mx-auto px-4 pt-24">
       <slot />
     </main>
+    {
+      feedbackEmail && (
+        <FeedbackButton client:idle to={feedbackEmail} page={title} />
+      )
+    }
   </body>
 </html>
