@@ -684,10 +684,18 @@
     // you press Generate to drill a phrase - and the form rules that would make
     // a 24+ measure exercise hold together do not exist yet.
     measures = 8;
-    // Presets declare their own rests in allowedRhythmNames - every UIL level
-    // lists wholeRest/halfRest/quarterRest - so they are no longer stripped here.
+    // Rests are offered but not switched on. Every UIL level lists
+    // wholeRest/halfRest/quarterRest, and having them all selected sprays rests
+    // through the middle of phrases, where in a sung exercise they are not
+    // material - they are punctuation. They stay in the picker, dimmed rather
+    // than removed, for anyone who wants them.
+    //
+    // The one rest that matters is not lost by this: the quarter that completes
+    // an interior phrase ending is structural and comes from the catalogue, not
+    // from this selection. See interiorCadenceFigure in rhythm-generation.
     selectedRhythms = allRhythms.filter(
-      (r) => p.allowedRhythmNames.includes(r.name) && choralSelectable(r)
+      (r) =>
+        p.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest
     );
     maxSkip = p.maxSkip;
     userAllowedChords = withInversions(p.allowedChordNames ?? allChordNames);

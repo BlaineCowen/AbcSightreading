@@ -2,6 +2,7 @@
 // neighbor tones, anticipations, and appoggiaturas. Key-aware accidentals
 // and parallel-motion checking are applied before committing each NCT.
 
+import { isSingableInterval } from "./leap-recovery";
 import type { VoiceNote, Rhythm } from "./types";
 import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
@@ -281,6 +282,39 @@ function figureInRange(
   return figure.every((n) => n.rest || (n.pitchValue >= low && n.pitchValue <= high));
 }
 
+/**
+ * Is every join inside a decoration, and at its two ends, actually singable?
+ *
+ * Decoration replaces one note with several, which creates melodic intervals the
+ * search never saw: the one into the figure, the ones inside it, and the one out
+ * of it onto the next chord tone. Range was checked here and interval was not,
+ * so a figure could hand back a melodic seventh - measured at 49 in the bass
+ * against 0 from the search itself once the bass line was fixed.
+ *
+ * Only sevenths and wider are refused, not maxSkip: a decoration is by nature a
+ * step or two away from the note it decorates, and the figures that leap are
+ * leaping to chord tones the search already approved.
+ */
+function figureIsSingable(
+  figure: VoiceNote[] | null,
+  prevNote: VoiceNote | null | undefined,
+  nextNote: VoiceNote | null | undefined
+): boolean {
+  if (!figure || figure.length === 0) return false;
+  const sung = figure.filter((n) => !n.rest);
+  if (sung.length === 0) return true;
+  const chain: VoiceNote[] = [];
+  if (prevNote && !prevNote.rest) chain.push(prevNote);
+  chain.push(...sung);
+  if (nextNote && !nextNote.rest) chain.push(nextNote);
+  for (let i = 1; i < chain.length; i++) {
+    if (!isSingableInterval(chain[i].pitchValue, chain[i - 1].pitchValue)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function generateNonChordTones(
   notesToProcess: VoiceNote[],
   nctRhythms: Rhythm[],
@@ -450,6 +484,13 @@ export function generateNonChordTones(
     // A decoration that leaves the singer's range is not a decoration.
     if (!figureInRange(generatedNctNotes, voiceRange)) {
       console.log(`NCT_GEN: out of range — keeping original note at ${i}.`);
+      outputNotes.push(originalNote);
+      continue;
+    }
+
+    // Nor is one that nobody can sing into or out of.
+    if (!figureIsSingable(generatedNctNotes, prevNote, nextNote)) {
+      console.log(`NCT_GEN: unsingable interval — keeping original note at ${i}.`);
       outputNotes.push(originalNote);
       continue;
     }

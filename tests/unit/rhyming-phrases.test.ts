@@ -48,6 +48,33 @@ const bars = (v: VoiceNote[], from: number, to: number) =>
 const samePitches = (x: VoiceNote[], y: VoiceNote[]) =>
   x.length === y.length && x.every((n, i) => n.pitchValue === y[i].pitchValue);
 
+/**
+ * Every accidental in the line is followed by the step it is owed - raised up,
+ * lowered down - looking through repeats of the same pitch.
+ *
+ * Asserted over the whole voice rather than at one index, because the splice can
+ * break a resolution at either end: the one running into the borrowed material,
+ * and the one running out of it.
+ */
+const resolutionsIntact = (v: VoiceNote[]): boolean => {
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i];
+    if (a.rest || !a.accidental) continue;
+    let b: VoiceNote | undefined;
+    for (let j = i + 1; j < v.length; j++) {
+      if (v[j].rest || v[j].pitchValue === a.pitchValue) continue;
+      b = v[j];
+      break;
+    }
+    if (!b) continue;
+    const raised =
+      a.accidental === "sharp" || (a.accidental === "natural" && a.wasRaised === true);
+    const delta = b.pitchValue - a.pitchValue;
+    if (raised ? delta !== 1 : delta !== -1) return false;
+  }
+  return true;
+};
+
 describe("rhyming phrases", () => {
   test("the two phrases open with the same material", () => {
     const out = applyRhymingPhrases([voice([...A, ...B])], opts());
@@ -180,6 +207,50 @@ describe("rhyming phrases", () => {
     );
     expect(out[0].map((n) => n.pitchValue)).toEqual(upper);
     expect(out[1].map((n) => n.pitchValue)).toEqual(lower);
+  });
+
+  test("an accidental running INTO a seam keeps its resolution", () => {
+    // A chromatic note is written together with the note that resolves it. The
+    // splice replaces whatever came next, so an accidental beside a seam loses
+    // the resolution it was written with and nothing downstream notices.
+    // Measured, that took the lowest voice from 95% to 89% resolving by step in
+    // major, and raised notes from rising 92% of the time to 88%.
+    //
+    // The last note of measure 4 is raised and resolves up into measure 5; the
+    // borrowed opening would land a third below it instead.
+    const byBar = (p: number[]) => p.flatMap((x) => [x, x, x, x]);
+    const v = voice(byBar([26, 27, 26, 28, 29, 23, 22, 24]));
+    v[15] = { ...v[15], accidental: "sharp", wasRaised: true } as VoiceNote;
+    expect(resolutionsIntact(v)).toBe(true); // the fixture starts out correct
+    expect(resolutionsIntact(applyRhymingPhrases([v], opts({ maxSkip: 4 }))[0])).toBe(true);
+  });
+
+  test("and so does one running OUT of a seam", () => {
+    // The other end, which needs its own fixture: here the accidental is the
+    // LAST note of the borrowed material, so what must resolve it is the target
+    // phrase's own cadence - the part deliberately left as generated.
+    const byBar = (p: number[]) => p.flatMap((x) => [x, x, x, x]);
+    const v = voice(byBar([26, 27, 26, 27, 22, 23, 22, 24]));
+    v[11] = { ...v[11], accidental: "sharp", wasRaised: true } as VoiceNote;
+    expect(resolutionsIntact(v)).toBe(true);
+    expect(resolutionsIntact(applyRhymingPhrases([v], opts({ maxSkip: 4 }))[0])).toBe(true);
+  });
+
+  test("...but a resolution that is honoured still lets the rhyme happen", () => {
+    // A gate that simply refused every seam would pass both tests above and be
+    // worthless.
+    //
+    // Spelled as a NATURAL that was raised, which is how every chromatic note
+    // looks in a flat key: there the accidental alone cannot say which way the
+    // note resolves, and only `wasRaised` distinguishes a raised 4th (rises)
+    // from a lowered 7th (falls). Read it wrong and this splice is refused for
+    // resolving the way it should.
+    const byBar = (p: number[]) => p.flatMap((x) => [x, x, x, x]);
+    const v = voice(byBar([26, 27, 26, 25, 22, 23, 22, 24]));
+    v[15] = { ...v[15], accidental: "natural", wasRaised: true } as VoiceNote;
+    const out = applyRhymingPhrases([v], opts({ maxSkip: 4 }));
+    expect(samePitches(bars(out[0], 0, 3), bars(out[0], 4, 7))).toBe(true);
+    expect(resolutionsIntact(out[0])).toBe(true);
   });
 
   test("probability zero does nothing at all", () => {

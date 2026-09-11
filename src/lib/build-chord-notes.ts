@@ -884,7 +884,17 @@ export function buildChordNotes(
             const unreachableFromPrev =
               prevBassNote !== undefined &&
               !prevBassNote.rest &&
-              Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) > maxSkip;
+              (Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) > maxSkip ||
+                // A seventh is unreachable too, whatever maxSkip permits - and
+                // at UIL 5, maxSkip is 6, which IS a seventh, so the width test
+                // above waves it straight through. This is the only place a
+                // pre-generated bass note is vetted against where the bass
+                // actually is, so a seventh that slips past here is written.
+                // It is the "Fa down to low So" the bass kept producing.
+                !isSingableInterval(
+                  bassNote.pitchValue,
+                  prevBassNote.pitchValue
+                ));
 
             const missesOwedResolution =
               owedBassResolution !== undefined &&

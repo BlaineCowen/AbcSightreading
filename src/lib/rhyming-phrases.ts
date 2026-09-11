@@ -104,6 +104,36 @@ function seamOk(
 }
 
 /**
+ * Whether an accidental sitting on a seam still gets the resolution it is owed.
+ *
+ * A chromatic note is written together with the note that resolves it - the
+ * search arms `forcedNextBassPitch` and the leading-tone rules at the moment it
+ * places the accidental. Splicing replaces whatever came next, so an accidental
+ * immediately before a seam loses the resolution it was written with, and
+ * nothing downstream notices. Measured: without this, the lowest voice's
+ * accidentals resolved by step 95% -> 89% in major, and raised ones rose 92% ->
+ * 88%. It is the same class of mistake as the parallels - a fault the search
+ * would never allow, introduced at the join.
+ *
+ * A raised note rises and a lowered note falls; `wasRaised` is what tells the
+ * two apart in flat keys, where every chromatic note is spelled as a natural.
+ * A repeat of the same pitch is fine: the note is simply held and the
+ * resolution comes after, which the splice has not touched.
+ */
+function resolutionOk(before: VoiceNote[], after: VoiceNote[]): boolean {
+  const a = lastSounding(before);
+  const b = firstSounding(after);
+  if (!a || !b || !a.accidental) return true;
+  const delta = b.pitchValue - a.pitchValue;
+  if (delta === 0) return true;
+  const raised =
+    a.accidental === "sharp" ||
+    a.accidental === "double-sharp" ||
+    (a.accidental === "natural" && a.wasRaised === true);
+  return raised ? delta === 1 : delta === -1;
+}
+
+/**
  * Whether any pair of voices crosses a seam in parallel perfect intervals.
  *
  * The same rule the search itself applies in `findValidVoiceNote`: both voices
@@ -180,10 +210,12 @@ function rhymeOnce(
     // the exercise, and then there is no seam to vet at all.
     const beforeTarget = voices[i].slice(0, tgt.startIndex);
     if (!seamOk(beforeTarget, src.notes, maxSkip)) return false;
+    if (!resolutionOk(beforeTarget, src.notes)) return false;
     // Seam two: out of the borrowed material and into the target phrase's own
     // cadence, which is the part deliberately left alone.
     const afterTarget = voices[i].slice(tgt.endIndex + 1);
     if (!seamOk(src.notes, afterTarget, maxSkip)) return false;
+    if (!resolutionOk(src.notes, afterTarget)) return false;
   }
 
   // Both seams again, this time across voices rather than along one. Done after

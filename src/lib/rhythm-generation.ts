@@ -1,3 +1,4 @@
+import { rhythms as rhythmCatalogue } from "../resources/rhythms";
 import type {
   Rhythm,
   RhythmWithPattern,
@@ -271,8 +272,15 @@ export function generateRandomRhythm(
     const heldValue = timeSig.tsPerMeasure - BEAT_UNIT;
     if (heldValue >= 16) {
       const held = singleRhythms.find((r) => r.totalValue === heldValue);
+      // The breath comes from the catalogue, not from what the user ticked.
+      // A rest at the end of a phrase is punctuation, not material - it is how
+      // the phrase is written, the same way the cadence note is - so it should
+      // not disappear when someone turns rests off to stop them appearing
+      // mid-phrase. That is precisely the setting that wants it most.
       const breath =
-        rhythms.find((r) => !r.pattern && r.rest && r.totalValue === BEAT_UNIT) ?? null;
+        rhythmCatalogue.find(
+          (r) => !r.pattern && r.rest && r.totalValue === BEAT_UNIT
+        ) ?? null;
       const pickup =
         rhythms.find((r) => !r.pattern && !r.rest && r.totalValue === BEAT_UNIT) ?? null;
       if (held && (breath || pickup)) {

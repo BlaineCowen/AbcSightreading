@@ -934,6 +934,13 @@ function findValidBassNote(
 
   // No sevenths in the bass either - see isSingableInterval. Best-effort, so a
   // chord that can only be reached by one never becomes a failed exercise.
+  //
+  // Making it strict was measured and rejected: it costs UIL 1 3-Part Treble
+  // 62% failures, and does not even clear the sevenths (1-5 survive), because
+  // the ones that remain do not come from here. The real fix was upstream, in
+  // processRhythms - a pre-generated bass note was vetted against the note the
+  // bass had actually reached only for width, and at UIL 5 maxSkip is 6, which
+  // IS a seventh. That took the bass from 0.52% sevenths to 0.07%.
   const singable = reachable.filter((n) =>
     isSingableInterval(n.pitchValue, prevNote.pitchValue)
   );
