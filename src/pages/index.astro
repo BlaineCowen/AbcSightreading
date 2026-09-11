@@ -1,34 +1,163 @@
 ---
-// Your imports
-// import { useRouter } from "astro:router";
 import Layout from "../layouts/Layout.astro";
-import Card from "../components/Card.astro";
 
-// const router = useRouter();
+/**
+ * The landing page.
+ *
+ * One thing above the fold - start reading - and the case for the thing below
+ * it, for anyone who scrolls. Every claim here is something the generator
+ * actually does; see scripts/bach/README.md and the worklist for where the
+ * harmony rules come from.
+ */
 
-const links: any = [
-  { href: "/choral-sightreading", text: "Choral Sight Reading" },
-  { href: "/sightreading", text: "Sight Reading" },
-  { href: "/rhythm-game", text: "Rhythm Game" },
+const features = [
+  {
+    title: "Fully customizable",
+    body: "Key, time signature, voicing, measure count, tempo, which rhythms, which chords, how wide a leap each part may sing, how much decoration. Set it once and save it as a preset.",
+  },
+  {
+    title: "Real voice leading, not noise",
+    body: "Parallel fifths and octaves are ruled out as the parts are written. Chromatic notes are approached and left by step. Melodic sevenths are refused, and every part stays inside its own range.",
+  },
+  {
+    title: "Phrases, not just bars",
+    body: "Eight measures come out as a period: a cadence at the midpoint, a consequent that answers the antecedent instead of repeating it, and phrase endings that breathe.",
+  },
+  {
+    title: "Built for UIL",
+    body: "Levels 1 to 5 with the UIL document's own keys, rhythms, voicings and ranges - including the two-part tenor-bass voicing the lower levels ask for.",
+  },
+  {
+    title: "Hear it as well as read it",
+    body: "Piano, organ, choir and more, with a count-in, a moving cursor and a loop. Transpose the playback without touching the page, so it is read in one key and heard in another.",
+  },
+  {
+    title: "Solfège and analysis on tap",
+    body: "Movable-do solfège under each part and Roman numerals above the top staff, each independent, each switchable on the exercise already on screen. Print the clean copy.",
+  },
 ];
 ---
 
-<Layout title="ABC Sight Reading - Home">
-  <div
-    class="flex flex-col items-center justify-center min-h-[calc(100vh-6rem)]"
+<Layout
+  title="ABC Sight Reading - Generate choral sight-reading exercises"
+  description="Unlimited choral and unison sight-reading exercises, generated from real harmony rules. Fully programmatic. No AI."
+>
+  <!-- Hero -->
+  <section
+    class="flex flex-col items-center justify-center text-center min-h-[calc(100vh-12rem)] px-4"
   >
-    <h1 class="text-4xl font-bold text-center mb-8">ABC Sight Reading</h1>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full px-4">
-      <Card
-        href="/sightreading"
-        title="Unison Sight Reading"
-        body="Practice sight reading with single-part exercises. Perfect for individual practice and skill development."
-      />
-      <Card
+    <h1 class="text-5xl sm:text-6xl font-bold tracking-tight text-slate-900">
+      ABC Sight Reading
+    </h1>
+    <p class="mt-5 max-w-2xl text-lg sm:text-xl text-slate-600">
+      Unlimited sight-reading exercises for your choir, generated from real
+      harmony rules — in the key, level and voicing you actually need.
+    </p>
+
+    <div class="mt-10 flex flex-col items-center gap-4">
+      <a
         href="/choral-sightreading"
-        title="Choral Sight Reading"
-        body="Practice multi-part choral sight reading. Great for ensemble preparation and understanding harmony."
-      />
+        class="px-8 py-4 rounded-lg bg-blue-600 text-white text-lg font-semibold shadow-md hover:bg-blue-700 transition"
+      >
+        Start Sight-Reading
+      </a>
+      <a
+        href="/sightreading"
+        class="text-sm text-slate-500 hover:text-slate-700 underline underline-offset-4"
+      >
+        or practise a single part
+      </a>
     </div>
-  </div>
+
+    <p class="mt-16 text-xs uppercase tracking-widest text-slate-400">
+      Scroll for what it does
+    </p>
+  </section>
+
+  <!-- The pain -->
+  <section class="py-20 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold text-slate-900">
+        Stop handwriting sight-reading exercises
+      </h2>
+      <p class="mt-6 text-lg text-slate-600">
+        Eight bars of correct four-part writing takes a working musician twenty
+        minutes, and your choir reads it once. Then you need another one, in a
+        different key, at a different level, for a different voicing.
+      </p>
+      <p class="mt-4 text-lg text-slate-600">
+        Press Generate instead. Every exercise is new, and every one is
+        singable.
+      </p>
+    </div>
+  </section>
+
+  <!-- The differentiator -->
+  <section class="py-20 px-4 bg-slate-900 -mx-4 sm:mx-0 sm:rounded-2xl">
+    <div class="max-w-3xl mx-auto text-center">
+      <p class="text-sm uppercase tracking-widest text-blue-400 font-semibold">
+        How it works
+      </p>
+      <h2 class="mt-4 text-3xl sm:text-4xl font-bold text-white">
+        Fully programmatic. No AI.
+      </h2>
+      <p class="mt-6 text-lg text-slate-300">
+        Nothing here is predicted or sampled from a model. Every exercise is
+        built by a search that knows the rules: chord progressions from a
+        weighted graph of what actually follows what, four voices fitted to it
+        under real voice-leading constraints, then decorated with passing tones,
+        neighbours and suspensions that are checked before they are kept.
+      </p>
+      <p class="mt-4 text-lg text-slate-300">
+        If a rule is broken, that is a bug we can find and fix — not a model
+        having an off day. The harmony rules are measured against the repertoire
+        and the numbers are in the repository.
+      </p>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="py-20 px-4">
+    <div class="max-w-5xl mx-auto">
+      <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 text-center">
+        What you get
+      </h2>
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {
+          features.map((f) => (
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+              <h3 class="text-lg font-semibold text-slate-900">{f.title}</h3>
+              <p class="mt-3 text-slate-600">{f.body}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- Close -->
+  <section class="py-20 px-4">
+    <div class="max-w-2xl mx-auto text-center">
+      <h2 class="text-3xl font-bold text-slate-900">
+        Your next exercise is one click away
+      </h2>
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+        <a
+          href="/choral-sightreading"
+          class="px-8 py-4 rounded-lg bg-blue-600 text-white text-lg font-semibold shadow-md hover:bg-blue-700 transition"
+        >
+          Start Sight-Reading
+        </a>
+        <a
+          href="/sightreading"
+          class="px-8 py-4 rounded-lg bg-white text-slate-700 text-lg font-semibold border border-slate-300 hover:bg-slate-50 transition"
+        >
+          Single part
+        </a>
+      </div>
+      <p class="mt-10 text-sm text-slate-400">
+        Rhythm-only drills and a rhythm game are in there too.
+      </p>
+    </div>
+  </section>
 </Layout>
