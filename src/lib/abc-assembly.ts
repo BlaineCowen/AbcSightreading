@@ -7,6 +7,8 @@ import {
   type TimeSignature,
 } from "./types";
 import { solfegeLineFor } from "../resources/solfege";
+import { keySignatures } from "../resources/key-signatures";
+import { getDiatonicDegree } from "./prep-params";
 
 /**
  * What to print alongside the notes.
@@ -135,6 +137,24 @@ export function assembleAbcString(
     return Math.floor(startsAt / beamUnit) === Math.floor(endsAt / beamUnit);
   };
 
+  /** What the key signature already does to a letter, with no accidental written. */
+  const keyInfo = keySignatures[key];
+  const keyAccidental = (note: VoiceNote): string => {
+    if (!keyInfo) return "natural";
+    const degree = getDiatonicDegree(note.pitchValue, keyInfo);
+    if (keyInfo.sharps.includes(degree)) return "sharp";
+    if (keyInfo.flats.includes(degree)) return "flat";
+    return "natural";
+  };
+
+  const ACCIDENTAL_PREFIX: Record<string, string> = {
+    sharp: "^",
+    flat: "_",
+    natural: "=",
+    "double-sharp": "^^",
+    "double-flat": "__",
+  };
+
   // Strip leading accidental characters (^, _, =) to get the bare pitch+octave key.
   const basePitch = (noteName: string) => noteName.replace(/^[\^_=]+/, "");
 
@@ -183,19 +203,23 @@ export function assembleAbcString(
       } else {
         const base = basePitch(note.name);
 
-        if (note.accidental) {
-          // Explicit accidental - record it so we can cancel it for diatonic notes later.
-          measureAccidentals.set(base, note.accidental);
-          partString += `${note.name}${note.length}`;
+        // One rule for both altered and diatonic notes: work out what this note
+        // needs to sound as, compare it with what is already in force for that
+        // letter, and print a sign only when the two differ.
+        //
+        // Two bugs came from not doing this. An accidental holds for the rest of
+        // the measure, so a bar of repeated eighths printed ^G ^G ^G where a
+        // reader expects ^G G G. And cancelling was hard-coded to a natural,
+        // which is only right in a key that does not already alter that letter -
+        // in G major, a plain F after an F natural has to be restored with ^F,
+        // not marked natural again.
+        const want = note.accidental ?? keyAccidental(note);
+        const inForce = measureAccidentals.get(base) ?? keyAccidental(note);
+        if (want === inForce) {
+          partString += `${base}${note.length}`;
         } else {
-          // Diatonic note. If the same pitch was altered earlier in this measure, abcjs
-          // will carry the prior accidental. Add an explicit natural to cancel it.
-          if (measureAccidentals.has(base)) {
-            measureAccidentals.delete(base);
-            partString += `=${base}${note.length}`;
-          } else {
-            partString += `${note.name}${note.length}`;
-          }
+          measureAccidentals.set(base, want);
+          partString += `${ACCIDENTAL_PREFIX[want] ?? ""}${base}${note.length}`;
         }
       }
       // A space breaks the beam; leaving it out is what joins the notes.
