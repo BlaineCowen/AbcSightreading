@@ -36,6 +36,25 @@ it moves onto the strong beat and turns into a suspension — the 4–3. That is
 one place where "which chord" genuinely changes the answer, and it is worth
 having if we ever weight suspensions by harmony.
 
+## Are suspensions a special case?
+
+The worklist proposed: if a suspension creating a half-step dissonance is very
+rare, ban it outright for suspensions. Measured over 80 chorales
+(`suspension_clash.py`), it is uncommon — and **exactly as uncommon as it is for
+passing tones**:
+
+| ornament | clashes by a semitone |
+| --- | --- |
+| suspensions | **2.35%** (48 of 2,043) |
+| passing tones | **2.28%** (200 of 8,773) |
+
+Bach clashes at the same rate whichever ornament he is writing, so there is no
+basis for a rule that singles suspensions out. Doing it would make our
+suspensions stricter than our passing tones, which is stricter than the source in
+a direction the source does not support. The rule already shipped — a clash is
+allowed only as a passing motion, with a held pitch counting as stepwise —
+already treats the two the way Bach does.
+
 ## Full table
 
 ```
