@@ -17,38 +17,61 @@
 const BODY_MARKER = /^%.*start of tune body:/m;
 
 /**
- * The same exercise with its syllables and chord symbols removed.
- *
- * Two things go:
- * - `w:` lyric lines, which carry solfège
- * - `"..."` tokens in the music, which carry rhythm syllables (`"_ta"`) and
- *   chord symbols (`"^V⁷"`)
- *
- * Anything the string does not contain is simply not there to remove, so this is
- * safe to call on an exercise generated without annotations in the first place.
+ * Split an assembled exercise into the header, which must survive untouched, and
+ * the body, which is the only part these rewrite.
  */
-export function withoutAnnotations(abc: string): string {
+function splitBody(abc: string): [string, string] | null {
   const marker = abc.match(BODY_MARKER);
-  if (!marker || marker.index === undefined) return abc;
-
+  if (!marker || marker.index === undefined) return null;
   const splitAt = marker.index + marker[0].length;
-  const header = abc.slice(0, splitAt);
-  const body = abc.slice(splitAt);
-
-  const stripped = body
-    .split("\n")
-    // A lyric line is the whole line, so it goes rather than being emptied -
-    // an empty `w:` would still claim to be lyrics for the voice above it.
-    .filter((line) => !line.trimStart().startsWith("w:"))
-    // Annotations and chord symbols are quoted tokens sitting against the note
-    // they belong to. Removing them leaves the note untouched.
-    .map((line) => line.replace(/"[^"]*"/g, ""))
-    .join("\n");
-
-  return header + stripped;
+  return [abc.slice(0, splitAt), abc.slice(splitAt)];
 }
 
-/** Whether a string carries anything `withoutAnnotations` would remove. */
+/**
+ * The same exercise without its lyric lines - the solfège under each staff.
+ *
+ * A lyric line goes whole rather than being emptied: an empty `w:` would still
+ * claim to be lyrics for the voice above it.
+ */
+export function withoutLyrics(abc: string): string {
+  const parts = splitBody(abc);
+  if (!parts) return abc;
+  const [header, body] = parts;
+  return (
+    header +
+    body
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("w:"))
+      .join("\n")
+  );
+}
+
+/**
+ * The same exercise without its quoted text - chord symbols above the staff in
+ * choral (`"^V⁷"`), rhythm syllables in unison (`"_ta"`).
+ *
+ * They are tokens sitting against the note they belong to, so removing them
+ * leaves the note untouched.
+ */
+export function withoutQuotedText(abc: string): string {
+  const parts = splitBody(abc);
+  if (!parts) return abc;
+  const [header, body] = parts;
+  return header + body.replace(/"[^"]*"/g, "");
+}
+
+/**
+ * Both at once.
+ *
+ * The two are separately controllable - a director wants the chord symbols
+ * without the solfège as often as neither - so this exists for asking whether a
+ * string carries anything at all, not as the way to hide things.
+ */
+export function withoutAnnotations(abc: string): string {
+  return withoutQuotedText(withoutLyrics(abc));
+}
+
+/** Whether a string carries anything the strippers above would remove. */
 export function hasAnnotations(abc: string): boolean {
   return abc !== withoutAnnotations(abc);
 }

@@ -20,7 +20,7 @@
     syllableSystems,
   } from "../resources/rhythm-syllables";
   import "abcjs/abcjs-audio.css";
-  import { withoutAnnotations } from "../lib/annotations";
+  import { withoutLyrics, withoutQuotedText } from "../lib/annotations";
   import {
     RHYTHM_SOUNDS,
     DEFAULT_RHYTHM_SOUND,
@@ -244,7 +244,6 @@
     if (urlParams.has("showRhythmSyllables"))
       options.showRhythmSyllables = getParam("showRhythmSyllables") === "true";
     // A shared link carries the clean copy - that is the point of it.
-    if (urlParams.has("annot")) options.annotationsShown = getParam("annot") !== "0";
     const rs = getParam("rhythmSound");
     if (isRhythmSoundId(rs)) options.rhythmSoundId = rs;
     const inst = getParam("sound");
@@ -498,18 +497,23 @@
   let moveEighthNotes = initialState.moveEighthNotes;
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
   let tempo = initialState.bpm;
-  let showSolfege = initialState.showSolfege || false;
   let rhythmOnly = initialState.rhythmOnly || false;
+  /**
+   * Whether the rhythm syllables are printed over a rhythm-only exercise.
+   *
+   * A display setting too, and independent of the solfège below - see there.
+   */
   let showRhythmSyllables = initialState.showRhythmSyllables || false;
   /**
-   * The master switch over everything printed alongside the notes - solfège
-   * lyrics and rhythm syllables both.
+   * Whether the solfège under the staff is printed.
    *
-   * Turning it off re-renders the same exercise clean, for handing out or for
-   * reading without the answers, and leaves the two settings above untouched so
-   * turning it back on restores exactly what was there.
+   * A display setting, not a generation one. The lyrics are now always written
+   * into the exercise and stripped at render time, so this re-writes what is
+   * already on screen instead of costing a regenerate - and it is independent of
+   * the rhythm syllables, which used to share a master switch with it. The two
+   * things a singer wants apart could only be had together.
    */
-  let annotationsShown = initialState.annotationsShown !== false;
+  let showSolfege = initialState.showSolfege || false;
 
   /**
    * The rhythm staff's sound. Claves is a click with no duration, so a half note
@@ -536,11 +540,31 @@
     if (currentTune && originalTuneString) await rerenderTune();
   }
 
-  /** Show or hide the annotations on the exercise already on screen. */
-  async function handleToggleAnnotations() {
-    annotationsShown = !annotationsShown;
+  /** Show or hide the solfège on the exercise already on screen. */
+  async function handleToggleSolfege() {
+    showSolfege = !showSolfege;
     updateUrlFromState();
     if (currentTune && originalTuneString) await rerenderTune();
+  }
+
+  /** Same, for the rhythm syllables under a rhythm-only exercise. */
+  async function handleToggleRhythmSyllables() {
+    showRhythmSyllables = !showRhythmSyllables;
+    updateUrlFromState();
+    if (currentTune && originalTuneString) await rerenderTune();
+  }
+
+  /**
+   * Strip whatever is currently switched off.
+   *
+   * Both are written into every exercise and taken out here, so either can be
+   * turned back on without regenerating.
+   */
+  function withChosenAnnotations(abc: string): string {
+    let out = abc;
+    if (!showSolfege) out = withoutLyrics(out);
+    if (!showRhythmSyllables) out = withoutQuotedText(out);
+    return out;
   }
   let syllableSystemId =
     initialState.syllableSystemId || defaultSyllableSystem.id;
@@ -634,7 +658,7 @@
   $: notesDirty = maxSkip !== DEFAULTS.maxSkip ||
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
-    accidentalsFollowStep !== false || moveEighthNotes !== false || showSolfege !== false;
+    accidentalsFollowStep !== false || moveEighthNotes !== false;
   $: rangeDirty = selectedRange.min !== DEFAULTS.range.min || selectedRange.max !== DEFAULTS.range.max;
 
   // Notes and Range only mean something when there are pitches to control.
@@ -691,7 +715,6 @@
       Array.from(selectedFlatDegrees).join(",")
     );
     params.set("key", selectedKey);
-    params.set("annot", annotationsShown ? "1" : "0");
     params.set("rhythmSound", rhythmSoundId);
     params.set("sound", String(instrumentProgram));
     params.set("rhythms", selectedRhythms.map((r: Rhythm) => r.name).join(","));
@@ -1222,9 +1245,7 @@
       );
       // Hiding is a render-time strip: originalTuneString keeps the annotated
       // version, so showing them again costs nothing and never regenerates.
-      if (!annotationsShown) {
-        updatedTuneString = withoutAnnotations(updatedTuneString);
-      }
+      updatedTuneString = withChosenAnnotations(updatedTuneString);
       updatedTuneString = withChosenSound(updatedTuneString);
 
       // Clear any existing content in the paper div
@@ -1271,11 +1292,7 @@
 
     const visualObj = abcjs.renderAbc(
       "paper",
-      withChosenSound(
-        annotationsShown
-          ? renderedString[0]
-          : withoutAnnotations(renderedString[0])
-      ),
+      withChosenSound(withChosenAnnotations(renderedString[0])),
       getAbcOptions()
     );
 
@@ -1645,9 +1662,11 @@
         selectedClef: selectedClef,
         selectedTimeSignature: selectedTimeSignature,
         key: selectedKey,
-        showSolfege: rhythmOnly ? false : showSolfege,
+        // Always written in, whatever the buttons say - they strip at render,
+        // so either can come back without regenerating the exercise.
+        showSolfege: !rhythmOnly,
         rhythmOnly: rhythmOnly,
-        showRhythmSyllables: rhythmOnly && showRhythmSyllables,
+        showRhythmSyllables: rhythmOnly,
         syllableSystemId,
         allowTiesAcrossBarline,
         moveOnEighthNotes: moveEighthNotes,
@@ -2182,15 +2201,31 @@
 
               <div class="space-y-2">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {annotationsShown ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={handleToggleAnnotations}
-                  aria-pressed={annotationsShown}
-                >{annotationsShown ? 'Shown' : 'Hidden'}</button>
+                <div class="flex flex-wrap gap-2">
+                  {#if rhythmOnly}
+                    <button
+                      class="px-3 py-2 sm:py-1 rounded text-sm {showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={handleToggleRhythmSyllables}
+                      aria-pressed={showRhythmSyllables}
+                    >Rhythm syllables</button>
+                  {:else}
+                    <button
+                      class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                      on:click={handleToggleSolfege}
+                      aria-pressed={showSolfege}
+                    >Solfège</button>
+                  {/if}
+                </div>
                 <p class="text-xs text-slate-400">
-                  {annotationsShown
-                    ? "Solfège and rhythm syllables print with the notes."
-                    : "Hidden — the same exercise, printed clean."}
+                  {#if rhythmOnly}
+                    {showRhythmSyllables
+                      ? "Syllables above each note."
+                      : "Clean — the same exercise, printed for reading."}
+                  {:else}
+                    {showSolfege
+                      ? "Solfège under the staff."
+                      : "Clean — the same exercise, printed for sight-reading."}
+                  {/if}
                 </p>
               </div>
 

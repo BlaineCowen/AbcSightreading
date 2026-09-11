@@ -143,13 +143,14 @@
   /** Solfège syllables under each staff. Off by default - a teaching aid, opted into. */
   let showSolfege = false;
   /**
-   * The master switch for everything printed alongside the notes.
+   * Chord symbols above the top staff, controlled on their own.
    *
-   * Turning it off re-writes the same exercise without syllables or chord
-   * symbols - the clean copy to hand out - and leaves `showSolfege` untouched,
-   * so turning it back on restores what was there.
+   * There used to be a master switch over both this and the solfège, which meant
+   * the two things a director actually wants apart - the harmony to talk about,
+   * the syllables to sing from - could only be had together or not at all. Each
+   * now re-writes the exercise already on screen.
    */
-  let annotationsShown = true;
+  let showChords = true;
 
   /**
    * Re-writes the current exercise with different annotations.
@@ -563,7 +564,7 @@
     // A shared link carries the annotation state - the whole point of the clean
     // copy is being able to send it.
     showSolfege = p.get("solfege") === "1";
-    annotationsShown = p.get("annot") !== "0";
+    showChords = p.get("chords") !== "0";
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
     const bias = p.get("bias");
@@ -590,7 +591,7 @@
     p.set("cursor", cursorMode);
     p.set("sound", String(instrumentProgram));
     p.set("solfege", showSolfege ? "1" : "0");
-    p.set("annot", annotationsShown ? "1" : "0");
+    p.set("chords", showChords ? "1" : "0");
     p.set("texture", voiceTexture);
     const biasPairs = Object.entries(rhythmBias);
     if (biasPairs.length) {
@@ -946,8 +947,8 @@
   /** What the assembler should print, given the two controls. */
   function displayOptions() {
     return {
-      chordSymbols: annotationsShown,
-      solfege: annotationsShown && showSolfege,
+      chordSymbols: showChords,
+      solfege: showSolfege,
       midiProgram: instrumentProgram,
     };
   }
@@ -965,8 +966,8 @@
     await reRenderAnnotations();
   }
 
-  async function handleToggleAnnotations() {
-    annotationsShown = !annotationsShown;
+  async function handleToggleChords() {
+    showChords = !showChords;
     await reRenderAnnotations();
   }
 
@@ -1373,22 +1374,26 @@
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
               <div class="flex flex-wrap gap-2">
                 <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm {showChords ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  on:click={handleToggleChords}
+                  aria-pressed={showChords}
+                >Chord symbols</button>
+                <button
                   class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
                   on:click={handleToggleSolfege}
                   aria-pressed={showSolfege}
                 >Solfège</button>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {annotationsShown ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={handleToggleAnnotations}
-                  aria-pressed={annotationsShown}
-                >{annotationsShown ? 'Shown' : 'Hidden'}</button>
               </div>
               <p class="text-xs text-slate-400">
-                {annotationsShown
-                  ? (showSolfege
-                      ? "Chord symbols above the top staff, solfège under each part."
-                      : "Chord symbols above the top staff.")
-                  : "Hidden — the same exercise, printed clean for sight-reading."}
+                {#if showChords && showSolfege}
+                  Chord symbols above the top staff, solfège under each part.
+                {:else if showChords}
+                  Chord symbols above the top staff.
+                {:else if showSolfege}
+                  Solfège under each part.
+                {:else}
+                  Clean — the same exercise, printed for sight-reading.
+                {/if}
               </p>
             </div>
 
