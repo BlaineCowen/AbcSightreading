@@ -514,7 +514,13 @@ export function generateNonChordTones(
    * Optional so existing callers keep working; unset means no check, which is
    * the old behaviour.
    */
-  voiceRange?: [number, number]
+  voiceRange?: [number, number],
+  /**
+   * The measure length in 32nd-note units, so a note's position in the bar can
+   * be known. Without it the suspension rule below stands down - the pass has
+   * never had any idea where in the bar it was working.
+   */
+  tsPerMeasure?: number
 ): VoiceNote[] {
   const outputNotes: VoiceNote[] = [];
 
@@ -529,12 +535,16 @@ export function generateNonChordTones(
     return [...notesToProcess];
   }
 
+  // Passing and neighbour tones are the ordinary currency of this writing and
+  // should dominate; a suspension is a deliberate gesture; an anticipation is
+  // rare. These are round numbers in that order rather than any corpus's exact
+  // proportions - the aim is well-shaped harmony, not a pastiche of one style.
   const fullNctLibrary: NctDefinition[] = [
-    { name: "Suspension", check: checkSuspension, generator: generateSuspension, weight: 10 },
-    { name: "Passing Tone", check: checkPassingTone, generator: generatePassingTone, weight: 10 },
-    { name: "Neighbor Tone", check: checkNeighborTone, generator: generateNeighborTone, weight: 8 },
-    { name: "Anticipation", check: checkAnticipation, generator: generateAnticipation, weight: 4 },
-    { name: "Appoggiatura", check: checkAppoggiatura, generator: generateAppoggiatura, weight: 3 },
+    { name: "Suspension", check: checkSuspension, generator: generateSuspension, weight: 20 },
+    { name: "Passing Tone", check: checkPassingTone, generator: generatePassingTone, weight: 30 },
+    { name: "Neighbor Tone", check: checkNeighborTone, generator: generateNeighborTone, weight: 18 },
+    { name: "Anticipation", check: checkAnticipation, generator: generateAnticipation, weight: 1 },
+    { name: "Appoggiatura", check: checkAppoggiatura, generator: generateAppoggiatura, weight: 5 },
   ];
   const nctLibrary = enabledNctTypes
     ? fullNctLibrary.filter((d) => enabledNctTypes.includes(d.name))
@@ -624,8 +634,16 @@ export function generateNonChordTones(
     // asking which types fit wastes the attempt whenever the two do not match -
     // and they often will not, now that a type can require a particular number
     // of notes (a passing tone across a 4th needs a three-note pattern).
+    // A suspension belongs on a strong beat - see onStrongBeat. Everything else
+    // is free to fall where the rhythm puts it.
+    const strongBeat =
+      tsPerMeasure === undefined
+        ? true
+        : onStrongBeat(timeAtIndex(notesToProcess, i), tsPerMeasure);
+
     const candidates: { def: NctDefinition; pattern: Rhythm }[] = [];
     for (const def of nctLibrary) {
+      if (def.name === "Suspension" && !strongBeat) continue;
       for (const pattern of possibleRhythmicReplacements) {
         if (def.check(originalNote, nextNote, prevNote, pattern)) {
           candidates.push({ def, pattern });
@@ -641,8 +659,12 @@ export function generateNonChordTones(
       continue;
     }
 
-    const chosen = pickWeightedCandidate(candidates);
+    let chosen: ReturnType<typeof pickAcrossLibrary> = null;
+    for (let draw = 0; draw < DRAWS && !chosen; draw++) {
+      chosen = pickAcrossLibrary(nctLibrary, candidates);
+    }
     if (!chosen) {
+      console.log(`NCT_GEN: nothing drawn fits note ${i}. Keeping original.`);
       outputNotes.push(originalNote);
       continue;
     }
@@ -798,15 +820,49 @@ function checkNeighborTone(
  * a non-chord tone at all, just a note chopped in half. That was about a third
  * of all decorations. Requiring a real step or 3rd of movement removes it.
  */
+/**
+ * Is this note on a strong beat of its measure?
+ *
+ * A suspension is the one decoration whose whole effect depends on where it
+ * falls: the held dissonance lands on the strong beat and resolves onto the weak
+ * one. Written the other way round it is not a suspension, it is an accented
+ * passing tone that never quite arrives.
+ *
+ * The downbeat always counts. The midpoint counts too, but only in a measure of
+ * four beats or more - in 2/4 that would make every beat strong, and in 3/4 the
+ * midpoint is not a beat at all.
+ */
+function onStrongBeat(startsAt: number, tsPerMeasure: number): boolean {
+  const BEAT = 8; // a quarter, in 32nd-note units
+  const pos = ((startsAt % tsPerMeasure) + tsPerMeasure) % tsPerMeasure;
+  if (pos === 0) return true;
+  const beats = tsPerMeasure / BEAT;
+  return beats >= 4 && pos === tsPerMeasure / 2;
+}
+
+/**
+ * An anticipation sounds the NEXT note's pitch early - the tail of this note is
+ * given over to where the line is going, arriving before its harmony does.
+ *
+ * The old test was `gap >= 1 && gap <= 2` looking only forwards, which is not a
+ * definition of an anticipation: it is a description of nearly every melodic
+ * move. It accepted anticipating by a THIRD, which is not the figure, and never
+ * looked at how the note was approached at all.
+ *
+ * A step ahead, and stepped into. Both halves matter - the point of the figure
+ * is a line arriving somewhere slightly early, and a line that leapt in is not
+ * doing that.
+ */
 function checkAnticipation(
   currentNote: VoiceNote,
   nextNote: VoiceNote | null,
-  _prevNote: VoiceNote | null,
+  prevNote: VoiceNote | null,
   patternRhythm: Rhythm
 ): boolean {
   if (patternRhythm.abcValue.length !== 2) return false;
-  const gap = diatonicGap(currentNote, nextNote);
-  return gap !== null && gap >= 1 && gap <= 2;
+  if (diatonicGap(currentNote, nextNote) !== 1) return false;
+  const behind = diatonicGap(currentNote, prevNote);
+  return behind !== null && behind <= 1;
 }
 
 /**
@@ -834,26 +890,53 @@ function checkAppoggiatura(
  * ordinary it is in the style. A type that fits several patterns is not thereby
  * made more likely: its weight is shared across its own pairs.
  */
-function pickWeightedCandidate(
+/**
+ * Pick a decoration by weight across the WHOLE library, not just the types that
+ * happen to fit this note - so a weight means "how often this appears", not
+ * "how often it wins when it is in the running".
+ *
+ * The difference is not academic. Every decoration but one needs something
+ * specific: a passing tone a 3rd to fill, a suspension a step above, a neighbour
+ * a repeated pitch. An anticipation needs only stepwise motion, which is most of
+ * this music - so on a rising stepwise line it was the ONLY candidate and won
+ * however low its weight. It ran at 34% of all decorations, and cutting it from
+ * 4 to 1 against a passing tone at 30 still left it at 25%. It was not winning
+ * the draw; it was the only name in it.
+ *
+ * Drawing from the whole library and declining when the draw does not fit leaves
+ * the awkward notes plain, which is the right answer for them.
+ */
+export function pickAcrossLibrary(
+  library: NctDefinition[],
   candidates: { def: NctDefinition; pattern: Rhythm }[]
 ): { def: NctDefinition; pattern: Rhythm } | null {
-  if (candidates.length === 0) return null;
-  const countFor = new Map<string, number>();
-  for (const c of candidates) {
-    countFor.set(c.def.name, (countFor.get(c.def.name) ?? 0) + 1);
-  }
-  const weightOf = (c: { def: NctDefinition }) =>
-    c.def.weight / (countFor.get(c.def.name) ?? 1);
-
-  const total = candidates.reduce((sum, c) => sum + weightOf(c), 0);
-  if (total <= 0) return candidates[0];
+  const total = library.reduce((sum, d) => sum + d.weight, 0);
+  if (total <= 0) return null;
   let roll = Math.random() * total;
-  for (const c of candidates) {
-    roll -= weightOf(c);
-    if (roll < 0) return c;
+  let chosen: NctDefinition | null = null;
+  for (const d of library) {
+    roll -= d.weight;
+    if (roll < 0) {
+      chosen = d;
+      break;
+    }
   }
-  return candidates[candidates.length - 1];
+  if (!chosen) return null;
+  const fits = candidates.filter((c) => c.def.name === chosen!.name);
+  if (fits.length === 0) return null;
+  return fits[Math.floor(Math.random() * fits.length)];
 }
+
+/**
+ * How many times to draw before leaving a note plain.
+ *
+ * One draw is the honest form of the rule and costs three quarters of the
+ * decoration - most draws name something that does not fit the note in front of
+ * them. A few draws restore the density without restoring the old problem: a
+ * type that fits everywhere still only gets its weight's share of each draw, so
+ * it cannot go back to winning uncontested.
+ */
+const DRAWS = 5;
 
 // ======== NCT Generator Functions ==========
 

@@ -380,7 +380,9 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       key,
       params.enabledNctTypes,
       // Decoration has to stay inside the singer's range like everything else.
-      voiceParts[index]?.range
+      voiceParts[index]?.range,
+      // ...and needs to know where in the bar it is, for the suspension rule.
+      timeSig.tsPerMeasure
     );
   });
   console.log(`  Finished NCT generation.`);
