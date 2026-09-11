@@ -27,6 +27,12 @@
   import { unisonProbabilityFor } from "../lib/unison-spans";
   import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
   import {
+    clampTranspose,
+    transposeLabel,
+    MIN_TRANSPOSE,
+    MAX_TRANSPOSE,
+  } from "../lib/transpose";
+  import {
     INSTRUMENTS,
     DEFAULT_INSTRUMENT,
     isInstrumentProgram,
@@ -233,6 +239,14 @@
   let chromaticFrequency = 1;
   let chordProgression: Chord[] = [];
   let renderedString = "";
+  /**
+   * Semitones to shift PLAYBACK by, leaving the notation exactly as written.
+   *
+   * A display setting in the same sense as the instrument: it changes nothing
+   * about the exercise, so it is kept out of the unsaved-changes signature.
+   */
+  let transposeSemitones = 0;
+
   let selectedVoicing = "4 Part Mixed";
 
   /**
@@ -570,6 +584,9 @@
       // serves those exact FluidR3_GM samples, so restate the 3.0 it would have
       // chosen; without this the fix would land as a 3x drop in volume.
       soundFontVolumeMultiplier: 3.0,
+      // Read in abc_midi_sequencer, downstream of the visual object, so the
+      // score on the page is untouched and only the sound moves.
+      midiTranspose: transposeSemitones,
     };
   }
 
@@ -591,6 +608,7 @@
     // copy is being able to send it.
     showSolfege = p.get("solfege") === "1";
     showChords = p.get("chords") !== "0";
+    transposeSemitones = clampTranspose(Number(p.get("transpose") ?? 0));
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
     const bias = p.get("bias");
@@ -618,6 +636,7 @@
     p.set("sound", String(instrumentProgram));
     p.set("solfege", showSolfege ? "1" : "0");
     p.set("chords", showChords ? "1" : "0");
+    p.set("transpose", String(transposeSemitones));
     p.set("texture", voiceTexture);
     const biasPairs = Object.entries(rhythmBias);
     if (biasPairs.length) {
@@ -995,6 +1014,26 @@
   async function handleToggleChords() {
     showChords = !showChords;
     await reRenderAnnotations();
+  }
+
+  /**
+   * Shift playback without touching the score.
+   *
+   * No re-render: the notation is identical, so only the synth has to be
+   * rebuilt - `setTune` bakes the transposition into the MIDI sequence when it
+   * builds it, and an existing sequence cannot be shifted after the fact.
+   */
+  async function handleTransposeChange(next: number) {
+    const clamped = clampTranspose(next);
+    if (clamped === transposeSemitones) return;
+    transposeSemitones = clamped;
+    updateURLParams();
+    if (!renderedTune) return;
+    if (isPlaying) pausePlayback();
+    await initSynth(renderedTune);
+    if (generatedBpm > 0 && bpm !== generatedBpm) {
+      try { synthControl?.setWarp(Math.round((bpm / generatedBpm) * 100)); } catch {}
+    }
   }
 
   async function handleInstrumentChange(program: number) {
@@ -1393,6 +1432,36 @@
               </div>
               <p class="text-xs text-slate-400">
                 Changes the sound straight away — the exercise stays as it is.
+              </p>
+            </div>
+
+            <div class="space-y-2 sm:col-span-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback transpose</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
+                  on:click={() => handleTransposeChange(transposeSemitones - 1)}
+                  disabled={transposeSemitones <= MIN_TRANSPOSE}
+                  aria-label="Transpose playback down a semitone"
+                >−</button>
+                <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
+                  {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
+                </span>
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
+                  on:click={() => handleTransposeChange(transposeSemitones + 1)}
+                  disabled={transposeSemitones >= MAX_TRANSPOSE}
+                  aria-label="Transpose playback up a semitone"
+                >+</button>
+                {#if transposeSemitones !== 0}
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200"
+                    on:click={() => handleTransposeChange(0)}
+                  >Reset</button>
+                {/if}
+              </div>
+              <p class="text-xs text-slate-400">
+                {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
               </p>
             </div>
 

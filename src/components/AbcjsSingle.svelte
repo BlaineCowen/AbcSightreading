@@ -22,6 +22,12 @@
   import "abcjs/abcjs-audio.css";
   import { withoutLyrics, withoutQuotedText } from "../lib/annotations";
   import {
+    clampTranspose,
+    transposeLabel,
+    MIN_TRANSPOSE,
+    MAX_TRANSPOSE,
+  } from "../lib/transpose";
+  import {
     RHYTHM_SOUNDS,
     DEFAULT_RHYTHM_SOUND,
     isRhythmSoundId,
@@ -241,6 +247,8 @@
       options.showSolfege = getParam("showSolfege") === "true";
     if (urlParams.has("rhythmOnly"))
       options.rhythmOnly = getParam("rhythmOnly") === "true";
+    if (urlParams.has("transpose"))
+      options.transposeSemitones = clampTranspose(Number(getParam("transpose")));
     if (urlParams.has("showRhythmSyllables"))
       options.showRhythmSyllables = getParam("showRhythmSyllables") === "true";
     // A shared link carries the clean copy - that is the point of it.
@@ -523,6 +531,14 @@
   /** The instrument for pitched exercises, shared with the choral page. */
   let instrumentProgram: number = initialState.instrumentProgram ?? DEFAULT_INSTRUMENT;
 
+  /**
+   * Semitones to shift PLAYBACK by, leaving the notation exactly as written -
+   * read it in the key on the page, hear it wherever it needs to sound.
+   */
+  let transposeSemitones = clampTranspose(
+    Number((initialState as any).transposeSemitones ?? 0)
+  );
+
   /** Apply the chosen sound to an assembled exercise. */
   function withChosenSound(abc: string): string {
     return rhythmOnly
@@ -535,6 +551,22 @@
     else rhythmSoundId = next;
     updateUrlFromState();
     // The audio buffer is built from the old sound, so it has to go.
+    audioBuffer = null;
+    createSynth = null;
+    if (currentTune && originalTuneString) await rerenderTune();
+  }
+
+  /**
+   * Shift playback without touching the score.
+   *
+   * The rendered audio buffer was built from the old pitches, so it has to go -
+   * the same reason changing the instrument throws it away.
+   */
+  async function handleTransposeChange(next: number) {
+    const clamped = clampTranspose(next);
+    if (clamped === transposeSemitones) return;
+    transposeSemitones = clamped;
+    updateUrlFromState();
     audioBuffer = null;
     createSynth = null;
     if (currentTune && originalTuneString) await rerenderTune();
@@ -727,6 +759,7 @@
     params.set("showSolfege", showSolfege.toString());
     params.set("rhythmOnly", rhythmOnly.toString());
     params.set("showRhythmSyllables", showRhythmSyllables.toString());
+    params.set("transpose", String(transposeSemitones));
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
     params.set("cursor", cursorMode);
@@ -799,6 +832,9 @@
         soundFontVolumeMultiplier: rhythmOnly
           ? volumeMultiplierFor(rhythmSoundFor(rhythmSoundId))
           : 3.0,
+        // Read in abc_midi_sequencer, downstream of the visual object, so the
+        // score on the page is untouched and only the sound moves.
+        midiTranspose: transposeSemitones,
         // No drum parameters - we'll use our synthetic metronome
       },
     });
@@ -2196,6 +2232,36 @@
                         ? "A click — every note sounds the same length. Good for attacks."
                         : "Sustains, so a held note is heard held.")
                     : "Changes the sound straight away — the exercise stays as it is."}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback transpose</p>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
+                    on:click={() => handleTransposeChange(transposeSemitones - 1)}
+                    disabled={transposeSemitones <= MIN_TRANSPOSE}
+                    aria-label="Transpose playback down a semitone"
+                  >−</button>
+                  <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
+                    {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
+                  </span>
+                  <button
+                    class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
+                    on:click={() => handleTransposeChange(transposeSemitones + 1)}
+                    disabled={transposeSemitones >= MAX_TRANSPOSE}
+                    aria-label="Transpose playback up a semitone"
+                  >+</button>
+                  {#if transposeSemitones !== 0}
+                    <button
+                      class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200"
+                      on:click={() => handleTransposeChange(0)}
+                    >Reset</button>
+                  {/if}
+                </div>
+                <p class="text-xs text-slate-400">
+                  {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
                 </p>
               </div>
 
