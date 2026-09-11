@@ -179,7 +179,11 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedChordNames: ["1", "2", "3", "4", "5", "6", "5-7", "5/5", "5/5-6",
       "5/6-6",
       "5/2-6", "5/6", "5/2"],
-    // All simple rhythms including syncopation and dotted patterns
+    // Simple rhythms and dotted patterns, but not the two reversed-dot figures:
+    // an eighth then a dotted quarter, and a dotted eighth then a sixteenth.
+    // Both put the short note on the beat and the long one off it, which is a
+    // different reading skill from the rest of this list. Level 5 excludes them
+    // too, and level 3 never had them.
     allowedRhythmNames: [
       "whole",
       "dotHalf",
@@ -187,9 +191,7 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarter",
       "eighthEighth",
       "dotQuarterEighth",
-      "eighthDotQuarter",
       "dotHalfQuarter",
-      "dotEighthSixteenth",
       "wholeRest",
       "halfRest",
       "quarterRest",
@@ -234,10 +236,8 @@ export const uilPresets: Record<string, UILPreset> = {
       "5/2-6", "5/6", "5/2", "m4", "1-7", "2-6", "4-64", "6-6",
       "m_i", "m_i6", "m_iv", "m_iid", "m_V", "m_V7", "m_VI", "m_VII", "m_III", "m_viid",
     ],
-    // Everything except the two reversed-dot figures. An eighth followed by a
-    // dotted quarter, and a dotted eighth followed by a sixteenth, both put the
-    // short note on the beat and the long one off it - which is a different
-    // reading skill from the rest of this list and not what the level is for.
+    // Everything except the two reversed-dot figures - see level 4. Sixteenths
+    // in a row are still here; they are only fast, not turned around.
     allowedRhythmNames: [
       "whole",
       "dotHalf",
