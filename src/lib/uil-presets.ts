@@ -45,7 +45,11 @@ export const uilPresets: Record<string, UILPreset> = {
     // no more than a third (maxSkip 2) on I, IV and V alone, failed 100% of the
     // time - before any of this session's range work as well. An option that
     // never produces an exercise is worse than one that is not offered.
-    allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass", "Unison"],
+    // No "Unison": single-line practice is its own page, and a one-part voicing
+    // inside the choral generator only duplicated it. The Unison entry in
+    // voiceRanges below stays - the range calibration page reads it for that
+    // page's voice.
+    allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass"],
     measureRange: [24, 28],
     maxSkip: 2,
     // Ceilings come from notes/uil-criteria.md; floors are opened downward from

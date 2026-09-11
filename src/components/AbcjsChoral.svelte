@@ -131,12 +131,6 @@
         Bass:  { order: 0, smallName: "B", clef: ClefType.Bass,           range: [2,  21], currentRange: [9,  18] },
       },
     },
-    Unison: {
-      numofParts: 1,
-      parts: {
-        Unison: { order: 0, smallName: "V", clef: ClefType.Treble, range: [14, 32], currentRange: [21, 28] },
-      },
-    },
   };
 
   let timeSignatures: Record<string, TimeSignature> = {
@@ -240,6 +234,18 @@
   let chordProgression: Chord[] = [];
   let renderedString = "";
   let selectedVoicing = "4 Part Mixed";
+
+  /**
+   * A voicing name the table actually has, or the default.
+   *
+   * Shared links and saved presets carry a voicing by name, so one that has been
+   * retired outlives the table - "Unison" did, when single-line practice moved to
+   * its own page. Without this the page keeps the dead name, every lookup falls
+   * through to `?? {}`, and the result is a voicing with no parts rather than an
+   * error anyone would see.
+   */
+  const knownVoicing = (name: string | null | undefined): string =>
+    name && name in possibleVoicing ? name : "4 Part Mixed";
 
   // ── Chord state ────────────────────────────────────────────────────────────
   function isMinorKey(k: string): boolean { return k.endsWith('m'); }
@@ -570,7 +576,7 @@
   // ── URL persistence ────────────────────────────────────────────────────────
   function loadParams() {
     const p = new URLSearchParams(window.location.search);
-    selectedVoicing = p.get("voices") || "4 Part Mixed";
+    selectedVoicing = knownVoicing(p.get("voices"));
     const keyParam = p.get("key") || "C";
     const keyList = keyParam.split(",").map((k) => k.trim()).filter(Boolean);
     selectedKeys = new Set(keyList.length ? keyList : ["C"]);
@@ -750,7 +756,7 @@
     selectedKey = p.key;
     selectedKeys = new Set(p.keys?.length ? p.keys : [p.key]);
     selectedTimeSignature = p.timeSig;
-    selectedVoicing = p.voicing;
+    selectedVoicing = knownVoicing(p.voicing);
     measures = p.measures;
     maxSkip = p.maxSkip;
     bpm = p.bpm;
