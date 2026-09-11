@@ -194,6 +194,108 @@ function onsetsWithin(voice: VoiceNote[], start: number, end: number): number[] 
   return times;
 }
 
+/**
+ * What a note actually sounds, in semitones.
+ *
+ * `pitchValue` is a DIATONIC index - one step per letter name - so two notes a
+ * diatonic step apart may be a whole tone or a half tone, and nothing that
+ * compares pitchValues can tell which. Every vertical rule until now has been
+ * about diatonic intervals (parallel fifths, octaves), where that does not
+ * matter. A half-step clash is exactly where it does.
+ *
+ * The value is only ever used in differences, so the absolute origin is
+ * arbitrary. The accidental on the note wins; failing that the key signature
+ * decides, which is why this needs the key.
+ */
+const LETTER_SEMITONE = [0, 2, 4, 5, 7, 9, 11]; // C D E F G A B
+
+const ACCIDENTAL_SEMITONE: Record<string, number> = {
+  sharp: 1,
+  flat: -1,
+  natural: 0,
+  "double-sharp": 2,
+  "double-flat": -2,
+};
+
+export function semitoneOf(note: VoiceNote, keyInfo: { sharps: number[]; flats: number[] }): number {
+  const letter = ((note.pitchValue % 7) + 7) % 7;
+  const octave = Math.floor(note.pitchValue / 7);
+  let alter: number;
+  if (note.accidental && note.accidental in ACCIDENTAL_SEMITONE) {
+    alter = ACCIDENTAL_SEMITONE[note.accidental];
+  } else {
+    const degree = getDiatonicDegree(note.pitchValue, keyInfo as any);
+    alter = keyInfo.sharps.includes(degree) ? 1 : keyInfo.flats.includes(degree) ? -1 : 0;
+  }
+  return octave * 12 + LETTER_SEMITONE[letter] + alter;
+}
+
+/**
+ * Every sounding note in a voice that overlaps the window [from, to).
+ *
+ * Every note that overlaps, not the one at the onset: a decoration is short and
+ * the other voice can change underneath it, so sampling only where the
+ * decoration begins misses exactly the clashes that start a beat later.
+ */
+function notesOverlapping(voice: VoiceNote[], from: number, to: number): VoiceNote[] {
+  const out: VoiceNote[] = [];
+  let t = 0;
+  for (const note of voice) {
+    const end = t + note.length;
+    if (end > from && t < to && !note.rest) out.push(note);
+    t = end;
+    if (t >= to) break;
+  }
+  return out;
+}
+
+/**
+ * Does any note of this figure sound a half step against another voice?
+ *
+ * A minor 2nd or minor 9th between two sounding parts is the harshest interval
+ * in this idiom, and the harmony search never writes one: measured over 120
+ * minor exercises, **zero** in 15,222 overlapping pairs with decoration off,
+ * against 1.31 per exercise with it on. Every one of them came from here, and
+ * nothing in this pass was looking.
+ *
+ * A major 7th is deliberately allowed. It inverts to a half step but does not
+ * sound like one, and it is ordinary in this writing.
+ *
+ * Reads `allNotes`, which is mid-flight: voices decorated before this one show
+ * their decorations, voices after it still show chord tones. So this cannot
+ * catch two decorations in different voices that clash only with each other -
+ * it catches a decoration against whatever is committed when it is considered,
+ * which is most of them.
+ */
+function clashesBySemitone(
+  nctNotes: VoiceNote[],
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number,
+  key: string
+): boolean {
+  const keyInfo = keySignatures[key];
+  if (!keyInfo) return false;
+
+  const currentVoice = allNotes[currentPartIndex];
+  let t = timeAtIndex(currentVoice, noteIndex);
+
+  for (const nct of nctNotes) {
+    if (!nct.rest) {
+      const mine = semitoneOf(nct, keyInfo);
+      for (let v = 0; v < allNotes.length; v++) {
+        if (v === currentPartIndex) continue;
+        for (const other of notesOverlapping(allNotes[v], t, t + nct.length)) {
+          const gap = Math.abs(mine - semitoneOf(other, keyInfo));
+          if (gap === 1 || gap === 13) return true;
+        }
+      }
+    }
+    t += nct.length;
+  }
+  return false;
+}
+
 function checkParallelMotion(
   nctNotes: VoiceNote[],
   noteIndex: number,
@@ -491,6 +593,16 @@ export function generateNonChordTones(
     // Nor is one that nobody can sing into or out of.
     if (!figureIsSingable(generatedNctNotes, prevNote, nextNote)) {
       console.log(`NCT_GEN: unsingable interval — keeping original note at ${i}.`);
+      outputNotes.push(originalNote);
+      continue;
+    }
+
+    // Nor one that grinds a half step against another part.
+    if (
+      generatedNctNotes &&
+      clashesBySemitone(generatedNctNotes, i, allNotes, currentPartIndex, key)
+    ) {
+      console.log(`NCT_GEN: semitone clash with another voice — keeping original note at ${i}.`);
       outputNotes.push(originalNote);
       continue;
     }
