@@ -2229,9 +2229,9 @@
                 <p class="text-xs text-slate-400">
                   {rhythmOnly
                     ? (rhythmSoundFor(rhythmSoundId).kind === "click"
-                        ? "A click — every note sounds the same length. Good for attacks."
+                        ? "A click - every note sounds the same length. Good for attacks."
                         : "Sustains, so a held note is heard held.")
-                    : "Changes the sound straight away — the exercise stays as it is."}
+                    : "Changes the sound straight away - the exercise stays as it is."}
                 </p>
               </div>
 
@@ -2286,11 +2286,11 @@
                   {#if rhythmOnly}
                     {showRhythmSyllables
                       ? "Syllables above each note."
-                      : "Clean — the same exercise, printed for reading."}
+                      : "Clean - the same exercise, printed for reading."}
                   {:else}
                     {showSolfege
                       ? "Solfège under the staff."
-                      : "Clean — the same exercise, printed for sight-reading."}
+                      : "Clean - the same exercise, printed for sight-reading."}
                   {/if}
                 </p>
               </div>

@@ -46,7 +46,7 @@ interface NctDefinition {
  * Create a VoiceNote at newPitchValue.
  *
  * In ABC notation the K: header already declares all key-signature sharps/flats,
- * so we must NOT add explicit ^ or _ prefixes for in-key notes — they are already
+ * so we must NOT add explicit ^ or _ prefixes for in-key notes - they are already
  * implied by the key signature.  `^C` in key of A is redundant (C already means
  * C# in that key) and causes many ABC renderers to display a spurious sharp.
  *
@@ -111,7 +111,7 @@ function pitchAtTimeLocal(voice: VoiceNote[], t: number): number | null {
 }
 
 /**
- * Cumulative time of the FIRST n entries in a voice — i.e., the absolute
+ * Cumulative time of the FIRST n entries in a voice - i.e., the absolute
  * start time of voice[n].
  */
 function timeAtIndex(voice: VoiceNote[], n: number): number {
@@ -135,7 +135,7 @@ function timeAtIndex(voice: VoiceNote[], n: number): number {
  */
 /**
  * Returns true if a proposed NCT would sound a diatonic SECOND against another
- * voice — two parts a step apart, which is the harshest vertical clash in this
+ * voice - two parts a step apart, which is the harshest vertical clash in this
  * style and reads as a changed harmony rather than as decoration.
  *
  * Only a true step counts, not its compound. A ninth between soprano and bass
@@ -345,7 +345,7 @@ function checkParallelMotion(
   if (firstNct.rest || lastNct.rest) return false;
 
   const currentDir = Math.sign(lastNct.pitchValue - firstNct.pitchValue);
-  if (currentDir === 0) return false; // stationary — no parallel motion possible
+  if (currentDir === 0) return false; // stationary - no parallel motion possible
 
   // Compute the time of the NCT motion in absolute (piece) time. The current
   // voice has its OWN cumulative time; the NCT replaces the note at noteIndex
@@ -364,8 +364,8 @@ function checkParallelMotion(
     if (prevOtherPitch === null || nextOtherPitch === null) continue;
 
     const otherDir = Math.sign(nextOtherPitch - prevOtherPitch);
-    if (otherDir === 0) continue; // other voice is stationary — no parallel motion
-    if (currentDir !== otherDir) continue; // contrary/oblique — fine
+    if (otherDir === 0) continue; // other voice is stationary - no parallel motion
+    if (currentDir !== otherDir) continue; // contrary/oblique - fine
 
     // Both voices moving the same direction: check intervals
     const rawIntervalBefore = Math.abs(firstNct.pitchValue - prevOtherPitch);
@@ -407,7 +407,7 @@ function checkParallelMotion(
  *   names (e.g. ["Passing Tone", "Neighbor Tone"]). Default: all four types.
  *   Used by Bach SR to disable Anticipation and Appoggiatura (which need
  *   strong/weak-beat awareness and leap-into-dissonance approach respectively
- *   — features the current implementation doesn't honor; see Phase 4).
+ *   - features the current implementation doesn't honor; see Phase 4).
  */
 /** Does every pitch in a decoration sit inside the singer's range? */
 function figureInRange(
@@ -577,7 +577,7 @@ export function generateNonChordTones(
 
     // Skip:
     //  - rests
-    //  - the first chord (i === 0) — phrase openings must be pure chord tones
+    //  - the first chord (i === 0) - phrase openings must be pure chord tones
     //  - cadence-end notes (already on the long note itself)
     //  - the note immediately before a cadence end (allows only suspension-style treatment)
     //  - random chance
@@ -690,7 +690,7 @@ export function generateNonChordTones(
       generatedNctNotes, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote
     );
     if (why) {
-      console.log(`NCT_GEN: ${why} — keeping original note at ${i}.`);
+      console.log(`NCT_GEN: ${why} - keeping original note at ${i}.`);
       outputNotes.push(originalNote);
       continue;
     }

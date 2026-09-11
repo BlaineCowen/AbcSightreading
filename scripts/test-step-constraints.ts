@@ -2,8 +2,8 @@
  * Verifies accidentalsByStep voice-leading constraints across many generated exercises.
  *
  * For every chromatic note (non-null accidental) in every voice:
- *   1. APPROACH  — the immediately preceding non-rest note must be exactly 1 pitchValue away.
- *   2. RESOLUTION — the immediately following non-rest note must move in the correct direction:
+ *   1. APPROACH  - the immediately preceding non-rest note must be exactly 1 pitchValue away.
+ *   2. RESOLUTION - the immediately following non-rest note must move in the correct direction:
  *        sharp / double-sharp / wasRaised natural  →  pitchValue + 1
  *        flat  / double-flat  / wasRaised=false natural  →  pitchValue - 1
  *
@@ -123,12 +123,12 @@ function checkStepConstraints(
       // If there IS a rest between them, obligations are cancelled.
       let directPrev: VoiceNote | undefined;
       for (let j = i - 1; j >= 0; j--) {
-        if (notes[j].rest) break; // rest cancels — stop looking
+        if (notes[j].rest) break; // rest cancels - stop looking
         directPrev = notes[j];
         break;
       }
 
-      // 1. APPROACH — a chromatic note's first occurrence must be directly preceded
+      // 1. APPROACH - a chromatic note's first occurrence must be directly preceded
       //    by a non-rest note at distance 1. Continuations (same pv + same acc) skip.
       if (note.accidental != null && directPrev) {
         const isContinuation =
@@ -141,13 +141,13 @@ function checkStepConstraints(
               exercise: exerciseLabel,
               voice: voiceName,
               type: "approach",
-              detail: `"${note.name}" (pv=${note.pitchValue}, acc=${note.accidental}) preceded by "${directPrev.name}" (pv=${directPrev.pitchValue}) — distance ${dist}, expected 1`,
+              detail: `"${note.name}" (pv=${note.pitchValue}, acc=${note.accidental}) preceded by "${directPrev.name}" (pv=${directPrev.pitchValue}) - distance ${dist}, expected 1`,
             });
           }
         }
       }
 
-      // 2. RESOLUTION — if the direct previous note had a directional accidental,
+      // 2. RESOLUTION - if the direct previous note had a directional accidental,
       //    this note must be the resolution pitch. Continuations skip.
       if (directPrev && directPrev.accidental != null) {
         const pn = directPrev;
@@ -249,7 +249,7 @@ for (const levelKey of TARGET_LEVELS) {
               allViolations.push(...violations);
             }
           } catch {
-            // generation failure — already caught by smoke tests
+            // generation failure - already caught by smoke tests
           }
         }
       }

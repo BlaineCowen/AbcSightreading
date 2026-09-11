@@ -155,7 +155,7 @@ function getMaxSkip(defaultValue: number = 4, minValue: number = 2): number {
  *   of chord positions), the highest-order voice is filled directly from this
  *   array rather than computed by the chord-tone search. Used by the Bach SR
  *   pipeline to inject a pre-sketched soprano melody. Pattern-continuation
- *   steps still use the existing logic — only chord-start steps use the preset.
+ *   steps still use the existing logic - only chord-start steps use the preset.
  */
 export function buildChordNotes(
   key: string,
@@ -268,7 +268,7 @@ export function buildChordNotes(
     maxSkip: number,
     previousNote?: VoiceNote,
     useAccidentalsByStep?: boolean,
-    /** Parallel arrays to otherVoiceNotes — each entry is the PREVIOUS note
+    /** Parallel arrays to otherVoiceNotes - each entry is the PREVIOUS note
      *  of the corresponding other voice. Used for parallel 5/8ve detection.
      *  When undefined or empty, parallel checking is skipped. */
     otherVoicesPrev?: (VoiceNote | undefined)[],
@@ -298,7 +298,7 @@ export function buildChordNotes(
     // Detect the LT-resolution case (V/vii°→I, where the previous voice held
     // the LT and the current chord contains tonic). In minor mode the LT is
     // chromatically raised (G→G# in Am), so the previous note carries a sharp
-    // accidental — that's the path that fires the chromatic block below.
+    // accidental - that's the path that fires the chromatic block below.
     const isLeadingToneResolution =
       previousNote &&
       !previousNote.rest &&
@@ -356,7 +356,7 @@ export function buildChordNotes(
     // Chordal-7th resolution (Phase 3.3): if the previous note was the 7th of
     // a V7-style chord, force step down by one diatonic step. We detect a
     // "7th-style" chord by looking at the previous chord having 4 triad tones
-    // (root + 3 + 5 + 7) — the last element is the 7th degree.
+    // (root + 3 + 5 + 7) - the last element is the 7th degree.
     if (
       forcedPitch === undefined &&
       previousNote &&
@@ -375,7 +375,7 @@ export function buildChordNotes(
       }
     }
 
-    // Chord-tone filter — when a resolution is forced, open to all triad degrees
+    // Chord-tone filter - when a resolution is forced, open to all triad degrees
     // so the resolution note is reachable even if its degree was already "used".
     const availableTriadDegrees = chord.triadNotes.filter(
       (deg) => !usedTriadDegrees.includes(deg)
@@ -414,7 +414,7 @@ export function buildChordNotes(
       const noDouble = validNotes.filter((n) => !forbidDoubling.has(n.degree));
       if (noDouble.length > 0) validNotes = noDouble;
       // else: fall through (chord-tone constraints didn't permit avoiding
-      // the doubling — the validator's soft `doubled-lt` warning will note it).
+      // the doubling - the validator's soft `doubled-lt` warning will note it).
     }
 
     // Max-skip voice leading
@@ -432,8 +432,8 @@ export function buildChordNotes(
     }
 
     // Resolution-range guard: a chromatic note whose resolution pitch (pv±1) falls
-    // outside this voice's range must be excluded — even on the first note of a phrase
-    // — otherwise forcedPitch silently fails on the next chord.
+    // outside this voice's range must be excluded - even on the first note of a phrase
+    // - otherwise forcedPitch silently fails on the next chord.
     if (useAccidentalsByStep) {
       const willBeSharpGlobal = chord.sharpScaleDegree !== undefined && chord.sharpScaleDegree !== null;
       const willBeFlatGlobal  = chord.flatScaleDegree  !== undefined && chord.flatScaleDegree  !== null;
@@ -478,7 +478,7 @@ export function buildChordNotes(
               // Must be approached by step from the previous note.
               if (!isDiatonicStep(note, previousNote)) return false;
               // The resolution pitch (pv+1 for sharps, pv-1 for flats) must land
-              // within this voice's range — otherwise forcedPitch silently fails on
+              // within this voice's range - otherwise forcedPitch silently fails on
               // the next chord (e.g. soprano F# at pv=31 top of [21,31] → G at pv=32
               // is out of range, so soprano then incorrectly picks D).
               const resPitch = willBeSharp
@@ -492,7 +492,7 @@ export function buildChordNotes(
           if (approached.length > 0) {
             validNotes = approached;
           } else {
-            // Can't approach any note by step — use non-accidental chord tones.
+            // Can't approach any note by step - use non-accidental chord tones.
             // If none exist (all available tones are chromatic), fail this step so the
             // retry loop can try a different voice ordering or chord progression.
             const nonAccidental = validNotes.filter((note) => !isAccidentalNote(note));
@@ -506,7 +506,7 @@ export function buildChordNotes(
     // tenor-alto, alto-soprano). When an already-assigned adjacent voice
     // has CURRENT pitch that crosses past THIS voice's PREVIOUS pitch,
     // strict counterpoint forbids it. The overlap is between fixed
-    // pitches (other-curr and this-prev), independent of candidate choice —
+    // pitches (other-curr and this-prev), independent of candidate choice -
     // detection means returning null to force step retry with a different
     // bass alternate or shuffle order. Non-adjacent overlap (e.g. bass
     // above alto's prev) is far less audible and rarely flagged in Bach.
@@ -524,10 +524,10 @@ export function buildChordNotes(
         // Adjacent only: difference of exactly 1 voice-order.
         if (Math.abs(otherCurr.order - voicePart.order) !== 1) continue;
         if (otherCurr.order < voicePart.order) {
-          // Other (lower) — its curr shouldn't reach OR exceed our prev.
+          // Other (lower) - its curr shouldn't reach OR exceed our prev.
           if (otherCurr.pitchValue >= previousNote.pitchValue) return null;
         } else {
-          // Other (upper) — its curr shouldn't drop to OR below our prev.
+          // Other (upper) - its curr shouldn't drop to OR below our prev.
           if (otherCurr.pitchValue <= previousNote.pitchValue) return null;
         }
       }
@@ -582,7 +582,7 @@ export function buildChordNotes(
             return false;
           }
           // Parallel unison: both at zero distance (both voices on same pitch
-          // moving to same pitch) — also forbidden.
+          // moving to same pitch) - also forbidden.
           if (intvBefore === 0 && intvAfter === 0) {
             if (_PARALLEL_DEBUG) console.error(`[PFilter] reject ${voicePart.smallName}=${candidate.pitchValue} (unison vs voice-${i})`);
             return false;
@@ -597,7 +597,7 @@ export function buildChordNotes(
       // direction that opens up new tenor/alto candidates.
       if (_PARALLEL_DEBUG) {
         console.error(
-          `[PFilter] result: ${noParallels.length}/${validNotes.length} survive — ` +
+          `[PFilter] result: ${noParallels.length}/${validNotes.length} survive - ` +
           (noParallels.length > 0 ? `using [${noParallels.map(n => n.pitchValue).join(",")}]` : `STRICT-FAIL`)
         );
       }
@@ -606,7 +606,7 @@ export function buildChordNotes(
 
     // Voice-crossing: enforce ordering between voices, but allow momentary
     // unisons (baroque counterpoint permits two voices sharing a pitch as
-    // long as it's not approached/left in parallel motion — the parallel-
+    // long as it's not approached/left in parallel motion - the parallel-
     // unison filter above already catches that case).
     validNotes = validNotes.filter((note) => {
       return otherVoiceNotes.every((otherNote) => {
@@ -1343,8 +1343,8 @@ export function buildChordNotes(
   while (totalLoopFails < maxTotalLoopFails) {
     if (processRhythms(rhythms, progression, voiceParts, bassLine, maxSkip)) {
       // Sort each voice's chordNotes by their position in the rhythm list to
-      // ensure consistent ordering with the input. (No-op for current usage —
-      // chordNotes are pushed in order already — but defensive for callers
+      // ensure consistent ordering with the input. (No-op for current usage -
+      // chordNotes are pushed in order already - but defensive for callers
       // that pass voiceParts with pre-existing state.)
       return voiceParts.map((part) => part.chordNotes);
     }

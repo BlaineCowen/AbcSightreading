@@ -63,6 +63,6 @@ export function transposeLabel(writtenKey: string, semitones: number): string {
   const n = Math.abs(semitones);
   const amount = `${n} semitone${n === 1 ? "" : "s"}`;
   return key
-    ? `Written in ${writtenKey}, sounds in ${key} — ${dir} ${amount}.`
+    ? `Written in ${writtenKey}, sounds in ${key} - ${dir} ${amount}.`
     : `Playback ${dir} ${amount}.`;
 }

@@ -124,7 +124,7 @@
      * moving by no more than a third is close to unwritable: measured over 200
      * exercises on each level's own chords, rhythms and ranges, 3-Part
      * Tenor/Bass fails 46% of the time at level 1 and 18% at level 2, where this
-     * fails 0%. A tenor-bass choir at level 1 had nothing to practise with at
+     * fails 0%. A tenor-bass choir at level 1 had nothing to practice with at
      * all - the level offered only treble voicings and unison.
      *
      * The bass gets the full bass range rather than the floor the three-part
@@ -1359,13 +1359,13 @@
               </div>
               {#if selectedKeys.size > 1}
                 <p class="text-xs text-slate-400">
-                  {selectedKeys.size} keys selected — one is drawn at random each
+                  {selectedKeys.size} keys selected - one is drawn at random each
                   time you generate. Click a key to remove it.
                 </p>
               {/if}
               {#if activePreset}
                 <p class="text-xs text-slate-400">
-                  Dimmed keys are outside {activePreset.label}, not removed — pick
+                  Dimmed keys are outside {activePreset.label}, not removed - pick
                   one and you simply leave the level.
                 </p>
               {/if}
@@ -1411,10 +1411,10 @@
                   ? "Every part sings throughout, apart from rests in the rhythm."
                   : voiceTexture === "staggered"
                     ? measures < 8
-                      ? "Parts enter one at a time, lowest first — needs 8 measures or more."
+                      ? "Parts enter one at a time, lowest first - needs 8 measures or more."
                       : "Parts enter one at a time, lowest first."
                     : measures < 12
-                      ? "Entrances, plus parts dropping out — tacet passages need 12 measures or more."
+                      ? "Entrances, plus parts dropping out - tacet passages need 12 measures or more."
                       : "Entrances, plus parts dropping out for a few measures at a time."}
               </p>
             </div>
@@ -1431,7 +1431,7 @@
                 {/each}
               </div>
               <p class="text-xs text-slate-400">
-                Changes the sound straight away — the exercise stays as it is.
+                Changes the sound straight away - the exercise stays as it is.
               </p>
             </div>
 
@@ -1487,7 +1487,7 @@
                 {:else if showSolfege}
                   Solfège under each part.
                 {:else}
-                  Clean — the same exercise, printed for sight-reading.
+                  Clean - the same exercise, printed for sight-reading.
                 {/if}
               </p>
             </div>
@@ -1583,7 +1583,7 @@
                   {/each}
                 </div>
                 <p class="text-xs text-slate-400">
-                  Sixteenths are kept rare on purpose — a sung exercise lives on
+                  Sixteenths are kept rare on purpose - a sung exercise lives on
                   quarters and halves. Turn one up here if you want to drill it.
                 </p>
               </div>
@@ -1597,7 +1597,7 @@
             {#if activePreset}
               <p class="text-xs text-slate-400">
                 Dimmed rhythms are outside {activePreset.label}. They are still
-                available — picking one just takes you off the level.
+                available - picking one just takes you off the level.
               </p>
             {/if}
           </div>
@@ -1708,7 +1708,7 @@
     {#if !rhythmsCanFill}
       <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
         The selected rhythms cannot fill a bar of {selectedTimeSignature}, so nothing
-        can be generated. Add a shorter note — a quarter or an eighth — or change
+        can be generated. Add a shorter note - a quarter or an eighth - or change
         the time signature.
       </p>
     {/if}

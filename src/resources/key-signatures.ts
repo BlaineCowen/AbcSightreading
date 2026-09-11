@@ -24,7 +24,7 @@ export const keySignatures: {
   // --- Minor Keys --- (Natural Minor definition)
   // sharps/flats encode KEY-RELATIVE diatonic degrees (0=tonic) of letters
   // raised/lowered by the key signature. Earlier these were mistakenly copied
-  // verbatim from the parent major (e.g. Cm reused Eb's [3, 0, 4]) — wrong,
+  // verbatim from the parent major (e.g. Cm reused Eb's [3, 0, 4]) - wrong,
   // because the rootOffset shifts the degree of the same letter.
   Am: { sharps: [], flats: [], rootOffset: 5 },
   Em: { sharps: [1], flats: [], rootOffset: 2 }, // F# at degree 1

@@ -15,7 +15,7 @@ import type { APIRoute } from "astro";
  */
 const UPSTREAM = "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/";
 
-/** Only ever proxy `<instrument>-mp3/<note>.mp3` — no traversal, no other hosts. */
+/** Only ever proxy `<instrument>-mp3/<note>.mp3` - no traversal, no other hosts. */
 const SAFE_PATH = /^[a-z0-9_]+-mp3\/[A-Ga-g][b#s]?-?\d\.mp3$/;
 
 export const GET: APIRoute = async ({ params }) => {

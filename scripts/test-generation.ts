@@ -135,7 +135,7 @@ for (const levelKey of allLevels) {
     for (const voicingName of preset.allowedVoicings) {
       const partsObject = voicings[voicingName];
       if (!partsObject) {
-        console.warn(`Voicing "${voicingName}" not found — skipping.`);
+        console.warn(`Voicing "${voicingName}" not found - skipping.`);
         continue;
       }
 

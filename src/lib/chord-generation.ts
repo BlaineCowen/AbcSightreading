@@ -505,7 +505,7 @@ export function generateChordProgression(
               // Direct resolution: if the PREVIOUS chord had a chromatic degree, the
               // CURRENT chord must contain the resolution tone so forcedPitch can be
               // satisfied. (hasResolvableAccidental only ensures a *future* successor has
-              // it — without this, e.g. V/V → ii is allowed even though ii lacks G.)
+              // it - without this, e.g. V/V → ii is allowed even though ii lacks G.)
               const chromDegPrev = prevChord.sharpScaleDegree ?? prevChord.flatScaleDegree;
               if (chromDegPrev !== undefined && chromDegPrev !== null) {
                 const isRaisedPrev = prevChord.sharpScaleDegree !== undefined && prevChord.sharpScaleDegree !== null;
@@ -603,7 +603,7 @@ export function generateChordProgression(
           console.log(`Trying chord ${targetChord.name} for index ${i}`);
 
           // C. Find bass note for the target chord.
-          // At cadence-forced positions, allow larger bass leaps — cadential bass
+          // At cadence-forced positions, allow larger bass leaps - cadential bass
           // motion (V→I is a descending 5th) is disjunct by nature and not subject
           // to the same stepwise maxSkip that governs the middle of phrases
           // (Aldwell/Schachter: "bass lines are often quite disjunct, particularly
@@ -714,7 +714,7 @@ export function generateChordProgression(
 
         if (isProtected) {
           console.log(
-            `Chord ${problemPrecursor.name} is protected (${problemPrecursor.type}/cadence-required) — not removing from available set.`
+            `Chord ${problemPrecursor.name} is protected (${problemPrecursor.type}/cadence-required) - not removing from available set.`
           );
         } else {
           console.log(
@@ -769,7 +769,7 @@ function diatonicToChromatic(diatonic: number): number {
 }
 
 // Helper function to find a valid bass note for a chord.
-// Allows root position (5/3) and first inversion (6/3) — the 3rd in the bass.
+// Allows root position (5/3) and first inversion (6/3) - the 3rd in the bass.
 // First inversion is the standard voice-leading tool for smooth stepwise bass motion
 // when root position would require a skip exceeding maxSkip (Aldwell/Schachter Ch. 8).
 // Second inversion (6/4) is avoided as it is dissonant in simple chorale style.
@@ -825,7 +825,7 @@ function findValidBassNote(
 
   // When accidentalsByStep is on, keep the chromatic degree out of the bass so it is
   // always handled by an upper voice that can approach it by step.
-  // Exception: chromatic-bass inversions (V⁶/V) where chord.root === chromDeg — the
+  // Exception: chromatic-bass inversions (V⁶/V) where chord.root === chromDeg - the
   // chromatic degree IS the intended bass note. Leave targetDegrees intact and enforce
   // step approach below after possibleNotes is built.
   if (accidentalsByStep) {
@@ -833,7 +833,7 @@ function findValidBassNote(
     if (chromDeg !== undefined && chromDeg !== null && chord.root !== chromDeg) {
       targetDegrees.delete(chromDeg);
       if (targetDegrees.size < 2 && chord.triadNotes[2] !== undefined) {
-        targetDegrees.add(chord.triadNotes[2]); // 5th — second inversion as inversion fallback
+        targetDegrees.add(chord.triadNotes[2]); // 5th - second inversion as inversion fallback
       }
     }
   }

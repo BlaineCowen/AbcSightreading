@@ -70,11 +70,11 @@
       <option value="" disabled selected hidden>Choose a preset…</option>
       {#if !hideUILLevels}
         <option value="" disabled>── UIL Levels ──</option>
-        <option value="uil:UIL 1">UIL 1 — Beginner choir</option>
-        <option value="uil:UIL 2">UIL 2 — Easy</option>
-        <option value="uil:UIL 3">UIL 3 — Medium</option>
-        <option value="uil:UIL 4">UIL 4 — Hard</option>
-        <option value="uil:UIL 5">UIL 5 — Advanced</option>
+        <option value="uil:UIL 1">UIL 1 - Beginner choir</option>
+        <option value="uil:UIL 2">UIL 2 - Easy</option>
+        <option value="uil:UIL 3">UIL 3 - Medium</option>
+        <option value="uil:UIL 4">UIL 4 - Hard</option>
+        <option value="uil:UIL 5">UIL 5 - Advanced</option>
       {/if}
       <option value="" disabled>── Difficulty ──</option>
       <option value="diff:Beginner">Beginner</option>

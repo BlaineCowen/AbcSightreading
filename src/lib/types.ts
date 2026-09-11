@@ -18,7 +18,7 @@ export interface VoicePart {
    *  outside the tessitura when voice leading needs more room. Optional for
    *  back-compat with callers that don't populate it. */
   fullRange?: [number, number];
-  /** Tessitura — the comfortable band within `range`/`fullRange`. Used by
+  /** Tessitura - the comfortable band within `range`/`fullRange`. Used by
    *  the bass-octave preference and the validator's tessitura check. */
   currentRange?: [number, number];
   smallName: string;

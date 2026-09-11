@@ -193,7 +193,7 @@ export const chords: Chord[] = [
     baseMultiplier: 10,
   },
   {
-    // V⁶/V: first inversion of V/V — chromatic 3rd (F# in C major) is in the bass.
+    // V⁶/V: first inversion of V/V - chromatic 3rd (F# in C major) is in the bass.
     // Only valid when the preceding bass note is a diatonic step away from the chromatic degree.
     // Resolves: F#(3) → G(4) by step upward.
     name: "5/5-6",
@@ -202,8 +202,8 @@ export const chords: Chord[] = [
     chordFamily: "5/5",
     triadNotes: [1, 3, 5],
     nextChordPossibilities: [
-      { name: "5", weight: 70 },     // V (G bass) — F# resolves up to G by step
-      // I⁶₄ (G bass) — the same step resolution, and then the cadential
+      { name: "5", weight: 70 },     // V (G bass) - F# resolves up to G by step
+      // I⁶₄ (G bass) - the same step resolution, and then the cadential
       // six-four falls to V. Correct, and deliberately the rarer path.
       { name: "1-64", weight: 30 },
     ],
@@ -657,7 +657,7 @@ export const chords: Chord[] = [
     baseMultiplier: 1,
   },
   {
-    // Harmonic dominant — sharpScaleDegree:6 raises the 7th (subtonic→leading tone)
+    // Harmonic dominant - sharpScaleDegree:6 raises the 7th (subtonic→leading tone)
     name: "m_V",
     symbol: "V",
     mode: "minor",
@@ -754,7 +754,7 @@ export const chords: Chord[] = [
     baseMultiplier: 1,
   },
   {
-    // Leading-tone diminished — root is degree 6, raised to leading tone via sharpScaleDegree:6
+    // Leading-tone diminished - root is degree 6, raised to leading tone via sharpScaleDegree:6
     name: "m_viid",
     symbol: "vii°",
     mode: "minor",

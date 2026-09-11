@@ -184,7 +184,7 @@ export function assembleAbcString(
         const base = basePitch(note.name);
 
         if (note.accidental) {
-          // Explicit accidental — record it so we can cancel it for diatonic notes later.
+          // Explicit accidental - record it so we can cancel it for diatonic notes later.
           measureAccidentals.set(base, note.accidental);
           partString += `${note.name}${note.length}`;
         } else {

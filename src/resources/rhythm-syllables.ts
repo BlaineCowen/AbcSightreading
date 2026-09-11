@@ -3,14 +3,14 @@
  *
  * A system is data, not code: adding Takadimi, du-de or another counting
  * dialect should mean adding another object here, not touching the generator.
- * The resolver in generateUnison.ts consults these fields in a fixed order —
+ * The resolver in generateUnison.ts consults these fields in a fixed order -
  * see `rhythmSyllableFor`.
  *
  * Every field may be a plain string or a function of the note's metric context.
  * Kodály needs only strings, because its syllables depend on duration and
  * position *within a beat*: the third sixteenth of a beat is "ti" wherever that
- * beat falls. Counting depends on which beat of the *measure* a note starts on —
- * the same note is "1", "2", "3" or "4" — so its rules are functions.
+ * beat falls. Counting depends on which beat of the *measure* a note starts on -
+ * the same note is "1", "2", "3" or "4" - so its rules are functions.
  */
 
 /** What the beat and slot rules get. Deliberately without `startLabel`, which
@@ -22,7 +22,7 @@ export type PositionContext = {
   offsetInMeasure: number;
   /** One beat, in 32nd-note units (8 for a quarter). */
   beatUnits: number;
-  /** Beats in a measure — 4, 3 or 2. Beat numbers wrap at this. */
+  /** Beats in a measure - 4, 3 or 2. Beat numbers wrap at this. */
   beatsPerMeasure: number;
   /** This note, in 32nd-note units. */
   noteLength: number;
@@ -58,7 +58,7 @@ export type SyllableSystem = {
    * Syllables for a whole named rhythm, indexed by the note's patternIndex.
    * Use this for figures whose syllables are idiomatic rather than derivable
    * from duration and position. Checked first, so a system can override
-   * anything — including rests inside a named figure.
+   * anything - including rests inside a named figure.
    */
   byName: Record<string, Syllable[]>;
   /** Syllables for the sixteenth-note slots within one beat. */
@@ -129,7 +129,7 @@ export const counting: SyllableSystem = {
 };
 
 /** The ids the client may ask for. Only this string crosses the wire, so keep
- *  the union and the registry together — adding a system to one without the
+ *  the union and the registry together - adding a system to one without the
  *  other is then a type error rather than a silent fall back to Kodály. */
 export type SyllableSystemId = "kodaly" | "counting";
 

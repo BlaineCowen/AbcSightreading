@@ -202,7 +202,7 @@
 
   /**
    * Post-process the assembled ABC for the condensed (2-staff piano-score) view.
-   *  - %%score [S A] [T B]   — group voices onto two staves
+   *  - %%score [S A] [T B]   - group voices onto two staves
    *  - V:T uses bass clef (with octave + transpose adjustments) so it appears
    *    on the SAME staff as the bass voice
    *  - V:A and V:B get stems-down so the upper voice on each staff stems up
@@ -219,7 +219,7 @@
       'V:S clef=treble octave=-1 name="Soprano" snm="S" stem=up');
     s = s.replace(/^V:A\s+clef=treble octave=-1.*$/m,
       'V:A clef=treble octave=-1 name="Alto" snm="A" stem=down');
-    // Tenor on bass staff: use `bass octave=-1` only — DO NOT add transpose=-12.
+    // Tenor on bass staff: use `bass octave=-1` only - DO NOT add transpose=-12.
     // abcjs's `octave=-1` already shifts BOTH display and playback down by an
     // octave (see abc_parse_music.js:1111: el.pitch += 7 * octave). Adding
     // transpose=-12 on top double-shifts playback to one octave below the
@@ -313,7 +313,7 @@
       soundFontVolumeMultiplier: 3.0,
       // Bach SR adds chord-symbol annotations above the soprano staff for
       // analysis. abcjs's synth would otherwise play these as a chordal
-      // accompaniment on top of the voices — disable so playback is
+      // accompaniment on top of the voices - disable so playback is
       // VOICES ONLY (what the singers actually sing).
       chordsOff: true,
     };
@@ -553,7 +553,7 @@
       generatedBpm = bpm;
     } catch (error: unknown) {
       if (error instanceof BachSRGenerationError) {
-        // Validator-budget exhaustion — show structured error rather than
+        // Validator-budget exhaustion - show structured error rather than
         // emit invalid counterpoint.
         generationError = error;
       } else {
@@ -582,7 +582,7 @@
 
     <!-- Preview banner -->
     <div class="w-full bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-md px-3 py-2 mt-3 mb-2 no-print">
-      <strong>Bach SR — Preview.</strong> Phase 1 currently delegates to the existing choral generator.
+      <strong>Bach SR - Preview.</strong> Phase 1 currently delegates to the existing choral generator.
       Soprano-first chorale algorithm lands in Phase 2.
     </div>
 
@@ -719,7 +719,7 @@
             </div>
           </div>
 
-        <!-- Harmony Tab — simplified (no chord-pool toggles or chromatic-frequency slider) -->
+        <!-- Harmony Tab - simplified (no chord-pool toggles or chromatic-frequency slider) -->
         {:else if selectedTab === 'harmony'}
           <div class="space-y-5">
             <!-- NCT Density -->
@@ -789,7 +789,7 @@
           <div class="flex-1">
             <p class="font-semibold text-sm">Couldn't generate a clean exercise after {generationError.attempts} attempts.</p>
             <p class="text-xs text-rose-800 mt-1">
-              The counterpoint validator rejected every candidate. Click <strong>Generate</strong> again — different
+              The counterpoint validator rejected every candidate. Click <strong>Generate</strong> again - different
               random seeds usually succeed. Persistent failure may indicate the chord pool / voicing is too tight.
             </p>
             <details class="mt-2">
