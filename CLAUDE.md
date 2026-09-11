@@ -16,7 +16,7 @@ bun run build      # Build for production
 bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking - clean, keep it that way
 bun run check:rhythm  # Rhythm generation property checks (see below)
-bun test           # Unit tests in tests/unit/
+bun run test       # Unit tests in tests/unit/ (see the timeout note below)
 ```
 
 `astro check` reports **0 errors and 0 warnings**. It sat at 4 errors for a long
@@ -28,6 +28,16 @@ standing ones. Treat any error as a regression.
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
 framework to install). 50 pass, 5 skip, 0 fail — and it is stable, verified over
 40 consecutive runs, which matters because the generators are randomised.
+
+Run them with **`bun run test`**, not bare `bun test`. The script passes
+`--timeout 30000`, and several tests need it: they generate twenty-odd full
+exercises so that a rate (accidentals approached by step, say) means something,
+the search backtracks, and the time varies by seconds run to run. Against bun's
+5s default they went red intermittently as *timeouts*, which reads exactly like
+a regression in the generator and is not one. The two worst also carry the
+budget at the test itself, so a bare `bun test` is safe for those; if a new one
+drifts over the line, give it a timeout rather than shrinking its sample - the
+sample size is what makes the number worth asserting.
 
 They had sat broken for a long time (every import pointed at the pre-`src/`
 layout), and several assertions had drifted from the code. Two things to know

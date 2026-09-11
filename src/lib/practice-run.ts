@@ -109,8 +109,17 @@ export type PracticeRunHooks = {
   stopPlayback: () => void;
   getBpm: () => number;
   setBpm: (bpm: number) => void;
-  /** Silence the cursor and the auto-scroll for a repeat pass. */
-  setQuiet: (quiet: boolean) => void;
+  /**
+   * Put the page into the display settings for this pass - pass 0 is the
+   * reader's own settings, later passes may differ.
+   *
+   * Returns whether the score had to be redrawn. That matters: the cursor is
+   * read live by the playback callbacks and costs nothing to change, but the
+   * annotations are stripped when the score is drawn, so changing those means
+   * redrawing it - and the redraw takes the audio timeline with it. A pass
+   * that redraws cannot butt against the one before; it has to start fresh.
+   */
+  applyPassDisplay: (pass: number) => Promise<boolean>;
   /** Put the score back in step with a restored tempo. */
   rerender?: () => Promise<void>;
   /** Told when the run's position changes, so the page can say where it is. */
@@ -120,8 +129,6 @@ export type PracticeRunHooks = {
 };
 
 export type PracticeRunOptions = {
-  /** Cursor and auto-scroll off after the first pass of each exercise. */
-  quietRepeats: boolean;
   /** Seconds of silence before each new exercise. */
   readingSeconds: number;
 };
@@ -174,6 +181,25 @@ export class PracticeRunner {
   }
 
   /**
+   * Take another pass at the exercise on screen.
+   *
+   * Whether it can be butted against the pass that just ended depends on what
+   * the display had to do: a changed cursor is live, a changed annotation is a
+   * redraw, and a redraw leaves nothing to butt against.
+   */
+  private async takeRepeatPass(): Promise<void> {
+    const redrawn = await this.hooks.applyPassDisplay(this.state.repeat);
+    if (!this.active) return;
+    if (redrawn) await this.hooks.play();
+    else this.hooks.repeatPass();
+    if (!this.active) return;
+    if (!this.hooks.isPlaying()) {
+      this.hooks.onError?.("Playback could not start, so the practice run stopped.");
+      await this.stop();
+    }
+  }
+
+  /**
    * @param rerender - put the score back in step with the restored tempo.
    *   Skipped when the caller is about to generate anyway, since generating
    *   writes a fresh exercise at whatever the tempo is by then.
@@ -181,9 +207,11 @@ export class PracticeRunner {
   async stop(rerender = true): Promise<void> {
     if (!this.active) return;
     this.active = false;
-    this.hooks.setQuiet(false);
     this.hooks.stopPlayback();
     this.changed();
+    // Whatever a repeat pass put on the score, the reader's own settings come
+    // back - a run that has ended should leave the page as it found it.
+    await this.hooks.applyPassDisplay(0);
     // The ramp moved the tempo. A run that has ended should not leave the
     // control somewhere the user did not put it, and pressing Start again
     // should mean what it meant the first time.
@@ -196,7 +224,9 @@ export class PracticeRunner {
   /** Write the next exercise, leave time to read it, then play it. */
   private async runExercise(): Promise<void> {
     if (!this.active) return;
-    this.hooks.setQuiet(false);
+    // A new exercise is always read first under the reader's own settings.
+    await this.hooks.applyPassDisplay(0);
+    if (!this.active) return;
     await this.hooks.generate();
     if (!this.active) return; // stopped while it was generating
     if (!this.hooks.canPlay()) {
@@ -230,11 +260,7 @@ export class PracticeRunner {
       return;
     }
     if (step.kind === "repeat") {
-      if (this.options.quietRepeats) this.hooks.setQuiet(true);
-      this.hooks.repeatPass();
-      // repeatPass stops playback if it cannot schedule the pass, and a stopped
-      // run that still thinks it is running never ends.
-      if (!this.hooks.isPlaying()) void this.stop();
+      void this.takeRepeatPass();
       return;
     }
     this.hooks.stopPlayback();

@@ -633,7 +633,7 @@
   let cursorMode: CursorMode = initialState.cursorMode || "smooth";
   // Turning the cursor off should clear it at once, not leave the last
   // position frozen on the staff until playback next moves it.
-  $: if (cursorMode === "off" && playbackCursor) hidePlaybackCursor();
+  $: if ((passCursorOverride ?? cursorMode) === "off" && playbackCursor) hidePlaybackCursor();
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
@@ -1230,12 +1230,11 @@
           hidePlaybackCursor();
           return;
         }
-        if (cursorSuppressed) return;
-        if (cursorMode !== "smooth" && cursorMode !== "beat") return;
+        if (effectiveCursorMode !== "smooth" && effectiveCursorMode !== "beat") return;
         // Beat mode steps once per beat; smooth takes every callback, which is
         // where abcjs's interpolation between notes shows up.
         const stepped = crossedWholeBeat(cursorBeats, beatNumber);
-        if (cursorMode === "beat" && !stepped) return;
+        if (effectiveCursorMode === "beat" && !stepped) return;
         // position.left is undefined during the count-in measure.
         if (position && typeof position.left === "number") {
           movePlaybackCursor(position.left, position.top, position.height);
@@ -1244,8 +1243,7 @@
       // Fires once at each note's onset, so the cursor lands on the note and
       // stays there for its full length.
       eventCallback: (event: any) => {
-        if (cursorSuppressed) return;
-        if (cursorMode !== "note" || !playbackCursor || !event) return;
+        if (effectiveCursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
         movePlaybackCursor(event.left, event.top, event.height);
       },
@@ -1255,7 +1253,7 @@
         // starts, so that move happens across the count-in instead of landing
         // 500ms before the first note (lineEndAnticipation) as a sudden jump.
         if (info?.line === 0) return;
-        if (cursorSuppressed) return; // a quiet repeat does not scroll either
+        if (scrollSuppressed) return; // a silenced repeat does not scroll either
 
         const paperDiv = document.getElementById("paper");
         if (!paperDiv) return;
@@ -1856,7 +1854,38 @@
   /** Silence before each new exercise starts, to read it first. */
   let drillPreviewSeconds = 5;
   /** Cursor and auto-scroll off for the repeats, so the reader holds their own place. */
-  let drillQuietRepeats = true;
+  /**
+   * What the repeats look like.
+   *
+   * The first pass is always the reader's own settings - that is the pass they
+   * are actually sight-reading. What changes is what they get on the way back
+   * through: the cursor they were denied, or the syllables to check themselves
+   * against.
+   *
+   * "same" leaves that half of the display alone, which is also what makes the
+   * default free: if nothing differs, nothing is redrawn and the repeat butts
+   * straight against the pass before it.
+   */
+  type PassCursor = "same" | CursorMode;
+  type PassAnnotation = "same" | "none" | "kodaly" | "counting" | "solfege";
+  let drillRepeatCursor: PassCursor = "off";
+  let drillRepeatAnnotation: PassAnnotation = "same";
+
+  /** The syllable system a repeat asks for, if it asks for one. */
+  $: repeatSyllableSystem =
+    drillRepeatAnnotation === "kodaly" || drillRepeatAnnotation === "counting"
+      ? drillRepeatAnnotation
+      : null;
+  /**
+   * A repeat can only show syllables the exercise was WRITTEN with: they are
+   * assembled into it, and unison keeps no note data to re-label from. So a run
+   * generates in the system its repeats want, and the system goes back when the
+   * run ends - the same bargain the tempo ramp makes.
+   */
+  let drillStartSyllableSystem: string | null = null;
+  /** The reader's own annotation settings, kept so a run can hand them back. */
+  let drillFirstSolfege = false;
+  let drillFirstSyllables = false;
 
   let drillRunning = false;
   let drillIndex = 0;
@@ -1866,13 +1895,20 @@
   let drillCountdown = 0;
   let drillTimer: ReturnType<typeof setTimeout> | null = null;
   /**
-   * Silences the cursor and the auto-scroll without touching `cursorMode`.
+   * What a repeat pass wants the cursor to do; null means the reader's own setting.
    *
-   * The alternative - setting cursorMode to "off" for the repeats - writes the
-   * user's own setting away and into the URL, and any interruption mid-drill
-   * leaves it off for good.
+   * Held apart from `cursorMode` rather than written into it. Overwriting the
+   * real setting would put the run's choice in the URL and, if a run were
+   * interrupted, leave it there for good.
    */
-  let cursorSuppressed = false;
+  let passCursorOverride: CursorMode | null = null;
+  $: effectiveCursorMode = passCursorOverride ?? cursorMode;
+  /**
+   * Auto-scroll stops only when a REPEAT has deliberately silenced the cursor.
+   * Turning the cursor off by hand has never stopped the page following the
+   * music, and should not start now.
+   */
+  $: scrollSuppressed = passCursorOverride === "off";
 
   $: drillSettings = {
     exercises: drillExercises,
@@ -1939,9 +1975,37 @@
         stopPlayback: () => stopMusic(),
         getBpm: () => bpm,
         setBpm: (next) => handleBpmChange(next),
-        setQuiet: (quiet) => {
-          cursorSuppressed = quiet;
-          if (quiet) hidePlaybackCursor();
+        applyPassDisplay: async (pass) => {
+          const first = pass === 0;
+
+          // The cursor is read live by the playback callbacks, so this costs
+          // nothing and never touches the score.
+          passCursorOverride =
+            first || drillRepeatCursor === "same" ? null : drillRepeatCursor;
+          if ((passCursorOverride ?? cursorMode) === "off") hidePlaybackCursor();
+
+          // The annotations are stripped as the score is drawn, so changing
+          // them means drawing it again - and that is what costs the audio
+          // timeline. Work out what is wanted before deciding anything.
+          let wantSolfege = showSolfege;
+          let wantSyllables = showRhythmSyllables;
+          if (!first && drillRepeatAnnotation !== "same") {
+            wantSolfege = drillRepeatAnnotation === "solfege";
+            wantSyllables =
+              drillRepeatAnnotation === "kodaly" || drillRepeatAnnotation === "counting";
+          } else if (first && drillRepeatAnnotation !== "same") {
+            // Back to the reader's own, which is what the run started from.
+            wantSolfege = drillFirstSolfege;
+            wantSyllables = drillFirstSyllables;
+          }
+          if (wantSolfege === showSolfege && wantSyllables === showRhythmSyllables) {
+            return false;
+          }
+          showSolfege = wantSolfege;
+          showRhythmSyllables = wantSyllables;
+          if (!currentTune || !originalTuneString) return false;
+          await rerenderTune();
+          return true;
         },
         rerender: async () => {
           if (currentTune && originalTuneString) await rerenderTune();
@@ -1960,13 +2024,23 @@
         },
       },
       drillSettings,
-      { quietRepeats: drillQuietRepeats, readingSeconds: drillPreviewSeconds }
+      { readingSeconds: drillPreviewSeconds }
     );
   }
 
   async function startDrill() {
     if (drillRunning || isLoading) return;
     drillStartBpm = bpm;
+    drillFirstSolfege = showSolfege;
+    drillFirstSyllables = showRhythmSyllables;
+    // A repeat can only show syllables the exercise was written with, so the
+    // run writes them in the system its repeats ask for. Borrowed, and handed
+    // back when the run ends.
+    drillStartSyllableSystem = null;
+    if (repeatSyllableSystem && repeatSyllableSystem !== syllableSystemId) {
+      drillStartSyllableSystem = syllableSystemId;
+      syllableSystemId = repeatSyllableSystem;
+    }
     // Built fresh each time so a run uses the settings as they are at Start,
     // and cannot be half-reconfigured while it is going.
     runner = makeRunner();
@@ -1980,6 +2054,10 @@
    */
   async function stopDrill(rerender = true) {
     await runner?.stop(rerender);
+    if (drillStartSyllableSystem !== null) {
+      syllableSystemId = drillStartSyllableSystem;
+      drillStartSyllableSystem = null;
+    }
   }
 
   /** A pass just ended. Called from the buffer's `onended`. */
@@ -2660,21 +2738,71 @@
                     </p>
                   </div>
 
-                  <div class="space-y-2 sm:col-span-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Quiet Repeats</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Quiet repeats">
-                      <button
-                        class="px-3 py-2 sm:py-1 rounded text-sm {drillQuietRepeats ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                        on:click={() => (drillQuietRepeats = !drillQuietRepeats)}
-                        aria-label="Quiet repeats"
-                        aria-pressed={drillQuietRepeats}
-                      >{drillQuietRepeats ? 'On' : 'Off'}</button>
-                    </div>
+                  <div class="space-y-2 sm:col-span-2 border-t border-slate-100 pt-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">On The Repeats</p>
                     <p class="text-xs text-slate-400">
-                      {drillQuietRepeats
-                        ? "The cursor and the auto-scroll stop after the first pass, so the reader holds their own place."
-                        : "The cursor follows every pass."}
+                      The first pass is always your own settings - that is the one
+                      being sight-read. These are what comes back on the way through again.
                     </p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      <div class="space-y-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Repeat Cursor</p>
+                        <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor on the repeats">
+                          {#each [['same', 'Same'], ...cursorModes.map((m) => [m, cursorModeLabels[m]])] as [value, label]}
+                            <button
+                              class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeatCursor === value ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                              on:click={() => (drillRepeatCursor = value)}
+                              aria-label={`Repeat cursor: ${label}`}
+                              aria-pressed={drillRepeatCursor === value}
+                            >{label}</button>
+                          {/each}
+                        </div>
+                        <p class="text-xs text-slate-400">
+                          {drillRepeatCursor === 'same'
+                            ? 'The repeats follow the cursor setting above.'
+                            : drillRepeatCursor === 'off'
+                              ? 'No cursor and no auto-scroll on the repeats, so the reader holds their own place.'
+                              : 'The repeats use this cursor instead.'}
+                        </p>
+                      </div>
+
+                      <div class="space-y-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Repeat Annotations</p>
+                        <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations on the repeats">
+                          {#each [['same', 'Same'], ['none', 'None'], ['kodaly', 'Kodály'], ['counting', 'Counting'], ['solfege', 'Solfège']] as [value, label]}
+                            <button
+                              class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeatAnnotation === value ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                              on:click={() => (drillRepeatAnnotation = value)}
+                              aria-label={`Repeat annotations: ${label}`}
+                              aria-pressed={drillRepeatAnnotation === value}
+                            >{label}</button>
+                          {/each}
+                        </div>
+                        <p class="text-xs text-slate-400">
+                          {#if drillRepeatAnnotation === 'same'}
+                            The repeats show whatever the first pass showed.
+                          {:else if drillRepeatAnnotation === 'none'}
+                            Read it clean on the way back through as well.
+                          {:else if drillRepeatAnnotation === 'solfege'}
+                            Solfège under the notes on the repeats, to check yourself against.
+                          {:else}
+                            {drillRepeatAnnotation === 'kodaly' ? 'Kodály' : 'Counting'} syllables on the repeats. Every
+                            exercise in the run is written in that system, since the syllables are
+                            part of the exercise and cannot be swapped afterwards - your own choice
+                            comes back when the run ends.
+                          {/if}
+                        </p>
+                      </div>
+                    </div>
+
+                    {#if drillRepeatAnnotation !== 'same'}
+                      <p class="text-xs text-slate-400">
+                        Changing what is written on the score means drawing it again, so a repeat
+                        that changes the annotations starts from the count-in rather than following
+                        straight on.
+                      </p>
+                    {/if}
                   </div>
                 </div>
               </div>

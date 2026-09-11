@@ -100,5 +100,11 @@ describe("a chromatic note in the bass is approached by step", () => {
     // escape could leap onto the altered degree, and 45-55% before that - while
     // leaving room for the last-resort leap the escape is still allowed.
     expect(rate).toBeGreaterThan(0.9);
-  });
+    // Full minor-key generations, enough of them for the rate to mean
+    // something, and the search backtracks - so this runs for several seconds
+    // and the number varies run to run. Against bun's 5s default it went red
+    // now and then as a TIMEOUT, which reads exactly like a regression in the
+    // generator and is not one. The sample size is the point, so the budget
+    // moves rather than the loop.
+  }, 30_000);
 });

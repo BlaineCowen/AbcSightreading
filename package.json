@@ -33,7 +33,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "check:rhythm": "bun run scripts/check-rhythm.ts",
-    "test": "bun test tests/unit"
+    "test": "bun test --timeout 30000 tests/unit"
   },
   "type": "module"
 }

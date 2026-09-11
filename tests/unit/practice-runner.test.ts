@@ -22,8 +22,13 @@ function fakePage(over: Partial<PracticeRunHooks> = {}) {
   const calls: Call[] = [];
   let bpm = 60;
   let playing = false;
-  let quiet = false;
   let canPlay = true;
+  /** What the page is currently showing. "first" is the reader's own settings. */
+  let display = "first";
+  let firstPass = "first";
+  let laterPass = "first";
+  /** Which display settings cost a redraw - annotations do, a cursor does not. */
+  let redrawsOn = new Set<string>();
 
   const hooks: PracticeRunHooks = {
     generate: async () => {
@@ -52,9 +57,15 @@ function fakePage(over: Partial<PracticeRunHooks> = {}) {
       calls.push(`bpm:${next}`);
       bpm = next;
     },
-    setQuiet: (q) => {
-      if (q !== quiet) calls.push(`quiet:${q}`);
-      quiet = q;
+    applyPassDisplay: async (pass) => {
+      // Stands in for the page: the cursor is live, annotations are a redraw.
+      const wanted = pass === 0 ? firstPass : laterPass;
+      if (wanted === display) return false;
+      calls.push(`display:${wanted}`);
+      const redraw = redrawsOn.has(wanted);
+      display = wanted;
+      if (redraw) playing = false; // a redraw takes the audio timeline with it
+      return redraw;
     },
     rerender: async () => {
       calls.push("rerender");
@@ -66,10 +77,15 @@ function fakePage(over: Partial<PracticeRunHooks> = {}) {
     hooks,
     calls,
     get bpm() { return bpm; },
-    get quiet() { return quiet; },
+    get display() { return display; },
     get playing() { return playing; },
     set canPlay(v: boolean) { canPlay = v; },
     set playing(v: boolean) { playing = v; },
+    /** The repeat passes show something else; `redraw` says what that costs. */
+    secondPass(what: string, redraw: boolean) {
+      laterPass = what;
+      if (redraw) redrawsOn.add(what);
+    },
   };
 }
 
@@ -80,7 +96,6 @@ const settings = (over: Partial<PracticeRunSettings> = {}): PracticeRunSettings 
   ...over,
 });
 const options = (over: Partial<PracticeRunOptions> = {}): PracticeRunOptions => ({
-  quietRepeats: true,
   readingSeconds: 5,
   ...over,
 });
@@ -104,12 +119,12 @@ describe("practice runner", () => {
     const runner = new PracticeRunner(page.hooks, settings({ exercises: 2, repeats: 2 }), options());
     const calls = await playThrough(runner, page);
     expect(calls).toEqual([
-      "generate", "wait:5", "play",        // exercise 1, after time to read it
-      "quiet:true", "repeatPass",           // its second pass, cursor silenced
+      "generate", "wait:5", "play",  // exercise 1, after time to read it
+      "repeatPass",                   // its second pass, butted against the first
       "stopPlayback",
-      "quiet:false", "generate", "wait:5", "play", // exercise 2
-      "quiet:true", "repeatPass",
-      "quiet:false", "stopPlayback",        // and the run ends
+      "generate", "wait:5", "play",  // exercise 2
+      "repeatPass",
+      "stopPlayback",                 // and the run ends
     ]);
     expect(runner.running).toBe(false);
   });
@@ -160,24 +175,63 @@ describe("practice runner", () => {
     expect(calls).not.toContain("rerender");
   });
 
-  test("quiet repeats silence the cursor for the repeat and restore it for the next exercise", async () => {
+  test("a repeat that only changes the cursor still butts against the pass before", async () => {
+    // The cursor is read live by the playback callbacks, so nothing is redrawn
+    // and the repeat can carry straight on from where the last pass ended.
     const page = fakePage();
-    const runner = new PracticeRunner(page.hooks, settings({ exercises: 2, repeats: 2 }), options());
+    page.secondPass("cursor-off", false);
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 1, repeats: 2 }), options());
     const calls = await playThrough(runner, page);
-    // On for the repeat pass, off again before the next exercise is played.
-    expect(calls.indexOf("quiet:true")).toBeGreaterThan(calls.indexOf("play"));
-    expect(calls.indexOf("quiet:false")).toBeGreaterThan(calls.indexOf("quiet:true"));
-    expect(page.quiet).toBe(false); // and never left on at the end
+    expect(calls).toContain("display:cursor-off");
+    expect(calls).toContain("repeatPass");
+    expect(calls.filter((c) => c === "play").length).toBe(1); // only the first pass
   });
 
-  test("with quiet repeats off the cursor is never silenced", async () => {
+  test("a repeat that changes the annotations starts fresh instead", async () => {
+    // Annotations are stripped when the score is drawn, so changing them
+    // redraws it - and the redraw takes the audio timeline with it. Butting
+    // against a timeline that no longer exists is what this avoids.
     const page = fakePage();
-    const runner = new PracticeRunner(
-      page.hooks, settings({ exercises: 2, repeats: 3 }), options({ quietRepeats: false })
-    );
+    page.secondPass("kodaly", true);
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 1, repeats: 2 }), options());
     const calls = await playThrough(runner, page);
-    expect(calls).not.toContain("quiet:true");
-    expect(calls.filter((c) => c === "repeatPass").length).toBe(4);
+    expect(calls).toContain("display:kodaly");
+    expect(calls).not.toContain("repeatPass");
+    expect(calls.filter((c) => c === "play").length).toBe(2); // both passes started fresh
+  });
+
+  test("the reader's own settings come back before the next exercise", async () => {
+    const page = fakePage();
+    page.secondPass("kodaly", true);
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 2, repeats: 2 }), options());
+    const calls = await playThrough(runner, page);
+    const applied = calls.filter((c) => c.startsWith("display:"));
+    // Into the repeat display, back out for the new exercise, in again, out at the end.
+    expect(applied).toEqual([
+      "display:kodaly", "display:first", "display:kodaly", "display:first",
+    ]);
+    expect(page.display).toBe("first");
+  });
+
+  test("and they come back when a run is stopped part way through", async () => {
+    const page = fakePage();
+    page.secondPass("kodaly", true);
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 4, repeats: 2 }), options());
+    await runner.start();
+    runner.passEnded(); // into the repeat, which redraws with annotations
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(page.display).toBe("kodaly");
+    await runner.stop();
+    expect(page.display).toBe("first");
+  });
+
+  test("a run where nothing differs never touches the display at all", async () => {
+    const page = fakePage();
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 3, repeats: 2 }), options());
+    const calls = await playThrough(runner, page);
+    expect(calls.some((c) => c.startsWith("display:"))).toBe(false);
   });
 
   test("a run that cannot play stops instead of hanging", async () => {
@@ -254,6 +308,22 @@ describe("practice runner", () => {
     const after = page.calls.length;
     await runner.start();
     expect(page.calls.length).toBe(after);
+  });
+
+  test("where the run is, is readable as numbers", async () => {
+    // These read as plain values and not as anything else: the private method
+    // that takes a repeat pass was briefly called `repeat` too, which shadowed
+    // this getter so that `runner.repeat` handed back a function. Nothing threw
+    // and nothing failed - the component reads its position from onChange - so
+    // only the type checker ever saw it.
+    const page = fakePage();
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 2, repeats: 2 }), options());
+    await runner.start();
+    expect(typeof runner.index).toBe("number");
+    expect(typeof runner.repeat).toBe("number");
+    expect(typeof runner.running).toBe("boolean");
+    runner.passEnded();
+    expect(runner.repeat).toBe(1);
   });
 
   test("the page is told where the run is, so it can say so", async () => {
