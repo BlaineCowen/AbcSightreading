@@ -72,9 +72,11 @@ rules of harmony:
 - his beat distribution per type
 - his habit of decorating the soprano less than the inner voices (8.3% vs 14.9%)
 
-A **escape tone** (step in, leap out) is 3.4% of his non-chord tones and we have
-no such decoration at all. That is a real gap rather than a preference, and is
-still open.
+An **escape tone** (step out, leap back) is 3.4% of his non-chord tones and we
+had no such decoration at all. That was a real gap rather than a preference, and
+it is now written - at weight 3, the only weight here taken from the corpus
+rather than chosen round, since 3.4% sits between the appoggiatura's 9.9% and
+the anticipation's 1.8%.
 
 ## Still open
 

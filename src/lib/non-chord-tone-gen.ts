@@ -545,6 +545,11 @@ export function generateNonChordTones(
     { name: "Neighbor Tone", check: checkNeighborTone, generator: generateNeighborTone, weight: 18 },
     { name: "Anticipation", check: checkAnticipation, generator: generateAnticipation, weight: 1 },
     { name: "Appoggiatura", check: checkAppoggiatura, generator: generateAppoggiatura, weight: 5 },
+    // 3.4% of Bach's non-chord tones, which is where this number comes from -
+    // between the appoggiatura's 9.9% and the anticipation's 1.8%, and the only
+    // weight here taken from the corpus rather than chosen round. It was the one
+    // decoration in the study we could not write at all.
+    { name: "Escape Tone", check: checkEscapeTone, generator: generateEscapeTone, weight: 3 },
   ];
   const nctLibrary = enabledNctTypes
     ? fullNctLibrary.filter((d) => enabledNctTypes.includes(d.name))
@@ -886,6 +891,37 @@ function checkAppoggiatura(
 }
 
 /**
+ * An escape tone steps AWAY from the line and then leaps back over it.
+ *
+ * The mirror image of the appoggiatura: that one leaps in and steps out, this
+ * one steps out and leaps in. It is unaccented, so it takes the second half of
+ * the subdivided note - the chord tone keeps the beat and the dissonance
+ * happens on the way to the next one.
+ *
+ * Only over stepwise motion. That is the classic échappée and it is also what
+ * keeps the leap honest: stepping one way from a line that moves one step the
+ * other way leaves exactly a third to leap back over. Over a line that already
+ * leaps, the same gesture would leave a fourth or worse for a singer to find
+ * with a dissonance behind them.
+ */
+function checkEscapeTone(
+  currentNote: VoiceNote,
+  nextNote: VoiceNote | null,
+  _prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  if (patternRhythm.abcValue.length !== 2) return false;
+  if (diatonicGap(currentNote, nextNote) !== 1) return false;
+  // The dissonance must not be the longer of the two. Nothing in the library is
+  // short-then-long today, but an escape tone held longer than the chord tone
+  // it left is not an escape tone - it is an accent in the wrong place.
+  const first = parseInt(patternRhythm.abcValue[0]);
+  const second = parseInt(patternRhythm.abcValue[1]);
+  if (isNaN(first) || isNaN(second)) return false;
+  return second <= first;
+}
+
+/**
  * Weighted pick over (type, pattern) pairs, so the type is chosen by how
  * ordinary it is in the style. A type that fits several patterns is not thereby
  * made more likely: its weight is shared across its own pairs.
@@ -1136,6 +1172,34 @@ function generateAnticipation(params: NctFunctionParams): VoiceNote[] | null {
 
   const note1 = createNewNote(currentNote, pitch1, len1, key);
   const note2 = createNewNote(nextNote, pitch2, len2, key);
+
+  return note1 && note2 ? [note1, note2] : null;
+}
+
+/**
+ * Chord tone on the beat, then a step the "wrong" way - the leap back over it
+ * to the next chord tone is what makes the figure.
+ */
+function generateEscapeTone(params: NctFunctionParams): VoiceNote[] | null {
+  const { currentNote, nextNote, patternRhythm, key } = params;
+  if (!nextNote || patternRhythm.abcValue.length !== 2) return null;
+
+  const from = currentNote.pitchValue;
+  const to = nextNote.pitchValue;
+  if (from === undefined || to === undefined) return null;
+
+  // Away from where the line is heading, which is what leaves a third to leap.
+  // `checkEscapeTone` has already established that the line moves by a step, so
+  // there is always a direction to escape from.
+  const heading = Math.sign(to - from);
+  const escapePitch = from - heading;
+
+  const len1 = parseInt(patternRhythm.abcValue[0]);
+  const len2 = parseInt(patternRhythm.abcValue[1]);
+  if (isNaN(len1) || isNaN(len2) || len1 <= 0 || len2 <= 0) return null;
+
+  const note1 = createNewNote(currentNote, from, len1, key);
+  const note2 = createNewNote(currentNote, escapePitch, len2, key);
 
   return note1 && note2 ? [note1, note2] : null;
 }
