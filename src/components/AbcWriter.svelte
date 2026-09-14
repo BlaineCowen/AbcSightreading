@@ -20,7 +20,7 @@
    * `Editor`, which binds to a single textarea and cannot span several.
    */
   import { onMount, onDestroy } from "svelte";
-  import { Save, FileText, Plus } from "lucide-svelte";
+  import { Save, FileText, Plus, Play } from "lucide-svelte";
   import {
     abcProblems,
     applyMeta,
@@ -69,6 +69,15 @@
   let warnings: string[] = [];
   let problems: AbcProblem[] = [];
 
+  /** The rendered tune, which is what the synth plays from. */
+  let lastTune: any = null;
+  let synthControl: any = null;
+  let audioEl: HTMLDivElement;
+  let loadingAudio = false;
+  let audioError = "";
+  /** The score has been edited since the player was built. */
+  let audioStale = false;
+
   $: voiceIds = voiceIdsFromHeader(header);
   $: voiceLabel = Object.fromEntries(
     voicePartsFor(voicing).map((p) => [p.id, p.name])
@@ -109,12 +118,63 @@
           },
         });
         warnings = tunes?.[0]?.warnings ?? [];
+        lastTune = tunes?.[0] ?? null;
+        // The player holds the tune it was built from, so an edit makes it out
+        // of date. Said rather than silently played: hearing the previous
+        // version while looking at the current one is worse than a button.
+        if (synthControl) audioStale = true;
       } catch (err) {
         // A hard parse failure leaves the last good score on screen, which is
         // more use than a blank page while you fix a typo.
         warnings = [String(err instanceof Error ? err.message : err)];
       }
     }, 300);
+  }
+
+  /**
+   * Build a player for what is on screen and start it.
+   *
+   * Rebuilt on each press rather than kept in step with every keystroke: the
+   * samples are fetched and the MIDI sequence rendered on load, which is far
+   * too much to do while someone is typing. The press is also the user gesture
+   * a browser requires before any audio may start.
+   */
+  async function listen() {
+    if (!lastTune || loadingAudio) return;
+    loadingAudio = true;
+    audioError = "";
+    try {
+      if (synthControl) {
+        try { synthControl.destroy(); } catch {}
+        synthControl = null;
+      }
+      synthControl = new abcjsMod.synth.SynthController();
+      await synthControl.setTune(lastTune, false, {
+        // Samples come through our own origin. abcjs otherwise fetches them
+        // from paulrosen.github.io, which locked-down networks block - and a
+        // blocked fetch yields a silent buffer rather than an error, so
+        // playback looks fine and simply makes no sound.
+        soundFontUrl: "/api/soundfont/",
+        // abcjs reads its volume multiplier from the URL and only recognises
+        // its own CDN addresses; any other silently drops to 1.0. The proxy
+        // serves those same FluidR3_GM samples, so restate the 3.0 it would
+        // have picked.
+        soundFontVolumeMultiplier: 3.0,
+      });
+      await synthControl.load("#writer-audio", null, {
+        displayLoop: true,
+        displayRestart: true,
+        displayPlay: true,
+        displayProgress: true,
+      });
+      audioStale = false;
+      await synthControl.play();
+    } catch (err) {
+      audioError = err instanceof Error ? err.message : "Could not start playback.";
+      console.error("writer: playback failed", err);
+    } finally {
+      loadingAudio = false;
+    }
   }
 
   function formMeta(): ScoreMeta {
@@ -223,6 +283,10 @@
 
   onDestroy(() => {
     if (renderTimer) clearTimeout(renderTimer);
+    if (synthControl) {
+      try { synthControl.destroy(); } catch {}
+      synthControl = null;
+    }
   });
 </script>
 
@@ -345,9 +409,29 @@
 
     <div class="bg-white rounded-lg shadow-md p-3 space-y-2 lg:sticky lg:top-20
                 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 sticky top-0 bg-white pb-1">
-        Score
-      </p>
+      <div class="flex items-center justify-between gap-2 sticky top-0 bg-white pb-1">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Score</p>
+        <button
+          class="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold
+                 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white"
+          on:click={listen}
+          disabled={!lastTune || loadingAudio}
+          title="Play the score back, to hear a typo you cannot see"
+        >
+          <Play size={13} />
+          {loadingAudio ? "Loading..." : audioStale ? "Play again" : "Play"}
+        </button>
+      </div>
+      <!-- abcjs draws its own transport in here once a player is built. -->
+      <div id="writer-audio" class="w-full" class:hidden={!synthControl}></div>
+      {#if audioStale}
+        <p class="text-xs text-slate-400">
+          Edited since this was loaded - press Play again to hear the change.
+        </p>
+      {/if}
+      {#if audioError}
+        <p class="text-xs rounded px-2 py-1 bg-amber-50 text-amber-800">{audioError}</p>
+      {/if}
       <div bind:this={paperEl} class="w-full"></div>
       {#each warnings as warning}
         <p class="text-xs text-amber-700">{warning}</p>
