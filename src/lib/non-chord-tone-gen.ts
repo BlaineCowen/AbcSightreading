@@ -580,6 +580,11 @@ export function generateNonChordTones(
     { name: "Passing Tone", check: checkPassingTone, generator: generatePassingTone, weight: 30 },
     { name: "Neighbor Tone", check: checkNeighborTone, generator: generateNeighborTone, weight: 18 },
     { name: "Anticipation", check: checkAnticipation, generator: generateAnticipation, weight: 1 },
+    // Weighted alongside the neighbour rather than below the colours: it is an
+    // ordinary way to move a half note along, and it only ever competes on a
+    // half note being split into two quarters, so the weight does not reach any
+    // other figure.
+    { name: "Rearticulation", check: checkRearticulation, generator: generateRearticulation, weight: 18 },
     { name: "Appoggiatura", check: checkAppoggiatura, generator: generateAppoggiatura, weight: 5 },
     // 3.4% of Bach's non-chord tones, which is where this number comes from -
     // between the appoggiatura's 9.9% and the anticipation's 1.8%, and the only
@@ -630,14 +635,37 @@ export function generateNonChordTones(
     //  - cadence-end notes (already on the long note itself)
     //  - the note immediately before a cadence end (allows only suspension-style treatment)
     //  - random chance
-    if (
+    // Rests, phrase openings and cadence notes are not decorated at all - as
+    // opposed to merely losing the roll, which is the ordinary case below.
+    const structural =
       originalNote.rest ||
       i === 0 ||
       originalNote.isCadenceEnd ||
-      nextChordNote?.isCadenceEnd ||
+      Boolean(nextChordNote?.isCadenceEnd);
+
+    if (
+      structural ||
       (Math.random() >= probability &&
         !couldJoinSuspension(originalNote, i, allNotes, currentPartIndex))
     ) {
+      // A half note that lost the decoration roll may still be SUNG as two
+      // quarters on the same pitch. That is not decoration - nothing is
+      // dissonant and nothing resolves - so making it wait behind the same
+      // roll, and then compete against the passing tones for the same slot,
+      // caps it at about a tenth of half notes however it is weighted. The
+      // transcription writes two thirds of its half-note beats this way.
+      if (!structural) {
+        const repeated = tryRearticulation(
+          originalNote, nextNote, prevNote, patternNctRhythms, probability, key,
+          i, allNotes, currentPartIndex, voiceRange,
+          stepwiseEighths ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote } : null
+        );
+        if (repeated) {
+          if (originalNote.chordSymbol) repeated[0].chordSymbol = originalNote.chordSymbol;
+          outputNotes.push(...repeated);
+          continue;
+        }
+      }
       outputNotes.push(originalNote);
       continue;
     }
@@ -916,6 +944,55 @@ function checkAnticipation(
 }
 
 /**
+ * A half note sung as two quarters on the same pitch.
+ *
+ * Not a non-chord tone at all - nothing is dissonant and nothing resolves - but
+ * this is the pass that subdivides notes, so it is where the figure belongs.
+ * It is ordinary in the style and the generator could not write it: measured
+ * over 40 exercises, half notes became two quarters 4.5% of the time and the
+ * two were a DIFFERENT pitch on every one of them, because every route through
+ * here had to carry a decoration.
+ *
+ * Deliberately only the half note into two quarters. A whole note into two
+ * halves is a different, slower gesture, and rearticulating an already short
+ * note is just a stutter - so this asks for exactly the shape that was missing
+ * rather than for "any note, split evenly".
+ */
+function checkRearticulation(
+  currentNote: VoiceNote,
+  nextNote: VoiceNote | null,
+  prevNote: VoiceNote | null,
+  patternRhythm: Rhythm
+): boolean {
+  if (patternRhythm.abcValue.length !== 2) return false;
+  if (currentNote.rest || currentNote.length !== 16) return false;
+  // Two equal quarters, so the figure is a rearticulation and not a rhythm.
+  const [a, b] = patternRhythm.abcValue.map((v) => parseInt(v));
+  if (a !== 8 || b !== 8) return false;
+  // A repeat either side of this one would make three or four of the same
+  // pitch in a row, which reads as a stuck singer rather than a gesture.
+  const samePitch = (other: VoiceNote | null) =>
+    !!other && !other.rest && other.pitchValue === currentNote.pitchValue;
+  return !samePitch(prevNote) && !samePitch(nextNote);
+}
+
+/** The same pitch twice - accidental and all, since it is the same note. */
+function generateRearticulation(params: NctFunctionParams): VoiceNote[] | null {
+  const { currentNote, patternRhythm, key } = params;
+  if (patternRhythm.abcValue.length !== 2) return null;
+  const len1 = parseInt(patternRhythm.abcValue[0]);
+  const len2 = parseInt(patternRhythm.abcValue[1]);
+  if (isNaN(len1) || isNaN(len2) || len1 <= 0 || len2 <= 0) return null;
+  const pitch = currentNote.pitchValue;
+  if (pitch === undefined) return null;
+  // createNewNote carries the accidental through when the pitch is unchanged,
+  // which is the whole of what this figure needs.
+  const first = createNewNote(currentNote, pitch, len1, key);
+  const second = createNewNote(currentNote, pitch, len2, key);
+  return first && second ? [first, second] : null;
+}
+
+/**
  * An appoggiatura is an accented dissonance **approached by leap** and resolved
  * by step - the leap is what distinguishes it from a passing tone or a
  * suspension, and it is the only thing that makes the accent sound intentional.
@@ -1171,6 +1248,69 @@ function tryParallelDecoration(
     if (ok && notes.length === theirs.length) return notes;
   }
   return null;
+}
+
+/**
+ * How much likelier a half note is to be re-struck than to be decorated.
+ *
+ * A multiple of the decoration setting rather than a number of its own. It
+ * needs to be MORE likely than a decoration - waiting behind the same roll and
+ * then competing against the passing tones for the same slot caps it at about a
+ * tenth of half notes however it is weighted, and the transcription writes two
+ * thirds of its half-note beats this way. But it must still answer to that
+ * setting: a director who turns decoration off is asking for plain chord tones
+ * and should get them, and one who turns it down is asking for a quiet surface.
+ *
+ * At the default 0.25 this gives 0.35, which measures 37.1% on the
+ * transcription's own metric against its 66.5% and our 23.1% before it.
+ */
+const REARTICULATION_SCALE = 1.4;
+
+/**
+ * A half note sung as two quarters on the same pitch, offered after the
+ * decoration roll has already been lost.
+ *
+ * Still vetted by `figureRejection` like anything else this pass writes, which
+ * costs nothing it should not: repeating a pitch cannot introduce a clash, a
+ * parallel or a note out of range, so the only thing that can refuse it is the
+ * stepwise-eighths rule, and only then when the note beside it is short.
+ */
+function tryRearticulation(
+  originalNote: VoiceNote,
+  nextNote: VoiceNote | null,
+  prevNote: VoiceNote | null,
+  patternNctRhythms: Rhythm[],
+  probability: number,
+  key: string,
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number,
+  voiceRange: [number, number] | undefined,
+  around: { prev: VoiceNote | null; next: VoiceNote | null } | null
+): VoiceNote[] | null {
+  if (probability <= 0) return null; // decoration off means plain chord tones
+  if (Math.random() >= Math.min(1, probability * REARTICULATION_SCALE)) return null;
+  const pattern = patternNctRhythms.find(
+    (r) =>
+      r.abcValue.length === 2 && r.abcValue[0] === "8" && r.abcValue[1] === "8"
+  );
+  if (!pattern) return null; // the level decorates no faster than quarters
+  if (!checkRearticulation(originalNote, nextNote, prevNote, pattern)) return null;
+  const figure = generateRearticulation({
+    currentNote: originalNote,
+    nextNote,
+    prevNote,
+    patternRhythm: pattern,
+    allNotes,
+    currentPartIndex,
+    noteIndex,
+    key,
+  });
+  if (!figure) return null;
+  const why = figureRejection(
+    figure, noteIndex, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around
+  );
+  return why ? null : figure;
 }
 
 /**
