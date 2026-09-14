@@ -160,6 +160,12 @@ export const nctPatterns: Rhythm[] = [
   // Uneven subdivisions. These were the *only* shapes available before, and are
   // deliberately weighted below the even ones now - a dotted decoration should
   // be a colour, not the default.
+  //
+  // There is deliberately no dotted eighth plus sixteenth. It was the one shape
+  // whose shortest note is a sixteenth, so the floor below kept it out of every
+  // level but 5 - a snapped figure arriving as *decoration*, in the level that
+  // already has the fastest surface. Decoration should not be the hardest
+  // rhythm on the page.
   {
     ...base,
     name: "nctDotQuarterEighth",
@@ -179,16 +185,6 @@ export const nctPatterns: Rhythm[] = [
     oddsWeight: 3,
     weight: 3,
     symbol: "𝄗•𝄘",
-  },
-  {
-    ...base,
-    name: "nctDotEighthSixteenth",
-    abcValue: ["6", "2"],
-    meterValue: [3 / 16, 1 / 16],
-    totalValue: 8,
-    oddsWeight: 2,
-    weight: 2,
-    symbol: "𝄙•𝄚",
   },
 ];
 
