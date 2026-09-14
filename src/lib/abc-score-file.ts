@@ -16,6 +16,8 @@
  * exactly the kind of failure nobody notices until the corpus is useless.
  */
 
+import { ClefType } from "./types";
+
 export type ScoreMeta = {
   title: string;
   /** UIL level 1-5, as a string because it comes from a form. May be blank. */
@@ -138,12 +140,22 @@ export function abcProblems(abc: string): AbcProblem[] {
   return problems;
 }
 
-/** The voices each voicing is written on, matching `abc-assembly.ts` exactly. */
+/**
+ * The voices each voicing is written on.
+ *
+ * The clefs come from `ClefType` rather than being written out here. They were
+ * literals once, and the tenor's read "treble octave up" - which is not a clef
+ * abcjs understands. It does not complain about it either: it renders an SVG
+ * whose height is `NaN`, and a viewBox of "0 0 700 NaN" shows as the top-left
+ * corner of a score and nothing else. Silent, and only on voicings with a
+ * tenor, which is why it looked like the second part being typed had broken
+ * something.
+ */
 const VOICE_PARTS: Record<string, { id: string; name: string; clef: string }[]> = {
   SATB: [
     { id: "S", name: "Soprano", clef: "treble" },
     { id: "A", name: "Alto", clef: "treble" },
-    { id: "T", name: "Tenor", clef: "treble octave up" },
+    { id: "T", name: "Tenor", clef: ClefType.TrebleOctaveUp },
     { id: "B", name: "Bass", clef: "bass" },
   ],
   SAB: [
@@ -161,18 +173,18 @@ const VOICE_PARTS: Record<string, { id: string; name: string; clef: string }[]> 
     { id: "A", name: "Alto", clef: "treble" },
   ],
   TTB: [
-    { id: "T1", name: "Tenor 1", clef: "treble octave up" },
-    { id: "T2", name: "Tenor 2", clef: "treble octave up" },
+    { id: "T1", name: "Tenor 1", clef: ClefType.TrebleOctaveUp },
+    { id: "T2", name: "Tenor 2", clef: ClefType.TrebleOctaveUp },
     { id: "B", name: "Bass", clef: "bass" },
   ],
   TTBB: [
-    { id: "T1", name: "Tenor 1", clef: "treble octave up" },
-    { id: "T2", name: "Tenor 2", clef: "treble octave up" },
+    { id: "T1", name: "Tenor 1", clef: ClefType.TrebleOctaveUp },
+    { id: "T2", name: "Tenor 2", clef: ClefType.TrebleOctaveUp },
     { id: "B1", name: "Baritone", clef: "bass" },
     { id: "B2", name: "Bass", clef: "bass" },
   ],
   TB: [
-    { id: "T", name: "Tenor", clef: "treble octave up" },
+    { id: "T", name: "Tenor", clef: ClefType.TrebleOctaveUp },
     { id: "B", name: "Bass", clef: "bass" },
   ],
 };
@@ -429,13 +441,32 @@ export function stripTrailingRests(music: string): string {
   return /[|\]]$/.test(out) ? out : `${out}|`;
 }
 
+/**
+ * Clef spellings abcjs cannot read, and what they were meant to say.
+ *
+ * Files written before this was noticed carry the broken one in their own
+ * header, and loading a file uses the header it came with - so fixing the table
+ * that BUILDS headers does nothing for a score already on disk. Repaired on the
+ * way in instead, which also means the next save writes the corrected file.
+ */
+const CLEF_REPAIRS: [RegExp, string][] = [
+  [/clef=treble octave up/g, `clef=${ClefType.TrebleOctaveUp}`],
+];
+
+/** Make a header renderable, for headers written before we knew better. */
+export function repairHeader(header: string): string {
+  let out = header;
+  for (const [bad, good] of CLEF_REPAIRS) out = out.replace(bad, good);
+  return out;
+}
+
 /** The inverse, for loading a saved file back into the boxes. */
 export function splitScore(abc: string): { header: string; voices: Record<string, string> } {
   const lines = abc.split(/\r?\n/);
   const kIndex = lines.findIndex((l) => /^K:/.test(l));
   if (kIndex === -1) return { header: abc, voices: {} };
 
-  const header = lines.slice(0, kIndex + 1).join("\n");
+  const header = repairHeader(lines.slice(0, kIndex + 1).join("\n"));
   const voices: Record<string, string> = {};
   let current: string | null = null;
   // A trailing backslash is ABC's line-continuation marker. It carries no
