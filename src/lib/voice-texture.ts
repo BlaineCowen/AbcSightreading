@@ -219,8 +219,19 @@ export function applyVoiceTexture(
   // --- Short drop-outs: a single note, kept rare. ---
   if (measures >= MIN_MEASURES_FOR_TACET && Math.random() < CHANCE_OF_SHORT_DROPOUT) {
     const voice = order[Math.floor(Math.random() * order.length)];
-    const position = Math.floor(Math.random() * out[voice].length);
-    trySilence(out, voice, [position], lastMeasureFrom, starts, minSounding, false);
+    // Never the first measure. Picking freely could land on position 0, which
+    // silences a voice on the downbeat - the same opening rest the staggered
+    // entrance was held back for, arriving by another route. The tacet spans
+    // above already start at measure 1; this had no such guard, so it happened
+    // rarely enough to look like a flaky test rather than a bug.
+    const eligible: number[] = [];
+    for (let i = 0; i < out[voice].length; i++) {
+      if (starts[i] >= tsPerMeasure) eligible.push(i);
+    }
+    if (eligible.length > 0) {
+      const position = eligible[Math.floor(Math.random() * eligible.length)];
+      trySilence(out, voice, [position], lastMeasureFrom, starts, minSounding, false);
+    }
   }
 
   return out;

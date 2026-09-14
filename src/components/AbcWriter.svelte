@@ -28,6 +28,7 @@
     blankScore,
     buildHeader,
     splitScore,
+    stripTrailingRests,
     voiceIdsFromHeader,
     voicePartsFor,
     VOICINGS,
@@ -162,8 +163,14 @@
     key = score.meta.key ?? "C";
     meter = score.meta.meter ?? "4/4";
     source = score.meta.source ?? "";
+    // The rests the assembler added to keep the staves level come back off, so
+    // each box holds what was actually written into it. They go straight back
+    // on the next assemble.
     voices = Object.fromEntries(
-      voiceIdsFromHeader(parts.header).map((id) => [id, parts.voices[id] ?? ""])
+      voiceIdsFromHeader(parts.header).map((id) => [
+        id,
+        stripTrailingRests(parts.voices[id] ?? ""),
+      ])
     );
   }
 

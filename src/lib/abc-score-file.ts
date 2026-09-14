@@ -385,12 +385,48 @@ export function assembleScore(
 ): string {
   const ids = voiceIdsFromHeader(header);
   const flat = Object.fromEntries(ids.map((id) => [id, flattenVoice(voices[id] ?? "")]));
-  const bars = Math.max(0, ...ids.map((id) => countBars(flat[id])));
+  const bars = Math.max(1, ...ids.map((id) => countBars(flat[id])));
   const rest = `z${barRestLength(meter ?? parseHeader(header).meter)}`;
-  const filler = bars > 0 ? Array.from({ length: bars }, () => rest).join(" | ") + " |" : `${rest} |`;
 
-  const lines = ids.map((id) => `[V:${id}] ${flat[id] || filler}`);
+  const lines = ids.map((id) => {
+    const short = bars - countBars(flat[id]);
+    const padding = short > 0 ? Array.from({ length: short }, () => ` ${rest} |`).join("") : "";
+    return `[V:${id}] ${flat[id]}${padding}`.replace(/\s+/g, " ").trim();
+  });
   return `${header.replace(/\s+$/, "")}\n${lines.join("\n")}\n`;
+}
+
+/**
+ * Trailing bars of silence, taken back off.
+ *
+ * The inverse of the padding above, for when a file is loaded back into its
+ * boxes: a box should hold what its writer typed, not the rests the assembler
+ * added to keep the staves level. Without this, opening a part-finished
+ * transcription hands the tenor its one real bar followed by forty of `z8` to
+ * delete before carrying on.
+ *
+ * Safe against losing a real ending, because assembly puts them straight back:
+ * every part is padded to the longest, so a stripped bar of rest returns unless
+ * EVERY part ended with one - and these are exercises that end on a sounding
+ * chord.
+ */
+export function stripTrailingRests(music: string): string {
+  const bars = music.split("|");
+  // Down to nothing if that is all there was: a part holding only rests was
+  // never written, and should open as an empty box.
+  while (bars.length > 0) {
+    const last = bars[bars.length - 1].trim();
+    // The split leaves an empty piece for music ending in a barline.
+    if (last === "" || /^z\d*$/.test(last)) {
+      bars.pop();
+      continue;
+    }
+    break;
+  }
+  const out = bars.join("|").trim();
+  if (!out) return "";
+  // `|]` is a final barline, not a bar waiting for one.
+  return /[|\]]$/.test(out) ? out : `${out}|`;
 }
 
 /** The inverse, for loading a saved file back into the boxes. */
