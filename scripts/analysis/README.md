@@ -78,15 +78,46 @@ generated UIL 5 exercises:
 | moments with 2+ voices decorating | 51.1% | 56.5% |
 | of two-voice pairs: parallel, consonant | 45.5% | 64.4% |
 | contrary, consonant | 27.3% | 28.1% |
-| **both voices suspended** | **18.2%** | **0.0%** |
 
 We already decorate in tandem more often than the real music does, and our
-pairs are consonant - the clash check sees to that. The one figure we never
-produce is the **double suspension**: two voices held over the barline together
-and resolving down in parallel, as at m15 where soprano A-flat to G and alto F
-to E-flat make a 9-8 and 4-3 pair. Zero in 160 two-voice moments.
+pairs are consonant - the clash check sees to that.
 
-That is a shape, not a frequency. Each voice is decorated independently, so two
-suspensions coinciding would need both draws to pick the same figure on the same
-beat and both to survive their checks; it does not happen by chance at these
-weights.
+**This script cannot see suspensions at all, so do not read a rate for them out
+of it.** It infers the chord at each sampling point from the notes sounding
+there - which include the decoration itself - so music21 spells a roman numeral
+that contains the dissonance and the note is never counted as a non-chord tone.
+Passing tones fall between sampling points and survive; a suspension lands
+exactly on the chord change, which is exactly where the sampling happens, so it
+is absorbed every time. An earlier version of this file reported "0.0% both
+voices suspended" and treated it as a finding. It was an artifact.
+
+Use `double_suspensions.ts` for that question instead. It works on the
+generator's own note and chord data, so nothing is inferred, and it applies the
+real definition: a note that repeats the pitch before it, is not a chord tone of
+the chord it is held into, and resolves down by step onto one.
+
+### The double suspension
+
+Two voices held over the chord change together and resolving down in parallel,
+as at m15 where soprano A-flat to G and alto F to E-flat make a 9-8 and 4-3
+pair. Measured properly over 80 generated UIL 5 exercises:
+
+|  | before | after |
+|---|---|---|
+| suspensions | 80 | 116 |
+| paired as double suspensions | 3 | 21 |
+| as a share of suspensions | 3.8% | 18.1% |
+| per exercise | 0.04 | 0.26 |
+
+It was rare rather than absent. Two things were needed. A partner's suspension
+has to be mirrored **as a suspension** - holding this voice's own previous note
+- because copying the contour from its chord tone reproduces the rhythm and the
+step down while suspending nothing. And a voice able to complete the figure has
+to be let through the probability roll, since waiting for both voices to draw a
+suspension on the same beat left it at about one exercise in twenty-five.
+
+A caution on measuring it: matching "a repeated pitch followed by a step down"
+finds the shape but not the figure. Most repeated pitches in this music are
+ordinary consonant repeats - 3,521 of them against 80 real suspensions in the
+run above - and counting those made an early attempt at this read 61 pairs where
+there were 3.

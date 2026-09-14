@@ -99,6 +99,16 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   chordProgression: Chord[];
   voiceNotes: VoiceNote[][];
   voiceNames: string[];
+  /**
+   * The rhythm as generated, before decoration subdivided any of it.
+   *
+   * Exposed so analysis can line `chordProgression` up with the notes. Every
+   * voice shares this rhythm, but decoration then splits notes per voice, so
+   * the chord boundaries cannot be recovered from `voiceNotes` alone - the
+   * onsets common to all voices are a superset of them. Nothing in generation
+   * reads this back; it is the rhythm the exercise was built from.
+   */
+  rhythmSteps: Rhythm[];
   /** Re-write the same exercise with different annotations. See below. */
   render: (display?: AbcDisplayOptions & { midiProgram?: number }) => string;
 } {
@@ -487,6 +497,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     // every caller that inspects voiceNotes, while the score showed it.
     voiceNotes: tidied,
     voiceNames: voiceParts.map((vp) => vp.name),
+    rhythmSteps: finalRhythms,
     render,
   };
 }

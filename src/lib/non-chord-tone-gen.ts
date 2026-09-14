@@ -635,7 +635,8 @@ export function generateNonChordTones(
       i === 0 ||
       originalNote.isCadenceEnd ||
       nextChordNote?.isCadenceEnd ||
-      Math.random() >= probability
+      (Math.random() >= probability &&
+        !couldJoinSuspension(originalNote, i, allNotes, currentPartIndex))
     ) {
       outputNotes.push(originalNote);
       continue;
@@ -1119,6 +1120,40 @@ function tryParallelDecoration(
     if (theirs.some((n) => n.rest || n.pitchValue === undefined)) continue;
 
     const theirFirst = theirs[0].pitchValue;
+
+    // A suspension has to be mirrored as a suspension, not merely copied.
+    //
+    // What makes one is that its first note is the singer's OWN previous note,
+    // held across the chord change and then resolved down. Copying the contour
+    // from this voice's chord tone reproduces the shape - down a step, same
+    // rhythm - with none of the meaning: nothing is held, so nothing is
+    // suspended.
+    //
+    // So when the partner is suspending, this voice suspends too or does
+    // nothing: it needs its own previous note sitting a step above the chord
+    // tone it is about to sing, which is the same condition `checkSuspension`
+    // applies. The pair is measured between the two HELD notes, since those are
+    // the notes that sound together against the chord.
+    const theirPrev = noteEndingAt(allNotes[v], start);
+    const theyAreSuspending =
+      theirs.length === 2 &&
+      theirPrev !== undefined &&
+      !theirPrev.rest &&
+      theirPrev.pitchValue === theirFirst &&
+      theirs[1].pitchValue === theirFirst - 1;
+
+    if (theyAreSuspending) {
+      const myPrev = noteEndingAt(allNotes[currentPartIndex], start);
+      if (!myPrev || myPrev.rest || myPrev.pitchValue === undefined) continue;
+      if (myPrev.pitchValue !== myPitch + 1) continue;
+      const heldApart = Math.abs(myPrev.pitchValue - theirFirst) % 7;
+      if (heldApart !== 2 && heldApart !== 5) continue;
+      const held = createNewNote(myPrev, myPrev.pitchValue, theirs[0].length, key);
+      const resolution = createNewNote(originalNote, myPitch, theirs[1].length, key);
+      if (held && resolution) return [held, resolution];
+      continue;
+    }
+
     const apart = Math.abs(myPitch - theirFirst) % 7;
     if (apart !== 2 && apart !== 5) continue; // not a 3rd or a 6th
 
@@ -1136,6 +1171,65 @@ function tryParallelDecoration(
     if (ok && notes.length === theirs.length) return notes;
   }
   return null;
+}
+
+/**
+ * Could this voice complete a double suspension with one already placed?
+ *
+ * Asked BEFORE the probability roll, and this is why. Every precondition is
+ * independently likely enough - two voices able to suspend together a third or
+ * sixth apart occur at 10% of steps - but the conjunction is not: the partner
+ * must draw a suspension from the library on a strong beat, and then this voice
+ * must pass its own roll as well. Multiplied out, the figure was appearing in
+ * about one exercise in twenty-five.
+ *
+ * So a voice that can finish the figure is let through the roll. The figure is
+ * still refused by every rule that refuses any other, and the case is narrow
+ * enough - a partner already suspending, this voice a step above its own chord
+ * tone, the pair a third or a sixth - that it barely moves the overall amount
+ * of decoration: over 80 exercises, suspensions rose from 80 to 116 while
+ * double suspensions went from 3 to 21, or 3.8% to 18.1% of all suspensions.
+ * `scripts/analysis/double_suspensions.ts` is the measurement.
+ */
+function couldJoinSuspension(
+  originalNote: VoiceNote,
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number
+): boolean {
+  const myPitch = originalNote.pitchValue;
+  if (myPitch === undefined || originalNote.rest) return false;
+  const start = timeAtIndex(allNotes[currentPartIndex], noteIndex);
+  const end = start + originalNote.length;
+
+  const myPrev = noteEndingAt(allNotes[currentPartIndex], start);
+  if (!myPrev || myPrev.rest || myPrev.pitchValue === undefined) return false;
+  if (myPrev.pitchValue !== myPitch + 1) return false;
+
+  for (let v = 0; v < allNotes.length; v++) {
+    if (v === currentPartIndex) continue;
+    const theirs = notesSpanning(allNotes[v], start, end);
+    if (!theirs || theirs.length !== 2) continue;
+    if (theirs.some((n) => n.rest || n.pitchValue === undefined)) continue;
+    const theirPrev = noteEndingAt(allNotes[v], start);
+    if (!theirPrev || theirPrev.rest) continue;
+    if (theirPrev.pitchValue !== theirs[0].pitchValue) continue;
+    if (theirs[1].pitchValue !== theirs[0].pitchValue - 1) continue;
+    const apart = Math.abs(myPrev.pitchValue - theirs[0].pitchValue) % 7;
+    if (apart === 2 || apart === 5) return true;
+  }
+  return false;
+}
+
+/** The note whose span ends exactly at `t`, or undefined. */
+function noteEndingAt(voice: VoiceNote[], t: number): VoiceNote | undefined {
+  let at = 0;
+  for (const note of voice) {
+    if (at + note.length === t) return note;
+    if (at >= t) break;
+    at += note.length;
+  }
+  return undefined;
 }
 
 /** Each note's length in 32nd units, or null if the pattern is malformed. */
