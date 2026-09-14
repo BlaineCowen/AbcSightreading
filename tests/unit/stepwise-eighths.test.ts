@@ -108,9 +108,18 @@ describe("stepwise eighths in a whole exercise", () => {
       // fixed, and holding the step there failed 7 exercises in 40 - so the
       // cadential leap stays behind it. And build-chord-notes' deadlock escape
       // is best-effort by design (see the comment at its pool pick): narrowing
-      // it removes the escape. Measured at 2-3.5% of short notes, against ~50%
-      // before; the bound is loose because 20 exercises is a small sample.
-      expect(bassSkips / shortNotes).toBeLessThan(0.08);
+      // it removes the escape.
+      //
+      // That escape used to be where nearly all of this came from. Its pool is
+      // the root and the third, which from where the bass actually is, is often
+      // a third away or more; with nothing within a step it fell through to
+      // "nearest", which is unbounded. Offering the fifth - only the notes that
+      // satisfy the rule - took this from 2-3.5% of short notes to 0.3-0.75%,
+      // and at UIL 5 from 51 skips in 57 exercises to 2. The bound is 0.015
+      // rather than zero because the escape is still allowed to fire when no
+      // fifth is within a step either, and because 20 exercises is a small
+      // sample; it was 0.08.
+      expect(bassSkips / shortNotes).toBeLessThan(0.015);
     },
     30000
   );

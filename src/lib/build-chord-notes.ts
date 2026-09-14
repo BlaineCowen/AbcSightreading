@@ -1142,6 +1142,44 @@ export function buildChordNotes(
                   }
                 }
               }
+              // Beside an eighth the bass must step or repeat, and the pool
+              // above is the root and the third only - which from where the
+              // bass actually is, is often a third away or more. EVERY skip
+              // left in a stepwise-eighths exercise came from here: with
+              // nothing within a step, the choice below falls through to
+              // "nearest", which is unbounded, and writes the skip. Measured at
+              // UIL 5, all 51 violations in 57 exercises were in the bass, and
+              // decoration contributed none of them.
+              //
+              // So offer the fifth - but only the notes that satisfy the rule.
+              // A second inversion is a far smaller price than a skip off an
+              // eighth, which is the same trade the chromatic escape above
+              // already makes for the same reason. Nothing is removed and
+              // nothing is forced: if no fifth is within a step either, the
+              // fallback still fires and the escape still escapes.
+              if (
+                bassSkip === 1 &&
+                prevBassNote &&
+                !prevBassNote.rest &&
+                !altNotes.some(
+                  (n) => Math.abs(n.pitchValue - prevBassNote.pitchValue) <= 1
+                )
+              ) {
+                const chromDeg =
+                  currentChord.sharpScaleDegree ?? currentChord.flatScaleDegree;
+                const fifth = currentChord.triadNotes[2];
+                if (fifth !== undefined) {
+                  const stepwiseFifths = bassPartInfo.possibleNotes.filter(
+                    (n) =>
+                      n.degree === fifth &&
+                      n.degree !== chromDeg &&
+                      Math.abs(n.pitchValue - prevBassNote.pitchValue) <= 1 &&
+                      n.pitchValue >= bassPartInfo.range[0] &&
+                      n.pitchValue <= bassPartInfo.range[1]
+                  );
+                  altNotes = [...altNotes, ...stepwiseFifths];
+                }
+              }
               if (altNotes.length > 0) {
                 // This substitution exists to escape ordering deadlocks, but it
                 // was picking at random with no regard for how far the bass had
