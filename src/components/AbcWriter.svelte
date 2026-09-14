@@ -289,9 +289,20 @@
     {/if}
   </div>
 
-  <!-- Parts beside the score -->
+  <!--
+    Parts beside the score, each pane scrolling on its own.
+
+    A single page scroll meant the score slid away exactly when it was wanted -
+    while typing into a part further down. The score pane was sticky, which
+    pinned its top but gave no way to reach the bottom of a long score.
+
+    So both panes are capped at the viewport height and scroll inside it: type
+    in one, follow along in the other, neither moving the other. Only from `lg`
+    up, where the two sit side by side - stacked on a narrow screen the page
+    scroll is the natural one.
+  -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-    <div class="space-y-3">
+    <div class="space-y-3 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2">
       {#each voiceIds as id (id)}
         <div class="bg-white rounded-lg shadow-md p-3 space-y-1">
           <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -325,8 +336,11 @@
       </div>
     </div>
 
-    <div class="bg-white rounded-lg shadow-md p-3 space-y-2 lg:sticky lg:top-20">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Score</p>
+    <div class="bg-white rounded-lg shadow-md p-3 space-y-2 lg:sticky lg:top-20
+                lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 sticky top-0 bg-white pb-1">
+        Score
+      </p>
       <div bind:this={paperEl} class="w-full"></div>
       {#each warnings as warning}
         <p class="text-xs text-amber-700">{warning}</p>
