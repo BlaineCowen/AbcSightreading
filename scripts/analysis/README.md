@@ -66,3 +66,27 @@ Two things that fooled me on the way, both recorded so they are not repeated:
   and the data refused it: new chords begin on beat 1 or 3 in 38% of the
   transcription against 51% of ours. Ours is the more metrically aligned of the
   two.
+
+## Decoration in two voices at once
+
+`tandem_nct.py` asks how often two parts decorate together, and whether the
+pair is a figure or a coincidence. Measured over the transcription against 25
+generated UIL 5 exercises:
+
+|  | transcription | generated |
+|---|---|---|
+| moments with 2+ voices decorating | 51.1% | 56.5% |
+| of two-voice pairs: parallel, consonant | 45.5% | 64.4% |
+| contrary, consonant | 27.3% | 28.1% |
+| **both voices suspended** | **18.2%** | **0.0%** |
+
+We already decorate in tandem more often than the real music does, and our
+pairs are consonant - the clash check sees to that. The one figure we never
+produce is the **double suspension**: two voices held over the barline together
+and resolving down in parallel, as at m15 where soprano A-flat to G and alto F
+to E-flat make a 9-8 and 4-3 pair. Zero in 160 two-voice moments.
+
+That is a shape, not a frequency. Each voice is decorated independently, so two
+suspensions coinciding would need both draws to pick the same figure on the same
+beat and both to survive their checks; it does not happen by chance at these
+weights.
