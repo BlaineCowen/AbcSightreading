@@ -102,8 +102,19 @@ describe("stepwise eighths in a whole exercise", () => {
       // Guard against a vacuous pass: the level's rhythms and the decoration
       // have to have produced eighths for the rule to have been tested at all.
       expect(shortNotes).toBeGreaterThan(100);
-      // The upper voices hold the rule outright.
-      expect(upperSkips).toBe(0);
+      // The upper voices used to hold the rule outright, and that assertion was
+      // right up until the option became the default. Held as a hard filter,
+      // the step limit could empty a voice's candidate list - three treble
+      // parts at UIL 5 in a minor key, sixteen bars, have nowhere to step to -
+      // and the whole exercise then failed. Over the full sweep that was 599
+      // failures in 22,068; letting the limit yield to the ordinary maxSkip
+      // makes it 389, and 286 affected cells become 212.
+      //
+      // So the contract is now the same for every voice: prefer the step, take
+      // the skip rather than fail. Measured at 0.5-1.3% of short notes, against
+      // 37% with the option off; the bound is 3% because 20 exercises is a
+      // small sample.
+      expect(upperSkips / shortNotes).toBeLessThan(0.03);
       // The bass keeps two deliberate exceptions. At a cadence the chord is
       // fixed, and holding the step there failed 7 exercises in 40 - so the
       // cadential leap stays behind it. And build-chord-notes' deadlock escape

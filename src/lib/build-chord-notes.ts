@@ -300,7 +300,28 @@ export function buildChordNotes(
      *  arrived at `previousNote` by a leap and now owes a step. */
     noteBeforePrevious?: VoiceNote,
     /** At a cadence the leap surcharge stands down - see below. */
-    isCadenceStep?: boolean
+    isCadenceStep?: boolean,
+    /**
+     * How far this voice may move when the step limit cannot be met.
+     *
+     * The stepwise-eighths limit is 1, and in a crowded texture - three treble
+     * voices at UIL 5, sixteen bars, a minor key - a chord tone within a step of
+     * where the voice already is does not always exist. Held as a hard filter
+     * that emptied the list, which failed the step, then the attempt, then the
+     * whole exercise.
+     *
+     * A filter that can leave a step unsatisfiable is the shape of bug this
+     * project keeps finding, and the answer has been the same every time. This
+     * one yields: the voice takes the ordinary maxSkip instead, one eighth is
+     * approached by a third, and the exercise exists.
+     *
+     * Measured over the full sweep with the option on: failures 599 (2.71%) ->
+     * 389 (1.76%) and cells with any failure 286 -> 212, against short notes
+     * approached or left by skip going 0.3% -> 1.1%. Worth it - a skip is a
+     * blemish on one note, a failure is no exercise at all - and 1.1% is still
+     * against 37% with the option off entirely.
+     */
+    fallbackSkip?: number
   ): Note | null {
     // Get all notes in range
     let validNotes = voicePart.possibleNotes.filter(
@@ -471,9 +492,18 @@ export function buildChordNotes(
 
     // Max-skip voice leading
     if (previousNote && !previousNote.rest) {
-      validNotes = validNotes.filter(
-        (note) => Math.abs(note.pitchValue - previousNote.pitchValue) <= maxSkip
-      );
+      const within = (limit: number) =>
+        validNotes.filter(
+          (note) => Math.abs(note.pitchValue - previousNote.pitchValue) <= limit
+        );
+      const closest = within(maxSkip);
+      // Best-effort when a wider skip is available to fall back to - see
+      // `fallbackSkip`. With none given this is the old hard filter, so every
+      // caller that does not pass one behaves exactly as before.
+      validNotes =
+        closest.length > 0 || fallbackSkip === undefined || fallbackSkip <= maxSkip
+          ? closest
+          : within(fallbackSkip);
       // And no sevenths, whatever maxSkip permits. Best-effort: a seventh is
       // bad, but an unsatisfiable step is worse, so it yields if it would empty
       // the list.
@@ -1394,7 +1424,8 @@ export function buildChordNotes(
                   | VoiceNote
                   | undefined,
                 (rhythm as any).isCadenceEnd === true ||
-                  (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true
+                  (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true,
+                maxSkip
               );
 
               if (!selectedNote) {
