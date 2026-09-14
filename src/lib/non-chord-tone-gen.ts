@@ -2,7 +2,7 @@
 // neighbor tones, anticipations, and appoggiaturas. Key-aware accidentals
 // and parallel-motion checking are applied before committing each NCT.
 
-import { isSingableInterval } from "./leap-recovery";
+import { isSingableInterval, isShortSung } from "./leap-recovery";
 import type { VoiceNote, Rhythm } from "./types";
 import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
@@ -454,6 +454,35 @@ function figureIsSingable(
 }
 
 /**
+ * Does a figure skip into or out of a short note?
+ *
+ * With `stepwiseEighths` an eighth moves by step or repeat. Most decorations
+ * already do - passing, neighbour, suspension, anticipation - and the two that
+ * leap are the appoggiatura (leapt into) and the escape tone (leapt out of).
+ * Those are refused on eighths and kept on quarters, where the leap is fine;
+ * deleting the types outright would lose the quarter-note ones for nothing.
+ *
+ * `prev` is the note actually written before the figure and `next` the one
+ * after it, rests included - a rest breaks the line, so the note beside it is
+ * free. A mirrored decoration passes through here too, so its exit is checked.
+ */
+function leapsAroundShortNote(
+  figure: VoiceNote[],
+  prev: VoiceNote | null,
+  next: VoiceNote | null
+): boolean {
+  const chain = [prev, ...figure, next];
+  for (let k = 1; k < chain.length; k++) {
+    const a = chain[k - 1];
+    const b = chain[k];
+    if (!a || !b || a.rest || b.rest) continue;
+    if (!isShortSung(a) && !isShortSung(b)) continue;
+    if (Math.abs(a.pitchValue - b.pitchValue) > 1) return true;
+  }
+  return false;
+}
+
+/**
  * Every rule a decoration has to pass, in one place.
  *
  * There are two ways a figure reaches the score - the generators below, and
@@ -476,9 +505,14 @@ function figureRejection(
   key: string,
   voiceRange: [number, number] | undefined,
   prevNote: VoiceNote | null,
-  nextNote: VoiceNote | null
+  nextNote: VoiceNote | null,
+  /** The notes either side, when eighths must move by step; null otherwise. */
+  around: { prev: VoiceNote | null; next: VoiceNote | null } | null = null
 ): string | null {
   if (!figure || figure.length === 0) return "empty figure";
+  if (around && leapsAroundShortNote(figure, around.prev, around.next)) {
+    return "eighth note approached or left by skip";
+  }
   if (!figureInRange(figure, voiceRange)) return "out of range";
   if (!figureIsSingable(figure, prevNote, nextNote)) return "unsingable interval";
   if (
@@ -520,7 +554,9 @@ export function generateNonChordTones(
    * be known. Without it the suspension rule below stands down - the pass has
    * never had any idea where in the bar it was working.
    */
-  tsPerMeasure?: number
+  tsPerMeasure?: number,
+  /** Refuse any figure that skips into or out of an eighth. See generateChoral. */
+  stepwiseEighths: boolean = false
 ): VoiceNote[] {
   const outputNotes: VoiceNote[] = [];
 
@@ -580,6 +616,14 @@ export function generateNonChordTones(
     // Determine the next note (for pre-cadence check)
     const nextChordNote = notesToProcess[i + 1] ?? null;
 
+    // The previous note is what was actually written, which after a decoration
+    // is that figure's last note rather than notesToProcess[i - 1] - an
+    // appoggiatura here starts a step off its chord tone, and it is that pitch
+    // the eighth before it has to step to.
+    const around = stepwiseEighths
+      ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote }
+      : null;
+
     // Skip:
     //  - rests
     //  - the first chord (i === 0) - phrase openings must be pure chord tones
@@ -613,7 +657,7 @@ export function generateNonChordTones(
     );
     if (mirrored) {
       const why = figureRejection(
-        mirrored, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote
+        mirrored, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around
       );
       if (!why) {
         if (originalNote.chordSymbol) mirrored[0].chordSymbol = originalNote.chordSymbol;
@@ -692,7 +736,7 @@ export function generateNonChordTones(
     });
 
     const why = figureRejection(
-      generatedNctNotes, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote
+      generatedNctNotes, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around
     );
     if (why) {
       console.log(`NCT_GEN: ${why} - keeping original note at ${i}.`);

@@ -244,6 +244,8 @@
   };
   let nctProbability = 0.1;
   let accidentalsByStep = true;
+  /** Eighths approached and left by step or repeat - see generateChoral. */
+  let stepwiseEighths = false;
   let chromaticFrequency = 1;
 
   /**
@@ -441,7 +443,7 @@
   // ── Non-default badge logic ────────────────────────────────────────────────
   const DEFAULTS = {
     voicing: '4 Part Mixed', key: 'C', timeSig: '4/4', measures: 8,
-    maxSkip: 4, nctProbability: 0.1,
+    maxSkip: 4, nctProbability: 0.1, stepwiseEighths: false,
     voiceTexture: 'full',
     rhythmNames: ['quarter', 'half', 'dotHalf'],
   };
@@ -454,6 +456,7 @@
     JSON.stringify([...DEFAULTS.rhythmNames].sort()) ||
     Object.keys(rhythmBias).length > 0;
   $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
+    stepwiseEighths !== DEFAULTS.stepwiseEighths ||
     userAllowedChords.size !== currentModeChordNames.length;
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
@@ -840,6 +843,7 @@
     selectedRhythms = allRhythms.filter((r) => p.selectedRhythmNames.includes(r.name));
     userAllowedChords = withInversions(p.allowedChordNames ?? allChordNames);
     nctProbability = p.nctProbability;
+    if (typeof p.stepwiseEighths === 'boolean') stepwiseEighths = p.stepwiseEighths;
     // Optional, so presets saved before voice texture existed still load.
     if (isVoiceTextureMode(p.voiceTexture)) voiceTexture = p.voiceTexture;
     rhythmBias = p.rhythmBias ? { ...p.rhythmBias } : {};
@@ -869,6 +873,7 @@
       selectedRhythmNames: selectedRhythms.map((r) => r.name),
       allowedChordNames: userAllowedChords.size < allChordNames.length ? Array.from(userAllowedChords) : undefined,
       nctProbability,
+      stepwiseEighths,
       voiceTexture,
       rhythmBias,
       voiceRanges: Object.fromEntries(
@@ -1319,6 +1324,7 @@
       chords: fullChordSet,
       accidentalsByStep,
       nctProbability,
+      stepwiseEighths,
       voiceTexture,
       rhythmBias,
       chromaticFrequency,
@@ -1833,7 +1839,7 @@
                 <span class="text-xs text-slate-500">Heavy</span>
                 <span class="text-sm font-semibold">{Math.round(nctProbability * 100)}%</span>
               </div>
-              <p class="text-xs text-slate-400">Passing · Neighbor · Anticipation · Appoggiatura</p>
+              <p class="text-xs text-slate-400">Passing · Neighbor · Suspension · Anticipation · Appoggiatura · Escape</p>
             </div>
 
             <!-- Accidentals by Step -->
@@ -1843,6 +1849,15 @@
                 Chromatic tones approached &amp; resolved by step
               </label>
               <p class="text-xs text-slate-400">Sharps resolve up · Flats resolve down</p>
+            </div>
+
+            <!-- Stepwise eighths -->
+            <div class="space-y-1">
+              <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input type="checkbox" bind:checked={stepwiseEighths} class="accent-blue-500" />
+                Eighth notes move by step
+              </label>
+              <p class="text-xs text-slate-400">Stepwise or repeated - no skips into or out of an eighth</p>
             </div>
 
             <!-- Max Skip -->

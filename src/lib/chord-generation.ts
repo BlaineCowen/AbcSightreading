@@ -3,6 +3,7 @@ import { noteArray } from "../resources/noteArray";
 import {
   leapRecoveryCost,
   isSingableInterval,
+  isShortSung,
   BASS_RECOVERY,
 } from "./leap-recovery";
 import { keySignatures } from "../resources/key-signatures";
@@ -92,7 +93,13 @@ export function generateChordProgression(
   finalRhythms: RhythmWithPattern[],
   selectedCadences: Cadence[],
   accidentalsByStep: boolean = false,
-  chromaticFrequency: number = 1
+  chromaticFrequency: number = 1,
+  /**
+   * The bass holds one pitch across a pattern, so its eighths can only skip at
+   * the pattern's edges: arriving at one that opens it, or leaving one that
+   * closes it. With this on, both of those bass moves are a step or a repeat.
+   */
+  stepwiseEighths: boolean = false
 ): { progression: Chord[]; bassLine: Note[] } {
   console.log(
     "\n=== Starting Chord Progression Generation (with Cadences) ==="
@@ -126,6 +133,14 @@ export function generateChordProgression(
     }
   });
   const actualNumChords = chordIndicesMap.length;
+
+  // The bass holds chord i's note through that chord's whole pattern, so it is
+  // the pitch of any eighth that opens the pattern (arrived at here) and the
+  // pitch the last eighth of the previous pattern is left for.
+  const besideEighthAt = (i: number) =>
+    stepwiseEighths &&
+    (isShortSung(finalRhythms[chordIndicesMap[i]]) ||
+      isShortSung(finalRhythms[chordIndicesMap[i] - 1]));
   if (actualNumChords === 0)
     throw new Error("No chord positions found in rhythm array.");
   if (actualNumChords !== length) {
@@ -575,6 +590,28 @@ export function generateChordProgression(
               }
             }
 
+            // Beside an eighth the bass has to step, and choosing the chord
+            // first and only then asking for its bass was what failed: 7 in 40
+            // at UIL 5, every one "Cannot find bass note". So prefer chords whose
+            // bass can step here, asking findValidBassNote itself so the answer
+            // follows the same inversion and chromatic rules as the real pick.
+            // Best-effort, like every filter above it.
+            if (besideEighthAt(i)) {
+              const stepReachable = possibleNextChords.filter(
+                (c) =>
+                  findValidBassNote(
+                    c,
+                    bassRange,
+                    prevBassNote,
+                    1,
+                    key,
+                    accidentalsByStep,
+                    forcedNextBassPitch
+                  ) !== null
+              );
+              if (stepReachable.length > 0) possibleNextChords = stepReachable;
+            }
+
             // Select from possibilities (weighted random).
             // Boost chromatic chord weights by chromaticFrequency multiplier.
             const validPossibilities = prevChord.nextChordPossibilities
@@ -608,30 +645,40 @@ export function generateChordProgression(
           // to the same stepwise maxSkip that governs the middle of phrases
           // (Aldwell/Schachter: "bass lines are often quite disjunct, particularly
           // at the ends of phrases").
-          const effectiveMaxSkip = constraint ? 7 : maxSkip;
-          currentBassNote = findValidBassNote(
-            targetChord,
-            bassRange,
-            prevBassNote,
-            effectiveMaxSkip,
-            key,
-            accidentalsByStep,
-            forcedNextBassPitch,
-            !!constraint,
-            bassLine.reduce(
-              (spent, n) =>
-                spent +
-                (n.pitchValue >= bassRange[1] - 1 ||
-                n.pitchValue <= bassRange[0] + 1
-                  ? 1
-                  : 0),
-              0
-            ),
-            // prevBassNote is bassLine[i - 1], so the note before it indexes
-            // the same way - counting from the end would be a different note
-            // whenever the line is not filled exactly to i.
-            bassLine[i - 2]
-          );
+          const chordForBass = targetChord;
+          const bassWithin = (skip: number) =>
+            findValidBassNote(
+              chordForBass,
+              bassRange,
+              prevBassNote,
+              skip,
+              key,
+              accidentalsByStep,
+              forcedNextBassPitch,
+              !!constraint,
+              bassLine.reduce(
+                (spent, n) =>
+                  spent +
+                  (n.pitchValue >= bassRange[1] - 1 ||
+                  n.pitchValue <= bassRange[0] + 1
+                    ? 1
+                    : 0),
+                0
+              ),
+              // prevBassNote is bassLine[i - 1], so the note before it indexes
+              // the same way - counting from the end would be a different note
+              // whenever the line is not filled exactly to i.
+              bassLine[i - 2]
+            );
+          // Beside an eighth the bass steps. Away from a cadence that is a
+          // rule - a chord whose bass cannot step is refused and another
+          // drawn. At a cadence the chord is fixed, and holding the rule there
+          // was every failure it caused (7 in 40 at UIL 5, all "Cannot find
+          // bass note for forced cadence chord"), so there the step is only
+          // preferred and the cadential leap stays available behind it.
+          currentBassNote = besideEighthAt(i)
+            ? bassWithin(1) ?? (constraint ? bassWithin(7) : null)
+            : bassWithin(constraint ? 7 : maxSkip);
 
           if (currentBassNote) {
             console.log(

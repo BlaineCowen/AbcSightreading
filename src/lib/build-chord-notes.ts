@@ -12,6 +12,7 @@ import {
   isLeap,
   isSingableInterval,
   leapRecoveryCost,
+  isShortSung,
   LEAP_SURCHARGE,
   UPPER_VOICE_RECOVERY,
 } from "./leap-recovery";
@@ -165,8 +166,19 @@ export function buildChordNotes(
   bassLine: Note[],
   maxSkip: number,
   accidentalsByStep: boolean,
-  presetSoprano?: VoiceNote[]
+  presetSoprano?: VoiceNote[],
+  /** Eighths and shorter are approached and left by step or repeat. */
+  stepwiseEighths: boolean = false
 ): VoiceNote[][] {
+  /**
+   * How far a voice may move into this step. Within a pattern the chord does
+   * not change, so an eighth limited to a step can only repeat (or, in a 7th
+   * chord, move between root and 7th); the note after it has to step off.
+   * Every triad has a tone within a step of any pitch, so this narrows the
+   * search rather than emptying it, and backtracking handles the rest.
+   */
+  const skipInto = (rhythm: Rhythm, previous: VoiceNote | undefined, maxSkip: number) =>
+    stepwiseEighths && (isShortSung(rhythm) || isShortSung(previous)) ? 1 : maxSkip;
   const keyInfo = keySignatures[key];
   if (!keyInfo) throw new Error(`Key signature not found for key: ${key}`);
 
@@ -982,10 +994,13 @@ export function buildChordNotes(
             // has to be re-picked exactly like a retry.
             const prevBassNote =
               bassPartInfo.chordNotes[bassPartInfo.chordNotes.length - 1];
+            // chord-generation already stepped the bass off its eighths; a
+            // re-pick here has to keep to that or it undoes it.
+            const bassSkip = skipInto(rhythm, prevBassNote, maxSkip);
             const unreachableFromPrev =
               prevBassNote !== undefined &&
               !prevBassNote.rest &&
-              (Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) > maxSkip ||
+              (Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) > bassSkip ||
                 // A seventh is unreachable too, whatever maxSkip permits - and
                 // at UIL 5, maxSkip is 6, which IS a seventh, so the width test
                 // above waves it straight through. This is the only place a
@@ -1146,7 +1161,7 @@ export function buildChordNotes(
                   // candidates there too before giving up.
                   const within = altNotes.filter(
                     (n) =>
-                      distance(n) <= maxSkip &&
+                      distance(n) <= bassSkip &&
                       isSingableInterval(n.pitchValue, prevBassNote.pitchValue)
                   );
                   const singableAlts = altNotes.filter((n) =>
@@ -1328,7 +1343,11 @@ export function buildChordNotes(
                 currentChord,
                 usedTriadDegrees,
                 otherVoiceNotes,
-                maxSkip,
+                skipInto(
+                  rhythm,
+                  voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
+                  maxSkip
+                ),
                 voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
                 accidentalsByStep,
                 otherVoicesPrev,

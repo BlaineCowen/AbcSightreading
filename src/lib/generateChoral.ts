@@ -75,6 +75,17 @@ export interface GenerateChoralParams {
    * here, so there was no way to ask which decoration a given fault came from.
    */
   enabledNctTypes?: string[];
+  /**
+   * Eighth notes (and anything shorter) are approached and left by step or by
+   * a repeated pitch - never by skip. That is how choral sight-reading writes
+   * them: the skips go on the longer notes. Unset leaves the old behaviour, in
+   * which a pattern's eighths arpeggiated its chord.
+   *
+   * Applies to the voice-leading search (upper voices and bass) and to
+   * decoration, where it refuses any figure that leaps next to a short note -
+   * an appoggiatura or escape tone on eighths, not on quarters.
+   */
+  stepwiseEighths?: boolean;
 }
 
 /**
@@ -323,7 +334,8 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       finalRhythms,
       selectedCadences,
       accidentalsByStep,
-      chromaticFrequency
+      chromaticFrequency,
+      params.stepwiseEighths ?? false
     );
     chordProgression = result.progression;
     bassLine = result.bassLine;
@@ -341,7 +353,9 @@ export function generateChoralExercise(params: GenerateChoralParams): {
         voiceParts,
         bassLine,
         maxSkip,
-        accidentalsByStep
+        accidentalsByStep,
+        undefined,
+        params.stepwiseEighths ?? false
       );
       console.log(`  Built notes for ${voiceNotes.length} voices.`);
       break; // success
@@ -382,7 +396,8 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       // Decoration has to stay inside the singer's range like everything else.
       voiceParts[index]?.range,
       // ...and needs to know where in the bar it is, for the suspension rule.
-      timeSig.tsPerMeasure
+      timeSig.tsPerMeasure,
+      params.stepwiseEighths ?? false
     );
   });
   console.log(`  Finished NCT generation.`);

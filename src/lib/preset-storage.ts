@@ -13,6 +13,8 @@ export interface PresetParams {
   selectedRhythmNames: string[];
   allowedChordNames: string[] | undefined;
   nctProbability: number;
+  /** Eighths move by step or repeat. Optional, for presets saved before it. */
+  stepwiseEighths?: boolean;
   /** Whether parts may enter late or drop out. Optional: presets saved before
    *  this existed must still load. */
   voiceTexture?: "full" | "staggered" | "independent";

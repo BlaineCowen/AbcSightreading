@@ -22,6 +22,28 @@ import { ClefType } from "../src/lib/types";
 
 const RUNS = Number(process.env.RUNS ?? 12);
 
+/** STEPWISE_EIGHTHS=1 sweeps with eighths held to steps and repeats. */
+const STEPWISE = process.env.STEPWISE_EIGHTHS === "1";
+
+/**
+ * Not a failure, a quality: how many short notes (an eighth or less) are
+ * approached or left by skip, across the choral exercises that generated. With
+ * STEPWISE_EIGHTHS it should be zero; without, it is the baseline. A rest
+ * breaks the line, so the note beside one is not counted against.
+ */
+const shortTally = { notes: 0, skipped: 0 };
+function tallyShortNotes(voices: any[][]) {
+  for (const voice of voices) {
+    for (let k = 0; k < voice.length; k++) {
+      const n = voice[k];
+      if (n.rest || n.length > 4) continue;
+      shortTally.notes++;
+      const skips = (m: any) => m && !m.rest && Math.abs(m.pitchValue - n.pitchValue) > 1;
+      if (skips(voice[k - 1]) || skips(voice[k + 1])) shortTally.skipped++;
+    }
+  }
+}
+
 /**
  * The generator narrates itself at length - every note, every retry. That is
  * useful when chasing one exercise and ruinous across thousands: it dominated
@@ -118,13 +140,13 @@ for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
         }
         for (const key of preset.allowedKeys) {
           run(`${levelName} | ${voicingName} | ${key} | ${tsName} | ${measures}m`, () => {
-            generateChoralExercise({
+            tallyShortNotes(generateChoralExercise({
               key, timeSig, partsObject, measures,
               maxSkip: preset.maxSkip, bpm: 72, selectedRhythms: usable,
               chords: fullChordSet, accidentalsByStep: true, nctProbability: 0.25,
               chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames,
-              voiceTexture: "full",
-            } as any);
+              voiceTexture: "full", stepwiseEighths: STEPWISE,
+            } as any).voiceNotes);
           });
         }
       }
@@ -146,6 +168,7 @@ for (const voiceTexture of ["full", "staggered", "independent"]) {
         maxSkip: l5.maxSkip, bpm: 72, selectedRhythms: usable, chords: fullChordSet,
         accidentalsByStep: true, nctProbability: 0.25, chromaticFrequency: 3,
         allowedChordNames: l5.allowedChordNames, voiceTexture,
+        stepwiseEighths: STEPWISE,
       } as any);
     });
   }
@@ -186,6 +209,11 @@ realLog("\n=== SWEEP ===");
 realLog(`${cells.length} cells, ${totalRuns} exercises, ${RUNS} per cell`);
 realLog(`failures: ${totalFails} (${((totalFails / totalRuns) * 100).toFixed(2)}%)`);
 realLog(`cells with any failure: ${bad.length}`);
+realLog(`stepwise eighths: ${STEPWISE ? "on" : "off"}`);
+realLog(
+  `short notes: ${shortTally.notes}, approached/left by skip: ${shortTally.skipped} ` +
+    `(${((shortTally.skipped / Math.max(shortTally.notes, 1)) * 100).toFixed(1)}%)`
+);
 if (bad.length) {
   realLog("\nworst cells:");
   for (const c of bad.slice(0, 25)) {

@@ -121,3 +121,23 @@ export function isSingableInterval(a: number, b: number): boolean {
   if (gap === 6) return false; // a seventh
   return gap <= 7; // up to and including the octave
 }
+
+/**
+ * A sung note an eighth or shorter - the notes that, with `stepwiseEighths`,
+ * move by step or repeat and never skip.
+ *
+ * Choral sight-reading almost never skips into or out of an eighth; ours did,
+ * measured at 52-57% of short notes with decoration off, because a pattern is
+ * sung over one chord and each of its notes was re-picked from that chord's
+ * tones - a third apart at the least. A rest is not a note: the note after one
+ * may be approached freely, which is what `eighthRestEighth` needs.
+ *
+ * Takes a VoiceNote (`length`) or a Rhythm step (`totalValue`), both in 32nds.
+ */
+export function isShortSung(
+  note: { rest?: boolean; length?: number; totalValue?: number } | null | undefined
+): boolean {
+  if (!note || note.rest) return false;
+  const len = note.length ?? note.totalValue;
+  return len !== undefined && len > 0 && len <= 4;
+}
