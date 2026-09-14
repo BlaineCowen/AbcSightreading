@@ -9,6 +9,7 @@
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
+  import { failureHint, type PartSpan } from "../lib/failure-hint";
   import {
     canAppearInChoral,
     containsRest,
@@ -252,25 +253,22 @@
   let generationError: string | null = null;
 
   /** The likeliest thing to change, given what is actually set. */
-  function failureHint(): string {
-    const parts = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {});
-    const narrowest = Math.min(
-      ...parts.map((p: any) => p.currentRange[1] - p.currentRange[0])
+  /** The parts as the hint module wants them: a name and a current range. */
+  function partSpans(): PartSpan[] {
+    return Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {}).map(
+      ([name, p]: [string, any]) => ({ name, range: [...p.currentRange] as [number, number] })
     );
-    if (parts.length >= 3 && measures >= 16) {
-      return "Sixteen bars in three or more close parts is the hardest thing to ask for. Try 8 bars, or give a voice more room under Voice Ranges.";
-    }
-    if (parts.length >= 3 && narrowest <= 8) {
-      return "The voices are packed close together. Widening one of them under Voice Ranges usually does it.";
-    }
-    if (userAllowedChords.size <= 4) {
-      return "With this few chords there may be nowhere left for the bass to go. Switching one more on under Harmony usually does it.";
-    }
-    if (maxSkip <= 2) {
-      return "A largest leap of a third leaves the parts very little room. Raising it by one usually does it.";
-    }
-    return "The search is random, so pressing Generate again often works. If it keeps failing, widen a voice range or switch on another chord.";
   }
+
+  function currentFailureHint(): string {
+    return failureHint({
+      parts: partSpans(),
+      measures,
+      chordCount: userAllowedChords.size,
+      maxSkip,
+    });
+  }
+
   let chordProgression: Chord[] = [];
   let renderedString = "";
   /**
@@ -1371,7 +1369,7 @@
     } catch (error: unknown) {
       // Kept for the console; the banner is what the reader gets.
       console.error("Error generating exercise:", error);
-      generationError = failureHint();
+      generationError = currentFailureHint();
     } finally {
       isGenerating = false;
     }
