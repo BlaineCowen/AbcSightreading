@@ -36,5 +36,8 @@
     "test": "bun test --timeout 30000 tests/unit",
     "sweep": "bun run scripts/sweep.ts"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.5.1"
+  }
 }
