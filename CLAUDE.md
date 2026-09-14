@@ -101,11 +101,17 @@ approached or left by skip - 37.2% on that run. `STEPWISE_EIGHTHS=1` sweeps with
 the stepwise-eighths option on, which brings that to 0.3% (658 short notes out
 of 258,139) but costs 599 failures (2.71%) across 286 cells, clustered in
 16-measure exercises at UIL 5, all "Failed to build valid notes after max
-attempts". That failure rate is why the option is still off by default - it is
-the whole cost, and the rule itself now holds: it was 3.3% until
-build-chord-notes' deadlock escape was given the fifth to reach for (see the
-comment at its pool pick). Every violation that remained was in the bass, and
-none of them came from decoration.
+attempts". The rule itself holds: it was 3.3% until build-chord-notes' deadlock
+escape was given the fifth to reach for (see the comment at its pool pick), and
+every violation that remained was in the bass - none came from decoration.
+
+**The option is now ON by default**, so that failure rate is live: the worst
+cells are UIL 5 at sixteen bars in a crowded voicing (three treble parts, minor
+keys), up to 75%, and those are selectable from the menus. `failureHint` names
+the option first when it fires there. Two attempts at making the search cope
+instead were measured and reverted - a stepwise-continuation lookahead did
+nothing, and making the step limit best-effort made failures worse and broke the
+property that the upper voices hold the rule outright.
 
 ## Tech Stack
 
