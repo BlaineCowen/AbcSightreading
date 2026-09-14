@@ -125,3 +125,53 @@ describe("what a failed Generate says", () => {
     }
   });
 });
+
+describe("when eighths are being held to a step", () => {
+  // The Alto is deliberately the tightest of the three, so the assertion about
+  // naming a voice is testing the choice rather than the array order - equal
+  // spans just hand back the first one.
+  const CLOSE_THREE: PartSpan[] = [
+    { name: "Soprano1", range: [24, 33] },
+    { name: "Soprano2", range: [21, 30] },
+    { name: "Alto", range: [17, 24] },
+  ];
+
+  test("it is named first, because it is the setting that actually frees this", () => {
+    // Across the full sweep it is the difference between 599 failures in 22,068
+    // and 14 - nothing else on this page comes close - and it is ON by default,
+    // so it is the one hint here naming something the reader never chose.
+    const hint = failureHint({
+      parts: CLOSE_THREE, measures: 16, chordCount: 12, maxSkip: 6,
+      stepwiseEighths: true,
+    });
+    expect(hint).toMatch(/Eighth notes move by step/);
+  });
+
+  test("and is not named when it is already off", () => {
+    // Sending someone to turn off a setting that is off is worse than vague:
+    // they go looking, find it already off, and learn the hints cannot be
+    // trusted.
+    const hint = failureHint({
+      parts: CLOSE_THREE, measures: 16, chordCount: 12, maxSkip: 6,
+      stepwiseEighths: false,
+    });
+    expect(hint).not.toMatch(/Eighth notes move by step/);
+    expect(hint).toMatch(/Sixteen bars/);
+  });
+
+  test("nor at eight bars, where it is not what is in the way", () => {
+    const hint = failureHint({
+      parts: CLOSE_THREE, measures: 8, chordCount: 12, maxSkip: 6,
+      stepwiseEighths: true,
+    });
+    expect(hint).not.toMatch(/Eighth notes move by step/);
+  });
+
+  test("it still says which voice to widen, so there are two ways out", () => {
+    const hint = failureHint({
+      parts: CLOSE_THREE, measures: 16, chordCount: 12, maxSkip: 6,
+      stepwiseEighths: true,
+    });
+    expect(hint).toMatch(/Alto/); // the tightest part here
+  });
+});

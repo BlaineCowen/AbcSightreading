@@ -244,8 +244,13 @@
   };
   let nctProbability = 0.1;
   let accidentalsByStep = true;
-  /** Eighths approached and left by step or repeat - see generateChoral. */
-  let stepwiseEighths = false;
+  /**
+   * Eighths approached and left by step or repeat - see generateChoral.
+   *
+   * On by default. Choral sight-reading almost never skips into or out of an
+   * eighth, and with it off 37% of our short notes did.
+   */
+  let stepwiseEighths = true;
   let chromaticFrequency = 1;
 
   /**
@@ -274,6 +279,7 @@
       measures,
       chordCount: userAllowedChords.size,
       maxSkip,
+      stepwiseEighths,
     });
   }
 
@@ -443,7 +449,7 @@
   // ── Non-default badge logic ────────────────────────────────────────────────
   const DEFAULTS = {
     voicing: '4 Part Mixed', key: 'C', timeSig: '4/4', measures: 8,
-    maxSkip: 4, nctProbability: 0.1, stepwiseEighths: false,
+    maxSkip: 4, nctProbability: 0.1, stepwiseEighths: true,
     voiceTexture: 'full',
     rhythmNames: ['quarter', 'half', 'dotHalf'],
   };

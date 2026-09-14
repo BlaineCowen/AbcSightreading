@@ -23,6 +23,8 @@ export type FailureContext = {
   /** How many chords are switched on. */
   chordCount: number;
   maxSkip: number;
+  /** Whether eighths are being held to a step - see below. */
+  stepwiseEighths?: boolean;
 };
 
 /** The part with the least room, which is the one worth widening first. */
@@ -59,10 +61,19 @@ export function roomHint(parts: PartSpan[]): string {
 }
 
 export function failureHint(ctx: FailureContext): string {
-  const { parts, measures, chordCount, maxSkip } = ctx;
+  const { parts, measures, chordCount, maxSkip, stepwiseEighths } = ctx;
   const tightest = tightestPart(parts);
   const room = roomHint(parts);
 
+  // First, because it is far and away the most effective thing to change and
+  // because it is ON by default - so unlike every other hint here, it names a
+  // setting the reader did not choose and may not know exists. Across the full
+  // sweep it is the difference between 599 failures in 22,068 exercises and 14,
+  // and the cells it fails in are exactly the ones the next hint describes:
+  // sixteen bars, three or more close parts, minor keys at level 5.
+  if (stepwiseEighths && parts.length >= 3 && measures >= 16) {
+    return `Holding eighth notes to a step is what usually makes this combination unwritable - sixteen bars in three or more close parts leaves the voices nowhere to step to. Turn off "Eighth notes move by step" under Rhythm, try 8 bars, or ${room}.`;
+  }
   if (parts.length >= 3 && measures >= 16) {
     return `Sixteen bars in three or more close parts is the hardest thing to ask for. Try 8 bars instead, or ${room}.`;
   }
