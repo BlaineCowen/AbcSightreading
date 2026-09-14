@@ -292,7 +292,13 @@ export const uilPresets: Record<string, UILPreset> = {
       // crowded into a ninth failed 43% of 16-measure exercises, and this one
       // change takes it to nil. Widening it does nothing to 4-Part Mixed,
       // which was already at 0%.
-      Alto: [19, 30],
+      // The alto tops out at D5, not E5. Every other level caps it there, and D5
+      // is the only alto ceiling the UIL document ever states - it gives explicit
+      // MIDI ranges for levels 1 to 3 only, and says merely "fully extended vocal
+      // ranges" here, which had been read as a step higher. An alto section
+      // reading at sight should not be sent to E5; it is the same reasoning that
+      // caps the undivided soprano at F5 at every level.
+      Alto: [19, 29],
       Tenor: [17, 26], Baritone: [14, 25], Bass: [11, 22],
       Unison: [21, 30],
     },

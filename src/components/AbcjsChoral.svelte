@@ -148,11 +148,17 @@
   };
 
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
-  const voiceTextures = ["full", "staggered", "independent"] as const;
+  /**
+   * "Staggered entrances" is gone for now - see voice-texture.ts. It named the
+   * opening entrance and nothing else, and an exercise that begins with one
+   * voice does not begin with the tonic chord: a singer whose part rests
+   * through the first bars reads it as a pickup and waits for a beat that never
+   * comes. A link still carrying it falls back to All voices.
+   */
+  const voiceTextures = ["full", "independent"] as const;
   type TextureMode = (typeof voiceTextures)[number];
   const voiceTextureLabels: Record<TextureMode, string> = {
     full: "All voices",
-    staggered: "Staggered entrances",
     independent: "Independent parts",
   };
   const isVoiceTextureMode = (v: unknown): v is TextureMode =>
@@ -1574,13 +1580,9 @@
               <p class="text-xs text-slate-400">
                 {voiceTexture === "full"
                   ? "Every part sings throughout, apart from rests in the rhythm."
-                  : voiceTexture === "staggered"
-                    ? measures < 8
-                      ? "Parts enter one at a time, lowest first - needs 8 measures or more."
-                      : "Parts enter one at a time, lowest first."
-                    : measures < 12
-                      ? "Entrances, plus parts dropping out - tacet passages need 12 measures or more."
-                      : "Entrances, plus parts dropping out for a few measures at a time."}
+                  : measures < 12
+                    ? "Parts drop out for a few measures at a time - needs 12 measures or more. Every part is there for the opening and the cadence."
+                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
               </p>
             </div>
 

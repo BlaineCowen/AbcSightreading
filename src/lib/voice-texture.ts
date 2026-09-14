@@ -22,13 +22,16 @@ import type { VoiceNote } from "./types";
  * `length` alone.
  */
 
-export type VoiceTexture = "full" | "staggered" | "independent";
+/**
+ * "staggered" is deliberately absent: it named the opening entrance and
+ * nothing else, so with that held back it would be a setting that does
+ * nothing. A saved preset or a shared link still carrying it falls back to
+ * "full" through `isVoiceTexture`, which is the honest result - the exercise
+ * it describes cannot be made at the moment.
+ */
+export type VoiceTexture = "full" | "independent";
 
-export const VOICE_TEXTURES: readonly VoiceTexture[] = [
-  "full",
-  "staggered",
-  "independent",
-];
+export const VOICE_TEXTURES: readonly VoiceTexture[] = ["full", "independent"];
 
 export function isVoiceTexture(value: unknown): value is VoiceTexture {
   return (
@@ -45,8 +48,6 @@ export type VoiceTextureOptions = {
   minSounding?: number;
 };
 
-/** A staggered entrance needs room to be heard as one. */
-const MIN_MEASURES_FOR_ENTRANCES = 8;
 /**
  * A part dropping out mid-piece only reads as scoring on a long enough
  * exercise. On a short one it reads as a mistake, so both the tacet spans and
@@ -105,9 +106,9 @@ function soundingAt(
  * Silence a voice across the given positions, if doing so breaks no rule.
  * Returns whether it happened, so a bad roll costs nothing.
  *
- * `allowSolo` exists for the opening entrance, which is the one place the
- * texture is *meant* to thin below a duet - a staggered entrance begins with a
- * single voice, by definition.
+ * `allowSolo` let the opening entrance thin below a duet, since a staggered
+ * entrance begins with a single voice by definition. Nothing passes it now that
+ * the entrance is held back, but it stays for when that work is done properly.
  */
 function trySilence(
   voiceNotes: VoiceNote[][],
@@ -175,23 +176,19 @@ export function applyVoiceTexture(
   const lastMeasureFrom = (measures - 1) * tsPerMeasure;
   const order = lowestFirst(out);
 
-  // --- Staggered entrance: parts join one at a time, lowest first. ---
-  if (measures >= MIN_MEASURES_FOR_ENTRANCES) {
-    const latest = Math.min(out.length - 1, Math.floor(measures / 4));
-    for (let rank = 1; rank < order.length; rank++) {
-      const entersAt = Math.min(rank, latest);
-      if (entersAt <= 0) continue;
-      trySilence(
-        out,
-        order[rank],
-        positionsInMeasures(starts, tsPerMeasure, 0, entersAt),
-        lastMeasureFrom,
-        starts,
-        minSounding,
-        true // the opening is allowed to be a solo
-      );
-    }
-  }
+  // The staggered entrance is gone for now, and with it the "staggered"
+  // texture it was the whole of.
+  //
+  // Parts joining one at a time means the exercise does not begin with the
+  // tonic chord - it begins with one voice, and a singer looking at a page
+  // where their part rests through the first bars reads that as a pickup and
+  // waits for a beat that never comes. On a sight-reading exercise the opening
+  // sonority is the one thing that should not be ambiguous: it is what tells
+  // the choir where home is. Held out until the texture work is done properly,
+  // which needs per-voice rhythms rather than notes silenced after the fact.
+  //
+  // Everything else here stands: tacet spans and drop-outs happen inside the
+  // exercise, after the opening has done its job.
 
   if (texture !== "independent") return out;
 

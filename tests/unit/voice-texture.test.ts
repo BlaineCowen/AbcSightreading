@@ -56,7 +56,7 @@ describe("voice texture", () => {
     for (let i = 0; i < 200; i++) {
       const input = satb(16);
       const before = totals(input);
-      for (const texture of ["staggered", "independent"] as const) {
+      for (const texture of ["independent"] as const) {
         const out = applyVoiceTexture(input, { texture, measures: 16, tsPerMeasure: TS });
         expect(totals(out)).toEqual(before);
         // silencing replaces notes, never adds or removes them
@@ -65,34 +65,22 @@ describe("voice texture", () => {
     }
   });
 
-  test("parts enter lowest first", () => {
-    // The voice arrays are S, A, T, B but `order` runs 3, 2, 1, 0 - so anything
-    // that reads array position instead of `order` staggers them upside down.
-    let checked = 0;
+  test("nothing enters late - every part is singing from the downbeat", () => {
+    // Parts used to enter one at a time, lowest first. An exercise that begins
+    // with a single voice does not begin with the tonic chord, and a singer
+    // whose part rests through the opening bars reads that as a pickup and
+    // waits for a beat that never comes. Held back until the texture work is
+    // done with per-voice rhythms; this is the guard that it stays held back.
     for (let i = 0; i < 50; i++) {
       const out = applyVoiceTexture(satb(16), {
-        texture: "staggered",
+        texture: "independent",
         measures: 16,
         tsPerMeasure: TS,
       });
-      const entersAt = out.map((v) => {
-        let t = 0;
-        for (const n of v) {
-          if (!n.rest) return t;
-          t += n.length;
-        }
-        return Infinity;
-      });
-      const byOrder = out
-        .map((v, idx) => ({ order: v[0].order!, at: entersAt[idx] }))
-        .sort((a, b) => a.order - b.order);
-      for (let k = 1; k < byOrder.length; k++) {
-        expect(byOrder[k].at).toBeGreaterThanOrEqual(byOrder[k - 1].at);
+      for (const voice of out) {
+        expect(voice[0].rest).toBe(false);
       }
-      expect(byOrder[0].at).toBe(0); // the bass is there from the start
-      checked++;
     }
-    expect(checked).toBe(50);
   });
 
   test("never drops below a duet once everyone has entered", () => {
