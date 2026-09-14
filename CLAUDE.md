@@ -98,13 +98,14 @@ in 22,068 exercises (0.06%), worst cell 25%.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
 approached or left by skip - 37.2% on that run. `STEPWISE_EIGHTHS=1` sweeps with
-the stepwise-eighths option on, which brings that to 0.2% but costs 624 failures
-(2.83%) across 307 cells, clustered in 16-measure exercises at UIL 5, all
-"Failed to build valid notes after max attempts". That failure rate is why the
-option is still off by default - it is the whole cost, and the rule itself now
-holds: 0.2% was 3.3% until build-chord-notes' deadlock escape was given the
-fifth to reach for (see the comment at its pool pick). Every violation that
-remained was in the bass, and none of them came from decoration.
+the stepwise-eighths option on, which brings that to 0.3% (658 short notes out
+of 258,139) but costs 599 failures (2.71%) across 286 cells, clustered in
+16-measure exercises at UIL 5, all "Failed to build valid notes after max
+attempts". That failure rate is why the option is still off by default - it is
+the whole cost, and the rule itself now holds: it was 3.3% until
+build-chord-notes' deadlock escape was given the fifth to reach for (see the
+comment at its pool pick). Every violation that remained was in the bass, and
+none of them came from decoration.
 
 ## Tech Stack
 
