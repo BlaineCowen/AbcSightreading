@@ -27,7 +27,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 360 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 477 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -93,15 +93,18 @@ earlier "0% failures" in this project was measured at 4/4, eight bars, with
 hand-picked ranges, and the first sweep that walked the real space found 55%.
 A cell is something a choir director can select, so a cell that fails is an
 exercise somebody cannot get - and the failures cluster rather than spread, so
-the per-cell table matters more than the total. The most recent run: 13 failures
+the per-cell table matters more than the total. The most recent run: 14 failures
 in 22,068 exercises (0.06%), worst cell 25%.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip - 36.9% on that run. `STEPWISE_EIGHTHS=1` sweeps with
-the stepwise-eighths option on, which brings that to 3.3% but costs 734 failures
-(3.33%) across 324 cells, clustered in 16-measure exercises at UIL 5 (worst cells
-42-58%, all "Failed to build valid notes after max attempts"). That is why the
-option is off by default.
+approached or left by skip - 37.2% on that run. `STEPWISE_EIGHTHS=1` sweeps with
+the stepwise-eighths option on, which brings that to 0.2% but costs 624 failures
+(2.83%) across 307 cells, clustered in 16-measure exercises at UIL 5, all
+"Failed to build valid notes after max attempts". That failure rate is why the
+option is still off by default - it is the whole cost, and the rule itself now
+holds: 0.2% was 3.3% until build-chord-notes' deadlock escape was given the
+fifth to reach for (see the comment at its pool pick). Every violation that
+remained was in the bass, and none of them came from decoration.
 
 ## Tech Stack
 
