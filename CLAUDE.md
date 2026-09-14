@@ -98,20 +98,26 @@ in 22,068 exercises (0.06%), worst cell 25%.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
 approached or left by skip - 37.2% on that run. `STEPWISE_EIGHTHS=1` sweeps with
-the stepwise-eighths option on, which brings that to 0.3% (658 short notes out
-of 258,139) but costs 599 failures (2.71%) across 286 cells, clustered in
-16-measure exercises at UIL 5, all "Failed to build valid notes after max
-attempts". The rule itself holds: it was 3.3% until build-chord-notes' deadlock
-escape was given the fifth to reach for (see the comment at its pool pick), and
-every violation that remained was in the bass - none came from decoration.
+the stepwise-eighths option on, which brings that to 1.1% but costs 389 failures
+(1.76%) across 212 cells, clustered in 16-measure exercises at UIL 5, all
+"Failed to build valid notes after max attempts".
 
-**The option is now ON by default**, so that failure rate is live: the worst
-cells are UIL 5 at sixteen bars in a crowded voicing (three treble parts, minor
-keys), up to 75%, and those are selectable from the menus. `failureHint` names
-the option first when it fires there. Two attempts at making the search cope
-instead were measured and reverted - a stepwise-continuation lookahead did
-nothing, and making the step limit best-effort made failures worse and broke the
-property that the upper voices hold the rule outright.
+**The option is ON by default**, so that failure rate is live. The worst cells
+are UIL 5 at sixteen bars in a crowded voicing (three treble parts, minor keys),
+around 50-67%, and those are selectable from the menus - `failureHint` names the
+option first when it fires there.
+
+Two numbers moved it. Giving build-chord-notes' deadlock escape the fifth to
+reach for took skips from 3.3% to 0.3% (every violation left was in the bass;
+none came from decoration). Then letting the step limit yield to the ordinary
+maxSkip rather than emptying a voice's list took failures from 599 to 389, at
+the price of skips going 0.3% -> 1.1% - a blemish on one note against no
+exercise at all.
+
+A stepwise-continuation lookahead was also tried and reverted: measured, it did
+nothing. And beware judging any of this on a small harness - a 40-exercise run
+at one cell read the yield change as making failures *worse* (4 against 9) and
+nearly got it thrown away. That difference was noise; the sweep is the gate.
 
 ## Tech Stack
 
