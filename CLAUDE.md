@@ -16,6 +16,7 @@ bun run build      # Build for production
 bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking - clean, keep it that way
 bun run check:rhythm  # Rhythm generation property checks (see below)
+bun run sweep      # Does every kind of exercise generate? (see below)
 bun run test       # Unit tests in tests/unit/ (see the timeout note below)
 ```
 
@@ -76,6 +77,22 @@ two-rhythm selection in each time signature with ties on and off:
 Run it after touching `rhythm-generation.ts`, `generateUnison.ts`, or
 `rhythm-syllables.ts`. Both halves are meant to be mutation-tested: break a rule
 in the generator and the corresponding check should fail.
+
+### The sweep
+
+`scripts/sweep.ts` walks the configuration space a user can actually reach -
+every UIL level with its own voicings, keys, chords, rhythms, ranges and max
+skip, across all three meters, every measure count the picker offers, all three
+voice textures, and both unison modes - and reports the failure rate per cell.
+About 1,800 cells; `RUNS` (default 12) exercises each.
+
+Run it after touching generation. It exists because narrow checks lie: every
+earlier "0% failures" in this project was measured at 4/4, eight bars, with
+hand-picked ranges, and the first sweep that walked the real space found 55%.
+A cell is something a choir director can select, so a cell that fails is an
+exercise somebody cannot get - and the failures cluster rather than spread, so
+the per-cell table matters more than the total. The most recent run: 5 failures
+in 14,712 exercises (0.03%), worst cell 25%.
 
 ## Tech Stack
 

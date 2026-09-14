@@ -399,7 +399,39 @@ export function buildChordNotes(
         ? availableTriadDegrees
         : [chord.triadNotes[0], chord.triadNotes[2]];
 
-    validNotes = validNotes.filter((note) => degreesToUse.includes(note.degree));
+    // Best-effort, like every filter below it. Keeping one voice off a chord
+    // tone another voice already has is right whenever there is a choice - but
+    // it was applied unconditionally, and the max-skip filter that follows can
+    // then empty the list and kill the step outright.
+    //
+    // Two parts is where that bites. With four voices on a three-tone triad
+    // something must be doubled and the fallback below already allowed it; with
+    // two, an unused degree always exists on paper, so the fallback never fired
+    // even when the only unused degrees were out of reach. The final chord of a
+    // cadence is the worst case: the bass is pinned to the root, leaving the
+    // upper voice the third or the fifth and nothing else, and if neither is
+    // within a third of where it just was, there is no exercise at all. Measured
+    // at UIL 1, 2-Part Tenor/Bass, four bars: 100% failure in whichever key put
+    // those two notes out of reach - G before the tenor floor was opened, F
+    // after it, which is what showed the range was never the real cause.
+    //
+    // A doubled root in two parts is not a compromise anyway: an octave or a
+    // unison is how two-part writing ordinarily ends.
+    const reachable = (list: Note[]) =>
+      previousNote && !previousNote.rest
+        ? list.filter(
+            (n) => Math.abs(n.pitchValue - previousNote.pitchValue) <= maxSkip
+          )
+        : list;
+    const unusedOnly = validNotes.filter((note) => degreesToUse.includes(note.degree));
+    if (reachable(unusedOnly).length > 0) {
+      validNotes = unusedOnly;
+    } else {
+      const anyChordTone = validNotes.filter((note) =>
+        chord.triadNotes.includes(note.degree)
+      );
+      validNotes = reachable(anyChordTone).length > 0 ? anyChordTone : unusedOnly;
+    }
 
     // Soft doubling preference: avoid doubling the LT or chordal 7th (only
     // applied when the resulting filter still has options). The "available
