@@ -91,10 +91,21 @@
     if (renderTimer) clearTimeout(renderTimer);
     renderTimer = setTimeout(() => {
       try {
+        // `wrap` does nothing without a `staffwidth` to wrap against - abcjs
+        // has no idea how wide a system may be otherwise, and lays the whole
+        // part out in a single line. Measured from the container rather than
+        // fixed, the same way the choral page does it, so a narrow window gets
+        // fewer bars per line instead of a shrunken score.
+        const cw = paperEl.clientWidth || 900;
         const tunes = abcjsMod.renderAbc(paperEl, abc, {
           add_classes: true,
           responsive: "resize",
-          wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
+          staffwidth: Math.max(160, Math.min(740, cw - 30)),
+          wrap: {
+            minSpacing: 1.2,
+            maxSpacing: 2.7,
+            preferredMeasuresPerLine: cw < 480 ? 2 : 4,
+          },
         });
         warnings = tunes?.[0]?.warnings ?? [];
       } catch (err) {
