@@ -5,7 +5,13 @@ from collections import Counter
 PATH = sys.argv[1] if len(sys.argv) > 1 else "scores/forgotten.abc"
 text = open(PATH, encoding="utf-8").read()
 
-UNIT = 8  # L:1/8, M:4/4 -> 8 eighths per bar
+# Read the unit note length and meter from the file. A hand-written score uses
+# L:1/8; the generator writes L:1/32, and assuming one reported every bar of the
+# other as wrong.
+_l = re.search(r"^L:1/(\d+)", text, re.M)
+_m = re.search(r"^M:(\d+)/(\d+)", text, re.M)
+DENOM = int(_l.group(1)) if _l else 8
+UNIT = (int(_m.group(1)) if _m else 4) * DENOM // (int(_m.group(2)) if _m else 4)
 TOKEN = re.compile(r"(?P<acc>[=^_]{0,2})(?P<letter>[A-Ga-gz])(?P<oct>[,']*)(?P<dur>\d*)(?P<dot>\.?)")
 
 def midi(letter, octs):
@@ -55,6 +61,6 @@ for vid, (lo, hi) in ranges.items():
     print(f"  {vid:<3} {name(lo):>4} .. {name(hi):<4}  ({hi - lo} semitones)")
 
 if problems:
-    print("\nBARS THAT DO NOT ADD UP (expected 8 eighths)")
+    print(f"\nBARS THAT DO NOT ADD UP (expected {UNIT} units of 1/{DENOM})")
     for vid, i, total, bar in problems:
-        print(f"  {vid} bar {i:>3}: {total} eighths  ->  {bar}")
+        print(f"  {vid} bar {i:>3}: {total} of {UNIT} units  ->  {bar}")
