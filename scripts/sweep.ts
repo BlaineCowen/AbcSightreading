@@ -22,14 +22,23 @@ import { ClefType } from "../src/lib/types";
 
 const RUNS = Number(process.env.RUNS ?? 12);
 
-/** STEPWISE_EIGHTHS=1 sweeps with eighths held to steps and repeats. */
-const STEPWISE = process.env.STEPWISE_EIGHTHS === "1";
+/**
+ * Eighths held to steps and repeats - ON, because that is what the app ships.
+ *
+ * It used to be opt-in via STEPWISE_EIGHTHS=1, which was right while the option
+ * was off by default. It is on by default now, so a plain `bun run sweep` has
+ * to sweep what a director actually gets: otherwise the headline figure reads
+ * 0.05% while the exercises people generate fail at 1.76%, and the gate is
+ * measuring something nobody uses. `STEPWISE_EIGHTHS=0` sweeps with it off.
+ */
+const STEPWISE = process.env.STEPWISE_EIGHTHS !== "0";
 
 /**
  * Not a failure, a quality: how many short notes (an eighth or less) are
  * approached or left by skip, across the choral exercises that generated. With
- * STEPWISE_EIGHTHS it should be zero; without, it is the baseline. A rest
- * breaks the line, so the note beside one is not counted against.
+ * the stepwise rule on it is about 1%; with STEPWISE_EIGHTHS=0 it is the
+ * baseline, around 37%. A rest breaks the line, so the note beside one is not
+ * counted against.
  */
 const shortTally = { notes: 0, skipped: 0 };
 function tallyShortNotes(voices: any[][]) {

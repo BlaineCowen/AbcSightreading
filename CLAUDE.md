@@ -93,14 +93,17 @@ earlier "0% failures" in this project was measured at 4/4, eight bars, with
 hand-picked ranges, and the first sweep that walked the real space found 55%.
 A cell is something a choir director can select, so a cell that fails is an
 exercise somebody cannot get - and the failures cluster rather than spread, so
-the per-cell table matters more than the total. The most recent run: 14 failures
-in 22,068 exercises (0.06%), worst cell 25%.
+the per-cell table matters more than the total.
+
+**It sweeps with stepwise eighths ON**, because that is what the app ships;
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent runs: 389 failures in
+22,068 exercises (1.76%) as shipped, and 10 (0.05%) with the option off.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip - 37.2% on that run. `STEPWISE_EIGHTHS=1` sweeps with
-the stepwise-eighths option on, which brings that to 1.1% but costs 389 failures
-(1.76%) across 212 cells, clustered in 16-measure exercises at UIL 5, all
-"Failed to build valid notes after max attempts".
+approached or left by skip - 1.1% as shipped, against 37.1% with
+`STEPWISE_EIGHTHS=0`. The 389 failures are the price, across 212 cells,
+clustered in 16-measure exercises at UIL 5, all "Failed to build valid notes
+after max attempts".
 
 **The option is ON by default**, so that failure rate is live. The worst cells
 are UIL 5 at sixteen bars in a crowded voicing (three treble parts, minor keys),
