@@ -1,22 +1,35 @@
 <script lang="ts">
   /**
-   * Write ABC by hand, see the score beside it, save it into the repo.
+   * Write a score one part at a time, see it engraved, save it into the repo.
    *
    * For transcribing real sight-reading examples off the page so they can be
    * read back as a corpus - the generator has nothing to measure itself against
    * otherwise.
    *
-   * The live preview is abcjs's own `Editor`, not a hand-rolled
-   * debounce-and-rerender: it takes a textarea, draws into a paper div, and
-   * writes syntax warnings into a third element, which is the entire feature.
-   * Reimplementing that would only be reimplementing it worse.
+   * **Why a box per part rather than one ABC document.** Multi-voice ABC is laid
+   * out by line order: the lines are read as voice 1, voice 2, ... and round
+   * again for the next system. Write a part across two lines while the others
+   * have one, and every line after it lands on the wrong staff - the bass turns
+   * up on the soprano, carrying its clef with it. Neither `[V:B]` at the start
+   * of the line nor a `V:B` field line rescues it. That rule has nothing to do
+   * with the music and cannot be worked out by trying things, so this page does
+   * not ask anyone to obey it: each part gets a box, and `assembleScore` emits
+   * one line per voice in the order the header declares them.
+   *
+   * The preview is a plain `renderAbc` of the assembled file rather than abcjs's
+   * `Editor`, which binds to a single textarea and cannot span several.
    */
   import { onMount, onDestroy } from "svelte";
   import { Save, FileText, Plus } from "lucide-svelte";
   import {
     abcProblems,
     applyMeta,
+    assembleScore,
     blankScore,
+    buildHeader,
+    splitScore,
+    voiceIdsFromHeader,
+    voicePartsFor,
     VOICINGS,
     type AbcProblem,
     type ScoreMeta,
@@ -36,87 +49,111 @@
   let meter = "4/4";
   let source = "";
 
-  let abc = "";
+  /** Everything up to and including `K:`. Editable, but normally left alone. */
+  let header = "";
+  /** The music for each voice, keyed by voice id. No `[V:x]` prefixes. */
+  let voices: Record<string, string> = {};
+  let showHeader = false;
+
   let saved: SavedScore[] = [];
   let status: { kind: "ok" | "error"; text: string } | null = null;
   let saving = false;
-  /** Which saved score is in the editor, so the list can show it as current. */
   let loadedSlug: string | null = null;
-
-  const TEXTAREA_ID = "abc-source";
-
-  let editor: any = null;
-  let textarea: HTMLTextAreaElement;
-  let paperEl: HTMLDivElement;
-  let warningsEl: HTMLDivElement;
-  /** False on the deployed site, where there is no writable filesystem. */
   let writable = true;
   let notWritableReason = "";
-  /** Things wrong with the ABC that abcjs will not tell you about. */
+
+  let abcjsMod: any = null;
+  let paperEl: HTMLDivElement;
+  let renderTimer: ReturnType<typeof setTimeout> | null = null;
+  let warnings: string[] = [];
   let problems: AbcProblem[] = [];
-  /** A blank line would leave half the transcription out of the saved file. */
+
+  $: voiceIds = voiceIdsFromHeader(header);
+  $: voiceLabel = Object.fromEntries(
+    voicePartsFor(voicing).map((p) => [p.id, p.name])
+  ) as Record<string, string>;
+  /** An example in the part's own register - a bass line is no help in the
+   *  soprano box, which is what a single shared placeholder gave. */
+  $: voicePlaceholder = Object.fromEntries(
+    voicePartsFor(voicing).map((p) => [
+      p.id,
+      p.clef === "bass" ? "C,2 D,2 E,2 F,2 | G,4 C,4 |" : "c2 d2 e2 f2 | g4 c4 |",
+    ])
+  ) as Record<string, string>;
+  $: assembled = header ? assembleScore(header, voices, meter) : "";
+  $: problems = assembled ? abcProblems(assembled) : [];
   $: blocking = problems.filter((p) => p.kind !== "no-title");
 
-  /**
-   * Put text into the editor.
-   *
-   * The textarea is not `bind:value`. abcjs's Editor owns that element and reads
-   * it on every keystroke, so a Svelte binding writing to it would be a second
-   * writer racing the first. Everything goes through here instead, and
-   * `fireChanged()` is what tells the Editor to re-read and redraw.
-   */
-  function setAbc(next: string) {
-    abc = next;
-    problems = abcProblems(next);
-    // `setString` is on the EditArea, not the Editor, and it is the supported
-    // way in: it resets the dirty baseline and schedules a redraw. Before the
-    // Editor exists, writing the textarea directly is all there is to do.
-    if (editor?.editarea) editor.editarea.setString(next);
-    else if (textarea) textarea.value = next;
+  /** Redraw whenever the assembled file changes, a beat after typing stops. */
+  $: if (assembled && abcjsMod && paperEl) scheduleRender(assembled);
+
+  function scheduleRender(abc: string) {
+    if (renderTimer) clearTimeout(renderTimer);
+    renderTimer = setTimeout(() => {
+      try {
+        const tunes = abcjsMod.renderAbc(paperEl, abc, {
+          add_classes: true,
+          responsive: "resize",
+          wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
+        });
+        warnings = tunes?.[0]?.warnings ?? [];
+      } catch (err) {
+        // A hard parse failure leaves the last good score on screen, which is
+        // more use than a blank page while you fix a typo.
+        warnings = [String(err instanceof Error ? err.message : err)];
+      }
+    }, 300);
   }
 
-  /** The form's own view of the score, for writing into the text. */
   function formMeta(): ScoreMeta {
     return { title: title || "Untitled", level, voicing, key, meter, source };
   }
 
-  /**
-   * A change in the form is a change to the text.
-   *
-   * The two must not each keep their own idea of the title: the first version
-   * of this saved a file named from the form and titled from the template,
-   * because only the text was ever written to disk. The text is the thing that
-   * gets saved, so the text is what the form edits.
-   *
-   * Guarded on `editor` so it does nothing until the editor exists, and on an
-   * actual difference so typing in the textarea is never fought over.
-   */
-  function syncFormIntoText() {
-    if (!editor?.editarea) return;
-    const current = editor.editarea.getString();
-    const next = applyMeta(current, formMeta());
-    if (next !== current) setAbc(next);
+  /** A change in the form is a change to the header it generated. */
+  function syncFormIntoHeader() {
+    if (!header) return;
+    const next = applyMeta(header, formMeta());
+    if (next !== header) header = next;
   }
+  $: title, level, voicing, key, meter, source, syncFormIntoHeader();
 
-  // Svelte 4: re-runs whenever any of these change.
-  $: title, level, voicing, key, meter, source, syncFormIntoText();
+  /**
+   * Rebuild the header for a new voicing, keeping any music already typed.
+   *
+   * Changing SATB to SAB changes which voices exist and the boxes have to
+   * follow - but a part that still exists should not lose what is in it.
+   */
+  function rebuildForVoicing() {
+    header = buildHeader(formMeta());
+    const kept: Record<string, string> = {};
+    for (const id of voiceIdsFromHeader(header)) kept[id] = voices[id] ?? "";
+    voices = kept;
+  }
 
   function startBlank() {
     loadedSlug = null;
     status = null;
-    setAbc(blankScore(formMeta()));
+    header = splitScore(blankScore(formMeta())).header;
+    // The boxes start empty rather than full of `z8 | z8 |`: the assembler
+    // fills untouched parts with rests anyway, and an empty box is a clearer
+    // invitation than one already full of text to delete.
+    voices = Object.fromEntries(voiceIdsFromHeader(header).map((id) => [id, ""]));
   }
 
   function load(score: SavedScore) {
     loadedSlug = score.slug;
     status = null;
+    const parts = splitScore(score.abc);
+    header = parts.header;
     title = score.meta.title ?? "";
     level = score.meta.level ?? "";
     voicing = score.meta.voicing ?? "SATB";
     key = score.meta.key ?? "C";
     meter = score.meta.meter ?? "4/4";
     source = score.meta.source ?? "";
-    setAbc(score.abc);
+    voices = Object.fromEntries(
+      voiceIdsFromHeader(parts.header).map((id) => [id, parts.voices[id] ?? ""])
+    );
   }
 
   async function refresh() {
@@ -130,7 +167,7 @@
       } else {
         status = { kind: "error", text: body.error };
       }
-    } catch (err) {
+    } catch {
       status = { kind: "error", text: "Could not reach the server." };
     }
   }
@@ -143,9 +180,7 @@
       const res = await fetch("/api/scores", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // Applied once more rather than trusted: the reactive sync runs on form
-        // changes, and this is the last chance before it goes to disk.
-        body: JSON.stringify({ title, abc: applyMeta(abc, formMeta()) }),
+        body: JSON.stringify({ title, abc: assembled }),
       });
       const body = await res.json();
       if (body.success) {
@@ -155,7 +190,7 @@
       } else {
         status = { kind: "error", text: body.error };
       }
-    } catch (err) {
+    } catch {
       status = { kind: "error", text: "Could not reach the server." };
     } finally {
       saving = false;
@@ -163,58 +198,13 @@
   }
 
   onMount(async () => {
-    // Dynamic, because the Editor constructor renders synchronously and so
-    // touches `document` before it returns.
-    const mod: any = await import("abcjs");
-    // A second Editor on the same textarea would reassign its handlers and
-    // leave the first one's debounce timer running against a dead div. This
-    // happens on HMR during development, not in normal use.
-    if (editor) return;
-    // The textarea has to hold the text before the Editor reads it, and the
-    // paper and warnings elements have to exist: given neither, the Editor
-    // inserts divs of its own into a parent Svelte believes it owns.
-    textarea.value = blankScore({ title: "Untitled", voicing, key, meter });
-    abc = textarea.value;
-    problems = abcProblems(abc);
-    // The textarea has to be named by ID, not handed over as an element.
-    // The types say `string | HTMLElement` for this argument, but the
-    // constructor only wraps a STRING in an EditArea - given an element it
-    // assumes the element already implements that interface and immediately
-    // calls addSelectionListener on it, which a textarea does not have.
-    // paper_id and warnings_id genuinely do take either.
-    editor = new mod.Editor(TEXTAREA_ID, {
-      paper_id: paperEl,
-      warnings_id: warningsEl,
-      generate_warnings: true,
-      abcjsParams: {
-        add_classes: true,
-        responsive: "resize",
-        staffwidth: 700,
-        wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: 4 },
-      },
-      // The Editor reads the textarea itself; this only mirrors it back into
-      // Svelte so the save button has something to send, and re-runs the checks
-      // abcjs does not make.
-      onchange: (ed: any) => {
-        abc = ed?.editarea?.getString() ?? textarea?.value ?? abc;
-        problems = abcProblems(abc);
-      },
-    });
+    abcjsMod = await import("abcjs");
+    startBlank();
     await refresh();
   });
 
   onDestroy(() => {
-    // There is no `destroy()` on the Editor, and its EditArea installs its
-    // handlers by direct property assignment rather than addEventListener - so
-    // they have to be taken off the same way. Left alone, the 300ms debounce
-    // can fire after unmount and render into a detached div.
-    if (editor) {
-      clearTimeout(editor.timerId);
-      for (const h of ["onkeyup", "onmousedown", "onmouseup", "onmousemove", "onchange"]) {
-        (textarea as any)[h] = null;
-      }
-    }
-    editor = null;
+    if (renderTimer) clearTimeout(renderTimer);
   });
 </script>
 
@@ -224,11 +214,8 @@
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <label class="space-y-1 col-span-2">
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Title</span>
-        <input
-          bind:value={title}
-          placeholder="Forgotten"
-          class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
-        />
+        <input bind:value={title} placeholder="Forgotten"
+          class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
       </label>
       <label class="space-y-1">
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">UIL level</span>
@@ -238,7 +225,8 @@
       </label>
       <label class="space-y-1">
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voicing</span>
-        <select bind:value={voicing} class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+        <select bind:value={voicing} on:change={rebuildForVoicing}
+          class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
           {#each VOICINGS as v}<option value={v}>{v}</option>{/each}
         </select>
       </label>
@@ -256,35 +244,27 @@
       </label>
       <label class="space-y-1 col-span-2 sm:col-span-3 lg:col-span-4">
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Source</span>
-        <input
-          bind:value={source}
-          placeholder="Where you read it - year, level, publisher"
-          class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
-        />
+        <input bind:value={source} placeholder="Where you read it - year, level, publisher"
+          class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
       </label>
       <div class="flex items-end gap-2 col-span-2">
-        <button
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-slate-100 hover:bg-slate-200"
-          on:click={startBlank}
-          title="Replace the editor with an empty score using the details above"
-        ><Plus size={15} /> Blank score</button>
+        <button class="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-slate-100 hover:bg-slate-200"
+          on:click={startBlank} title="Empty every part and start again">
+          <Plus size={15} /> Blank score</button>
         <button
           class="flex items-center gap-1.5 px-4 py-1.5 rounded text-sm font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
           on:click={save}
           disabled={saving || !writable || blocking.length > 0}
-          title={!writable
-            ? notWritableReason
-            : blocking.length > 0
-              ? blocking[0].message
-              : "Write this score into the project"}
+          title={!writable ? notWritableReason : blocking[0]?.message ?? "Write this score into the project"}
         ><Save size={15} /> {saving ? "Saving..." : "Save"}</button>
       </div>
     </div>
 
     <p class="text-xs text-slate-400">
-      The details are written into the file's own ABC header, so each score says
-      what it is. Saving writes <code>scores/&lt;title&gt;.abc</code> in the project -
-      local dev only, since the deployed site has a read-only filesystem.
+      One box per part - just the bars, no <code>[V:]</code> prefixes and no
+      worrying about line breaks. Type as many lines as you like; they are joined
+      into one line per voice when the file is written, which is the layout ABC
+      needs. Parts you leave empty are filled with rests.
     </p>
 
     {#if !writable}
@@ -292,37 +272,57 @@
         {notWritableReason} Run <code>bun run dev</code> locally to save.
       </p>
     {/if}
-
     {#if status}
-      <p
-        class="text-sm rounded px-3 py-2 {status.kind === 'ok'
-          ? 'bg-green-50 text-green-800'
-          : 'bg-amber-50 text-amber-800'}"
-        role="status"
-      >{status.text}</p>
+      <p class="text-sm rounded px-3 py-2 {status.kind === 'ok' ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}"
+        role="status">{status.text}</p>
     {/if}
   </div>
 
-  <!-- Editor beside score -->
+  <!-- Parts beside the score -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-    <div class="bg-white rounded-lg shadow-md p-3 space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">ABC</p>
-      <textarea
-        id={TEXTAREA_ID}
-        bind:this={textarea}
-        spellcheck="false"
-        class="w-full h-[60vh] font-mono text-sm border border-slate-200 rounded p-2 resize-y"
-      ></textarea>
-      <!-- abcjs writes parse warnings here as you type. -->
-      <div bind:this={warningsEl} class="text-xs text-amber-700 min-h-[1.25rem]"></div>
+    <div class="space-y-3">
+      {#each voiceIds as id (id)}
+        <div class="bg-white rounded-lg shadow-md p-3 space-y-1">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {voiceLabel[id] ?? id}
+          </p>
+          <textarea
+            bind:value={voices[id]}
+            spellcheck="false"
+            placeholder={voicePlaceholder[id] ?? "c2 d2 e2 f2 |"}
+            class="w-full h-24 font-mono text-sm border border-slate-200 rounded p-2 resize-y"
+          ></textarea>
+        </div>
+      {/each}
+
+      <div class="bg-white rounded-lg shadow-md p-3 space-y-2">
+        <button class="text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600"
+          on:click={() => (showHeader = !showHeader)}>
+          Header {showHeader ? "-" : "+"}
+        </button>
+        {#if showHeader}
+          <p class="text-xs text-slate-400">
+            Written from the details above. Edit it for anything they do not
+            cover - a pickup bar, a tempo, an extra voice.
+          </p>
+          <textarea
+            bind:value={header}
+            spellcheck="false"
+            class="w-full h-48 font-mono text-sm border border-slate-200 rounded p-2 resize-y"
+          ></textarea>
+        {/if}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-3 space-y-2 lg:sticky lg:top-20">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Score</p>
+      <div bind:this={paperEl} class="w-full"></div>
+      {#each warnings as warning}
+        <p class="text-xs text-amber-700">{warning}</p>
+      {/each}
       {#each problems as problem}
         <p class="text-xs rounded px-2 py-1 bg-amber-50 text-amber-800">{problem.message}</p>
       {/each}
-    </div>
-
-    <div class="bg-white rounded-lg shadow-md p-3 space-y-2">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Score</p>
-      <div bind:this={paperEl} class="w-full"></div>
     </div>
   </div>
 
@@ -345,9 +345,8 @@
             </span>
             <span class="text-xs text-slate-400">
               {[score.meta.level ? `Level ${score.meta.level}` : null,
-                score.meta.voicing,
-                score.meta.key,
-                score.meta.meter].filter(Boolean).join(" · ")}
+                score.meta.voicing, score.meta.key, score.meta.meter]
+                .filter(Boolean).join(" · ")}
             </span>
           </button>
         {/each}

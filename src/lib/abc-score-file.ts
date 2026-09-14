@@ -322,6 +322,110 @@ export function applyMeta(abc: string, meta: ScoreMeta): string {
 }
 
 /**
+ * Splitting a score into a header and one box per voice, and putting it back.
+ *
+ * Raw multi-voice ABC is laid out by LINE ORDER: the lines are read as voice 1,
+ * voice 2, ... and then round again for the next system. Write a part across two
+ * lines while the others have one and every line after it lands on the wrong
+ * staff - the bass turns up on the soprano, carrying its clef with it. Neither
+ * `[V:B]` at the start of the line nor a `V:B` field line rescues it.
+ *
+ * That rule is unlearnable by trial and error and has nothing to do with the
+ * music. So the page does not ask anyone to obey it: each part gets its own box,
+ * and the assembly below emits exactly one line per declared voice, in the order
+ * the header declares them, which is the shape that always works.
+ */
+
+/** The voice ids a header declares, in order, from its `V:` lines. */
+export function voiceIdsFromHeader(header: string): string[] {
+  const ids: string[] = [];
+  for (const line of header.split(/\r?\n/)) {
+    const m = /^V:\s*(\S+)/.exec(line.trim());
+    if (m && !ids.includes(m[1])) ids.push(m[1]);
+  }
+  return ids;
+}
+
+/** Bars in a line of music, counted by the barlines that separate them. */
+export function countBars(music: string): number {
+  return music
+    .split(/\|+/)
+    .map((b) => b.replace(/[\]\[:]/g, "").trim())
+    .filter((b) => b.length > 0).length;
+}
+
+/**
+ * One voice's music as a single line.
+ *
+ * The box may be typed across as many lines as the writer likes - that is the
+ * whole point of it - so they are joined here. One physical line per voice is
+ * what keeps the line-order rule satisfied.
+ */
+export function flattenVoice(music: string): string {
+  return music
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .join(" ")
+    .trim();
+}
+
+/**
+ * Header plus one box per voice, into a single valid ABC file.
+ *
+ * A voice with an empty box still gets a line, filled with bars of rest to match
+ * the longest part. Leaving it out would be a line short, which is exactly the
+ * misalignment this is here to prevent - and a part that has not been
+ * transcribed yet should read as silence, not as missing.
+ */
+export function assembleScore(
+  header: string,
+  voices: Record<string, string>,
+  meter?: string
+): string {
+  const ids = voiceIdsFromHeader(header);
+  const flat = Object.fromEntries(ids.map((id) => [id, flattenVoice(voices[id] ?? "")]));
+  const bars = Math.max(0, ...ids.map((id) => countBars(flat[id])));
+  const rest = `z${barRestLength(meter ?? parseHeader(header).meter)}`;
+  const filler = bars > 0 ? Array.from({ length: bars }, () => rest).join(" | ") + " |" : `${rest} |`;
+
+  const lines = ids.map((id) => `[V:${id}] ${flat[id] || filler}`);
+  return `${header.replace(/\s+$/, "")}\n${lines.join("\n")}\n`;
+}
+
+/** The inverse, for loading a saved file back into the boxes. */
+export function splitScore(abc: string): { header: string; voices: Record<string, string> } {
+  const lines = abc.split(/\r?\n/);
+  const kIndex = lines.findIndex((l) => /^K:/.test(l));
+  if (kIndex === -1) return { header: abc, voices: {} };
+
+  const header = lines.slice(0, kIndex + 1).join("\n");
+  const voices: Record<string, string> = {};
+  let current: string | null = null;
+  // A trailing backslash is ABC's line-continuation marker. It carries no
+  // music, and the boxes do not need it - the assembler puts each part on one
+  // line - so it comes off wherever it appears.
+  const noContinuation = (music: string) => music.replace(/\\\s*$/, "").trim();
+  for (const line of lines.slice(kIndex + 1)) {
+    const inline = /^\[V:\s*([^\]\s]+)\]\s*(.*)$/.exec(line.trim());
+    const field = /^V:\s*(\S+)\s*$/.exec(line.trim());
+    if (inline) {
+      current = inline[1];
+      const music = noContinuation(inline[2]);
+      voices[current] = voices[current] ? `${voices[current]}\n${music}` : music;
+    } else if (field) {
+      current = field[1];
+      voices[current] = voices[current] ?? "";
+    } else if (line.trim() && current) {
+      // A continuation line, with or without a trailing backslash.
+      voices[current] = `${voices[current]}\n${noContinuation(line.trim())}`.trim();
+    }
+  }
+  for (const id of Object.keys(voices)) voices[id] = voices[id].trim();
+  return { header, voices };
+}
+
+/**
  * How many eighth notes fill one bar of the given meter.
  *
  * Everything here is written with `L:1/8`, so a bar of n/d is n * (8/d)
