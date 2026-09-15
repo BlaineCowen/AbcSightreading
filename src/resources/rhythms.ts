@@ -294,6 +294,16 @@ export const rhythms: Rhythm[] = [
     weight: 6,
   },
   {
+    // Weighted well above its neighbours on purpose, and it is still not
+    // over-represented. `favorLongerNotes` multiplies any rhythm containing an
+    // eighth by 0.15 (see speedFactorFor), so this figure was being crushed
+    // 6.7x against the quarters and halves whatever its weight said: selected at
+    // UIL 4 it appeared 0.071 times a bar, one in every fourteen.
+    //
+    // The transcriptions write it at 0.193 a bar (Forgotten) and 0.125
+    // (Summer Rains). Measured over 30 exercises, weight 12 gives 0.138 and
+    // weight 20 gives 0.188 - so 20, which lands on the real music. The quarter
+    // still takes 48% of all steps; this takes 8.5%.
     name: "dotQuarterEighth",
     abcValue: ["12", "4"],
     meterValue: [3 / 8, 1 / 8],
@@ -303,7 +313,7 @@ export const rhythms: Rhythm[] = [
     maxRng: 0,
     pattern: true,
     symbol: "𝄘•𝄙",
-    weight: 5,
+    weight: 20,
   },
   {
     // The reverse of dotQuarterEighth: the short note first, so the long one

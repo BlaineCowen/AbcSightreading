@@ -63,32 +63,66 @@ describe("voice texture", () => {
     }
   });
 
-  test("parts enter one at a time, lowest first", () => {
-    // The whole of this texture. The lowest voice is there from the downbeat
-    // and each one above it comes in later - which is also why the exercise
-    // does not open on the full tonic chord, and why "full" is the default.
+  /** When a voice comes back after its first gap, or 0 if it never left. */
+  const reEntry = (voice: VoiceNote[]) => {
+    let t = 0;
+    let gapSeen = false;
+    for (const n of voice) {
+      if (n.rest) gapSeen = true;
+      else if (gapSeen) return t;
+      t += n.length;
+    }
+    return 0;
+  };
+
+  test("every part sings the downbeat", () => {
+    // The whole reason the entrance was once removed. On a sight-reading
+    // exercise the opening sonority is the one thing that must not be
+    // ambiguous - it is what tells the choir where home is - and a part resting
+    // through it reads as a pickup, so the singer waits for a beat that never
+    // comes.
     for (let i = 0; i < 50; i++) {
       const out = applyVoiceTexture(satb(16), {
         texture: "staggered",
         measures: 16,
         tsPerMeasure: TS,
       });
-      const entersAt = out.map((v) => {
+      for (const voice of out) expect(voice[0].rest).toBe(false);
+    }
+  });
+
+  test("the upper parts then drop away and come back one at a time", () => {
+    for (let i = 0; i < 50; i++) {
+      const out = applyVoiceTexture(satb(16), {
+        texture: "staggered",
+        measures: 16,
+        tsPerMeasure: TS,
+      });
+      // satb() builds voices in order 3,2,1,0 - so reversed is lowest first.
+      const backAt = [...out].reverse().map(reEntry);
+      expect(backAt[0]).toBe(0); // the lowest part never leaves
+      for (let k = 1; k < backAt.length; k++) {
+        expect(backAt[k]).toBeGreaterThanOrEqual(backAt[k - 1]);
+      }
+      // and somebody really does drop out, or this proves nothing
+      expect(Math.max(...backAt)).toBeGreaterThan(0);
+    }
+  });
+
+  test("nothing is silenced in the opening bar", () => {
+    for (let i = 0; i < 50; i++) {
+      const out = applyVoiceTexture(satb(16), {
+        texture: "staggered",
+        measures: 16,
+        tsPerMeasure: TS,
+      });
+      for (const voice of out) {
         let t = 0;
-        for (const n of v) {
-          if (!n.rest) return t;
+        for (const n of voice) {
+          if (t < TS) expect(n.rest).toBe(false);
           t += n.length;
         }
-        return Infinity;
-      });
-      // satb() builds voices in order 3,2,1,0 - so the last array is the bass.
-      const byOrderLowestFirst = [...entersAt].reverse();
-      expect(byOrderLowestFirst[0]).toBe(0); // the bass starts on the downbeat
-      for (let k = 1; k < byOrderLowestFirst.length; k++) {
-        expect(byOrderLowestFirst[k]).toBeGreaterThanOrEqual(byOrderLowestFirst[k - 1]);
       }
-      // and somebody really does come in late, or this proves nothing
-      expect(Math.max(...entersAt)).toBeGreaterThan(0);
     }
   });
 
@@ -106,9 +140,10 @@ describe("voice texture", () => {
     }
   });
 
-  test("once everyone is in, nobody drops out again", () => {
-    // The entrance is all this texture does now. The tacet spans and mid-piece
-    // drop-outs that used to follow it belonged to "independent", which is gone.
+  test("once a part is back, it stays", () => {
+    // The entrance is all this texture does. The tacet spans and mid-piece
+    // drop-outs that used to follow it belonged to "independent", which is gone,
+    // so a part has exactly one gap.
     for (let i = 0; i < 100; i++) {
       const out = applyVoiceTexture(satb(16), {
         texture: "staggered",
@@ -116,11 +151,13 @@ describe("voice texture", () => {
         tsPerMeasure: TS,
       });
       for (const v of out) {
-        let seenPitch = false;
+        let gaps = 0;
+        let inGap = false;
         for (const n of v) {
-          if (!n.rest) seenPitch = true;
-          else if (seenPitch) throw new Error("a voice dropped out mid-piece");
+          if (n.rest && !inGap) { gaps++; inGap = true; }
+          else if (!n.rest) inGap = false;
         }
+        expect(gaps).toBeLessThanOrEqual(1);
       }
     }
   });
@@ -137,17 +174,9 @@ describe("voice texture", () => {
         measures,
         tsPerMeasure: TS,
       });
-      // where the last voice enters; before that a solo is intended
-      const allIn = Math.max(
-        ...out.map((v) => {
-          let t = 0;
-          for (const n of v) {
-            if (!n.rest) return t;
-            t += n.length;
-          }
-          return 0;
-        })
-      );
+      // Once the last part is back, the texture is full again; the thinned
+      // passage before that is allowed to fall as far as a solo.
+      const allIn = Math.max(...out.map(reEntry));
       for (let t = allIn; t < measures * TS; t += 8) {
         expect(soundingAt(out, t)).toBeGreaterThanOrEqual(2);
       }
@@ -280,5 +309,53 @@ describe("rest merging", () => {
     // the loop would never advance and the tab would hang.
     const out = mergeRestsWithinMeasures([note(20, 16, 0), rest(32)], TS);
     expect(out.map((n) => n.length)).toEqual([16, 32]);
+  });
+});
+
+describe("a silent bar reads as one rest", () => {
+  const restAt = (length: number, chordSymbol?: string): VoiceNote =>
+    ({ name: "z", degree: 0, pitchValue: 0, length, rest: true, ...(chordSymbol ? { chordSymbol } : {}) } as VoiceNote);
+
+  test("four quarter rests in a bar become one whole rest", () => {
+    const out = mergeRestsWithinMeasures([restAt(8), restAt(8), restAt(8), restAt(8)], TS);
+    expect(out.length).toBe(1);
+    expect(out[0].length).toBe(32);
+  });
+
+  test("chord symbols do not break the rest up", () => {
+    // They used to, and always - symbols are attached to the top voice whether
+    // or not they are being shown, so a soprano resting through the opening of
+    // a staggered entrance came out as a scatter of quarter and half rests.
+    // Measured over 12 exercises: 80 quarters and 30 halves before, 36 whole
+    // rests and nothing else after.
+    const out = mergeRestsWithinMeasures(
+      [restAt(8, "I"), restAt(8, "I"), restAt(8, "V"), restAt(8, "V")],
+      TS
+    );
+    expect(out.length).toBe(1);
+    expect(out[0].length).toBe(32);
+  });
+
+  test("the first symbol rides the merged rest, and is not repeated", () => {
+    const out = mergeRestsWithinMeasures(
+      [restAt(16, "I"), restAt(8, "V"), restAt(8, "V")],
+      TS
+    );
+    expect(out[0].chordSymbol).toBe("I");
+    expect(out.slice(1).every((n) => !n.chordSymbol)).toBe(true);
+  });
+
+  test("a cadence note still stops a run, symbol or not", () => {
+    const cadence = { ...restAt(8), isCadenceEnd: true } as VoiceNote;
+    const out = mergeRestsWithinMeasures([restAt(8), cadence, restAt(8), restAt(8)], TS);
+    expect(out.length).toBeGreaterThan(1);
+    expect(out.some((n) => n.isCadenceEnd)).toBe(true);
+  });
+
+  test("sounding notes are never merged into a rest", () => {
+    const sung = { name: "c", degree: 0, pitchValue: 20, length: 8, rest: false } as VoiceNote;
+    const out = mergeRestsWithinMeasures([restAt(8), sung, restAt(8), restAt(8)], TS);
+    expect(out.filter((n) => !n.rest).length).toBe(1);
+    expect(out.reduce((n, x) => n + x.length, 0)).toBe(32);
   });
 });

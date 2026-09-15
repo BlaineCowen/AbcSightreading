@@ -168,14 +168,51 @@ describe("chord symbols", () => {
     expect(labelled.length).toBe(1);
   });
 
-  test("a thinning texture does not thin the symbols", () => {
-    // Two ways this used to lose symbols: the assembler skipped annotations on
-    // rests, and rest-merging collapsed a bar of them into one.
+  test("a chord that falls while the labelled voice rests is not printed", () => {
+    // This used to assert the opposite - that a thinning texture lost no
+    // symbols - and rest-merging was held back to keep that true: a rest
+    // carrying a symbol was never merged with its neighbours.
+    //
+    // The cost was paid on the page. Symbols are attached to the top voice
+    // whether or not they are being SHOWN, so the merge was refused always, and
+    // a soprano resting through a staggered entrance came out as a scatter of
+    // quarter and half rests instead of whole-bar rests. Measured over 12
+    // exercises: 80 quarters and 30 halves, against 24 whole rests now.
+    //
+    // So the silence is one rest and the chords under it go unlabelled. What
+    // must still hold is that nothing is invented and nothing is reordered -
+    // the row is a subsequence of the progression, not a different reading of
+    // it - and that with every part singing, nothing is lost at all.
     const out = generate({
-      voiceTexture: "independent",
+      voiceTexture: "staggered",
       measures: 16,
       selectedRhythms: allRhythms.filter((r) =>
         ["whole", "half", "quarter", "halfRest", "quarterRest"].includes(r.name)
+      ),
+      display: { chordSymbols: true },
+    });
+    const expected: string[] = [];
+    for (const chord of out.chordProgression) {
+      if (chord.symbol !== expected[expected.length - 1]) expected.push(chord.symbol);
+    }
+    const printed = symbolsIn(out.abcString);
+    expect(printed.length).toBeGreaterThan(0);
+    // An ordered subsequence: walk the expected list once and match in order.
+    let at = 0;
+    for (const symbol of printed) {
+      const found = expected.indexOf(symbol, at);
+      expect(found).toBeGreaterThanOrEqual(0);
+      at = found + 1;
+    }
+  });
+
+  test("with every part singing, no symbol is lost", () => {
+    // The guarantee that survives: thinning is the only thing that drops one.
+    const out = generate({
+      voiceTexture: "full",
+      measures: 16,
+      selectedRhythms: allRhythms.filter((r) =>
+        ["whole", "half", "quarter"].includes(r.name)
       ),
       display: { chordSymbols: true },
     });

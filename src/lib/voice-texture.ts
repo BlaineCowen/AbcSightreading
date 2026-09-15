@@ -174,33 +174,44 @@ export function applyVoiceTexture(
   const lastMeasureFrom = (measures - 1) * tsPerMeasure;
   const order = lowestFirst(out);
 
-  // --- Staggered entrance: parts join one at a time, lowest first. ---
+  // --- Staggered entrance: the choir states bar 1, then parts re-enter one at
+  // a time, lowest first. ---
   //
-  // This is the whole of the "staggered" texture, and it comes with a cost that
-  // is the point of the setting rather than a defect in it: the exercise does
-  // not begin with the full tonic chord, because the parts are not all there
-  // yet. That is why it was pulled out of the old "independent" texture, where
-  // it applied whether or not anyone had asked for it - a singer whose part
-  // rests through the opening reads it as a pickup and waits for a beat that
-  // never comes, and nobody had chosen that.
+  // The entrance used to begin at bar 1, so the piece opened on a single voice.
+  // That is what a staggered entrance IS, and it is also the thing that got the
+  // texture removed the first time: on a sight-reading exercise the opening
+  // sonority is the one thing that should not be ambiguous, and a singer whose
+  // part rests through it reads a pickup and waits for a beat that never comes.
+  // Reported twice, once against the old "independent" texture and once against
+  // this one, which is enough to say the pure version is not what is wanted.
   //
-  // Chosen deliberately and named for what it does, it is a legitimate texture.
-  // Anyone who wants every part on the downbeat has "full", which is the
-  // default.
+  // So the window starts a bar later. Everyone sings the downbeat - the full
+  // tonic chord, which is what tells the choir where home is - and then the
+  // upper parts drop away and come back in turn. The imitative effect is intact
+  // and there is nothing ambiguous to read. "full" remains the default for
+  // anyone who wants no thinning at all.
   if (measures >= MIN_MEASURES_FOR_ENTRANCES) {
     const latest = Math.min(out.length - 1, Math.floor(measures / 4));
     for (let rank = 1; rank < order.length; rank++) {
       const entersAt = Math.min(rank, latest);
       if (entersAt <= 0) continue;
-      trySilence(
-        out,
-        order[rank],
-        positionsInMeasures(starts, tsPerMeasure, 0, entersAt),
-        lastMeasureFrom,
-        starts,
-        minSounding,
-        true // the opening is allowed to be a solo
-      );
+      // Shorter windows are tried in turn, because `trySilence` is all or
+      // nothing: one cadence note anywhere in the span refuses the whole span.
+      // Starting a bar later put the window on the interior cadence at bar 4,
+      // and every entrance was silently refused - measured, the texture stopped
+      // doing anything at all while still looking like it worked.
+      for (let span = entersAt; span >= 1; span--) {
+        const silenced = trySilence(
+          out,
+          order[rank],
+          positionsInMeasures(starts, tsPerMeasure, 1, span + 1),
+          lastMeasureFrom,
+          starts,
+          minSounding,
+          true // the thinned passage is allowed to fall to one voice
+        );
+        if (silenced) break;
+      }
     }
   }
 
@@ -267,11 +278,7 @@ export function mergeRestsWithinMeasures(
 
   while (i < voice.length) {
     const note = voice[i];
-    // A rest carrying a chord symbol is left alone, exactly as a cadence note
-    // is. Merging spreads only the *first* rest of a run, so a top voice resting
-    // through a bar would collapse four symbols into one and the row would thin
-    // out wherever the texture did.
-    if (!note.rest || note.isCadenceEnd || note.chordSymbol) {
+    if (!note.rest || note.isCadenceEnd) {
       merged.push({ ...note });
       t += note.length;
       i++;
@@ -279,6 +286,23 @@ export function mergeRestsWithinMeasures(
     }
 
     // Gather the run of rests that stays inside this measure.
+    //
+    // A rest carrying a chord symbol used to be left alone entirely, so that a
+    // voice resting through a bar did not collapse four symbols into one and
+    // thin the symbol row out wherever the texture did. But chord symbols are
+    // attached to the top voice's notes whether or not they are being SHOWN, so
+    // that refusal applied always - and with staggered entrances the soprano
+    // rests through the opening, which came out as a scatter of small rests
+    // instead of the whole-bar rests a reader expects.
+    //
+    // The chord symbol no longer breaks the run at all, and the first one rides
+    // the merged rest. Breaking where the chord CHANGES was tried and is not
+    // enough: the harmony moves about twice a bar, so a resting soprano still
+    // came out as two half rests per bar rather than a whole rest. A reader
+    // looking at a part that is silent wants to see one rest; the symbols that
+    // fall during the silence are the cheaper thing to lose, and the voice is
+    // not singing them anyway.
+    const runSymbol = note.chordSymbol;
     const measureEnd = (Math.floor(t / tsPerMeasure) + 1) * tsPerMeasure;
     let total = 0;
     let j = i;
@@ -286,7 +310,6 @@ export function mergeRestsWithinMeasures(
       j < voice.length &&
       voice[j].rest &&
       !voice[j].isCadenceEnd &&
-      !voice[j].chordSymbol &&
       t + total + voice[j].length <= measureEnd
     ) {
       total += voice[j].length;
@@ -302,8 +325,17 @@ export function mergeRestsWithinMeasures(
       continue;
     }
 
+    // The symbol rides on the first rest of the run - a second copy on the
+    // remainder of the same silence would be printing the same chord twice.
+    let first = true;
     for (const length of splitRestRun(t % tsPerMeasure, total, tsPerMeasure)) {
-      merged.push({ ...note, length, rest: true });
+      merged.push({
+        ...note,
+        length,
+        rest: true,
+        chordSymbol: first ? runSymbol : undefined,
+      });
+      first = false;
     }
     t += total;
     i = j;
