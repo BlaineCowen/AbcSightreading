@@ -11,6 +11,14 @@
   import { rhythmLabel } from "../lib/rhythm-labels";
   import { failureHint, type PartSpan } from "../lib/failure-hint";
   import {
+    planForm,
+    requiredMeasures,
+    describeForm,
+    majorKeysFor,
+    type FormPlan,
+  } from "../lib/form-plan";
+  import { buildFullLengthPiece } from "../lib/full-length";
+  import {
     canAppearInChoral,
     containsRest,
     isSelectableRhythm,
@@ -241,6 +249,21 @@
    */
   let selectedKeys: Set<string> = new Set(["C"]);
   let measures = 8;
+  /**
+   * Plan and generate a whole UIL-length example rather than a phrase.
+   *
+   * Off by default: pressing Generate to drill eight bars is what this page is
+   * for most of the time, and a full example takes seven generations and a few
+   * seconds. It needs a UIL level, because the length, the shape and how much
+   * of it may be polyphonic all come from the level - see form-plan.ts.
+   */
+  let fullLength = false;
+  /** Bars for the full-length piece; set from the level's range when enabled. */
+  let fullLengthMeasures = 0;
+  let formPlan: FormPlan | null = null;
+  let formPlanError: string | null = null;
+  /** Section joins the seam check could not make good, by the section before. */
+  let roughSeams: string[] = [];
   let maxSkip = 4;
   const maxSkipRange = [2, 8];
   const skipIntervalNames: Record<number, string> = {
@@ -749,6 +772,42 @@
   // nothing disappears, so a reader can still see the whole vocabulary and step
   // outside the level deliberately.
   $: activePreset = activeUILLevel ? uilPresets[activeUILLevel] : null;
+
+  /** The level number behind the active preset, or null when none is chosen. */
+  $: fullLengthLevel = activePreset ? activePreset.level : null;
+
+  /** The length range the level requires in the meter chosen. */
+  $: fullLengthRange = fullLengthLevel
+    ? requiredMeasures(fullLengthLevel, selectedTimeSignature)
+    : null;
+
+  // Re-plan whenever anything the plan depends on moves. The plan is cheap and
+  // pure, so this is simpler than keeping it in step by hand.
+  $: {
+    if (!fullLength || !fullLengthLevel || !fullLengthRange) {
+      formPlan = null;
+      formPlanError = null;
+    } else {
+      const [lo, hi] = fullLengthRange;
+      const want = Math.min(hi, Math.max(lo, fullLengthMeasures || lo));
+      try {
+        formPlan = planForm({
+          level: fullLengthLevel,
+          meter: selectedTimeSignature,
+          measures: want,
+          // A full-length example is in major. The key is drawn at Generate
+          // from the level's majors, so the plan here just needs a valid one.
+          key: majorKeysFor(fullLengthLevel).includes(selectedKey)
+            ? selectedKey
+            : undefined,
+        });
+        formPlanError = null;
+      } catch (err) {
+        formPlan = null;
+        formPlanError = err instanceof Error ? err.message : String(err);
+      }
+    }
+  }
   $: presetKeys = activePreset ? new Set(activePreset.allowedKeys) : null;
   $: presetVoicings = activePreset?.allowedVoicings?.length
     ? new Set(activePreset.allowedVoicings)
@@ -1307,7 +1366,17 @@
 
     // Draw the key for this exercise. With one key selected this is that key, so
     // nothing changes for the ordinary case.
-    const keyPool = [...selectedKeys];
+    let keyPool = [...selectedKeys];
+    // A full-length example starts in major - planForm refuses a minor key
+    // outright, so the draw has to agree with it rather than fail at the end of
+    // seven generations. If nothing selected is major, the level's majors are
+    // used, because the alternative is refusing to generate over a setting the
+    // reader cannot see the relevance of.
+    if (fullLength && fullLengthLevel) {
+      const majors = majorKeysFor(fullLengthLevel);
+      const selectedMajors = keyPool.filter((k) => majors.includes(k));
+      keyPool = selectedMajors.length > 0 ? selectedMajors : majors;
+    }
     const drawnKey = keyPool[Math.floor(Math.random() * keyPool.length)] ?? selectedKey;
     selectedKey = drawnKey;
 
@@ -1362,11 +1431,49 @@
     await painted();
 
     try {
-      const {
-        abcString,
-        chordProgression: generatedProgression,
-        render,
-      } = generateChoralExercise(params);
+      let abcString: string;
+      let generatedProgression: Chord[];
+      let render: (display: any) => string;
+
+      if (fullLength && formPlan) {
+        // A whole example rather than a phrase: one generation per section,
+        // joined with the seams vetted. Each section is generated with its own
+        // length and texture - the plan's, not the page's - so the imitative
+        // passage gets staggered entrances whatever the texture control says.
+        const piece = buildFullLengthPiece(
+          (section) => {
+            const out = generateChoralExercise({
+              ...params,
+              measures: section.measures,
+              voiceTexture: section.texture,
+            });
+            return {
+              voices: out.voiceNotes,
+              abc: out.abcString,
+              render: out.render,
+              chords: out.chordProgression as Chord[],
+            };
+          },
+          { plan: formPlan, maxSkip }
+        );
+        if (!piece.abc) throw new Error("The sections could not be joined into one score.");
+        // Rendered with the annotations that are ON right now, not the
+        // defaults - generating with solfege already showing should not hand
+        // back a bare score that only annotates itself when toggled.
+        abcString = piece.render(displayOptions());
+        generatedProgression = piece.chordProgression;
+        render = piece.render;
+        // A seam that never came good is reported, not hidden: the piece is
+        // still worth having, and the reader should know where to look.
+        roughSeams = piece.roughSeams.map((r) => r.after);
+      } else {
+        roughSeams = [];
+        const out = generateChoralExercise(params);
+        abcString = out.abcString;
+        generatedProgression = out.chordProgression as Chord[];
+        render = out.render;
+      }
+
       renderedString = abcString;
       chordProgression = generatedProgression as Chord[];
       // Kept so the annotation toggles can re-write this exercise instead of
@@ -1376,7 +1483,7 @@
         render,
         chordProgression: chordProgression,
         bpm,
-        label: `${drawnKey} ${isMinorKey(drawnKey) ? "minor" : "major"} · ${selectedTimeSignature} · ${selectedVoicing}`,
+        label: `${drawnKey} ${isMinorKey(drawnKey) ? "minor" : "major"} · ${selectedTimeSignature} · ${selectedVoicing}${fullLength ? ` · ${formPlan?.measures ?? measures} bars` : ""}`,
       });
 
       const tune = await renderTune();
@@ -1573,18 +1680,92 @@
 
             <div class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Measures">
+              <div class="flex flex-wrap gap-2 items-center" role="group" aria-label="Measures">
                 {#each measureOptions as opt}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => (measures = opt)}
+                    class="px-3 py-2 sm:py-1 rounded text-sm {!fullLength && measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    on:click={() => { fullLength = false; measures = opt; }}
                   >{opt}</button>
                 {/each}
+                <button
+                  class="px-3 py-2 sm:py-1 rounded text-sm {fullLength ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  aria-pressed={fullLength}
+                  on:click={() => {
+                    fullLength = !fullLength;
+                    if (fullLength && fullLengthRange) fullLengthMeasures = fullLengthRange[0];
+                  }}
+                >Full length piece</button>
               </div>
+
+              {#if fullLength}
+                <div class="rounded border border-slate-200 bg-slate-50 p-3 space-y-3 text-sm">
+                  {#if !fullLengthLevel}
+                    <p class="text-slate-600">
+                      Pick a UIL level first. The length, the shape and how much of the piece may be
+                      polyphonic all come from the level.
+                    </p>
+                  {:else if formPlanError}
+                    <p class="text-amber-700">{formPlanError}</p>
+                  {:else if formPlan && fullLengthRange}
+                    <div class="space-y-1">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Length &mdash; level {fullLengthLevel} wants {fullLengthRange[0]}&ndash;{fullLengthRange[1]} bars in {selectedTimeSignature}
+                      </p>
+                      <div class="flex flex-wrap gap-2" role="group" aria-label="Full length">
+                        {#each [fullLengthRange[0], Math.round((fullLengthRange[0] + fullLengthRange[1]) / 2), fullLengthRange[1]] as opt}
+                          <button
+                            class="px-3 py-1 rounded text-sm {formPlan.measures === opt ? 'bg-blue-500 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100'}"
+                            on:click={() => (fullLengthMeasures = opt)}
+                          >{opt} bars</button>
+                        {/each}
+                      </div>
+                    </div>
+
+                    <div class="space-y-1">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Form</p>
+                      <ul class="space-y-0.5 font-mono text-xs text-slate-700">
+                        {#each formPlan.sections as section}
+                          <li>
+                            <span class="inline-block w-10 font-semibold">{section.label}</span>
+                            <span class="inline-block w-20">bars {section.startsAtBar}&ndash;{section.startsAtBar + section.measures - 1}</span>
+                            <span>{section.style}{section.restates ? ` of ${section.restates}` : ""}</span>
+                            {#if section.keyArea !== "tonic"}
+                              <span class="text-blue-700">&middot; {section.keyArea === "dominant" ? "toward V" : "toward vi"}</span>
+                            {/if}
+                            {#if section.texture === "staggered"}
+                              <span class="text-violet-700">&middot; staggered entrances</span>
+                            {/if}
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+
+                    <p class="text-xs text-slate-500">
+                      Polyphony {Math.round(100 * formPlan.polyphony.share)}% of the
+                      {Math.round(100 * formPlan.polyphony.ceiling)}% level {fullLengthLevel} allows.
+                      {#if formPlan.shortEndingBar}
+                        A lower level may stop at bar {formPlan.shortEndingBar}.
+                      {/if}
+                      Always major &mdash; minor keys are for the shorter exercises above.
+                    </p>
+                    <p class="text-xs text-amber-700">
+                      Sections marked &ldquo;toward V&rdquo; or &ldquo;toward vi&rdquo; are planned but not yet
+                      written that way: chord generation cannot be told to cadence anywhere but home
+                      yet, so they will come out at home.
+                    </p>
+                  {/if}
+                </div>
+              {/if}
             </div>
 
             <div class="space-y-2 sm:col-span-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voice texture</p>
+              {#if fullLength}
+                <p class="text-xs text-slate-500">
+                  The form decides this per section for a full-length piece &mdash; the imitative
+                  passage gets staggered entrances and the rest all voices.
+                </p>
+              {/if}
               <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
                 {#each voiceTextures as mode}
                   <button
@@ -1922,6 +2103,15 @@
     {#if audioNotice}
       <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
         {audioNotice}
+      </p>
+    {/if}
+
+    {#if roughSeams.length > 0}
+      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
+        The join after {roughSeams.length === 1 ? "section" : "sections"}
+        {roughSeams.join(", ")} could not be made smooth after several tries &mdash; there may be a
+        wide leap or a stranded accidental where that section ends. Generating again usually
+        clears it.
       </p>
     {/if}
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  joinSectionAbc,
   buildSectionalExercise,
   classicSectionalShape,
   seamOk,
@@ -227,5 +228,52 @@ describe("the offered shape", () => {
     expect(shape.map((s) => s.label)).toEqual(["A", "B", "C", "A'", "coda"]);
     expect(shape.find((s) => s.label === "A'")!.restates).toBe("A");
     expect(shape.reduce((n, s) => n + s.measures, 0)).toBe(32);
+  });
+});
+
+describe("joining the sections into one score", () => {
+  const HEAD = [
+    "X:1", "T:t", "M:4/4", "L:1/8",
+    "%%score S A",
+    'V:S clef=treble name="Soprano" snm="S"',
+    'V:A clef=treble name="Alto" snm="A"',
+    "K:C",
+  ].join("\n");
+
+  const section = (label: string, s: string, a: string, withLyrics: boolean): any => ({
+    label, measures: 1, startsAtBar: 1, voices: [], restated: false,
+    abc: withLyrics
+      ? `${HEAD}\n[V:S] ${s}|]\nw: ${label.toLowerCase()}s\n[V:A] ${a}|]\nw: ${label.toLowerCase()}a\n`
+      : `${HEAD}\n[V:S] ${s}|]\n[V:A] ${a}|]\n`,
+  });
+
+  test("the music runs end to end with one final barline", () => {
+    const out = joinSectionAbc([section("A", "c8", "E8", false), section("B", "d8", "F8", false)])!;
+    expect(out).toContain("[V:S] c8| d8|]");
+    expect(out).toContain("[V:A] E8| F8|]");
+  });
+
+  test("lyric lines survive, under their own voice and in order", () => {
+    // They did not. splitScore reads a `w:` line as a continuation of the music
+    // above it, so joining put "do re mi" INSIDE the voice's music line - which
+    // meant turning solfege on silently corrupted every full-length piece.
+    const out = joinSectionAbc([section("A", "c8", "E8", true), section("B", "d8", "F8", true)])!;
+    const lines = out.split("\n");
+    const sIndex = lines.findIndex((l) => l.startsWith("[V:S]"));
+    expect(lines[sIndex]).toBe("[V:S] c8| d8|]");
+    expect(lines[sIndex + 1]).toBe("w: as bs");
+    const aIndex = lines.findIndex((l) => l.startsWith("[V:A]"));
+    expect(lines[aIndex + 1]).toBe("w: aa ba");
+  });
+
+  test("no lyric line is invented when the sections have none", () => {
+    const out = joinSectionAbc([section("A", "c8", "E8", false), section("B", "d8", "F8", false)])!;
+    expect(out).not.toContain("w:");
+  });
+
+  test("a section without ABC makes the join refuse rather than half-join", () => {
+    const ok = section("A", "c8", "E8", false);
+    const bad = { ...section("B", "d8", "F8", false), abc: undefined };
+    expect(joinSectionAbc([ok, bad])).toBeNull();
   });
 });

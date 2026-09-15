@@ -48,6 +48,16 @@ export type GeneratedSection = {
   voices: VoiceNote[][];
   /** The section rendered as ABC, so the pieces can be joined for display. */
   abc?: string;
+  /**
+   * Anything the caller wants carried through to the matching `SectionResult`.
+   *
+   * Opaque on purpose: this module has no business knowing what a caller needs
+   * to keep. `full-length.ts` puts the section's `render` here, so the
+   * annotation toggles can re-write a finished piece section by section. A
+   * restatement carries its source's meta, which is right - it is the same
+   * music, so it re-renders the same way.
+   */
+  meta?: unknown;
 };
 
 export type SectionResult = {
@@ -57,6 +67,8 @@ export type SectionResult = {
   startsAtBar: number;
   voices: VoiceNote[][];
   abc?: string;
+  /** Whatever the generator attached - see `GeneratedSection.meta`. */
+  meta?: unknown;
   restated: boolean;
 };
 
@@ -122,11 +134,17 @@ export function seamOk(
  *
  * `generate` is injected rather than imported so this can be tested without
  * running the whole search - and so the caller keeps control of every
- * generation parameter. It is handed the measure count and must return one
- * section's voices, index-aligned with every other section's.
+ * generation parameter. It is handed the SECTION being asked for, and must
+ * return that section's voices, index-aligned with every other section's.
+ *
+ * The whole spec rather than just its length, because a caller generally needs
+ * to know which section it is writing - the label, and whatever it has attached
+ * to it. Working that out from the call order instead means tracking a cursor
+ * against this function's retry loop, which is a private detail and would break
+ * silently the moment it changed.
  */
 export function buildSectionalExercise(
-  generate: (measures: number, attempt: number) => GeneratedSection,
+  generate: (section: SectionSpec, attempt: number) => GeneratedSection,
   opts: SectionalOptions
 ): SectionalResult {
   const { sections, maxSkip, seamAttempts = 6 } = opts;
@@ -151,7 +169,11 @@ export function buildSectionalExercise(
     let lastReason = "";
     if (earlier) {
       // A restatement is a copy, not another roll of the dice.
-      chosen = { voices: earlier.voices.map((v) => v.map((n) => ({ ...n }))), abc: earlier.abc };
+      chosen = {
+        voices: earlier.voices.map((v) => v.map((n) => ({ ...n }))),
+        abc: earlier.abc,
+        meta: earlier.meta,
+      };
       if (combined) {
         const verdict = seamOk(combined, chosen.voices, maxSkip);
         if (!verdict.ok) {
@@ -161,7 +183,7 @@ export function buildSectionalExercise(
       }
     } else {
       for (let attempt = 0; attempt < seamAttempts; attempt++) {
-        const candidate = generate(spec.measures, attempt);
+        const candidate = generate(spec, attempt);
         if (!combined) { chosen = candidate; break; }
         const verdict = seamOk(combined, candidate.voices, maxSkip);
         if (verdict.ok) { chosen = candidate; break; }
@@ -185,6 +207,7 @@ export function buildSectionalExercise(
       startsAtBar: bar,
       voices,
       abc: chosen!.abc,
+      meta: chosen!.meta,
       restated: Boolean(earlier),
     });
     bar += spec.measures;
@@ -240,18 +263,59 @@ export function joinSectionAbc(sections: SectionResult[]): string | null {
   if (ids.length === 0) return null;
 
   const music: Record<string, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  const lyrics: Record<string, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
+
   for (const section of sections) {
-    const part = splitScore(section.abc!);
+    const part = voiceLines(section.abc!);
     for (const id of ids) {
-      const line = (part.voices[id] ?? "").replace(/\s+/g, " ").trim();
+      const line = (part[id]?.music ?? "").replace(/\s+/g, " ").trim();
       // A section ends with a final barline; only the last one should keep it.
       music[id].push(line.replace(/\|\]\s*$/, "|"));
+      const w = (part[id]?.lyrics ?? "").replace(/\s+/g, " ").trim();
+      if (w) lyrics[id].push(w);
     }
   }
 
-  const lines = ids.map((id) => {
+  const lines: string[] = [];
+  for (const id of ids) {
     const joined = music[id].join(" ").replace(/\s+/g, " ").trim();
-    return `[V:${id}] ${joined.replace(/\|$/, "|]")}`;
-  });
+    lines.push(`[V:${id}] ${joined.replace(/\|$/, "|]")}`);
+    // The syllables follow their own voice, joined in the same order as the
+    // music. Dropping them was the bug this replaced: `splitScore` reads a `w:`
+    // line as a continuation of the music above it, so turning solfege on put
+    // "do re mi" inside the voice's music line instead of under it.
+    if (lyrics[id].length > 0) lines.push(`w: ${lyrics[id].join(" ")}`);
+  }
   return `${first.header}\n${lines.join("\n")}\n`;
+}
+
+/**
+ * The music and the lyric line for each voice of one section.
+ *
+ * Its own small parse rather than `splitScore`, which serves the /write page's
+ * per-part boxes and treats a `w:` line as more music. Correcting it there is a
+ * different question - a hand-typed lyric would then have to survive a save -
+ * and this input is not hand-typed: it is what `assembleAbcString` just wrote,
+ * one `[V:id]` line per voice with at most one `w:` line under it.
+ */
+function voiceLines(abc: string): Record<string, { music: string; lyrics: string }> {
+  const out: Record<string, { music: string; lyrics: string }> = {};
+  let current: string | null = null;
+  for (const raw of abc.split(/\r?\n/)) {
+    const line = raw.trim();
+    const voice = /^\[V:\s*([^\]\s]+)\]\s*(.*)$/.exec(line);
+    if (voice) {
+      current = voice[1];
+      const existing = out[current];
+      out[current] = existing
+        ? { ...existing, music: `${existing.music} ${voice[2]}`.trim() }
+        : { music: voice[2].trim(), lyrics: "" };
+      continue;
+    }
+    const lyric = /^w:\s*(.*)$/.exec(line);
+    if (lyric && current && out[current]) {
+      out[current].lyrics = `${out[current].lyrics} ${lyric[1]}`.trim();
+    }
+  }
+  return out;
 }
