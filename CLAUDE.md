@@ -96,12 +96,17 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent runs: 389 failures in
-22,068 exercises (1.76%) as shipped, and 10 (0.05%) with the option off.
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent runs: 355 failures in
+22,068 exercises (1.61%) as shipped, and 10 (0.05%) with the option off.
+
+A handful of those are a different fault worth knowing about: two-measure
+exercises at UIL 5 in a minor key fail on "Failed to generate valid progression"
+rather than on note-building - there is not room for the cadence the level
+requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
 approached or left by skip - 1.1% as shipped, against 37.1% with
-`STEPWISE_EIGHTHS=0`. The 389 failures are the price, across 212 cells,
+`STEPWISE_EIGHTHS=0`. The 355 failures are the price, across 206 cells,
 clustered in 16-measure exercises at UIL 5, all "Failed to build valid notes
 after max attempts".
 
