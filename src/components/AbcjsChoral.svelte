@@ -15,6 +15,7 @@
     requiredMeasures,
     describeForm,
     majorKeysFor,
+    POLYPHONY_CEILING,
     type FormPlan,
   } from "../lib/form-plan";
   import { buildFullLengthPiece } from "../lib/full-length";
@@ -191,7 +192,10 @@
    * the syllables to sing from - could only be had together or not at all. Each
    * now re-writes the exercise already on screen.
    */
-  let showChords = true;
+  // Off by default. Chord symbols over the top staff are an analysis aid, and
+  // a sight-reading exercise is meant to be read from the notes - having them
+  // on unasked tells the reader the harmony before they have worked it out.
+  let showChords = false;
 
   /**
    * Re-writes the current exercise with different annotations.
@@ -495,17 +499,37 @@
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
 
+  /**
+   * What the controls are set to, for telling "still the preset" from "edited".
+   *
+   * The KEY SELECTION, not the key. Generate draws a key from the selection and
+   * assigns it to `selectedKey`, so with the drawn key in here every Generate
+   * looked like an edit and the preset name vanished the moment you used it -
+   * the options stayed put, which made it look like the preset had silently
+   * come off. The selection is the setting; the drawn key is an output.
+   *
+   * Voice ranges are in here too. They were tracked by appending "(modified)"
+   * to the label instead, which appended again on every further drag.
+   */
   $: _currentParamSig = [
-    selectedKey, selectedTimeSignature, selectedVoicing, measures, maxSkip,
+    [...selectedKeys].sort().join(','),
+    selectedTimeSignature, selectedVoicing, measures, maxSkip,
     Math.round(nctProbability * 100),
     selectedRhythms.map(r => r.name).sort().join(','),
     [...userAllowedChords].sort().join(','),
+    Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
+      .map(p => p.currentRange.join('-')).join(','),
   ].join('|');
 
-  $: if (_presetParamSig && _currentParamSig !== _presetParamSig && activePresetLabel) {
-    activePresetLabel = '';
-    _presetParamSig = '';
-  }
+  /**
+   * The preset is still named, and said to be edited, rather than dropped.
+   *
+   * Clearing the name threw away the one piece of information worth keeping:
+   * which level these settings came from. "UIL Level 4 - edited" says both.
+   */
+  $: presetEdited = Boolean(
+    activePresetLabel && _presetParamSig && _currentParamSig !== _presetParamSig
+  );
 
   // ── Voice names for playback bar ───────────────────────────────────────────
   $: voiceNames = Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {});
@@ -813,6 +837,13 @@
     ? new Set(activePreset.allowedVoicings)
     : null;
   $: presetRhythmNames = activePreset ? new Set(activePreset.allowedRhythmNames) : null;
+  /** Meters outside the active level, dimmed rather than removed. */
+  $: presetMeterNames = activePreset ? new Set(activePreset.allowedMeters) : null;
+
+  /** Levels 1 and 2 are homophonic only - see notes/uil-criteria.md. */
+  $: polyphonyAllowed = activePreset
+    ? (POLYPHONY_CEILING[activePreset.level] ?? 0) > 0
+    : true;
   $: presetChordNames = activePreset ? new Set(activePreset.allowedChordNames) : null;
   /** Dimmed-but-clickable: outside the level, not forbidden. */
   const outside = (allowed: Set<string> | null, name: string) =>
@@ -831,6 +862,17 @@
       )
       .map((r) => r.name)
   );
+
+  /**
+   * In the level's vocabulary, but not ticked when the level is chosen.
+   *
+   * Same posture as the rests just above: the level ALLOWS it, so it stays in
+   * the picker to be switched on, but it is not what the exercise should be
+   * built from by default. Four sixteenths in a row is only reachable at level
+   * 5, and having it ticked meant every level 5 exercise came out at the
+   * fastest thing the level permits rather than around the middle of it.
+   */
+  const OFFERED_NOT_SELECTED = new Set(["fourSixteenths"]);
 
   function applyUILPreset(levelKey: string) {
     const p = uilPresets[levelKey];
@@ -856,6 +898,15 @@
     if (p.allowedVoicings?.length && !p.allowedVoicings.includes(selectedVoicing)) {
       selectedVoicing = p.allowedVoicings[0];
     }
+    // The levels name their meters and nothing read them, so picking level 2 -
+    // which is 3/4 and 4/4 - left 2/4 selected and generating in it.
+    if (p.allowedMeters?.length && !p.allowedMeters.includes(selectedTimeSignature)) {
+      selectedTimeSignature = p.allowedMeters[0];
+    }
+    // Levels 1 and 2 are "homophonic only" and "homophonic with a few simple
+    // parallel motion lines" - no polyphony at all. Staggered entrances left
+    // selected from a higher level would have written some anyway.
+    if ((POLYPHONY_CEILING[p.level] ?? 0) === 0) voiceTexture = "full";
     // Every preset starts at 8 measures. The levels declare 24-56, but that is
     // the length of a real UIL sight-reading example, not what you want when
     // you press Generate to drill a phrase - and the form rules that would make
@@ -872,7 +923,10 @@
     // from this selection. See interiorCadenceFigure in rhythm-generation.
     selectedRhythms = allRhythms.filter(
       (r) =>
-        p.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest
+        p.allowedRhythmNames.includes(r.name) &&
+        choralSelectable(r) &&
+        !r.rest &&
+        !OFFERED_NOT_SELECTED.has(r.name)
     );
     maxSkip = p.maxSkip;
     userAllowedChords = withInversions(p.allowedChordNames ?? allChordNames);
@@ -960,7 +1014,8 @@
     if (part) {
       part.currentRange = [newRange.min, newRange.max];
       possibleVoicing = { ...possibleVoicing };
-      activePresetLabel = activePresetLabel ? `${activePresetLabel} (modified)` : '';
+      // Ranges are part of _currentParamSig now, so the edited flag follows on
+      // its own - and does not append "(modified)" again on the next drag.
     }
   }
 
@@ -1512,7 +1567,7 @@
 
   <!-- Preset bar -->
   <PresetDropdown
-    activeLabel={activePresetLabel}
+    activeLabel={activePresetLabel ? `${activePresetLabel}${presetEdited ? ' — edited' : ''}` : ''}
     currentParams={getCurrentParams}
     onSelectBuiltin={applyBuiltinPreset}
     onSelectSaved={applySavedPreset}
@@ -1671,7 +1726,8 @@
               <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
                 {#each Object.keys(timeSignatures) as ts}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {presetMeterNames && !presetMeterNames.has(ts) ? 'opacity-40' : ''}"
+                    title={presetMeterNames && !presetMeterNames.has(ts) ? `Outside ${activePresetLabel || "this level"}` : ""}
                     on:click={() => (selectedTimeSignature = ts)}
                   >{ts}</button>
                 {/each}
@@ -1769,7 +1825,8 @@
               <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
                 {#each voiceTextures as mode}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {voiceTexture === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="px-3 py-2 sm:py-1 rounded text-sm {voiceTexture === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {mode === 'staggered' && !polyphonyAllowed ? 'opacity-40' : ''}"
+                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
                     on:click={() => (voiceTexture = mode)}
                     aria-pressed={voiceTexture === mode}
                   >{voiceTextureLabels[mode]}</button>
@@ -2155,13 +2212,6 @@
         </div>
       {/if}
     </div>
-
-    <!-- Chord progression display -->
-    {#if chordProgression.length > 0}
-      <div class="text-center mt-2 mb-4 no-print">
-        <p class="text-slate-500 text-sm">{chordProgression.map((c) => c.symbol).join('  ')}</p>
-      </div>
-    {/if}
 
     <div class="h-4"></div>
 

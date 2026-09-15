@@ -18,6 +18,15 @@ export interface UILPreset {
   allowedRhythmNames: string[];
   /** Allowed voicing names (must match keys in possibleVoicing in AbcjsChoral.svelte) */
   allowedVoicings: string[];
+  /**
+   * Meters the level permits, from notes/uil-criteria.md.
+   *
+   * These were stated in the criteria and nowhere in the code, so choosing a
+   * level left every meter available - level 2 and 3 are 3/4 and 4/4 only, and
+   * both offered 2/4. Listed as the app spells them, so 6/8 at level 4 is
+   * absent because the page does not offer compound meters at all.
+   */
+  allowedMeters: string[];
   /** [min, max] measure count */
   measureRange: [number, number];
   /** Maximum melodic skip in diatonic steps */
@@ -49,6 +58,7 @@ export const uilPresets: Record<string, UILPreset> = {
     // inside the choral generator only duplicated it. The Unison entry in
     // voiceRanges below stays - the range calibration page reads it for that
     // page's voice.
+    allowedMeters: ["4/4", "3/4", "2/4"],
     allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass"],
     measureRange: [24, 28],
     maxSkip: 2,
@@ -106,6 +116,7 @@ export const uilPresets: Record<string, UILPreset> = {
     // voicing the doc names beside it fails 0%. An option that rarely produces
     // an exercise is worse than one that is not offered - the same call as
     // level 1.
+    allowedMeters: ["4/4", "3/4"],
     allowedVoicings: [
       "4 Part Mixed", "3 Part Mixed", "2 Part Treble", "2 Part Tenor/Bass",
     ],
@@ -154,6 +165,7 @@ export const uilPresets: Record<string, UILPreset> = {
       "halfRest",
       "quarterRest",
     ],
+    allowedMeters: ["4/4", "3/4"],
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
@@ -207,6 +219,7 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarterRest",
       "eighthRest",
     ],
+    allowedMeters: ["4/4", "3/4"],
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [36, 48],
     maxSkip: 5,
@@ -267,6 +280,7 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarterRest",
       "eighthRest",
     ],
+    allowedMeters: ["4/4", "3/4", "2/4"],
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [48, 56],
     maxSkip: 6,
