@@ -23,15 +23,13 @@ import type { VoiceNote } from "./types";
  */
 
 /**
- * "staggered" is deliberately absent: it named the opening entrance and
- * nothing else, so with that held back it would be a setting that does
- * nothing. A saved preset or a shared link still carrying it falls back to
- * "full" through `isVoiceTexture`, which is the honest result - the exercise
- * it describes cannot be made at the moment.
+ * "independent" is gone - the tacet spans and mid-piece drop-outs it named are
+ * not wanted. A saved preset or a shared link still carrying it falls back to
+ * "full" through `isVoiceTexture`, which is the honest result.
  */
-export type VoiceTexture = "full" | "independent";
+export type VoiceTexture = "full" | "staggered";
 
-export const VOICE_TEXTURES: readonly VoiceTexture[] = ["full", "independent"];
+export const VOICE_TEXTURES: readonly VoiceTexture[] = ["full", "staggered"];
 
 export function isVoiceTexture(value: unknown): value is VoiceTexture {
   return (
@@ -48,16 +46,8 @@ export type VoiceTextureOptions = {
   minSounding?: number;
 };
 
-/**
- * A part dropping out mid-piece only reads as scoring on a long enough
- * exercise. On a short one it reads as a mistake, so both the tacet spans and
- * the single-note drop-outs are gated on this - a short exercise gets the
- * entrance and nothing else.
- */
-const MIN_MEASURES_FOR_TACET = 12;
-const MAX_TACET_MEASURES = 4;
-const CHANCE_OF_SECOND_TACET = 0.35;
-const CHANCE_OF_SHORT_DROPOUT = 0.15;
+/** A staggered entrance needs room to be heard as one. */
+const MIN_MEASURES_FOR_ENTRANCES = 8;
 
 /** Absolute start time of every position, taken from any voice (all aligned). */
 function startTimes(voice: VoiceNote[]): number[] {
@@ -106,9 +96,17 @@ function soundingAt(
  * Silence a voice across the given positions, if doing so breaks no rule.
  * Returns whether it happened, so a bad roll costs nothing.
  *
- * `allowSolo` let the opening entrance thin below a duet, since a staggered
- * entrance begins with a single voice by definition. Nothing passes it now that
- * the entrance is held back, but it stays for when that work is done properly.
+ * `allowSolo` exists for the opening entrance, which is the one place the
+ * texture is *meant* to thin below a duet - a staggered entrance begins with a
+ * single voice, by definition.
+ *
+ * Two of the guards below are unreachable from the only caller there is now,
+ * and are kept deliberately rather than left looking tested. The entrance never
+ * spans more than a quarter of the exercise, so it cannot touch the last
+ * measure and cannot silence a voice for the whole of it; mutate either and no
+ * test fails. They are here because this is a general helper and the tacet
+ * spans that used to need them may come back. The cadence guard IS reachable -
+ * a cadence can fall inside the entrance window - and is tested.
  */
 function trySilence(
   voiceNotes: VoiceNote[][],
@@ -176,61 +174,33 @@ export function applyVoiceTexture(
   const lastMeasureFrom = (measures - 1) * tsPerMeasure;
   const order = lowestFirst(out);
 
-  // The staggered entrance is gone for now, and with it the "staggered"
-  // texture it was the whole of.
+  // --- Staggered entrance: parts join one at a time, lowest first. ---
   //
-  // Parts joining one at a time means the exercise does not begin with the
-  // tonic chord - it begins with one voice, and a singer looking at a page
-  // where their part rests through the first bars reads that as a pickup and
-  // waits for a beat that never comes. On a sight-reading exercise the opening
-  // sonority is the one thing that should not be ambiguous: it is what tells
-  // the choir where home is. Held out until the texture work is done properly,
-  // which needs per-voice rhythms rather than notes silenced after the fact.
+  // This is the whole of the "staggered" texture, and it comes with a cost that
+  // is the point of the setting rather than a defect in it: the exercise does
+  // not begin with the full tonic chord, because the parts are not all there
+  // yet. That is why it was pulled out of the old "independent" texture, where
+  // it applied whether or not anyone had asked for it - a singer whose part
+  // rests through the opening reads it as a pickup and waits for a beat that
+  // never comes, and nobody had chosen that.
   //
-  // Everything else here stands: tacet spans and drop-outs happen inside the
-  // exercise, after the opening has done its job.
-
-  if (texture !== "independent") return out;
-
-  // --- Tacet spans: a part sits out for one to four measures. ---
-  if (measures >= MIN_MEASURES_FOR_TACET) {
-    const maxSpan = Math.max(1, Math.min(MAX_TACET_MEASURES, Math.floor(measures / 4)));
-    const spans = Math.random() < CHANCE_OF_SECOND_TACET ? 2 : 1;
-    for (let n = 0; n < spans; n++) {
-      const span = 1 + Math.floor(Math.random() * maxSpan);
-      // Not the opening and not the last measure, so entrances and the ending
-      // both stay intact.
-      const latestStart = measures - 1 - span;
-      if (latestStart < 1) continue;
-      const from = 1 + Math.floor(Math.random() * latestStart);
-      const voice = order[Math.floor(Math.random() * order.length)];
+  // Chosen deliberately and named for what it does, it is a legitimate texture.
+  // Anyone who wants every part on the downbeat has "full", which is the
+  // default.
+  if (measures >= MIN_MEASURES_FOR_ENTRANCES) {
+    const latest = Math.min(out.length - 1, Math.floor(measures / 4));
+    for (let rank = 1; rank < order.length; rank++) {
+      const entersAt = Math.min(rank, latest);
+      if (entersAt <= 0) continue;
       trySilence(
         out,
-        voice,
-        positionsInMeasures(starts, tsPerMeasure, from, from + span),
+        order[rank],
+        positionsInMeasures(starts, tsPerMeasure, 0, entersAt),
         lastMeasureFrom,
         starts,
         minSounding,
-        false
+        true // the opening is allowed to be a solo
       );
-    }
-  }
-
-  // --- Short drop-outs: a single note, kept rare. ---
-  if (measures >= MIN_MEASURES_FOR_TACET && Math.random() < CHANCE_OF_SHORT_DROPOUT) {
-    const voice = order[Math.floor(Math.random() * order.length)];
-    // Never the first measure. Picking freely could land on position 0, which
-    // silences a voice on the downbeat - the same opening rest the staggered
-    // entrance was held back for, arriving by another route. The tacet spans
-    // above already start at measure 1; this had no such guard, so it happened
-    // rarely enough to look like a flaky test rather than a bug.
-    const eligible: number[] = [];
-    for (let i = 0; i < out[voice].length; i++) {
-      if (starts[i] >= tsPerMeasure) eligible.push(i);
-    }
-    if (eligible.length > 0) {
-      const position = eligible[Math.floor(Math.random() * eligible.length)];
-      trySilence(out, voice, [position], lastMeasureFrom, starts, minSounding, false);
     }
   }
 

@@ -56,29 +56,71 @@ describe("voice texture", () => {
     for (let i = 0; i < 200; i++) {
       const input = satb(16);
       const before = totals(input);
-      for (const texture of ["independent"] as const) {
-        const out = applyVoiceTexture(input, { texture, measures: 16, tsPerMeasure: TS });
-        expect(totals(out)).toEqual(before);
-        // silencing replaces notes, never adds or removes them
-        expect(out.map((v) => v.length)).toEqual(input.map((v) => v.length));
-      }
+      const out = applyVoiceTexture(input, { texture: "staggered", measures: 16, tsPerMeasure: TS });
+      expect(totals(out)).toEqual(before);
+      // silencing replaces notes, never adds or removes them
+      expect(out.map((v) => v.length)).toEqual(input.map((v) => v.length));
     }
   });
 
-  test("nothing enters late - every part is singing from the downbeat", () => {
-    // Parts used to enter one at a time, lowest first. An exercise that begins
-    // with a single voice does not begin with the tonic chord, and a singer
-    // whose part rests through the opening bars reads that as a pickup and
-    // waits for a beat that never comes. Held back until the texture work is
-    // done with per-voice rhythms; this is the guard that it stays held back.
+  test("parts enter one at a time, lowest first", () => {
+    // The whole of this texture. The lowest voice is there from the downbeat
+    // and each one above it comes in later - which is also why the exercise
+    // does not open on the full tonic chord, and why "full" is the default.
     for (let i = 0; i < 50; i++) {
       const out = applyVoiceTexture(satb(16), {
-        texture: "independent",
+        texture: "staggered",
         measures: 16,
         tsPerMeasure: TS,
       });
-      for (const voice of out) {
-        expect(voice[0].rest).toBe(false);
+      const entersAt = out.map((v) => {
+        let t = 0;
+        for (const n of v) {
+          if (!n.rest) return t;
+          t += n.length;
+        }
+        return Infinity;
+      });
+      // satb() builds voices in order 3,2,1,0 - so the last array is the bass.
+      const byOrderLowestFirst = [...entersAt].reverse();
+      expect(byOrderLowestFirst[0]).toBe(0); // the bass starts on the downbeat
+      for (let k = 1; k < byOrderLowestFirst.length; k++) {
+        expect(byOrderLowestFirst[k]).toBeGreaterThanOrEqual(byOrderLowestFirst[k - 1]);
+      }
+      // and somebody really does come in late, or this proves nothing
+      expect(Math.max(...entersAt)).toBeGreaterThan(0);
+    }
+  });
+
+  test("an exercise too short to hear an entrance does not get one", () => {
+    // Under eight measures the parts would all be in before the effect reads as
+    // anything, and a rest in the first bar of a four-bar exercise is just a
+    // part that starts late.
+    for (let i = 0; i < 50; i++) {
+      const out = applyVoiceTexture(satb(4), {
+        texture: "staggered",
+        measures: 4,
+        tsPerMeasure: TS,
+      });
+      for (const voice of out) expect(voice[0].rest).toBe(false);
+    }
+  });
+
+  test("once everyone is in, nobody drops out again", () => {
+    // The entrance is all this texture does now. The tacet spans and mid-piece
+    // drop-outs that used to follow it belonged to "independent", which is gone.
+    for (let i = 0; i < 100; i++) {
+      const out = applyVoiceTexture(satb(16), {
+        texture: "staggered",
+        measures: 16,
+        tsPerMeasure: TS,
+      });
+      for (const v of out) {
+        let seenPitch = false;
+        for (const n of v) {
+          if (!n.rest) seenPitch = true;
+          else if (seenPitch) throw new Error("a voice dropped out mid-piece");
+        }
       }
     }
   });
@@ -91,7 +133,7 @@ describe("voice texture", () => {
       const measures = 16;
       const trio = satb(measures).slice(0, 3);
       const out = applyVoiceTexture(trio, {
-        texture: "independent",
+        texture: "staggered",
         measures,
         tsPerMeasure: TS,
       });
@@ -112,6 +154,23 @@ describe("voice texture", () => {
     }
   });
 
+  test("a cadence inside the entrance window keeps every part", () => {
+    // The one guard in trySilence the entrance can still reach. A cadence is an
+    // arrival, so a part cannot still be waiting to come in at one - the voices
+    // whose entrance would cover it start on the downbeat instead.
+    for (let i = 0; i < 100; i++) {
+      const input = satb(16);
+      const atEndOfSecondMeasure = 7; // inside the window the entrance spans
+      for (const v of input) v[atEndOfSecondMeasure].isCadenceEnd = true;
+      const out = applyVoiceTexture(input, {
+        texture: "staggered",
+        measures: 16,
+        tsPerMeasure: TS,
+      });
+      for (const v of out) expect(v[atEndOfSecondMeasure].rest).toBe(false);
+    }
+  });
+
   test("never silences a cadence note or the final measure", () => {
     for (let i = 0; i < 100; i++) {
       const measures = 16;
@@ -125,7 +184,7 @@ describe("voice texture", () => {
         v[v.length - 1].isCadenceEnd = true;
       }
       const out = applyVoiceTexture(input, {
-        texture: "independent",
+        texture: "staggered",
         measures,
         tsPerMeasure: TS,
       });
@@ -143,7 +202,7 @@ describe("voice texture", () => {
   test("no voice is silent for the whole exercise", () => {
     for (let i = 0; i < 100; i++) {
       const out = applyVoiceTexture(satb(16), {
-        texture: "independent",
+        texture: "staggered",
         measures: 16,
         tsPerMeasure: TS,
       });
@@ -151,30 +210,11 @@ describe("voice texture", () => {
     }
   });
 
-  test("short exercises get the entrance and nothing else", () => {
-    // A part dropping out mid-piece needs room to read as scoring rather than
-    // as a mistake, so on a short exercise nothing drops out after entering.
-    for (let i = 0; i < 50; i++) {
-      const measures = 8;
-      const out = applyVoiceTexture(satb(measures), {
-        texture: "independent",
-        measures,
-        tsPerMeasure: TS,
-      });
-      // after the entrance, every voice sings to the end
-      for (const v of out) {
-        let seenPitch = false;
-        for (const n of v) {
-          if (!n.rest) seenPitch = true;
-          else if (seenPitch) throw new Error("a voice dropped out mid-piece");
-        }
-      }
-    }
-  });
-
-  test("isVoiceTexture accepts only the three modes", () => {
+  test("isVoiceTexture accepts only the two modes", () => {
     expect(isVoiceTexture("full")).toBe(true);
-    expect(isVoiceTexture("independent")).toBe(true);
+    expect(isVoiceTexture("staggered")).toBe(true);
+    // A saved preset or shared link from when this existed falls back to full.
+    expect(isVoiceTexture("independent")).toBe(false);
     expect(isVoiceTexture("sideways")).toBe(false);
     expect(isVoiceTexture(undefined)).toBe(false);
   });

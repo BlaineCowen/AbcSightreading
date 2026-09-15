@@ -165,7 +165,7 @@ for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
 
 // --------------------------------------------------------------- textures
 const l5 = uilPresets["UIL 5"];
-for (const voiceTexture of ["full", "staggered", "independent"]) {
+for (const voiceTexture of ["full", "staggered"]) {
   for (const voicingName of l5.allowedVoicings) {
     const partsObject = presetVoicing(voicingName, l5);
     const usable = allRhythms.filter(

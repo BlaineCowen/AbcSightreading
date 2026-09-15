@@ -15,8 +15,16 @@ export interface PresetParams {
   nctProbability: number;
   /** Eighths move by step or repeat. Optional, for presets saved before it. */
   stepwiseEighths?: boolean;
-  /** Whether parts may enter late or drop out. Optional: presets saved before
-   *  this existed must still load. */
+  /**
+   * Whether parts enter one at a time. Optional: presets saved before this
+   * existed must still load.
+   *
+   * "independent" is no longer offered and neither is what it did, but it stays
+   * in this union because presets saved while it was are still on disk and in
+   * shared links. `isVoiceTextureMode` in the component is what decides, and it
+   * does not accept it - so an old preset loads with everything else intact and
+   * the texture back at All voices, rather than failing to load at all.
+   */
   voiceTexture?: "full" | "staggered" | "independent";
   /** Per-rhythm frequency multipliers. Optional, for presets saved before it. */
   rhythmBias?: Record<string, number>;

@@ -149,17 +149,22 @@
 
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   /**
-   * "Staggered entrances" is gone for now - see voice-texture.ts. It named the
-   * opening entrance and nothing else, and an exercise that begins with one
-   * voice does not begin with the tonic chord: a singer whose part rests
-   * through the first bars reads it as a pickup and waits for a beat that never
-   * comes. A link still carrying it falls back to All voices.
+   * "Independent parts" is gone - the tacet spans and mid-piece drop-outs it
+   * named are not wanted. A link still carrying it falls back to All voices.
+   *
+   * "Staggered entrances" is back, and it is the opening entrance and nothing
+   * else. It does mean the exercise no longer begins with the full tonic chord,
+   * which is the reason it once came out: a singer whose part rests through the
+   * first bars can read that as a pickup. The difference is that it is now a
+   * texture someone picks on purpose, rather than something the old
+   * "independent" setting did to every exercise unasked. All voices is still
+   * the default.
    */
-  const voiceTextures = ["full", "independent"] as const;
+  const voiceTextures = ["full", "staggered"] as const;
   type TextureMode = (typeof voiceTextures)[number];
   const voiceTextureLabels: Record<TextureMode, string> = {
     full: "All voices",
-    independent: "Independent parts",
+    staggered: "Staggered entrances",
   };
   const isVoiceTextureMode = (v: unknown): v is TextureMode =>
     typeof v === "string" && (voiceTextures as readonly string[]).includes(v);
