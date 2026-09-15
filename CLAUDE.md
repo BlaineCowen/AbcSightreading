@@ -96,8 +96,14 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent runs: 355 failures in
-22,068 exercises (1.61%) as shipped, and 10 (0.05%) with the option off.
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent runs: 432 failures in
+22,068 exercises (1.96%) as shipped, and 10 (0.05%) with the option off.
+
+That went up from 357 when `dotQuarterEighth` was weighted from 5 to 20, and the
+A/B says the weight is the whole of it - the same sweep at weight 5 gives 357
+failures against 432, and 268,512 short notes against 297,529. A dotted figure
+at the rate the real music writes it costs about 29,000 extra eighths, and every
+eighth is another place the stepwise rule can fail to find a note.
 
 A handful of those are a different fault worth knowing about: two-measure
 exercises at UIL 5 in a minor key fail on "Failed to generate valid progression"
@@ -106,7 +112,7 @@ requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
 approached or left by skip - 1.1% as shipped, against 37.1% with
-`STEPWISE_EIGHTHS=0`. The 355 failures are the price, across 206 cells,
+`STEPWISE_EIGHTHS=0`. The 432 failures are the price, across 214 cells,
 clustered in 16-measure exercises at UIL 5, all "Failed to build valid notes
 after max attempts".
 
