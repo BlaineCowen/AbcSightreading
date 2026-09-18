@@ -341,7 +341,31 @@ export function buildChordNotes(
      * blemish on one note, a failure is no exercise at all - and 1.1% is still
      * against 37% with the option off entirely.
      */
-    fallbackSkip?: number
+    fallbackSkip?: number,
+    /**
+     * Let an adjacent voice reach up to a step past where this one just was.
+     *
+     * The overlap rule below had no fallback, and in three-part writing it was
+     * most of what failed. The lowest part's range there sits almost inside
+     * the others' (SSA: alto A to c', sopranos B to d' and c to f'), so any
+     * chord whose root the lowest part can only reach near its top pushes it
+     * into the space the part above just left. In C that is every V - the
+     * alto's only G is g - and in Bb every V again; in G, D and F the dominant
+     * sits low. At 16 bars C failed 83% and Bb 92%, against 0% in G, and the
+     * overlap check was the filter emptying the list about five times as often
+     * in C as in G.
+     *
+     * So it yields, the way the step limit does: strict for the first tries at
+     * a step, then an overlap of `overlapGive` steps is allowed rather than no
+     * exercise. Voice order at the same instant is a separate rule and still
+     * holds.
+     *
+     * Measured at UIL 4, 16 bars, 16 exercises a key: C 88% -> 0% and Bb 88%
+     * -> 6% in both SSA and TBB, F, G and D staying at or near 0. An overlap
+     * reaches the page at 0.5-1.7% of adjacent-part steps, against 0% strict -
+     * taken only where the search has nothing else.
+     */
+    overlapGive: number = 0
   ): Note | null {
     // Get all notes in range
     let validNotes = voicePart.possibleNotes.filter(
@@ -625,12 +649,13 @@ export function buildChordNotes(
         if (otherCurr.order === undefined) continue;
         // Adjacent only: difference of exactly 1 voice-order.
         if (Math.abs(otherCurr.order - voicePart.order) !== 1) continue;
+        const give = overlapGive;
         if (otherCurr.order < voicePart.order) {
           // Other (lower) - its curr shouldn't reach OR exceed our prev.
-          if (otherCurr.pitchValue >= previousNote.pitchValue) return null;
+          if (otherCurr.pitchValue >= previousNote.pitchValue + give) return null;
         } else {
           // Other (upper) - its curr shouldn't drop to OR below our prev.
-          if (otherCurr.pitchValue <= previousNote.pitchValue) return null;
+          if (otherCurr.pitchValue <= previousNote.pitchValue - give) return null;
         }
       }
     }
@@ -956,6 +981,11 @@ export function buildChordNotes(
       }
 
       const maxStepRetries = 20;
+      /**
+       * Retries of one step before a voice overlap is allowed - one step of it
+       * after this many, two after twice as many. See overlapGive.
+       */
+      const OVERLAP_YIELD_AFTER = 6;
       let stepRetryCount = 0;
       let stepSuccess = false;
 
@@ -1449,7 +1479,13 @@ export function buildChordNotes(
                   | undefined,
                 (rhythm as any).isCadenceEnd === true ||
                   (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true,
-                maxSkip
+                maxSkip,
+                // Strict for the first tries at this step - see overlapGive.
+                stepRetryCount > 2 * OVERLAP_YIELD_AFTER
+                  ? 2
+                  : stepRetryCount > OVERLAP_YIELD_AFTER
+                    ? 1
+                    : 0
               );
 
               if (!selectedNote) {

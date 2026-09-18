@@ -27,7 +27,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 477 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 617 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -96,10 +96,20 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent runs: 432 failures in
-22,068 exercises (1.96%) as shipped, and 10 (0.05%) with the option off.
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **186 failures in
+22,020 exercises (0.84%)** as shipped, across 130 cells.
 
-That went up from 357 when `dotQuarterEighth` was weighted from 5 to 20, and the
+That is after the voice-overlap rule was made to yield (build-chord-notes,
+`overlapGive`). The hand-calibrated UIL ranges put a three-part voicing's lowest
+part almost inside the parts above it, so in keys whose dominant root it can
+only reach high - C and Bb - the strict no-overlap rule failed 16-bar SSA and
+TBB 80-100% of the time, and the sweep read 913 (4.15%). Now strict for six
+retries of a step, then a lower part may reach the note the upper part just
+left, then one step past it after twelve; overlaps reach the page at 0.5-1.7% of
+adjacent-part steps against Bach's 3.4%, and every major key is 0% in those
+voicings. Keeping the lowest part low instead was tried and made G and F worse.
+
+Before the ranges changed it was 432 (1.96%), up from 357 when `dotQuarterEighth` was weighted from 5 to 20, and the
 A/B says the weight is the whole of it - the same sweep at weight 5 gives 357
 failures against 432, and 268,512 short notes against 297,529. A dotted figure
 at the rate the real music writes it costs about 29,000 extra eighths, and every
@@ -111,15 +121,12 @@ rather than on note-building - there is not room for the cadence the level
 requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip - 1.1% as shipped, against 37.1% with
-`STEPWISE_EIGHTHS=0`. The 432 failures are the price, across 214 cells,
-clustered in 16-measure exercises at UIL 5, all "Failed to build valid notes
-after max attempts".
+approached or left by skip - 1.0% as shipped, against 37.1% with
+`STEPWISE_EIGHTHS=0`.
 
 **The option is ON by default**, so that failure rate is live. The worst cells
-are UIL 5 at sixteen bars in a crowded voicing (three treble parts, minor keys),
-around 50-67%, and those are selectable from the menus - `failureHint` names the
-option first when it fires there.
+left are UIL 5 minor keys - 16 bars in the fuller voicings, and the two-bar
+cells above - at 25-42%. `failureHint` names the option first when it fires.
 
 Two numbers moved it. Giving build-chord-notes' deadlock escape the fifth to
 reach for took skips from 3.3% to 0.3% (every violation left was in the bass;
