@@ -2644,7 +2644,7 @@
     onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
   />
 
-  <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
+  <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
     {#if error}
       <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">

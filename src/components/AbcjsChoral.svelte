@@ -566,11 +566,16 @@
   };
 
   /** Magnification is container / (staffwidth + 30), so a fixed staffwidth of
-   *  ~740 renders at under half size on a phone. Measure the container instead. */
+   *  ~740 renders at under half size on a phone. Measure the container instead.
+   *
+   *  The cap sets how big the notes get on a wide screen: past it, a wider page
+   *  only magnifies. It rose with the page column (max-w-4xl -> 5xl, 896 ->
+   *  1024px), 740 -> 846, so the extra width became room for the music at the
+   *  size it already was, rather than bigger notes in the same layout. */
   function scoreLayout() {
-    const cw = document.getElementById("paper")?.clientWidth ?? 900;
+    const cw = document.getElementById("paper")?.clientWidth ?? 1000;
     return {
-      staffwidth: Math.max(160, Math.min(740, cw - 30)),
+      staffwidth: Math.max(160, Math.min(846, cw - 30)),
       measuresPerLine: cw < 480 ? 2 : 4,
     };
   }
@@ -1695,7 +1700,7 @@
     onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
   />
 
-  <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
+  <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
     {#if generationError}
       <div
