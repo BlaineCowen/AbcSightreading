@@ -28,12 +28,19 @@ export type RenderedSection = {
   render: (display: FullLengthDisplay) => string;
   /** This section's chords, so the finished piece can list its own. */
   chords?: Chord[];
+  /**
+   * What `render` is made from, as plain data. Carried untouched so a piece
+   * built in a worker can have its sections re-rendered on the page - see
+   * choral-jobs.ts.
+   */
+  renderInput?: unknown;
 };
 
 /** What travels on a section's `meta` - see sectional-form.ts. */
-type SectionMeta = {
+export type SectionMeta = {
   render: (display: FullLengthDisplay) => string;
   chords: Chord[];
+  renderInput?: unknown;
 };
 
 export type FullLengthDisplay = {
@@ -88,7 +95,11 @@ export function buildFullLengthPiece(
       const planned = byLabel.get(spec.label);
       if (!planned) throw new Error(`No plan for section "${spec.label}".`);
       const made = generate(planned, attempt);
-      const meta: SectionMeta = { render: made.render, chords: made.chords ?? [] };
+      const meta: SectionMeta = {
+        render: made.render,
+        chords: made.chords ?? [],
+        renderInput: made.renderInput,
+      };
       return { voices: made.voices, abc: made.abc, meta };
     },
     { sections: specs, maxSkip, seamAttempts }

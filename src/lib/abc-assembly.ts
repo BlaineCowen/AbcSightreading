@@ -27,7 +27,7 @@ export interface AbcDisplayOptions {
 }
 
 // Interface for additional metadata needed for the ABC header
-interface AbcMetadata {
+export interface AbcMetadata {
   title: string;
   composer: string;
   tempo: number;

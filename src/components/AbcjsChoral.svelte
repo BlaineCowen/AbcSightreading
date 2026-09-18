@@ -20,7 +20,7 @@
     POLYPHONY_CEILING,
     type FormPlan,
   } from "../lib/form-plan";
-  import { buildFullLengthPiece } from "../lib/full-length";
+  import { startChoralJob, rendererFor, JobCancelled } from "../lib/choral-jobs";
   import type { LyricSystem } from "../resources/solfege";
   import {
     canAppearInChoral,
@@ -28,10 +28,7 @@
     isSelectableRhythm,
     rhythmPickerGroups,
   } from "../lib/selectable-rhythms";
-  import {
-    generateChoralExercise,
-    type GenerateChoralParams,
-  } from "../lib/generateChoral";
+  import type { GenerateChoralParams } from "../lib/generateChoral";
   import type { TimeSignature, PartsObject } from "../lib/types";
   import { ClefType } from "../lib/types";
   import type { Chord } from "../lib/types";
@@ -1591,6 +1588,7 @@
     };
 
     generationError = null;
+    generatingStage = "writing";
     isGenerating = true;
     await tick();
     await painted();
@@ -1600,44 +1598,21 @@
       let generatedProgression: Chord[];
       let render: (display: any) => string;
 
-      if (fullLength && formPlan) {
-        // A whole example rather than a phrase: one generation per section,
-        // joined with the seams vetted. Each section is generated with its own
-        // length and texture - the plan's, not the page's - so the imitative
-        // passage gets staggered entrances whatever the texture control says.
-        const piece = buildFullLengthPiece(
-          (section) => {
-            const out = generateChoralExercise({
-              ...params,
-              measures: section.measures,
-              voiceTexture: section.texture,
-            });
-            return {
-              voices: out.voiceNotes,
-              abc: out.abcString,
-              render: out.render,
-              chords: out.chordProgression as Chord[],
-            };
-          },
-          { plan: formPlan, maxSkip }
-        );
-        if (!piece.abc) throw new Error("The sections could not be joined into one score.");
-        // Rendered with the annotations that are ON right now, not the
-        // defaults - generating with solfege already showing should not hand
-        // back a bare score that only annotates itself when toggled.
-        abcString = piece.render(displayOptions());
-        generatedProgression = piece.chordProgression;
-        render = piece.render;
-        // A seam that never came good is reported, not hidden: the piece is
-        // still worth having, and the reader should know where to look.
-        roughSeams = piece.roughSeams.map((r) => r.after);
-      } else {
-        roughSeams = [];
-        const out = generateChoralExercise(params);
-        abcString = out.abcString;
-        generatedProgression = out.chordProgression as Chord[];
-        render = out.render;
-      }
+      // Off the page's thread, so a hard exercise cannot freeze it - see
+      // choral-jobs.ts. A full-length piece is one job too: every section is
+      // generated and joined in the worker.
+      currentJob = startChoralJob(
+        fullLength && formPlan
+          ? { kind: "piece", params, plan: formPlan, maxSkip }
+          : { kind: "exercise", params }
+      );
+      const result = await currentJob.result;
+      abcString = result.abc;
+      generatedProgression = result.chordProgression;
+      render = rendererFor(result);
+      // A seam that never came good is reported, not hidden: the piece is
+      // still worth having, and the reader should know where to look.
+      roughSeams = result.roughSeams;
 
       renderedString = abcString;
       chordProgression = generatedProgression as Chord[];
@@ -1651,6 +1626,12 @@
         label: `${drawnKey} ${isMinorKey(drawnKey) ? "minor" : "major"} · ${selectedTimeSignature} · ${selectedVoicing}${fullLength ? ` · ${formPlan?.measures ?? measures} bars` : ""}`,
       });
 
+      // The search is done; what is left is on this thread - drawing the score,
+      // then building the audio - and on a phone a long score takes a moment
+      // for each. Say so, rather than "writing" through all of it.
+      generatingStage = "drawing";
+      await tick();
+      await painted();
       const tune = await renderTune();
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
       tune[0].setTiming();
@@ -1659,15 +1640,45 @@
       systemExtents = []; // re-measured lazily once layout has settled
       cursorBeats = newMetronomeBeatState();
 
+      generatingStage = "audio";
+      await tick();
+      await painted();
       await initSynth(renderedTune);
       generatedBpm = bpm;
     } catch (error: unknown) {
+      // Cancelling is not a failure: the exercise already on screen stays.
+      if (error instanceof JobCancelled) return;
       // Kept for the console; the banner is what the reader gets.
       console.error("Error generating exercise:", error);
       generationError = currentFailureHint();
     } finally {
+      currentJob = null;
       isGenerating = false;
     }
+  }
+
+  /** What the overlay says the page is doing. Only "writing" can be cancelled. */
+  let generatingStage: "writing" | "drawing" | "audio" = "writing";
+
+  /** The generation in progress, so it can be cancelled. */
+  let currentJob: { cancel: () => void } | null = null;
+  function cancelGeneration() {
+    currentJob?.cancel();
+  }
+
+  /**
+   * Seconds since Generate was pressed, while it runs. Only shown once it has
+   * taken long enough to wonder about - the ordinary exercise is back in
+   * milliseconds, and a counter flashing up for those is noise.
+   */
+  let generatingSeconds = 0;
+  let generatingTimer: ReturnType<typeof setInterval> | null = null;
+  $: if (isGenerating && !generatingTimer) {
+    generatingSeconds = 0;
+    generatingTimer = setInterval(() => (generatingSeconds += 1), 1000);
+  } else if (!isGenerating && generatingTimer) {
+    clearInterval(generatingTimer);
+    generatingTimer = null;
   }
 </script>
 
@@ -2404,7 +2415,20 @@
         <div class="generating-overlay" aria-live="polite">
           <div class="generating-inner">
             <div class="generating-spinner" aria-hidden="true"></div>
-            <p class="text-sm font-medium text-slate-500">Writing the exercise…</p>
+            <p class="text-sm font-medium text-sr-muted">
+              {generatingStage === "drawing"
+                ? "Drawing the score…"
+                : generatingStage === "audio"
+                  ? "Getting the sound ready…"
+                  : `Writing the ${fullLength ? "piece" : "exercise"}…`}{generatingSeconds >= 2 ? ` ${generatingSeconds}s` : ""}
+            </p>
+            {#if generatingStage === "writing" && generatingSeconds >= 2}
+              <p class="text-xs text-sr-faint max-w-xs">
+                Long exercises at the higher levels are a harder search, and can take a
+                few seconds.
+              </p>
+              <button class="sr-btn-quiet mt-1" on:click={cancelGeneration}>Cancel</button>
+            {/if}
           </div>
         </div>
       {/if}

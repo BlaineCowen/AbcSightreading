@@ -2,7 +2,7 @@ import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
-import { assembleAbcString, type AbcDisplayOptions } from "./abc-assembly";
+import { assembleAbcString, type AbcDisplayOptions, type AbcMetadata } from "./abc-assembly";
 import { applyUnisonSpans } from "./unison-spans";
 import { applyRhymingPhrases, decorateRestatement } from "./rhyming-phrases";
 import { generateNonChordTones } from "./non-chord-tone-gen";
@@ -119,6 +119,8 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   rhythmSteps: Rhythm[];
   /** Re-write the same exercise with different annotations. See below. */
   render: (display?: AbcDisplayOptions & { midiProgram?: number }) => string;
+  /** The same, as plain data - see ChoralRenderInput. */
+  renderInput: ChoralRenderInput;
 } {
   console.log("--- generateChoralExercise START ---");
   console.log("Received params:", JSON.stringify(params, null, 2));
@@ -538,18 +540,17 @@ export function generateChoralExercise(params: GenerateChoralParams): {
    * after generation. Re-assembling from the captured metadata alone would quietly
    * reset playback to whatever instrument was chosen when the exercise was made.
    */
+  const renderInput: ChoralRenderInput = {
+    voices: tidied,
+    voiceParts,
+    rhythms: finalRhythms,
+    key,
+    timeSig,
+    metadata: abcParams,
+  };
   const render = (
     display: AbcDisplayOptions & { midiProgram?: number } = {}
-  ): string =>
-    assembleAbcString(
-      tidied,
-      voiceParts,
-      finalRhythms,
-      key,
-      timeSig,
-      { ...abcParams, midiProgram: display.midiProgram ?? abcParams.midiProgram },
-      display
-    );
+  ): string => renderChoral(renderInput, display);
 
   const abcString = render(params.display ?? {});
 
@@ -566,5 +567,40 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     voiceNames: voiceParts.map((vp) => vp.name),
     rhythmSteps: finalRhythms,
     render,
+    renderInput,
   };
+}
+
+/**
+ * Everything `render` needs, as plain data.
+ *
+ * `render` is a closure, and a closure cannot leave the thread it was made on.
+ * Generation runs in a worker (see choral-jobs.ts) so a hard exercise cannot
+ * freeze the page, and what comes back is this - from which the page rebuilds
+ * `render` with renderChoral, so the annotation toggles still re-write the
+ * exercise on screen instead of replacing it.
+ */
+export type ChoralRenderInput = {
+  voices: VoiceNote[][];
+  voiceParts: VoicePart[];
+  rhythms: Rhythm[];
+  key: string;
+  timeSig: TimeSignature;
+  metadata: AbcMetadata;
+};
+
+/** Write a generated exercise as ABC with the annotations asked for. */
+export function renderChoral(
+  input: ChoralRenderInput,
+  display: AbcDisplayOptions & { midiProgram?: number } = {}
+): string {
+  return assembleAbcString(
+    input.voices,
+    input.voiceParts,
+    input.rhythms,
+    input.key,
+    input.timeSig,
+    { ...input.metadata, midiProgram: display.midiProgram ?? input.metadata.midiProgram },
+    display
+  );
 }
