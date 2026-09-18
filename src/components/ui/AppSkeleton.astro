@@ -30,7 +30,7 @@ const { staves = 4, rows = 3 } = Astro.props;
   </div>
 
   <!-- Tab strip and the Generate button -->
-  <div class="bg-white rounded-lg shadow-md w-full p-4 flex flex-col gap-4">
+  <div class="sr-panel w-full p-4 flex flex-col gap-4">
     <div class="flex items-center justify-between">
       <div class="flex gap-4">
         {[4, 4.5, 5, 5.5].map((w) => (
@@ -54,7 +54,7 @@ const { staves = 4, rows = 3 } = Astro.props;
   </div>
 
   <!-- The score -->
-  <div class="bg-white rounded-lg shadow-md w-full p-6 flex flex-col gap-5">
+  <div class="sr-sheet w-full p-6 flex flex-col gap-5">
     <div class="skel mx-auto" style="width: 16rem; height: 1.5rem;"></div>
     {Array.from({ length: staves }).map(() => (
       <div class="skel-staff">

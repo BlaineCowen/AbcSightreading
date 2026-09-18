@@ -1,5 +1,12 @@
 # Choir Sight-Reading Criteria
 
+> **The MIDI range numbers in this file are not reliable.** They do not match
+> the range staves UIL publishes, and in September 2026 the app's voice ranges
+> were rebuilt from them and came out wrong - sopranos up to a sixth too high -
+> until the hand-calibrated values were restored. The ranges the app uses live
+> in `src/lib/uil-presets.ts` and are set on `/range-calibration` against the
+> official page: https://www.uiltexas.org/music/concert-sight-reading/choir-sight-reading-criteria
+
 ## Preface: Choir Sight-Reading Music
 The choral sight-reading evaluation encourages the extension of knowledge in basic fundamentals of music and rewards the consistent use of a systematic approach to sight-reading. The level of difficulty for each grade or class will allow for the demonstration of musicality as well as for technical accuracy.
 

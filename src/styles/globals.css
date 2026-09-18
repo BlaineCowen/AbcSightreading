@@ -121,13 +121,18 @@ font-family:
   fill: currentColor;
 }
 
+/*
+ * The icons carry their own size, at one shared scale (see
+ * scripts/render-rhythm-icons.mjs), so a notehead is the same size in every
+ * one of them and a four-sixteenth run is wider than a quarter. Stretching
+ * them to fill the tile - which is what this did while they were traced
+ * bitmaps - undid exactly that.
+ */
 .rhythm-icon svg {
   width: auto;
-  height: 100%;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
-  transform: scale(0.8);
 }
 
 body {
@@ -214,7 +219,7 @@ body {
    should look identical, or the page appears to change its mind as it loads. */
 
 .skel {
-  background: #e2e8f0;                 /* slate-200 */
+  background: var(--sr-skel, #e2e8f0);
   border-radius: 0.375rem;
   position: relative;
   overflow: hidden;
@@ -231,7 +236,7 @@ body {
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.6) 50%,
+    var(--sr-skel-sweep, rgba(255, 255, 255, 0.6)) 50%,
     rgba(255, 255, 255, 0) 100%
   );
   animation: skel-sweep 1.4s ease-in-out infinite;
@@ -251,7 +256,7 @@ body {
 }
 .skel-staff-line {
   height: 1px;
-  background: #cbd5e1;                 /* slate-300 */
+  background: var(--sr-skel-line, #cbd5e1);
 }
 
 .skel-page {
@@ -264,3 +269,334 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .skel::after { animation: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Sight-reading UI: "sheet on a desk"
+   ─────────────────────────────────────────────────────────────
+   The score renders white in every theme, so it is the brightest
+   surface the app has and everything else steps below it: desk,
+   then panel, then raised, then paper. White is reserved for the
+   sheet, which is why no control is ever filled white and the
+   primary action is petrol rather than an inverted ink block.
+
+   Colour has four jobs and no more:
+     petrol  every active state - chosen, on, focused, Generate
+     ink     type and structure
+     brass   edited, or a selection the level does not include
+     red     a failed Generate
+
+   Tokens carry a --sr- prefix to stay clear of the shadcn block
+   above, which the app does not use. They are the only place a
+   colour is written down; a dark theme is a second block here
+   and nothing else.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  --sr-ground:     #e7eaee;
+  --sr-panel:      #f4f6f8;
+  --sr-raise:      #ffffff;
+  --sr-paper:      #ffffff;
+  --sr-mat:        #d5dae1;
+  --sr-track:      #dee2e8;
+  --sr-tint:       #d2d9e1;
+  --sr-hairline:   #cfd5dd;
+  --sr-hairline-2: #dde2e8;
+  --sr-ink:        #14171c;
+  --sr-ink-2:      #3a4049;
+  --sr-muted:      #6b727d;
+  --sr-faint:      #929aa5;
+  --sr-action:     #17566b;
+  --sr-action-fg:  #17566b;
+  --sr-action-ink: #eef5f7;
+  --sr-action-hi:  #1c6880;
+  --sr-brass:      #7f5a15;
+  --sr-brass-bg:   #f2e8d4;
+  --sr-danger:     #a33228;
+  --sr-danger-bg:  #f7e8e6;
+  /* The rhythm glyphs are static SVGs drawn in black; dark inverts them. */
+  --sr-glyph-filter: none;
+  /* Loading skeleton blocks, their shimmer, and skeleton staff lines. */
+  --sr-skel:       #e2e8f0;
+  --sr-skel-line:  #cbd5e1;
+  --sr-skel-sweep: rgba(255, 255, 255, 0.6);
+
+  --sr-r-sm: 5px;
+  --sr-r-md: 7px;
+  --sr-r-lg: 11px;
+  --sr-thumb-shadow: 0 1px 2px rgba(20, 23, 28, 0.1), 0 0 0 1px rgba(20, 23, 28, 0.06);
+  --sr-paper-shadow: 0 1px 2px rgba(20, 23, 28, 0.07), 0 14px 34px -22px rgba(20, 23, 28, 0.5);
+}
+
+@layer components {
+  /* Group label above a control */
+  .sr-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sr-muted);
+  }
+
+  /* The workhorse: one option among many. Quiet until chosen. */
+  .sr-tok {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 11px;
+    border-radius: var(--sr-r-sm);
+    border: 1px solid var(--sr-hairline);
+    background: transparent;
+    color: var(--sr-muted);
+    transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  }
+  .sr-tok:hover { color: var(--sr-ink-2); border-color: var(--sr-faint); }
+  .sr-tok.sr-on {
+    background: var(--sr-tint);
+    border-color: transparent;
+    color: var(--sr-action-fg);
+    font-weight: 600;
+  }
+  .sr-tok:disabled { opacity: 0.38; cursor: default; }
+
+  /* Square variant, for the rhythm glyph buttons */
+  .sr-tok-sq {
+    border-radius: var(--sr-r-sm);
+    border: 1px solid var(--sr-hairline);
+    background: transparent;
+    color: var(--sr-ink-2);
+    transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  }
+  .sr-tok-sq:hover { border-color: var(--sr-faint); }
+  .sr-tok-sq.sr-on {
+    background: var(--sr-tint);
+    border-color: transparent;
+    color: var(--sr-action-fg);
+  }
+
+  /* Small variant, for per-rhythm frequency */
+  .sr-freq {
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--sr-muted);
+  }
+  .sr-freq:hover { color: var(--sr-ink-2); background: var(--sr-track); }
+  .sr-freq.sr-on { background: var(--sr-raise); color: var(--sr-action-fg); font-weight: 600; box-shadow: var(--sr-thumb-shadow); }
+
+  /* Outside the active level: offered, but marked */
+  .sr-outside {
+    border-style: dashed;
+    color: var(--sr-faint);
+  }
+
+  /* Selected but unusable in this meter */
+  .sr-warn { border-color: var(--sr-brass); border-style: solid; }
+
+  /* The one filled button */
+  .sr-btn {
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 7px 15px;
+    border-radius: var(--sr-r-md);
+    background: var(--sr-action);
+    color: var(--sr-action-ink);
+    border: none;
+    transition: background 120ms ease;
+  }
+  .sr-btn:hover:not(:disabled) { background: var(--sr-action-hi); }
+  .sr-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .sr-btn-quiet {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: var(--sr-r-sm);
+    border: 1px solid var(--sr-hairline);
+    background: transparent;
+    color: var(--sr-ink-2);
+  }
+  .sr-btn-quiet:hover:not(:disabled) { border-color: var(--sr-faint); }
+  .sr-btn-quiet:disabled { opacity: 0.4; cursor: default; }
+
+  .sr-icon-btn {
+    border-radius: var(--sr-r-sm);
+    border: 1px solid var(--sr-hairline);
+    background: transparent;
+    color: var(--sr-muted);
+  }
+  .sr-icon-btn:hover:not(:disabled) { color: var(--sr-ink); border-color: var(--sr-faint); }
+  .sr-icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* Tabs: selection is weight plus a rule, not a fill */
+  .sr-tab {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--sr-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+  .sr-tab:hover { color: var(--sr-ink-2); }
+  .sr-tab.sr-on { color: var(--sr-ink); font-weight: 600; border-bottom-color: var(--sr-action-fg); }
+
+  /* Surfaces */
+  .sr-panel {
+    background: var(--sr-panel);
+    border: 1px solid var(--sr-hairline);
+    border-radius: var(--sr-r-lg);
+  }
+  .sr-mat { background: var(--sr-mat); border-radius: 13px; padding: 10px; }
+  .sr-sheet {
+    background: var(--sr-paper);
+    /* abcjs draws in currentColor, and the paper is white in every theme. */
+    color: #14171c;
+    /* Skeleton staves drawn on the paper stay paper-coloured too. */
+    --sr-skel:       #e2e8f0;
+    --sr-skel-line:  #cbd5e1;
+    --sr-skel-sweep: rgba(255, 255, 255, 0.6);
+    border-radius: var(--sr-r-md);
+    box-shadow: var(--sr-paper-shadow);
+  }
+
+  /* Sliders */
+  .sr-range { accent-color: var(--sr-action); }
+
+  /* Checkboxes */
+  .sr-check { accent-color: var(--sr-action); }
+
+  /* Row actions - All / None */
+  .sr-link {
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: none;
+    border: none;
+    color: var(--sr-muted);
+  }
+  .sr-link:hover { color: var(--sr-action-fg); background: var(--sr-track); }
+
+  /* Tab bar rule, and the dot marking an edited tab */
+  .sr-bar { border-bottom: 1px solid var(--sr-hairline); }
+  .sr-pip { background: var(--sr-brass); }
+
+  /* Focus, once, for everything */
+  .sr-tok:focus-visible,
+  .sr-tok-sq:focus-visible,
+  .sr-freq:focus-visible,
+  .sr-btn:focus-visible,
+  .sr-btn-quiet:focus-visible,
+  .sr-icon-btn:focus-visible,
+  .sr-tab:focus-visible,
+  .sr-link:focus-visible {
+    outline: 2px solid var(--sr-action-fg);
+    outline-offset: 2px;
+  }
+}
+
+/* The page the sheet rests on. Deliberately a shade down from the
+   panel so white paper is the top of the ladder, not level with it. */
+.sr-desk { background: var(--sr-ground); color: var(--sr-ink); }
+
+/* A read-only chip in the preset row - not a control, so no border. */
+.sr-chipline { background: var(--sr-track); color: var(--sr-ink-2); }
+
+
+/* Instrument picker. The icon is what says "this is the sound",
+   which a bare row of names never did. */
+.sr-select { position: relative; display: inline-flex; align-items: center; }
+.sr-select .sr-select-ico {
+  position: absolute; left: 9px; color: var(--sr-muted); pointer-events: none;
+}
+.sr-select-input {
+  appearance: none; -webkit-appearance: none;
+  font-size: 13px; font-weight: 500;
+  padding: 6px 26px 6px 29px;
+  border-radius: var(--sr-r-sm);
+  border: 1px solid var(--sr-hairline);
+  background: transparent;
+  color: var(--sr-ink-2);
+  background-image: linear-gradient(45deg, transparent 50%, var(--sr-muted) 50%),
+                    linear-gradient(135deg, var(--sr-muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.sr-select-input:hover { border-color: var(--sr-faint); }
+.sr-select-input:focus-visible { outline: 2px solid var(--sr-action-fg); outline-offset: 2px; }
+.sr-link:disabled { opacity: 0.35; cursor: default; }
+.sr-link:disabled:hover { color: var(--sr-muted); background: none; }
+
+/* ── Dark ────────────────────────────────────────────────────────
+   Only pages that opt in with `themable` on Layout take it: the
+   other pages still carry hardcoded light classes and would go
+   unreadable on a dark desk. Follows the OS, and a data-theme on
+   <html> can force either way. The paper stays white.
+   --sr-action is a fill, --sr-action-fg is petrol used as text -
+   one colour cannot be both on a dark ground. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sr-themable {
+    color-scheme: dark;
+    --sr-ground:     #0e1114;
+    --sr-panel:      #161a1f;
+    --sr-raise:      #1e2329;
+    --sr-mat:        #0a0c0f;
+    --sr-track:      #242a31;
+    --sr-tint:       #173840;
+    --sr-hairline:   #2d343c;
+    --sr-hairline-2: #252b32;
+    --sr-ink:        #e7eaee;
+    --sr-ink-2:      #c2c8d0;
+    --sr-muted:      #8f97a2;
+    --sr-faint:      #6b737e;
+    --sr-action:     #237790;
+    --sr-action-fg:  #84cadd;
+    --sr-action-ink: #f2fafc;
+    --sr-action-hi:  #2b8ba7;
+    --sr-brass:      #d6a94f;
+    --sr-brass-bg:   #33291a;
+    --sr-danger:     #e2796d;
+    --sr-danger-bg:  #3a1f1c;
+    --sr-glyph-filter: invert(0.9);
+    --sr-skel:       #20252b;
+    --sr-skel-line:  #2d343c;
+    --sr-skel-sweep: rgba(255, 255, 255, 0.05);
+    --sr-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
+  }
+}
+:root[data-theme="dark"] .sr-themable {
+  color-scheme: dark;
+  --sr-ground:     #0e1114;
+  --sr-panel:      #161a1f;
+  --sr-raise:      #1e2329;
+  --sr-mat:        #0a0c0f;
+  --sr-track:      #242a31;
+  --sr-tint:       #173840;
+  --sr-hairline:   #2d343c;
+  --sr-hairline-2: #252b32;
+  --sr-ink:        #e7eaee;
+  --sr-ink-2:      #c2c8d0;
+  --sr-muted:      #8f97a2;
+  --sr-faint:      #6b737e;
+  --sr-action:     #237790;
+  --sr-action-fg:  #84cadd;
+  --sr-action-ink: #f2fafc;
+  --sr-action-hi:  #2b8ba7;
+  --sr-brass:      #d6a94f;
+  --sr-brass-bg:   #33291a;
+  --sr-danger:     #e2796d;
+  --sr-danger-bg:  #3a1f1c;
+  --sr-glyph-filter: invert(0.9);
+  --sr-skel:       #20252b;
+  --sr-skel-line:  #2d343c;
+  --sr-skel-sweep: rgba(255, 255, 255, 0.05);
+  --sr-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
+}
+
+.rhythm-icon svg,
+.rhythm-icon-sm svg { filter: var(--sr-glyph-filter); }

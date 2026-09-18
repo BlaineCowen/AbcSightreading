@@ -62,30 +62,18 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass"],
     measureRange: [24, 28],
     maxSkip: 2,
-    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
-    // it, because the doc's floors sit at the very bottom of each part and a
-    // range a singer cannot actually use is the same as no range at all.
-    //
-    // The undivided Soprano is capped at F5 at every level. The doc allows its
-    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
-    // a soprano section reading at sight should not be sent above F. Soprano1
-    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
-    // where it is exactly that divided top part.
-    //
-    // The lower voices are wider and more separated than the doc's columns.
-    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
-    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
-    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
-    // where the Alto is the anchor that has to come down.
+    // Hand-calibrated by Blaine against UIL's own range staves on
+    // /range-calibration (April 2026), and confirmed correct again in
+    // September. Do not re-derive these from notes/uil-criteria.md: its MIDI
+    // range numbers do not match UIL's published staves, and rebuilding the
+    // ranges from them in September moved nearly every voice (sopranos up by as
+    // much as a sixth) until they were restored. Change a range by
+    // recalibrating on that page, not from the doc.
     voiceRanges: {
-      Soprano: [27, 31], Soprano1: [27, 31], Soprano2: [25, 30],
-      Alto: [22, 28],
-      // Bass floors at G2, not the doc's B2. B2 is high for a bass - levels 4
-      // and 5 already sit at G2 - and it was the single bound that made
-      // 2-Part Tenor/Bass fail 30% of 16-measure exercises in 3/4. Opening
-      // it takes that to nil; nothing else about the voicing needed changing.
-      Tenor: [19, 25], Baritone: [16, 23], Bass: [11, 21],
-      Unison: [22, 28],
+      Soprano: [22, 30], Soprano1: [22, 30], Soprano2: [22, 29],
+      Alto: [21, 29],
+      Tenor: [19, 24], Baritone: [14, 20], Bass: [14, 21],
+      Unison: [21, 28],
     },
   },
 
@@ -122,26 +110,18 @@ export const uilPresets: Record<string, UILPreset> = {
     ],
     measureRange: [28, 32],
     maxSkip: 3,
-    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
-    // it, because the doc's floors sit at the very bottom of each part and a
-    // range a singer cannot actually use is the same as no range at all.
-    //
-    // The undivided Soprano is capped at F5 at every level. The doc allows its
-    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
-    // a soprano section reading at sight should not be sent above F. Soprano1
-    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
-    // where it is exactly that divided top part.
-    //
-    // The lower voices are wider and more separated than the doc's columns.
-    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
-    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
-    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
-    // where the Alto is the anchor that has to come down.
+    // Hand-calibrated by Blaine against UIL's own range staves on
+    // /range-calibration (April 2026), and confirmed correct again in
+    // September. Do not re-derive these from notes/uil-criteria.md: its MIDI
+    // range numbers do not match UIL's published staves, and rebuilding the
+    // ranges from them in September moved nearly every voice (sopranos up by as
+    // much as a sixth) until they were restored. Change a range by
+    // recalibrating on that page, not from the doc.
     voiceRanges: {
-      Soprano: [27, 31], Soprano1: [27, 32], Soprano2: [24, 30],
-      Alto: [22, 29],
-      Tenor: [18, 25], Baritone: [15, 24], Bass: [12, 21],
-      Unison: [22, 29],
+      Soprano: [22, 30], Soprano1: [22, 30], Soprano2: [22, 29],
+      Alto: [21, 28],
+      Tenor: [17, 24], Baritone: [14, 21], Bass: [14, 21],
+      Unison: [21, 28],
     },
   },
 
@@ -169,26 +149,18 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
-    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
-    // it, because the doc's floors sit at the very bottom of each part and a
-    // range a singer cannot actually use is the same as no range at all.
-    //
-    // The undivided Soprano is capped at F5 at every level. The doc allows its
-    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
-    // a soprano section reading at sight should not be sent above F. Soprano1
-    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
-    // where it is exactly that divided top part.
-    //
-    // The lower voices are wider and more separated than the doc's columns.
-    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
-    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
-    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
-    // where the Alto is the anchor that has to come down.
+    // Hand-calibrated by Blaine against UIL's own range staves on
+    // /range-calibration (April 2026), and confirmed correct again in
+    // September. Do not re-derive these from notes/uil-criteria.md: its MIDI
+    // range numbers do not match UIL's published staves, and rebuilding the
+    // ranges from them in September moved nearly every voice (sopranos up by as
+    // much as a sixth) until they were restored. Change a range by
+    // recalibrating on that page, not from the doc.
     voiceRanges: {
-      Soprano: [26, 31], Soprano1: [27, 32], Soprano2: [24, 30],
-      Alto: [21, 29],
-      Tenor: [18, 25], Baritone: [15, 24], Bass: [12, 21],
-      Unison: [21, 29],
+      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 30],
+      Alto: [19, 28],
+      Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
+      Unison: [21, 30],
     },
   },
 
@@ -223,31 +195,18 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [36, 48],
     maxSkip: 5,
-    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
-    // it, because the doc's floors sit at the very bottom of each part and a
-    // range a singer cannot actually use is the same as no range at all.
-    //
-    // The undivided Soprano is capped at F5 at every level. The doc allows its
-    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
-    // a soprano section reading at sight should not be sent above F. Soprano1
-    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
-    // where it is exactly that divided top part.
-    //
-    // The lower voices are wider and more separated than the doc's columns.
-    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
-    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
-    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
-    // where the Alto is the anchor that has to come down.
+    // Hand-calibrated by Blaine against UIL's own range staves on
+    // /range-calibration (April 2026), and confirmed correct again in
+    // September. Do not re-derive these from notes/uil-criteria.md: its MIDI
+    // range numbers do not match UIL's published staves, and rebuilding the
+    // ranges from them in September moved nearly every voice (sopranos up by as
+    // much as a sixth) until they were restored. Change a range by
+    // recalibrating on that page, not from the doc.
     voiceRanges: {
-      Soprano: [26, 31], Soprano1: [26, 32], Soprano2: [23, 30],
-      // A3, not middle C. The doc's floor of C4 is high for an alto, and it
-      // is what made 3-Part Treble unwritable at length: three treble parts
-      // crowded into a ninth failed 43% of 16-measure exercises, and this one
-      // change takes it to nil. Widening it does nothing to 4-Part Mixed,
-      // which was already at 0%.
-      Alto: [19, 29],
-      Tenor: [17, 25], Baritone: [14, 24], Bass: [11, 21],
-      Unison: [21, 29],
+      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 29],
+      Alto: [19, 28],
+      Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
+      Unison: [21, 30],
     },
   },
 
@@ -284,36 +243,17 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [48, 56],
     maxSkip: 6,
-    // Ceilings come from notes/uil-criteria.md; floors are opened downward from
-    // it, because the doc's floors sit at the very bottom of each part and a
-    // range a singer cannot actually use is the same as no range at all.
-    //
-    // The undivided Soprano is capped at F5 at every level. The doc allows its
-    // Sop. I up to Ab5, but that column is the top of a *divided* treble part -
-    // a soprano section reading at sight should not be sent above F. Soprano1
-    // keeps the doc's higher ceiling, since it appears only in 3-Part Treble,
-    // where it is exactly that divided top part.
-    //
-    // The lower voices are wider and more separated than the doc's columns.
-    // Three men inside the doc's own Tenor/Baritone/Bass columns cannot be given
-    // distinct chord tones without crossing: 3-Part Tenor/Bass failed 100% of
-    // the time at level 1 and 58% at level 3. Same for the divided sopranos,
-    // where the Alto is the anchor that has to come down.
+    // Hand-calibrated by Blaine against UIL's own range staves on
+    // /range-calibration (April 2026), and confirmed correct again in
+    // September. Do not re-derive these from notes/uil-criteria.md: its MIDI
+    // range numbers do not match UIL's published staves, and rebuilding the
+    // ranges from them in September moved nearly every voice (sopranos up by as
+    // much as a sixth) until they were restored. Change a range by
+    // recalibrating on that page, not from the doc.
     voiceRanges: {
-      Soprano: [25, 31], Soprano1: [26, 33], Soprano2: [23, 30],
-      // A3, not middle C. The doc's floor of C4 is high for an alto, and it
-      // is what made 3-Part Treble unwritable at length: three treble parts
-      // crowded into a ninth failed 43% of 16-measure exercises, and this one
-      // change takes it to nil. Widening it does nothing to 4-Part Mixed,
-      // which was already at 0%.
-      // The alto tops out at D5, not E5. Every other level caps it there, and D5
-      // is the only alto ceiling the UIL document ever states - it gives explicit
-      // MIDI ranges for levels 1 to 3 only, and says merely "fully extended vocal
-      // ranges" here, which had been read as a step higher. An alto section
-      // reading at sight should not be sent to E5; it is the same reasoning that
-      // caps the undivided soprano at F5 at every level.
-      Alto: [19, 29],
-      Tenor: [17, 26], Baritone: [14, 25], Bass: [11, 22],
+      Soprano: [21, 31], Soprano1: [21, 32], Soprano2: [20, 31],
+      Alto: [19, 28],
+      Tenor: [15, 24], Baritone: [12, 22], Bass: [11, 21],
       Unison: [21, 30],
     },
   },

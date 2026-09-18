@@ -12,6 +12,8 @@
   import Printer from "lucide-svelte/icons/printer";
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
+  import ChevronUp from "lucide-svelte/icons/chevron-up";
+  import Check from "lucide-svelte/icons/check";
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
@@ -49,6 +51,22 @@
 
   function handleBpmCommit(e: Event) {
     (onBpmCommit ?? onBpmChange)(+(e.target as HTMLInputElement).value);
+  }
+
+  /**
+   * Voices live in a drop-up rather than a row of chips: a row grows with the
+   * voicing, and at SSAATTBB it crowded everything else off the bar.
+   */
+  let voicesOpen = false;
+  let voicesEl: HTMLDivElement;
+  $: audibleCount = voiceNames.filter((n) => !mutedVoices.has(n)).length;
+
+  function closeVoicesOnOutside(e: MouseEvent) {
+    if (voicesOpen && voicesEl && !voicesEl.contains(e.target as Node)) voicesOpen = false;
+  }
+
+  function closeVoicesOnEscape(e: KeyboardEvent) {
+    if (voicesOpen && e.key === "Escape") voicesOpen = false;
   }
 
   /** Mobile only: secondary controls collapse into a sheet above the transport. */
@@ -95,6 +113,8 @@
     "flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs";
 </script>
 
+<svelte:window on:click={closeVoicesOnOutside} on:keydown={closeVoicesOnEscape} />
+
 <!--
   Mobile: a column - optional sheet on top, transport below.
   Desktop: `sm:contents` dissolves the sheet wrapper so its groups become direct
@@ -122,7 +142,7 @@
     <div class="flex gap-2 items-center">
       {#if onGenerate}
         <button
-          class="flex items-center justify-center gap-1.5 shrink-0 bg-green-600 hover:bg-green-700 text-white font-bold rounded px-3 sm:px-4 h-11 sm:h-8 text-sm disabled:opacity-50"
+          class="flex items-center justify-center gap-1.5 shrink-0 sr-btn font-bold px-3 sm:px-4 h-11 sm:h-8 text-sm disabled:opacity-50"
           on:click={onGenerate}
           disabled={isGenerating}
           title="Generate a new exercise"
@@ -142,14 +162,14 @@
 
       {#if isPlaying}
         <button
-          class="flex items-center justify-center gap-1 bg-blue-500 hover:bg-blue-400 rounded px-4 h-11 sm:h-8 text-sm font-bold disabled:opacity-40"
+          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 sm:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPause}
           aria-label="Pause"
         ><Pause size={18} /><span class="hidden sm:inline">Pause</span></button>
       {:else}
         <button
-          class="flex items-center justify-center gap-1 bg-blue-500 hover:bg-blue-400 rounded px-4 h-11 sm:h-8 text-sm font-bold disabled:opacity-40"
+          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 sm:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPlay}
           aria-label="Play"
@@ -246,17 +266,43 @@
       <slot name="extra" />
 
       {#if voiceNames.length > 1}
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-slate-400 uppercase tracking-wide">Voices</span>
-          {#each voiceNames as name}
-            <button
-              class="rounded px-3 py-2 sm:py-1 text-xs font-bold {mutedVoices.has(name)
-                ? 'bg-slate-600 text-slate-500 line-through'
-                : 'bg-blue-500 text-white'}"
-              on:click={() => onToggleMute(name)}
-              title="{mutedVoices.has(name) ? 'Unmute' : 'Mute'} {name}"
-            >{name}</button>
-          {/each}
+        <div class="relative w-full sm:w-auto" bind:this={voicesEl}>
+          <button
+            class="{chipBtn} {voicesOpen ? 'bg-slate-500' : ''}"
+            on:click={() => (voicesOpen = !voicesOpen)}
+            aria-haspopup="true"
+            aria-expanded={voicesOpen}
+            title="Choose which voices play"
+          >
+            Voices
+            <span class="tabular-nums text-slate-300">{audibleCount}/{voiceNames.length}</span>
+            <ChevronUp size={14} class="transition-transform {voicesOpen ? '' : 'rotate-180'}" />
+          </button>
+          {#if voicesOpen}
+            <!-- Inline on a phone, where the sheet scrolls and would clip a
+                 floating menu; a drop-up above the button from sm up. -->
+            <div
+              class="mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 min-w-[11rem]
+                     rounded-md bg-slate-700 shadow-xl ring-1 ring-slate-600 py-1"
+              role="group"
+              aria-label="Voices"
+            >
+              {#each voiceNames as name}
+                <button
+                  class="w-full flex items-center gap-2 px-3 py-2 sm:py-1.5 text-sm text-left hover:bg-slate-600
+                         {mutedVoices.has(name) ? 'text-slate-400 line-through' : 'text-slate-100'}"
+                  on:click={() => onToggleMute(name)}
+                  aria-pressed={!mutedVoices.has(name)}
+                  title="{mutedVoices.has(name) ? 'Unmute' : 'Mute'} {name}"
+                >
+                  <span class="w-4 flex justify-center text-teal-300">
+                    {#if !mutedVoices.has(name)}<Check size={14} />{/if}
+                  </span>
+                  {name}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
 

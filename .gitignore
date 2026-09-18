@@ -45,3 +45,4 @@ package-lock.json
 # repo root
 /p.json
 /*.png
+.env*.local

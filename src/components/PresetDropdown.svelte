@@ -58,13 +58,13 @@
   }
 </script>
 
-<div class="preset-bar bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center gap-3 flex-wrap no-print">
-  <span class="text-xs text-slate-500 whitespace-nowrap">Quick Start:</span>
+<div class="preset-bar bg-sr-panel border-b border-sr-hairline px-4 py-2 flex items-center gap-3 flex-wrap no-print">
+  <span class="text-xs text-sr-muted whitespace-nowrap">Quick Start:</span>
 
   <!-- Dropdown -->
   <div class="relative">
     <select
-      class="appearance-none bg-white border border-slate-300 rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+      class="appearance-none bg-sr-raise border border-sr-hairline rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-sr-ink-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sr-action"
       on:change={handleSelectChange}
     >
       <option value="" disabled selected hidden>Choose a preset…</option>
@@ -87,7 +87,7 @@
         {/each}
       {/if}
     </select>
-    <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs"><ChevronDown size={14} /></span>
+    <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sr-faint text-xs"><ChevronDown size={14} /></span>
   </div>
 
   <!-- Save input -->
@@ -96,15 +96,15 @@
       type="text"
       bind:value={newPresetName}
       placeholder="Preset name"
-      class="border border-slate-300 rounded px-2 py-1 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-sr-action"
       on:keydown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') showSaveInput = false; }}
       autofocus
     />
-    <button class="text-sm bg-green-600 text-white rounded px-2 py-1" on:click={handleSave}>Save</button>
-    <button class="text-sm text-slate-500 underline" on:click={() => showSaveInput = false}>Cancel</button>
+    <button class="sr-btn text-sm px-2 py-1" on:click={handleSave}>Save</button>
+    <button class="text-sm text-sr-muted underline" on:click={() => showSaveInput = false}>Cancel</button>
   {:else}
     <button
-      class="flex items-center gap-1 border border-dashed border-slate-400 text-slate-500 rounded px-2 py-1 text-xs hover:border-slate-600"
+      class="flex items-center gap-1 border border-dashed border-sr-faint text-sr-muted rounded px-2 py-1 text-xs hover:border-sr-muted"
       on:click={() => showSaveInput = true}
     ><Plus size={14} /> Save Current</button>
   {/if}
@@ -112,15 +112,15 @@
   {#if savedPresets.length > 0}
     <div class="flex flex-wrap gap-1 w-full mt-1">
       {#each savedPresets as preset}
-        <span class="inline-flex items-center gap-1 bg-slate-100 rounded px-2 py-0.5 text-xs">
+        <span class="sr-chipline inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs">
           <button
             type="button"
-            class="text-slate-600 hover:text-blue-600"
+            class="text-sr-ink-2 hover:text-sr-action-fg"
             on:click={() => onSelectSaved(preset)}
           >{preset.name}</button>
           <button
             type="button"
-            class="text-slate-400 hover:text-red-500 leading-none"
+            class="text-sr-faint hover:text-sr-danger leading-none"
             on:click={() => handleDelete(preset.id)}
             title="Delete preset"
           ><X size={12} /></button>
@@ -130,6 +130,6 @@
   {/if}
 
   {#if activeLabel}
-    <span class="text-xs text-slate-400 ml-1">Active: <strong class="text-slate-600">{activeLabel}</strong></span>
+    <span class="text-xs text-sr-faint ml-1">Active: <strong class="text-sr-ink-2">{activeLabel}</strong></span>
   {/if}
 </div>

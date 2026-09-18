@@ -91,17 +91,17 @@
     class="fixed inset-0 z-30 bg-black/30 flex items-end sm:items-center justify-center p-4 print:hidden"
     on:click|self={() => (open = false)}
   >
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="bg-sr-raise rounded-lg shadow-xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 class="text-lg font-semibold text-slate-900">Tell me what you found</h2>
-          <p class="text-sm text-slate-500">
+          <h2 class="text-lg font-semibold text-sr-ink">Tell me what you found</h2>
+          <p class="text-sm text-sr-muted">
             This opens an email with your settings attached, so the exercise can
             be reproduced exactly.
           </p>
         </div>
         <button
-          class="text-slate-400 hover:text-slate-600 text-xl leading-none"
+          class="text-sr-faint hover:text-sr-ink-2 text-xl leading-none"
           on:click={() => (open = false)}
           aria-label="Close"
         >&times;</button>
@@ -110,9 +110,9 @@
       <div class="flex gap-2">
         {#each KINDS as k}
           <button
-            class="px-3 py-2 rounded text-sm {kind === k.id
-              ? 'bg-blue-500 text-white'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}"
+            class="sr-tok px-3 py-2 {kind === k.id
+              ? 'sr-on'
+              : ''}"
             on:click={() => (kind = k.id)}
             aria-pressed={kind === k.id}
           >{k.label}</button>
@@ -120,30 +120,30 @@
       </div>
 
       <div class="space-y-2">
-        <label class="text-sm text-slate-600" for="feedback-text">{prompt}</label>
+        <label class="text-sm text-sr-ink-2" for="feedback-text">{prompt}</label>
         <textarea
           id="feedback-text"
           bind:value={message}
           rows="5"
-          class="w-full border border-slate-300 rounded p-2 text-sm"
+          class="w-full border border-sr-hairline bg-sr-panel text-sr-ink rounded p-2 text-sm"
           placeholder="The tenor line jumped a seventh in bar 3..."
         ></textarea>
       </div>
 
       {#if context()}
-        <details class="text-xs text-slate-500">
+        <details class="text-xs text-sr-muted">
           <summary class="cursor-pointer select-none">What gets attached</summary>
-          <pre class="mt-2 whitespace-pre-wrap bg-slate-50 rounded p-2">{context()}</pre>
+          <pre class="mt-2 whitespace-pre-wrap bg-sr-track rounded p-2">{context()}</pre>
         </details>
       {/if}
 
       <div class="flex justify-end gap-2">
         <button
-          class="px-4 py-2 rounded text-sm bg-slate-100 hover:bg-slate-200"
+          class="sr-btn-quiet px-4 py-2"
           on:click={() => (open = false)}
         >Cancel</button>
         <button
-          class="px-4 py-2 rounded text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+          class="sr-btn px-4 py-2 text-sm"
           on:click={send}
           disabled={!message.trim()}
         >Open email</button>

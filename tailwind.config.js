@@ -15,6 +15,26 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       colors: {
+        // The --sr- design tokens (globals.css), so markup can use them and
+        // follow the theme. No opacity modifiers: the tokens are plain hex.
+        sr: {
+          ground: "var(--sr-ground)",
+          panel: "var(--sr-panel)",
+          raise: "var(--sr-raise)",
+          track: "var(--sr-track)",
+          tint: "var(--sr-tint)",
+          hairline: "var(--sr-hairline)",
+          ink: "var(--sr-ink)",
+          "ink-2": "var(--sr-ink-2)",
+          muted: "var(--sr-muted)",
+          faint: "var(--sr-faint)",
+          action: "var(--sr-action)",
+          "action-fg": "var(--sr-action-fg)",
+          brass: "var(--sr-brass)",
+          "brass-bg": "var(--sr-brass-bg)",
+          danger: "var(--sr-danger)",
+          "danger-bg": "var(--sr-danger-bg)",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {
