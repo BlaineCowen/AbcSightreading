@@ -4,7 +4,7 @@ import { generateChordProgression } from "./chord-generation";
 import { buildChordNotes } from "./build-chord-notes";
 import { assembleAbcString, type AbcDisplayOptions } from "./abc-assembly";
 import { applyUnisonSpans } from "./unison-spans";
-import { applyRhymingPhrases } from "./rhyming-phrases";
+import { applyRhymingPhrases, decorateRestatement } from "./rhyming-phrases";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { nctPatternsFor } from "./nct-patterns";
 import { canAppearInChoral } from "./selectable-rhythms";
@@ -50,6 +50,14 @@ export interface GenerateChoralParams {
   allowedChordNames?: string[];
   /** Weight multiplier for chromatic chords (secondary dominants, etc.). Default 1. */
   chromaticFrequency?: number;
+  /**
+   * A chromatic chord to drill, by name ("5/5" for V/V). The exercise leaves
+   * out every other chromatic chord, reaches for this one harder, and is
+   * regenerated if it does not appear. Its inversions come with it. Major keys
+   * only - the chromatic chords it names are major-mode ones - so a minor key
+   * drawn from a mixed selection ignores it.
+   */
+  focusChord?: string;
   /** MIDI program for playback; see src/lib/instruments.ts. */
   midiProgram?: number;
   /** Which annotations to print. Also changeable afterwards via `render`. */
@@ -138,9 +146,32 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     : params.chords;
 
   // Further restrict to the correct mode so major and minor chords never mix.
-  const chords = allowedPool.filter((c) =>
+  const inMode = allowedPool.filter((c) =>
     isMinor ? c.mode === "minor" : c.mode !== "minor"
   );
+
+  // Drilling one chromatic chord: it is added if the allowlist left it out, and
+  // every OTHER chromatic chord goes, so the exercise is about that one.
+  const focus =
+    params.focusChord && !isMinor
+      ? params.chords.find((c) => c.name === params.focusChord && c.mode !== "minor")
+      : undefined;
+  const isChromatic = (c: Chord) =>
+    (c.sharpScaleDegree !== undefined && c.sharpScaleDegree !== null) ||
+    (c.flatScaleDegree !== undefined && c.flatScaleDegree !== null);
+  const chords = focus
+    ? [
+        ...inMode.filter((c) => !isChromatic(c) || c.chordFamily === focus.chordFamily),
+        ...params.chords.filter(
+          (c) =>
+            c.chordFamily === focus.chordFamily &&
+            c.mode !== "minor" &&
+            !inMode.some((d) => d.name === c.name)
+        ),
+      ]
+    : inMode;
+  const hasFocus = (progression: Chord[]) =>
+    !focus || progression.some((c) => c.chordFamily === focus.chordFamily);
 
   // --- Input Validation ---
   if (!selectedRhythms || selectedRhythms.length === 0) {
@@ -345,10 +376,18 @@ export function generateChoralExercise(params: GenerateChoralParams): {
       selectedCadences,
       accidentalsByStep,
       chromaticFrequency,
-      params.stepwiseEighths ?? false
+      params.stepwiseEighths ?? false,
+      focus?.chordFamily
     );
     chordProgression = result.progression;
     bassLine = result.bassLine;
+    // An exercise drilling a chord that never sounds it is not the exercise
+    // asked for. Try again - but not with the last attempts, so a progression
+    // that cannot reach the chord still produces an exercise rather than none.
+    if (!hasFocus(chordProgression) && chordalAttempt < maxChordAttempts - 3) {
+      console.log(`  Focus chord ${focus?.symbol} absent (attempt ${chordalAttempt + 1}), regenerating...`);
+      continue;
+    }
     console.log(
       `  Attempt ${chordalAttempt + 1}: progression length=${chordProgression.length}, bass line length=${bassLine.length}`
     );
@@ -442,13 +481,41 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   // period rather than two unrelated four-measure halves. After the unison
   // splice, for the same reason that one runs after decoration: it copies the
   // material as actually sung. Declines rather than fails - see the module.
-  const withRhyme = applyRhymingPhrases(withUnison, {
+  const restatements: { start: number; length: number }[] = [];
+  const rhymed = applyRhymingPhrases(withUnison, {
     measures,
     tsPerMeasure: timeSig.tsPerMeasure,
     maxSkip,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     probability: params.rhymeProbability ?? 0,
+    onRestatement: (start, length) => restatements.push({ start, length }),
   });
+
+  // ...and the answer gets a decoration the statement does not have. Only when
+  // decoration is on at all: a director who turned it to zero asked for plain
+  // chord tones, in the answer as much as anywhere.
+  const withRhyme =
+    nctProbability > 0
+      ? restatements.reduce(
+          (voices, { start, length }) =>
+            decorateRestatement(voices, start, length, (vs, topIndex, noteIndex) =>
+              generateNonChordTones(
+                vs[topIndex],
+                patternRhythms,
+                vs,
+                topIndex,
+                1,
+                key,
+                params.enabledNctTypes,
+                voiceParts[topIndex]?.range,
+                timeSig.tsPerMeasure,
+                params.stepwiseEighths ?? false,
+                new Set([noteIndex])
+              )
+            ),
+          rhymed
+        )
+      : rhymed;
 
   // Adjacent rests inside a measure become one rest, so a silent measure reads
   // as a whole rest rather than four quarter rests. Last, after everything

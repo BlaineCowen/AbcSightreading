@@ -54,6 +54,26 @@ function shuffleArray<T>(array: T[]): T[] {
   return array;
 }
 
+
+/**
+ * The chord symbol as it is actually voiced.
+ *
+ * A root-position entry may put its third in the bass - the search allows it
+ * for a smoother bass line - but the symbol came from the entry, so the chord
+ * was labelled root position whatever the bass sang. Reported as a "iii" with A
+ * in the bass in D major, which is a iii⁶. The explicit inversion entries (I⁶,
+ * V⁶/V) already name their bass and are left alone.
+ */
+export function labelFor(chord: Chord, bass: Note | null | undefined): string {
+  const isInversionEntry = chord.root !== chord.triadNotes[0];
+  if (isInversionEntry || !bass || (bass as VoiceNote).rest) return chord.symbol;
+  if (bass.degree !== chord.triadNotes[1]) return chord.symbol;
+  const figure = chord.triadNotes.length >= 4 ? "⁶₅" : "⁶";
+  const [head, ...applied] = chord.symbol.split("/");
+  const inverted = head.replace("⁷", "") + figure;
+  return [inverted, ...applied].join("/");
+}
+
 export function determineAccidental(
   degree: number,
   chord: Chord,
@@ -1069,7 +1089,11 @@ export function buildChordNotes(
                 (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true;
               const isInversionEntry =
                 currentChord.root !== currentChord.triadNotes[0];
-              const invertibleDegrees = isInversionEntry
+              // The opening chord too: an exercise starts in root position. This
+              // escape was the whole of the openings that did not - measured at
+              // UIL 1, 30 of 397 put the third of I in the bass on beat one,
+              // every one of them a retry reaching for the third.
+              const invertibleDegrees = isInversionEntry || chordIndex === 0
                 ? new Set([currentChord.root])
                 : new Set([currentChord.root, currentChord.triadNotes[1]]);
               // Not narrowed further here, though it is tempting: a
@@ -1504,15 +1528,17 @@ export function buildChordNotes(
           // to the same voice - including where that voice is resting, which the
           // assembler prints over. Anything cleverer (following the highest
           // *sounding* voice) moves the row down the page mid-system.
+          const bassHere = stepNotesAttempt[voiceParts.findIndex((vp) => vp.order === 0)];
+          const label = labelFor(currentChord, bassHere);
           if (
             chordIndex !== lastLabelledChordIndex &&
-            currentChord.symbol !== lastLabelledSymbol
+            label !== lastLabelledSymbol
           ) {
             const topVoice = stepNotesAttempt[topVoiceIndex];
             if (topVoice) {
-              topVoice.chordSymbol = currentChord.symbol;
+              topVoice.chordSymbol = label;
               lastLabelledChordIndex = chordIndex;
-              lastLabelledSymbol = currentChord.symbol;
+              lastLabelledSymbol = label;
             }
           }
           stepNotesAttempt.forEach((note, voiceIndex) => {

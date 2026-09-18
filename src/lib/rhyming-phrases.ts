@@ -43,6 +43,8 @@ export type RhymingPhraseOptions = {
   probability: number;
   /** Injectable for tests. */
   random?: () => number;
+  /** Told where each restatement landed: its start and length, in 32nds. */
+  onRestatement?: (start: number, length: number) => void;
 };
 
 /** The cadence logic works in four-measure blocks, and so does this. */
@@ -194,6 +196,37 @@ function chordToneAlternatives(
   return out;
 }
 
+/**
+ * The offsets after each phrase's opening at which every voice has a note
+ * beginning in BOTH phrases - the points the rhyme can start without cutting a
+ * note in half - earliest first, within the first measure. The barline nearly
+ * always qualifies.
+ */
+function sharedOnsets(
+  voices: VoiceNote[][],
+  a: number,
+  b: number,
+  within: number
+): number[] {
+  const onsetsFrom = (v: VoiceNote[], start: number) => {
+    const out = new Set<number>();
+    let t = 0;
+    for (const n of v) {
+      if (t > start && t <= start + within) out.add(t - start);
+      t += n.length;
+    }
+    return out;
+  };
+  let shared: number[] | null = null;
+  for (const v of voices) {
+    const x = onsetsFrom(v, a);
+    const y = onsetsFrom(v, b);
+    const both = [...x].filter((t) => y.has(t));
+    shared = shared === null ? both : shared.filter((t) => both.includes(t));
+  }
+  return (shared ?? []).sort((x, y) => x - y);
+}
+
 /** The note sounding in a voice at a given time, if any. */
 function noteAt(voice: VoiceNote[], at: number): VoiceNote | undefined {
   let t = 0;
@@ -306,7 +339,10 @@ function varyRestatement(
       ...note,
       pitchValue: pick,
       name: noteArray[pick],
-      degree: pick % 7,
+      // Relative to the key, like every other degree - solfège reads it. The
+      // pitch index counts from C, so `pick % 7` was only right in C major:
+      // in D, a varied note printed the syllable a step below the one it was.
+      degree: (((note.degree + pick - note.pitchValue) % 7) + 7) % 7,
       accidental: null,
       varied: true,
     } as VoiceNote;
@@ -365,19 +401,106 @@ export function applyRhymingPhrases(
     let done = false;
     for (const rhymeMeasures of [PHRASE_MEASURES - 1, PHRASE_MEASURES - 2]) {
       for (const [from, to] of attempts) {
-        const length = rhymeMeasures * tsPerMeasure;
-        if (!rhymeOnce(out, from, to, length, maxSkip)) continue;
-        // Vary the phrase that comes second, whichever way the material moved:
-        // the ear wants a statement and then an answer to it, and the answer is
-        // the later one.
-        varyRestatement(out, consequentStart, length, ranges, maxSkip, random);
-        done = true;
-        break;
+        // Each phrase keeps its own opening chord; the rhyme starts at the next
+        // onset the two phrases share.
+        //
+        // Copying the whole phrase backward replaced how the exercise OPENS with
+        // however the consequent happened to open - after a cadence, on a I⁶₄,
+        // a vi, anything. That was the exercise that did not start on the tonic,
+        // reported twice: with every exercise rhymed, 18-28 of 60 opened off it.
+        // The chord symbol travels with the notes, so the label moved too.
+        //
+        // Refusing the backward copy instead fixed the opening and cost most of
+        // the periods (UIL 1: 40 of 60 rhymed, then 6), since backward is the
+        // direction with fewer seams. Keeping the opening chord costs one seam
+        // back and keeps the tonic. It is also better writing: a restatement
+        // that begins somewhere new and falls into the familiar tune is an
+        // answer, where one that starts identically is an echo.
+        //
+        // Every shared onset is tried, earliest first: each is a different seam
+        // out of the opening, and at maxSkip 2 the first one alone refused most
+        // of them.
+        for (const skip of sharedOnsets(out, from, to, tsPerMeasure)) {
+          const length = rhymeMeasures * tsPerMeasure - skip;
+          if (!rhymeOnce(out, from + skip, to + skip, length, maxSkip)) continue;
+          // Vary the phrase that comes second, whichever way the material moved:
+          // the ear wants a statement and then an answer to it, and the answer
+          // is the later one.
+          varyRestatement(out, consequentStart + skip, length, ranges, maxSkip, random);
+          opts.onRestatement?.(consequentStart + skip, length);
+          done = true;
+          break;
+        }
+        if (done) break;
       }
       if (done) break;
     }
   }
 
+  return out;
+}
+
+/**
+ * Give a restatement a decoration its first statement does not have.
+ *
+ * Changing a note or two of the tune (varyRestatement) was not enough - the
+ * phrases were still reported as too alike. The other thing that makes an
+ * answer sound like one is ornament: a passing tone or a neighbour where the
+ * statement sang a plain chord tone.
+ *
+ * Only notes that are plain in both phrases are candidates. A note is plain if
+ * no decoration wrote it (`ornament`) and nothing altered it; the copy carries
+ * the flags, so plain in the answer means plain in the statement. The first
+ * borrowed note and the last are left alone for the reasons varyRestatement
+ * gives, and a note shorter than a quarter has nothing to split.
+ *
+ * `decorate` does the decorating - the real decoration pass, restricted to one
+ * note - and hands back the voice, changed or not. Everything it would vet a
+ * figure against is the finished exercise, so this cannot write a clash the
+ * main pass would have refused.
+ */
+export function decorateRestatement(
+  voices: VoiceNote[][],
+  start: number,
+  length: number,
+  decorate: (voices: VoiceNote[][], topIndex: number, noteIndex: number) => VoiceNote[],
+  random: () => number = Math.random,
+  wanted = 1
+): VoiceNote[][] {
+  const out = voices.map((v) => [...v]);
+  const topIndex = out.reduce(
+    (best, v, i) => ((v[0]?.order ?? 0) > (out[best][0]?.order ?? 0) ? i : best),
+    0
+  );
+  // Keyed by onset, not index: a success lengthens the voice and moves every
+  // later index, but an onset stays put.
+  const tried = new Set<number>();
+  let added = 0;
+  while (added < wanted) {
+    const top = out[topIndex];
+    const slots: { index: number; at: number }[] = [];
+    let t = 0;
+    for (let i = 0; i < top.length; i++) {
+      if (t > start && t < start + length) slots.push({ index: i, at: t });
+      t += top[i].length;
+    }
+    slots.pop(); // runs into the cadence
+    const plain = slots.filter(({ index, at }) => {
+      const n = top[index];
+      return !tried.has(at) && !n.rest && !n.ornament && !n.varied && !n.accidental && n.length >= 8;
+    });
+    if (plain.length === 0) break;
+    const { index, at } = plain[Math.floor(random() * plain.length)];
+    tried.add(at);
+    const decorated = decorate(out, topIndex, index);
+    const changed =
+      decorated.length !== top.length ||
+      decorated.some((n, i) => n.pitchValue !== top[i].pitchValue || n.length !== top[i].length);
+    if (changed) {
+      out[topIndex] = decorated;
+      added++;
+    }
+  }
   return out;
 }
 

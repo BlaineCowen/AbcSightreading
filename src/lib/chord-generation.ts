@@ -84,6 +84,14 @@ function hasResolvableAccidental(candChord: Chord, availableChords: Chord[]): bo
 /**
  * Generates a chord progression and corresponding bass line, respecting cadences.
  */
+/**
+ * How much harder a focused chord is reached for. Measured at UIL 4, 8 bars:
+ * at 1 (only the regenerate-if-absent rule) V/vi was in 89 of 117 exercises,
+ * about once each; at 8, 110 of 114 and twice each, for 6 failures in 120
+ * against 3.
+ */
+export const FOCUS_WEIGHT = 8;
+
 export function generateChordProgression(
   allChords: Chord[],
   length: number,
@@ -99,7 +107,13 @@ export function generateChordProgression(
    * the pattern's edges: arriving at one that opens it, or leaving one that
    * closes it. With this on, both of those bass moves are a step or a repeat.
    */
-  stepwiseEighths: boolean = false
+  stepwiseEighths: boolean = false,
+  /**
+   * A chord family to reach for harder than chromaticFrequency alone would -
+   * the chord an exercise is drilling. Multiplies that family's weight
+   * wherever it is offered. See `focusChord` in generateChoral.
+   */
+  focusFamily?: string
 ): { progression: Chord[]; bassLine: Note[] } {
   console.log(
     "\n=== Starting Chord Progression Generation (with Cadences) ==="
@@ -617,8 +631,11 @@ export function generateChordProgression(
             const validPossibilities = prevChord.nextChordPossibilities
               .filter((p) => possibleNextChords.some((c) => c.name === p.name))
               .map((p) => {
-                if (chromaticFrequency === 1) return p;
                 const chord = possibleNextChords.find((c) => c.name === p.name);
+                if (focusFamily && chord?.chordFamily === focusFamily) {
+                  p = { ...p, weight: p.weight * FOCUS_WEIGHT };
+                }
+                if (chromaticFrequency === 1) return p;
                 const isChromatic = chord &&
                   ((chord.sharpScaleDegree !== undefined && chord.sharpScaleDegree !== null) ||
                    (chord.flatScaleDegree !== undefined && chord.flatScaleDegree !== null));

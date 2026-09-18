@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   applyRhymingPhrases,
+  decorateRestatement,
   rhymeProbabilityFor,
   PHRASE_MEASURES,
 } from "../../src/lib/rhyming-phrases";
@@ -57,6 +58,17 @@ const samePitches = (x: VoiceNote[], y: VoiceNote[]) =>
   x.length === y.length && x.every((n, i) => n.pitchValue === y[i].pitchValue);
 
 /**
+ * Whether the phrase starting at measure `a` rhymes the one at `b`: the same
+ * notes for three measures, apart from the first. Each phrase keeps its own
+ * opening chord - see "each phrase keeps its own opening" - and every fixture
+ * here is in quarters, so the rhyme starts one quarter in.
+ */
+const rhymes = (v: VoiceNote[], a: number, b: number) => {
+  const q = TS / QUARTER;
+  return samePitches(v.slice(a * q + 1, (a + 3) * q), v.slice(b * q + 1, (b + 3) * q));
+};
+
+/**
  * Every accidental in the line is followed by the step it is owed - raised up,
  * lowered down - looking through repeats of the same pitch.
  *
@@ -84,12 +96,27 @@ const resolutionsIntact = (v: VoiceNote[]): boolean => {
 };
 
 describe("rhyming phrases", () => {
-  test("the two phrases open with the same material", () => {
+  test("the two phrases share their material", () => {
     const out = applyRhymingPhrases([voice([...A, ...B])], opts());
     // Either phrase may supply the material - both directions are tried, and the
     // period is the same either way - so this asserts they MATCH, not which one
     // moved.
-    expect(samePitches(bars(out[0], 0, 3), bars(out[0], 4, 7))).toBe(true);
+    expect(rhymes(out[0], 0, 4)).toBe(true);
+  });
+
+  test("each phrase keeps its own opening, so the exercise still starts on it", () => {
+    // Copying the whole consequent backward over bar 1 replaced how the
+    // exercise opens with however the consequent happened to - after a cadence,
+    // on a I6/4 - and 18-28 of 60 exercises stopped starting on the tonic. The
+    // generator places the tonic at the very first note; nothing afterwards may
+    // move it.
+    const input = [voice([...A, ...B], 1), voice([...A, ...B].map((p) => p - 5), 0)];
+    const out = applyRhymingPhrases(input, opts());
+    expect(rhymes(out[0], 0, 4)).toBe(true); // it did rhyme - not vacuous
+    for (const v of [0, 1]) {
+      expect(out[v][0].pitchValue).toBe(input[v][0].pitchValue);
+      expect(out[v][16].pitchValue).toBe(input[v][16].pitchValue);
+    }
   });
 
   test("and they part company at the cadence", () => {
@@ -191,16 +218,21 @@ describe("rhyming phrases", () => {
     // interval - two voices converging on a unison from opposite directions is
     // ordinary counterpoint. Treating that as parallel would silently refuse
     // good periods, and a suite that only asserts refusals never notices.
-    const byBar = (p: number[]) => p.flatMap((x) => [x, x, x, x]);
-    const upper = byBar([27, 28, 27, 30, 20, 21, 20, 31]);
-    const lower = byBar([27, 26, 27, 23, 16, 17, 16, 28]);
+    //
+    // The consequent's kept opening is an octave (29 over 22); the first
+    // borrowed note is a unison (27, 27), reached by contrary motion. A later
+    // start would also rhyme, so the assertion is on WHERE it started: only the
+    // one-quarter-in splice puts 27 at index 17.
+    const phrase = (first: number, second: number, rest: number) =>
+      [first, second, ...Array(14).fill(rest)];
+    const upper = [...phrase(25, 27, 25), 29, ...Array(15).fill(24)];
+    const lower = [...phrase(23, 27, 23), 22, ...Array(15).fill(22)];
     const out = applyRhymingPhrases(
       [voice(upper, 1), voice(lower, 0)],
-      opts({ maxSkip: 4 })
+      opts({ maxSkip: 5 })
     );
-    // The entry seam here is a contrary-motion octave-to-unison.
-    expect(samePitches(bars(out[0], 0, 3), bars(out[0], 4, 7))).toBe(true);
-    expect(samePitches(bars(out[1], 0, 3), bars(out[1], 4, 7))).toBe(true);
+    expect(out[0][17].pitchValue).toBe(27);
+    expect(out[1][17].pitchValue).toBe(27);
   });
 
   test("parallel octaves are refused as well as fifths", () => {
@@ -224,11 +256,13 @@ describe("rhyming phrases", () => {
     // Measured, that took the lowest voice from 95% to 89% resolving by step in
     // major, and raised notes from rising 92% of the time to 88%.
     //
-    // The last note of measure 4 is raised and resolves up into measure 5; the
-    // borrowed opening would land a third below it instead.
-    const byBar = (p: number[]) => p.flatMap((x) => [x, x, x, x]);
-    const v = voice(byBar([26, 27, 26, 28, 29, 23, 22, 24]));
-    v[15] = { ...v[15], accidental: "sharp", wasRaised: true } as VoiceNote;
+    // The consequent's kept opening note is raised and resolves up to the next
+    // one; a splice starting right after it would land a third below instead.
+    const v = voice([
+      22, 22, 23, 24, 23, 22, 23, 24, 25, 24, 23, 22, 23, 24, 23, 24,
+      25, 26, 26, 27, 26, 25, 26, 27, 26, 25, 24, 23, 22, 22, 22, 22,
+    ]);
+    v[16] = { ...v[16], accidental: "sharp", wasRaised: true } as VoiceNote;
     expect(resolutionsIntact(v)).toBe(true); // the fixture starts out correct
     expect(resolutionsIntact(applyRhymingPhrases([v], opts({ maxSkip: 4 }))[0])).toBe(true);
   });
@@ -253,11 +287,18 @@ describe("rhyming phrases", () => {
     // note resolves, and only `wasRaised` distinguishes a raised 4th (rises)
     // from a lowered 7th (falls). Read it wrong and this splice is refused for
     // resolving the way it should.
-    const byBar = (p: number[]) => p.flatMap((x) => [x, x, x, x]);
-    const v = voice(byBar([26, 27, 26, 25, 22, 23, 22, 24]));
-    v[15] = { ...v[15], accidental: "natural", wasRaised: true } as VoiceNote;
+    //
+    // The kept opening of the consequent (21) is raised and, as generated, does
+    // NOT resolve (20 follows). Only the splice starting one quarter in - which
+    // borrows 22 - resolves it, so a gate that refused that seam leaves it
+    // broken.
+    const v = voice([
+      22, 22, 23, 24, 23, 22, 23, 24, 25, 24, 23, 22, 23, 24, 23, 24,
+      21, 20, 21, 22, 21, 20, 21, 22, 23, 24, 23, 22, 22, 22, 22, 22,
+    ]);
+    v[16] = { ...v[16], accidental: "natural", wasRaised: true } as VoiceNote;
     const out = applyRhymingPhrases([v], opts({ maxSkip: 4 }));
-    expect(samePitches(bars(out[0], 0, 3), bars(out[0], 4, 7))).toBe(true);
+    expect(rhymes(out[0], 0, 4)).toBe(true);
     expect(resolutionsIntact(out[0])).toBe(true);
   });
 
@@ -282,8 +323,8 @@ describe("rhyming phrases", () => {
       ...opts(),
       measures: 16,
     });
-    expect(samePitches(bars(out[0], 0, 3), bars(out[0], 4, 7))).toBe(true);
-    expect(samePitches(bars(out[0], 8, 11), bars(out[0], 12, 15))).toBe(true);
+    expect(rhymes(out[0], 0, 4)).toBe(true);
+    expect(rhymes(out[0], 8, 12)).toBe(true);
     // ...and the second period is its own idea. Pairing the phrases as (0,1),
     // (1,2), (2,3) instead of (0,1), (2,3) also satisfies the two assertions
     // above - by making the whole exercise one idea four times over.
@@ -334,8 +375,9 @@ describe("varying the restatement", () => {
     const tune = [...A, ...B];
     const under = tune.map((p) => p - 5); // a sixth below throughout
     const out = applyRhymingPhrases(twoVoices(tune, under), withRanges());
-    const first = bars(out[TOP], 0, 3).map((n) => n.pitchValue);
-    const second = bars(out[TOP], 4, 7).map((n) => n.pitchValue);
+    // From one quarter in: each phrase keeps its own opening note.
+    const first = out[TOP].slice(1, 12).map((n) => n.pitchValue);
+    const second = out[TOP].slice(17, 28).map((n) => n.pitchValue);
     const differences = first.filter((p, i) => p !== second[i]).length;
     expect(differences).toBeGreaterThan(0);
     expect(differences).toBeLessThanOrEqual(2);
@@ -366,12 +408,12 @@ describe("varying the restatement", () => {
     expect(varied(out[LOW])).toBe(0);
   });
 
-  test("the first note of the restatement is never the one that changes", () => {
-    // It is what makes the two phrases recognisably the same phrase.
+  test("the first borrowed note of the restatement is never the one that changes", () => {
+    // It is where the ear recognises the tune coming back.
     const tune = [...A, ...B];
     const under = tune.map((p) => p - 5);
     const out = applyRhymingPhrases(twoVoices(tune, under), withRanges());
-    expect(out[TOP][16].pitchValue).toBe(out[TOP][0].pitchValue);
+    expect(out[TOP][17].pitchValue).toBe(out[TOP][1].pitchValue);
   });
 
   test("a substitute is never a leap the singer cannot make", () => {
@@ -397,13 +439,14 @@ describe("varying the restatement", () => {
     // copies of bars 1-3, so an accidental placed in the restatement is simply
     // replaced and the test proves nothing. A[5] is 23 and A[6] is 24, so a
     // raised note here already resolves up by step.
-    // Index 1 - which lands at index 17, the FIRST note the variation considers.
-    // Put it out of reach and the protection can be deleted unnoticed. A[1] is
-    // 21 and A[2] is 22, so a raised note here already resolves up by step.
-    input[TOP][1] = { ...input[TOP][1], accidental: "sharp", wasRaised: true } as VoiceNote;
+    // Index 2 - which lands at index 18, the FIRST note the variation considers
+    // (17 is the first borrowed note, never varied). Put it out of reach and
+    // the protection can be deleted unnoticed. A[2] is 22 and A[3] is 21, so a
+    // lowered note here already resolves down by step.
+    input[TOP][2] = { ...input[TOP][2], accidental: "flat", wasRaised: false } as VoiceNote;
     const out = applyRhymingPhrases(input, withRanges());
-    const carried = out[TOP][17] as VoiceNote & { varied?: boolean };
-    expect(carried.accidental).toBe("sharp");
+    const carried = out[TOP][18] as VoiceNote & { varied?: boolean };
+    expect(carried.accidental).toBe("flat");
     expect(carried.varied).toBeFalsy();
     // ...and the pass did vary something, so this is not a vacuous pass.
     expect(out[TOP].some((n) => (n as VoiceNote & { varied?: boolean }).varied)).toBe(true);
@@ -414,9 +457,7 @@ describe("varying the restatement", () => {
     // still a period, so this degrades rather than failing.
     const tune = [...A, ...B];
     const out = applyRhymingPhrases(twoVoices(tune, tune.map((p) => p - 5)), opts());
-    expect(
-      samePitches(bars(out[TOP], 0, 3), bars(out[TOP], 4, 7))
-    ).toBe(true);
+    expect(rhymes(out[TOP], 0, 4)).toBe(true);
   });
 
   test("the note running into the cadence is left to the seam rules", () => {
@@ -438,16 +479,83 @@ describe("varying the restatement", () => {
     // `name` is what the assembler emits as the ABC pitch. Carry the replaced
     // note's name over and the score shows the old note while everything that
     // reads pitchValue - playback, the checks above - sees the new one.
+    //
+    // And `degree` is what solfège reads, relative to the KEY. The pitch index
+    // counts from C, so `pitchValue % 7` is only right in C major. These notes
+    // are spelled as if in D (pitch 1 is the tonic).
+    const inD = (v: VoiceNote[]) =>
+      v.map((n) => ({ ...n, degree: (((n.pitchValue - 1) % 7) + 7) % 7 }));
     const tune = [...A, ...B];
-    const out = applyRhymingPhrases(
-      twoVoices(tune, tune.map((p) => p - 5)),
-      withRanges()
-    );
+    const [top, low] = twoVoices(tune, tune.map((p) => p - 5));
+    const out = applyRhymingPhrases([inD(top), inD(low)], withRanges());
     const varied = out[TOP].filter((n) => (n as VoiceNote & { varied?: boolean }).varied);
     expect(varied.length).toBeGreaterThan(0);
     for (const n of varied) {
       expect(n.name).toBe(noteArray[n.pitchValue]);
-      expect(n.degree).toBe(n.pitchValue % 7);
+      expect(n.degree).toBe((((n.pitchValue - 1) % 7) + 7) % 7);
     }
+  });
+});
+
+describe("decorating the restatement", () => {
+  // Bars 5-8 of a single top voice in quarters; the restatement is bars 5-7
+  // from one quarter in, as applyRhymingPhrases reports it.
+  const START = 4 * TS + QUARTER;
+  const LENGTH = 3 * TS - QUARTER;
+  const top = () => voice([...A, ...B], 1);
+
+  /** A stand-in decoration: splits the note into two eighths a step apart. */
+  const split = (offered: number[]) => (vs: VoiceNote[][], ti: number, ni: number) => {
+    offered.push(ni);
+    const v = vs[ti];
+    const n = v[ni];
+    return [
+      ...v.slice(0, ni),
+      { ...n, length: 4, ornament: true },
+      { ...n, pitchValue: n.pitchValue + 1, length: 4, ornament: true },
+      ...v.slice(ni + 1),
+    ];
+  };
+
+  test("adds one figure inside the restatement, and only there", () => {
+    const offered: number[] = [];
+    const out = decorateRestatement([top()], START, LENGTH, split(offered), () => 0);
+    expect(out[0].length).toBe(top().length + 1);
+    expect(offered).toHaveLength(1);
+    // Index 17 is the first borrowed note; 27 runs into the cadence.
+    expect(offered[0]).toBeGreaterThan(17);
+    expect(offered[0]).toBeLessThan(27);
+  });
+
+  test("never offers a note that is already ornament, varied, altered or short", () => {
+    const v = top();
+    for (let i = 18; i < 27; i++) {
+      if (i === 22) continue;
+      const kind = i % 4;
+      v[i] = kind === 0 ? { ...v[i], ornament: true }
+        : kind === 1 ? { ...v[i], varied: true }
+        : kind === 2 ? { ...v[i], accidental: "sharp" }
+        : { ...v[i], length: 4 };
+    }
+    // Lengths must still add up for the onsets to mean anything, so the short
+    // note's missing time is not re-balanced - it only shifts later onsets, and
+    // 22 is still inside the span.
+    const offered: number[] = [];
+    decorateRestatement([v], START, LENGTH, split(offered), () => 0);
+    expect(offered).toEqual([22]);
+  });
+
+  test("a decoration that will not fit costs nothing and does not loop", () => {
+    const offered: number[] = [];
+    const refuse = (vs: VoiceNote[][], ti: number, ni: number) => {
+      offered.push(ni);
+      return vs[ti];
+    };
+    const input = [top()];
+    const out = decorateRestatement(input, START, LENGTH, refuse, () => 0.5);
+    expect(out[0].map((n) => n.pitchValue)).toEqual(input[0].map((n) => n.pitchValue));
+    // Every candidate tried once, none twice.
+    expect(new Set(offered).size).toBe(offered.length);
+    expect(offered.length).toBe(9);
   });
 });

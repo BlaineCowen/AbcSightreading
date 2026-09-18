@@ -173,3 +173,36 @@ describe("a suspension belongs on a strong beat", () => {
     expect(decorated).toBeGreaterThan(20);
   });
 });
+
+describe("the bass line does not suspend", () => {
+  /**
+   * In the bass a suspension holds the old root over the new chord and resolves
+   * onto its third, so the chord is heard late and in first inversion - reported
+   * as a iii that sounded like nothing of the kind. The same descending line is
+   * given to the lower of two voices, and to the upper one as a control: a gate
+   * that stopped every suspension would pass the first half alone.
+   */
+  const suspensionsIn = (who: 0 | 1) => {
+    let decorated = 0;
+    for (let i = 0; i < 60; i++) {
+      const line = (order: number, shift: number) =>
+        [note(11 + shift, { order }), note(10 + shift, { order }), note(9 + shift, { order }), note(8 + shift, { order })];
+      // A tenth apart, so the held note is never a second against the other part.
+      const voices = [line(0, 0), line(1, 9)];
+      const out = generateNonChordTones(
+        voices[who].map((x) => ({ ...x })), [pattern], voices, who, 1, "C",
+        ["Suspension"], [0, 40], TS
+      );
+      if (out.length > voices[who].length) decorated++;
+    }
+    return decorated;
+  };
+
+  test("never in the lowest voice", () => {
+    expect(suspensionsIn(0)).toBe(0);
+  });
+
+  test("...while the voice above it still suspends on the same line", () => {
+    expect(suspensionsIn(1)).toBeGreaterThan(20);
+  });
+});

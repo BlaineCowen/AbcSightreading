@@ -556,7 +556,13 @@ export function generateNonChordTones(
    */
   tsPerMeasure?: number,
   /** Refuse any figure that skips into or out of an eighth. See generateChoral. */
-  stepwiseEighths: boolean = false
+  stepwiseEighths: boolean = false,
+  /**
+   * Consider only these note indexes, passing every other note through as it
+   * is. For decorating one chosen note of a finished voice - see
+   * decorateRestatement in generateChoral.
+   */
+  onlyAt?: Set<number>
 ): VoiceNote[] {
   const outputNotes: VoiceNote[] = [];
 
@@ -592,12 +598,32 @@ export function generateNonChordTones(
     // decoration in the study we could not write at all.
     { name: "Escape Tone", check: checkEscapeTone, generator: generateEscapeTone, weight: 3 },
   ];
-  const nctLibrary = enabledNctTypes
+  // The bass line does not suspend. A suspension resolves down onto the chord
+  // tone, so in the bass it holds the old root over the new chord and lands on
+  // its third: the chord is only heard, late, in first inversion. It is also the
+  // hardest dissonance for a young section to tune, a second at the bottom of
+  // the texture. Bach writes it, but rarely - 137 of his 1,328 suspensions, 6.9
+  // per thousand bass notes against 38 in the alto - and reported here as a
+  // iii the reader could not hear as one. Every route to one is closed: the
+  // library, joining another voice's suspension, and mirroring one.
+  const orderOf = (v: VoiceNote[]) => v.find((n) => n.order !== undefined)?.order;
+  const myOrder = orderOf(notesToProcess);
+  // A lone line is a melody, not a bass.
+  const isBassLine =
+    allNotes.length > 1 &&
+    myOrder !== undefined &&
+    allNotes.every((v, k) => k === currentPartIndex || (orderOf(v) ?? Infinity) > myOrder);
+  const nctLibrary = (enabledNctTypes
     ? fullNctLibrary.filter((d) => enabledNctTypes.includes(d.name))
-    : fullNctLibrary;
+    : fullNctLibrary
+  ).filter((d) => !(isBassLine && d.name === "Suspension"));
 
   for (let i = 0; i < notesToProcess.length; i++) {
     const originalNote = notesToProcess[i];
+    if (onlyAt && !onlyAt.has(i)) {
+      outputNotes.push(originalNote);
+      continue;
+    }
 
     // Find next non-rest note
     let nextNote: VoiceNote | null = null;
@@ -646,7 +672,7 @@ export function generateNonChordTones(
     if (
       structural ||
       (Math.random() >= probability &&
-        !couldJoinSuspension(originalNote, i, allNotes, currentPartIndex))
+        (isBassLine || !couldJoinSuspension(originalNote, i, allNotes, currentPartIndex)))
     ) {
       // A half note that lost the decoration roll may still be SUNG as two
       // quarters on the same pitch. That is not decoration - nothing is
@@ -662,7 +688,7 @@ export function generateNonChordTones(
         );
         if (repeated) {
           if (originalNote.chordSymbol) repeated[0].chordSymbol = originalNote.chordSymbol;
-          outputNotes.push(...repeated);
+          outputNotes.push(...repeated.map((n) => ({ ...n, ornament: true })));
           continue;
         }
       }
@@ -682,7 +708,8 @@ export function generateNonChordTones(
       i,
       allNotes,
       currentPartIndex,
-      key
+      key,
+      isBassLine
     );
     if (mirrored) {
       const why = figureRejection(
@@ -691,7 +718,7 @@ export function generateNonChordTones(
       if (!why) {
         if (originalNote.chordSymbol) mirrored[0].chordSymbol = originalNote.chordSymbol;
         console.log(`NCT_GEN: Generated ${mirrored.length} notes for Parallel Motion.`);
-        outputNotes.push(...mirrored);
+        outputNotes.push(...mirrored.map((n) => ({ ...n, ornament: true })));
         continue;
       }
       console.log(`NCT_GEN: mirrored decoration rejected (${why}) at ${i}.`);
@@ -791,7 +818,7 @@ export function generateNonChordTones(
       }
 
       console.log(`NCT_GEN: Generated ${generatedNctNotes.length} notes for ${selectedNctDefinition.name}.`);
-      outputNotes.push(...generatedNctNotes);
+      outputNotes.push(...generatedNctNotes.map((n) => ({ ...n, ornament: true })));
     } else {
       console.log(
         `NCT_GEN: Generation failed for ${selectedNctDefinition.name}. Keeping original.`
@@ -1173,7 +1200,9 @@ function tryParallelDecoration(
   noteIndex: number,
   allNotes: VoiceNote[][],
   currentPartIndex: number,
-  key: string
+  key: string,
+  /** The bass line never suspends - see generateNonChordTones. */
+  isBassLine = false
 ): VoiceNote[] | null {
   const myPitch = originalNote.pitchValue;
   if (myPitch === undefined || originalNote.rest) return null;
@@ -1220,6 +1249,7 @@ function tryParallelDecoration(
       theirs[1].pitchValue === theirFirst - 1;
 
     if (theyAreSuspending) {
+      if (isBassLine) continue;
       const myPrev = noteEndingAt(allNotes[currentPartIndex], start);
       if (!myPrev || myPrev.rest || myPrev.pitchValue === undefined) continue;
       if (myPrev.pitchValue !== myPitch + 1) continue;

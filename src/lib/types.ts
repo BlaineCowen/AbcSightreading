@@ -47,6 +47,13 @@ export interface VoiceNote extends Note {
    * Read only to keep two variations from landing side by side.
    */
   varied?: boolean;
+  /**
+   * Set on every note a decoration wrote - a passing tone, a suspension, a
+   * repeated half note - as opposed to a chord tone the search placed. Read by
+   * the pass that decorates a restatement, which may only add a figure where
+   * the first phrase had none.
+   */
+  ornament?: boolean;
   wasRaised?: boolean; // true if accidental="natural" means raised (e.g. Bb→Bnat in F major)
   /** Chord symbol annotation displayed above this note (e.g. "I", "V7", "vi").
    *  Typically only set on the chord-start note of the highest voice. */
