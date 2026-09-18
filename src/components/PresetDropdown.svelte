@@ -6,25 +6,34 @@
   import { onMount } from 'svelte';
 
   export let activeLabel: string = '';
-  export let currentParams: () => PresetParams;
-  export let onSelectBuiltin: (type: 'uil' | 'difficulty', key: string) => void;
-  export let onSelectSaved: (preset: SavedPreset) => void;
+  // `any` because the settings are the caller's: choral saves PresetParams,
+  // unison its own options object. The dropdown only stores and hands back.
+  export let currentParams: () => PresetParams | any;
+  export let onSelectBuiltin: (type: 'uil' | 'difficulty', key: string) => void = () => {};
+  export let onSelectSaved: (preset: SavedPreset<any>) => void;
   export let onDelete: ((id: string, name: string) => void) | undefined = undefined;
   export let hideUILLevels: boolean = false;
+  /**
+   * Whether to offer the built-in UIL and difficulty presets. They are choral
+   * settings, so unison turns them off and shows only what was saved there.
+   */
+  export let showBuiltins: boolean = true;
+  /** Which list of saved presets this page reads and writes. Choral's by default. */
+  export let store: string | undefined = undefined;
 
-  let savedPresets: SavedPreset[] = [];
+  let savedPresets: SavedPreset<any>[] = [];
   let showSaveInput = false;
   let newPresetName = '';
 
   onMount(() => {
-    savedPresets = getPresets();
+    savedPresets = getPresets(store);
   });
 
   function handleSave() {
     if (!newPresetName.trim()) return;
     try {
-      const preset = savePreset(newPresetName.trim(), currentParams());
-      savedPresets = getPresets();
+      const preset = savePreset(newPresetName.trim(), currentParams(), store);
+      savedPresets = getPresets(store);
       newPresetName = '';
       showSaveInput = false;
       onSelectSaved(preset);
@@ -36,8 +45,8 @@
   function handleDelete(id: string) {
     const preset = savedPresets.find(p => p.id === id);
     try {
-      deletePreset(id);
-      savedPresets = getPresets();
+      deletePreset(id, store);
+      savedPresets = getPresets(store);
       if (preset) onDelete?.(id, preset.name);
     } catch (e) {
       alert('Could not delete preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
@@ -67,8 +76,10 @@
       class="appearance-none bg-sr-raise border border-sr-hairline rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-sr-ink-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sr-action"
       on:change={handleSelectChange}
     >
-      <option value="" disabled selected hidden>Choose a preset…</option>
-      {#if !hideUILLevels}
+      <option value="" disabled selected hidden>
+        {showBuiltins || savedPresets.length > 0 ? 'Choose a preset…' : 'No saved presets yet'}
+      </option>
+      {#if showBuiltins && !hideUILLevels}
         <option value="" disabled>── UIL Levels ──</option>
         <option value="uil:UIL 1">UIL 1 - Beginner choir</option>
         <option value="uil:UIL 2">UIL 2 - Easy</option>
@@ -76,10 +87,12 @@
         <option value="uil:UIL 4">UIL 4 - Hard</option>
         <option value="uil:UIL 5">UIL 5 - Advanced</option>
       {/if}
-      <option value="" disabled>── Difficulty ──</option>
-      <option value="diff:Beginner">Beginner</option>
-      <option value="diff:Intermediate">Intermediate</option>
-      <option value="diff:Advanced">Advanced</option>
+      {#if showBuiltins}
+        <option value="" disabled>── Difficulty ──</option>
+        <option value="diff:Beginner">Beginner</option>
+        <option value="diff:Intermediate">Intermediate</option>
+        <option value="diff:Advanced">Advanced</option>
+      {/if}
       {#if savedPresets.length > 0}
         <option value="" disabled>── My Presets ──</option>
         {#each savedPresets as preset}

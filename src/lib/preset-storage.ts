@@ -1,4 +1,8 @@
+/** Choral's presets. Other modules keep their own list - see `store` below. */
 const STORAGE_KEY = 'abcsr_presets';
+
+/** Unison's presets: a different set of settings, so a different list. */
+export const UNISON_PRESET_STORE = 'abcsr_unison_presets';
 
 export interface PresetParams {
   /** The key most recently used. Kept for presets saved before `keys` existed. */
@@ -31,51 +35,60 @@ export interface PresetParams {
   voiceRanges: Record<string, [number, number]>;
 }
 
-export interface SavedPreset {
+/**
+ * A named set of settings. `P` is choral's by default; unison saves its own
+ * options object, under its own storage key, so the two lists never mix - a
+ * choral preset has no clef and a unison one has no voicing.
+ */
+export interface SavedPreset<P = PresetParams> {
   id: string;
   name: string;
   createdAt: number;
-  params: PresetParams;
+  params: P;
 }
 
-export function getPresets(): SavedPreset[] {
+export function getPresets<P = PresetParams>(store: string = STORAGE_KEY): SavedPreset<P>[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+    return JSON.parse(localStorage.getItem(store) ?? '[]');
   } catch {
     return [];
   }
 }
 
-export function savePreset(name: string, params: PresetParams): SavedPreset {
-  const presets = getPresets();
-  const preset: SavedPreset = {
+export function savePreset<P = PresetParams>(
+  name: string,
+  params: P,
+  store: string = STORAGE_KEY
+): SavedPreset<P> {
+  const presets = getPresets<P>(store);
+  const preset: SavedPreset<P> = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     name,
     createdAt: Date.now(),
     params,
   };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...presets, preset]));
+    localStorage.setItem(store, JSON.stringify([...presets, preset]));
   } catch (e) {
     throw new Error('Could not save preset: storage quota exceeded.', { cause: e });
   }
   return preset;
 }
 
-export function deletePreset(id: string): boolean {
-  const presets = getPresets();
+export function deletePreset(id: string, store: string = STORAGE_KEY): boolean {
+  const presets = getPresets(store);
   const next = presets.filter((p) => p.id !== id);
   if (next.length === presets.length) return false;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(store, JSON.stringify(next));
   } catch (e) {
     throw new Error('Could not delete preset: storage quota exceeded.', { cause: e });
   }
   return true;
 }
 
-export function renamePreset(id: string, name: string): boolean {
-  const presets = getPresets();
+export function renamePreset(id: string, name: string, store: string = STORAGE_KEY): boolean {
+  const presets = getPresets(store);
   let found = false;
   const next = presets.map((p) => {
     if (p.id === id) {
@@ -86,7 +99,7 @@ export function renamePreset(id: string, name: string): boolean {
   });
   if (!found) return false;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(store, JSON.stringify(next));
   } catch (e) {
     throw new Error('Could not rename preset: storage quota exceeded.', { cause: e });
   }

@@ -13,6 +13,8 @@
   } from "../lib/scroll-to-system";
   import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
   import type { LyricSystem } from "../resources/solfege";
+  import PresetDropdown from "./PresetDropdown.svelte";
+  import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
@@ -405,6 +407,93 @@
    * Returns the initial state for the sight reading options, either from localStorage or defaults
    * @returns {Object} The initial state configuration
    */
+  /**
+   * Turn a saved options object - what this page writes to localStorage, and
+   * what a preset holds - into the page's state. One mapping for both, so a
+   * preset cannot restore something differently from a reload.
+   *
+   * Two things it now gets right that the old inline version did not: the
+   * lyric system is restored (it was saved and then dropped), and
+   * "accidentals follow step" can come back off (`|| true` made it always on).
+   */
+  function stateFromOptions(options: any) {
+    // Options saved before the time signature was a plain name.
+    let ts = "4/4";
+    if (options.selectedTimeSignature) {
+      ts =
+        typeof options.selectedTimeSignature === "object"
+          ? options.selectedTimeSignature.name || "4/4"
+          : options.selectedTimeSignature;
+    }
+    return {
+      selectedClef: options.selectedClef || "treble",
+      selectedRange: options.selectedRange || { ...DEFAULT_TREBLE_RANGE },
+      selectedScaleDegrees: new Set<number>(options.selectedScaleDegrees || [1, 3, 5]),
+      selectedSharpDegrees: new Set<number>(options.selectedSharpDegrees || []),
+      selectedFlatDegrees: new Set<number>(options.selectedFlatDegrees || []),
+      selectedKey: options.selectedKey || "F",
+      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms),
+      selectedTimeSignature: ts,
+      measures: options.measures || 8,
+      maxSkip: options.maxSkip || 4,
+      bpm: options.bpm || 60,
+      moveEighthNotes: options.moveEighthNotes || false,
+      accidentalsFollowStep:
+        typeof options.accidentalsFollowStep === "boolean" ? options.accidentalsFollowStep : true,
+      showSolfege: options.showSolfege || false,
+      lyricSystem: isLyricSystem(options.lyricSystem) ? options.lyricSystem : "movable",
+      rhythmOnly: options.rhythmOnly || false,
+      showRhythmSyllables: options.showRhythmSyllables || false,
+      // Options saved before counting existed have no id at all.
+      syllableSystemId: isSyllableSystemId(options.syllableSystemId)
+        ? options.syllableSystemId
+        : defaultSyllableSystem.id,
+      allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
+      cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
+    };
+  }
+
+  const isLyricSystem = (v: unknown): v is LyricSystem =>
+    v === "movable" || v === "fixed" || v === "names";
+
+  // ── Presets ───────────────────────────────────────────────────────────────
+  /** The preset the settings came from, and what it held, for "edited". */
+  let activePresetLabel = "";
+  let activePresetSignature = "";
+  $: presetEdited =
+    activePresetLabel !== "" && JSON.stringify(currentOptions) !== activePresetSignature;
+
+  /**
+   * Put a saved preset's settings on the page. Like choral, it sets the
+   * controls and leaves the exercise alone - Generate is what uses them.
+   */
+  function applySavedPreset(preset: SavedPreset<any>) {
+    const next = stateFromOptions(preset.params ?? {});
+    selectedClef = next.selectedClef;
+    selectedRange = next.selectedRange;
+    selectedScaleDegrees = next.selectedScaleDegrees;
+    selectedSharpDegrees = next.selectedSharpDegrees;
+    selectedFlatDegrees = next.selectedFlatDegrees;
+    selectedKey = next.selectedKey;
+    selectedRhythms = next.selectedRhythms;
+    selectedTimeSignature = next.selectedTimeSignature;
+    measures = next.measures;
+    maxSkip = next.maxSkip;
+    bpm = next.bpm;
+    moveEighthNotes = next.moveEighthNotes;
+    accidentalsFollowStep = next.accidentalsFollowStep;
+    showSolfege = next.showSolfege;
+    lyricSystem = next.lyricSystem;
+    rhythmOnly = next.rhythmOnly;
+    showRhythmSyllables = next.showRhythmSyllables;
+    syllableSystemId = next.syllableSystemId;
+    allowTiesAcrossBarline = next.allowTiesAcrossBarline;
+    cursorMode = next.cursorMode;
+    activePresetLabel = preset.name;
+    // After the reactive snapshot has caught up with the values just set.
+    setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
+  }
+
   function getInitialState() {
     if (typeof window !== "undefined") {
       const urlOptions = loadStateFromUrl();
@@ -442,45 +531,7 @@
     const saved = localStorage.getItem("sightReadingOptions");
     if (saved) {
       try {
-        const options = JSON.parse(saved);
-        // Handle backward compatibility for selectedTimeSignature
-        let ts = "4/4";
-        if (options.selectedTimeSignature) {
-          if (typeof options.selectedTimeSignature === "object") {
-            ts = options.selectedTimeSignature.name || "4/4";
-          } else {
-            ts = options.selectedTimeSignature;
-          }
-        }
-
-        return {
-          selectedClef: options.selectedClef || "treble",
-          selectedRange: options.selectedRange || { ...DEFAULT_TREBLE_RANGE },
-          selectedScaleDegrees: new Set<number>(
-            options.selectedScaleDegrees || [1, 3, 5]
-          ),
-          selectedSharpDegrees: new Set(options.selectedSharpDegrees || []),
-          selectedFlatDegrees: new Set(options.selectedFlatDegrees || []),
-          selectedKey: options.selectedKey || "F",
-          selectedRhythms: resolveSelectedRhythms(options.selectedRhythms),
-          selectedTimeSignature: ts,
-          measures: options.measures || 8,
-          maxSkip: options.maxSkip || 4,
-          bpm: options.bpm || 60,
-          moveEighthNotes: options.moveEighthNotes || false,
-          accidentalsFollowStep: options.accidentalsFollowStep || true,
-          showSolfege: options.showSolfege || false,
-          rhythmOnly: options.rhythmOnly || false,
-          showRhythmSyllables: options.showRhythmSyllables || false,
-          // Options saved before counting existed have no id at all.
-          syllableSystemId: isSyllableSystemId(options.syllableSystemId)
-            ? options.syllableSystemId
-            : defaultSyllableSystem.id,
-          allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
-          cursorMode: isCursorMode(options.cursorMode)
-            ? options.cursorMode
-            : "smooth",
-        };
+        return stateFromOptions(JSON.parse(saved));
       } catch (e) {
         console.error("Error loading saved options:", e);
       }
@@ -812,9 +863,9 @@
 
   const STORAGE_KEY = "sightReadingOptions";
 
-  // Save options whenever they change
-  $: {
-    const options = {
+  // Save options whenever they change. The snapshot is also what a preset
+  // stores, and what "edited" is measured against.
+  $: currentOptions = {
       selectedClef,
       selectedRange: { ...selectedRange },
       selectedScaleDegrees: Array.from(selectedScaleDegrees),
@@ -836,8 +887,9 @@
       allowTiesAcrossBarline,
       cursorMode,
     };
+  $: {
+    const options = currentOptions;
     try {
-      console.log("Saving options:", options);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
     } catch (e) {
       console.error("Error saving options:", e);
@@ -2580,6 +2632,18 @@
 </script>
 
 <div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + 1rem)">
+  <!-- Preset bar: the same one as choral, over unison's own saved list. The
+       built-in UIL and difficulty presets are choral settings, so they are not
+       offered here. -->
+  <PresetDropdown
+    store={UNISON_PRESET_STORE}
+    showBuiltins={false}
+    activeLabel={activePresetLabel ? `${activePresetLabel}${presetEdited ? ' — edited' : ''}` : ''}
+    currentParams={() => currentOptions}
+    onSelectSaved={applySavedPreset}
+    onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
+  />
+
   <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
 
     {#if error}
