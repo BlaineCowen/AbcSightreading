@@ -1,4 +1,5 @@
 import type { VoiceNote } from "../lib/types";
+import { keySignatures } from "./key-signatures";
 
 /**
  * Movable-do solfège syllables.
@@ -101,4 +102,95 @@ export function solfegeLineFor(notes: VoiceNote[], key: string): string[] {
     syllables.push(solfegeFor(note.degree, note.accidental, note.wasRaised, mode));
   }
   return syllables;
+}
+
+/**
+ * What goes under the notes.
+ *
+ * - `movable` - solfège against the KEY: do is the tonic, so the same tune is
+ *   the same syllables whatever key it is written in. What this app has always
+ *   printed.
+ * - `fixed` - solfège against the LETTER: C is always do. What a fixed-do
+ *   training uses, and what a reader trained that way needs to see.
+ * - `names` - the letter itself, with its accidental: C, F♯, B♭.
+ */
+export type LyricSystem = "movable" | "fixed" | "names";
+
+/** Letter names by pitch class. `noteArray` starts at C, so index 0 is C. */
+const LETTERS = ["C", "D", "E", "F", "G", "A", "B"] as const;
+
+/**
+ * The accidental actually in force for a note: its own if it carries one, and
+ * the key signature's otherwise.
+ *
+ * A diatonic note carries no accidental field - the F in G major is printed
+ * without one, because the key signature already sharpened it. Movable do never
+ * has to care (the degree says everything), but a fixed-do syllable and a note
+ * name both name the pitch, so both have to ask the key.
+ */
+export function alterationOf(
+  note: Pick<VoiceNote, "degree" | "accidental">,
+  key: string
+): "sharp" | "flat" | null {
+  if (note.accidental === "sharp" || note.accidental === "double-sharp") return "sharp";
+  if (note.accidental === "flat" || note.accidental === "double-flat") return "flat";
+  if (note.accidental === "natural") return null;
+  const keyInfo = keySignatures[key.trim()];
+  if (!keyInfo) return null;
+  // sharps/flats are key-relative degrees, which is what `degree` holds.
+  if (keyInfo.sharps.includes(note.degree)) return "sharp";
+  if (keyInfo.flats.includes(note.degree)) return "flat";
+  return null;
+}
+
+/** The pitch class of a note: 0 for any C, 6 for any B. */
+const pitchClassOf = (pitchValue: number) => ((pitchValue % 7) + 7) % 7;
+
+/**
+ * Fixed do: the syllable follows the letter, not the key. C is do in every key,
+ * and the chromatic spellings are the same ones movable do uses - C♯ is di,
+ * E♭ is me.
+ */
+export function fixedDoFor(
+  pitchValue: number,
+  alteration: "sharp" | "flat" | null
+): string {
+  const index = pitchClassOf(pitchValue);
+  if (alteration === "sharp") return RAISED[index] ?? DIATONIC[index];
+  if (alteration === "flat") return LOWERED[index] ?? DIATONIC[index];
+  return DIATONIC[index];
+}
+
+/** The note's name: C, F♯, B♭. Proper signs, not ASCII - these are sung from. */
+export function noteNameFor(
+  pitchValue: number,
+  alteration: "sharp" | "flat" | null
+): string {
+  const letter = LETTERS[pitchClassOf(pitchValue)];
+  return alteration === "sharp" ? `${letter}♯` : alteration === "flat" ? `${letter}♭` : letter;
+}
+
+/**
+ * The lyric line for one voice in whichever system, ready to join into `w:`.
+ *
+ * Rests are skipped for the reason `solfegeLineFor` gives: ABC aligns lyrics to
+ * note elements, and a rest is not one.
+ */
+export function lyricLineFor(
+  notes: VoiceNote[],
+  key: string,
+  system: LyricSystem
+): string[] {
+  if (system === "movable") return solfegeLineFor(notes, key);
+  const out: string[] = [];
+  for (const note of notes) {
+    if (note.rest) continue;
+    const alteration = alterationOf(note, key);
+    out.push(
+      system === "fixed"
+        ? fixedDoFor(note.pitchValue, alteration)
+        : noteNameFor(note.pitchValue, alteration)
+    );
+  }
+  return out;
 }

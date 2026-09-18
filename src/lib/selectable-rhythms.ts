@@ -60,3 +60,31 @@ export function canAppearInChoral(
   if (rhythm.rest && rhythm.totalValue >= tsPerMeasure) return false;
   return true;
 }
+
+/**
+ * The picker's order: notes, then rests, each shortest first.
+ *
+ * The picker used to show the rhythm file's own order, which is the order the
+ * figures were added to it - a dotted half beside a sixteenth pattern, rests
+ * scattered through. Grouped and sorted, a director finds a figure by how long
+ * it is. Figures of the same length keep a single note ahead of the patterns
+ * that fill that length, and are otherwise left in file order.
+ */
+export function rhythmPickerGroups<R extends Rhythm>(
+  list: R[]
+): { label: "Notes" | "Rests"; rhythms: R[] }[] {
+  const ordered = (rs: R[]) =>
+    rs
+      .map((r, i) => ({ r, i }))
+      .sort(
+        (a, b) =>
+          a.r.totalValue - b.r.totalValue ||
+          a.r.abcValue.length - b.r.abcValue.length ||
+          a.i - b.i
+      )
+      .map(({ r }) => r);
+  return [
+    { label: "Notes" as const, rhythms: ordered(list.filter((r) => !containsRest(r))) },
+    { label: "Rests" as const, rhythms: ordered(list.filter((r) => containsRest(r))) },
+  ].filter((g) => g.rhythms.length > 0);
+}

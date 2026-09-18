@@ -2,6 +2,12 @@ import { chords } from "../resources/chords";
 import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
 import { noteArray } from "../resources/noteArray";
+import {
+  alterationOf,
+  fixedDoFor,
+  noteNameFor,
+  type LyricSystem,
+} from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
 import {
   defaultSyllableSystem,
@@ -476,8 +482,96 @@ function generateChordProgression(
   scaleDegrees: number[],
   moveOnEighthNotes: boolean,
   randRhythmObjects: RhythmWithPattern[],
-  accidentalsFollowStep: boolean
+  accidentalsFollowStep: boolean,
+  /**
+   * The chromatic degrees selected, 0-based like `scaleDegrees`. A chord that
+   * carries one of these makes that degree a legal note - altered - even when
+   * its natural form is not selected. See `usable`.
+   */
+  chromatic: { sharps: Set<number>; flats: Set<number> } = {
+    sharps: new Set(),
+    flats: new Set(),
+  }
 ) {
+  /**
+   * Is this the altered note the chord carries, and one the reader asked for?
+   * Then generateChord will write it with its accidental.
+   */
+  const isChromaticIn = (chord: Chord | undefined, note: Note) =>
+    !!chord &&
+    ((chord.sharpScaleDegree === note.degree && chromatic.sharps.has(note.degree)) ||
+      (chord.flatScaleDegree === note.degree && chromatic.flats.has(note.degree)));
+
+  /**
+   * An altered note may only be written where the note it resolves to is in
+   * the range. Otherwise the line has nowhere to go: fi in G is C sharp, and
+   * with a range topping out at C its resolution D does not exist, so every
+   * walk that landed on it died - 20 generations in 20 failed outright, where
+   * before they had simply left the fi out.
+   */
+  const canResolve = (chord: Chord | undefined, note: Note) => {
+    const up = chord?.sharpScaleDegree === note.degree;
+    const target = note.pitchValue + (up ? 1 : -1);
+    return bassRangeNoteList.some((n) => n.pitchValue === target);
+  };
+
+  /**
+   * About one altered note in eight is a drill; more is a different key. V/V
+   * leads to V and V back to V/V so readily that, uncapped, fi alone came to
+   * 11 notes in 32. At the cap an altered note stops being usable at all -
+   * which also steers the chord choice, since a chord whose only singable note
+   * is the altered one (V/V over 1, 3 and 5) is then unreachable.
+   */
+  const chromaticCap = () => Math.max(2, Math.round(randNoteLengths.length / 8));
+  const chromaticSoFar = () =>
+    chordProgression.filter((c, k) => isChromaticIn(c?.chord, bassNoteArray[k])).length;
+  /**
+   * ...and shared between the degrees selected. One cap for all of them let
+   * the easiest to reach take every slot: with sharp 4 and flat 7 in G, fi
+   * came out four times an exercise and te never.
+   */
+  const selectedCount = Math.max(1, chromatic.sharps.size + chromatic.flats.size);
+  const perDegreeCap = () => Math.max(1, Math.ceil(chromaticCap() / selectedCount));
+  const soFarOf = (degree: number) =>
+    chordProgression.filter(
+      (c, k) => bassNoteArray[k]?.degree === degree && isChromaticIn(c?.chord, bassNoteArray[k])
+    ).length;
+
+  /**
+   * Can this note be sung over this chord?
+   *
+   * A chord tone, and either a natural degree that was selected or the altered
+   * note the chord carries. The natural-only rule was why selecting a sharp 4
+   * did nothing without the natural 4 as well: fi is degree 3 in V/V, and a
+   * line built only from selected naturals could never reach degree 3 at all.
+   */
+  const usable = (chord: Chord | undefined, note: Note) =>
+    !!chord &&
+    chord.triadNotes.includes(note.degree) &&
+    (scaleDegrees.includes(note.degree) ||
+      (isChromaticIn(chord, note) &&
+        chromaticSoFar() < chromaticCap() &&
+        soFarOf(note.degree) < perDegreeCap() &&
+        canResolve(chord, note)));
+
+  /**
+   * When the chord offers the altered note the reader is drilling, sing it
+   * most of the time. Picking uniformly among three chord tones left it to a
+   * one-in-three chance even on the chord built to produce it.
+   */
+  const CHROMATIC_PREFERENCE = 0.75;
+  const pickBass = (candidates: Note[], chord: Chord | undefined) => {
+    const altered = candidates.filter((n) => isChromaticIn(chord, n));
+    const plain = candidates.filter((n) => !isChromaticIn(chord, n));
+    const pool =
+      altered.length === 0
+        ? candidates
+        : chromaticSoFar() >= chromaticCap()
+          ? plain.length > 0 ? plain : candidates
+          : Math.random() < CHROMATIC_PREFERENCE ? altered : candidates;
+    return pool[Math.floor(Math.random() * pool.length)];
+  };
+
   // console.log("=== CHORD PROGRESSION GENERATION START ===");
   // console.log("🔍 Initial bassRangeNoteList:", bassRangeNoteList);
   // console.log("🔍 Scale degrees:", scaleDegrees);
@@ -489,7 +583,7 @@ function generateChordProgression(
   //   chordsLength: chords.length,
   // });
 
-  let bassNoteArray = [];
+  let bassNoteArray: Note[] = [];
   let newMaxSkip = maxSkip;
 
   console.log("🔍 Chords:", chords);
@@ -529,7 +623,10 @@ function generateChordProgression(
 
   const originalBassRangeLength = bassRangeNoteList.length;
   bassRangeNoteList = bassRangeNoteList.filter((note) => {
-    const included = scaleDegrees.includes(note.degree);
+    const included =
+      scaleDegrees.includes(note.degree) ||
+      chromatic.sharps.has(note.degree) ||
+      chromatic.flats.has(note.degree);
     // if (!included) {
     //   console.log(
     //     `❌ Note ${note.name} (degree ${note.degree}) excluded - not in scale degrees`
@@ -565,7 +662,7 @@ function generateChordProgression(
 
   // pick a random note from bassRangeNoteList degree 0,2,4
   let tonicNotes = bassRangeNoteList.filter((note) =>
-    [0, 2, 4].includes(note.degree)
+    [0, 2, 4].includes(note.degree) && scaleDegrees.includes(note.degree)
   );
 
   // console.log(
@@ -661,6 +758,15 @@ function generateChordProgression(
           (note) =>
             Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
         );
+        // A step is not enough: an altered note resolves in the direction it
+        // was altered - fi up to so, te down to la. The step rule alone let 91
+        // of 1,103 go the other way (fi down to mi), which is the one thing a
+        // reader learning chromatic notes must not be taught.
+        if (accidentalsFollowStep && isChromaticIn(prevChord?.chord, prevBassNote)) {
+          const up = prevChord.chord.sharpScaleDegree === prevBassNote.degree;
+          const resolution = prevBassNote.pitchValue + (up ? 1 : -1);
+          bassDegrees = bassDegrees.filter((note) => note.pitchValue === resolution);
+        }
         if (bassDegrees.length === 0) {
           // console.log(`❌ No valid bass degrees found for chord ${i}`);
           chordGenFails++;
@@ -689,7 +795,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              nextChordInfo.triadNotes.includes(bassNote.degree)
+              usable(nextChordInfo, bassNote)
             );
             if (!isGenerallyReachable) return false;
 
@@ -703,7 +809,7 @@ function generateChordProgression(
                 // ...check if it can be reached by a step (interval <= 2)
                 const isStepwiseReachable = bassRangeNoteList.some(
                   (bassNote) =>
-                    nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                    usable(nextChordInfo, bassNote) &&
                     Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <= 2
                 );
                 return isStepwiseReachable;
@@ -737,11 +843,7 @@ function generateChordProgression(
               ?.triadNotes,
           };
           let bassNoteToAdd = bassDegrees
-            .filter((note) =>
-              chords
-                .find((c) => c.name === nextChordName)
-                ?.triadNotes.includes(note.degree)
-            )
+            .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
             .filter(
               (note) =>
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
@@ -749,7 +851,7 @@ function generateChordProgression(
             );
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
-              bassNoteToAdd[Math.floor(Math.random() * bassNoteToAdd.length)]
+              pickBass(bassNoteToAdd, nextChord.chord)
             );
             chordProgression.push(nextChord);
           }
@@ -784,7 +886,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              nextChordInfo.triadNotes.includes(bassNote.degree)
+              usable(nextChordInfo, bassNote)
             );
             if (!isGenerallyReachable) return false;
 
@@ -798,7 +900,7 @@ function generateChordProgression(
                 // ...check if it can be reached by a step (interval <= 2)
                 const isStepwiseReachable = bassRangeNoteList.some(
                   (bassNote) =>
-                    nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                    usable(nextChordInfo, bassNote) &&
                     Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <= 2
                 );
                 return isStepwiseReachable;
@@ -823,7 +925,7 @@ function generateChordProgression(
 
               // Is it reachable with the general maxSkip?
               const isGenerallyReachable = bassDegrees.some((bassNote) =>
-                nextChordInfo.triadNotes.includes(bassNote.degree)
+                usable(nextChordInfo, bassNote)
               );
               if (!isGenerallyReachable) return false;
 
@@ -837,7 +939,7 @@ function generateChordProgression(
                   // ...check if it can be reached by a step (interval <= 2)
                   const isStepwiseReachable = bassRangeNoteList.some(
                     (bassNote) =>
-                      nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                      usable(nextChordInfo, bassNote) &&
                       Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <=
                         2
                   );
@@ -871,11 +973,7 @@ function generateChordProgression(
               ?.triadNotes,
           };
           let bassNoteToAdd = bassDegrees
-            .filter((note) =>
-              chords
-                .find((c) => c.name === nextChordName)
-                ?.triadNotes.includes(note.degree)
-            )
+            .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
             .filter(
               (note) =>
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
@@ -884,7 +982,7 @@ function generateChordProgression(
             .slice(0, 1); // Take only the first note
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
-              bassNoteToAdd[Math.floor(Math.random() * bassNoteToAdd.length)]
+              pickBass(bassNoteToAdd, nextChord.chord)
             );
             chordProgression.push(nextChord);
           } else {
@@ -909,14 +1007,14 @@ function generateChordProgression(
           triadDegrees: chords[0].triadNotes,
         };
         let bassNoteToAdd = bassDegrees
-          .filter((note) => chords[0].triadNotes.includes(note.degree))
+          .filter((note) => usable(chords[0], note))
           .filter(
             (note) =>
               Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
           );
         if (bassNoteToAdd.length > 0) {
           bassNoteArray.push(
-            bassNoteToAdd[Math.floor(Math.random() * bassNoteToAdd.length)]
+            pickBass(bassNoteToAdd, nextChord.chord)
           );
           chordProgression.push(nextChord);
         } else {
@@ -941,7 +1039,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              nextChordInfo.triadNotes.includes(bassNote.degree)
+              usable(nextChordInfo, bassNote)
             );
             if (!isGenerallyReachable) return false;
 
@@ -955,7 +1053,7 @@ function generateChordProgression(
                 // ...check if it can be reached by a step (interval <= 2)
                 const isStepwiseReachable = bassRangeNoteList.some(
                   (bassNote) =>
-                    nextChordInfo.triadNotes.includes(bassNote.degree) &&
+                    usable(nextChordInfo, bassNote) &&
                     Math.abs(bassNote.pitchValue - prevBassNote.pitchValue) <= 2
                 );
                 return isStepwiseReachable;
@@ -997,11 +1095,7 @@ function generateChordProgression(
                 ?.triadNotes,
             };
             let bassNoteToAdd = bassDegrees
-              .filter((note) =>
-                chords
-                  .find((c) => c.name === nextChordName)
-                  ?.triadNotes.includes(note.degree)
-              )
+              .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
               .filter(
                 (note) =>
                   Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
@@ -1009,7 +1103,7 @@ function generateChordProgression(
               );
             if (bassNoteToAdd.length > 0) {
               bassNoteArray.push(
-                bassNoteToAdd[Math.floor(Math.random() * bassNoteToAdd.length)]
+                pickBass(bassNoteToAdd, nextChord.chord)
               );
               chordProgression.push(nextChord);
             } else {
@@ -1210,7 +1304,18 @@ function generateChord(params: GenerateChordParams) {
     var rangeNoteListFilter = rangeNoteList.filter(
       (note: Note) => note.degree === scaleDegreeToAdd
     );
-    if (prevNote.pitchValue === 0) {
+    // The line was built pitch by pitch in generateChordProgression, with its
+    // skips and its resolutions vetted there. Sing that pitch. Re-deriving it as
+    // "the note of this degree closest to the last one" - from a range list
+    // found by name, not the one the line was built in - could land an octave
+    // away or on the other side of the resolution: fi walked to so and came out
+    // on mi, a seventh away.
+    const walked = rangeNoteListFilter.find(
+      (note: Note) => note.pitchValue === bassGenNoteArray[noteIndex].pitchValue
+    );
+    if (walked) {
+      randomCloseNote = walked;
+    } else if (prevNote.pitchValue === 0) {
       randomCloseNote =
         rangeNoteListFilter[
           Math.floor(Math.random() * rangeNoteListFilter.length)
@@ -1539,11 +1644,110 @@ function resolveSyllableSystem(id: unknown): SyllableSystem {
   return defaultSyllableSystem;
 }
 
+/**
+ * Everything needed to write the exercise out again, without generating a new
+ * one: the notes as they were chosen, and which staff they go on.
+ *
+ * Plain data, because unison generates on the server and only what survives
+ * JSON reaches the page. Syllables are written INTO the score (they are ABC
+ * annotations, one per note), so the page can turn them off but could never
+ * turn Kodaly into counting - it had no notes to re-label from. A practice run
+ * wanting counting on its repeats had to write the whole run in counting, which
+ * is what stopped anyone reading the first pass in Kodaly.
+ */
+export type UnisonScore = {
+  staff: "pitched" | "rhythm";
+  partsObject: PartsObject;
+  timeSig: { name: string; tsPerMeasure: number; beamGroupSize?: number };
+  /** Pitched staff only. */
+  key?: string;
+  clef?: string;
+};
+
+export type UnisonDisplay = {
+  showSolfege?: boolean;
+  /** Which lyric goes under the notes. Movable-do solfège when unset. */
+  lyricSystem?: LyricSystem;
+  showRhythmSyllables?: boolean;
+  syllableSystemId?: string;
+};
+
+/** Write a generated exercise as ABC, with the annotations asked for. */
+export function assembleUnisonAbc(
+  score: UnisonScore,
+  display: UnisonDisplay
+): string {
+  const { partsObject, timeSig } = score;
+  const showRhythmSyllables = display.showRhythmSyllables === true;
+  const tuneBody = createConcatString(partsObject, {
+    timeSig,
+    // Rhythm-only has no scale degrees to name.
+    showSolfege: score.staff === "pitched" && display.showSolfege === true,
+    lyricSystem: display.lyricSystem,
+    key: score.key,
+    showRhythmSyllables,
+    syllableSystem: resolveSyllableSystem(display.syllableSystemId),
+  });
+
+  // Syllables ride as annotations, whose default 12pt is sized for chord
+  // symbols above the staff. At that size adjacent syllables under a short
+  // note collide - "syn" and "co" touch at 0px under an eighth-quarter pair.
+  const annotationFont = showRhythmSyllables
+    ? `%%annotationfont Helvetica 10\n`
+    : "";
+
+  if (score.staff === "rhythm") {
+    // clef=perc is what puts the synth on the percussion kit (MIDI program
+    // 128), which in turn is what makes %%percmap take effect. %%MIDI beat with
+    // equal values removes abcjs's default downbeat accent so every stroke is
+    // identical; 127 is the maximum velocity, because the claves sample is
+    // intrinsically quiet (raw peak 0.16 against a piano note's 0.3-0.5).
+    return (
+      `X:1 \n` +
+      `M:${timeSig.name}\n` +
+      `L:1/32\n` +
+      `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
+      `%%MIDI beat 127 127 127 1\n` +
+      annotationFont +
+      `V:U\n` +
+      `K:C clef=perc stafflines=1 \n` +
+      `%            End of header, start of tune body: \n` +
+      `${tuneBody}`
+    );
+  }
+
+  let headerString = "";
+  for (const partName of Object.keys(partsObject.parts)) {
+    headerString += `V:${partsObject.parts[partName].smallName}\n`;
+  }
+
+  return (
+    `X:1 \n` +
+    `M:${timeSig.name}\n` +
+    `L:1/32\n` +
+    // Always emitted, even for the default piano, so changing instrument
+    // later is a replacement rather than an insertion into a header whose
+    // exact shape would have to be known. Same reasoning as the choral
+    // assembler.
+    `%%MIDI program 0\n` +
+    annotationFont +
+    `%%score \n` +
+    `${headerString}` +
+    `K: ${score.key} clef=${score.clef} \n` +
+    `%            End of header, start of tune body: \n` +
+    `${tuneBody}`
+  );
+}
+
 function createConcatString(
   partsObject: PartsObject,
   params: {
     timeSig: { tsPerMeasure: number; beamGroupSize?: number };
     showSolfege: boolean;
+    /** Which lyric the `w:` line carries. Movable do when unset. */
+    lyricSystem?: LyricSystem;
+    /** The key, for the two systems that name pitches rather than degrees. */
+    key?: string;
     showRhythmSyllables?: boolean;
     syllableSystem?: SyllableSystem;
   }
@@ -1685,17 +1889,47 @@ function createConcatString(
         let syllable = "";
         const accidentalMatch = note.name.match(/[_^=]+/);
         const accidental = accidentalMatch ? accidentalMatch[0] : null;
+        const system = params.lyricSystem ?? "movable";
 
-        if (accidental === "^" || accidental === "^^") {
-          syllable =
-            sharpSolfegeMap[note.degree as keyof typeof sharpSolfegeMap] ||
-            solfege[note.degree];
-        } else if (accidental === "_" || accidental === "__") {
-          syllable =
-            flatSolfegeMap[note.degree as keyof typeof flatSolfegeMap] ||
-            solfege[note.degree];
+        if (system === "movable") {
+          // A natural alters too: it lowers a degree the key sharpens (F
+          // natural in G is te) and raises one the key flattens (B natural in
+          // F is fi). Read as no accidental at all, te printed "ti".
+          const keyObject = keySignatures[params.key ?? "C"];
+          const natural = accidental === "=";
+          const naturalRaises = natural && !!keyObject?.flats?.includes(note.degree);
+          const naturalLowers = natural && !!keyObject?.sharps?.includes(note.degree);
+          if (accidental === "^" || accidental === "^^" || naturalRaises) {
+            syllable =
+              sharpSolfegeMap[note.degree as keyof typeof sharpSolfegeMap] ||
+              solfege[note.degree];
+          } else if (accidental === "_" || accidental === "__" || naturalLowers) {
+            syllable =
+              flatSolfegeMap[note.degree as keyof typeof flatSolfegeMap] ||
+              solfege[note.degree];
+          } else {
+            syllable = solfege[note.degree];
+          }
         } else {
-          syllable = solfege[note.degree];
+          // Fixed do and note names both name the PITCH, so they need the
+          // accidental actually in force - the note's own, or the key's, which
+          // is not written on the note at all. `=` is a natural, which cancels
+          // the key's.
+          const alteration =
+            accidental === "^" || accidental === "^^"
+              ? ("sharp" as const)
+              : accidental === "_" || accidental === "__"
+                ? ("flat" as const)
+                : accidental === "="
+                  ? null
+                  : alterationOf(
+                      { degree: note.degree, accidental: null },
+                      params.key ?? "C"
+                    );
+          syllable =
+            system === "fixed"
+              ? fixedDoFor(note.pitchValue, alteration)
+              : noteNameFor(note.pitchValue, alteration);
         }
         solfegeString += syllable + " ";
         // "_" holds the previous syllable over the next note element, which is
@@ -1785,39 +2019,238 @@ function createRhythmOnlySr(params: any) {
     },
   };
 
-  const tuneBody = createConcatString(partsObject as PartsObject, {
-    timeSig: timeSig,
-    showSolfege: false, // no scale degrees to name in rhythm-only mode
-    showRhythmSyllables: params.showRhythmSyllables === true,
-    syllableSystem: resolveSyllableSystem(params.syllableSystemId),
-  });
+  const score: UnisonScore = {
+    staff: "rhythm",
+    partsObject: partsObject as PartsObject,
+    timeSig,
+  };
+  const renderedString = assembleUnisonAbc(score, params);
 
-  // clef=perc is what puts the synth on the percussion kit (MIDI program 128),
-  // which in turn is what makes %%percmap take effect. %%MIDI beat with equal
-  // values removes abcjs's default downbeat accent so every stroke is identical;
-  // 127 is the maximum velocity, because the claves sample is intrinsically
-  // quiet (raw peak 0.16 against a piano note's 0.3-0.5).
-  const renderedString =
-    `X:1 \n` +
-    `M:${timeSig.name}\n` +
-    `L:1/32\n` +
-    `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
-    `%%MIDI beat 127 127 127 1\n` +
-    // Syllables ride as annotations, whose default 12pt is sized for chord
-    // symbols above the staff. At that size adjacent syllables under a short
-    // note collide - "syn" and "co" touch at 0px under an eighth-quarter pair.
-    (params.showRhythmSyllables === true
-      ? `%%annotationfont Helvetica 10\n`
-      : "") +
-    `V:U\n` +
-    `K:C clef=perc stafflines=1 \n` +
-    `%            End of header, start of tune body: \n` +
-    `${tuneBody}`;
-
-  return [renderedString, []];
+  return [renderedString, [], score];
 }
 
+/**
+ * The ABC prefix that alters a degree, given what the key already does to it -
+ * the rule generateChord uses. Sharpening a degree the key already sharpens is
+ * a double sharp; sharpening one the key flattens is a natural.
+ */
+function alterationPrefix(
+  degree: number,
+  kind: "sharp" | "flat",
+  keyObject: { sharps?: number[]; flats?: number[] } | undefined
+): string {
+  const keySharps = keyObject?.sharps ?? [];
+  const keyFlats = keyObject?.flats ?? [];
+  if (kind === "sharp") {
+    if (keySharps.includes(degree)) return "^^";
+    if (keyFlats.includes(degree)) return "=";
+    return "^";
+  }
+  if (keySharps.includes(degree)) return "=";
+  if (keyFlats.includes(degree)) return "__";
+  return "_";
+}
+
+/** Which way a written note is altered from the key, if at all. */
+function alterationOfName(
+  note: { name: string; degree: number },
+  keyObject: { sharps?: number[]; flats?: number[] } | undefined
+): "sharp" | "flat" | null {
+  const prefix = note.name.match(/^[_^=]+/)?.[0] ?? "";
+  if (prefix.startsWith("^")) return "sharp";
+  if (prefix.startsWith("_")) return "flat";
+  if (prefix === "=") {
+    // A natural raises a degree the key flattens, and lowers one it sharpens.
+    if (keyObject?.flats?.includes(note.degree)) return "sharp";
+    if (keyObject?.sharps?.includes(note.degree)) return "flat";
+  }
+  return null;
+}
+
+/**
+ * Put in each selected chromatic note the chords did not produce, as a
+ * chromatic passing or neighbour tone.
+ *
+ * Four of the ten chromatic degrees the picker offers - sharp 2, sharp 6,
+ * flat 2 and flat 5 - have no chord that carries them with nothing else
+ * altered, so the chord walk can never write them: 0 in 40 exercises each.
+ * The others it writes most of the time, but not always.
+ *
+ * So after the line exists: a note may be replaced by the altered degree when
+ * the line already moves by step through it in the direction it resolves. For
+ * a sharp - which resolves up - the note after is one step above, and the note
+ * before is the same letter (re re mi becomes re ri mi) or that step above
+ * (mi re mi becomes mi ri mi). A flat mirrors it downward. The rhythm is
+ * untouched, the leap rules cannot be broken - every move is a half step - and
+ * the resolution rule is met by construction.
+ *
+ * Declines where the line offers no such place. Never adds a second of any
+ * degree: this is a floor, not a quota.
+ */
+export function placeMissingChromatics(
+  notes: ChordNoteObject[],
+  opts: {
+    sharps: Set<number>;
+    flats: Set<number>;
+    key: string;
+    noteList: Note[];
+    random?: () => number;
+  }
+): number {
+  const keyObject = keySignatures[opts.key];
+  const random = opts.random ?? Math.random;
+  const present = { sharp: new Set<number>(), flat: new Set<number>() };
+  for (const n of notes) {
+    if (n.rhythm?.rest) continue;
+    const kind = alterationOfName(n, keyObject);
+    if (kind) present[kind].add(n.degree);
+  }
+
+  let placed = 0;
+  const wanted: ["sharp" | "flat", number][] = [
+    ...[...opts.sharps].filter((d) => !present.sharp.has(d)).map((d) => ["sharp", d] as ["sharp", number]),
+    ...[...opts.flats].filter((d) => !present.flat.has(d)).map((d) => ["flat", d] as ["flat", number]),
+  ];
+  for (const [kind, degree] of wanted) {
+    const dir = kind === "sharp" ? 1 : -1;
+    const spots: { index: number; pitch: number }[] = [];
+    for (let i = 1; i + 1 < notes.length; i++) {
+      const [prev, cur, next] = [notes[i - 1], notes[i], notes[i + 1]];
+      if (prev.rhythm?.rest || cur.rhythm?.rest || next.rhythm?.rest) continue;
+      // Never on top of an alteration already there, and never beside one: the
+      // note after is this one's resolution, and the note before may be
+      // resolving INTO this spot. Placed next to a te, a li "resolved" to B
+      // flat; placed after a le, a te overwrote the le's resolution.
+      if (alterationOfName(cur, keyObject)) continue;
+      if (alterationOfName(prev, keyObject) || alterationOfName(next, keyObject)) continue;
+      // The pitch that would be altered: the one the next note is a step past.
+      const pitch = next.pitchValue - dir;
+      const base = opts.noteList.find((n) => n.pitchValue === pitch);
+      if (!base || base.degree !== degree) continue;
+      if (prev.pitchValue !== pitch && prev.pitchValue !== next.pitchValue) continue;
+      spots.push({ index: i, pitch });
+    }
+    if (spots.length === 0) continue;
+    const { index, pitch } = spots[Math.floor(random() * spots.length)];
+    const base = opts.noteList.find((n) => n.pitchValue === pitch)!;
+    notes[index] = {
+      ...notes[index],
+      pitchValue: pitch,
+      degree,
+      name: alterationPrefix(degree, kind, keyObject) + base.name.replace(/^[_^=]+/, ""),
+    };
+    placed++;
+  }
+  return placed;
+}
+
+/** How much harder a chord carrying a selected altered note is reached for. */
+const CHROMATIC_WEIGHT = 8;
+
+/**
+ * The minor tonic borrowed into major - C Eb G in C - the one chord that
+ * carries flat 3 with nothing else altered. Unison's own: the choral chord
+ * list and its presets never see it.
+ */
+const BORROWED_MINOR_TONIC: Chord = {
+  name: "u_borrowed_i",
+  symbol: "i",
+  root: 0,
+  chordFamily: "u_borrowed_i",
+  triadNotes: [0, 2, 4],
+  nextChordPossibilities: [
+    { name: "4", weight: 40 },
+    { name: "5", weight: 40 },
+    { name: "1", weight: 20 },
+  ],
+  type: "tonic",
+  sharpScaleDegree: undefined,
+  flatScaleDegree: 2,
+  baseMultiplier: 1,
+} as Chord;
+
+/**
+ * Generate a unison exercise, and try again if it leaves out a chromatic note
+ * the reader selected.
+ *
+ * Most selected altered notes appear on the first try - the chords that carry
+ * them are reached for, and a passing or neighbour tone fills in the rest - but
+ * the ones with no chord of their own depend on the line happening to move by
+ * step through them. Sharp 6 was in 11 exercises of 30 on one try. A
+ * generation takes milliseconds, so a few more tries cost nothing, and an
+ * exercise for drilling li without a li in it is the bug this was reported as.
+ *
+ * Keeps the attempt missing the fewest, so it never does worse than one try.
+ * Each attempt gets its own copy of the params: generation converts the
+ * degree sets in place, and a second pass over the same object would convert
+ * them again.
+ */
 export function createNewSr(params: any) {
+  const wantSharps = new Set<number>(
+    Array.from(params?.selectedSharpDegrees ?? []).map((d: any) => (Number(d) - 1) % 12)
+  );
+  const wantFlats = new Set<number>(
+    Array.from(params?.selectedFlatDegrees ?? []).map((d: any) => (Number(d) - 1) % 12)
+  );
+  if (params?.rhythmOnly || (wantSharps.size === 0 && wantFlats.size === 0)) {
+    return createNewSrOnce(params);
+  }
+  /**
+   * How far short an attempt falls: each selected altered note missing, and
+   * each altered note that does not resolve the way it was altered - a sharp
+   * up a step, a flat down one. Both are generator faults a reader would learn
+   * from, so an attempt with either is kept only if nothing better turns up.
+   * The walk resolves every altered note it writes; the last few that do not
+   * come from the older note-picking path at the edge of the range.
+   */
+  const missingFrom = (result: any): number => {
+    const score = result?.[2] as UnisonScore | undefined;
+    if (!score) return Infinity;
+    const keyObject = keySignatures[score.key ?? "C"];
+    const seen = { sharp: new Set<number>(), flat: new Set<number>() };
+    let unresolved = 0;
+    for (const part of Object.values(score.partsObject.parts)) {
+      const notes = part.chordNoteObject.filter((n) => !n.rhythm?.rest);
+      notes.forEach((n, k) => {
+        const kind = alterationOfName(n, keyObject);
+        if (!kind) return;
+        seen[kind].add(n.degree);
+        let j = k + 1;
+        while (notes[j] && notes[j].pitchValue === n.pitchValue) j++;
+        if (notes[j] && notes[j].pitchValue - n.pitchValue !== (kind === "sharp" ? 1 : -1)) {
+          unresolved++;
+        }
+      });
+    }
+    return (
+      [...wantSharps].filter((d) => !seen.sharp.has(d)).length +
+      [...wantFlats].filter((d) => !seen.flat.has(d)).length +
+      unresolved
+    );
+  };
+  let best: any = null;
+  let bestMissing = Infinity;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < CHROMATIC_ATTEMPTS && bestMissing > 0; attempt++) {
+    try {
+      const result = createNewSrOnce(structuredClone(params));
+      const missing = missingFrom(result);
+      if (missing < bestMissing) {
+        best = result;
+        bestMissing = missing;
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  if (best) return best;
+  throw lastError;
+}
+
+/** Tries for an exercise that has every selected chromatic note. See createNewSr. */
+const CHROMATIC_ATTEMPTS = 6;
+
+function createNewSrOnce(params: any) {
   try {
     // console.log("=== UNISON SIGHT READING GENERATION START ===");
     // console.log("🔍 Initial params received:", {
@@ -1918,11 +2351,40 @@ export function createNewSr(params: any) {
     var sharpScaleDegrees = new Set<number>(params.selectedSharpDegrees || []);
     var flatScaleDegrees = new Set<number>(params.selectedFlatDegrees || []);
 
+    // A chromatic note comes with the note it resolves to - a sharp up a step,
+    // a flat down one - the way V/V brings V6/V in choral. Without it the line
+    // cannot leave the altered note: sharp 1 selected alongside 1, 3 and 5
+    // failed 28 generations in 40, because di had nowhere to go but up to re.
+    for (const d of sharpScaleDegrees) (params.scaleDegrees as Set<number>).add((d + 1) % 7);
+    for (const d of flatScaleDegrees) (params.scaleDegrees as Set<number>).add((d + 6) % 7);
+
     console.log("🔍 Sharp scale degrees:", sharpScaleDegrees);
     console.log("🔍 Flat scale degrees:", flatScaleDegrees);
     console.log("🔍 Natural scale degrees:", params.scaleDegrees);
 
-    let filteredChords = chords.filter((chord) => {
+    // Flat 3 has no chord in the shared list, so it could never be written.
+    // The minor tonic borrowed into major carries it with nothing else
+    // altered: C Eb G in C. It is only offered when flat 3 is asked for, and it
+    // leads where the borrowed chord goes - to IV and V, or home.
+    const pool: Chord[] =
+      flatScaleDegrees.has(2) && !String(params.key).trim().endsWith("m")
+        ? [
+            ...chords.map((c) =>
+              ["1", "4", "5"].includes(c.name)
+                ? {
+                    ...c,
+                    nextChordPossibilities: [
+                      ...c.nextChordPossibilities,
+                      { name: BORROWED_MINOR_TONIC.name, weight: 15 },
+                    ],
+                  }
+                : c
+            ),
+            BORROWED_MINOR_TONIC,
+          ]
+        : chords;
+
+    let filteredChords = pool.filter((chord) => {
       // always include 1 chord
       if (chord.name === "1") {
         return true;
@@ -1974,13 +2436,23 @@ export function createNewSr(params: any) {
       );
     }
 
-    // Update next chord possibilities to only include valid chords
+    // Update next chord possibilities to only include valid chords.
+    //
+    // And reach harder for a chord that carries an altered note the reader
+    // selected. At their own weights the secondary dominants came up rarely:
+    // with sharp 1 selected, 5 exercises in 40 had a di in them at all.
+    const carriesSelected = (chord: Chord) =>
+      (chord.sharpScaleDegree !== undefined && sharpScaleDegrees.has(chord.sharpScaleDegree)) ||
+      (chord.flatScaleDegree !== undefined && flatScaleDegrees.has(chord.flatScaleDegree));
     filteredChords = filteredChords.map((chord) => {
       return {
         ...chord,
         nextChordPossibilities: chord.nextChordPossibilities.filter((next) =>
           filteredChords.some((c) => c.name === next.name)
         ),
+        baseMultiplier: carriesSelected(chord)
+          ? (chord.baseMultiplier ?? 1) * CHROMATIC_WEIGHT
+          : chord.baseMultiplier,
       };
     });
 
@@ -2126,7 +2598,8 @@ export function createNewSr(params: any) {
       Array.from(params.scaleDegrees),
       params.moveOnEighthNotes,
       randRhythmObjects,
-      params.accidentalsFollowStep
+      params.accidentalsFollowStep,
+      { sharps: sharpScaleDegrees, flats: flatScaleDegrees }
     );
 
     // console.log("✅ Chord progression generated:", {
@@ -2488,6 +2961,18 @@ export function createNewSr(params: any) {
       });
     }
 
+    // Any selected chromatic note the chords did not produce goes in as a
+    // chromatic passing or neighbour tone. Before the accidental clean-up, so
+    // it is spelled like every other altered note.
+    for (const part of Object.keys(partsObject.parts)) {
+      placeMissingChromatics(partsObject.parts[part].chordNoteObject, {
+        sharps: sharpScaleDegrees,
+        flats: flatScaleDegrees,
+        key: keyRendered,
+        noteList,
+      });
+    }
+
     filterAccidentals({
       tsPerMeasure: timeSig.tsPerMeasure,
       partsObject: partsObject,
@@ -2502,14 +2987,14 @@ export function createNewSr(params: any) {
     // regenerating. Rhythm syllables used to be written only for the one-line
     // rhythm staff, which left nothing for a pitched exercise to switch ON: a
     // practice run asking for them on its repeats got silence.
-    const tuneBody = createConcatString(partsObject as PartsObject, {
-      timeSig: timeSig,
-      showSolfege: params.showSolfege === true,
-      showRhythmSyllables: params.showRhythmSyllables === true,
-      syllableSystem: resolveSyllableSystem(params.syllableSystemId),
-    });
-
-    // console.log("✅ Tune body created, length:", tuneBody.length);
+    const score: UnisonScore = {
+      staff: "pitched",
+      partsObject: partsObject as PartsObject,
+      timeSig,
+      key: keyRendered,
+      clef,
+    };
+    const renderedString = assembleUnisonAbc(score, params);
 
     // Save the concatenated string back to each part
     Object.keys(partsObject.parts).forEach((part) => {
@@ -2554,39 +3039,6 @@ export function createNewSr(params: any) {
       partsObject.parts[part].concatNoteString = partString;
     });
 
-    // console.log("🔍 Creating final ABC string...");
-
-    // get the first entry of the generatedPartTunes object
-    var headerString = "";
-    for (var i = 0; i < Object.keys(partsObject.parts).length; i++) {
-      var partName = Object.keys(partsObject.parts)[i];
-      var smallName = partsObject.parts[partName].smallName;
-      headerString += `V:${smallName}\n`;
-    }
-
-    var scoreString = "%%score ";
-    scoreString += "\n";
-
-    var renderedString =
-      `X:1 \n` +
-      `M:${timeSig.name}\n` +
-      `L:1/32\n` +
-      // Always emitted, even for the default piano, so changing instrument
-      // later is a replacement rather than an insertion into a header whose
-      // exact shape would have to be known. Same reasoning as the choral
-      // assembler.
-      `%%MIDI program 0\n` +
-      // Annotations default to 12pt, which is sized for chord symbols above a
-      // staff; at that size adjacent syllables under a short note collide.
-      (params.showRhythmSyllables === true
-        ? `%%annotationfont Helvetica 10\n`
-        : "") +
-      `${scoreString}` +
-      `${headerString}` +
-      `K: ${keyRendered} clef=${clef} \n` +
-      `%            End of header, start of tune body: \n` +
-      `${tuneBody}`;
-
     console.log("✅ Final ABC string created");
     // console.log(
     //   "📝 Final string preview:",
@@ -2601,7 +3053,7 @@ export function createNewSr(params: any) {
 
     // console.log("=== UNISON SIGHT READING GENERATION COMPLETE ===");
 
-    return [renderedString, renderedChordProgression];
+    return [renderedString, renderedChordProgression, score];
   } catch (error) {
     console.error("=== UNISON SIGHT READING GENERATION FAILED ===");
     console.error("❌ Error caught in createNewSr:", error);

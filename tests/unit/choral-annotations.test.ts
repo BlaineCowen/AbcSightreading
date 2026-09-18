@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { generateChoralExercise } from "../../src/lib/generateChoral";
+import { labelFor } from "../../src/lib/build-chord-notes";
+import type { Chord, VoiceNote } from "../../src/lib/types";
 import { chords as fullChordSet } from "../../src/resources/chords";
 import { rhythms as allRhythms } from "../../src/resources/rhythms";
 import { solfegeFor, modeOf } from "../../src/resources/solfege";
@@ -128,7 +130,7 @@ describe("lyric alignment", () => {
     ["with heavy decoration", { nctProbability: 1 }],
   ] as [string, Record<string, unknown>][]) {
     test(`one syllable per note, ${label}`, () => {
-      const out = generate({ ...overrides, display: { solfege: true, chordSymbols: true } });
+      const out = generate({ ...overrides, display: { lyrics: "movable", chordSymbols: true } });
       const voices = voiceLines(out.abcString);
       expect(voices.length).toBeGreaterThan(0);
       for (const { body, lyric } of voices) {
@@ -145,6 +147,24 @@ describe("lyric alignment", () => {
   });
 });
 
+/**
+ * The symbols with their first-inversion figure taken off, consecutive repeats
+ * collapsed.
+ *
+ * A printed symbol is the chord as VOICED - a root-position entry whose bass
+ * sang the third prints as I⁶ - while the progression holds the entry. Compared
+ * in this form, the row still has to follow the progression chord for chord;
+ * `labelFor` is tested for the exact figure below.
+ */
+const rootForms = (symbols: string[]) => {
+  const out: string[] = [];
+  for (const s of symbols) {
+    const root = s.replace("⁶₅", "⁷").replace(/⁶(?!₄)/, "");
+    if (root !== out[out.length - 1]) out.push(root);
+  }
+  return out;
+};
+
 describe("chord symbols", () => {
   test("the score is actually labelled", () => {
     // The regression that matters: every piece of this feature existed except
@@ -155,11 +175,8 @@ describe("chord symbols", () => {
 
   test("the symbols follow the progression, in order and without repeats", () => {
     const out = generate({ display: { chordSymbols: true } });
-    const expected: string[] = [];
-    for (const chord of out.chordProgression) {
-      if (chord.symbol !== expected[expected.length - 1]) expected.push(chord.symbol);
-    }
-    expect(symbolsIn(out.abcString)).toEqual(expected);
+    const expected = rootForms(out.chordProgression.map((c) => c.symbol));
+    expect(rootForms(symbolsIn(out.abcString))).toEqual(expected);
   });
 
   test("they all sit on one voice, so they read as a single row", () => {
@@ -191,11 +208,8 @@ describe("chord symbols", () => {
       ),
       display: { chordSymbols: true },
     });
-    const expected: string[] = [];
-    for (const chord of out.chordProgression) {
-      if (chord.symbol !== expected[expected.length - 1]) expected.push(chord.symbol);
-    }
-    const printed = symbolsIn(out.abcString);
+    const expected = rootForms(out.chordProgression.map((c) => c.symbol));
+    const printed = rootForms(symbolsIn(out.abcString));
     expect(printed.length).toBeGreaterThan(0);
     // An ordered subsequence: walk the expected list once and match in order.
     let at = 0;
@@ -216,11 +230,8 @@ describe("chord symbols", () => {
       ),
       display: { chordSymbols: true },
     });
-    const expected: string[] = [];
-    for (const chord of out.chordProgression) {
-      if (chord.symbol !== expected[expected.length - 1]) expected.push(chord.symbol);
-    }
-    expect(symbolsIn(out.abcString)).toEqual(expected);
+    const expected = rootForms(out.chordProgression.map((c) => c.symbol));
+    expect(rootForms(symbolsIn(out.abcString))).toEqual(expected);
   });
 
   test("none at all when chord symbols are off", () => {
@@ -230,7 +241,7 @@ describe("chord symbols", () => {
 
 describe("re-rendering the same exercise", () => {
   test("turning annotations off changes only the annotations", () => {
-    const out = generate({ display: { chordSymbols: true, solfege: true } });
+    const out = generate({ display: { chordSymbols: true, lyrics: "movable" } });
     const plain = out.render({});
     const strip = (abc: string) =>
       abc
@@ -246,7 +257,7 @@ describe("re-rendering the same exercise", () => {
 
   test("annotations can be turned back on without regenerating", () => {
     const out = generate({ display: {} });
-    const annotated = out.render({ chordSymbols: true, solfege: true });
+    const annotated = out.render({ chordSymbols: true, lyrics: "movable" });
     expect(symbolsIn(annotated).length).toBeGreaterThan(0);
     expect(annotated).toContain("\nw:");
   });
@@ -256,5 +267,34 @@ describe("re-rendering the same exercise", () => {
     // reset playback to whatever instrument was picked back then.
     const out = generate({ midiProgram: 0, display: {} });
     expect(out.render({ midiProgram: 52 })).toContain("%%MIDI program 52");
+  });
+});
+
+describe("a symbol names the inversion the bass actually sings", () => {
+  // Reported from a score: "iii" over A in the bass, in D major. That is iii⁶.
+  const chord = (symbol: string, root: number, triadNotes: number[]) =>
+    ({ symbol, root, triadNotes } as unknown as Chord);
+  const bass = (degree: number, rest = false) =>
+    ({ degree, rest, pitchValue: 0, name: "x" } as unknown as VoiceNote);
+
+  test("root in the bass leaves it alone", () => {
+    expect(labelFor(chord("iii", 2, [2, 4, 6]), bass(2))).toBe("iii");
+  });
+  test("the third in the bass of a triad is a six", () => {
+    expect(labelFor(chord("iii", 2, [2, 4, 6]), bass(4))).toBe("iii⁶");
+    expect(labelFor(chord("vii°", 6, [6, 1, 3]), bass(1))).toBe("vii°⁶");
+  });
+  test("of a seventh chord, a six-five, with the seven gone", () => {
+    expect(labelFor(chord("V⁷", 4, [4, 6, 1, 3]), bass(6))).toBe("V⁶₅");
+  });
+  test("an applied chord keeps what it is applied to", () => {
+    expect(labelFor(chord("V/V", 1, [1, 3, 5]), bass(3))).toBe("V⁶/V");
+    expect(labelFor(chord("V⁷/IV", 0, [0, 2, 4, 6]), bass(2))).toBe("V⁶₅/IV");
+  });
+  test("an entry that already names its inversion is not figured twice", () => {
+    expect(labelFor(chord("I⁶₄", 4, [0, 2, 4]), bass(4))).toBe("I⁶₄");
+  });
+  test("a resting bass leaves the entry's own symbol", () => {
+    expect(labelFor(chord("IV", 3, [3, 5, 0]), bass(5, true))).toBe("IV");
   });
 });

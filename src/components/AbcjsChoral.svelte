@@ -5,7 +5,9 @@
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
   import abcjs from "abcjs";
-  import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight } from "lucide-svelte";
+  import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
+  import MetronomeIcon from "./ui/metronomeIcon.svelte";
+  import { applyMixLevels } from "../lib/mix-volumes";
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
@@ -19,10 +21,12 @@
     type FormPlan,
   } from "../lib/form-plan";
   import { buildFullLengthPiece } from "../lib/full-length";
+  import type { LyricSystem } from "../resources/solfege";
   import {
     canAppearInChoral,
     containsRest,
     isSelectableRhythm,
+    rhythmPickerGroups,
   } from "../lib/selectable-rhythms";
   import {
     generateChoralExercise,
@@ -61,6 +65,10 @@
   let mutedVoices: Set<string> = new Set();
   let bpm = 60;
   let generatedBpm = 60;
+  /** 0-1.5, 1 = as written. Remembered per browser, not put in the share link. */
+  let playbackVolume = 1;
+  let metronomeVolume = 1;
+  const MIX_STORAGE_KEY = "choral-mix-levels";
 
   // ── Tab state ──────────────────────────────────────────────────────────────
   type Tab = 'setup' | 'rhythm' | 'harmony' | 'ranges';
@@ -183,7 +191,12 @@
   let instrumentProgram: number = DEFAULT_INSTRUMENT;
 
   /** Solfège syllables under each staff. Off by default - a teaching aid, opted into. */
-  let showSolfege = false;
+  /**
+   * What goes under the notes, or null for nothing: movable-do solfège (do is
+   * the tonic), fixed do (C is always do), or the note names themselves.
+   */
+  let lyricSystem: LyricSystem | null = null;
+  $: showSolfege = lyricSystem !== null;
   /**
    * Chord symbols above the top staff, controlled on their own.
    *
@@ -284,6 +297,12 @@
    */
   let stepwiseEighths = true;
   let chromaticFrequency = 1;
+  /**
+   * One chromatic chord to drill ("5/5" for V/V), or null. See `focusChord` in
+   * generateChoral: every other chromatic chord is left out and this one is
+   * reached for until it appears.
+   */
+  let focusChord: string | null = null;
 
   /**
    * Why the last Generate produced nothing.
@@ -406,6 +425,13 @@
     return set;
   }
 
+  /** The lyric options, in the order the buttons show them. */
+  const lyricSystems: [LyricSystem, string][] = [
+    ["movable", "Movable do"],
+    ["fixed", "Fixed do"],
+    ["names", "Note names"],
+  ];
+
   let userAllowedChords: Set<string> = new Set(majorChordNames);
 
   const majorChordGroups: Record<string, string[]> = {
@@ -494,7 +520,7 @@
     JSON.stringify([...DEFAULTS.rhythmNames].sort()) ||
     Object.keys(rhythmBias).length > 0;
   $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
-    stepwiseEighths !== DEFAULTS.stepwiseEighths ||
+    stepwiseEighths !== DEFAULTS.stepwiseEighths || focusChord !== null ||
     userAllowedChords.size !== currentModeChordNames.length;
   $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
@@ -725,7 +751,15 @@
     if (isInstrumentProgram(instrument)) instrumentProgram = Number(instrument);
     // A shared link carries the annotation state - the whole point of the clean
     // copy is being able to send it.
-    showSolfege = p.get("solfege") === "1";
+    // "1" was movable-do solfège, before there was a choice; a shared link
+    // written then still opens showing what it showed.
+    const lyrics = p.get("solfege");
+    lyricSystem =
+      lyrics === "1" || lyrics === "movable"
+        ? "movable"
+        : lyrics === "fixed" || lyrics === "names"
+          ? lyrics
+          : null;
     showChords = p.get("chords") !== "0";
     transposeSemitones = clampTranspose(Number(p.get("transpose") ?? 0));
     const texture = p.get("texture");
@@ -753,7 +787,7 @@
     p.set("bpm", bpm.toString());
     p.set("cursor", cursorMode);
     p.set("sound", String(instrumentProgram));
-    p.set("solfege", showSolfege ? "1" : "0");
+    p.set("solfege", lyricSystem ?? "0");
     p.set("chords", showChords ? "1" : "0");
     p.set("transpose", String(transposeSemitones));
     p.set("texture", voiceTexture);
@@ -772,6 +806,7 @@
     // real UI forever. Take it down as soon as there is something to replace it.
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     loadParams();
+    loadMixLevels();
   });
 
   onDestroy(() => {
@@ -873,6 +908,42 @@
    * fastest thing the level permits rather than around the middle of it.
    */
   const OFFERED_NOT_SELECTED = new Set(["fourSixteenths"]);
+
+  /**
+   * Majors and minors are shown as separate rows.
+   *
+   * They are different decisions - a level that allows minor at all allows a
+   * particular set of them - and mixed into one wrapping block the modes ran
+   * together at whatever width the panel happened to be.
+   */
+  function keysInMode(minor: boolean) {
+    return possibleKeys.filter((k) => isMinorKey(k) === minor);
+  }
+
+  function selectAllKeys(minor: boolean) {
+    const next = new Set(selectedKeys);
+    for (const k of keysInMode(minor)) next.add(k);
+    selectedKeys = next;
+  }
+
+  /**
+   * Clears the row even if that empties the pool. Refusing instead made None
+   * look broken in the ordinary case - major keys chosen, minor row empty -
+   * so an empty pool is allowed and Generate says so, as it does for rhythms.
+   * `selectedKey` stays put while empty: it only picks which chord list shows.
+   */
+  function clearKeys(minor: boolean) {
+    const next = new Set(selectedKeys);
+    for (const k of keysInMode(minor)) next.delete(k);
+    selectedKeys = next;
+    if (next.size > 0 && !next.has(selectedKey)) selectedKey = [...next][0];
+  }
+
+  /** The select hands back a string; the synth wants the program number. */
+  function onInstrumentSelect(event: Event) {
+    const el = event.currentTarget as HTMLSelectElement;
+    handleInstrumentChange(Number(el.value));
+  }
 
   function applyUILPreset(levelKey: string) {
     const p = uilPresets[levelKey];
@@ -1181,7 +1252,7 @@
   function displayOptions() {
     return {
       chordSymbols: showChords,
-      solfege: showSolfege,
+      lyrics: lyricSystem,
       midiProgram: instrumentProgram,
     };
   }
@@ -1194,8 +1265,9 @@
     await applyRenderedString();
   }
 
-  async function handleToggleSolfege() {
-    showSolfege = !showSolfege;
+  /** Clicking the one that is already on turns it off, like a radio you can clear. */
+  async function handleLyricSystem(system: LyricSystem) {
+    lyricSystem = lyricSystem === system ? null : system;
     await reRenderAnnotations();
   }
 
@@ -1237,6 +1309,32 @@
     if (next.has(voiceName)) next.delete(voiceName);
     else next.add(voiceName);
     mutedVoices = next;
+    if (renderedTune) {
+      if (isPlaying) pausePlayback();
+      initSynth(renderedTune);
+    }
+  }
+
+  function loadMixLevels() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(MIX_STORAGE_KEY) ?? "null");
+      if (typeof saved?.playback === "number") playbackVolume = saved.playback;
+      if (typeof saved?.metronome === "number") metronomeVolume = saved.metronome;
+    } catch {}
+  }
+
+  /**
+   * abcjs bakes note velocities into its buffer when the tune is primed, so a
+   * new level only sounds once the synth is rebuilt. Done on release rather
+   * than on every step of the drag, the same way muting a voice works.
+   */
+  function handleMixCommit() {
+    try {
+      localStorage.setItem(
+        MIX_STORAGE_KEY,
+        JSON.stringify({ playback: playbackVolume, metronome: metronomeVolume })
+      );
+    } catch {}
     if (renderedTune) {
       if (isPlaying) pausePlayback();
       initSynth(renderedTune);
@@ -1304,7 +1402,14 @@
       },
     };
 
-    const audioParams = { ...buildAudioParams(), ...(voicesOff.length ? { voicesOff } : {}) };
+    const audioParams = {
+      ...buildAudioParams(),
+      ...(voicesOff.length ? { voicesOff } : {}),
+      // Read at render time, so a level change needs the synth rebuilt - see
+      // handleMixCommit.
+      sequenceCallback: (tracks: any[]) =>
+        applyMixLevels(tracks, { playback: playbackVolume, metronome: metronomeVolume }),
+    };
     await synthControl.setTune(tune, false, audioParams);
     await synthControl.load("#audio", cursorControl);
   }
@@ -1412,6 +1517,10 @@
       generationError = "No rhythms are selected, so there is nothing to write with. Pick at least one under Rhythm.";
       return;
     }
+    if (selectedKeys.size === 0 && !(fullLength && fullLengthLevel)) {
+      generationError = "No keys are selected. Pick at least one under Key.";
+      return;
+    }
     if (!rhythmsCanFill) {
       generationError =
         `These rhythms cannot fill a bar of ${selectedTimeSignature}. ` +
@@ -1463,6 +1572,7 @@
       voiceTexture,
       rhythmBias,
       chromaticFrequency,
+      focusChord: focusChord ?? undefined,
       midiProgram: instrumentProgram,
       display: displayOptions(),
       // Two-part writing at the beginner levels opens in unison and splits.
@@ -1578,18 +1688,18 @@
 
     {#if generationError}
       <div
-        class="w-full mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 no-print"
+        class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"
         role="status"
       >
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-sm font-semibold text-amber-900">
+            <p class="text-sm font-semibold text-sr-brass font-semibold">
               Could not write an exercise with these settings
             </p>
-            <p class="mt-1 text-sm text-amber-800">{generationError}</p>
+            <p class="mt-1 text-sm text-sr-brass">{generationError}</p>
           </div>
           <button
-            class="text-amber-500 hover:text-amber-700 text-xl leading-none"
+            class="text-sr-brass hover:text-sr-ink text-xl leading-none"
             on:click={() => (generationError = null)}
             aria-label="Dismiss"
           >&times;</button>
@@ -1598,23 +1708,21 @@
     {/if}
 
     <!-- Tab panel -->
-    <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4 no-print">
+    <div class="tab-panel sr-panel w-full my-4 no-print">
 
       <!-- Tab bar -->
-      <div class="flex items-stretch border-b border-slate-200">
+      <div class="sr-bar flex items-stretch">
           <div class="flex items-center overflow-x-auto tab-scroll">
         {#each ['setup', 'rhythm', 'harmony', 'ranges'] as tab}
           <button
             type="button"
-            class="px-4 py-3 sm:py-2 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap
-              {selectedTab === tab
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'}"
+            class="sr-tab px-4 py-3 sm:py-2 -mb-px shrink-0 whitespace-nowrap
+              {selectedTab === tab ? 'sr-on' : ''}"
             on:click={() => (selectedTab = tab)}
           >
             {({'setup':'Setup','rhythm':'Rhythm','harmony':'Harmony','ranges':'Voice Ranges'})[tab] ?? tab}
             {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'harmony' && harmonyDirty) || (tab === 'ranges' && rangesDirty)}
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
+              <span class="sr-pip inline-block w-1.5 h-1.5 rounded-full ml-1 mb-0.5 align-middle"></span>
             {/if}
           </button>
         {/each}
@@ -1628,17 +1736,17 @@
             aria-label="Exercise history"
           >
             <button
-              class="flex items-center justify-center h-8 w-8 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              class="sr-icon-btn flex items-center justify-center h-8 w-8"
               on:click={() => goToHistory(historyIndex - 1)}
               disabled={historyIndex <= 0 || isGenerating}
               aria-label="Previous exercise"
               title={historyIndex > 0 ? history[historyIndex - 1].label : "No earlier exercise"}
             ><ChevronLeft size={18} /></button>
-            <span class="text-xs text-slate-500 tabular-nums whitespace-nowrap" aria-live="polite">
+            <span class="text-xs text-sr-muted tabular-nums whitespace-nowrap" aria-live="polite">
               {historyIndex + 1} of {history.length}
             </span>
             <button
-              class="flex items-center justify-center h-8 w-8 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              class="sr-icon-btn flex items-center justify-center h-8 w-8"
               on:click={() => goToHistory(historyIndex + 1)}
               disabled={historyIndex >= history.length - 1 || isGenerating}
               aria-label="Next exercise"
@@ -1649,7 +1757,7 @@
 
         <!-- Generate button always visible in tab bar -->
         <button
-          class="{history.length > 1 ? 'ml-2' : 'ml-auto'} mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-lg px-4 py-2 text-sm"
+          class="sr-btn {history.length > 1 ? 'ml-2' : 'ml-auto'} mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
           on:click={handleClick}
           disabled={isGenerating}
         >
@@ -1664,11 +1772,11 @@
         {#if selectedTab === 'setup'}
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voicing</p>
+              <p class="sr-label">Voicing</p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Voicing">
                 {#each Object.keys(possibleVoicing) as voicing}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedVoicing === voicing ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {outside(presetVoicings, voicing) && selectedVoicing !== voicing ? 'opacity-40' : ''}"
+                    class="sr-tok {selectedVoicing === voicing ? 'sr-on' : ''} {outside(presetVoicings, voicing) && selectedVoicing !== voicing ? 'sr-outside' : ''}"
                     title={outside(presetVoicings, voicing) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                     on:click={() => (selectedVoicing = voicing)}
                   >{voicing}</button>
@@ -1677,19 +1785,43 @@
             </div>
 
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
-                {#each possibleKeys as key}
+              {#each [false, true] as minorRow}
+                {@const rowKeys = keysInMode(minorRow)}
+                {@const chosen = rowKeys.filter((k) => selectedKeys.has(k)).length}
+                <div class="space-y-2 {minorRow ? 'pt-1' : ''}">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <span class="flex items-baseline gap-2">
+                      <span class="sr-label">Key &mdash; {minorRow ? 'minor' : 'major'}</span>
+                      <span class="text-xs text-sr-faint tabular-nums">{chosen} of {rowKeys.length}</span>
+                    </span>
+                    <span class="inline-flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        class="sr-link"
+                        disabled={chosen === rowKeys.length}
+                        on:click={() => selectAllKeys(minorRow)}
+                      >All</button>
+                      <span class="text-xs text-sr-faint">/</span>
+                      <button
+                        type="button"
+                        class="sr-link"
+                        disabled={chosen === 0}
+                        on:click={() => clearKeys(minorRow)}
+                      >None</button>
+                    </span>
+                  </div>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Key {minorRow ? 'minor' : 'major'}">
+                {#each rowKeys as key}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedKeys.has(key) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {outside(presetKeys, key) && !selectedKeys.has(key) ? 'opacity-40' : ''}"
+                    class="sr-tok {selectedKeys.has(key) ? 'sr-on' : ''} {outside(presetKeys, key) && !selectedKeys.has(key) ? 'sr-outside' : ''}"
                     title={outside(presetKeys, key) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                     on:click={() => {
                       const next = new Set(selectedKeys);
-                      if (next.has(key) && next.size > 1) {
+                      if (next.has(key)) {
                         next.delete(key);
                         selectedKeys = next;
                         // Keep the displayed key inside the pool.
-                        if (selectedKey === key) selectedKey = [...next][0];
+                        if (selectedKey === key && next.size > 0) selectedKey = [...next][0];
                         return;
                       }
                       next.add(key);
@@ -1707,14 +1839,16 @@
                   >{key}</button>
                 {/each}
               </div>
+                </div>
+              {/each}
               {#if selectedKeys.size > 1}
-                <p class="text-xs text-slate-400">
+                <p class="text-xs text-sr-faint">
                   {selectedKeys.size} keys selected - one is drawn at random each
                   time you generate. Click a key to remove it.
                 </p>
               {/if}
               {#if activePreset}
-                <p class="text-xs text-slate-400">
+                <p class="text-xs text-sr-faint">
                   Dimmed keys are outside {activePreset.label}, not removed - pick
                   one and you simply leave the level.
                 </p>
@@ -1722,11 +1856,11 @@
             </div>
 
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
+              <p class="sr-label">Time Signature</p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
                 {#each Object.keys(timeSignatures) as ts}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {presetMeterNames && !presetMeterNames.has(ts) ? 'opacity-40' : ''}"
+                    class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''} {presetMeterNames && !presetMeterNames.has(ts) ? 'sr-outside' : ''}"
                     title={presetMeterNames && !presetMeterNames.has(ts) ? `Outside ${activePresetLabel || "this level"}` : ""}
                     on:click={() => (selectedTimeSignature = ts)}
                   >{ts}</button>
@@ -1735,16 +1869,16 @@
             </div>
 
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
+              <p class="sr-label">Measures</p>
               <div class="flex flex-wrap gap-2 items-center" role="group" aria-label="Measures">
                 {#each measureOptions as opt}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {!fullLength && measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="sr-tok {!fullLength && measures === opt ? 'sr-on' : ''}"
                     on:click={() => { fullLength = false; measures = opt; }}
                   >{opt}</button>
                 {/each}
                 <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {fullLength ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  class="sr-tok {fullLength ? 'sr-on' : ''}"
                   aria-pressed={fullLength}
                   on:click={() => {
                     fullLength = !fullLength;
@@ -1754,23 +1888,23 @@
               </div>
 
               {#if fullLength}
-                <div class="rounded border border-slate-200 bg-slate-50 p-3 space-y-3 text-sm">
+                <div class="rounded border border-sr-hairline bg-sr-raise p-3 space-y-3 text-sm">
                   {#if !fullLengthLevel}
-                    <p class="text-slate-600">
+                    <p class="text-sr-ink-2">
                       Pick a UIL level first. The length, the shape and how much of the piece may be
                       polyphonic all come from the level.
                     </p>
                   {:else if formPlanError}
-                    <p class="text-amber-700">{formPlanError}</p>
+                    <p class="text-sr-brass">{formPlanError}</p>
                   {:else if formPlan && fullLengthRange}
                     <div class="space-y-1">
-                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      <p class="sr-label">
                         Length &mdash; level {fullLengthLevel} wants {fullLengthRange[0]}&ndash;{fullLengthRange[1]} bars in {selectedTimeSignature}
                       </p>
                       <div class="flex flex-wrap gap-2" role="group" aria-label="Full length">
                         {#each [fullLengthRange[0], Math.round((fullLengthRange[0] + fullLengthRange[1]) / 2), fullLengthRange[1]] as opt}
                           <button
-                            class="px-3 py-1 rounded text-sm {formPlan.measures === opt ? 'bg-blue-500 text-white' : 'bg-white border border-slate-200 hover:bg-slate-100'}"
+                            class="sr-tok {formPlan.measures === opt ? 'sr-on' : ''}"
                             on:click={() => (fullLengthMeasures = opt)}
                           >{opt} bars</button>
                         {/each}
@@ -1778,15 +1912,15 @@
                     </div>
 
                     <div class="space-y-1">
-                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Form</p>
-                      <ul class="space-y-0.5 font-mono text-xs text-slate-700">
+                      <p class="sr-label">Form</p>
+                      <ul class="space-y-0.5 font-mono text-xs text-sr-ink-2">
                         {#each formPlan.sections as section}
                           <li>
                             <span class="inline-block w-10 font-semibold">{section.label}</span>
                             <span class="inline-block w-20">bars {section.startsAtBar}&ndash;{section.startsAtBar + section.measures - 1}</span>
                             <span>{section.style}{section.restates ? ` of ${section.restates}` : ""}</span>
                             {#if section.keyArea !== "tonic"}
-                              <span class="text-blue-700">&middot; {section.keyArea === "dominant" ? "toward V" : "toward vi"}</span>
+                              <span class="text-sr-action-fg">&middot; {section.keyArea === "dominant" ? "toward V" : "toward vi"}</span>
                             {/if}
                             {#if section.texture === "staggered"}
                               <span class="text-violet-700">&middot; staggered entrances</span>
@@ -1796,7 +1930,7 @@
                       </ul>
                     </div>
 
-                    <p class="text-xs text-slate-500">
+                    <p class="text-xs text-sr-muted">
                       Polyphony {Math.round(100 * formPlan.polyphony.share)}% of the
                       {Math.round(100 * formPlan.polyphony.ceiling)}% level {fullLengthLevel} allows.
                       {#if formPlan.shortEndingBar}
@@ -1804,7 +1938,7 @@
                       {/if}
                       Always major &mdash; minor keys are for the shorter exercises above.
                     </p>
-                    <p class="text-xs text-amber-700">
+                    <p class="text-xs text-sr-brass">
                       Sections marked &ldquo;toward V&rdquo; or &ldquo;toward vi&rdquo; are planned but not yet
                       written that way: chord generation cannot be told to cadence anywhere but home
                       yet, so they will come out at home.
@@ -1815,9 +1949,9 @@
             </div>
 
             <div class="space-y-2 sm:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Voice texture</p>
+              <p class="sr-label">Voice texture</p>
               {#if fullLength}
-                <p class="text-xs text-slate-500">
+                <p class="text-xs text-sr-muted">
                   The form decides this per section for a full-length piece &mdash; the imitative
                   passage gets staggered entrances and the rest all voices.
                 </p>
@@ -1825,14 +1959,14 @@
               <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
                 {#each voiceTextures as mode}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {voiceTexture === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'} {mode === 'staggered' && !polyphonyAllowed ? 'opacity-40' : ''}"
+                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
                     title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
                     on:click={() => (voiceTexture = mode)}
                     aria-pressed={voiceTexture === mode}
                   >{voiceTextureLabels[mode]}</button>
                 {/each}
               </div>
-              <p class="text-xs text-slate-400">
+              <p class="text-xs text-sr-faint">
                 {voiceTexture === "full"
                   ? "Every part sings throughout, apart from rests in the rhythm."
                   : measures < 12
@@ -1841,27 +1975,39 @@
               </p>
             </div>
 
-            <div class="space-y-2 sm:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback sound</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Playback sound">
-                {#each INSTRUMENTS as instrument}
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {instrumentProgram === instrument.program ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => handleInstrumentChange(instrument.program)}
-                    aria-pressed={instrumentProgram === instrument.program}
-                  >{instrument.label}</button>
-                {/each}
+          </div>
+
+          <!-- How the exercise is shown and played, as opposed to what gets
+               written. None of these regenerate anything. -->
+          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4" aria-labelledby="score-options-heading">
+            <h3 id="score-options-heading" class="text-sm font-semibold text-sr-ink mb-1">Score options</h3>
+            <p class="text-xs text-sr-faint mb-4">How the exercise is shown and played. Changing these keeps the exercise on screen.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div class="space-y-2">
+              <p class="sr-label">Playback sound</p>
+              <div class="sr-select">
+                <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
+                <select
+                  class="sr-select-input"
+                  aria-label="Playback sound"
+                  value={instrumentProgram}
+                  on:change={onInstrumentSelect}
+                >
+                  {#each INSTRUMENTS as instrument}
+                    <option value={instrument.program}>{instrument.label}</option>
+                  {/each}
+                </select>
               </div>
-              <p class="text-xs text-slate-400">
+              <p class="text-xs text-sr-faint">
                 Changes the sound straight away - the exercise stays as it is.
               </p>
             </div>
 
-            <div class="space-y-2 sm:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback transpose</p>
+            <div class="space-y-2">
+              <p class="sr-label">Playback transpose</p>
               <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
                 <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
+                  class="sr-btn-quiet disabled:opacity-40"
                   on:click={() => handleTransposeChange(transposeSemitones - 1)}
                   disabled={transposeSemitones <= MIN_TRANSPOSE}
                   aria-label="Transpose playback down a semitone"
@@ -1870,62 +2016,68 @@
                   {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
                 </span>
                 <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
+                  class="sr-btn-quiet disabled:opacity-40"
                   on:click={() => handleTransposeChange(transposeSemitones + 1)}
                   disabled={transposeSemitones >= MAX_TRANSPOSE}
                   aria-label="Transpose playback up a semitone"
                 >+</button>
                 {#if transposeSemitones !== 0}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200"
+                    class="sr-btn-quiet"
                     on:click={() => handleTransposeChange(0)}
                   >Reset</button>
                 {/if}
               </div>
-              <p class="text-xs text-slate-400">
+              <p class="text-xs text-sr-faint">
                 {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
               </p>
             </div>
 
-            <div class="space-y-2 sm:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
+            <div class="space-y-2">
+              <p class="sr-label">Annotations</p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
                 <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {showChords ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                  class="sr-tok {showChords ? 'sr-on' : ''}"
                   on:click={handleToggleChords}
                   aria-pressed={showChords}
                 >Chord symbols</button>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={handleToggleSolfege}
-                  aria-pressed={showSolfege}
-                >Solfège</button>
+                {#each lyricSystems as [value, label]}
+                  <button
+                    class="sr-tok {lyricSystem === value ? 'sr-on' : ''}"
+                    on:click={() => handleLyricSystem(value)}
+                    aria-pressed={lyricSystem === value}
+                  >{label}</button>
+                {/each}
               </div>
-              <p class="text-xs text-slate-400">
-                {#if showChords && showSolfege}
-                  Chord symbols above the top staff, solfège under each part.
-                {:else if showChords}
-                  Chord symbols above the top staff.
-                {:else if showSolfege}
-                  Solfège under each part.
-                {:else}
+              <p class="text-xs text-sr-faint">
+                {#if showChords}
+                  Chord symbols above the top staff{lyricSystem ? ", " : "."}
+                {/if}
+                {#if lyricSystem === "movable"}
+                  Movable do under each part - do is the tonic, so a tune reads the same in
+                  every key.
+                {:else if lyricSystem === "fixed"}
+                  Fixed do under each part - C is do whatever the key.
+                {:else if lyricSystem === "names"}
+                  The note names under each part.
+                {:else if !showChords}
                   Clean - the same exercise, printed for sight-reading.
                 {/if}
               </p>
             </div>
 
-            <div class="space-y-2 sm:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
+            <div class="space-y-2">
+              <p class="sr-label">Cursor</p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
                 {#each cursorModes as mode}
                   <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {cursorMode === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
+                    class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
                     on:click={() => (cursorMode = mode)}
                     aria-pressed={cursorMode === mode}
                   >{cursorModeLabels[mode]}</button>
                 {/each}
               </div>
-              <p class="text-xs text-slate-400">
+              <p class="text-xs text-sr-faint">
                 {cursorMode === "off"
                   ? "No cursor during playback."
                   : cursorMode === "smooth"
@@ -1935,21 +2087,24 @@
                       : "Lands on each note and waits there."}
               </p>
             </div>
-          </div>
+            </div>
+          </section>
 
         <!-- Rhythm Tab -->
         {:else if selectedTab === 'rhythm'}
           <div class="space-y-3">
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Select Allowed Rhythms</p>
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms">
-              {#each Object.values(filterRhythms) as rhythm}
+            <p class="sr-label">Select Allowed Rhythms</p>
+            {#each rhythmPickerGroups(Object.values(filterRhythms)) as group}
+            <p class="text-xs text-sr-faint">{group.label}</p>
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
+              {#each group.rhythms as rhythm}
                 <button
-                  class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded relative
+                  class="sr-tok-sq px-2 py-1 h-12 min-w-12 flex items-center justify-center relative
                     {selectedRhythms.some((r) => r?.name === rhythm.name)
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200'}
-                    {outside(presetRhythmNames, rhythm.name) && !selectedRhythms.some((r) => r?.name === rhythm.name) ? 'opacity-40' : ''}
-                    {unusableRhythmNames.has(rhythm.name) ? 'ring-2 ring-amber-400' : ''}"
+                      ? 'sr-on'
+                      : ''}
+                    {outside(presetRhythmNames, rhythm.name) && !selectedRhythms.some((r) => r?.name === rhythm.name) ? 'sr-outside' : ''}
+                    {unusableRhythmNames.has(rhythm.name) ? 'sr-warn' : ''}"
                   title={unusableRhythmNames.has(rhythm.name)
                     ? `Selected, but cannot appear in ${selectedTimeSignature}`
                     : outside(presetRhythmNames, rhythm.name)
@@ -1977,15 +2132,16 @@
                 </button>
               {/each}
             </div>
+            {/each}
             {#if selectedRhythms.length > 0}
               <div class="space-y-2 pt-1">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p class="sr-label">
                   How often
                 </p>
                 <div class="space-y-1.5" role="group" aria-label="How often">
-                  {#each selectedRhythms.filter((r) => r) as rhythm}
+                  {#each rhythmPickerGroups(selectedRhythms.filter((r) => r)).flatMap((g) => g.rhythms) as rhythm}
                     <div class="flex items-center gap-3" role="group" aria-label={`How often: ${rhythmLabel(rhythm.name)}`}>
-                      <span class="rhythm-icon-sm w-8 h-8 shrink-0 flex items-center justify-center">
+                      <span class="rhythm-icon-sm h-8 w-auto shrink-0 flex items-center justify-center">
                         {#await rhythmSvgs[rhythm.name] then svg}
                           {@html svg.default}
                         {:catch}
@@ -1995,9 +2151,9 @@
                       <div class="flex flex-wrap gap-1">
                         {#each rhythmFrequencies as freq}
                           <button
-                            class="px-2 py-1 rounded text-xs {frequencyOf(rhythmBias, rhythm.name) === freq.value
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}"
+                            class="sr-freq {frequencyOf(rhythmBias, rhythm.name) === freq.value
+                              ? 'sr-on'
+                              : ''}"
                             on:click={() => setFrequency(rhythm.name, freq.value)}
                             aria-pressed={frequencyOf(rhythmBias, rhythm.name) === freq.value}
                           >{freq.label}</button>
@@ -2006,20 +2162,20 @@
                     </div>
                   {/each}
                 </div>
-                <p class="text-xs text-slate-400">
+                <p class="text-xs text-sr-faint">
                   Sixteenths are kept rare on purpose - a sung exercise lives on
                   quarters and halves. Turn one up here if you want to drill it.
                 </p>
               </div>
             {/if}
             {#if unusableRhythmNames.size > 0}
-              <p class="text-xs text-amber-600">
+              <p class="text-xs text-sr-brass">
                 Ringed in amber: selected, but cannot appear in {selectedTimeSignature}.
                 A rhythm has to be at least a quarter note and fit inside one measure.
               </p>
             {/if}
             {#if activePreset}
-              <p class="text-xs text-slate-400">
+              <p class="text-xs text-sr-faint">
                 Dimmed rhythms are outside {activePreset.label}. They are still
                 available - picking one just takes you off the level.
               </p>
@@ -2032,18 +2188,18 @@
             <!-- Chord toggles -->
             {#each Object.entries(chordGroups) as [groupName, chordNames]}
               <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">{groupName}</p>
+                <p class="sr-label">{groupName}</p>
                 <div class="flex flex-wrap gap-2" role="group" aria-label={groupName}>
                   {#each chordNames as chordName}
                     {@const chord = fullChordSet.find(c => c.name === chordName)}
                     {#if chord}
                       <button
                         type="button"
-                        class="px-3 py-2 sm:py-1 rounded text-sm font-medium
+                        class="sr-tok
                           {userAllowedChords.has(chordName)
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}
-                          {outside(presetChordNames, chordName) && !userAllowedChords.has(chordName) ? 'opacity-40' : ''}"
+                            ? 'sr-on'
+                            : ''}
+                          {outside(presetChordNames, chordName) && !userAllowedChords.has(chordName) ? 'sr-outside' : ''}"
                         title={outside(presetChordNames, chordName) ? `Outside ${activePreset?.label ?? 'this level'}` : undefined}
                         on:click={() => {
                           // Toggle first, THEN re-apply the inversions. The
@@ -2062,18 +2218,59 @@
               </div>
             {/each}
 
+            <!-- Drilling one chromatic chord. Major only: every chord it offers
+                 is a major-mode chromatic chord. -->
+            <div class="space-y-2">
+              <p class="sr-label">Focus on a chord</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Focus on a chord">
+                <button
+                  type="button"
+                  class="sr-tok {focusChord === null ? 'sr-on' : ''}"
+                  aria-pressed={focusChord === null}
+                  on:click={() => (focusChord = null)}
+                >None</button>
+                {#each majorChordGroups['Chromatic Chords'] as chordName}
+                  {@const chord = fullChordSet.find(c => c.name === chordName)}
+                  {#if chord}
+                    <button
+                      type="button"
+                      class="sr-tok {focusChord === chordName ? 'sr-on' : ''}"
+                      aria-pressed={focusChord === chordName}
+                      aria-label={`Focus on ${chord.symbol}`}
+                      on:click={() => (focusChord = focusChord === chordName ? null : chordName)}
+                    >{chord.symbol}</button>
+                  {/if}
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {#if focusChord === null}
+                  Pick a chromatic chord to drill: every exercise is built around it, usually
+                  more than once, and the other chromatic chords are left out.
+                {:else if [...selectedKeys].every((k) => isMinorKey(k))}
+                  Only minor keys are selected, and these are major-key chords - add a major key
+                  for the focus to apply.
+                {:else}
+                  Every exercise in a major key uses {fullChordSet.find(c => c.name === focusChord)?.symbol},
+                  usually more than once, with its inversion. Other chromatic chords are left out.
+                  {#if [...selectedKeys].some((k) => isMinorKey(k))}
+                    Minor keys drawn from your selection ignore it.
+                  {/if}
+                {/if}
+              </p>
+            </div>
+
             <!-- How often the chromatic chords above are reached for. Lives with
                  them rather than further down: it does nothing unless one of
                  them is switched on. -->
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Chromatic Chord Frequency</p>
+              <p class="sr-label">Chromatic Chord Frequency</p>
               <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Chromatic Chord Frequency">
-                <span class="text-xs text-slate-500">Less</span>
-                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 accent-blue-500" aria-label="Chromatic chord frequency" />
-                <span class="text-xs text-slate-500">More</span>
+                <span class="text-xs text-sr-muted">Less</span>
+                <input type="range" min="0" max="5" step="0.5" bind:value={chromaticFrequency} class="w-40 sr-range" aria-label="Chromatic chord frequency" />
+                <span class="text-xs text-sr-muted">More</span>
                 <span class="text-sm font-semibold">{chromaticFrequency}×</span>
               </div>
-              <p class="text-xs text-slate-400">
+              <p class="text-xs text-sr-faint">
                 How often the chromatic chords above are chosen. Each brings its
                 own first inversion with it, so the raised note can reach the bass.
               </p>
@@ -2081,46 +2278,46 @@
 
             <!-- NCT Probability -->
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Non-Chord Tone Amount</p>
+              <p class="sr-label">Non-Chord Tone Amount</p>
               <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Non-Chord Tone Amount">
-                <span class="text-xs text-slate-500">None</span>
-                <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 accent-blue-500" aria-label="Non-chord tone amount" />
-                <span class="text-xs text-slate-500">Heavy</span>
+                <span class="text-xs text-sr-muted">None</span>
+                <input type="range" min="0" max="1" step="0.05" bind:value={nctProbability} class="w-40 sr-range" aria-label="Non-chord tone amount" />
+                <span class="text-xs text-sr-muted">Heavy</span>
                 <span class="text-sm font-semibold">{Math.round(nctProbability * 100)}%</span>
               </div>
-              <p class="text-xs text-slate-400">Passing · Neighbor · Suspension · Anticipation · Appoggiatura · Escape</p>
+              <p class="text-xs text-sr-faint">Passing · Neighbor · Suspension · Anticipation · Appoggiatura · Escape</p>
             </div>
 
             <!-- Accidentals by Step -->
             <div class="space-y-1">
               <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input type="checkbox" bind:checked={accidentalsByStep} class="accent-blue-500" />
+                <input type="checkbox" bind:checked={accidentalsByStep} class="sr-check" />
                 Chromatic tones approached &amp; resolved by step
               </label>
-              <p class="text-xs text-slate-400">Sharps resolve up · Flats resolve down</p>
+              <p class="text-xs text-sr-faint">Sharps resolve up · Flats resolve down</p>
             </div>
 
             <!-- Stepwise eighths -->
             <div class="space-y-1">
               <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input type="checkbox" bind:checked={stepwiseEighths} class="accent-blue-500" />
+                <input type="checkbox" bind:checked={stepwiseEighths} class="sr-check" />
                 Eighth notes move by step
               </label>
-              <p class="text-xs text-slate-400">Stepwise or repeated - no skips into or out of an eighth</p>
+              <p class="text-xs text-sr-faint">Stepwise or repeated - no skips into or out of an eighth</p>
             </div>
 
             <!-- Max Skip -->
             <div class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
+              <p class="sr-label">Max Melodic Skip</p>
               <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
-                <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                <button type="button" class="sr-btn-quiet"
                   aria-label="Narrower maximum skip"
                   on:click={() => { if (maxSkip > maxSkipRange[0]) maxSkip -= 1; }}><Minus size={16} /></button>
                 <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
-                <button type="button" class="px-3 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                <button type="button" class="sr-btn-quiet"
                   aria-label="Wider maximum skip"
                   on:click={() => { if (maxSkip < maxSkipRange[1]) maxSkip += 1; }}><Plus size={16} /></button>
-                <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
+                <span class="text-xs text-sr-faint">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
               </div>
             </div>
           </div>
@@ -2128,10 +2325,10 @@
         <!-- Voice Ranges Tab -->
         {:else if selectedTab === 'ranges'}
           {#if selectedVoicing && possibleVoicing[selectedVoicing]}
-            <div class="space-y-6">
+            <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
-                <div class="space-y-1">
-                  <p class="text-sm font-medium">{partName}</p>
+                <div class="space-y-1.5">
+                  <p class="sr-label">{partName}</p>
                   <RangeSelector
                     range={{ min: part.currentRange[0], max: part.currentRange[1] }}
                     clef={part.clef}
@@ -2150,7 +2347,7 @@
     <div id="audio" class="hidden"></div>
 
     {#if !rhythmsCanFill}
-      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
+      <p class="text-sm text-sr-brass bg-sr-brass-bg border border-sr-brass rounded-md px-3 py-2 my-2">
         The selected rhythms cannot fill a bar of {selectedTimeSignature}, so nothing
         can be generated. Add a shorter note - a quarter or an eighth - or change
         the time signature.
@@ -2158,13 +2355,13 @@
     {/if}
 
     {#if audioNotice}
-      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
+      <p class="text-sm text-sr-brass bg-sr-brass-bg border border-sr-brass rounded-md px-3 py-2 my-2">
         {audioNotice}
       </p>
     {/if}
 
     {#if roughSeams.length > 0}
-      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 my-2">
+      <p class="text-sm text-sr-brass bg-sr-brass-bg border border-sr-brass rounded-md px-3 py-2 my-2">
         The join after {roughSeams.length === 1 ? "section" : "sections"}
         {roughSeams.join(", ")} could not be made smooth after several tries &mdash; there may be a
         wide leap or a stranded accidental where that section ends. Generating again usually
@@ -2178,7 +2375,7 @@
            is un-hidden before renderTune measures its width. -->
       <div
         id="paper"
-        class="bg-white rounded-lg shadow-md w-full my-2"
+        class="sr-sheet w-full my-2"
         class:hidden={showScorePlaceholder}
       ></div>
 
@@ -2187,7 +2384,7 @@
            A sibling rather than a child, because renderAbc empties #paper. -->
       {#if showScorePlaceholder}
         <div
-          class="bg-white rounded-lg shadow-md w-full my-2 p-6 flex flex-col gap-5"
+          class="sr-sheet w-full my-2 p-6 flex flex-col gap-5"
           aria-hidden="true"
         >
           {#each voiceNames as _}
@@ -2235,15 +2432,39 @@
     onToggleMute={handleToggleMute}
     onShare={handleShare}
     onPrint={handlePrint}
-  />
+  >
+    <svelte:fragment slot="extra">
+      <div class="flex items-center gap-2" title="Voices volume">
+        <Volume2 size={18} class="shrink-0 text-sr-faint" aria-hidden="true" />
+        <input
+          type="range" min="0" max="1.5" step="0.05"
+          bind:value={playbackVolume}
+          on:change={handleMixCommit}
+          class="w-20 accent-teal-400"
+          aria-label="Voices volume"
+        />
+      </div>
+      <div class="flex items-center gap-2" title="Metronome volume">
+        <MetronomeIcon size={18} class="shrink-0 text-sr-faint" />
+        <input
+          type="range" min="0" max="1.5" step="0.05"
+          bind:value={metronomeVolume}
+          on:change={handleMixCommit}
+          class="w-20 accent-teal-400"
+          aria-label="Metronome volume"
+        />
+      </div>
+    </svelte:fragment>
+  </PlaybackBar>
 </div>
 
 <style>
   /* The little rhythm glyphs beside the frequency buttons. */
+  /* Same shared scale as the picker, just shorter - see globals.css. */
   .rhythm-icon-sm :global(svg) {
-    width: 100%;
+    width: auto;
     height: 100%;
-    object-fit: contain;
+    max-width: none;
   }
 
   /*
@@ -2326,8 +2547,11 @@
     display: none;
   }
 
+  /* The icons carry their own size at one shared scale - see globals.css. */
   :global(.rhythm-icon svg) {
-    width: 100%;
-    height: 100%;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
   }
 </style>

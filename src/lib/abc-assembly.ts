@@ -6,7 +6,7 @@ import {
   type Rhythm,
   type TimeSignature,
 } from "./types";
-import { solfegeLineFor } from "../resources/solfege";
+import { lyricLineFor, type LyricSystem } from "../resources/solfege";
 import { keySignatures } from "../resources/key-signatures";
 import { getDiatonicDegree } from "./prep-params";
 
@@ -19,8 +19,11 @@ import { getDiatonicDegree } from "./prep-params";
 export interface AbcDisplayOptions {
   /** Roman numerals above the top staff. */
   chordSymbols?: boolean;
-  /** Solfège syllables as a `w:` lyric line under each voice. */
-  solfege?: boolean;
+  /**
+   * A `w:` lyric line under each voice: movable-do solfège, fixed-do, or the
+   * note names. Absent prints none.
+   */
+  lyrics?: LyricSystem | null;
 }
 
 // Interface for additional metadata needed for the ABC header
@@ -252,8 +255,8 @@ export function assembleAbcString(
     // Solfège goes on its own `w:` line directly after this voice's body, which
     // is how ABC attaches lyrics to a voice. One syllable per *note* - rests
     // take no slot, or every later syllable would sit one note to the left.
-    if (display.solfege) {
-      const syllables = solfegeLineFor(notesForPart, key);
+    if (display.lyrics) {
+      const syllables = lyricLineFor(notesForPart, key, display.lyrics);
       if (syllables.length > 0) abcString += `w: ${syllables.join(" ")}\n`;
     }
   }

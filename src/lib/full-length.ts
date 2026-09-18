@@ -38,7 +38,7 @@ type SectionMeta = {
 
 export type FullLengthDisplay = {
   chordSymbols?: boolean;
-  solfege?: boolean;
+  lyrics?: "movable" | "fixed" | "names" | null;
   midiProgram?: number;
 };
 

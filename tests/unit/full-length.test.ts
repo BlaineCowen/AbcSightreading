@@ -49,7 +49,7 @@ function build(plan = planForm({ level: 2, key: "C" }), onSection?: (s: PlannedS
       return {
         voices: voicesFor(section),
         abc: abcFor(section),
-        render: (d) => abcFor(section, d.solfege ? " %solfege" : ""),
+        render: (d) => abcFor(section, d.lyrics ? " %solfege" : ""),
       };
     },
     { plan, maxSkip: 8 }
@@ -117,7 +117,7 @@ describe("re-writing a finished piece", () => {
     // opening and leave the rest bare.
     const { piece } = build();
     const plain = piece.render({});
-    const solfa = piece.render({ solfege: true });
+    const solfa = piece.render({ lyrics: "movable" });
     expect(plain).not.toContain("%solfege");
     const marks = (solfa.match(/%solfege/g) ?? []).length;
     expect(marks).toBe(piece.sections.length);
@@ -126,7 +126,7 @@ describe("re-writing a finished piece", () => {
   test("a re-render is the same length as the piece", () => {
     const plan = planForm({ level: 3, key: "C" });
     const { piece } = build(plan);
-    const bars = (piece.render({ solfege: true }).match(/\|/g) ?? []).length / 2;
+    const bars = (piece.render({ lyrics: "movable" }).match(/\|/g) ?? []).length / 2;
     expect(bars).toBe(plan.measures);
   });
 
@@ -135,7 +135,7 @@ describe("re-writing a finished piece", () => {
       [
         { label: "A", measures: 1, startsAtBar: 1, voices: [], abc: `${HEADER}\n[V:S] c8|]\n[V:A] E8|]\n`, restated: false },
       ],
-      { solfege: true }
+      { lyrics: "movable" }
     );
     expect(joined).toContain("c8");
   });

@@ -11,7 +11,9 @@
     worthScrolling,
     targetMoved,
   } from "../lib/scroll-to-system";
-  import { selectableRhythms } from "../lib/selectable-rhythms";
+  import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
+  import type { LyricSystem } from "../resources/solfege";
+  import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
     metronomeClickFor,
@@ -19,7 +21,7 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
-  import { Piano, Minus, Plus, RefreshCw } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import {
     defaultSyllableSystem,
@@ -89,6 +91,12 @@
     { display: "♭7", value: 7 },
   ];
   const measureOptions = [1, 2, 4, 8, 12, 16];
+  /**
+   * The treble range a first visit starts with: middle C up an octave, C to c
+   * (noteArray 14 to 21). It was F to c, five notes - too few for a chromatic
+   * note to resolve in, so sharp 4 in G could never be written at all.
+   */
+  const DEFAULT_TREBLE_RANGE = { min: 14, max: 21 };
   const maxSkipOptions = [1, 2, 3, 4, 5, 6, 7, 8];
 
   // ── Tab state ─────────────────────────────────────────────────────────────
@@ -252,6 +260,10 @@
         getParam("accidentalsFollowStep") === "true";
     if (urlParams.has("showSolfege"))
       options.showSolfege = getParam("showSolfege") === "true";
+    const lyrics = getParam("lyrics");
+    if (lyrics === "movable" || lyrics === "fixed" || lyrics === "names") {
+      options.lyricSystem = lyrics;
+    }
     if (urlParams.has("rhythmOnly"))
       options.rhythmOnly = getParam("rhythmOnly") === "true";
     if (urlParams.has("transpose"))
@@ -400,7 +412,7 @@
         console.log("loading from url");
         return {
           selectedClef: urlOptions.selectedClef || "treble",
-          selectedRange: urlOptions.selectedRange || { min: 17, max: 21 },
+          selectedRange: urlOptions.selectedRange || { ...DEFAULT_TREBLE_RANGE },
           selectedScaleDegrees: new Set<number>(
             urlOptions.selectedScaleDegrees || [1, 3, 5]
           ),
@@ -443,7 +455,7 @@
 
         return {
           selectedClef: options.selectedClef || "treble",
-          selectedRange: options.selectedRange || { min: 17, max: 21 },
+          selectedRange: options.selectedRange || { ...DEFAULT_TREBLE_RANGE },
           selectedScaleDegrees: new Set<number>(
             options.selectedScaleDegrees || [1, 3, 5]
           ),
@@ -476,7 +488,7 @@
     // Return defaults if no saved state or error
     return {
       selectedClef: "treble",
-      selectedRange: { min: 17, max: 21 },
+      selectedRange: { ...DEFAULT_TREBLE_RANGE },
       selectedScaleDegrees: new Set<number>([1, 3, 5]),
       selectedSharpDegrees: new Set(),
       selectedFlatDegrees: new Set(),
@@ -528,7 +540,17 @@
    * the rhythm syllables, which used to share a master switch with it. The two
    * things a singer wants apart could only be had together.
    */
+  /**
+   * What goes under the notes, or null for nothing: movable-do solfège (do is
+   * the tonic), fixed do (C is always do), or the note names.
+   *
+   * Like the rhythm syllables, the lyric is written INTO the exercise and
+   * stripped at render, so changing system is a re-label - see relabelScore.
+   */
+  let lyricSystem: LyricSystem = initialState.lyricSystem || "movable";
   let showSolfege = initialState.showSolfege || false;
+  /** Which lyric `originalTuneString` is currently written with. */
+  let writtenLyricSystem = lyricSystem;
 
   /**
    * The rhythm staff's sound. Claves is a click with no duration, so a half note
@@ -579,9 +601,21 @@
     if (currentTune && originalTuneString) await rerenderTune();
   }
 
-  /** Show or hide the solfège on the exercise already on screen. */
-  async function handleToggleSolfege() {
-    showSolfege = !showSolfege;
+  /**
+   * Pick what goes under the notes, or switch it off by pressing the one that
+   * is already on.
+   *
+   * Hiding is a render-time strip. Changing SYSTEM re-labels the exercise from
+   * the notes it was made of, so the exercise on screen stays.
+   */
+  async function handleLyricSystem(system: LyricSystem) {
+    if (showSolfege && lyricSystem === system) {
+      showSolfege = false;
+    } else {
+      showSolfege = true;
+      lyricSystem = system;
+      relabelScore(writtenSyllableSystem, system);
+    }
     updateUrlFromState();
     if (currentTune && originalTuneString) await rerenderTune();
   }
@@ -596,9 +630,10 @@
    * made again.
    *
    * Off is a render-time strip, so it costs nothing and comes straight back.
-   * Changing SYSTEM cannot be: the syllables are written into the exercise as it
-   * is assembled, and unison keeps no note data to re-label from. So that one
-   * generates a new exercise, which is at least visibly something happening.
+   * Changing SYSTEM is a re-label: the syllables are written into the exercise
+   * as it is assembled, so the exercise is written out again from the notes it
+   * was made of - see `relabelScore`. It used to generate a whole new exercise,
+   * which took the one on screen away for a change of wording.
    */
   async function setRhythmSyllables(mode: "off" | string) {
     const wasOff = !showRhythmSyllables;
@@ -612,11 +647,12 @@
     syllableSystemId = mode;
     showRhythmSyllables = true;
     updateUrlFromState();
-    if (systemChanged && currentTune) {
-      // A different system means different words on every note.
-      await handleClick();
-    } else if (wasOff && currentTune && originalTuneString) {
+    const relabelled = systemChanged && relabelScore(mode);
+    if ((relabelled || wasOff) && currentTune && originalTuneString) {
       await rerenderTune();
+    } else if (systemChanged && currentTune && !currentScore) {
+      // Nothing to re-label from - an exercise from before this existed.
+      await handleClick();
     }
   }
 
@@ -639,6 +675,13 @@
     if (!syllablesWanted) out = withoutQuotedText(out);
     return out;
   }
+  /** The lyric options, in the order the buttons show them. */
+  const lyricSystems: [LyricSystem, string][] = [
+    ["movable", "Movable do"],
+    ["fixed", "Fixed do"],
+    ["names", "Note names"],
+  ];
+
   let syllableSystemId =
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
@@ -649,6 +692,35 @@
 
   let renderedString: any;
   let originalTuneString: string | null = null; // Store the original tune string for rerendering
+  /**
+   * The exercise as data, so it can be written out again in a different
+   * syllable system without generating a new one. See `UnisonScore`.
+   */
+  let currentScore: UnisonScore | null = null;
+  /** Which syllable system `originalTuneString` is currently written with. */
+  let writtenSyllableSystem = syllableSystemId;
+
+  /**
+   * Write the exercise on screen out again with a different set of rhythm
+   * syllables, keeping every note where it is.
+   *
+   * Both annotations always go in and are stripped at render, so this writes
+   * them both and lets `withChosenAnnotations` decide what shows. Returns
+   * whether anything changed, so a caller can skip a redraw it does not need.
+   */
+  function relabelScore(systemId: string, lyric: LyricSystem = lyricSystem): boolean {
+    if (!currentScore) return false;
+    if (systemId === writtenSyllableSystem && lyric === writtenLyricSystem) return false;
+    originalTuneString = assembleUnisonAbc(currentScore, {
+      showSolfege: !rhythmOnly,
+      lyricSystem: lyric,
+      showRhythmSyllables: true,
+      syllableSystemId: systemId,
+    });
+    writtenSyllableSystem = systemId;
+    writtenLyricSystem = lyric;
+    return true;
+  }
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
   let playbackCursor: SVGLineElement | null = null; // Follows playback
@@ -703,7 +775,7 @@
       // Only set initial values
       switch (selectedClef) {
         case "treble":
-          selectedRange = { min: 10, max: 15 }; // C4 to C5
+          selectedRange = { ...DEFAULT_TREBLE_RANGE };
           break;
         case "bass":
           selectedRange = { min: 7, max: 14 }; // C2 to C3
@@ -721,7 +793,7 @@
   // ── Dirty indicators ──────────────────────────────────────────────────────
   const DEFAULTS = {
     key: 'F', clef: 'treble', timeSig: '4/4', measures: 8,
-    maxSkip: 4, scaleDegrees: [1, 3, 5], range: { min: 17, max: 21 },
+    maxSkip: 4, scaleDegrees: [1, 3, 5], range: DEFAULT_TREBLE_RANGE,
     rhythmNames: ['eighthEighth', 'quarter'],
   };
   $: setupDirty = selectedKey !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
@@ -757,6 +829,7 @@
       moveEighthNotes,
       accidentalsFollowStep,
       showSolfege,
+      lyricSystem,
       rhythmOnly,
       showRhythmSyllables,
       syllableSystemId,
@@ -798,6 +871,7 @@
     params.set("moveEighthNotes", moveEighthNotes.toString());
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
     params.set("showSolfege", showSolfege.toString());
+    params.set("lyrics", lyricSystem);
     params.set("rhythmOnly", rhythmOnly.toString());
     params.set("showRhythmSyllables", showRhythmSyllables.toString());
     params.set("transpose", String(transposeSemitones));
@@ -1784,6 +1858,7 @@
         // Always written in, whatever the buttons say - they strip at render,
         // so either can come back without regenerating the exercise.
         showSolfege: !rhythmOnly,
+        lyricSystem,
         rhythmOnly: rhythmOnly,
         // Written into a pitched exercise too, not just the rhythm staff, so a
         // practice run can show them on its repeats. Stripped at render like
@@ -1862,6 +1937,9 @@
       if (result.success) {
         renderedString = result.data;
         originalTuneString = result.data[0]; // Store the original tune string
+        currentScore = (result.data[2] as UnisonScore) ?? null;
+        writtenSyllableSystem = syllableSystemId;
+        writtenLyricSystem = lyricSystem;
         await renderTune();
       } else {
         throw new Error(result.error || "Failed to generate music");
@@ -1910,7 +1988,7 @@
    */
   type PassCursor = "same" | CursorMode;
   type PassAnnotation = "same" | "none" | "kodaly" | "counting" | "solfege";
-  let drillRepeatCursor: PassCursor = "off";
+  let drillRepeatCursor: PassCursor = "same";
   let drillRepeatAnnotation: PassAnnotation = "same";
 
   /** The syllable system a repeat asks for, if it asks for one. */
@@ -1932,16 +2010,21 @@
       ? drillRepeatAnnotation
       : null;
   /**
-   * A repeat can only show syllables the exercise was WRITTEN with: they are
-   * assembled into it, and unison keeps no note data to re-label from. So a run
-   * generates in the system its repeats want, and the system goes back when the
-   * run ends - the same bargain the tempo ramp makes.
+   * The system the reader's own passes are labelled in, so a repeat in another
+   * one can hand it back. A repeat's syllables are a re-label of the same
+   * exercise, so the two passes can differ - which they could not when the run
+   * had to write every exercise in the repeats' system.
    */
-  let drillStartSyllableSystem: string | null = null;
+  let drillFirstSyllableSystem = defaultSyllableSystem.id;
   /** The reader's own annotation settings, kept so a run can hand them back. */
   let drillFirstSolfege = false;
   let drillFirstSyllables = false;
 
+  /**
+   * The settings are collapsed to start with: a run is five controls a director
+   * sets once, and open by default they push the score off the page.
+   */
+  let drillPanelOpen = false;
   let drillRunning = false;
   let drillIndex = 0;
   let drillRepeat = 0;
@@ -2057,21 +2140,30 @@
           // timeline. Work out what is wanted before deciding anything.
           let wantSolfege = showSolfege;
           let wantSyllables = showRhythmSyllables;
+          // The system the repeats ask for, or the reader's own on pass one.
+          // A repeat in a different system is a re-label, not a new exercise:
+          // the run used to write EVERY exercise in the repeat's system, which
+          // is why choosing Kodaly to read and counting on the repeats gave
+          // counting on both.
+          let wantSystem = drillFirstSyllableSystem;
           if (!first && drillRepeatAnnotation !== "same") {
             wantSolfege = drillRepeatAnnotation === "solfege";
             wantSyllables =
               drillRepeatAnnotation === "kodaly" || drillRepeatAnnotation === "counting";
+            if (repeatSyllableSystem) wantSystem = repeatSyllableSystem;
           } else if (first && drillRepeatAnnotation !== "same") {
             // Back to the reader's own, which is what the run started from.
             wantSolfege = drillFirstSolfege;
             wantSyllables = drillFirstSyllables;
           }
-          if (wantSolfege === showSolfege && wantSyllables === showRhythmSyllables) {
-            return false;
-          }
+          const sameDisplay =
+            wantSolfege === showSolfege && wantSyllables === showRhythmSyllables;
+          if (sameDisplay && wantSystem === writtenSyllableSystem) return false;
           showSolfege = wantSolfege;
           showRhythmSyllables = wantSyllables;
           if (!currentTune || !originalTuneString) return false;
+          // Only the syllables it will actually show need re-labelling.
+          if (wantSyllables) relabelScore(wantSystem);
           await rerenderTune();
           return true;
         },
@@ -2101,14 +2193,9 @@
     drillStartBpm = bpm;
     drillFirstSolfege = showSolfege;
     drillFirstSyllables = showRhythmSyllables;
-    // A repeat can only show syllables the exercise was written with, so the
-    // run writes them in the system its repeats ask for. Borrowed, and handed
-    // back when the run ends.
-    drillStartSyllableSystem = null;
-    if (repeatSyllableSystem && repeatSyllableSystem !== syllableSystemId) {
-      drillStartSyllableSystem = syllableSystemId;
-      syllableSystemId = repeatSyllableSystem;
-    }
+    // The reader's own system, to come back to on every first pass. The run no
+    // longer borrows the system it writes in - each pass re-labels instead.
+    drillFirstSyllableSystem = syllableSystemId;
     // Built fresh each time so a run uses the settings as they are at Start,
     // and cannot be half-reconfigured while it is going.
     runner = makeRunner();
@@ -2122,9 +2209,9 @@
    */
   async function stopDrill(rerender = true) {
     await runner?.stop(rerender);
-    if (drillStartSyllableSystem !== null) {
-      syllableSystemId = drillStartSyllableSystem;
-      drillStartSyllableSystem = null;
+    // Back to the reader's own wording, whatever the repeats were showing.
+    if (relabelScore(syllableSystemId) && currentTune && originalTuneString) {
+      await rerenderTune();
     }
   }
 
@@ -2232,7 +2319,7 @@
     // change ranges based on clef
     switch (clef) {
       case "treble":
-        selectedRange = { min: 15, max: 21 };
+        selectedRange = { ...DEFAULT_TREBLE_RANGE };
         break;
       case "bass":
         selectedRange = { min: 7, max: 14 };
@@ -2492,583 +2579,605 @@
   }
 </script>
 
-<div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + 1rem)">
-  <main class="flex flex-col items-center w-full">
-
-    <!-- Tab panel -->
-    <div class="w-full max-w-4xl mx-auto px-2 md:px-4">
-      <div class="tab-panel w-full bg-white shadow-md rounded-lg my-4">
-
-        <!-- Tab bar -->
-        <div class="flex items-stretch border-b border-slate-200">
-          <div class="flex items-center overflow-x-auto tab-scroll">
-          {#each visibleTabs as tab}
-            <button
-              type="button"
-              class="px-4 py-3 sm:py-2 text-sm font-medium border-b-2 -mb-px transition-colors shrink-0 whitespace-nowrap
-                {selectedTab === tab
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'}"
-              on:click={() => (selectedTab = tab)}
-            >
-              {({'setup':'Setup','rhythm':'Rhythm','notes':'Notes','range':'Range'})[tab] ?? tab}
-              {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'notes' && notesDirty) || (tab === 'range' && rangeDirty)}
-                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 mb-0.5 align-middle"></span>
-              {/if}
-            </button>
-          {/each}
-          </div>
-
-          <!-- Generate button always visible in tab bar -->
-          <button
-            class="ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            on:click={handleClick}
-            disabled={isLoading}
-          >
-            <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
-            <span>Generate</span>
-          </button>
-        </div>
-
-        <!-- Tab content -->
-        <div class="p-4">
-
-          <!-- Setup Tab -->
-          {#if selectedTab === 'setup'}
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div class="space-y-2 col-span-1 sm:col-span-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mode</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {!rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => (rhythmOnly = false)}
-                  >Pitched</button>
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {rhythmOnly ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={() => (rhythmOnly = true)}
-                  >Rhythm only</button>
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback sound</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Playback sound">
-                  {#if rhythmOnly}
-                    {#each RHYTHM_SOUNDS as sound}
-                      <button
-                        class="px-3 py-2 sm:py-1 rounded text-sm {rhythmSoundId === sound.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                        on:click={() => handleSoundChange(sound.id)}
-                        aria-pressed={rhythmSoundId === sound.id}
-                      >{sound.label}</button>
-                    {/each}
-                  {:else}
-                    {#each INSTRUMENTS as instrument}
-                      <button
-                        class="px-3 py-2 sm:py-1 rounded text-sm {instrumentProgram === instrument.program ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                        on:click={() => handleSoundChange(instrument.program)}
-                        aria-pressed={instrumentProgram === instrument.program}
-                      >{instrument.label}</button>
-                    {/each}
-                  {/if}
-                </div>
-                <p class="text-xs text-slate-400">
-                  {rhythmOnly
-                    ? (rhythmSoundFor(rhythmSoundId).kind === "click"
-                        ? "A click - every note sounds the same length. Good for attacks."
-                        : "Sustains, so a held note is heard held.")
-                    : "Changes the sound straight away - the exercise stays as it is."}
-                </p>
-              </div>
-
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Playback transpose</p>
-                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
-                    on:click={() => handleTransposeChange(transposeSemitones - 1)}
-                    disabled={transposeSemitones <= MIN_TRANSPOSE}
-                    aria-label="Transpose playback down a semitone"
-                  >−</button>
-                  <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
-                    {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
-                  </span>
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200 disabled:opacity-40"
-                    on:click={() => handleTransposeChange(transposeSemitones + 1)}
-                    disabled={transposeSemitones >= MAX_TRANSPOSE}
-                    aria-label="Transpose playback up a semitone"
-                  >+</button>
-                  {#if transposeSemitones !== 0}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm bg-slate-100 hover:bg-slate-200"
-                      on:click={() => handleTransposeChange(0)}
-                    >Reset</button>
-                  {/if}
-                </div>
-                <p class="text-xs text-slate-400">
-                  {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
-                </p>
-              </div>
-
-              <!-- Pitched exercises only. Rhythm-only has no scale degrees to
-                   name, and its syllables live in the Rhythm tab - the one
-                   place they are set. -->
-              {#if !rhythmOnly}
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Annotations</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
-                  <button
-                    class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                    on:click={handleToggleSolfege}
-                    aria-pressed={showSolfege}
-                  >Solfège</button>
-                </div>
-                <p class="text-xs text-slate-400">
-                  {showSolfege
-                    ? "Solfège under the staff."
-                    : "Clean - the same exercise, printed for sight-reading."}
-                </p>
-              </div>
-              {/if}
-
-              <div class="space-y-2 col-span-1 sm:col-span-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cursor</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
-                  {#each cursorModes as mode}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {cursorMode === mode ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => (cursorMode = mode)}
-                      aria-pressed={cursorMode === mode}
-                    >{cursorModeLabels[mode]}</button>
-                  {/each}
-                </div>
-                <p class="text-xs text-slate-400">
-                  {cursorMode === "off"
-                    ? "No cursor during playback."
-                    : cursorMode === "smooth"
-                      ? "Travels along with the music."
-                      : cursorMode === "beat"
-                        ? "Steps on every beat."
-                        : "Lands on each note and waits there."}
-                </p>
-              </div>
-
-              {#if !rhythmOnly}
-                <div class="space-y-2">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Key</p>
-                  <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
-                    {#each possibleKeys as key}
-                      <button
-                        class="px-3 py-2 sm:py-1 rounded text-sm {selectedKey === key ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                        on:click={() => (selectedKey = key)}
-                      >{key}</button>
-                    {/each}
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Clef</p>
-                  <div class="flex flex-wrap gap-2" role="group" aria-label="Clef">
-                    {#each clefOptions as clef}
-                      <button
-                        class="px-3 py-2 sm:py-1 rounded text-sm {selectedClef === clef ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                        on:click={() => updateClef(clef)}
-                      >{clef}</button>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Signature</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
-                  {#each Object.keys(timeSignatures) as ts}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {selectedTimeSignature === ts ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => { selectedTimeSignature = ts; metronomeBeat = 0; }}
-                    >{ts}</button>
-                  {/each}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Measures</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Measures">
-                  {#each measureOptions as opt}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {measures === opt ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => (measures = opt)}
-                    >{opt}</button>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Practice run -->
-              <div class="space-y-3 col-span-1 sm:col-span-2 border-t border-slate-200 pt-4 mt-1">
-                <div class="flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Practice Run</p>
-                    <p class="text-xs text-slate-400 mt-0.5">
-                      Generates and plays a whole session, hands free.
-                    </p>
-                  </div>
-                  {#if drillRunning}
-                    <button
-                      class="px-4 py-2 rounded text-sm font-semibold bg-red-600 hover:bg-red-700 text-white"
-                      on:click={() => stopDrill()}
-                    >Stop run</button>
-                  {:else}
-                    <button
-                      class="px-4 py-2 rounded text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white"
-                      on:click={startDrill}
-                      disabled={isLoading}
-                    >Start run</button>
-                  {/if}
-                </div>
-
-                {#if drillStatusLine}
-                  <p class="text-sm text-blue-700 bg-blue-50 rounded px-3 py-2">
-                    {drillStatusLine}
-                  </p>
-                {/if}
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">New Exercises</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a run">
-                      {#each [1, 2, 4, 6, 8, 12] as n}
-                        <button
-                          class="px-3 py-2 sm:py-1 rounded text-sm {drillExercises === n ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                          on:click={() => (drillExercises = n)}
-                          aria-pressed={drillExercises === n}
-                        >{n}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-slate-400">A new exercise is written for each one.</p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Passes Each</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Passes of each exercise">
-                      {#each [1, 2, 3, 4] as n}
-                        <button
-                          class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeats === n ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                          on:click={() => (drillRepeats = n)}
-                          aria-pressed={drillRepeats === n}
-                        >{n}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-slate-400">How many times each exercise is played before the next.</p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Speed Ramp</p>
-                    <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Speed ramp">
-                      <input
-                        type="range" min="0" max="20" step="2"
-                        bind:value={drillRampBpm}
-                        class="w-40 accent-blue-500"
-                        aria-label="Tempo added per new exercise"
-                        disabled={drillRunning}
-                      />
-                      <span class="text-sm font-semibold whitespace-nowrap">+{drillRampBpm} BPM</span>
-                    </div>
-                    <p class="text-xs text-slate-400">
-                      {#if drillRampBpm === 0}
-                        Every exercise at {bpm} BPM.
-                      {:else}
-                        Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the run ends.
-                      {/if}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Reading Time</p>
-                    <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Reading time">
-                      <input
-                        type="range" min="0" max="30" step="1"
-                        bind:value={drillPreviewSeconds}
-                        class="w-40 accent-blue-500"
-                        aria-label="Seconds to read a new exercise before it plays"
-                      />
-                      <span class="text-sm font-semibold whitespace-nowrap">{drillPreviewSeconds}s</span>
-                    </div>
-                    <p class="text-xs text-slate-400">
-                      {drillPreviewSeconds === 0
-                        ? "Each new exercise starts straight away."
-                        : "Silence to scan a new exercise before it plays."}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2 sm:col-span-2 border-t border-slate-100 pt-3">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">On The Repeats</p>
-                    <p class="text-xs text-slate-400">
-                      The first pass is always your own settings - that is the one
-                      being sight-read. These are what comes back on the way through again.
-                    </p>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                      <div class="space-y-2">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Repeat Cursor</p>
-                        <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor on the repeats">
-                          {#each [['same', 'Same'], ...cursorModes.map((m) => [m, cursorModeLabels[m]])] as [value, label]}
-                            <button
-                              class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeatCursor === value ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                              on:click={() => (drillRepeatCursor = value)}
-                              aria-label={`Repeat cursor: ${label}`}
-                              aria-pressed={drillRepeatCursor === value}
-                            >{label}</button>
-                          {/each}
-                        </div>
-                        <p class="text-xs text-slate-400">
-                          {drillRepeatCursor === 'same'
-                            ? 'The repeats follow the cursor setting above.'
-                            : drillRepeatCursor === 'off'
-                              ? 'No cursor and no auto-scroll on the repeats, so the reader holds their own place.'
-                              : 'The repeats use this cursor instead.'}
-                        </p>
-                      </div>
-
-                      <div class="space-y-2">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Repeat Annotations</p>
-                        <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations on the repeats">
-                          {#each repeatAnnotationOptions as [value, label]}
-                            <button
-                              class="px-3 py-2 sm:py-1 rounded text-sm {drillRepeatAnnotation === value ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                              on:click={() => (drillRepeatAnnotation = value)}
-                              aria-label={`Repeat annotations: ${label}`}
-                              aria-pressed={drillRepeatAnnotation === value}
-                            >{label}</button>
-                          {/each}
-                        </div>
-                        <p class="text-xs text-slate-400">
-                          {#if drillRepeatAnnotation === 'same'}
-                            The repeats show whatever the first pass showed.
-                          {:else if drillRepeatAnnotation === 'none'}
-                            Read it clean on the way back through as well.
-                          {:else if drillRepeatAnnotation === 'solfege'}
-                            Solfège under the notes on the repeats, to check yourself against.
-                          {:else}
-                            {drillRepeatAnnotation === 'kodaly' ? 'Kodály' : 'Counting'} syllables on the repeats. Every
-                            exercise in the run is written in that system, since the syllables are
-                            part of the exercise and cannot be swapped afterwards - your own choice
-                            comes back when the run ends.
-                          {/if}
-                        </p>
-                      </div>
-                    </div>
-
-                    {#if drillRepeatAnnotation !== 'same'}
-                      <p class="text-xs text-slate-400">
-                        Changing what is written on the score means drawing it again, so a repeat
-                        that changes the annotations starts from the count-in rather than following
-                        straight on.
-                      </p>
-                    {/if}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          <!-- Rhythm Tab -->
-          {:else if selectedTab === 'rhythm'}
-            <div class="space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Select Allowed Rhythms</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms">
-                {#each Object.values(filterRhythms) as rhythm}
-                  <button
-                    class="px-1 py-1 w-12 h-12 flex items-center justify-center rounded
-                      {selectedRhythms.some((r) => r?.name === rhythm.name)
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-slate-100 hover:bg-slate-200'}"
-                    aria-label={rhythmLabel(rhythm.name)}
-                    aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
-                    on:click={() => {
-                      if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
-                        selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
-                      } else {
-                        selectedRhythms = [...selectedRhythms, rhythm];
-                      }
-                    }}
-                  >
-                    {#await rhythmSvgs[rhythm.name]}
-                      <span class="text-xs">…</span>
-                    {:then svg}
-                      <span class="rhythm-icon w-full h-full flex items-center justify-center">
-                        {@html svg.default}
-                      </span>
-                    {:catch}
-                      <span class="text-xs">{rhythm.name}</span>
-                    {/await}
-                  </button>
-                {/each}
-              </div>
-
-              <!-- Applies in both modes: without it, a selection that cannot
-                   tile the measure (half notes alone in 3/4) has no valid
-                   output at all. -->
-              <div class="space-y-2 pt-1">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Ties Across Barline
-                </p>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {allowTiesAcrossBarline ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
-                  aria-label="Ties across barline"
-                  aria-pressed={allowTiesAcrossBarline}
-                >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
-                <p class="text-xs text-slate-400">
-                  {allowTiesAcrossBarline
-                    ? 'A long note may run past the barline, written as tied notes.'
-                    : 'Every note stays inside its measure.'}
-                </p>
-              </div>
-
-              {#if rhythmOnly}
-                <!-- The one place rhythm syllables are set. Only meaningful on
-                     the one-line staff, where there are no scale degrees and
-                     solfege is unavailable. -->
-                <div class="space-y-2 pt-1">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Rhythm Syllables
-                  </p>
-                  <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {!showRhythmSyllables ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => setRhythmSyllables('off')}
-                      aria-pressed={!showRhythmSyllables}
-                    >Off</button>
-                    <!-- Driven by the registry, so a new system is a data change
-                         here as well as in the generator. -->
-                    {#each Object.values(syllableSystems) as system}
-                      <button
-                        class="px-3 py-2 sm:py-1 rounded text-sm {showRhythmSyllables && syllableSystemId === system.id ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                        on:click={() => setRhythmSyllables(system.id)}
-                        aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
-                      >{system.label}</button>
-                    {/each}
-                  </div>
-                  <p class="text-xs text-slate-400">
-                    {showRhythmSyllables
-                      ? syllableSystems[syllableSystemId].hint
-                      : 'No syllables. The exercise is unchanged - turning them back on costs nothing.'}
-                  </p>
-                </div>
-              {/if}
-            </div>
-
-          <!-- Notes Tab -->
-          {:else if selectedTab === 'notes'}
-            <div class="space-y-5">
-              <!-- Scale Degrees -->
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Scale Degrees</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
-                  {#each sharpScaleDegrees as degree}
-                    <button
-                      class="px-2 py-2 sm:py-1 rounded text-sm
-                        {selectedSharpDegrees.has(degree.value) ? 'bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200'}
-                        {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
-                      on:click={() => toggleSharpDegree(degree.value)}
-                    >{degree.display}</button>
-                  {/each}
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  {#each scaleDegrees as degree}
-                    <button
-                      class="px-3 py-2 sm:py-1 rounded text-sm {selectedScaleDegrees.has(degree) ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                      on:click={() => toggleScaleDegree(degree)}
-                    >{degree}</button>
-                  {/each}
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  {#each flatScaleDegrees as degree}
-                    <button
-                      class="px-2 py-2 sm:py-1 rounded text-sm
-                        {selectedFlatDegrees.has(degree.value) ? 'bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200'}
-                        {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
-                      on:click={() => toggleFlatDegree(degree.value)}
-                    >{degree.display}</button>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Max Skip -->
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Max Melodic Skip</p>
-                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
-                  <button type="button" class="flex items-center justify-center h-10 w-10 sm:h-8 sm:w-8 bg-slate-100 rounded hover:bg-slate-200"
-                    aria-label="Decrease max skip"
-                    on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
-                  <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
-                  <button type="button" class="flex items-center justify-center h-10 w-10 sm:h-8 sm:w-8 bg-slate-100 rounded hover:bg-slate-200"
-                    aria-label="Increase max skip"
-                    on:click={() => { if (maxSkip < 8) maxSkip += 1; }}><Plus size={16} /></button>
-                  <span class="text-xs text-slate-400">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
-                </div>
-              </div>
-
-              <!-- Toggles -->
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Accidentals Follow Step</p>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {accidentalsFollowStep ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
-                  aria-label="Accidentals follow step"
-                  aria-pressed={accidentalsFollowStep}
-                >{accidentalsFollowStep ? 'On' : 'Off'}</button>
-              </div>
-
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Move 8th Notes</p>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {moveEighthNotes ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={() => (moveEighthNotes = !moveEighthNotes)}
-                  aria-label="Move 8th notes"
-                  aria-pressed={moveEighthNotes}
-                >{moveEighthNotes ? 'On' : 'Off'}</button>
-              </div>
-
-              <div class="space-y-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Show Solfege</p>
-                <button
-                  class="px-3 py-2 sm:py-1 rounded text-sm {showSolfege ? 'bg-blue-500 text-white' : 'bg-slate-100 hover:bg-slate-200'}"
-                  on:click={() => (showSolfege = !showSolfege)}
-                  aria-label="Show solfège"
-                  aria-pressed={showSolfege}
-                >{showSolfege ? 'On' : 'Off'}</button>
-              </div>
-            </div>
-
-          <!-- Range Tab -->
-          {:else if selectedTab === 'range'}
-            <div class="space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Note Range</p>
-              <RangeSelector
-                range={selectedRange}
-                clef={selectedClef}
-                onRangeChange={handleRangeChange}
-              />
-            </div>
-          {/if}
-
-        </div>
-      </div>
-    </div>
+<div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + 1rem)">
+  <main class="flex flex-col items-center w-full max-w-4xl mx-auto px-2 md:px-4">
 
     {#if error}
-      <div class="w-full max-w-4xl mx-auto px-2 md:px-4">
-        <div class="p-4 bg-red-100 text-red-700 rounded-md text-sm">
-          {error}
-        </div>
+      <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">
+        <p class="text-sm text-sr-brass">{error}</p>
       </div>
     {/if}
 
+    <!-- Tab panel -->
+    <div class="tab-panel sr-panel w-full my-4 no-print">
+
+      <!-- Tab bar -->
+      <div class="sr-bar flex items-stretch">
+        <div class="flex items-center overflow-x-auto tab-scroll">
+        {#each visibleTabs as tab}
+          <button
+            type="button"
+            class="sr-tab px-4 py-3 sm:py-2 -mb-px shrink-0 whitespace-nowrap
+              {selectedTab === tab ? 'sr-on' : ''}"
+            on:click={() => (selectedTab = tab)}
+          >
+            {({'setup':'Setup','rhythm':'Rhythm','notes':'Notes','range':'Range'})[tab] ?? tab}
+            {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'notes' && notesDirty) || (tab === 'range' && rangeDirty)}
+              <span class="sr-pip inline-block w-1.5 h-1.5 rounded-full ml-1 mb-0.5 align-middle"></span>
+            {/if}
+          </button>
+        {/each}
+        </div>
+
+        <!-- Generate button always visible in tab bar -->
+        <button
+          class="sr-btn ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          on:click={handleClick}
+          disabled={isLoading}
+        >
+          <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
+          <span>Generate</span>
+        </button>
+      </div>
+
+      <!-- Tab content -->
+      <div class="p-4">
+
+        <!-- Setup Tab -->
+        {#if selectedTab === 'setup'}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div class="space-y-2 col-span-1 sm:col-span-2">
+              <p class="sr-label">Mode</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
+                <button
+                  class="sr-tok {!rhythmOnly ? 'sr-on' : ''}"
+                  on:click={() => (rhythmOnly = false)}
+                >Pitched</button>
+                <button
+                  class="sr-tok {rhythmOnly ? 'sr-on' : ''}"
+                  on:click={() => (rhythmOnly = true)}
+                >Rhythm only</button>
+              </div>
+            </div>
+
+            {#if !rhythmOnly}
+              <div class="space-y-2">
+                <p class="sr-label">Key</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
+                  {#each possibleKeys as key}
+                    <button
+                      class="sr-tok {selectedKey === key ? 'sr-on' : ''}"
+                      on:click={() => (selectedKey = key)}
+                    >{key}</button>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <p class="sr-label">Clef</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Clef">
+                  {#each clefOptions as clef}
+                    <button
+                      class="sr-tok {selectedClef === clef ? 'sr-on' : ''}"
+                      on:click={() => updateClef(clef)}
+                    >{clef}</button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            <div class="space-y-2">
+              <p class="sr-label">Time Signature</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
+                {#each Object.keys(timeSignatures) as ts}
+                  <button
+                    class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''}"
+                    on:click={() => { selectedTimeSignature = ts; metronomeBeat = 0; }}
+                  >{ts}</button>
+                {/each}
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Measures</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Measures">
+                {#each measureOptions as opt}
+                  <button
+                    class="sr-tok {measures === opt ? 'sr-on' : ''}"
+                    on:click={() => (measures = opt)}
+                  >{opt}</button>
+                {/each}
+              </div>
+            </div>
+          </div>
+
+          <!-- How the exercise is shown and played, as opposed to what gets
+               written. None of these regenerate anything. -->
+          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4" aria-labelledby="score-options-heading">
+            <h3 id="score-options-heading" class="text-sm font-semibold text-sr-ink mb-1">Score options</h3>
+            <p class="text-xs text-sr-faint mb-4">How the exercise is shown and played. Changing these keeps the exercise on screen.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div class="space-y-2">
+              <p class="sr-label">Playback sound</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Playback sound">
+                {#if rhythmOnly}
+                  {#each RHYTHM_SOUNDS as sound}
+                    <button
+                      class="sr-tok {rhythmSoundId === sound.id ? 'sr-on' : ''}"
+                      on:click={() => handleSoundChange(sound.id)}
+                      aria-pressed={rhythmSoundId === sound.id}
+                    >{sound.label}</button>
+                  {/each}
+                {:else}
+                  {#each INSTRUMENTS as instrument}
+                    <button
+                      class="sr-tok {instrumentProgram === instrument.program ? 'sr-on' : ''}"
+                      on:click={() => handleSoundChange(instrument.program)}
+                      aria-pressed={instrumentProgram === instrument.program}
+                    >{instrument.label}</button>
+                  {/each}
+                {/if}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {rhythmOnly
+                  ? (rhythmSoundFor(rhythmSoundId).kind === "click"
+                      ? "A click - every note sounds the same length. Good for attacks."
+                      : "Sustains, so a held note is heard held.")
+                  : "Changes the sound straight away - the exercise stays as it is."}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Playback transpose</p>
+              <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
+                <button
+                  class="sr-btn-quiet disabled:opacity-40"
+                  on:click={() => handleTransposeChange(transposeSemitones - 1)}
+                  disabled={transposeSemitones <= MIN_TRANSPOSE}
+                  aria-label="Transpose playback down a semitone"
+                >−</button>
+                <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
+                  {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
+                </span>
+                <button
+                  class="sr-btn-quiet disabled:opacity-40"
+                  on:click={() => handleTransposeChange(transposeSemitones + 1)}
+                  disabled={transposeSemitones >= MAX_TRANSPOSE}
+                  aria-label="Transpose playback up a semitone"
+                >+</button>
+                {#if transposeSemitones !== 0}
+                  <button
+                    class="sr-btn-quiet"
+                    on:click={() => handleTransposeChange(0)}
+                  >Reset</button>
+                {/if}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
+              </p>
+            </div>
+
+            <!-- Pitched exercises only. Rhythm-only has no scale degrees to
+                 name, and its syllables live in the Rhythm tab - the one
+                 place they are set. -->
+            {#if !rhythmOnly}
+            <div class="space-y-2">
+              <p class="sr-label">Annotations</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
+                {#each lyricSystems as [value, label]}
+                  <button
+                    class="sr-tok {showSolfege && lyricSystem === value ? 'sr-on' : ''}"
+                    on:click={() => handleLyricSystem(value)}
+                    aria-pressed={showSolfege && lyricSystem === value}
+                  >{label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {#if !showSolfege}
+                  Clean - the same exercise, printed for sight-reading.
+                {:else if lyricSystem === "movable"}
+                  Movable do under the staff - do is the tonic, so a tune reads the same in
+                  every key.
+                {:else if lyricSystem === "fixed"}
+                  Fixed do under the staff - C is do whatever the key.
+                {:else}
+                  The note names under the staff.
+                {/if}
+              </p>
+            </div>
+            {/if}
+
+            <div class="space-y-2">
+              <p class="sr-label">Cursor</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
+                {#each cursorModes as mode}
+                  <button
+                    class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
+                    on:click={() => (cursorMode = mode)}
+                    aria-pressed={cursorMode === mode}
+                  >{cursorModeLabels[mode]}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {cursorMode === "off"
+                  ? "No cursor during playback."
+                  : cursorMode === "smooth"
+                    ? "Travels along with the music."
+                    : cursorMode === "beat"
+                      ? "Steps on every beat."
+                      : "Lands on each note and waits there."}
+              </p>
+            </div>
+            </div>
+          </section>
+
+          <!-- Practice run. Its own box after Score options, since the repeat
+               settings below refer to the cursor "above". -->
+          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4 space-y-4" aria-labelledby="practice-run-heading">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <button
+                type="button"
+                class="flex items-start gap-2 text-left"
+                aria-expanded={drillPanelOpen}
+                aria-controls="practice-run-settings"
+                on:click={() => (drillPanelOpen = !drillPanelOpen)}
+              >
+                <span class="text-sr-muted mt-0.5">
+                  {#if drillPanelOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
+                </span>
+                <span>
+                  <span id="practice-run-heading" class="block text-sm font-semibold text-sr-ink">Practice Run</span>
+                  <span class="block text-xs text-sr-faint mt-0.5">
+                    Generates and plays a whole session, hands free.
+                  </span>
+                </span>
+              </button>
+              {#if drillRunning}
+                <button
+                  class="sr-btn-quiet font-semibold text-sr-danger border-sr-danger"
+                  on:click={() => stopDrill()}
+                >Stop run</button>
+              {:else}
+                <button
+                  class="sr-btn"
+                  on:click={startDrill}
+                  disabled={isLoading}
+                >Start run</button>
+              {/if}
+            </div>
+
+            {#if drillStatusLine}
+              <p class="text-sm text-sr-action-fg bg-sr-tint rounded px-3 py-2">
+                {drillStatusLine}
+              </p>
+            {/if}
+
+            <div id="practice-run-settings" class:hidden={!drillPanelOpen} class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div class="space-y-2">
+                <p class="sr-label">New Exercises</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a run">
+                  {#each [1, 2, 4, 6, 8, 12] as n}
+                    <button
+                      class="sr-tok {drillExercises === n ? 'sr-on' : ''}"
+                      on:click={() => (drillExercises = n)}
+                      aria-pressed={drillExercises === n}
+                    >{n}</button>
+                  {/each}
+                </div>
+                <p class="text-xs text-sr-faint">A new exercise is written for each one.</p>
+              </div>
+
+              <div class="space-y-2">
+                <p class="sr-label">Passes Each</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Passes of each exercise">
+                  {#each [1, 2, 3, 4] as n}
+                    <button
+                      class="sr-tok {drillRepeats === n ? 'sr-on' : ''}"
+                      on:click={() => (drillRepeats = n)}
+                      aria-pressed={drillRepeats === n}
+                    >{n}</button>
+                  {/each}
+                </div>
+                <p class="text-xs text-sr-faint">How many times each exercise is played before the next.</p>
+              </div>
+
+              <div class="space-y-2">
+                <p class="sr-label">Speed Ramp</p>
+                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Speed ramp">
+                  <input
+                    type="range" min="0" max="20" step="2"
+                    bind:value={drillRampBpm}
+                    class="w-40 sr-range"
+                    aria-label="Tempo added per new exercise"
+                    disabled={drillRunning}
+                  />
+                  <span class="text-sm font-semibold whitespace-nowrap">+{drillRampBpm} BPM</span>
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {#if drillRampBpm === 0}
+                    Every exercise at {bpm} BPM.
+                  {:else}
+                    Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the run ends.
+                  {/if}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <p class="sr-label">Reading Time</p>
+                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Reading time">
+                  <input
+                    type="range" min="0" max="30" step="1"
+                    bind:value={drillPreviewSeconds}
+                    class="w-40 sr-range"
+                    aria-label="Seconds to read a new exercise before it plays"
+                  />
+                  <span class="text-sm font-semibold whitespace-nowrap">{drillPreviewSeconds}s</span>
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {drillPreviewSeconds === 0
+                    ? "Each new exercise starts straight away."
+                    : "Silence to scan a new exercise before it plays."}
+                </p>
+              </div>
+
+              <div class="space-y-2 sm:col-span-2 border-t border-sr-hairline pt-3">
+                <p class="sr-label">On The Repeats</p>
+                <p class="text-xs text-sr-faint">
+                  The first pass is always your own settings - that is the one
+                  being sight-read. These are what comes back on the way through again.
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-1">
+                  <div class="space-y-2">
+                    <p class="sr-label">Repeat Cursor</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor on the repeats">
+                      {#each [['same', 'Same'], ...cursorModes.map((m) => [m, cursorModeLabels[m]])] as [value, label]}
+                        <button
+                          class="sr-tok {drillRepeatCursor === value ? 'sr-on' : ''}"
+                          on:click={() => (drillRepeatCursor = value)}
+                          aria-label={`Repeat cursor: ${label}`}
+                          aria-pressed={drillRepeatCursor === value}
+                        >{label}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-sr-faint">
+                      {drillRepeatCursor === 'same'
+                        ? 'The repeats follow the cursor setting above.'
+                        : drillRepeatCursor === 'off'
+                          ? 'No cursor and no auto-scroll on the repeats, so the reader holds their own place.'
+                          : 'The repeats use this cursor instead.'}
+                    </p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <p class="sr-label">Repeat Annotations</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations on the repeats">
+                      {#each repeatAnnotationOptions as [value, label]}
+                        <button
+                          class="sr-tok {drillRepeatAnnotation === value ? 'sr-on' : ''}"
+                          on:click={() => (drillRepeatAnnotation = value)}
+                          aria-label={`Repeat annotations: ${label}`}
+                          aria-pressed={drillRepeatAnnotation === value}
+                        >{label}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-sr-faint">
+                      {#if drillRepeatAnnotation === 'same'}
+                        The repeats show whatever the first pass showed.
+                      {:else if drillRepeatAnnotation === 'none'}
+                        Read it clean on the way back through as well.
+                      {:else if drillRepeatAnnotation === 'solfege'}
+                        Solfège under the notes on the repeats, to check yourself against.
+                      {:else}
+                        {drillRepeatAnnotation === 'kodaly' ? 'Kodály' : 'Counting'} syllables on the repeats,
+                        whatever the first pass is read in. Your own system comes back on the
+                        next exercise and when the run ends.
+                      {/if}
+                    </p>
+                  </div>
+                </div>
+
+                {#if drillRepeatAnnotation !== 'same'}
+                  <p class="text-xs text-sr-faint">
+                    Changing what is written on the score means drawing it again, so a repeat
+                    that changes the annotations starts from the count-in rather than following
+                    straight on.
+                  </p>
+                {/if}
+              </div>
+            </div>
+            </div>
+          </section>
+
+        <!-- Rhythm Tab -->
+        {:else if selectedTab === 'rhythm'}
+          <div class="space-y-3">
+            <p class="sr-label">Select Allowed Rhythms</p>
+            {#each rhythmPickerGroups(filterRhythms) as group}
+            <p class="text-xs text-sr-faint">{group.label}</p>
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
+              {#each group.rhythms as rhythm}
+                <button
+                  class="sr-tok-sq px-2 py-1 h-12 min-w-12 flex items-center justify-center
+                    {selectedRhythms.some((r) => r?.name === rhythm.name)
+                      ? 'sr-on'
+                      : ''}"
+                  aria-label={rhythmLabel(rhythm.name)}
+                  aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
+                  on:click={() => {
+                    if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
+                      selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
+                    } else {
+                      selectedRhythms = [...selectedRhythms, rhythm];
+                    }
+                  }}
+                >
+                  {#await rhythmSvgs[rhythm.name]}
+                    <span class="text-xs">…</span>
+                  {:then svg}
+                    <span class="rhythm-icon w-full h-full flex items-center justify-center">
+                      {@html svg.default}
+                    </span>
+                  {:catch}
+                    <span class="text-xs">{rhythm.name}</span>
+                  {/await}
+                </button>
+              {/each}
+            </div>
+            {/each}
+
+            <!-- Applies in both modes: without it, a selection that cannot
+                 tile the measure (half notes alone in 3/4) has no valid
+                 output at all. -->
+            <div class="space-y-2 pt-1">
+              <p class="sr-label">
+                Ties Across Barline
+              </p>
+              <button
+                class="sr-tok {allowTiesAcrossBarline ? 'sr-on' : ''}"
+                on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
+                aria-label="Ties across barline"
+                aria-pressed={allowTiesAcrossBarline}
+              >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
+              <p class="text-xs text-sr-faint">
+                {allowTiesAcrossBarline
+                  ? 'A long note may run past the barline, written as tied notes.'
+                  : 'Every note stays inside its measure.'}
+              </p>
+            </div>
+
+            {#if rhythmOnly}
+              <!-- The one place rhythm syllables are set. Only meaningful on
+                   the one-line staff, where there are no scale degrees and
+                   solfege is unavailable. -->
+              <div class="space-y-2 pt-1">
+                <p class="sr-label">
+                  Rhythm Syllables
+                </p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
+                  <button
+                    class="sr-tok {!showRhythmSyllables ? 'sr-on' : ''}"
+                    on:click={() => setRhythmSyllables('off')}
+                    aria-pressed={!showRhythmSyllables}
+                  >Off</button>
+                  <!-- Driven by the registry, so a new system is a data change
+                       here as well as in the generator. -->
+                  {#each Object.values(syllableSystems) as system}
+                    <button
+                      class="sr-tok {showRhythmSyllables && syllableSystemId === system.id ? 'sr-on' : ''}"
+                      on:click={() => setRhythmSyllables(system.id)}
+                      aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
+                    >{system.label}</button>
+                  {/each}
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {showRhythmSyllables
+                    ? syllableSystems[syllableSystemId].hint
+                    : 'No syllables. The exercise is unchanged - turning them back on costs nothing.'}
+                </p>
+              </div>
+            {/if}
+          </div>
+
+        <!-- Notes Tab -->
+        {:else if selectedTab === 'notes'}
+          <div class="space-y-5">
+            <!-- Scale Degrees -->
+            <div class="space-y-2">
+              <p class="sr-label">Scale Degrees</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
+                {#each sharpScaleDegrees as degree}
+                  <button
+                    class="sr-tok px-2
+                      {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}
+                      {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
+                    on:click={() => toggleSharpDegree(degree.value)}
+                  >{degree.display}</button>
+                {/each}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {#each scaleDegrees as degree}
+                  <button
+                    class="sr-tok {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
+                    on:click={() => toggleScaleDegree(degree)}
+                  >{degree}</button>
+                {/each}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {#each flatScaleDegrees as degree}
+                  <button
+                    class="sr-tok px-2
+                      {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}
+                      {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
+                    on:click={() => toggleFlatDegree(degree.value)}
+                  >{degree.display}</button>
+                {/each}
+              </div>
+            </div>
+
+            <!-- Max Skip -->
+            <div class="space-y-2">
+              <p class="sr-label">Max Melodic Skip</p>
+              <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
+                <button type="button" class="sr-btn-quiet"
+                  aria-label="Decrease max skip"
+                  on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
+                <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
+                <button type="button" class="sr-btn-quiet"
+                  aria-label="Increase max skip"
+                  on:click={() => { if (maxSkip < 8) maxSkip += 1; }}><Plus size={16} /></button>
+                <span class="text-xs text-sr-faint">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
+              </div>
+            </div>
+
+            <!-- Toggles -->
+            <div class="space-y-2">
+              <p class="sr-label">Accidentals Follow Step</p>
+              <button
+                class="sr-tok {accidentalsFollowStep ? 'sr-on' : ''}"
+                on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
+                aria-label="Accidentals follow step"
+                aria-pressed={accidentalsFollowStep}
+              >{accidentalsFollowStep ? 'On' : 'Off'}</button>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Move 8th Notes</p>
+              <button
+                class="sr-tok {moveEighthNotes ? 'sr-on' : ''}"
+                on:click={() => (moveEighthNotes = !moveEighthNotes)}
+                aria-label="Move 8th notes"
+                aria-pressed={moveEighthNotes}
+              >{moveEighthNotes ? 'On' : 'Off'}</button>
+            </div>
+
+            <!-- The second solfège switch that used to sit here set the flag
+                 and never redrew the score, so it looked broken until something
+                 else did. One control, in Setup > Annotations, beside the other
+                 things that change what is printed. -->
+          </div>
+
+        <!-- Range Tab -->
+        {:else if selectedTab === 'range'}
+          <div class="space-y-3">
+            <p class="sr-label">Note Range</p>
+            <RangeSelector
+              range={selectedRange}
+              clef={selectedClef}
+              onRangeChange={handleRangeChange}
+            />
+          </div>
+        {/if}
+
+      </div>
+    </div>
+
     <!-- Music Display -->
-    <div class="w-full px-2">
+    <div class="relative w-full">
       <div
         id="paper"
-        class="bg-white rounded-lg shadow-md my-2"
+        class="sr-sheet w-full my-2"
       >
         {#if isLoading}
           <div class="flex items-center justify-center h-48">
@@ -3128,7 +3237,7 @@
           type="range" min="0" max="1" step="0.05"
           bind:value={masterVolume}
           on:input={handleVolumeChange}
-          class="w-16 accent-blue-400"
+          class="w-16 accent-teal-400"
           aria-label={rhythmOnly ? 'Percussion volume' : 'Piano volume'}
         />
       </div>
@@ -3148,7 +3257,7 @@
           type="range" min="0" max="1" step="0.05"
           bind:value={metronomeVolume}
           on:input={handleMetronomeVolumeChange}
-          class="w-16 accent-blue-400"
+          class="w-16 accent-teal-400"
           aria-label="Metronome volume"
         />
         <button
