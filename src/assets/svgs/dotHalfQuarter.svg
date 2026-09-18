@@ -1,22 +1,4 @@
-<?xml version="1.0" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
- "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
-<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
- width="512.225533pt" height="226.165445pt" viewBox="0 0 512.225533 226.165445"
- preserveAspectRatio="xMidYMid meet">
-<metadata>
-Created by potrace 1.12, written by Peter Selinger 2001-2015
-</metadata>
-<g transform="translate(-21.087925,249.132845) scale(0.100000,-0.100000)"
-fill="#000000" stroke="none">
-<path d="M880 1625 l0 -866 -47 27 c-37 23 -62 29 -129 32 -146 8 -287 -53
--396 -169 -209 -223 -59 -473 245 -409 142 29 298 143 355 260 l27 55 0 965 0
-965 -27 3 -28 3 0 -866z m-42 -940 c26 -31 27 -46 7 -84 -46 -91 -351 -261
--467 -261 -79 0 -111 62 -65 128 67 97 374 259 467 247 21 -3 44 -14 58 -30z"/>
-<path d="M5280 1625 l0 -864 -52 27 c-140 73 -364 18 -510 -125 -113 -111
--142 -262 -66 -349 44 -50 101 -76 178 -81 238 -17 493 175 502 378 1 30 2
-465 0 967 l-2 912 -25 0 -25 0 0 -865z"/>
-<path d="M1284 630 c-67 -27 -86 -124 -35 -179 25 -26 36 -31 76 -31 40 0 52
-5 81 34 24 24 34 43 34 65 0 85 -80 142 -156 111z"/>
-</g>
-</svg>
+<!-- GENERATED - do not edit; run `bun run icons:rhythm`.
+     dotHalfQuarter, engraved by LilyPond 2.26.0 (svg backend, -dcrop).
+     Units are LilyPond staff-spaces; colour follows currentColor. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.0000 0.0000 8.2816 3.8783" width="74.5" height="34.9" fill="currentColor" role="img" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><g transform="translate(2.0000, 3.3333)"><path transform="scale(0.0040, -0.0040)" d="M72 -106c40 0 204 110 231 143c7 9 11 19 11 28c0 22 -18 41 -42 41c-40 0 -204 -110 -231 -143c-7 -9 -10 -19 -10 -28c0 -22 17 -41 41 -41zM0 -67c0 71 46 203 258 203c41 0 86 -10 86 -69c0 -71 -46 -203 -258 -203c-41 0 -86 10 -86 69z"/></g><g transform="translate(3.8274, 2.8333)"><path transform="scale(0.0040, -0.0040)" d="M0 0c0 31 25 56 56 56s56 -25 56 -56s-25 -56 -56 -56s-56 25 -56 56z"/></g><g transform="translate(3.3124, 3.3333)"><rect x="-0.0650" y="-3.3333" width="0.1300" height="3.0743" ry="0.0400"/></g><g transform="translate(6.9774, 3.3333)"><path transform="scale(0.0040, -0.0040)" d="M0 -46c0 91 116 182 217 182c63 0 109 -35 109 -90c0 -87 -110 -182 -220 -182c-67 0 -106 39 -106 90z"/></g><g transform="translate(8.2166, 3.3333)"><rect x="-0.0650" y="-3.3333" width="0.1300" height="3.1471" ry="0.0400"/></g></svg>

@@ -34,7 +34,8 @@
     "astro": "astro",
     "check:rhythm": "bun run scripts/check-rhythm.ts",
     "test": "bun test --timeout 30000 tests/unit",
-    "sweep": "bun run scripts/sweep.ts"
+    "sweep": "bun run scripts/sweep.ts",
+    "icons:rhythm": "node scripts/render-rhythm-icons.mjs"
   },
   "type": "module",
   "devDependencies": {

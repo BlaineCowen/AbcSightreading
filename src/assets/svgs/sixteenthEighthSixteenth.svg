@@ -1,23 +1,4 @@
-<?xml version="1.0" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
- "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
-<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
- width="334.500000pt" height="225.577938pt" viewBox="0 0 334.500000 225.577938"
- preserveAspectRatio="xMidYMid meet">
-<metadata>
-Created by potrace 1.12, written by Peter Selinger 2001-2015
-</metadata>
-<g transform="translate(-24.500000,247.000000) scale(0.100000,-0.100000)"
-fill="#000000" stroke="none">
-<path d="M910 1604 l0 -865 -28 19 c-69 48 -202 61 -302 28 -135 -44 -263
--144 -311 -242 -19 -39 -24 -65 -24 -126 0 -70 2 -79 31 -115 40 -49 78 -71
-148 -84 156 -29 382 69 476 206 63 91 61 71 60 738 l-1 607 281 0 280 0 0 140
-0 140 -280 0 -280 0 0 70 0 70 500 0 500 0 0 -726 0 -725 -27 19 c-110 76
--300 57 -455 -47 -120 -81 -181 -172 -186 -281 -3 -78 21 -128 83 -172 164
--115 505 10 609 223 l27 56 -1 827 0 826 760 0 760 0 0 -70 0 -70 -280 0 -280
-0 0 -140 0 -140 280 0 280 0 0 -510 c0 -280 -2 -510 -4 -510 -3 0 -20 9 -39
-20 -92 54 -233 46 -368 -22 -177 -88 -284 -249 -249 -377 14 -54 64 -109 120
--134 61 -28 181 -27 271 2 133 42 268 159 308 266 21 55 21 69 21 1010 l0 955
--1340 0 -1340 0 0 -866z"/>
-</g>
-</svg>
+<!-- GENERATED - do not edit; run `bun run icons:rhythm`.
+     sixteenthEighthSixteenth, engraved by LilyPond 2.26.0 (svg backend, -dcrop).
+     Units are LilyPond staff-spaces; colour follows currentColor. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.0000 0.0000 9.5126 3.9750" width="85.6" height="35.8" fill="currentColor" role="img" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><g transform="translate(3.1742, 0.2400)"><polygon stroke-linejoin="round" stroke-linecap="round" stroke-width="0.0800" stroke="currentColor" points="6.2984 -0.2000 6.2984 0.2000 0.0400 0.2000 0.0400 -0.2000"/></g><g transform="translate(8.3476, 1.0500)"><polygon stroke-linejoin="round" stroke-linecap="round" stroke-width="0.0800" stroke="currentColor" points="1.1250 -0.2000 1.1250 0.2000 0.0400 0.2000 0.0400 -0.2000"/></g><g transform="translate(3.1742, 1.0500)"><polygon stroke-linejoin="round" stroke-linecap="round" stroke-width="0.0800" stroke="currentColor" points="1.1250 -0.2000 1.1250 0.2000 0.0400 0.2000 0.0400 -0.2000"/></g><g transform="translate(2.0000, 3.4300)"><path transform="scale(0.0040, -0.0040)" d="M0 -46c0 91 116 182 217 182c63 0 109 -35 109 -90c0 -87 -110 -182 -220 -182c-67 0 -106 39 -106 90z"/></g><g transform="translate(3.2392, 3.4300)"><rect x="-0.0650" y="-3.1900" width="0.1300" height="3.0038" ry="0.0400"/></g><g transform="translate(4.5042, 3.4300)"><path transform="scale(0.0040, -0.0040)" d="M0 -46c0 91 116 182 217 182c63 0 109 -35 109 -90c0 -87 -110 -182 -220 -182c-67 0 -106 39 -106 90z"/></g><g transform="translate(5.7434, 3.4300)"><rect x="-0.0650" y="-3.1900" width="0.1300" height="3.0038" ry="0.0400"/></g><g transform="translate(8.2084, 3.4300)"><path transform="scale(0.0040, -0.0040)" d="M0 -46c0 91 116 182 217 182c63 0 109 -35 109 -90c0 -87 -110 -182 -220 -182c-67 0 -106 39 -106 90z"/></g><g transform="translate(9.4476, 3.4300)"><rect x="-0.0650" y="-3.1900" width="0.1300" height="3.0038" ry="0.0400"/></g></svg>
