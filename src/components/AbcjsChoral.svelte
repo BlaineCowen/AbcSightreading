@@ -1391,11 +1391,10 @@
     }
   }
 
-  function handleShare() {
+  /** A link that opens these settings, and writes a new exercise from them. */
+  function settingsLink(): string {
     updateURLParams();
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      alert('Link copied to clipboard!');
-    });
+    return window.location.href.split("#")[0];
   }
 
   function handlePrint() {
@@ -2542,7 +2541,7 @@
     onToggleLoop={handleToggleLoop}
     onToggleMute={handleToggleMute}
     onToggleHidden={handleToggleHidden}
-    onShare={handleShare}
+    {settingsLink}
     onPrint={handlePrint}
   >
     <svelte:fragment slot="extra">

@@ -464,11 +464,9 @@
     }
   }
 
-  function handleShare() {
+  function settingsLink(): string {
     updateURLParams();
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      alert('Link copied to clipboard!');
-    });
+    return window.location.href.split("#")[0];
   }
 
   function handlePrint() {
@@ -883,7 +881,7 @@
     onGenerate={handleClick}
     onToggleLoop={handleToggleLoop}
     onToggleMute={handleToggleMute}
-    onShare={handleShare}
+    {settingsLink}
     onPrint={handlePrint}
   />
 </div>

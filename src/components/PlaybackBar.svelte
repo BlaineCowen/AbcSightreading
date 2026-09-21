@@ -16,7 +16,9 @@
   import EyeOff from "lucide-svelte/icons/eye-off";
   import Volume2 from "lucide-svelte/icons/volume-2";
   import VolumeX from "lucide-svelte/icons/volume-x";
+  import Check from "lucide-svelte/icons/check";
   import DropUp from "./ui/DropUp.svelte";
+  import { copyText } from "../lib/clipboard";
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
@@ -34,7 +36,14 @@
   /** Voices with no staff. Omit onToggleHidden and the menu only mutes. */
   export let hiddenVoices: Set<string> = new Set();
   export let onToggleHidden: ((voiceName: string) => void) | null = null;
-  export let onShare: () => void;
+  /**
+   * The two links Share offers. The settings link writes a new exercise when
+   * opened; the exercise link opens these exact notes, and is null until there
+   * is an exercise to link to. Both build synchronously, so the copy happens
+   * inside the click - Safari refuses a clipboard write after an await.
+   */
+  export let settingsLink: () => string;
+  export let exerciseLink: (() => string) | null = null;
   export let onPrint: () => void;
   /** Called on release. Consumers whose BPM change is expensive should re-render
    *  here instead of in onBpmChange. */
@@ -72,6 +81,32 @@
   ].filter(Boolean).join(" · ");
   /** At one, the voice still showing cannot be hidden: there would be nothing to read. */
   $: shownCount = voiceNames.length - hiddenCount;
+
+  let shareOpen = false;
+  /** Shown on the chip for a moment after a copy, in place of an alert. */
+  let copied = false;
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A link the browser would not copy, left in the menu to copy by hand. */
+  let uncopied: string | null = null;
+
+  async function share(link: string) {
+    uncopied = null;
+    if (await copyText(link)) {
+      shareOpen = false;
+      copied = true;
+      clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => (copied = false), 2000);
+    } else {
+      uncopied = link;
+    }
+  }
+
+  $: if (!shareOpen) uncopied = null;
+
+  const selectAll = (node: HTMLInputElement) => {
+    node.focus();
+    node.select();
+  };
 
   /** Mobile only: secondary controls collapse into a sheet above the transport. */
   let expanded = false;
@@ -115,6 +150,8 @@
     "flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6";
   const chipBtn =
     "flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs";
+  const menuItem =
+    "w-full flex flex-col items-start px-3 py-2 sm:py-1.5 text-left hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent";
 </script>
 
 <!--
@@ -319,13 +356,44 @@
         </DropUp>
       {/if}
 
-      <div class="flex gap-2">
-        <button class={chipBtn} on:click={onShare} title="Copy share link">
-          <Link2 size={14} /> Share
+      <DropUp triggerClass={chipBtn} label="Share" title="Copy a link" bind:open={shareOpen} menuClass="min-w-[16rem]">
+        <svelte:fragment slot="trigger">
+          {#if copied}
+            <Check size={14} class="text-teal-300" /> Copied
+          {:else}
+            <Link2 size={14} /> Share
+          {/if}
+        </svelte:fragment>
+        <button
+          class={menuItem}
+          on:click={() => exerciseLink && share(exerciseLink())}
+          disabled={!exerciseLink}
+          title={exerciseLink ? "" : "Generate an exercise first"}
+        >
+          <span class="text-sm text-slate-100">Link to this exercise</span>
+          <span class="text-xs text-slate-400">Opens these exact notes</span>
         </button>
-        <button class={chipBtn} on:click={onPrint} title="Print / Save as PDF">
-          <Printer size={14} /> Print
+        <button class={menuItem} on:click={() => share(settingsLink())}>
+          <span class="text-sm text-slate-100">Link to these settings</span>
+          <span class="text-xs text-slate-400">Writes a new exercise each time</span>
         </button>
-      </div>
+        {#if uncopied}
+          <div class="px-3 pt-1 pb-2 text-xs text-slate-300">
+            Your browser blocked copying - copy the link from here:
+            <input
+              class="mt-1 w-full rounded bg-slate-800 px-2 py-1 text-xs text-slate-100 ring-1 ring-slate-600"
+              readonly
+              value={uncopied}
+              aria-label="Link"
+              use:selectAll
+            />
+          </div>
+        {/if}
+      </DropUp>
+      <span class="sr-only" aria-live="polite">{copied ? "Link copied" : ""}</span>
+
+      <button class={chipBtn} on:click={onPrint} title="Print / Save as PDF">
+        <Printer size={14} /> Print
+      </button>
     </div>
 </div>

@@ -2504,9 +2504,10 @@
     handleBpmChange(newBpm);
     if (currentTune && originalTuneString) rerenderTune();
   }
-  function handleShare() {
+  /** A link that opens these settings, and writes a new exercise from them. */
+  function settingsLink(): string {
     updateUrlFromState();
-    navigator.clipboard.writeText(window.location.href).then(() => alert('Link copied to clipboard!'));
+    return window.location.href.split("#")[0];
   }
   function handlePrint() { window.print(); }
 
@@ -3267,7 +3268,7 @@
     status={drillStatusLine}
     onToggleLoop={handleToggleLoop}
     onToggleMute={() => {}}
-    onShare={handleShare}
+    {settingsLink}
     onPrint={handlePrint}
   >
     <svelte:fragment slot="extra">
