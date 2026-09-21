@@ -770,8 +770,16 @@
     const keyList = keyParam.split(",").map((k) => k.trim()).filter(Boolean);
     selectedKeys = new Set(keyList.length ? keyList : ["C"]);
     selectedKey = keyList[0] ?? "C";
-    measures = parseInt(p.get("measures") || "8");
-    bpm = parseInt(p.get("bpm") || "60");
+    // Written since the start and never read back, so every shared link opened
+    // in 4/4 whatever it had been made in.
+    const timeSig = p.get("timeSig");
+    if (timeSig && timeSig in timeSignatures) selectedTimeSignature = timeSig;
+    // Only values the controls can produce: parseInt alone let "abc" through as
+    // NaN, which then reached the generator.
+    const linkedMeasures = parseInt(p.get("measures") ?? "", 10);
+    if (measureOptions.includes(linkedMeasures)) measures = linkedMeasures;
+    const linkedBpm = parseInt(p.get("bpm") ?? "", 10);
+    if (linkedBpm >= 40 && linkedBpm <= 200) bpm = linkedBpm;
     const cursor = p.get("cursor");
     if (isCursorMode(cursor)) cursorMode = cursor;
     const instrument = p.get("sound");
