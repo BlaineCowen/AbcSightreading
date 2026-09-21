@@ -12,11 +12,11 @@
   import Printer from "lucide-svelte/icons/printer";
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
-  import ChevronUp from "lucide-svelte/icons/chevron-up";
   import Eye from "lucide-svelte/icons/eye";
   import EyeOff from "lucide-svelte/icons/eye-off";
   import Volume2 from "lucide-svelte/icons/volume-2";
   import VolumeX from "lucide-svelte/icons/volume-x";
+  import DropUp from "./ui/DropUp.svelte";
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
@@ -63,8 +63,6 @@
    * Voices live in a drop-up rather than a row of chips: a row grows with the
    * voicing, and at SSAATTBB it crowded everything else off the bar.
    */
-  let voicesOpen = false;
-  let voicesEl: HTMLDivElement;
   $: hiddenCount = voiceNames.filter((n) => hiddenVoices.has(n)).length;
   $: mutedCount = voiceNames.filter((n) => mutedVoices.has(n)).length;
   /** What is switched off, on the button itself - a hidden voice is easy to forget. */
@@ -74,17 +72,6 @@
   ].filter(Boolean).join(" · ");
   /** At one, the voice still showing cannot be hidden: there would be nothing to read. */
   $: shownCount = voiceNames.length - hiddenCount;
-
-  // composedPath, not contains(target): a toggle swaps its own icon as it is
-  // clicked, and by the time the click reaches the window the icon that was
-  // hit is no longer in the menu - so every toggle closed the menu behind it.
-  function closeVoicesOnOutside(e: MouseEvent) {
-    if (voicesOpen && voicesEl && !e.composedPath().includes(voicesEl)) voicesOpen = false;
-  }
-
-  function closeVoicesOnEscape(e: KeyboardEvent) {
-    if (voicesOpen && e.key === "Escape") voicesOpen = false;
-  }
 
   /** Mobile only: secondary controls collapse into a sheet above the transport. */
   let expanded = false;
@@ -129,8 +116,6 @@
   const chipBtn =
     "flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs";
 </script>
-
-<svelte:window on:click={closeVoicesOnOutside} on:keydown={closeVoicesOnEscape} />
 
 <!--
   Mobile: a column - optional sheet on top, transport below.
@@ -283,69 +268,55 @@
       <slot name="extra" />
 
       {#if voiceNames.length > 1}
-        <div class="relative w-full sm:w-auto" bind:this={voicesEl}>
-          <button
-            class="{chipBtn} {voicesOpen ? 'bg-slate-500' : ''}"
-            on:click={() => (voicesOpen = !voicesOpen)}
-            aria-haspopup="true"
-            aria-expanded={voicesOpen}
-            title={onToggleHidden ? "Choose which voices are shown and heard" : "Choose which voices play"}
-          >
+        <DropUp
+          triggerClass={chipBtn}
+          label="Voices"
+          title={onToggleHidden ? "Choose which voices are shown and heard" : "Choose which voices play"}
+        >
+          <svelte:fragment slot="trigger">
             Voices
             {#if voicesSummary}
               <span class="tabular-nums text-amber-300">{voicesSummary}</span>
             {/if}
-            <ChevronUp size={14} class="transition-transform {voicesOpen ? '' : 'rotate-180'}" />
-          </button>
-          {#if voicesOpen}
-            <!-- Inline on a phone, where the sheet scrolls and would clip a
-                 floating menu; a drop-up above the button from sm up. -->
-            <div
-              class="mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 min-w-[13rem]
-                     rounded-md bg-slate-700 shadow-xl ring-1 ring-slate-600 py-1"
-              role="group"
-              aria-label="Voices"
-            >
-              <div class="flex items-center gap-1 pl-3 pr-1 pt-1 text-[10px] uppercase tracking-wide text-slate-400" aria-hidden="true">
-                <span class="flex-1"></span>
-                {#if onToggleHidden}<span class="w-11 sm:w-8 text-center">Show</span>{/if}
-                <span class="w-11 sm:w-8 text-center">Hear</span>
-              </div>
-              {#each voiceNames as name}
-                {@const hidden = hiddenVoices.has(name)}
-                {@const muted = mutedVoices.has(name)}
-                <div class="flex items-center gap-1 pl-3 pr-1 text-sm">
-                  <span class="flex-1 truncate {hidden && muted ? 'text-slate-400' : 'text-slate-100'}">{name}</span>
-                  {#if onToggleHidden}
-                    {@const locked = !hidden && shownCount <= 1}
-                    <button
-                      class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8
-                             hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent
-                             {hidden ? 'text-slate-400' : 'text-teal-300'}"
-                      on:click={() => onToggleHidden?.(name)}
-                      disabled={locked}
-                      aria-pressed={!hidden}
-                      aria-label="Show {name}"
-                      title={locked ? "One voice always stays on the page" : `${hidden ? "Show" : "Hide"} ${name}`}
-                    >
-                      {#if hidden}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
-                    </button>
-                  {/if}
-                  <button
-                    class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 hover:bg-slate-600
-                           {muted ? 'text-slate-400' : 'text-teal-300'}"
-                    on:click={() => onToggleMute(name)}
-                    aria-pressed={!muted}
-                    aria-label="Hear {name}"
-                    title="{muted ? 'Unmute' : 'Mute'} {name}"
-                  >
-                    {#if muted}<VolumeX size={16} />{:else}<Volume2 size={16} />{/if}
-                  </button>
-                </div>
-              {/each}
+          </svelte:fragment>
+          <div class="flex items-center gap-1 pl-3 pr-1 pt-1 text-[10px] uppercase tracking-wide text-slate-400" aria-hidden="true">
+            <span class="flex-1"></span>
+            {#if onToggleHidden}<span class="w-11 sm:w-8 text-center">Show</span>{/if}
+            <span class="w-11 sm:w-8 text-center">Hear</span>
+          </div>
+          {#each voiceNames as name}
+            {@const hidden = hiddenVoices.has(name)}
+            {@const muted = mutedVoices.has(name)}
+            <div class="flex items-center gap-1 pl-3 pr-1 text-sm">
+              <span class="flex-1 truncate {hidden && muted ? 'text-slate-400' : 'text-slate-100'}">{name}</span>
+              {#if onToggleHidden}
+                {@const locked = !hidden && shownCount <= 1}
+                <button
+                  class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8
+                         hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent
+                         {hidden ? 'text-slate-400' : 'text-teal-300'}"
+                  on:click={() => onToggleHidden?.(name)}
+                  disabled={locked}
+                  aria-pressed={!hidden}
+                  aria-label="Show {name}"
+                  title={locked ? "One voice always stays on the page" : `${hidden ? "Show" : "Hide"} ${name}`}
+                >
+                  {#if hidden}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
+                </button>
+              {/if}
+              <button
+                class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 hover:bg-slate-600
+                       {muted ? 'text-slate-400' : 'text-teal-300'}"
+                on:click={() => onToggleMute(name)}
+                aria-pressed={!muted}
+                aria-label="Hear {name}"
+                title="{muted ? 'Unmute' : 'Mute'} {name}"
+              >
+                {#if muted}<VolumeX size={16} />{:else}<Volume2 size={16} />{/if}
+              </button>
             </div>
-          {/if}
-        </div>
+          {/each}
+        </DropUp>
       {/if}
 
       <div class="flex gap-2">
