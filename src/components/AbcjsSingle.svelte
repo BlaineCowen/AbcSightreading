@@ -12,6 +12,14 @@
     targetMoved,
   } from "../lib/scroll-to-system";
   import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
+  import {
+    packExercise,
+    unpackExercise,
+    exerciseParam,
+    exerciseFragment,
+    linkProblemMessage,
+    PAGE_FOR,
+  } from "../lib/exercise-link";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
@@ -737,6 +745,37 @@
    * syllable system without generating a new one. See `UnisonScore`.
    */
   let currentScore: UnisonScore | null = null;
+
+  // ── Links to the exercise itself ───────────────────────────────────────────
+  /**
+   * The exercise packed for a link, or null while packing (or with nothing to
+   * pack). Packed as soon as an exercise is on screen, not on the click:
+   * packing awaits the compressor, and Safari refuses a clipboard write that
+   * comes after an await.
+   */
+  let exercisePacked: string | null = null;
+  let packing = 0;
+  function useExerciseScore(score: UnisonScore | null) {
+    exercisePacked = null;
+    const mine = ++packing;
+    if (!score) return;
+    packExercise({ kind: "unison", score })
+      .then((value) => { if (mine === packing) exercisePacked = value; })
+      .catch((err) => console.error("Could not pack the exercise for a link:", err));
+  }
+  /**
+   * `#ex=…` while the page shows the exercise a link opened, kept through every
+   * settings write to the URL. Read here, at the top, because the reactive
+   * block that writes the URL runs before onMount - it would drop the hash
+   * before anything could open it.
+   */
+  let exerciseHash = (() => {
+    const value = typeof window === "undefined" ? null : exerciseParam(window.location.hash);
+    return value ? exerciseFragment(value) : "";
+  })();
+  /** A link to the exercise on screen, with the settings it is shown in. */
+  const exerciseLinkFor = (packed: string) => () => settingsLink() + exerciseFragment(packed);
+  $: exerciseLink = exercisePacked === null ? null : exerciseLinkFor(exercisePacked);
   /** Which syllable system `originalTuneString` is currently written with. */
   let writtenSyllableSystem = syllableSystemId;
 
@@ -920,7 +959,8 @@
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
     params.set("cursor", cursorMode);
 
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    // The exercise hash rides along, or the next settings change would lose it.
+    const newUrl = `${window.location.pathname}?${params.toString()}${exerciseHash}`;
     history.replaceState({}, "", newUrl);
   }
 
@@ -1981,6 +2021,10 @@
         currentScore = (result.data[2] as UnisonScore) ?? null;
         writtenSyllableSystem = syllableSystemId;
         writtenLyricSystem = lyricSystem;
+        // A new exercise is not the one a link opened: the URL stops pointing at it.
+        useExerciseScore(currentScore);
+        exerciseHash = "";
+        updateUrlFromState();
         await renderTune();
       } else {
         throw new Error(result.error || "Failed to generate music");
@@ -2549,6 +2593,71 @@
     rerenderTune();
   }
 
+  /**
+   * Show the exercise a link carries, without generating anything.
+   *
+   * The settings in the link have already loaded. The panel's meter, key and
+   * clef follow the exercise, so the metronome counts its bars; the score is
+   * written out with every annotation, as a generated one is, and the display
+   * settings strip what is not wanted.
+   */
+  async function openLinkedExercise(value: string) {
+    if (isLoading) return;
+    isLoading = true;
+    error = null;
+    try {
+      const opened = await unpackExercise(value, "unison");
+      if (!opened.ok) {
+        if (opened.problem === "wrong-page" && opened.kind) {
+          window.location.replace(PAGE_FOR[opened.kind] + exerciseFragment(value));
+          return;
+        }
+        error = linkProblemMessage(opened.problem);
+        exerciseHash = "";
+        updateUrlFromState();
+        return;
+      }
+      if (opened.exercise.kind !== "unison") return;
+      const score = opened.exercise.score;
+      if (drillRunning) await stopDrill(false);
+      stopMusic();
+      audioBuffer = null;
+      createSynth = null;
+      currentTune = null;
+
+      rhythmOnly = score.staff === "rhythm";
+      if (score.timeSig.name in timeSignatures) selectedTimeSignature = score.timeSig.name;
+      if (score.key && possibleKeys.includes(score.key)) selectedKey = score.key;
+      if (score.clef && clefOptions.includes(score.clef)) selectedClef = score.clef;
+
+      currentScore = score;
+      originalTuneString = assembleUnisonAbc(score, {
+        showSolfege: !rhythmOnly,
+        lyricSystem,
+        showRhythmSyllables: true,
+        syllableSystemId,
+      });
+      writtenSyllableSystem = syllableSystemId;
+      writtenLyricSystem = lyricSystem;
+      renderedString = [originalTuneString, [], score];
+      exerciseHash = exerciseFragment(value);
+      useExerciseScore(score);
+      updateUrlFromState();
+      await renderTune();
+    } catch (err) {
+      console.error("Could not open the linked exercise:", err);
+      error = linkProblemMessage("invalid");
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  /** A link pasted over this one changes only the hash, which reloads nothing. */
+  function onHashChange() {
+    const value = exerciseParam(window.location.hash);
+    if (value && exerciseFragment(value) !== exerciseHash) openLinkedExercise(value);
+  }
+
   onMount(() => {
     const paper = document.getElementById("paper");
     if (paper && typeof ResizeObserver !== "undefined") {
@@ -2558,11 +2667,15 @@
     }
     // Belt and braces for browsers that coalesce the observer on rotation.
     window.addEventListener("orientationchange", onPaperResize);
+    const linked = exerciseParam(window.location.hash);
+    if (linked) openLinkedExercise(linked);
+    window.addEventListener("hashchange", onHashChange);
   });
 
   onDestroy(() => {
     paperObserver?.disconnect();
     window.removeEventListener("orientationchange", onPaperResize);
+    window.removeEventListener("hashchange", onHashChange);
     if (resizeTimer) clearTimeout(resizeTimer);
     stopStandaloneMetronome();
     if (droneOscillator) {
@@ -3274,6 +3387,7 @@
     onToggleLoop={handleToggleLoop}
     onToggleMute={() => {}}
     {settingsLink}
+    {exerciseLink}
     onPrint={handlePrint}
   >
     <svelte:fragment slot="extra">
