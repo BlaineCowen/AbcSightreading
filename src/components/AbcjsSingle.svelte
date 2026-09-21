@@ -247,8 +247,9 @@
       options.maxSkip = s;
     }
 
+    // The tempo slider's range. 30-120 turned a link made at 132 into one at 60.
     const b = parseInt(getParam("bpm") || "", 10);
-    if (!isNaN(b) && b >= 30 && b <= 120) {
+    if (!isNaN(b) && b >= 40 && b <= 200) {
       options.bpm = b;
       options.tempo = b;
     }
@@ -498,32 +499,15 @@
     if (typeof window !== "undefined") {
       const urlOptions = loadStateFromUrl();
       if (urlOptions) {
-        console.log("loading from url");
+        // The same mapping as a reload or a preset. The link's own copy of it
+        // dropped the lyric system, the sound and the transposition - all parsed
+        // above, none of them reaching the page - and its `|| true` meant
+        // "accidentals follow step" could never arrive off.
         return {
-          selectedClef: urlOptions.selectedClef || "treble",
-          selectedRange: urlOptions.selectedRange || { ...DEFAULT_TREBLE_RANGE },
-          selectedScaleDegrees: new Set<number>(
-            urlOptions.selectedScaleDegrees || [1, 3, 5]
-          ),
-          selectedSharpDegrees: new Set(urlOptions.selectedSharpDegrees || []),
-          selectedFlatDegrees: new Set(urlOptions.selectedFlatDegrees || []),
-          selectedKey: urlOptions.selectedKey || "F",
-          selectedRhythms: resolveSelectedRhythms(urlOptions.selectedRhythms),
-          selectedTimeSignature: urlOptions.selectedTimeSignature || "4/4",
-          measures: urlOptions.measures || 8,
-          maxSkip: urlOptions.maxSkip || 4,
-          bpm: urlOptions.bpm || 60,
-          moveEighthNotes: urlOptions.moveEighthNotes || false,
-          accidentalsFollowStep: urlOptions.accidentalsFollowStep || true,
-          showSolfege: urlOptions.showSolfege || false,
-          rhythmOnly: urlOptions.rhythmOnly || false,
-          showRhythmSyllables: urlOptions.showRhythmSyllables || false,
-          syllableSystemId:
-            urlOptions.syllableSystemId || defaultSyllableSystem.id,
-          allowTiesAcrossBarline: urlOptions.allowTiesAcrossBarline || false,
-          cursorMode: isCursorMode(urlOptions.cursorMode)
-            ? urlOptions.cursorMode
-            : "smooth",
+          ...stateFromOptions(urlOptions),
+          rhythmSoundId: urlOptions.rhythmSoundId,
+          instrumentProgram: urlOptions.instrumentProgram,
+          transposeSemitones: urlOptions.transposeSemitones,
         };
       }
     }
