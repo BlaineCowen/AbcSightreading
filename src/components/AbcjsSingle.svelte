@@ -159,7 +159,12 @@
       metronomeGainNode.gain.value = metronomeVolume * 2;
       metronomeGainNode.connect(audioContext.destination);
 
-      toneSynth.connect(gainNode);
+      // To Tone's own output, not gainNode: toneSynth lives in Tone's
+      // AudioContext and gainNode in this one, and connecting across contexts
+      // throws. It threw on every load - leaving the note you click on the
+      // score silent, and stopping this component's later onMount callbacks
+      // (the reflow on resize, opening a linked exercise) from ever running.
+      toneSynth.toDestination();
     }
   });
 
