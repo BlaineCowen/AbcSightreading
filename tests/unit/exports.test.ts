@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { midiFileFor, withTempo, exportFileName } from "../../src/lib/exports";
+import { midiFileFor, withTempo, exportFileName, keyAndMeterOf } from "../../src/lib/exports";
 import { runChoralJob, rendererFor } from "../../src/lib/choral-jobs";
 import { createNewSr, assembleUnisonAbc } from "../../src/lib/generateUnison";
 import { chords as fullChordSet } from "../../src/resources/chords";
@@ -152,6 +152,14 @@ describe("withTempo", () => {
   });
   test("adds one to the header when there is none", () => {
     expect(withTempo("X:1 \nM:4/4\nL:1/32\nK:C\nc8|", 60)).toBe("X:1 \nM:4/4\nL:1/32\nQ:1/4=60\nK:C\nc8|");
+  });
+});
+
+describe("key and meter from the score", () => {
+  test("choral, unison and rhythm headers", () => {
+    expect(keyAndMeterOf("X:1\nM:3/4\nL:1/32\nK:Eb\n")).toEqual({ key: "Eb", meter: "3/4" });
+    expect(keyAndMeterOf("X:1\nM:4/4\nK:F#m\n")).toEqual({ key: "F#m", meter: "4/4" });
+    expect(keyAndMeterOf("X:1 \nM:2/4\nV:U\nK: G clef=bass \n")).toEqual({ key: "G", meter: "2/4" });
   });
 });
 

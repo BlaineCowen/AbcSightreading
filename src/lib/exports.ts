@@ -62,6 +62,16 @@ export function exportFileName(
   return `${parts.filter(Boolean).join("-")}.${EXPORT_TYPES[type].ext}`;
 }
 
+/**
+ * The key and meter an exercise is written in, read from its ABC - the
+ * settings panel can already have moved on to the next exercise's.
+ */
+export function keyAndMeterOf(abc: string): { key?: string; meter: string } {
+  const meter = abc.match(/^M:\s*(\d+\/\d+)/m)?.[1] ?? "4/4";
+  const key = abc.match(/^K:\s*([A-G][#b]?m?)\b/m)?.[1];
+  return key ? { key, meter } : { meter };
+}
+
 /** "F#m" -> "F-sharp-minor", "Eb" -> "E-flat-major". */
 function keyWords(key: string): string {
   const match = key.match(/^([A-G])([#b]?)(m?)$/);

@@ -30,6 +30,16 @@
     linkProblemMessage,
     PAGE_FOR,
   } from "../lib/exercise-link";
+  import { abcToMusicXml } from "../lib/musicxml";
+  import {
+    EXPORT_TYPES,
+    exportFileName,
+    keyAndMeterOf,
+    midiFileFor,
+    withTempo,
+    type ExportType,
+  } from "../lib/exports";
+  import { downloadFile } from "../lib/download";
   import type { LyricSystem } from "../resources/solfege";
   import {
     canAppearInChoral,
@@ -1522,6 +1532,54 @@
     window.print();
   }
 
+  /** Save a file of the exercise on screen, named for its key and meter. */
+  function save(type: ExportType, data: BlobPart) {
+    const name = exportFileName({ page: "choral", ...keyAndMeterOf(renderedString) }, type);
+    downloadFile(data, name, EXPORT_TYPES[type].mime);
+  }
+
+  /**
+   * What Print / Export offers. MusicXML and ABC are the score as shown - the
+   * staves on the page, the annotations that are on - at the tempo playing
+   * now. MIDI is what you hear: hidden voices are still in it, muted ones are
+   * not, in the chosen sound and transposition, without the count-in.
+   */
+  $: exports = [
+    {
+      id: "musicxml",
+      label: "MusicXML",
+      detail: "Opens in MuseScore, Finale, Sibelius, Dorico",
+      disabled: !renderedTune,
+      run: () => save("musicxml", abcToMusicXml(renderedString, { tempo: bpm })),
+    },
+    {
+      id: "midi",
+      label: "MIDI",
+      detail: "The voices you hear, at this tempo",
+      disabled: !renderedTune,
+      run: () =>
+        save(
+          "midi",
+          midiFileFor(
+            renderCurrent!({
+              chordSymbols: false,
+              lyrics: null,
+              midiProgram: instrumentProgram,
+              hiddenVoices: [...mutedVoices],
+            }),
+            { bpm, transpose: transposeSemitones }
+          )
+        ),
+    },
+    {
+      id: "abc",
+      label: "ABC notation",
+      detail: "The text the score is written in",
+      disabled: !renderedTune,
+      run: () => save("abc", withTempo(renderedString, bpm)),
+    },
+  ];
+
   // ── Synth init ─────────────────────────────────────────────────────────────
   async function initSynth(tune: any) {
     const voicesOff = barVoices
@@ -2698,6 +2756,7 @@
     {settingsLink}
     {exerciseLink}
     onPrint={handlePrint}
+    {exports}
   >
     <svelte:fragment slot="extra">
       <div class="flex items-center gap-2" title="Voices volume">

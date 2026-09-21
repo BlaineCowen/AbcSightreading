@@ -45,6 +45,18 @@
   export let settingsLink: () => string;
   export let exerciseLink: (() => string) | null = null;
   export let onPrint: () => void;
+  /**
+   * Files the Print / Export menu offers after printing. Leave it empty and
+   * Print stays a plain button. `run` builds and saves the file; what it
+   * throws is shown in the menu.
+   */
+  export let exports: {
+    id: string;
+    label: string;
+    detail?: string;
+    disabled?: boolean;
+    run: () => void;
+  }[] = [];
   /** Called on release. Consumers whose BPM change is expensive should re-render
    *  here instead of in onBpmChange. */
   export let onBpmCommit: ((bpm: number) => void) | null = null;
@@ -102,6 +114,26 @@
   }
 
   $: if (!shareOpen) uncopied = null;
+
+  let exportOpen = false;
+  let exportError: string | null = null;
+  $: if (!exportOpen) exportError = null;
+
+  function runExport(item: (typeof exports)[number]) {
+    exportError = null;
+    try {
+      item.run();
+      exportOpen = false;
+    } catch (error) {
+      console.error(`Could not export ${item.label}:`, error);
+      exportError = `Could not write the ${item.label} file.`;
+    }
+  }
+
+  function print() {
+    exportOpen = false;
+    onPrint();
+  }
 
   const selectAll = (node: HTMLInputElement) => {
     node.focus();
@@ -392,8 +424,38 @@
       </DropUp>
       <span class="sr-only" aria-live="polite">{copied ? "Link copied" : ""}</span>
 
-      <button class={chipBtn} on:click={onPrint} title="Print / Save as PDF">
-        <Printer size={14} /> Print
-      </button>
+      {#if exports.length}
+        <DropUp
+          triggerClass={chipBtn}
+          label="Print or export"
+          title="Print, or save as a file"
+          bind:open={exportOpen}
+          menuClass="min-w-[17rem]"
+        >
+          <svelte:fragment slot="trigger"><Printer size={14} /> Print / Export</svelte:fragment>
+          <button class={menuItem} on:click={print}>
+            <span class="text-sm text-slate-100">Print / Save as PDF</span>
+            <span class="text-xs text-slate-400">Your browser's print dialog</span>
+          </button>
+          {#each exports as item (item.id)}
+            <button
+              class={menuItem}
+              on:click={() => runExport(item)}
+              disabled={item.disabled}
+              title={item.disabled ? "Generate an exercise first" : ""}
+            >
+              <span class="text-sm text-slate-100">{item.label}</span>
+              {#if item.detail}<span class="text-xs text-slate-400">{item.detail}</span>{/if}
+            </button>
+          {/each}
+          {#if exportError}
+            <p class="px-3 pt-1 pb-2 text-xs text-amber-300" role="alert">{exportError}</p>
+          {/if}
+        </DropUp>
+      {:else}
+        <button class={chipBtn} on:click={onPrint} title="Print / Save as PDF">
+          <Printer size={14} /> Print
+        </button>
+      {/if}
     </div>
 </div>

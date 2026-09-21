@@ -20,6 +20,16 @@
     linkProblemMessage,
     PAGE_FOR,
   } from "../lib/exercise-link";
+  import { abcToMusicXml } from "../lib/musicxml";
+  import {
+    EXPORT_TYPES,
+    exportFileName,
+    keyAndMeterOf,
+    midiFileFor,
+    withTempo,
+    type ExportType,
+  } from "../lib/exports";
+  import { downloadFile } from "../lib/download";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
@@ -2560,6 +2570,58 @@
   }
   function handlePrint() { window.print(); }
 
+  /** The exercise as it is drawn: the annotations that are on, in the chosen sound. */
+  const shownAbc = () => withChosenSound(withChosenAnnotations(originalTuneString ?? ""));
+
+  /** Save a file of the exercise on screen, named for its key and meter. */
+  function save(type: ExportType, data: BlobPart) {
+    const { key, meter } = keyAndMeterOf(shownAbc());
+    const name = exportFileName(
+      rhythmOnly ? { page: "rhythm", meter } : { page: "unison", key, meter },
+      type
+    );
+    downloadFile(data, name, EXPORT_TYPES[type].mime);
+  }
+
+  /**
+   * What Print / Export offers: the exercise as shown, at the tempo playing
+   * now. Unison ABC has no title line, so the MusicXML is given one.
+   */
+  $: exports = [
+    {
+      id: "musicxml",
+      label: "MusicXML",
+      detail: "Opens in MuseScore, Finale, Sibelius, Dorico",
+      disabled: !currentTune,
+      run: () => {
+        const abc = shownAbc();
+        const { key } = keyAndMeterOf(abc);
+        save(
+          "musicxml",
+          abcToMusicXml(abc, {
+            tempo,
+            title: rhythmOnly ? "Rhythm Exercise" : `Sight Reading Exercise - ${key ?? ""}`.trim(),
+            defaultPartName: rhythmOnly ? "Rhythm" : "Voice",
+          })
+        );
+      },
+    },
+    {
+      id: "midi",
+      label: "MIDI",
+      detail: "What you hear, at this tempo",
+      disabled: !currentTune,
+      run: () => save("midi", midiFileFor(shownAbc(), { bpm: tempo, transpose: transposeSemitones })),
+    },
+    {
+      id: "abc",
+      label: "ABC notation",
+      detail: "The text the score is written in",
+      disabled: !currentTune,
+      run: () => save("abc", withTempo(shownAbc(), tempo)),
+    },
+  ];
+
   // abcjs's responsive mode scales the score but never reflows it, so a real
   // width change needs a re-render. Observe the container rather than the
   // window: it also catches layout changes that fire no resize event, and it
@@ -3389,6 +3451,7 @@
     {settingsLink}
     {exerciseLink}
     onPrint={handlePrint}
+    {exports}
   >
     <svelte:fragment slot="extra">
       <!-- Instrument volume (the percussion level in rhythm-only mode) -->
