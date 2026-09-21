@@ -20,7 +20,16 @@
     POLYPHONY_CEILING,
     type FormPlan,
   } from "../lib/form-plan";
-  import { startChoralJob, rendererFor, JobCancelled } from "../lib/choral-jobs";
+  import { startChoralJob, rendererFor, JobCancelled, type ChoralJobResult } from "../lib/choral-jobs";
+  import {
+    packExercise,
+    unpackExercise,
+    exerciseParam,
+    exerciseFragment,
+    choralSummary,
+    linkProblemMessage,
+    PAGE_FOR,
+  } from "../lib/exercise-link";
   import type { LyricSystem } from "../resources/solfege";
   import {
     canAppearInChoral,
@@ -221,6 +230,34 @@
    * than a new exercise; null until something has been generated.
    */
   let renderCurrent: ((display: any) => string) | null = null;
+
+  // ── Links to the exercise itself ───────────────────────────────────────────
+  /** The exercise on screen as the job produced it: what a link to it packs. */
+  type ExerciseSource = Pick<ChoralJobResult, "exercise" | "sections">;
+  /**
+   * The exercise packed for a link, or null while packing (or with nothing to
+   * pack). Packed as soon as an exercise is on screen, not on the click:
+   * packing awaits the compressor, and Safari refuses a clipboard write that
+   * comes after an await.
+   */
+  let exercisePacked: string | null = null;
+  let packing = 0;
+  function useExerciseSource(source: ExerciseSource | null) {
+    exercisePacked = null;
+    const mine = ++packing;
+    if (!source) return;
+    packExercise({ kind: "choral", result: source })
+      .then((value) => { if (mine === packing) exercisePacked = value; })
+      .catch((error) => console.error("Could not pack the exercise for a link:", error));
+  }
+  /**
+   * `#ex=…` while the page shows the exercise a link opened. Kept through every
+   * settings write to the URL, so a reload reopens it; cleared once Generate
+   * replaces it.
+   */
+  let exerciseHash = "";
+  /** A link whose exercise would not open. Its settings still load. */
+  let linkError: string | null = null;
 
   /**
    * Whether the chosen rhythms can actually tile the bar, worked out ahead of
@@ -836,7 +873,87 @@
     } else {
       p.delete("bias");
     }
-    window.history.replaceState({}, "", `?${p.toString()}`);
+    // The exercise hash rides along: every settings change rewrites the URL,
+    // and dropping it would lose the linked exercise on the next reload.
+    window.history.replaceState({}, "", `?${p.toString()}${exerciseHash}`);
+  }
+
+  /** A link to the exercise on screen, with the settings it is shown in. */
+  const exerciseLinkFor = (packed: string) => () => settingsLink() + exerciseFragment(packed);
+  $: exerciseLink = exercisePacked === null ? null : exerciseLinkFor(exercisePacked);
+
+  /**
+   * Show the exercise a link carries, without generating anything.
+   *
+   * The settings in the link have already loaded; this puts the panel's key,
+   * meter and voicing to what the exercise actually is, so the print title and
+   * the metronome agree with the score, then draws it the way a history step
+   * does.
+   */
+  async function openLinkedExercise(value: string) {
+    if (isGenerating) return;
+    linkError = null;
+    generationError = null;
+    // The generating state is what un-hides #paper, and renderTune measures its
+    // width - drawn into a hidden element the score comes out 160px wide.
+    generatingStage = "drawing";
+    isGenerating = true;
+    await tick();
+    await painted();
+    try {
+      const opened = await unpackExercise(value, "choral");
+      if (!opened.ok) {
+        if (opened.problem === "wrong-page" && opened.kind) {
+          window.location.replace(PAGE_FOR[opened.kind] + exerciseFragment(value));
+          return;
+        }
+        linkError = linkProblemMessage(opened.problem);
+        exerciseHash = "";
+        updateURLParams();
+        return;
+      }
+      if (opened.exercise.kind !== "choral") return;
+      const source = opened.exercise.result;
+      const summary = choralSummary(source);
+      if (isPlaying) pausePlayback();
+
+      selectedKey = summary.key;
+      if (summary.meter in timeSignatures) selectedTimeSignature = summary.meter;
+      const voicing = Object.entries(possibleVoicing).find(
+        ([, v]) => Object.keys(v.parts).join("|") === summary.voiceNames.join("|")
+      )?.[0];
+      if (voicing) selectedVoicing = voicing;
+
+      const render = rendererFor({ abc: "", chordProgression: [], roughSeams: [], ...source });
+      renderCurrent = render;
+      useExerciseVoices(summary.voiceNames);
+      generatedBpm = summary.tempo;
+      if (!new URLSearchParams(window.location.search).has("bpm")) bpm = summary.tempo;
+      roughSeams = [];
+      chordProgression = [];
+      exerciseHash = exerciseFragment(value);
+      useExerciseSource(source);
+      pushHistory({
+        render,
+        chordProgression: [],
+        bpm: generatedBpm,
+        label: `Shared · ${summary.key} ${isMinorKey(summary.key) ? "minor" : "major"} · ${summary.meter} · ${voicing ?? summary.voiceNames.join(", ")}`,
+        voiceNames: summary.voiceNames,
+        source,
+        linkHash: exerciseHash,
+      });
+      renderedString = render(displayOptions());
+      await applyRenderedString();
+      updateURLParams();
+    } finally {
+      isGenerating = false;
+    }
+  }
+
+  /** A link pasted over this one changes only the hash, which reloads nothing. */
+  function onHashChange() {
+    const value = exerciseParam(window.location.hash);
+    if (value && exerciseFragment(value) !== exerciseHash) openLinkedExercise(value);
   }
 
   onMount(() => {
@@ -846,10 +963,14 @@
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     loadParams();
     loadMixLevels();
+    const linked = exerciseParam(window.location.hash);
+    if (linked) openLinkedExercise(linked);
+    window.addEventListener("hashchange", onHashChange);
   });
 
   onDestroy(() => {
     try { synthControl?.destroy?.(); } catch {}
+    if (typeof window !== "undefined") window.removeEventListener("hashchange", onHashChange);
   });
 
   // ── Preset application ─────────────────────────────────────────────────────
@@ -1544,6 +1665,10 @@
     label: string;
     /** Its voices, top to bottom - see exerciseVoices. */
     voiceNames: string[];
+    /** The job's plain data, which a link to it packs. */
+    source: ExerciseSource;
+    /** `#ex=…` for an exercise opened from a link, so going back to it restores the URL. */
+    linkHash?: string;
   };
   const HISTORY_LIMIT = 10;
   let history: HistoryEntry[] = [];
@@ -1568,11 +1693,14 @@
     historyIndex = index;
     renderCurrent = entry.render;
     useExerciseVoices(entry.voiceNames);
+    useExerciseSource(entry.source);
+    exerciseHash = entry.linkHash ?? "";
     renderedString = entry.render(displayOptions());
     chordProgression = entry.chordProgression;
     generatedBpm = entry.bpm;
     generationError = null;
     await applyRenderedString();
+    updateURLParams();
   }
 
   async function handleClick() {
@@ -1703,12 +1831,19 @@
       // Kept so the annotation toggles can re-write this exercise instead of
       // replacing it.
       renderCurrent = render;
+      const source: ExerciseSource = { exercise: result.exercise, sections: result.sections };
+      useExerciseSource(source);
+      // A new exercise is not the one a link opened: the URL stops pointing at it.
+      exerciseHash = "";
+      linkError = null;
+      updateURLParams();
       pushHistory({
         render,
         chordProgression: chordProgression,
         bpm,
         label: `${drawnKey} ${isMinorKey(drawnKey) ? "minor" : "major"} · ${selectedTimeSignature} · ${selectedVoicing}${fullLength ? ` · ${formPlan?.measures ?? measures} bars` : ""}`,
         voiceNames: jobVoices,
+        source,
       });
 
       // The search is done; what is left is on this thread - drawing the score,
@@ -1797,6 +1932,25 @@
           <button
             class="text-sr-brass hover:text-sr-ink text-xl leading-none"
             on:click={() => (generationError = null)}
+            aria-label="Dismiss"
+          >&times;</button>
+        </div>
+      </div>
+    {/if}
+
+    {#if linkError}
+      <div
+        class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"
+        role="status"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-sr-brass">Could not open the exercise in this link</p>
+            <p class="mt-1 text-sm text-sr-brass">{linkError}</p>
+          </div>
+          <button
+            class="text-sr-brass hover:text-sr-ink text-xl leading-none"
+            on:click={() => (linkError = null)}
             aria-label="Dismiss"
           >&times;</button>
         </div>
@@ -2542,6 +2696,7 @@
     onToggleMute={handleToggleMute}
     onToggleHidden={handleToggleHidden}
     {settingsLink}
+    {exerciseLink}
     onPrint={handlePrint}
   >
     <svelte:fragment slot="extra">

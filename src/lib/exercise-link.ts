@@ -52,6 +52,28 @@ export type UnpackResult =
   | { ok: true; exercise: LinkedExercise }
   | { ok: false; problem: LinkProblem; kind?: LinkedExercise["kind"] };
 
+/** What to tell the reader when a link will not open. The settings in it still load. */
+export function linkProblemMessage(problem: LinkProblem): string {
+  switch (problem) {
+    case "too-new":
+      return "This link was made by a newer version of the app. Reload the page to open it.";
+    case "unsupported-browser":
+      return "This browser cannot open exercise links. A current Chrome, Safari, Firefox or Edge can.";
+    case "wrong-page":
+      return "This link is for the other sight-reading page.";
+    case "invalid":
+    case "corrupt":
+    default:
+      return "The exercise in this link could not be read - it may have been cut short when it was copied. Its settings are loaded, so Generate writes a new exercise from them.";
+  }
+}
+
+/** The page an exercise of this kind opens on. */
+export const PAGE_FOR: Record<LinkedExercise["kind"], string> = {
+  choral: "/choral-sightreading",
+  unison: "/sightreading",
+};
+
 // ── The fragment ────────────────────────────────────────────────────────────
 
 /** The packed exercise in a URL fragment, if it has one. */
