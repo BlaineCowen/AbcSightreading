@@ -24,6 +24,12 @@ export interface AbcDisplayOptions {
    * note names. Absent prints none.
    */
   lyrics?: LyricSystem | null;
+  /**
+   * Voices left off the page, by full name ("Alto"). They are still part of the
+   * exercise and still heard - playback reads a full copy of the score - they
+   * just get no staff. Hiding every voice is ignored rather than drawing nothing.
+   */
+  hiddenVoices?: string[];
 }
 
 // Interface for additional metadata needed for the ABC header
@@ -86,15 +92,25 @@ export function assembleAbcString(
   // in the generated MIDI track, which create-synth maps to a sample folder.
   abcString += `%%MIDI program ${metadata.midiProgram ?? 0}\n`;
 
+  // Which voices get a staff. Leaving a voice out of %%score is not enough -
+  // abcjs draws every voice the body mentions whatever %%score says - so a
+  // hidden voice is left out of the header and the body both.
+  const hidden = new Set(display.hiddenVoices ?? []);
+  let shown = voiceParts
+    .map((_, i) => i)
+    .filter((i) => !hidden.has(voiceParts[i].name));
+  if (shown.length === 0) shown = voiceParts.map((_, i) => i);
+  const shownParts = shown.map((i) => voiceParts[i]);
+
   // %%score directive
   let scoreDirective = "%%score";
-  voiceParts.forEach((part) => {
+  shownParts.forEach((part) => {
     scoreDirective += ` ${part.smallName}`;
   });
   abcString += scoreDirective + "\n";
 
   // V: Voice part headers
-  voiceParts.forEach((part) => {
+  shownParts.forEach((part) => {
     abcString += `V:${part.smallName} clef=${part.clef} name="${part.name}" snm="${part.smallName}"\n`;
   });
 
@@ -103,8 +119,27 @@ export function assembleAbcString(
   abcString += `% End of header, start of tune body:\n`;
 
   // --- Body Generation ---
-  const numVoices = voiceParts.length;
   const beatsPerMeasure = timeSig.tsPerMeasure;
+
+  /**
+   * Chord symbols from the hidden voices, by the time they start.
+   *
+   * The symbols are one row over the top staff, written on the top voice's notes
+   * (see build-chord-notes). Hide that voice and the row would go with it, so they
+   * move to the top voice still on the page, onto its note that starts at the
+   * same moment. One that lands mid-note there - a suspension held across the
+   * change - has nowhere to sit and is left out. Empty when nothing is hidden,
+   * which leaves the score exactly as it always was.
+   */
+  const liftedSymbols = new Map<number, string>();
+  for (let v = 0; v < voiceParts.length; v++) {
+    if (shown.includes(v)) continue;
+    let at = 0;
+    for (const note of allVoiceNotes[v]) {
+      if (note.chordSymbol && !liftedSymbols.has(at)) liftedSymbols.set(at, note.chordSymbol);
+      at += note.length;
+    }
+  }
 
   /**
    * How wide one beam group is, in 32nd-note units - a quarter in simple time,
@@ -161,11 +196,14 @@ export function assembleAbcString(
   // Strip leading accidental characters (^, _, =) to get the bare pitch+octave key.
   const basePitch = (noteName: string) => noteName.replace(/^[\^_=]+/, "");
 
-  for (let voiceIndex = 0; voiceIndex < numVoices; voiceIndex++) {
+  for (const voiceIndex of shown) {
     const part = voiceParts[voiceIndex];
     const partSmallName = part.smallName;
     let partString = `[V:${partSmallName}] `;
     let measureCount = 0;
+    /** Where the current note starts, from the top of the piece. */
+    let at = 0;
+    const lifted = voiceIndex === shown[0] ? liftedSymbols : null;
 
     // Tracks which pitch+octave strings have been altered within the current measure.
     // Key = bare pitch string (e.g. "A,", "F"); value = the accidental type applied.
@@ -197,8 +235,9 @@ export function assembleAbcString(
       // than being read as a slash chord - but it would then be engraved in the
       // chord font, and Roman-numeral analysis is an annotation, not a lead
       // sheet chord.
-      if (display.chordSymbols && note.chordSymbol) {
-        partString += `"^${note.chordSymbol}"`;
+      const chordSymbol = note.chordSymbol ?? lifted?.get(at);
+      if (display.chordSymbols && chordSymbol) {
+        partString += `"^${chordSymbol}"`;
       }
 
       if (note.rest) {
@@ -228,6 +267,7 @@ export function assembleAbcString(
       // A space breaks the beam; leaving it out is what joins the notes.
       const startsAt = measureCount;
       measureCount += note.length;
+      at += note.length;
       const completesMeasure = measureCount >= beatsPerMeasure;
       if (
         completesMeasure ||

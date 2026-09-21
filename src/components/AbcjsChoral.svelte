@@ -60,6 +60,12 @@
   let isPlaying = false;
   let looping = false;
   let mutedVoices: Set<string> = new Set();
+  /**
+   * Voices with no staff on the page - still heard unless muted as well (see
+   * initSynth). Unlike muting this goes in the share link: "the alto part on
+   * its own" is a link worth sending.
+   */
+  let hiddenVoices: Set<string> = new Set();
   let bpm = 60;
   let generatedBpm = 60;
   /** 0-1.5, 1 = as written. Remembered per browser, not put in the share link. */
@@ -556,6 +562,22 @@
 
   // ── Voice names for playback bar ───────────────────────────────────────────
   $: voiceNames = Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {});
+  /**
+   * The voices of the exercise on screen. The Voices menu lists these, not
+   * `voiceNames`: the Voicing setting can change without regenerating, and then
+   * names voices the score does not have - and muting counts voices by position.
+   */
+  let exerciseVoices: string[] = [];
+  $: barVoices = exerciseVoices.length ? exerciseVoices : voiceNames;
+
+  /** A new exercise on screen. Hiding all of its voices would leave nothing to read, so that is dropped. */
+  function useExerciseVoices(names: string[]) {
+    exerciseVoices = names;
+    if (names.length && names.every((n) => hiddenVoices.has(n))) {
+      hiddenVoices = new Set();
+      updateURLParams();
+    }
+  }
   /** No exercise yet and nothing being written - show the shape of a score. */
   $: showScorePlaceholder = !renderedTune && !isGenerating;
 
@@ -740,7 +762,10 @@
   // ── URL persistence ────────────────────────────────────────────────────────
   function loadParams() {
     const p = new URLSearchParams(window.location.search);
-    selectedVoicing = knownVoicing(p.get("voices"));
+    // Written as "voicing" but, for a long time, read back as "voices" - so a
+    // shared link always opened in four parts. Links carrying either still work.
+    selectedVoicing = knownVoicing(p.get("voicing") ?? p.get("voices"));
+    hiddenVoices = new Set((p.get("hide") ?? "").split(",").map((v) => v.trim()).filter(Boolean));
     const keyParam = p.get("key") || "C";
     const keyList = keyParam.split(",").map((k) => k.trim()).filter(Boolean);
     selectedKeys = new Set(keyList.length ? keyList : ["C"]);
@@ -793,6 +818,7 @@
     p.set("chords", showChords ? "1" : "0");
     p.set("transpose", String(transposeSemitones));
     p.set("texture", voiceTexture);
+    if (hiddenVoices.size) p.set("hide", [...hiddenVoices].join(","));
     const biasPairs = Object.entries(rhythmBias);
     if (biasPairs.length) {
       p.set("bias", biasPairs.map(([n, v]) => `${n}:${v}`).join(","));
@@ -1250,16 +1276,17 @@
     }
   }
 
-  /** What the assembler should print, given the two controls. */
+  /** What the assembler should print, given the display controls. */
   function displayOptions() {
     return {
       chordSymbols: showChords,
       lyrics: lyricSystem,
       midiProgram: instrumentProgram,
+      hiddenVoices: [...hiddenVoices],
     };
   }
 
-  /** Re-write the score with the current annotation settings. */
+  /** Re-write the score with the current display settings. */
   async function reRenderAnnotations() {
     updateURLParams();
     if (!renderCurrent) return;
@@ -1317,6 +1344,16 @@
     }
   }
 
+  /** The last voice on the page stays: there would be nothing to read or follow. */
+  async function handleToggleHidden(voiceName: string) {
+    const next = new Set(hiddenVoices);
+    if (next.has(voiceName)) next.delete(voiceName);
+    else if (barVoices.some((n) => n !== voiceName && !next.has(n))) next.add(voiceName);
+    else return;
+    hiddenVoices = next;
+    await reRenderAnnotations();
+  }
+
   function loadMixLevels() {
     try {
       const saved = JSON.parse(localStorage.getItem(MIX_STORAGE_KEY) ?? "null");
@@ -1356,9 +1393,20 @@
 
   // ── Synth init ─────────────────────────────────────────────────────────────
   async function initSynth(tune: any) {
-    const voicesOff = voiceNames
+    const voicesOff = barVoices
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
       .filter((i) => i >= 0);
+
+    // A hidden voice has no staff, so the tune on the page has no notes for it.
+    // abcjs gets the notes to play by calling the tune's own setUpAudio (in
+    // CreateSynth), so point that at a copy of the whole score: every voice
+    // sounds, and the cursor - driven by the drawn tune's timing - is untouched.
+    // The two copies share every bar and beat, so their timings agree, and
+    // voicesOff counts the whole score's voices, which is barVoices' order.
+    if (renderCurrent && barVoices.some((name) => hiddenVoices.has(name))) {
+      const [full] = abcjs.parseOnly(renderCurrent({ ...displayOptions(), hiddenVoices: [] }));
+      tune.setUpAudio = (params: any) => full.setUpAudio(params);
+    }
 
     if (synthControl) {
       try { synthControl.destroy(); } catch {}
@@ -1477,6 +1525,8 @@
     bpm: number;
     /** What it was: key, meter, voicing, as the panel would say it. */
     label: string;
+    /** Its voices, top to bottom - see exerciseVoices. */
+    voiceNames: string[];
   };
   const HISTORY_LIMIT = 10;
   let history: HistoryEntry[] = [];
@@ -1500,6 +1550,7 @@
     const entry = history[index];
     historyIndex = index;
     renderCurrent = entry.render;
+    useExerciseVoices(entry.voiceNames);
     renderedString = entry.render(displayOptions());
     chordProgression = entry.chordProgression;
     generatedBpm = entry.bpm;
@@ -1592,6 +1643,9 @@
           : undefined,
     };
 
+    /** The voicing can be changed while this is written; these are the voices it gets. */
+    const jobVoices = voiceNames;
+
     generationError = null;
     generatingStage = "writing";
     isGenerating = true;
@@ -1619,6 +1673,14 @@
       // still worth having, and the reader should know where to look.
       roughSeams = result.roughSeams;
 
+      useExerciseVoices(jobVoices);
+      // The Voices menu stays usable while this is written, so a voice can be
+      // hidden or shown in the meantime - write it as things are set now.
+      const displayNow = displayOptions();
+      if (JSON.stringify(displayNow) !== JSON.stringify(params.display)) {
+        abcString = render(displayNow);
+      }
+
       renderedString = abcString;
       chordProgression = generatedProgression as Chord[];
       // Kept so the annotation toggles can re-write this exercise instead of
@@ -1629,6 +1691,7 @@
         chordProgression: chordProgression,
         bpm,
         label: `${drawnKey} ${isMinorKey(drawnKey) ? "minor" : "major"} · ${selectedTimeSignature} · ${selectedVoicing}${fullLength ? ` · ${formPlan?.measures ?? measures} bars` : ""}`,
+        voiceNames: jobVoices,
       });
 
       // The search is done; what is left is on this thread - drawing the score,
@@ -2448,8 +2511,9 @@
     {isPlaying}
     {bpm}
     {looping}
-    {voiceNames}
+    voiceNames={barVoices}
     {mutedVoices}
+    {hiddenVoices}
     hasExercise={renderedTune !== null}
     onPlay={handlePlay}
     onPause={handlePause}
@@ -2459,6 +2523,7 @@
     onGenerate={handleClick}
     onToggleLoop={handleToggleLoop}
     onToggleMute={handleToggleMute}
+    onToggleHidden={handleToggleHidden}
     onShare={handleShare}
     onPrint={handlePrint}
   >

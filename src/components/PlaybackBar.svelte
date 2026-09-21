@@ -13,7 +13,10 @@
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
   import ChevronUp from "lucide-svelte/icons/chevron-up";
-  import Check from "lucide-svelte/icons/check";
+  import Eye from "lucide-svelte/icons/eye";
+  import EyeOff from "lucide-svelte/icons/eye-off";
+  import Volume2 from "lucide-svelte/icons/volume-2";
+  import VolumeX from "lucide-svelte/icons/volume-x";
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
@@ -28,6 +31,9 @@
   export let onBpmChange: (bpm: number) => void;
   export let onToggleLoop: () => void;
   export let onToggleMute: (voiceName: string) => void;
+  /** Voices with no staff. Omit onToggleHidden and the menu only mutes. */
+  export let hiddenVoices: Set<string> = new Set();
+  export let onToggleHidden: ((voiceName: string) => void) | null = null;
   export let onShare: () => void;
   export let onPrint: () => void;
   /** Called on release. Consumers whose BPM change is expensive should re-render
@@ -59,10 +65,21 @@
    */
   let voicesOpen = false;
   let voicesEl: HTMLDivElement;
-  $: audibleCount = voiceNames.filter((n) => !mutedVoices.has(n)).length;
+  $: hiddenCount = voiceNames.filter((n) => hiddenVoices.has(n)).length;
+  $: mutedCount = voiceNames.filter((n) => mutedVoices.has(n)).length;
+  /** What is switched off, on the button itself - a hidden voice is easy to forget. */
+  $: voicesSummary = [
+    hiddenCount ? `${hiddenCount} hidden` : "",
+    mutedCount ? `${mutedCount} muted` : "",
+  ].filter(Boolean).join(" · ");
+  /** At one, the voice still showing cannot be hidden: there would be nothing to read. */
+  $: shownCount = voiceNames.length - hiddenCount;
 
+  // composedPath, not contains(target): a toggle swaps its own icon as it is
+  // clicked, and by the time the click reaches the window the icon that was
+  // hit is no longer in the menu - so every toggle closed the menu behind it.
   function closeVoicesOnOutside(e: MouseEvent) {
-    if (voicesOpen && voicesEl && !voicesEl.contains(e.target as Node)) voicesOpen = false;
+    if (voicesOpen && voicesEl && !e.composedPath().includes(voicesEl)) voicesOpen = false;
   }
 
   function closeVoicesOnEscape(e: KeyboardEvent) {
@@ -272,34 +289,59 @@
             on:click={() => (voicesOpen = !voicesOpen)}
             aria-haspopup="true"
             aria-expanded={voicesOpen}
-            title="Choose which voices play"
+            title={onToggleHidden ? "Choose which voices are shown and heard" : "Choose which voices play"}
           >
             Voices
-            <span class="tabular-nums text-slate-300">{audibleCount}/{voiceNames.length}</span>
+            {#if voicesSummary}
+              <span class="tabular-nums text-amber-300">{voicesSummary}</span>
+            {/if}
             <ChevronUp size={14} class="transition-transform {voicesOpen ? '' : 'rotate-180'}" />
           </button>
           {#if voicesOpen}
             <!-- Inline on a phone, where the sheet scrolls and would clip a
                  floating menu; a drop-up above the button from sm up. -->
             <div
-              class="mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 min-w-[11rem]
+              class="mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 min-w-[13rem]
                      rounded-md bg-slate-700 shadow-xl ring-1 ring-slate-600 py-1"
               role="group"
               aria-label="Voices"
             >
+              <div class="flex items-center gap-1 pl-3 pr-1 pt-1 text-[10px] uppercase tracking-wide text-slate-400" aria-hidden="true">
+                <span class="flex-1"></span>
+                {#if onToggleHidden}<span class="w-11 sm:w-8 text-center">Show</span>{/if}
+                <span class="w-11 sm:w-8 text-center">Hear</span>
+              </div>
               {#each voiceNames as name}
-                <button
-                  class="w-full flex items-center gap-2 px-3 py-2 sm:py-1.5 text-sm text-left hover:bg-slate-600
-                         {mutedVoices.has(name) ? 'text-slate-400 line-through' : 'text-slate-100'}"
-                  on:click={() => onToggleMute(name)}
-                  aria-pressed={!mutedVoices.has(name)}
-                  title="{mutedVoices.has(name) ? 'Unmute' : 'Mute'} {name}"
-                >
-                  <span class="w-4 flex justify-center text-teal-300">
-                    {#if !mutedVoices.has(name)}<Check size={14} />{/if}
-                  </span>
-                  {name}
-                </button>
+                {@const hidden = hiddenVoices.has(name)}
+                {@const muted = mutedVoices.has(name)}
+                <div class="flex items-center gap-1 pl-3 pr-1 text-sm">
+                  <span class="flex-1 truncate {hidden && muted ? 'text-slate-400' : 'text-slate-100'}">{name}</span>
+                  {#if onToggleHidden}
+                    {@const locked = !hidden && shownCount <= 1}
+                    <button
+                      class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8
+                             hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent
+                             {hidden ? 'text-slate-400' : 'text-teal-300'}"
+                      on:click={() => onToggleHidden?.(name)}
+                      disabled={locked}
+                      aria-pressed={!hidden}
+                      aria-label="Show {name}"
+                      title={locked ? "One voice always stays on the page" : `${hidden ? "Show" : "Hide"} ${name}`}
+                    >
+                      {#if hidden}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
+                    </button>
+                  {/if}
+                  <button
+                    class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 hover:bg-slate-600
+                           {muted ? 'text-slate-400' : 'text-teal-300'}"
+                    on:click={() => onToggleMute(name)}
+                    aria-pressed={!muted}
+                    aria-label="Hear {name}"
+                    title="{muted ? 'Unmute' : 'Mute'} {name}"
+                  >
+                    {#if muted}<VolumeX size={16} />{:else}<Volume2 size={16} />{/if}
+                  </button>
+                </div>
               {/each}
             </div>
           {/if}

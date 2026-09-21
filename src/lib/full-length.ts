@@ -47,6 +47,8 @@ export type FullLengthDisplay = {
   chordSymbols?: boolean;
   lyrics?: "movable" | "fixed" | "names" | null;
   midiProgram?: number;
+  /** Voices with no staff - every section leaves out the same ones. */
+  hiddenVoices?: string[];
 };
 
 export type FullLengthOptions = {
