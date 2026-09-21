@@ -787,7 +787,10 @@
         : lyrics === "fixed" || lyrics === "names"
           ? lyrics
           : null;
-    showChords = p.get("chords") !== "0";
+    // On only when the link says so. `!== "0"` turned them on for every visit
+    // with no `chords` at all - which is every link into this page - and so
+    // overrode the off default above. Shared links always carry 0 or 1.
+    showChords = p.get("chords") === "1";
     transposeSemitones = clampTranspose(Number(p.get("transpose") ?? 0));
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
