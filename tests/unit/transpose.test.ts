@@ -4,6 +4,7 @@ import {
   clampTranspose,
   soundingKey,
   transposeLabel,
+  withPlaybackTranspose,
   MIN_TRANSPOSE,
   MAX_TRANSPOSE,
 } from "../../src/lib/transpose";
@@ -104,6 +105,58 @@ describe("the label", () => {
  * flattener is what adds it to real MIDI numbers - reading the sequence instead
  * shows unchanged pitches and looks like the option being ignored.
  */
+describe("the choral score moves as one, tenor included", () => {
+  // The tenor's clef carries its own transpose=-12, which abcjs lets override
+  // midiTranspose instead of adding to it.
+  const SATB = `X:1
+M:4/4
+L:1/32
+%%score S A T B
+V:S clef=treble octave=-1 name="Soprano" snm="S"
+V:A clef=treble octave=-1 name="Alto" snm="A"
+V:T clef=treble transpose=-12 name="Tenor" snm="T"
+V:B clef=bass octave=-1 name="Bass" snm="B"
+K:D
+% End of header, start of tune body:
+[V:S] f'16 e'16 |]
+[V:A] d'16 c'16 |]
+[V:T] A16 A16 |]
+[V:B] D16 A,16 |]
+`;
+  const voices = (abc: string, params: object = {}): number[][] => {
+    const tune = abcjs.parseOnly(abc)[0] as any;
+    return tune
+      .setUpAudio(params)
+      .tracks.map((track: any[]) => track.filter((ev) => ev.cmd === "note").map((ev) => ev.pitch))
+      .filter((track: number[]) => track.length > 0);
+  };
+
+  test("midiTranspose alone leaves the tenor behind - why the shift is written into the score", () => {
+    const plain = voices(SATB);
+    const shifted = voices(SATB, { midiTranspose: 3 });
+    expect(shifted[2]).toEqual(plain[2]);
+    expect(shifted[0]).toEqual(plain[0].map((p) => p + 3));
+  });
+
+  test("written into the V: lines, every voice moves by the same amount", () => {
+    const plain = voices(SATB);
+    for (const semitones of [-12, -5, -1, 2, 7, 12]) {
+      const shifted = voices(withPlaybackTranspose(SATB, semitones));
+      expect(shifted).toEqual(plain.map((track) => track.map((p) => p + semitones)));
+    }
+    // The tenor still sounds an octave below where it is written.
+    expect(plain[2][0]).toBe(57);
+  });
+
+  test("changes nothing at zero, and nothing the page draws", () => {
+    expect(withPlaybackTranspose(SATB, 0)).toBe(SATB);
+    const moved = withPlaybackTranspose(SATB, 4);
+    expect(moved).toContain('V:T clef=treble transpose=-8 name="Tenor"');
+    expect(moved).toContain('V:S clef=treble octave=-1 name="Soprano" snm="S" transpose=4');
+    expect(moved.split("% End of header")[1]).toBe(SATB.split("% End of header")[1]);
+  });
+});
+
 describe("abcjs applies midiTranspose to the audio, not the notation", () => {
   const ABC = `X:1
 M:4/4

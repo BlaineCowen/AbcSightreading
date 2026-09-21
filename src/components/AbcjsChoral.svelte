@@ -41,6 +41,7 @@
   import {
     clampTranspose,
     transposeLabel,
+    withPlaybackTranspose,
     MIN_TRANSPOSE,
     MAX_TRANSPOSE,
   } from "../lib/transpose";
@@ -753,9 +754,8 @@
       // serves those exact FluidR3_GM samples, so restate the 3.0 it would have
       // chosen; without this the fix would land as a 3x drop in volume.
       soundFontVolumeMultiplier: 3.0,
-      // Read in abc_midi_sequencer, downstream of the visual object, so the
-      // score on the page is untouched and only the sound moves.
-      midiTranspose: transposeSemitones,
+      // No midiTranspose: it never reached the tenor. The transposition is
+      // written into the score playback reads - see initSynth.
     };
   }
 
@@ -1408,14 +1408,21 @@
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
       .filter((i) => i >= 0);
 
-    // A hidden voice has no staff, so the tune on the page has no notes for it.
-    // abcjs gets the notes to play by calling the tune's own setUpAudio (in
-    // CreateSynth), so point that at a copy of the whole score: every voice
-    // sounds, and the cursor - driven by the drawn tune's timing - is untouched.
-    // The two copies share every bar and beat, so their timings agree, and
-    // voicesOff counts the whole score's voices, which is barVoices' order.
-    if (renderCurrent && barVoices.some((name) => hiddenVoices.has(name))) {
-      const [full] = abcjs.parseOnly(renderCurrent({ ...displayOptions(), hiddenVoices: [] }));
+    // Playback reads its own copy of the score. abcjs gets the notes to play by
+    // calling the tune's setUpAudio (in CreateSynth), so point that at a parse
+    // of the whole score - hidden voices included, since a hidden voice has no
+    // staff on the page but is still heard - with the playback transposition
+    // written into every voice (withPlaybackTranspose says why midiTranspose
+    // cannot do it). The cursor follows the drawn tune's timing, untouched: the
+    // two share every bar and beat. voicesOff counts the whole score's voices,
+    // which is barVoices' order. Done on every build, so a copy from before a
+    // transpose change never outlives it.
+    if (renderCurrent) {
+      const audio = withPlaybackTranspose(
+        renderCurrent({ ...displayOptions(), hiddenVoices: [] }),
+        transposeSemitones
+      );
+      const [full] = abcjs.parseOnly(audio);
       tune.setUpAudio = (params: any) => full.setUpAudio(params);
     }
 

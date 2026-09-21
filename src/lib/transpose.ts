@@ -6,10 +6,9 @@
  * sounds wherever the choir can actually sing it - or wherever a transposing
  * instrument needs it.
  *
- * abcjs does this for us. `midiTranspose` is read in abc_midi_sequencer and
- * shifts every note as the MIDI sequence is built, downstream of the visual
- * object, so nothing about the rendered score changes. It composes with the
- * per-voice `transpose=-12` on the tenor clef rather than fighting it.
+ * abcjs does the shifting, downstream of the visual object, so nothing about the
+ * rendered score changes. On a single line `midiTranspose` is enough. On the
+ * choral score it is not: see `withPlaybackTranspose`.
  */
 
 /** Semitones, either direction. An octave each way is more than anyone needs. */
@@ -19,6 +18,29 @@ export const MAX_TRANSPOSE = 12;
 export function clampTranspose(semitones: number): number {
   if (!Number.isFinite(semitones)) return 0;
   return Math.max(MIN_TRANSPOSE, Math.min(MAX_TRANSPOSE, Math.round(semitones)));
+}
+
+/**
+ * The ABC with a playback transposition written into every voice's V: line.
+ *
+ * `midiTranspose` does not reach a voice whose clef carries its own
+ * `transpose=`: abcjs *replaces* the global shift with the clef's (the
+ * sequencer pushes the clef's value after the global one, and the flattener
+ * keeps the last) rather than adding the two. The tenor is written
+ * `clef=treble transpose=-12`, so it stayed put while the other parts moved -
+ * transposing the choral score took the harmony apart. Written into each V:
+ * line, the tenor's -12 and the shift add up, and every voice moves together.
+ *
+ * Only header V: lines are touched; the body's `[V:x]` markers carry no clef.
+ */
+export function withPlaybackTranspose(abc: string, semitones: number): string {
+  if (!semitones) return abc;
+  return abc.replace(/^V:.*$/gm, (line) => {
+    const own = line.match(/\btranspose=(-?\d+)/);
+    return own
+      ? line.replace(own[0], `transpose=${Number(own[1]) + semitones}`)
+      : `${line} transpose=${semitones}`;
+  });
 }
 
 const PITCH_CLASS: Record<string, number> = {
