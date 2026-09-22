@@ -970,11 +970,28 @@ function findValidBassNote(
     // form, so `=== 1` excluded it, and with it every approach those two chords
     // have: V6/V survived only because its own approaches (E to F#) happen to
     // be true steps.
+    //
     const stepApproachable = possibleNotes.filter(
       (n) => n.degree !== chromDegBass || Math.abs(n.pitchValue - prevNote.pitchValue) <= 1
     );
     if (stepApproachable.length > 0) possibleNotes = stepApproachable;
     else return null; // No step-approachable chromatic bass pitch in range
+
+    // Better still if it can also leave by step: up for a raised degree, down
+    // for a lowered one, onto a pitch the bass can still sing. Placed at the top
+    // of its range, a raised note owes a step above it that nothing can pay, and
+    // the retries end in the deadlock escape - which leaps.
+    //
+    // A preference, not a rule. Refusing the chord outright instead sent the
+    // search elsewhere and cost approaches: measured at UIL 5 in G, bass
+    // accidentals reached by leap went from 6% to 8% while this was a rule.
+    const resolvesUp = chord.sharpScaleDegree === chromDegBass;
+    const canAlsoResolve = possibleNotes.filter((n) => {
+      if (n.degree !== chromDegBass) return true;
+      const target = n.pitchValue + (resolvesUp ? 1 : -1);
+      return target >= bassRange[0] && target <= bassRange[1];
+    });
+    if (canAlsoResolve.length > 0) possibleNotes = canAlsoResolve;
   }
 
   // If no previous note, prefer root position (structural stability at phrase start).

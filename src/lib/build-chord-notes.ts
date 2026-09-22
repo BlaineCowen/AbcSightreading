@@ -988,9 +988,23 @@ export function buildChordNotes(
       const OVERLAP_YIELD_AFTER = 6;
       let stepRetryCount = 0;
       let stepSuccess = false;
+      /**
+       * The resolution the bass owes this step, as it stood when the step began.
+       *
+       * Each attempt writes its bass note and sets owedBassResolution from it -
+       * the debt that note leaves for the *next* step - before the upper voices
+       * are placed. When one of them then fails, the step is retried, and the
+       * retry used to see the failed attempt's debt (almost always none) in
+       * place of the one this step actually owes. So the accidental before it
+       * went unresolved whenever this step needed a second attempt: measured at
+       * UIL 5 in G, 29 of 32 unresolved bass accidentals. Its wider, lower upper
+       * ranges make exactly these steps need retries.
+       */
+      const owedAtStepStart = owedBassResolution;
 
       while (stepRetryCount < maxStepRetries && !stepSuccess) {
         stepRetryCount++;
+        owedBassResolution = owedAtStepStart;
 
         const stepNotesAttempt: (VoiceNote | null)[] = new Array(
           voiceParts.length
@@ -1213,14 +1227,30 @@ export function buildChordNotes(
                     // altered note is fine and stays; leaping onto it is what a
                     // reader trips over.
                     //
-                    // A preference, not a rule: if nothing else is reachable the
-                    // leap stands, and the escape still escapes.
+                    // It has to be able to leave, too. The altered note owes the
+                    // next bass a step - up for a raised note, down for a
+                    // lowered one - and that step can fall outside the bass's
+                    // range: G# on G, the top of the default bass range in G
+                    // major, owes an A the bass cannot sing. With nowhere to
+                    // resolve, the debt goes unpaid and the bass leaps off the
+                    // accidental. Measured on the page's defaults in G, that was
+                    // two thirds of the unresolved bass accidentals, nearly all
+                    // of them V/ii.
+                    //
+                    // A preference, not a rule: if nothing else qualifies the
+                    // chromatic note stands, and the escape still escapes.
+                    const resolvesUp = currentChord.sharpScaleDegree === chromDeg;
+                    const canResolve = (n: Note) => {
+                      const target = n.pitchValue + (resolvesUp ? 1 : -1);
+                      return target >= bassPartInfo.range[0] && target <= bassPartInfo.range[1];
+                    };
                     const reachable = altNotes.filter(
                       (n) =>
                         n.degree !== chromDeg ||
-                        !prevBassNote ||
-                        prevBassNote.rest ||
-                        Math.abs(n.pitchValue - prevBassNote.pitchValue) <= 1
+                        ((!prevBassNote ||
+                          prevBassNote.rest ||
+                          Math.abs(n.pitchValue - prevBassNote.pitchValue) <= 1) &&
+                          canResolve(n))
                     );
                     if (reachable.length > 0) altNotes = reachable;
                   }
