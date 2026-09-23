@@ -354,41 +354,24 @@
   // ];
 
   /**
-   * Plays a single note using the Tone.js synth
-   * @param {string} noteName - The name of the note (e.g., "f", "G", "c'")
+   * Plays a clicked note as it sounds in playback.
+   *
+   * The pitch comes from abcjs's own MIDI pass rather than the written letter:
+   * reading the letter ignored the key signature (an F in G major played F
+   * natural), an accidental earlier in the bar, and the playback transpose.
+   * abcjs writes `midiPitches` onto each note when it sets up audio, which a
+   * freshly drawn score has not done yet - so do it here, with the transpose
+   * playback uses. A transpose change redraws the score, so pitches set up
+   * under the old transpose never outlive it.
    */
-  const playNote = async (noteName: string) => {
+  const playNote = async (abcElem: any) => {
+    if (!abcElem.midiPitches && currentTune) {
+      currentTune.setUpAudio({ midiTranspose: transposeSemitones });
+    }
+    const midi = abcElem.midiPitches?.[0]?.pitch;
+    if (typeof midi !== "number") return;
     await Tone.start();
-
-    // Convert ABC notation to Tone.js notation
-    // ABC: C is middle C (C4), c is C5, c' is C6, C, is C3
-    let octave = 4; // Default to middle C octave
-    let note = noteName;
-
-    // Handle commas (lower octave)
-    while (note.endsWith(",")) {
-      octave--;
-      note = note.slice(0, -1);
-    }
-
-    // Handle apostrophes (raise octave)
-    while (note.includes("'")) {
-      octave++;
-      note = note.replace("'", "");
-    }
-
-    // If lowercase, raise octave by 1 (since lowercase means one octave above in ABC)
-    if (note === note.toLowerCase()) {
-      octave++;
-    }
-
-    // Convert to uppercase for Tone.js
-    note = note.toUpperCase();
-
-    // Handle accidentals
-    note = note.replace("^", "#").replace("_", "b");
-
-    toneSynth.triggerAttackRelease(`${note}${octave}`, "8n");
+    toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n");
   };
 
   // The selectable set is shared with scripts/check-rhythm.ts, so the checks
@@ -1119,9 +1102,7 @@
         // Every note on the rhythm staff is the same placeholder pitch, so
         // playing it back would be meaningless.
         if (rhythmOnly) return;
-        if (event.pitches && event.pitches.length > 0) {
-          await playNote(event.pitches[0].name);
-        }
+        if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
   }
