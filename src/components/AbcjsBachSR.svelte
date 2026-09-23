@@ -212,7 +212,8 @@
     let s = abc;
     // abcjs %%score syntax: PARENTHESES group voices onto a single staff.
     // Brackets/braces are just visual decoration and DON'T merge staves.
-    s = s.replace(/^%%score\s+S\s+A\s+T\s+B/m, "%%score (S A) (T B)");
+    // The assembler now writes the choral bracket, [S A T B]; either form matches.
+    s = s.replace(/^%%score\s+\[?S\s+A\s+T\s+B\]?/m, "%%score (S A) (T B)");
     // Stems: top voice on each staff up, bottom voice down (piano-score
     // convention). Soprano + Tenor get stems up; Alto + Bass get stems down.
     s = s.replace(/^V:S\s+clef=treble octave=-1.*$/m,

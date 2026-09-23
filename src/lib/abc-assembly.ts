@@ -102,12 +102,14 @@ export function assembleAbcString(
   if (shown.length === 0) shown = voiceParts.map((_, i) => i);
   const shownParts = shown.map((i) => voiceParts[i]);
 
-  // %%score directive
-  let scoreDirective = "%%score";
-  shownParts.forEach((part) => {
-    scoreDirective += ` ${part.smallName}`;
-  });
-  abcString += scoreDirective + "\n";
+  // %%score directive. The square brackets draw a choir's bracket down the left
+  // of each system, grouping its staves so one system reads as one unit and
+  // the next as the next. Barlines stay broken between staves - joining them
+  // (`|` between names) is for keyboard scores; a choral score leaves the gap
+  // for the words under each staff, here the solfège. A single staff gets no
+  // bracket: there is nothing to group.
+  const names = shownParts.map((part) => part.smallName).join(" ");
+  abcString += (shownParts.length > 1 ? `%%score [${names}]` : `%%score ${names}`) + "\n";
 
   // V: Voice part headers
   shownParts.forEach((part) => {

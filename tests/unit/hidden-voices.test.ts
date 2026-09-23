@@ -133,7 +133,7 @@ describe("a generated exercise", () => {
   test("hides by the names the Voices menu shows", () => {
     expect(out.voiceNames).toEqual(["Soprano", "Alto", "Tenor", "Bass"]);
     const abc = out.render({ hiddenVoices: ["Alto", "Tenor"] });
-    expect(abc).toContain("%%score S B\n");
+    expect(abc).toContain("%%score [S B]\n");
     expect(bodyLine(abc, "A")).toBeNull();
     expect(bodyLine(abc, "T")).toBeNull();
   });
@@ -141,7 +141,7 @@ describe("a generated exercise", () => {
   test("a full-length piece joins its sections with the same voices left out", () => {
     const hidden = { hiddenVoices: ["Tenor"] };
     const joined = joinSectionAbc([{ abc: out.render(hidden) }, { abc: out.render(hidden) }] as any);
-    expect(joined).toContain("%%score S A B\n");
+    expect(joined).toContain("%%score [S A B]\n");
     expect(bodyLine(joined!, "T")).toBeNull();
     expect(joined!.match(/^\[V:/gm)?.length).toBe(3);
   });
