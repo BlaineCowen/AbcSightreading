@@ -5,6 +5,18 @@
   let isNavbarOpen = false;
 
   /**
+   * The two modules. Short names on the bar - the logo already says "Sight
+   * Reading" - and the full ones in the phone menu, where there is room.
+   */
+  const pages = [
+    { href: "/sightreading", short: "Unison", full: "Unison Sight Reading" },
+    { href: "/choral-sightreading", short: "Choral", full: "Choral Sight Reading" },
+  ];
+  // client:only, so the path is there from the first render.
+  const here =
+    typeof window === "undefined" ? "" : window.location.pathname.replace(/\/+$/, "") || "/";
+
+  /**
    * Light/dark toggle. Only pages that opt in to the dark theme (`themable` on
    * Layout) show it - elsewhere it would flip nothing. Until someone toggles,
    * the OS decides; a toggle is saved and applied before paint by Layout.
@@ -63,21 +75,35 @@
 
 <nav
   bind:this={navbar}
-  class="fixed w-full bg-sr-raise shadow-md z-50 transition-transform duration-300"
+  class="fixed w-full bg-sr-raise border-b border-sr-hairline z-50 transition-transform duration-300"
 >
-  <div class="max-w-7xl mx-auto px-4">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
     <div class="flex justify-between items-center h-16">
+      <!-- The logo: "abc" small, in the favicon's Edwin Bold Italic, then the
+           name large. The three letters are the font's own outlines rather
+           than text: the site's Edwin face loads only the regular weight,
+           and a whole bold-italic font file for three letters would flash in
+           late on every page. -->
       <a
         href="/"
-        class="text-xl font-bold text-sr-ink hover:text-sr-action-fg transition-colors"
+        class="group flex items-baseline gap-1.5"
+        aria-label="ABC Sight Reading, home"
       >
-        ABC Sight Reading
+        <svg
+          class="h-[0.75em] w-auto text-[16px] sm:text-[18px] text-sr-action-fg"
+          viewBox="0 -736 1780 750"
+          fill="currentColor"
+          aria-hidden="true"
+        ><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg>
+        <span
+          class="text-[26px] sm:text-[30px] font-semibold tracking-[-0.015em] leading-none text-sr-ink group-hover:text-sr-action-fg transition-colors"
+        >Sight Reading</span>
       </a>
 
       <div class="flex items-center gap-1 md:hidden">
       {#if themable}
         <button
-          class="p-2 rounded-md text-sr-ink-2 hover:bg-sr-track transition-colors"
+          class="w-11 h-11 flex items-center justify-center rounded-md text-sr-ink-2 hover:bg-sr-track transition-colors"
           on:click={toggleTheme}
           aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
           title={isDark ? "Light mode" : "Dark mode"}
@@ -87,15 +113,17 @@
       {/if}
       <!-- Mobile menu button -->
       <button
-        class="md:hidden p-2 rounded-md hover:bg-sr-track transition-colors"
+        class="w-11 h-11 flex items-center justify-center rounded-md text-sr-ink transition-colors {isNavbarOpen ? 'bg-sr-track' : 'hover:bg-sr-track'}"
         on:click={() => (isNavbarOpen = !isNavbarOpen)}
-        aria-label="Toggle menu"
+        aria-label={isNavbarOpen ? "Close menu" : "Open menu"}
+        aria-expanded={isNavbarOpen}
       >
         <svg
           class="h-6 w-6"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
+          aria-hidden="true"
         >
           {#if isNavbarOpen}
             <path
@@ -117,22 +145,19 @@
       </div>
 
       <!-- Desktop menu -->
-      <div class="hidden md:flex items-center space-x-8">
-        <a
-          href="/sightreading"
-          class="text-sr-ink-2 hover:text-sr-action-fg transition-colors"
-        >
-          Unison Sight Reading
-        </a>
-        <a
-          href="/choral-sightreading"
-          class="text-sr-ink-2 hover:text-sr-action-fg transition-colors"
-        >
-          Choral Sight Reading
-        </a>
+      <div class="hidden md:flex items-center gap-7">
+        {#each pages as page}
+          <a
+            href={page.href}
+            class="text-[15px] transition-colors hover:text-sr-action-fg {here === page.href ? 'font-semibold text-sr-action-fg' : 'text-sr-ink-2'}"
+            aria-current={here === page.href ? "page" : undefined}
+          >
+            {page.short}
+          </a>
+        {/each}
         {#if themable}
           <button
-            class="p-2 -my-2 rounded-md text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
+            class="w-10 h-10 flex items-center justify-center rounded-md text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
             on:click={toggleTheme}
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             title={isDark ? "Light mode" : "Dark mode"}
@@ -145,21 +170,17 @@
 
     <!-- Mobile menu -->
     {#if isNavbarOpen}
-      <div class="md:hidden py-4 space-y-2">
-        <a
-          href="/sightreading"
-          class="block px-4 py-2 text-sr-ink-2 hover:bg-sr-track rounded-md transition-colors"
-          on:click={() => (isNavbarOpen = false)}
-        >
-          Unison Sight Reading
-        </a>
-        <a
-          href="/choral-sightreading"
-          class="block px-4 py-2 text-sr-ink-2 hover:bg-sr-track rounded-md transition-colors"
-          on:click={() => (isNavbarOpen = false)}
-        >
-          Choral Sight Reading
-        </a>
+      <div class="md:hidden pt-1 pb-3 flex flex-col gap-0.5">
+        {#each pages as page}
+          <a
+            href={page.href}
+            class="flex items-center min-h-12 px-3 rounded-md text-base transition-colors {here === page.href ? 'font-semibold text-sr-action-fg bg-sr-track' : 'text-sr-ink-2 hover:bg-sr-track'}"
+            aria-current={here === page.href ? "page" : undefined}
+            on:click={() => (isNavbarOpen = false)}
+          >
+            {page.full}
+          </a>
+        {/each}
       </div>
     {/if}
   </div>
