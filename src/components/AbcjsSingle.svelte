@@ -724,12 +724,14 @@
     let out = abc;
     if (!showSolfege) out = withoutLyrics(out);
     // Rhythm syllables belong to the one-line rhythm staff, where the control
-    // for them lives. A pitched exercise now carries them too - that is what
-    // lets a practice run show them on its repeats - so the setting alone is
-    // not enough to print them, or a value left over from rhythm-only mode (or
-    // carried in a shared link) would put syllables on a pitched exercise
-    // nobody asked to annotate.
-    const syllablesWanted = showRhythmSyllables && (rhythmOnly || drillRunning);
+    // for them lives. A pitched exercise carries them too - that is what lets a
+    // practice run's repeats show Kodaly or counting - but prints them only
+    // when a repeat has asked (passSyllables). Reading the rhythm-staff setting
+    // here instead, even just during a run, put counting under every pass of a
+    // pitched run whenever that setting had been left on - from rhythm mode,
+    // localStorage or a link - with no control on the pitched page to take it
+    // away, and it stayed after the run.
+    const syllablesWanted = rhythmOnly ? showRhythmSyllables : passSyllables;
     if (!syllablesWanted) out = withoutQuotedText(out);
     return out;
   }
@@ -2210,6 +2212,12 @@
   let passDroneOverride: boolean | null = null;
   /** False when this pass starts at its first note, with no bar of count-in. */
   let passCountInOverride: boolean | null = null;
+  /**
+   * Whether this pass of a PITCHED exercise shows rhythm syllables. Only a
+   * repeat that asks for Kodaly or counting sets it; see withChosenAnnotations.
+   * (On the rhythm staff the reader's own `showRhythmSyllables` decides.)
+   */
+  let passSyllables = false;
 
   /** Every sound back to the reader's own controls. */
   function clearPassSounds() {
@@ -2330,8 +2338,16 @@
           // The annotations are stripped as the score is drawn, so changing
           // them means drawing it again - and that is what costs the audio
           // timeline. Work out what is wanted before deciding anything.
+          //
+          // Rhythm syllables mean two different things by mode. On the rhythm
+          // staff they are the reader's own setting, with its control right
+          // there. On a pitched exercise nobody set them: the only way they
+          // belong on one is a repeat that asks for Kodaly or counting. So the
+          // pitched side has its own flag, and the rhythm-staff setting - which
+          // is saved, and so easily left on - never reaches a pitched run.
+          const syllablesShown = rhythmOnly ? showRhythmSyllables : passSyllables;
           let wantSolfege = showSolfege;
-          let wantSyllables = showRhythmSyllables;
+          let wantSyllables = rhythmOnly ? showRhythmSyllables : false;
           // The system the repeats ask for, or the reader's own on pass one.
           // A repeat in a different system is a re-label, not a new exercise:
           // the run used to write EVERY exercise in the repeat's system, which
@@ -2346,13 +2362,14 @@
           } else if (first && drillRepeatAnnotation !== "same") {
             // Back to the reader's own, which is what the run started from.
             wantSolfege = drillFirstSolfege;
-            wantSyllables = drillFirstSyllables;
+            wantSyllables = rhythmOnly ? drillFirstSyllables : false;
           }
           const sameDisplay =
-            wantSolfege === showSolfege && wantSyllables === showRhythmSyllables;
+            wantSolfege === showSolfege && wantSyllables === syllablesShown;
           if (sameDisplay && wantSystem === writtenSyllableSystem) return false;
           showSolfege = wantSolfege;
-          showRhythmSyllables = wantSyllables;
+          if (rhythmOnly) showRhythmSyllables = wantSyllables;
+          else passSyllables = wantSyllables;
           if (!currentTune || !originalTuneString) return false;
           // Only the syllables it will actually show need re-labelling.
           if (wantSyllables) relabelScore(wantSystem);
