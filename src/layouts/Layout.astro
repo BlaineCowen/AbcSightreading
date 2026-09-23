@@ -19,23 +19,25 @@ const {
 } = Astro.props;
 
 /**
- * Where tester feedback goes. Set PUBLIC_FEEDBACK_EMAIL to switch the button
- * on; with it unset there is no button, which is the right default for a
- * public build - an address written into the markup is an address that gets
- * scraped.
+ * Whether the Feedback button appears at all.
  *
- * Asked for at request time as well as build time - see readFeedbackEmail for
- * why, and for the five days of production with no button that prompted it.
+ * The address itself stays on the server now - the panel posts its report to
+ * /api/feedback and that route decides where it goes - so what this decides is
+ * only whether feedback is switched on here. Unset means no button, which is
+ * the right default: a button that cannot send anything is worse than none.
+ *
+ * Asked for at request time as well as build time. See readFeedbackEmail for
+ * why, and for the failure it is guarding against.
  *
  * The runtime side reads the property off a variable rather than writing
- * `process.env.PUBLIC_FEEDBACK_EMAIL`, because Vite replaces that spelling at
- * build time too, which would make the fallback no fallback at all.
+ * `process.env.FEEDBACK_TO`, because Vite replaces that spelling at build time
+ * too, which would make the fallback no fallback at all.
  */
 const runtimeEnv: Record<string, string | undefined> =
   (globalThis as any).process?.env ?? {};
-const feedbackEmail = readFeedbackEmail(
+const feedbackConfigured = !!readFeedbackEmail(
   runtimeEnv,
-  import.meta.env.PUBLIC_FEEDBACK_EMAIL
+  import.meta.env.FEEDBACK_TO ?? import.meta.env.PUBLIC_FEEDBACK_EMAIL
 );
 ---
 
@@ -71,9 +73,7 @@ const feedbackEmail = readFeedbackEmail(
       <slot />
     </main>
     {
-      feedbackEmail && (
-        <FeedbackButton client:idle to={feedbackEmail} page={title} />
-      )
+      feedbackConfigured && <FeedbackButton client:idle page={title} />
     }
   </body>
 </html>
