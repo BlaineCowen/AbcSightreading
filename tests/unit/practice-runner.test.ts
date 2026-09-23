@@ -187,6 +187,35 @@ describe("practice runner", () => {
     expect(calls.filter((c) => c === "play").length).toBe(1); // only the first pass
   });
 
+  test("a repeat that only silences the piano, the click or the drone still butts against the pass before", async () => {
+    // All three are live - a gain node, the beat callback, an oscillator - so
+    // the page reports no redraw, and the silent repeat follows straight on.
+    for (const sound of ["no-piano", "no-click", "drone-on"]) {
+      const page = fakePage();
+      page.secondPass(sound, false);
+      const runner = new PracticeRunner(page.hooks, settings({ exercises: 1, repeats: 3 }), options());
+      const calls = await playThrough(runner, page);
+      expect(calls).toContain(`display:${sound}`);
+      expect(calls.filter((c) => c === "repeatPass").length).toBe(2);
+      expect(calls.filter((c) => c === "play").length).toBe(1);
+      expect(page.display).toBe("first"); // and the reader's own sound is back at the end
+    }
+  });
+
+  test("a silenced repeat hands the sound back when the run is stopped part way through", async () => {
+    const page = fakePage();
+    page.secondPass("no-piano", false);
+    const runner = new PracticeRunner(page.hooks, settings({ exercises: 4, repeats: 2 }), options());
+    await runner.start();
+    runner.passEnded(); // into the silent repeat
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(page.display).toBe("no-piano");
+    await runner.stop();
+    expect(page.display).toBe("first");
+  });
+
   test("a repeat that changes the annotations starts fresh instead", async () => {
     // Annotations are stripped when the score is drawn, so changing them
     // redraws it - and the redraw takes the audio timeline with it. Butting

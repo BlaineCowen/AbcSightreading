@@ -4,7 +4,7 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
-  import { PracticeRunner, rampEndBpm } from "../lib/practice-run";
+  import { PracticeRunner, rampEndBpm, passOverride, type PassSwitch } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import {
     firstSystemScrollTarget,
@@ -170,7 +170,7 @@
       audioContext = new (window.AudioContext ||
         (window as any).webkitAudioContext)();
       gainNode = audioContext.createGain();
-      gainNode.gain.value = masterVolume * 0.7;
+      applyInstrumentGain();
       gainNode.connect(audioContext.destination);
 
       metronomeGainNode = audioContext.createGain();
@@ -1400,7 +1400,7 @@
           beatNumber,
           beatsPerMeasure
         );
-        if (isMetronomeOn && beat.click) playMetronomeClick(beat.isDownbeat);
+        if ((passMetronomeOverride ?? isMetronomeOn) && beat.click) playMetronomeClick(beat.isDownbeat);
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -1707,6 +1707,11 @@
       alert("Please generate a tune first!");
       return;
     }
+    // A run abandoned with the bar's Stop never reaches its own clean-up, so
+    // whatever its last repeat silenced would stay silent. Outside a run every
+    // sound is the reader's own. (Not in stopMusic: the run redraws through
+    // rerenderTune, which stops the music on the way.)
+    if (!drillRunning) clearPassSounds();
     // Block re-renders while we set up: rerenderTune() clears audioBuffer, and
     // isPlaying is still false during the await below, so nothing else would
     // hold it off.
@@ -2085,6 +2090,27 @@
   type PassAnnotation = "same" | "none" | "kodaly" | "counting" | "solfege";
   let drillRepeatCursor: PassCursor = "same";
   let drillRepeatAnnotation: PassAnnotation = "same";
+  /**
+   * What the repeats sound like: the notes, the click and the drone. The first
+   * pass is the one being read and keeps the reader's own controls; the repeats
+   * are for singing it on your own, which is why a director wants the piano
+   * gone from them. All three are live - a gain node, the beat callback and an
+   * oscillator - so changing them costs nothing and a repeat still follows
+   * straight on from the pass before.
+   */
+  let drillRepeatNotes: PassSwitch = "same";
+  let drillRepeatMetronome: PassSwitch = "same";
+  let drillRepeatDrone: PassSwitch = "same";
+  const passSwitchOptions: [PassSwitch, string][] = [
+    ["same", "Same"],
+    ["on", "On"],
+    ["off", "Off"],
+  ];
+  /** Whether a repeat would sound nothing at all, which is worth saying. */
+  $: repeatsSilent =
+    !(passOverride(1, drillRepeatNotes) ?? masterVolume > 0) &&
+    !(passOverride(1, drillRepeatMetronome) ?? isMetronomeOn) &&
+    (rhythmOnly || !(passOverride(1, drillRepeatDrone) ?? dronePlaying));
 
   /** The syllable system a repeat asks for, if it asks for one. */
   /**
@@ -2142,6 +2168,24 @@
    * music, and should not start now.
    */
   $: scrollSuppressed = passCursorOverride === "off";
+  /**
+   * What this pass does with the notes, the click and the drone; null means the
+   * reader's own control. Held apart from their settings for the same reason as
+   * passCursorOverride, and read inline where they apply rather than through a
+   * `$:` copy - applyPassDisplay sets them outside Svelte's flush, and a
+   * reactive copy would lag behind the pass it belongs to.
+   */
+  let passNotesOverride: boolean | null = null;
+  let passMetronomeOverride: boolean | null = null;
+  let passDroneOverride: boolean | null = null;
+
+  /** Every sound back to the reader's own controls. */
+  function clearPassSounds() {
+    if (passNotesOverride === null && passMetronomeOverride === null && passDroneOverride === null) return;
+    passNotesOverride = passMetronomeOverride = passDroneOverride = null;
+    applyInstrumentGain();
+    syncDrone();
+  }
 
   $: drillSettings = {
     exercises: drillExercises,
@@ -2230,6 +2274,18 @@
             first || drillRepeatCursor === "same" ? null : drillRepeatCursor;
           if ((passCursorOverride ?? cursorMode) === "off") hidePlaybackCursor();
 
+          // The notes, the click and the drone are all live - the gain node,
+          // the beat callback and an oscillator - so none of them touches the
+          // score, and a repeat that changes only what it sounds like still
+          // butts against the pass before. Set before the annotations below,
+          // whose early returns would otherwise skip them.
+          passNotesOverride = passOverride(pass, drillRepeatNotes);
+          applyInstrumentGain();
+          passMetronomeOverride = passOverride(pass, drillRepeatMetronome);
+          // The drone sounds the tonic, which the rhythm staff does not have.
+          passDroneOverride = rhythmOnly ? null : passOverride(pass, drillRepeatDrone);
+          syncDrone();
+
           // The annotations are stripped as the score is drawn, so changing
           // them means drawing it again - and that is what costs the audio
           // timeline. Work out what is wanted before deciding anything.
@@ -2291,6 +2347,10 @@
     // The reader's own system, to come back to on every first pass. The run no
     // longer borrows the system it writes in - each pass re-labels instead.
     drillFirstSyllableSystem = syllableSystemId;
+    // Tone only starts inside a click, and this is one. A repeat that brings in
+    // a drone the reader never switched on starts it from a pass boundary,
+    // where there is no click to start Tone with.
+    void Tone.start();
     // Built fresh each time so a run uses the settings as they are at Start,
     // and cannot be half-reconfigured while it is going.
     runner = makeRunner();
@@ -2442,9 +2502,7 @@
     const value = Number((event.target as HTMLInputElement).value);
     masterVolume = value;
     isMuted = masterVolume === 0;
-    if (gainNode) {
-      gainNode.gain.value = masterVolume * 0.7;
-    }
+    applyInstrumentGain();
   }
 
   /**
@@ -2458,8 +2516,28 @@
     } else {
       masterVolume = previousVolume === 0 ? 0.5 : previousVolume;
     }
-    if (gainNode) {
+    applyInstrumentGain();
+  }
+
+  /**
+   * The instrument's gain: the reader's volume, unless a practice run's repeat
+   * says otherwise.
+   *
+   * A silent repeat is the run's doing, not a setting, so the slider and the
+   * mute button go on showing the reader's own value, and moving them during a
+   * silent pass takes effect at the next pass that sounds. A repeat set to On
+   * plays even when the reader has muted the piano - that is what asking for
+   * it means - at the level they had before muting.
+   */
+  function applyInstrumentGain() {
+    if (!gainNode) return;
+    if (passNotesOverride === null) {
       gainNode.gain.value = masterVolume * 0.7;
+    } else if (passNotesOverride) {
+      const level = masterVolume > 0 ? masterVolume : previousVolume > 0 ? previousVolume : 0.5;
+      gainNode.gain.value = level * 0.7;
+    } else {
+      gainNode.gain.value = 0;
     }
   }
 
@@ -2473,9 +2551,23 @@
 
   /**
    * Toggles the drone sound on/off
+   *
+   * `dronePlaying` is the reader's setting - the button's label and pressed
+   * state - and a practice run's repeat may override it without touching it.
    */
   function toggleDrone() {
-    if (!dronePlaying) {
+    dronePlaying = !dronePlaying;
+    syncDrone();
+  }
+
+  /**
+   * Start or stop the drone to match what should be sounding: the reader's
+   * button, unless this pass says otherwise. Safe to call at every pass
+   * boundary - it only acts when the two disagree.
+   */
+  function syncDrone() {
+    const wanted = passDroneOverride ?? dronePlaying;
+    if (wanted && !droneOscillator) {
       Tone.start();
       const rootNote = getRootNoteFrequency(selectedKey);
       droneOscillator = new Tone.Oscillator({
@@ -2484,11 +2576,10 @@
       })
         .connect(droneVolume)
         .start();
-    } else {
-      droneOscillator?.stop();
+    } else if (!wanted && droneOscillator) {
+      droneOscillator.stop();
       droneOscillator = null;
     }
-    dronePlaying = !dronePlaying;
   }
 
   /**
@@ -3205,7 +3296,79 @@
                       {/if}
                     </p>
                   </div>
+
+                  <div class="space-y-2">
+                    <p class="sr-label">Repeat {rhythmOnly ? 'Percussion' : 'Piano'}</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label={`${rhythmOnly ? 'Percussion' : 'Piano'} on the repeats`}>
+                      {#each passSwitchOptions as [value, label]}
+                        <button
+                          class="sr-tok {drillRepeatNotes === value ? 'sr-on' : ''}"
+                          on:click={() => (drillRepeatNotes = value)}
+                          aria-label={`Repeat ${rhythmOnly ? 'percussion' : 'piano'}: ${label}`}
+                          aria-pressed={drillRepeatNotes === value}
+                        >{label}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-sr-faint">
+                      {drillRepeatNotes === 'same'
+                        ? `The repeats play the ${rhythmOnly ? 'percussion' : 'notes'} if the first pass does.`
+                        : drillRepeatNotes === 'on'
+                          ? `The ${rhythmOnly ? 'percussion plays' : 'notes play'} on the repeats, even with the volume muted.`
+                          : `Nothing played on the repeats - ${rhythmOnly ? 'clap' : 'sing'} it on your own. The volume stays where you set it.`}
+                    </p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <p class="sr-label">Repeat Metronome</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Metronome on the repeats">
+                      {#each passSwitchOptions as [value, label]}
+                        <button
+                          class="sr-tok {drillRepeatMetronome === value ? 'sr-on' : ''}"
+                          on:click={() => (drillRepeatMetronome = value)}
+                          aria-label={`Repeat metronome: ${label}`}
+                          aria-pressed={drillRepeatMetronome === value}
+                        >{label}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-sr-faint">
+                      {drillRepeatMetronome === 'same'
+                        ? 'The repeats click if the metronome is on.'
+                        : drillRepeatMetronome === 'on'
+                          ? 'The click comes in on the repeats, even with the metronome off.'
+                          : 'No click on the repeats - keep the beat yourself.'}
+                    </p>
+                  </div>
+
+                  {#if !rhythmOnly}
+                    <div class="space-y-2">
+                      <p class="sr-label">Repeat Drone</p>
+                      <div class="flex flex-wrap gap-2" role="group" aria-label="Drone on the repeats">
+                        {#each passSwitchOptions as [value, label]}
+                          <button
+                            class="sr-tok {drillRepeatDrone === value ? 'sr-on' : ''}"
+                            on:click={() => (drillRepeatDrone = value)}
+                            aria-label={`Repeat drone: ${label}`}
+                            aria-pressed={drillRepeatDrone === value}
+                          >{label}</button>
+                        {/each}
+                      </div>
+                      <p class="text-xs text-sr-faint">
+                        {drillRepeatDrone === 'same'
+                          ? 'The drone is left as you set it.'
+                          : drillRepeatDrone === 'on'
+                            ? 'The tonic sounds under the repeats, to hold the key by.'
+                            : 'The drone stops for the repeats and comes back after.'}
+                      </p>
+                    </div>
+                  {/if}
                 </div>
+
+                {#if repeatsSilent}
+                  <p class="text-xs text-sr-faint">
+                    Nothing sounds on the repeats. The music still runs, so a repeat takes
+                    exactly as long as the first pass - only the cursor moves.
+                  </p>
+                {/if}
 
                 {#if drillRepeatAnnotation !== 'same'}
                   <p class="text-xs text-sr-faint">
