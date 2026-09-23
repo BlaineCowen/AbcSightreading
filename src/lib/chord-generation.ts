@@ -573,6 +573,7 @@ export function generateChordProgression(
               const chromBassApproachable = possibleNextChords.filter((c) => {
                 const cChromDeg = c.sharpScaleDegree ?? c.flatScaleDegree;
                 if (cChromDeg === undefined || cChromDeg === null || c.root !== cChromDeg) return true;
+                const cResolvesUp = c.sharpScaleDegree !== undefined && c.sharpScaleDegree !== null;
                 for (let p = bassRange[0]; p <= bassRange[1]; p++) {
                   if (getDiatonicDegree(p, keyInfo) !== cChromDeg) continue;
                   // A step away, or the same letter inflected. The second is how
@@ -582,7 +583,18 @@ export function generateChordProgression(
                   // with it every approach to these chords. That is why the
                   // chromatic inversions never appeared: not weighting, not
                   // resolution, just an approach that could never be satisfied.
-                  if (Math.abs(p - prevBassNote.pitchValue) <= 1) return true;
+                  if (Math.abs(p - prevBassNote.pitchValue) > 1) continue;
+                  // And the step it owes afterwards - up from a raised note,
+                  // down from a lowered one - has to land inside the range.
+                  // From the note below the top of the bass range, the only
+                  // step-approachable pitch for a raised degree is the top
+                  // note itself, whose resolution nobody can sing: in G at UIL
+                  // 5 that is V⁶/V on C# after I⁶ on B, and it was most of the
+                  // planned bass accidentals that went unresolved. Better not
+                  // to offer the chord there at all; it is one of a dozen.
+                  const target = p + (cResolvesUp ? 1 : -1);
+                  if (target < bassRange[0] || target > bassRange[1]) continue;
+                  return true;
                 }
                 return false;
               });

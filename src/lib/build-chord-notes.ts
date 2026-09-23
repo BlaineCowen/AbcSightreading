@@ -7,7 +7,7 @@ import {
 } from "./types";
 import { noteArray } from "../resources/noteArray";
 import { keySignatures } from "../resources/key-signatures";
-import { generatePossibleNotes } from "./prep-params";
+import { generatePossibleNotes, getDiatonicDegree } from "./prep-params";
 import {
   isLeap,
   isSingableInterval,
@@ -66,7 +66,16 @@ function shuffleArray<T>(array: T[]): T[] {
  */
 export function labelFor(chord: Chord, bass: Note | null | undefined): string {
   const isInversionEntry = chord.root !== chord.triadNotes[0];
-  if (isInversionEntry || !bass || (bass as VoiceNote).rest) return chord.symbol;
+  if (!bass || (bass as VoiceNote).rest) return chord.symbol;
+  // An inversion entry whose bass has fallen back to the chord's root - a
+  // V⁶/vi the bass could not reach by step, sung as V/vi instead (see the
+  // chromatic-bass fallback in the deadlock escape) - prints as the root
+  // position chord it now is, not the inversion it was planned as.
+  if (isInversionEntry && bass.degree === chord.triadNotes[0]) {
+    const [head, ...applied] = chord.symbol.split("/");
+    return [head.replace(/[⁶₅⁴₄₃₂]/g, ""), ...applied].join("/");
+  }
+  if (isInversionEntry) return chord.symbol;
   if (bass.degree !== chord.triadNotes[1]) return chord.symbol;
   const figure = chord.triadNotes.length >= 4 ? "⁶₅" : "⁶";
   const [head, ...applied] = chord.symbol.split("/");
@@ -1110,7 +1119,40 @@ export function buildChordNotes(
               owedBassResolution !== undefined &&
               bassNote.pitchValue !== owedBassResolution;
 
-            if (stepRetryCount > 1 || unreachableFromPrev || missesOwedResolution) {
+            // A chromatic-bass chord (V⁶/V, V⁶/ii, V⁶/vi: chord.root is the
+            // altered degree) was planned to be reached by step from the bass
+            // note planned before it. Once that note has been substituted,
+            // the planned accidental can sit a third or a fifth from where
+            // the bass really is - still inside maxSkip 6, so the width test
+            // above waved it through and it was written verbatim, by leap.
+            // Measured at UIL 5 in G, every bass accidental approached by
+            // leap was one of these.
+            const currentChromDeg =
+              currentChord.sharpScaleDegree ?? currentChord.flatScaleDegree;
+            const isChromaticBassChord =
+              currentChromDeg !== undefined &&
+              currentChromDeg !== null &&
+              currentChord.root === currentChromDeg;
+            // Measured from the last note the bass SANG, across any rest. The
+            // interior cadence ends on a quarter rest, and a chromatic-bass
+            // chord opening the next phrase was checked against that rest -
+            // which is to say not at all - and written an octave from the
+            // note before it. Once everything else here was in place, every
+            // bass accidental still reached by leap was one of these.
+            const lastSungBass = [...bassPartInfo.chordNotes]
+              .reverse()
+              .find((n) => !n.rest);
+            const leapsOntoChromaticBass =
+              isChromaticBassChord &&
+              lastSungBass !== undefined &&
+              Math.abs(bassNote.pitchValue - lastSungBass.pitchValue) > 1;
+
+            if (
+              stepRetryCount > 1 ||
+              unreachableFromPrev ||
+              missesOwedResolution ||
+              leapsOntoChromaticBass
+            ) {
               // Include both root (root position) and 3rd (first inversion) as fallbacks,
               // mirroring the same inversion logic used in findValidBassNote.
               // Root and 3rd - plus, when the bass owes a resolution from an
@@ -1209,8 +1251,26 @@ export function buildChordNotes(
                     );
                     altNotes = [...altNotes, ...withFifth];
                   }
+                  // Inside a pattern the chord has not changed, so an eighth
+                  // that follows an accidental may simply repeat it - the
+                  // same note, held - and that is not a new accidental. It
+                  // used to be excluded with the rest of the altered degree,
+                  // which left the eighth nothing within a step (a triad has
+                  // no tone beside its own third) and it leapt to the root:
+                  // V/vi entered on D# as a dotted quarter and its eighth
+                  // went to B, the single most common unresolved bass
+                  // accidental. Repeated, the D# owes its A to the chord
+                  // after the pattern, where the debt is paid as usual.
+                  const repeatsAccidental = (n: Note) =>
+                    rhythm.isPatternNote === true &&
+                    rhythm.isPatternStart !== true &&
+                    prevBassNote !== undefined &&
+                    !prevBassNote.rest &&
+                    n.pitchValue === prevBassNote.pitchValue;
                   if (stepRetryCount <= 8) {
-                    const nonChromatic = altNotes.filter((n) => n.degree !== chromDeg);
+                    const nonChromatic = altNotes.filter(
+                      (n) => n.degree !== chromDeg || repeatsAccidental(n)
+                    );
                     if (nonChromatic.length > 0) altNotes = nonChromatic;
                     // else: only chromatic available, fall through to allow it
                   } else {
@@ -1244,15 +1304,83 @@ export function buildChordNotes(
                       const target = n.pitchValue + (resolvesUp ? 1 : -1);
                       return target >= bassPartInfo.range[0] && target <= bassPartInfo.range[1];
                     };
+                    // And somebody has to be there to take the step: the
+                    // chord after this one has to hold the resolution, or
+                    // the accidental is written knowing it cannot be paid.
+                    // Inside a pattern the rest of the pattern repeats the
+                    // note (repeatsAccidental above), so the debt falls due
+                    // at the next chord either way.
+                    //
+                    // Measured before making this check stricter: asking
+                    // the pattern's own chord to pay it - a triad never can -
+                    // took the sweep's worst cells (UIL 5 minor, 2 and 16
+                    // bars) from 73 to 105 failures in 1,296, because the
+                    // step-approached accidental was the escape that worked
+                    // there and the diatonic alternative was a leap.
+                    const nextChordForDebt = chordProgression[chordIndex + 1];
+                    const payable = (n: Note) => {
+                      if (!nextChordForDebt || repeatsAccidental(n)) return true;
+                      const target = n.pitchValue + (resolvesUp ? 1 : -1);
+                      return nextChordForDebt.triadNotes.includes(
+                        getDiatonicDegree(target, keyInfo)
+                      );
+                    };
                     const reachable = altNotes.filter(
                       (n) =>
                         n.degree !== chromDeg ||
                         ((!prevBassNote ||
                           prevBassNote.rest ||
                           Math.abs(n.pitchValue - prevBassNote.pitchValue) <= 1) &&
-                          canResolve(n))
+                          canResolve(n) &&
+                          payable(n))
                     );
                     if (reachable.length > 0) altNotes = reachable;
+                  }
+                }
+                // The chromatic-bass chords, whose accidental IS the planned
+                // bass. The pool for them is that one degree, wherever it
+                // sits in the range - and from where the bass actually is,
+                // after an earlier substitution, that can be a leap onto the
+                // accidental. Prefer the one within a step that can also
+                // resolve inside the range; failing that, one within a step.
+                //
+                // With none within a step, the chord cannot be sung as
+                // written: a chromatic bass note reached by leap is the
+                // fault this whole rule exists to prevent. So fall back to
+                // the chord's own root or fifth - V⁶/vi becomes V/vi, which
+                // is a perfectly good chord and prints as one (see labelFor)
+                // - and only if even that is out of reach does the leap
+                // stand, so the escape still escapes.
+                if (isChromaticBassChord && lastSungBass) {
+                  const resolvesUp = currentChord.sharpScaleDegree === currentChromDeg;
+                  const inRange = (p: number) =>
+                    p >= bassPartInfo.range[0] && p <= bassPartInfo.range[1];
+                  const stepped = altNotes.filter(
+                    (n) =>
+                      n.degree === currentChromDeg &&
+                      Math.abs(n.pitchValue - lastSungBass.pitchValue) <= 1
+                  );
+                  const steppedAndResolving = stepped.filter((n) =>
+                    inRange(n.pitchValue + (resolvesUp ? 1 : -1))
+                  );
+                  if (steppedAndResolving.length > 0) {
+                    altNotes = steppedAndResolving;
+                  } else {
+                    // Before settling for an accidental that can be stepped
+                    // onto but never left - C# at the top of the range, owing
+                    // a D nobody can sing, which was every unresolved bass
+                    // accidental left once the rest of this was in place.
+                    const diatonic = bassPartInfo.possibleNotes.filter(
+                      (n) =>
+                        (n.degree === currentChord.triadNotes[0] ||
+                          n.degree === currentChord.triadNotes[2]) &&
+                        n.degree !== currentChromDeg &&
+                        inRange(n.pitchValue) &&
+                        Math.abs(n.pitchValue - lastSungBass.pitchValue) <= bassSkip &&
+                        isSingableInterval(n.pitchValue, lastSungBass.pitchValue)
+                    );
+                    if (diatonic.length > 0) altNotes = diatonic;
+                    else if (stepped.length > 0) altNotes = stepped;
                   }
                 }
               }
@@ -1376,6 +1504,56 @@ export function buildChordNotes(
                 if (isCadenceStep && !isInversionEntry && stepRetryCount <= 8) {
                   const rooted = pool.filter((n) => n.degree === currentChord.root);
                   if (rooted.length > 0) pool = rooted;
+                }
+                // Keep the NEXT planned bass note reachable, when it is a
+                // chromatic bass note.
+                //
+                // generateChordProgression built the bass line as a chain,
+                // each note measured from the one before it. A substitution
+                // here breaks the chain: the next planned note is now
+                // measured from a note that was never written, and the step
+                // after this one inherits whatever that leaves. For a
+                // chromatic-bass chord (V⁶/V and kin) that is a G# which has
+                // to be reached by step from somewhere it cannot be, and the
+                // fallback above then gives up the chord as planned.
+                //
+                // So among the candidates that survive the rules above,
+                // prefer one within a step of the accidental the next chord
+                // was planned on. Last of the preferences, so the debt, the
+                // cadence and the range all still win over it.
+                //
+                // Only for those chords, deliberately. Keeping EVERY next
+                // planned note reachable - within a step beside an eighth,
+                // within maxSkip otherwise - was measured at UIL 5 in G over
+                // 600 exercises and cost 4.2% of them outright, against 0.3%
+                // for this, with the same 100% of bass accidentals approached
+                // and resolved by step. Released after eight retries it still
+                // cost 0.8%. A preference is soft at the moment it chooses
+                // but hard on the search, and this escape runs only where the
+                // search is already stuck.
+                {
+                  const inPattern = rhythm.isPatternNote && !rhythm.isPatternEnd;
+                  const nextPlanned = inPattern
+                    ? bassLine[chordIndex]
+                    : bassLine[chordIndex + 1];
+                  const nextChord = inPattern
+                    ? currentChord
+                    : chordProgression[chordIndex + 1];
+                  const nextRhythm = rhythms[stepIndex + 1];
+                  if (nextPlanned && nextChord && nextRhythm && !nextRhythm.rest) {
+                    const nextChromDeg =
+                      nextChord.sharpScaleDegree ?? nextChord.flatScaleDegree;
+                    const nextIsChromaticBass =
+                      nextChromDeg !== undefined &&
+                      nextChromDeg !== null &&
+                      nextChord.root === nextChromDeg;
+                    const keepsPlan = pool.filter(
+                      (n) =>
+                        Math.abs(nextPlanned.pitchValue - n.pitchValue) <= 1 &&
+                        isSingableInterval(n.pitchValue, nextPlanned.pitchValue)
+                    );
+                    if (nextIsChromaticBass && keepsPlan.length > 0) pool = keepsPlan;
+                  }
                 }
                 // Not attempted here: restricting this pick so a chromatic
                 // bass note must be approached by step. It was tried four ways -

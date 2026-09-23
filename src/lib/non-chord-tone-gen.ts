@@ -497,6 +497,71 @@ function leapsAroundShortNote(
  *
  * Returns null when the figure is acceptable, or the reason it is not.
  */
+/**
+ * Which way a chromatic note has to move on: up from a raised note, down from a
+ * lowered one, 0 for a diatonic note. A natural is read through wasRaised, the
+ * way build-chord-notes reads it - in F major a B natural is raised and rises;
+ * in G major an F natural is lowered and falls.
+ */
+function resolutionDirection(n: VoiceNote): 1 | -1 | 0 {
+  if (n.accidental === "sharp" || n.accidental === "double-sharp") return 1;
+  if (n.accidental === "flat" || n.accidental === "double-flat") return -1;
+  if (n.accidental === "natural") {
+    if (n.wasRaised === true) return 1;
+    if (n.wasRaised === false) return -1;
+  }
+  return 0;
+}
+
+/**
+ * A chromatic note is approached by step and resolved by step, and a
+ * decoration must not undo either.
+ *
+ * The chord-tone search places every accidental with its approach and its
+ * resolution in hand, and decoration then ran over the result without looking:
+ * a lower neighbour on a leading tone (F# E F#), a passing tone falling away
+ * from one (D# C B), an appoggiatura landing between a G# and the A it owed.
+ * Measured at UIL 5 in G, a third of the unresolved bass accidentals were
+ * decorations, and the bass is the voice the rule was being checked in.
+ *
+ * Walks the written note before the figure, the figure, and the chord tone
+ * after it. Wherever the pitch changes, a chromatic note may only be left in
+ * its resolution direction, and may only be reached by step. Decoration
+ * carries an accidental only while it holds the same pitch, so a figure's own
+ * passing notes never carry an obligation of their own.
+ */
+function chromaticStepFaults(chain: (VoiceNote | null)[]): number {
+  let faults = 0;
+  for (let k = 1; k < chain.length; k++) {
+    const a = chain[k - 1];
+    const b = chain[k];
+    if (!a || !b || a.rest || b.rest) continue;
+    if (a.pitchValue === b.pitchValue) continue;
+    const leaving = resolutionDirection(a);
+    if (leaving !== 0 && b.pitchValue !== a.pitchValue + leaving) faults++;
+    if (resolutionDirection(b) !== 0 && Math.abs(a.pitchValue - b.pitchValue) > 1) faults++;
+  }
+  return faults;
+}
+
+/**
+ * Does the figure leave the line worse than the plain chord tone did? A
+ * decoration is refused for the faults it ADDS, not for ones already there: a
+ * G# the chord-tone search left unresolved is no more unresolved for being sung
+ * as two quarters, and a passing tone that happens to step through the
+ * resolution actually mends it.
+ */
+function breaksChromaticStep(
+  figure: VoiceNote[],
+  before: VoiceNote | null,
+  next: VoiceNote | null,
+  original: VoiceNote | null
+): boolean {
+  const withFigure = chromaticStepFaults([before, ...figure, next]);
+  const without = chromaticStepFaults([before, original, next]);
+  return withFigure > without;
+}
+
 function figureRejection(
   figure: VoiceNote[] | null,
   noteIndex: number,
@@ -507,11 +572,18 @@ function figureRejection(
   prevNote: VoiceNote | null,
   nextNote: VoiceNote | null,
   /** The notes either side, when eighths must move by step; null otherwise. */
-  around: { prev: VoiceNote | null; next: VoiceNote | null } | null = null
+  around: { prev: VoiceNote | null; next: VoiceNote | null } | null = null,
+  /** The last note actually written before this figure, decoration and all. */
+  before: VoiceNote | null = null,
+  /** The chord tone the figure replaces. */
+  original: VoiceNote | null = null
 ): string | null {
   if (!figure || figure.length === 0) return "empty figure";
   if (around && leapsAroundShortNote(figure, around.prev, around.next)) {
     return "eighth note approached or left by skip";
+  }
+  if (breaksChromaticStep(figure, before, nextNote, original)) {
+    return "chromatic note not approached or left by its step";
   }
   if (!figureInRange(figure, voiceRange)) return "out of range";
   if (!figureIsSingable(figure, prevNote, nextNote)) return "unsingable interval";
@@ -684,7 +756,8 @@ export function generateNonChordTones(
         const repeated = tryRearticulation(
           originalNote, nextNote, prevNote, patternNctRhythms, probability, key,
           i, allNotes, currentPartIndex, voiceRange,
-          stepwiseEighths ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote } : null
+          stepwiseEighths ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote } : null,
+          outputNotes.at(-1) ?? null
         );
         if (repeated) {
           if (originalNote.chordSymbol) repeated[0].chordSymbol = originalNote.chordSymbol;
@@ -713,7 +786,8 @@ export function generateNonChordTones(
     );
     if (mirrored) {
       const why = figureRejection(
-        mirrored, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around
+        mirrored, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around,
+        outputNotes.at(-1) ?? null, originalNote
       );
       if (!why) {
         if (originalNote.chordSymbol) mirrored[0].chordSymbol = originalNote.chordSymbol;
@@ -792,7 +866,8 @@ export function generateNonChordTones(
     });
 
     const why = figureRejection(
-      generatedNctNotes, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around
+      generatedNctNotes, i, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around,
+      outputNotes.at(-1) ?? null, originalNote
     );
     if (why) {
       console.log(`NCT_GEN: ${why} - keeping original note at ${i}.`);
@@ -1316,7 +1391,9 @@ function tryRearticulation(
   allNotes: VoiceNote[][],
   currentPartIndex: number,
   voiceRange: [number, number] | undefined,
-  around: { prev: VoiceNote | null; next: VoiceNote | null } | null
+  around: { prev: VoiceNote | null; next: VoiceNote | null } | null,
+  /** The last note actually written before this one. */
+  before: VoiceNote | null = null
 ): VoiceNote[] | null {
   if (probability <= 0) return null; // decoration off means plain chord tones
   if (Math.random() >= Math.min(1, probability * REARTICULATION_SCALE)) return null;
@@ -1338,7 +1415,8 @@ function tryRearticulation(
   });
   if (!figure) return null;
   const why = figureRejection(
-    figure, noteIndex, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around
+    figure, noteIndex, allNotes, currentPartIndex, key, voiceRange, prevNote, nextNote, around,
+    before, originalNote
   );
   return why ? null : figure;
 }

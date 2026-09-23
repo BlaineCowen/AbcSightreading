@@ -121,3 +121,18 @@ finds the shape but not the figure. Most repeated pitches in this music are
 ordinary consonant repeats - 3,521 of them against 80 real suspensions in the
 run above - and counting those made an early attempt at this read 61 pairs where
 there were 3.
+
+## Chromatic notes in the bass
+
+`bass_accidentals.ts` generates a few hundred exercises at a UIL level - its
+ranges, chords with their inversions, rhythms and maxSkip, the way the page
+applies the level - and classifies every bass note whose accidental differs
+from the key: approached by step? resolved by step, up from a raised note and
+down from a lowered one? It names the chord before, at and after each fault,
+and `VERBOSE=2` prints the ABC of every offending exercise. The rule and its
+history are in `notes/bass-chromatic-notes.md`.
+
+```sh
+bun run scripts/analysis/bass_accidentals.ts 600 G,C,F,Em
+MEASURES=16 VERBOSE=2 bun run scripts/analysis/bass_accidentals.ts 300 G
+```
