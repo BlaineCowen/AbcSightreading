@@ -1,6 +1,7 @@
 ---
 import Navbar from "../components/Navbar.svelte";
 import FeedbackButton from "../components/FeedbackButton.svelte";
+import Analytics from "@vercel/analytics/astro";
 import { readFeedbackEmail } from "../lib/feedback-email";
 import "../styles/globals.css";
 import "abcjs/abcjs-audio.css";
@@ -64,6 +65,10 @@ const feedbackConfigured = !!readFeedbackEmail(
         if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
+    <!-- Vercel Web Analytics: page views, on every page (they all use this
+         layout). Counts nothing locally - it only reports from a Vercel
+         deployment - and needs no cookie. -->
+    <Analytics />
   </head>
   <body class:list={["min-h-screen sr-desk", { "sr-themable": themable }]}>
     <header class="fixed top-0 w-full z-10">
