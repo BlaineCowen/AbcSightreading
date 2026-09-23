@@ -1,6 +1,7 @@
 ---
 import Navbar from "../components/Navbar.svelte";
 import FeedbackButton from "../components/FeedbackButton.svelte";
+import { readFeedbackEmail } from "../lib/feedback-email";
 import "../styles/globals.css";
 import "abcjs/abcjs-audio.css";
 
@@ -22,8 +23,20 @@ const {
  * on; with it unset there is no button, which is the right default for a
  * public build - an address written into the markup is an address that gets
  * scraped.
+ *
+ * Asked for at request time as well as build time - see readFeedbackEmail for
+ * why, and for the five days of production with no button that prompted it.
+ *
+ * The runtime side reads the property off a variable rather than writing
+ * `process.env.PUBLIC_FEEDBACK_EMAIL`, because Vite replaces that spelling at
+ * build time too, which would make the fallback no fallback at all.
  */
-const feedbackEmail = import.meta.env.PUBLIC_FEEDBACK_EMAIL;
+const runtimeEnv: Record<string, string | undefined> =
+  (globalThis as any).process?.env ?? {};
+const feedbackEmail = readFeedbackEmail(
+  runtimeEnv,
+  import.meta.env.PUBLIC_FEEDBACK_EMAIL
+);
 ---
 
 <!doctype html>
