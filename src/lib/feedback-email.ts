@@ -1,23 +1,22 @@
 /**
- * Where the in-app Feedback button sends reports, or null for no button.
+ * Where a tester's feedback is sent, or null when feedback is switched off.
  *
- * The address is opt-in per environment, because an address written into the
- * markup is an address that gets scraped. Unset means the button does not
- * appear at all.
+ * Server-side only, and that is the point. The address used to be
+ * PUBLIC_FEEDBACK_EMAIL, which Astro puts in the browser, so it was written
+ * into the markup of every page for anything crawling the site to collect.
+ * Now the browser posts the report to /api/feedback and the server decides
+ * where it goes, so the address never leaves the server. FEEDBACK_TO is the
+ * name for it; PUBLIC_FEEDBACK_EMAIL is still read so an environment that has
+ * only the old name keeps working.
  *
  * Read at REQUEST time first, and only then from the build.
  *
- * Layout.astro used to read `import.meta.env.PUBLIC_FEEDBACK_EMAIL` alone,
- * which Astro inlines when the site is built. A build environment that does
- * not have the variable leaves `undefined` in the bundle, and the button
- * silently disappears - which is what happened in production: the variable was
- * set on the Vercel project, the build never received it, every page shipped
- * without a Feedback button for days, and nothing anywhere said so. It was
- * found by curling the live HTML, not from a log.
- *
- * Every page is `output: "server"`, so the server can simply ask for the
- * variable on each request. Then it no longer matters whether the platform
- * hands it to the build, the runtime, or both.
+ * Reading `import.meta.env` alone would mean Astro inlines the value when the
+ * site is built, and a build environment without the variable bakes in
+ * `undefined` - which hides the button with no way to tell from the outside
+ * that anything is wrong. Every page is `output: "server"`, so the server can
+ * just ask for the variable on each request, and how the platform provides it
+ * stops mattering.
  */
 
 /** Warned once per server instance, rather than once per request. */
@@ -29,25 +28,30 @@ const LOOKS_LIKE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function readFeedbackEmail(
   /** `process.env` as the server sees it now. */
   runtime: Record<string, string | undefined>,
-  /** `import.meta.env.PUBLIC_FEEDBACK_EMAIL`, inlined at build time. */
+  /** The build-time value, for whichever name is set. */
   buildTime: string | undefined
 ): string | null {
-  const raw = (runtime.PUBLIC_FEEDBACK_EMAIL ?? buildTime ?? "").trim();
+  const raw = (
+    runtime.FEEDBACK_TO ??
+    runtime.PUBLIC_FEEDBACK_EMAIL ??
+    buildTime ??
+    ""
+  ).trim();
 
   if (!raw) {
     warn(
-      "PUBLIC_FEEDBACK_EMAIL is not set in this environment, so the Feedback " +
-        "button is hidden. Set it on the project to switch the button on."
+      "FEEDBACK_TO is not set in this environment, so the Feedback button is " +
+        "hidden. Set it on the project to switch the button on."
     );
     return null;
   }
 
-  // A value that is not an address would render a mailto nobody can send, and
-  // the button would look broken rather than absent. Say so and hide it.
+  // A value that is not an address cannot be sent to, and the button would look
+  // broken rather than absent. Say which value is wrong and hide it.
   if (!LOOKS_LIKE_EMAIL.test(raw)) {
     warn(
-      `PUBLIC_FEEDBACK_EMAIL is set to ${JSON.stringify(raw)}, which is not an ` +
-        "email address, so the Feedback button is hidden."
+      `FEEDBACK_TO is set to ${JSON.stringify(raw)}, which is not an email ` +
+        "address, so the Feedback button is hidden."
     );
     return null;
   }
