@@ -1652,9 +1652,18 @@
     if (timelinePos < countIn) {
       // Still inside the count-in: schedule the music for when it ends.
       node.start(startTime + countIn, 0);
+    } else if (timelineZero !== undefined && startTime + timelinePos > audioContext.currentTime) {
+      // Anchored past the count-in - a repeat that skips it - with the anchor
+      // still ahead: start exactly on it.
+      node.start(startTime + timelinePos, timelinePos - countIn);
     } else {
       // Past the count-in: the buffer offset is the timeline position minus it.
       node.start(audioContext.currentTime, timelinePos - countIn);
+      // A repeat with no count-in has no bar of slack, and `onended` arrives a
+      // few milliseconds after the audio it reports, so its anchor has usually
+      // gone by. Start now and move the anchor to match, so the cursor and the
+      // next repeat follow the audio rather than a moment that has passed.
+      startTime = audioContext.currentTime - timelinePos;
     }
     return true;
   }
@@ -1665,20 +1674,27 @@
    * `onended` fires as the previous pass ends, so the new timeline zero is the
    * old one plus the full timeline - anchoring there keeps the repeats butted
    * together instead of drifting by however late the event was delivered. The
-   * count-in measure repeats with it, which gives a breath between passes.
+   * count-in measure repeats with it, which gives a breath between passes -
+   * unless a practice run's repeat has asked for none, when the timeline is
+   * entered at the first note instead: the count-in is only a stretch of the
+   * cursor's timeline, so skipping it is a seek, and `startTime` still names
+   * the (now skipped) downbeat of the count-in, so the pass after this one
+   * anchors on the end of its audio exactly as before.
    */
   function startLoopRepeat() {
     // The node that just ended is spent; drop it before scheduling its successor
     // so stopSourceNode() inside stopMusic() can't try to stop it again.
     const nextZero = startTime + getTimelineDuration();
+    const from = passCountInOverride === false ? getCountInDuration() : 0;
     sourceNode = null;
     timingCallbacks?.stop();
     pausedAt = 0;
-    if (!scheduleAudioFrom(0, nextZero)) {
+    if (!scheduleAudioFrom(from, nextZero - from)) {
       stopMusic();
       return;
     }
-    timingCallbacks?.start(0);
+    // 0 is a full reset, as before; past the count-in it is a seek to the first note.
+    timingCallbacks?.start(from, "seconds");
 
     // The pass that just ended left the cursor collapsed past the last note and
     // the page scrolled to the final system. Put both back now, during the
@@ -1735,6 +1751,11 @@
     // A pause left us a position on the timeline; anything else starts over.
     let resumeFrom = pausedAt;
     if (resumeFrom >= getTimelineDuration()) resumeFrom = 0;
+    const fromTheTop = resumeFrom === 0;
+    // A repeat that asked for no count-in starts at its first note - here as
+    // well as in startLoopRepeat, for the repeat whose redraw means it starts
+    // fresh rather than butted against the pass before.
+    if (fromTheTop && passCountInOverride === false) resumeFrom = getCountInDuration();
 
     // Never start the cursor and metronome without the instrument audio - that
     // is what produced a click-only playthrough.
@@ -1746,7 +1767,7 @@
     isPlaying = true;
 
     // Settle the page during the count-in, not on the downbeat.
-    if (resumeFrom === 0) scrollToFirstSystem();
+    if (fromTheTop) scrollToFirstSystem();
 
     if (timingCallbacks) {
       if (resumeFrom > 0) {
@@ -2101,6 +2122,12 @@
   let drillRepeatNotes: PassSwitch = "same";
   let drillRepeatMetronome: PassSwitch = "same";
   let drillRepeatDrone: PassSwitch = "same";
+  /**
+   * Whether a repeat starts with a bar of count-in. There is no count-in
+   * control outside a run - every pass has one - so Same and On would say the
+   * same thing, and only On and Off are offered.
+   */
+  let drillRepeatCountIn: "on" | "off" = "on";
   const passSwitchOptions: [PassSwitch, string][] = [
     ["same", "Same"],
     ["on", "On"],
@@ -2111,6 +2138,9 @@
     !(passOverride(1, drillRepeatNotes) ?? masterVolume > 0) &&
     !(passOverride(1, drillRepeatMetronome) ?? isMetronomeOn) &&
     (rhythmOnly || !(passOverride(1, drillRepeatDrone) ?? dronePlaying));
+  /** A count-in with nothing clicking in it is a bar of silence, also worth saying. */
+  $: repeatCountInSilent =
+    drillRepeatCountIn === "on" && !(passOverride(1, drillRepeatMetronome) ?? isMetronomeOn);
 
   /** The syllable system a repeat asks for, if it asks for one. */
   /**
@@ -2178,11 +2208,18 @@
   let passNotesOverride: boolean | null = null;
   let passMetronomeOverride: boolean | null = null;
   let passDroneOverride: boolean | null = null;
+  /** False when this pass starts at its first note, with no bar of count-in. */
+  let passCountInOverride: boolean | null = null;
 
   /** Every sound back to the reader's own controls. */
   function clearPassSounds() {
-    if (passNotesOverride === null && passMetronomeOverride === null && passDroneOverride === null) return;
-    passNotesOverride = passMetronomeOverride = passDroneOverride = null;
+    if (
+      passNotesOverride === null &&
+      passMetronomeOverride === null &&
+      passDroneOverride === null &&
+      passCountInOverride === null
+    ) return;
+    passNotesOverride = passMetronomeOverride = passDroneOverride = passCountInOverride = null;
     applyInstrumentGain();
     syncDrone();
   }
@@ -2285,6 +2322,10 @@
           // The drone sounds the tonic, which the rhythm staff does not have.
           passDroneOverride = rhythmOnly ? null : passOverride(pass, drillRepeatDrone);
           syncDrone();
+          // Read when the repeat is scheduled (startLoopRepeat, playMusic). The
+          // count-in is only a stretch of the cursor's timeline - the audio
+          // holds none - so skipping it is a seek, not a redraw.
+          passCountInOverride = passOverride(pass, drillRepeatCountIn);
 
           // The annotations are stripped as the score is drawn, so changing
           // them means drawing it again - and that is what costs the audio
@@ -2619,7 +2660,9 @@
    *  Coordinates are abcjs drawing units, the same space beatCallback uses. */
   function parkPlaybackCursorAtStart() {
     const first = selectableArray[0];
-    if (cursorMode === "off") {
+    // The pass's cursor, not the reader's: a repeat with the cursor off was
+    // parked visible at the start and then never moved.
+    if ((passCursorOverride ?? cursorMode) === "off") {
       hidePlaybackCursor();
       return;
     }
@@ -3339,6 +3382,25 @@
                     </p>
                   </div>
 
+                  <div class="space-y-2">
+                    <p class="sr-label">Repeat Count-In</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Count-in before the repeats">
+                      {#each [['on', 'On'], ['off', 'Off']] as [value, label]}
+                        <button
+                          class="sr-tok {drillRepeatCountIn === value ? 'sr-on' : ''}"
+                          on:click={() => (drillRepeatCountIn = value === 'off' ? 'off' : 'on')}
+                          aria-label={`Repeat count-in: ${label}`}
+                          aria-pressed={drillRepeatCountIn === value}
+                        >{label}</button>
+                      {/each}
+                    </div>
+                    <p class="text-xs text-sr-faint">
+                      {drillRepeatCountIn === 'on'
+                        ? 'A bar of count-in before each repeat, as before the first pass.'
+                        : 'The repeat follows straight on from the last note, with no bar in between.'}
+                    </p>
+                  </div>
+
                   {#if !rhythmOnly}
                     <div class="space-y-2">
                       <p class="sr-label">Repeat Drone</p>
@@ -3367,6 +3429,11 @@
                   <p class="text-xs text-sr-faint">
                     Nothing sounds on the repeats. The music still runs, so a repeat takes
                     exactly as long as the first pass - only the cursor moves.
+                  </p>
+                {:else if repeatCountInSilent}
+                  <p class="text-xs text-sr-faint">
+                    With no click on the repeats, their count-in is a silent bar - the repeat
+                    still waits it out.
                   </p>
                 {/if}
 

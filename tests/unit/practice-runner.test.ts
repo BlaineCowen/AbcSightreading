@@ -187,10 +187,11 @@ describe("practice runner", () => {
     expect(calls.filter((c) => c === "play").length).toBe(1); // only the first pass
   });
 
-  test("a repeat that only silences the piano, the click or the drone still butts against the pass before", async () => {
-    // All three are live - a gain node, the beat callback, an oscillator - so
-    // the page reports no redraw, and the silent repeat follows straight on.
-    for (const sound of ["no-piano", "no-click", "drone-on"]) {
+  test("a repeat that only changes what it sounds like still butts against the pass before", async () => {
+    // The piano, the click and the drone are live - a gain node, the beat
+    // callback, an oscillator - and the count-in is a seek into the cursor's
+    // timeline, so the page reports no redraw and the repeat follows straight on.
+    for (const sound of ["no-piano", "no-click", "drone-on", "no-count-in"]) {
       const page = fakePage();
       page.secondPass(sound, false);
       const runner = new PracticeRunner(page.hooks, settings({ exercises: 1, repeats: 3 }), options());
