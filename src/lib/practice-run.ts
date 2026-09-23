@@ -85,6 +85,28 @@ export function rampEndBpm(
 }
 
 /**
+ * What a repeat does with one of the sounds a reader can switch - the notes,
+ * the click, the count-in, the drone.
+ */
+export type PassSwitch = "same" | "on" | "off";
+
+/**
+ * The switch as it applies to one pass, or null where the reader's own control
+ * is in charge.
+ *
+ * Pass 0 is always null, whatever the repeats ask for: that is the pass being
+ * sight-read, and the page is the reader's. It is also what puts everything
+ * back - the runner asks for pass 0 at every new exercise and when a run
+ * stops. `same` is null on a repeat for the same reason: the reader's control
+ * decides. Only an explicit on or off overrides it, and an explicit On beats a
+ * control the reader has switched off - "piano on the repeats" means it.
+ */
+export function passOverride(pass: number, choice: PassSwitch): boolean | null {
+  if (pass === 0 || choice === "same") return null;
+  return choice === "on";
+}
+
+/**
  * Everything the runner needs the page to do.
  *
  * The runner never touches a tune, a buffer or the DOM; it asks for these. That

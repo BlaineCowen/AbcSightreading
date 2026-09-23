@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   advance,
+  passOverride,
   rampEndBpm,
   startingState,
   BPM_CEILING,
@@ -145,5 +146,45 @@ describe("practice run", () => {
         );
       }
     }
+  });
+});
+
+/**
+ * What a repeat sounds like: the notes, the click, the count-in, the drone.
+ *
+ * The rule the whole feature rests on is that the first pass belongs to the
+ * reader. Whatever the repeats ask for, pass 0 hands every sound back to the
+ * page's own controls - which is also how a new exercise, or a stopped run,
+ * puts everything back.
+ */
+describe("what a pass sounds like", () => {
+  test("the first pass is the reader's own, whatever the repeats say", () => {
+    expect(passOverride(0, "off")).toBeNull();
+    expect(passOverride(0, "on")).toBeNull();
+    expect(passOverride(0, "same")).toBeNull();
+  });
+
+  test("a repeat left at Same follows the reader's control", () => {
+    for (const pass of [1, 2, 5]) expect(passOverride(pass, "same")).toBeNull();
+  });
+
+  test("a repeat set On or Off overrides it, on every repeat", () => {
+    for (const pass of [1, 2, 5]) {
+      expect(passOverride(pass, "on")).toBe(true);
+      expect(passOverride(pass, "off")).toBe(false);
+    }
+  });
+
+  test("resolved against the reader's control, an explicit choice wins both ways", () => {
+    const sounds = (pass: number, choice: "same" | "on" | "off", readerHasItOn: boolean) =>
+      passOverride(pass, choice) ?? readerHasItOn;
+    // Piano muted by the reader, but asked for on the repeats: it plays.
+    expect(sounds(1, "on", false)).toBe(true);
+    // Piano on, silenced for the repeats: first pass plays, repeats do not.
+    expect(sounds(0, "off", true)).toBe(true);
+    expect(sounds(1, "off", true)).toBe(false);
+    // Same: the repeat does whatever the reader has.
+    expect(sounds(1, "same", true)).toBe(true);
+    expect(sounds(1, "same", false)).toBe(false);
   });
 });
