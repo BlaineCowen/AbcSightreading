@@ -54,10 +54,20 @@ const features = [
       class="flex flex-col items-center justify-center text-center min-h-[calc(100vh-12rem)] px-2"
     >
       <p class="sr-label">Choral &amp; unison sight-reading</p>
+      <!-- The navbar's logo at hero size, in the same proportions: "abc" in
+           the favicon's Edwin Bold Italic at 0.6 of the name, as outlines
+           (see Navbar.svelte for why). The name is read out whole. -->
       <h1
-        class="mt-4 text-5xl sm:text-6xl font-bold tracking-tight text-sr-ink"
+        class="mt-4 flex items-baseline justify-center gap-[0.2em] whitespace-nowrap text-[min(40px,11vw)] sm:text-6xl font-semibold tracking-[-0.015em] leading-none text-sr-ink"
       >
-        ABC Sight Reading
+        <span class="sr-only">ABC</span>
+        <svg
+          class="h-[0.75em] w-auto text-[min(24px,6.6vw)] sm:text-[36px] text-sr-action-fg"
+          viewBox="0 -736 1780 750"
+          fill="currentColor"
+          aria-hidden="true"
+        ><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg>
+        <span>Sight Reading</span>
       </h1>
       <p class="mt-5 max-w-2xl text-lg sm:text-xl text-sr-ink-2">
         Unlimited sight-reading exercises for your choir, generated from real
