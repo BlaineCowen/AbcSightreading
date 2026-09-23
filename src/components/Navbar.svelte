@@ -86,11 +86,11 @@
            late on every page. -->
       <a
         href="/"
-        class="group flex items-baseline gap-1.5"
+        class="group flex items-baseline gap-1"
         aria-label="ABC Sight Reading, home"
       >
         <svg
-          class="h-[0.75em] w-auto text-[16px] sm:text-[18px] text-sr-action-fg"
+          class="h-[0.75em] w-auto text-[18px] sm:text-[21px] text-sr-action-fg"
           viewBox="0 -736 1780 750"
           fill="currentColor"
           aria-hidden="true"
