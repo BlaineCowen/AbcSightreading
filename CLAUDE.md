@@ -27,7 +27,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 617 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 691 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -96,8 +96,13 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **186 failures in
-22,020 exercises (0.84%)** as shipped, across 130 cells.
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **204 failures in
+22,020 exercises (0.93%)** as shipped, across 129 cells - measured 22 September
+2026 after the chromatic-bass pass (notes/bass-chromatic-notes.md), against 210
+(0.95%, 143 cells) for the code before it on the same day. The 186 recorded
+earlier had drifted to 210 by then without any change to generation, so treat
+differences under about 25 failures as noise and A/B the worst cells with more
+runs (54 each, say) before believing a change moved them.
 
 That is after the voice-overlap rule was made to yield (build-chord-notes,
 `overlapGive`). The hand-calibrated UIL ranges put a three-part voicing's lowest
@@ -158,6 +163,11 @@ The core logic lives in `src/lib/` and is orchestrated by `generateChoralExercis
 4. **`buildChordNotes`** (`build-chord-notes.ts`) — fills upper voices (SATB) chord-by-chord, enforcing range, max skip, and no parallel 5ths/octaves
 5. **`generateNonChordTones`** (`non-chord-tone-gen.ts`) — probabilistically subdivides chord tones into passing tones, neighbors, etc.
 6. **`assembleAbcString`** (`abc-assembly.ts`) — serializes `VoiceNote[][]` into a valid multi-voice ABC notation string
+
+With `accidentalsByStep` on, `generateChoralExercise` also checks the finished
+bass against the chromatic-note rule (`bass-chromatic-check.ts`: approached by
+step, resolved by step) and draws the exercise again on a fault, up to three
+times. It fires about once in 500 exercises; see `notes/bass-chromatic-notes.md`.
 
 ## Key Types (`src/lib/types.ts`)
 

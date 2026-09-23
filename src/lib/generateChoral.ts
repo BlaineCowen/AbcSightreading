@@ -5,6 +5,7 @@ import { buildChordNotes } from "./build-chord-notes";
 import { assembleAbcString, type AbcDisplayOptions, type AbcMetadata } from "./abc-assembly";
 import { applyUnisonSpans } from "./unison-spans";
 import { applyRhymingPhrases, decorateRestatement } from "./rhyming-phrases";
+import { bassChromaticFaults } from "./bass-chromatic-check";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { nctPatternsFor } from "./nct-patterns";
 import { canAppearInChoral } from "./selectable-rhythms";
@@ -96,13 +97,8 @@ export interface GenerateChoralParams {
   stepwiseEighths?: boolean;
 }
 
-/**
- * Orchestrates the generation of a choral sight-reading exercise.
- *
- * @param params - The parameters for generation.
- * @returns An object containing the final ABC string and the generated chord progression.
- */
-export function generateChoralExercise(params: GenerateChoralParams): {
+/** What generateChoralExercise returns. */
+export type ChoralExercise = {
   abcString: string;
   chordProgression: Chord[];
   voiceNotes: VoiceNote[][];
@@ -121,7 +117,67 @@ export function generateChoralExercise(params: GenerateChoralParams): {
   render: (display?: AbcDisplayOptions & { midiProgram?: number }) => string;
   /** The same, as plain data - see ChoralRenderInput. */
   renderInput: ChoralRenderInput;
-} {
+  /**
+   * How many finished exercises were thrown away for a chromatic bass note
+   * that broke its rule before this one was accepted. 0 nearly always; see
+   * generateChoralExercise.
+   */
+  regenerated: number;
+};
+
+/**
+ * How many times an exercise is generated over for a chromatic bass note that
+ * breaks its rule, before the best attempt is accepted anyway.
+ *
+ * The generator enforces the rule while it writes and gets it right on all but
+ * about one exercise in several hundred - a genuine dead end each time, which
+ * the deadlock escape writes its way out of with a leap rather than failing.
+ * More retries inside the search cannot reach those, because nothing there
+ * reports a failure. A check on the finished exercise can. At that fault rate
+ * three draws cost under 1% extra time and the chance of three faulty ones in
+ * a row is negligible; the cap is there so a cell where the rule genuinely
+ * cannot be kept still produces an exercise.
+ */
+const BASS_RULE_ATTEMPTS = 3;
+
+/**
+ * Orchestrates the generation of a choral sight-reading exercise.
+ *
+ * Generates, checks the bass against the chromatic-note rule, and generates
+ * again on a fault - see BASS_RULE_ATTEMPTS. Only when accidentalsByStep is
+ * on, since that is the option the rule belongs to.
+ *
+ * @param params - The parameters for generation.
+ * @returns An object containing the final ABC string and the generated chord progression.
+ */
+export function generateChoralExercise(params: GenerateChoralParams): ChoralExercise {
+  let best: ChoralExercise | undefined;
+  let bestFaults = Infinity;
+  const attempts = params.accidentalsByStep ? BASS_RULE_ATTEMPTS : 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    let out: ChoralExercise;
+    try {
+      out = generateChoralExerciseOnce(params);
+    } catch (e) {
+      // A failed draw after a successful one is not a failed exercise.
+      if (best) break;
+      throw e;
+    }
+    const faults = params.accidentalsByStep ? bassChromaticFaults(out.voiceNotes) : 0;
+    if (faults < bestFaults) {
+      best = { ...out, regenerated: attempt };
+      bestFaults = faults;
+    }
+    if (faults === 0) break;
+    console.log(
+      `Chromatic bass rule broken ${faults} time(s) on attempt ${attempt + 1}; ` +
+        (attempt + 1 < attempts ? "generating again." : "keeping the best attempt.")
+    );
+  }
+  return best!;
+}
+
+function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercise {
   console.log("--- generateChoralExercise START ---");
   console.log("Received params:", JSON.stringify(params, null, 2));
 
@@ -568,6 +624,7 @@ export function generateChoralExercise(params: GenerateChoralParams): {
     rhythmSteps: finalRhythms,
     render,
     renderInput,
+    regenerated: 0,
   };
 }
 
