@@ -46,3 +46,6 @@ package-lock.json
 /p.json
 /*.png
 .env*.local
+
+# generated Prisma client (prisma generate, run on install)
+src/generated/

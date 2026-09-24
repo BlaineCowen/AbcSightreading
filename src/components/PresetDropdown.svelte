@@ -1,7 +1,8 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
   import { ChevronDown, X, Plus } from "lucide-svelte";
-  import { getPresets, savePreset, deletePreset } from '../lib/preset-storage';
+  import { getPresets } from '../lib/preset-storage';
+  import { listPresets, addPreset, removePreset } from '../lib/preset-sync';
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount } from 'svelte';
 
@@ -24,32 +25,59 @@
   let savedPresets: SavedPreset<any>[] = [];
   let showSaveInput = false;
   let newPresetName = '';
+  /** Whether the list is the account's rather than this browser's. */
+  let synced = false;
+  /** The last thing that went wrong, shown in the bar rather than an alert. */
+  let problem = '';
+  let busy = false;
 
-  onMount(() => {
-    savedPresets = getPresets(store);
-  });
-
-  function handleSave() {
-    if (!newPresetName.trim()) return;
+  async function refresh() {
     try {
-      const preset = savePreset(newPresetName.trim(), currentParams(), store);
-      savedPresets = getPresets(store);
-      newPresetName = '';
-      showSaveInput = false;
-      onSelectSaved(preset);
+      ({ presets: savedPresets, synced } = await listPresets(store));
+      problem = '';
     } catch (e) {
-      alert('Could not save preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
+      // The account could not be reached: show this browser's presets so the
+      // page still works, and say why the account's are missing.
+      savedPresets = getPresets(store);
+      synced = false;
+      problem = 'Could not load your saved presets: ' + message(e);
     }
   }
 
-  function handleDelete(id: string) {
+  const message = (e: unknown) => (e instanceof Error ? e.message : 'unknown error');
+
+  onMount(() => {
+    // This browser's list at once, then the account's when it arrives.
+    savedPresets = getPresets(store);
+    refresh();
+  });
+
+  async function handleSave() {
+    if (!newPresetName.trim() || busy) return;
+    busy = true;
+    try {
+      const preset = await addPreset(newPresetName.trim(), currentParams(), store);
+      savedPresets = [...savedPresets, preset];
+      newPresetName = '';
+      showSaveInput = false;
+      problem = '';
+      onSelectSaved(preset);
+    } catch (e) {
+      problem = 'Could not save preset: ' + message(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function handleDelete(id: string) {
     const preset = savedPresets.find(p => p.id === id);
     try {
-      deletePreset(id, store);
-      savedPresets = getPresets(store);
+      await removePreset(id, store);
+      savedPresets = savedPresets.filter(p => p.id !== id);
+      problem = '';
       if (preset) onDelete?.(id, preset.name);
     } catch (e) {
-      alert('Could not delete preset: ' + (e instanceof Error ? e.message : 'Unknown error'));
+      problem = 'Could not delete preset: ' + message(e);
     }
   }
 
@@ -113,7 +141,7 @@
       on:keydown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') showSaveInput = false; }}
       autofocus
     />
-    <button class="sr-btn text-sm px-2 py-1" on:click={handleSave}>Save</button>
+    <button class="sr-btn text-sm px-2 py-1" on:click={handleSave} disabled={busy}>Save</button>
     <button class="text-sm text-sr-muted underline" on:click={() => showSaveInput = false}>Cancel</button>
   {:else}
     <button
@@ -140,6 +168,14 @@
         </span>
       {/each}
     </div>
+  {/if}
+
+  {#if synced}
+    <span class="text-xs text-sr-faint" title="Saved to your account, so they follow you to any device">Saved to your account</span>
+  {/if}
+
+  {#if problem}
+    <span class="text-xs text-sr-danger" role="alert">{problem}</span>
   {/if}
 
   {#if activeLabel}

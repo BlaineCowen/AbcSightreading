@@ -27,7 +27,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 719 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 729 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -144,6 +144,29 @@ A stepwise-continuation lookahead was also tried and reverted: measured, it did
 nothing. And beware judging any of this on a small harness - a 40-exercise run
 at one cell read the yield change as making failures *worse* (4 against 9) and
 nearly got it thrown away. That difference was noise; the sweep is the gate.
+
+## Accounts
+
+Better Auth (`src/lib/server/auth.ts`) on Prisma ORM 7 + Prisma Postgres
+(`DATABASE_URL`; one database shared by Development, Preview and Production).
+Email/password with reset and a confirmation email (sent through Resend, not
+required to sign in), plus Google when `GOOGLE_CLIENT_ID`/`_SECRET` are set.
+Auth endpoints live under `/api/auth/*`; pages are `/login` (also
+`?mode=signup|forgot`), `/reset-password`, `/account`.
+
+Saved presets go to the account when signed in (`/api/presets`,
+`src/lib/preset-sync.ts`) and to localStorage when not - signed-out behaviour
+is the old one. The first signed-in load of each list imports that browser's
+presets once; the server dedupes by name + creation time.
+
+- Schema: `prisma/schema.prisma`. After changing it: `bun run db:migrate`
+  (creates a migration and applies it - **to the shared database**), commit the
+  migration, and production picks it up via `bun run db:deploy`.
+- The generated client is in `src/generated/` (gitignored; `postinstall` runs
+  `prisma generate`).
+- Billing is not built. `hasPremium()` in `src/lib/server/plan.ts` is the one
+  place a paid-plan check belongs; the intended route is Better Auth's Stripe
+  plugin, which brings its own subscription table.
 
 ## Tech Stack
 

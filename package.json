@@ -6,13 +6,17 @@
     "@astrojs/svelte": "5.0.0",
     "@astrojs/tailwind": "^5.1.0",
     "@astrojs/vercel": "6.1.4",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "abcjs": "^6.3.0",
     "astro": "4.0.3",
+    "better-auth": "^1.7.5",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-svelte": "^1.0.1",
+    "pg": "^8.23.0",
     "pitchy": "^4.1.0",
     "resend": "^6.28.1",
     "sharp": "^0.34.3",
@@ -25,7 +29,7 @@
   },
   "engines": {
     "bun": ">=1.2.0",
-    "node": "20.x"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "astro dev --host",
@@ -36,10 +40,15 @@
     "check:rhythm": "bun run scripts/check-rhythm.ts",
     "test": "bun test --timeout 30000 tests/unit",
     "sweep": "bun run scripts/sweep.ts",
-    "icons:rhythm": "node scripts/render-rhythm-icons.mjs"
+    "icons:rhythm": "node scripts/render-rhythm-icons.mjs",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
   },
   "type": "module",
   "devDependencies": {
-    "@types/node": "^26.5.1"
+    "@types/node": "^26.5.1",
+    "@types/pg": "^8.23.1",
+    "prisma": "7.10.0"
   }
 }

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Sun, Moon } from "lucide-svelte";
+  import { Sun, Moon, CircleUser } from "lucide-svelte";
   import { nextNavState, type NavScroll } from "../lib/nav-reveal";
+  import { signedInUser } from "../lib/auth-client";
   let isNavbarOpen = false;
 
   /**
@@ -41,6 +42,14 @@
   }
 
   const syncWithOs = () => (isDark = effectiveDark());
+
+  /**
+   * Sign in, or the account page. Undecided until the session answers, and
+   * nothing is drawn meanwhile, so the bar never flashes the wrong one.
+   */
+  let account: { email: string } | null | undefined = undefined;
+  signedInUser().then((u) => (account = u));
+  $: nextHere = encodeURIComponent(here || "/");
 
   let navbar: HTMLElement;
   // Hide on scroll down, show on scroll up - decided by nextNavState, which
@@ -165,6 +174,16 @@
             {#if isDark}<Sun size={18} />{:else}<Moon size={18} />{/if}
           </button>
         {/if}
+        {#if account}
+          <a
+            href="/account"
+            class="w-10 h-10 flex items-center justify-center rounded-md transition-colors hover:text-sr-action-fg hover:bg-sr-track {here === '/account' ? 'text-sr-action-fg' : 'text-sr-ink-2'}"
+            aria-label="Account ({account.email})"
+            title={account.email}
+          ><CircleUser size={20} /></a>
+        {:else if account === null && here !== "/login"}
+          <a href="/login?next={nextHere}" class="sr-btn-quiet text-[14px]">Sign in</a>
+        {/if}
       </div>
     </div>
 
@@ -181,6 +200,15 @@
             {page.full}
           </a>
         {/each}
+        {#if account !== undefined}
+          <a
+            href={account ? "/account" : `/login?next=${nextHere}`}
+            class="flex items-center min-h-12 px-3 rounded-md text-base transition-colors {here === '/account' || here === '/login' ? 'font-semibold text-sr-action-fg bg-sr-track' : 'text-sr-ink-2 hover:bg-sr-track'}"
+            on:click={() => (isNavbarOpen = false)}
+          >
+            {account ? `Account (${account.email})` : "Sign in"}
+          </a>
+        {/if}
       </div>
     {/if}
   </div>

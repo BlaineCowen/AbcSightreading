@@ -1,0 +1,18 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AuthForm from "../components/AuthForm.svelte";
+import { googleEnabled } from "../lib/server/auth";
+
+const requested = Astro.url.searchParams.get("mode");
+const mode = requested === "signup" || requested === "forgot" ? requested : "signin";
+---
+
+<Layout title="ABC Sight Reading - Sign in" themable>
+  <div class="flex flex-col w-full items-center gap-6 pb-16">
+    <h1 class="text-3xl font-bold text-sr-ink">Your account</h1>
+    <p class="text-sr-muted text-center max-w-sm">
+      Sign in to keep your saved presets in one place, on every device.
+    </p>
+    <AuthForm client:only="svelte" googleEnabled={googleEnabled} mode={mode} />
+  </div>
+</Layout>
