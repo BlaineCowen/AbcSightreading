@@ -59,6 +59,8 @@ export interface ExerciseInfo {
   doLabel: string;
   minor: boolean;
   beatsPerBar: number;
+  /** The time signature as written: "3/4". */
+  meter: string;
   startingPitches: StartingPitch[];
   /** A rhythm-only exercise has no pitches to give. */
   rhythmOnly: boolean;
@@ -109,6 +111,7 @@ export function exerciseInfo(abc: string): ExerciseInfo | null {
     doLabel,
     minor: first.key.mode === "minor",
     beatsPerBar: score.time.beats,
+    meter: `${score.time.beats}/${score.time.beatType}`,
     startingPitches,
     rhythmOnly,
   };

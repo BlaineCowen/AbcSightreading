@@ -4,6 +4,7 @@ import { A4_DEFAULT, clampA4 } from "./pitch";
 import { BPM_MAX, BPM_MIN } from "./metronome";
 import type { Sensitivity } from "./pitch-tracker";
 import type { Difficulty, Direction } from "./scale-challenge";
+import { meterById } from "./meters";
 
 /**
  * abcTuner's state: the settings a singer chooses (kept in this browser) and
@@ -33,6 +34,8 @@ export interface TunerState {
   playOctave: number;
   sustain: boolean;
   bpm: number;
+  /** The metronome's time signature, from meters.ts. Sets beatsPerBar. */
+  meter: string;
   beatsPerBar: number;
   subdivision: number;
   accent: boolean;
@@ -63,7 +66,7 @@ export interface TunerState {
 }
 
 const PERSISTED = [
-  "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm",
+  "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter",
   "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone",
 ] as const;
@@ -77,6 +80,7 @@ const initial: TunerState = {
   playOctave: 4,
   sustain: false,
   bpm: 90,
+  meter: "4/4",
   beatsPerBar: 4,
   subdivision: 1,
   accent: true,
@@ -113,10 +117,11 @@ function restored(): Partial<TunerState> {
   }
 }
 
-const state = writable<TunerState>({
-  ...initial,
-  ...(typeof window !== "undefined" ? restored() : {}),
-});
+const start: TunerState = { ...initial, ...(typeof window !== "undefined" ? restored() : {}) };
+// Settings saved before meters existed carry a beat count and no meter: the
+// meter decides, so the two cannot disagree.
+start.beatsPerBar = meterById(start.meter).beats;
+const state = writable<TunerState>(start);
 
 // Save the settings whenever one changes (never the live reading).
 let lastSaved = "";
@@ -167,6 +172,21 @@ export const tuner = {
     })),
   setBpm: (bpm: number) => set({ bpm: clamp(Math.round(bpm), BPM_MIN, BPM_MAX) }),
   setBeatsPerBar: (beatsPerBar: number) => set({ beatsPerBar }),
+  /**
+   * A time signature: its beat count, and a subdivision that makes sense in it
+   * - the one already chosen if the meter has it, else the meter's own (6/8
+   * starts on its three eighths).
+   */
+  setMeter: (id: string) =>
+    state.update((s) => {
+      const m = meterById(id);
+      return {
+        ...s,
+        meter: m.id,
+        beatsPerBar: m.beats,
+        subdivision: m.subdivisions.includes(s.subdivision) ? s.subdivision : m.defaultSubdivision,
+      };
+    }),
   setSubdivision: (subdivision: number) => set({ subdivision }),
   toggleAccent: () => state.update((s) => ({ ...s, accent: !s.accent })),
   setMetronomeRunning: (metronomeRunning: boolean) => set({ metronomeRunning, metronomeBeat: -1 }),

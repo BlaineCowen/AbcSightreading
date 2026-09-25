@@ -3,6 +3,12 @@ export interface MetronomeSettings {
   beatsPerBar: number;
   subdivision: number; // clicks per beat, 1 = none
   accent: boolean;
+  /**
+   * Beats that start a group after the first - the 4 of 12/8's second half,
+   * 5/8's 3. They get a lighter accent than the downbeat. Optional, so a
+   * plain beat count still works.
+   */
+  groupStarts?: number[];
 }
 
 export const BPM_MIN = 30;
@@ -65,7 +71,12 @@ export class Metronome {
     while (this.nextBeatTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
       const beatInBar = this.beat % beatsPerBar;
       const isAccent = accent && beatInBar === 0;
-      this.click(this.nextBeatTime, isAccent ? 1600 : 1000, isAccent ? 1 : 0.7);
+      const isGroup = accent && !isAccent && (this.settings.groupStarts ?? []).includes(beatInBar);
+      this.click(
+        this.nextBeatTime,
+        isAccent ? 1600 : isGroup ? 1300 : 1000,
+        isAccent ? 1 : isGroup ? 0.85 : 0.7
+      );
       for (let s = 1; s < subdivision; s++) {
         this.click(this.nextBeatTime + (s * beatDur) / subdivision, 700, 0.35);
       }

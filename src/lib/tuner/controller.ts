@@ -2,7 +2,8 @@ import { TunerEngine } from "./tuner-engine";
 import { NotePlayer } from "./note-player";
 import { metronome } from "./metronome";
 import { pitchHistory } from "./pitch-history";
-import { tuner } from "./store";
+import { tuner, type TunerState } from "./store";
+import { meterById } from "./meters";
 import { noteToFreq } from "./pitch";
 
 /**
@@ -39,11 +40,12 @@ export function initTuner() {
 
     if (
       s.bpm !== last.bpm ||
+      s.meter !== last.meter ||
       s.beatsPerBar !== last.beatsPerBar ||
       s.subdivision !== last.subdivision ||
       s.accent !== last.accent
     ) {
-      metronome.configure({ bpm: s.bpm, beatsPerBar: s.beatsPerBar, subdivision: s.subdivision, accent: s.accent });
+      metronome.configure(metronomeSettings(s));
     }
     if (s.metronomeRunning !== last.metronomeRunning) {
       if (s.metronomeRunning) metronome.start();
@@ -51,9 +53,16 @@ export function initTuner() {
     }
     last = s;
   });
-  const s = tuner.get();
-  metronome.configure({ bpm: s.bpm, beatsPerBar: s.beatsPerBar, subdivision: s.subdivision, accent: s.accent });
+  metronome.configure(metronomeSettings(tuner.get()));
 }
+
+const metronomeSettings = (s: TunerState) => ({
+  bpm: s.bpm,
+  beatsPerBar: s.beatsPerBar,
+  subdivision: s.subdivision,
+  accent: s.accent,
+  groupStarts: meterById(s.meter).groupStarts,
+});
 
 export async function startTuner() {
   initTuner();

@@ -5,6 +5,9 @@
   import { BPM_MAX, BPM_MIN } from "../../lib/tuner/metronome";
   import { practice, exercise } from "../../lib/tools/context";
   import { toolSettings, setTool } from "../../lib/tools/settings";
+  import { METERS, meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
+  import MeterControls from "../tuner/MeterControls.svelte";
+  import BeatDots from "../tuner/BeatDots.svelte";
 
   /**
    * The metronome card. Following the exercise keeps its tempo and meter on
@@ -13,11 +16,13 @@
 
   onMount(initTuner);
 
+  // Following: the exercise's tempo and time signature.
   $: if ($toolSettings.followExercise) {
     if ($tuner.bpm !== $practice.bpm) tuner.setBpm($practice.bpm);
-    const beats = $exercise?.beatsPerBar;
-    if (beats && $tuner.beatsPerBar !== beats) tuner.setBeatsPerBar(beats);
+    const m = $exercise?.meter;
+    if (m && m !== $tuner.meter && METERS.some((x) => x.id === m)) tuner.setMeter(m);
   }
+  $: meter = meterById($tuner.meter);
 
   let taps: number[] = [];
   function tapTempo() {
@@ -38,24 +43,18 @@
 
 <h3 class="text-[15px] font-semibold text-sr-ink">Metronome</h3>
 
-<div class="flex justify-center items-center gap-2.5 h-7">
-  {#each Array($tuner.beatsPerBar) as _, i}
-    <span
-      class="rounded-full transition-all duration-75 {$tuner.metronomeRunning && $tuner.metronomeBeat === i
-        ? i === 0 && $tuner.accent ? 'w-6 h-6 bg-green-500' : 'w-5 h-5 bg-sky-500'
-        : 'w-3.5 h-3.5 bg-sr-track'}"
-    ></span>
-  {/each}
-</div>
+<BeatDots size="sm" />
 
 <div class="flex items-center justify-center gap-4">
   <button class={step} on:click={() => nudge(-1)} disabled={$tuner.bpm <= BPM_MIN} aria-label="Slower">−</button>
-  <div class="text-center w-20">
+  <div class="text-center w-32">
     <div class="text-4xl font-semibold leading-none tabular-nums text-sr-ink">{$tuner.bpm}</div>
-    <div class="text-xs text-sr-muted mt-1">bpm · {$tuner.beatsPerBar} beats</div>
+    <div class="text-xs text-sr-muted mt-1 whitespace-nowrap">bpm ({BEAT_SYMBOL[meter.beatNote]}) · {meter.id}</div>
   </div>
   <button class={step} on:click={() => nudge(1)} disabled={$tuner.bpm >= BPM_MAX} aria-label="Faster">+</button>
 </div>
+
+<MeterControls compact onManual={() => setTool({ followExercise: false })} />
 
 <label class="flex items-center gap-2 text-sm text-sr-ink-2">
   <input type="checkbox" class="sr-check" checked={$toolSettings.followExercise} on:change={(e) => setTool({ followExercise: e.currentTarget.checked })} />
