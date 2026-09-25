@@ -569,8 +569,36 @@ function generateChordProgression(
         : chromaticSoFar() >= chromaticCap()
           ? plain.length > 0 ? plain : candidates
           : Math.random() < CHROMATIC_PREFERENCE ? altered : candidates;
-    return pool[Math.floor(Math.random() * pool.length)];
+    // Staying on the last pitch was one choice among the chord tones in reach,
+    // so it came up about as often as moving - and on top of the eighth pairs
+    // that repeat by design, half of every line was repeated notes: 64-68% on a
+    // do-re-mi exercise, which is meant to teach the steps. Moving is preferred
+    // now; a repeat still comes when it is all the chord offers, or by chance.
+    const moving = pool.filter((n) => n.pitchValue !== prevBassNote?.pitchValue);
+    const from = moving.length > 0 && Math.random() < MOVE_PREFERENCE ? moving : pool;
+    return from[Math.floor(Math.random() * from.length)];
   };
+  const MOVE_PREFERENCE = 0.8;
+  /**
+   * How many notes early a line starts heading back to do: the notes it needs
+   * to walk there, plus this. Measured on "up to so" (by step, do to so): 2
+   * ended on do 62% of the time, 4 at 80%, 6 at 89%, with no loss of variety.
+   */
+  const HOME_MARGIN = 6;
+  /** How far a note is from the nearest do in range, in scale steps. */
+  const distanceToDo = (note: Note) =>
+    Math.min(
+      Infinity,
+      ...bassRangeNoteList.filter((n) => n.degree === 0).map((n) => Math.abs(n.pitchValue - note.pitchValue))
+    );
+  /** Whether a do other than this note is within a skip of it. */
+  const leadsToDo = (note: Note) =>
+    bassRangeNoteList.some(
+      (n) =>
+        n.degree === 0 &&
+        n.pitchValue !== note.pitchValue &&
+        Math.abs(n.pitchValue - note.pitchValue) <= maxSkip
+    );
 
   // console.log("=== CHORD PROGRESSION GENERATION START ===");
   // console.log("🔍 Initial bassRangeNoteList:", bassRangeNoteList);
@@ -979,6 +1007,8 @@ function generateChordProgression(
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
                 newMaxSkip
             )
+            // One from which do is in reach first, so the line can end there.
+            .sort((a, b) => Number(leadsToDo(b)) - Number(leadsToDo(a)))
             .slice(0, 1); // Take only the first note
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
@@ -1012,6 +1042,11 @@ function generateChordProgression(
             (note) =>
               Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
           );
+        // End on do when it is in reach. Any tone of the final I used to do,
+        // so a line could stop on so or mi and sound unfinished - and a reader
+        // learning to hear the tonic was left without one.
+        const onDo = bassNoteToAdd.filter((note) => note.degree === 0);
+        if (onDo.length > 0) bassNoteToAdd = onDo;
         if (bassNoteToAdd.length > 0) {
           bassNoteArray.push(
             pickBass(bassNoteToAdd, nextChord.chord)
@@ -1077,6 +1112,41 @@ function generateChordProgression(
           // console.log("chordGenFails ", chordGenFails);
           break;
         } else {
+          // The chord is chosen before the pitch, so preferring motion in
+          // pickBass alone could not help where the chord left only a repeat:
+          // on do-re-mi, from do, I, IV and vi all offer nothing but do again.
+          // Mostly, choose among the chords that let the line move.
+          // Heading home: when the notes left are only just enough to walk
+          // back to do, go toward it. A stepwise line otherwise wandered up to
+          // so and had nowhere to end but so - three "up to so" lines in four.
+          const homeDistance = distanceToDo(prevBassNote);
+          const homing =
+            numOfChords - 1 - i <= Math.ceil(homeDistance / Math.max(1, newMaxSkip)) + HOME_MARGIN &&
+            homeDistance > 0;
+          const towardDo = (note: Note) => distanceToDo(note) < homeDistance;
+          if (homing) {
+            const closer = nextChordPossibilities.filter((possibleNext) => {
+              const info = chords.find((c) => c.name === possibleNext.name);
+              return bassDegrees.some(
+                (note) =>
+                  usable(info, note) &&
+                  towardDo(note) &&
+                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+              );
+            });
+            if (closer.length > 0) nextChordPossibilities = closer;
+          } else if (Math.random() < MOVE_PREFERENCE) {
+            const moving = nextChordPossibilities.filter((possibleNext) => {
+              const info = chords.find((c) => c.name === possibleNext.name);
+              return bassDegrees.some(
+                (note) =>
+                  usable(info, note) &&
+                  note.pitchValue !== prevBassNote.pitchValue &&
+                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+              );
+            });
+            if (moving.length > 0) nextChordPossibilities = moving;
+          }
           let nextChordInner = getRandomByWeight(
             nextChordPossibilities,
             chords
@@ -1101,6 +1171,10 @@ function generateChordProgression(
                   Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
                   newMaxSkip
               );
+            if (homing) {
+              const closer = bassNoteToAdd.filter(towardDo);
+              if (closer.length > 0) bassNoteToAdd = closer;
+            }
             if (bassNoteToAdd.length > 0) {
               bassNoteArray.push(
                 pickBass(bassNoteToAdd, nextChord.chord)
@@ -2388,6 +2462,22 @@ function createNewSrOnce(params: any) {
       // always include 1 chord
       if (chord.name === "1") {
         return true;
+      }
+
+      // A chord built on an altered note belongs only when that note was
+      // selected. It used to come in on any natural degree it shares, and then
+      // lent its harmony to a line that could not sing its altered note: with
+      // no sharps selected, V/V still steered the walk, writing fa where it
+      // means fi, and "up to so" spent whole exercises swinging so-fa-so over
+      // V/V and V. The chords a line implies should be the ones it can spell.
+      // Minor's own chords are exempt: the raised leading tone in its V is the
+      // key's, not a chromatic note to opt into.
+      if (
+        (chord as any).mode !== "minor" &&
+        ((chord.sharpScaleDegree !== undefined && !sharpScaleDegrees?.has(chord.sharpScaleDegree)) ||
+        (chord.flatScaleDegree !== undefined && !flatScaleDegrees?.has(chord.flatScaleDegree)))
+      ) {
+        return false;
       }
 
       // Include chords containing selected natural scale degrees
