@@ -5,6 +5,7 @@
     classes, classesAvailable, selectedClassId, loadClasses, selectClass, createClass, setPassed,
   } from '../lib/classes';
   import { presetKeyOf } from '../lib/class-validate';
+  import SignupHint from './SignupHint.svelte';
   import { uilPresets } from '../lib/uil-presets';
   import { getPresets } from '../lib/preset-storage';
   import { listPresets, addPreset, removePreset, updateSavedPreset } from '../lib/preset-sync';
@@ -50,6 +51,8 @@
   /** The last thing that went wrong, shown in the bar rather than an alert. */
   let problem = '';
   let busy = false;
+  /** Just saved a preset to this browser only - the moment an account helps. */
+  let savedLocally = false;
   /** The saved preset whose name is being edited in its chip, if any. */
   let renamingId: string | null = null;
   let renameValue = '';
@@ -189,6 +192,7 @@
     try {
       const preset = await addPreset(newPresetName.trim(), currentParams(), store);
       savedPresets = [...savedPresets, preset];
+      savedLocally = !synced;
       newPresetName = '';
       showSaveInput = false;
       problem = '';
@@ -390,6 +394,8 @@
 
   {#if synced}
     <span class="text-xs text-sr-faint" title="Saved to your account, so they follow you to any device">Saved to your account</span>
+  {:else if savedLocally}
+    <SignupHint id="save-preset">Saved in this browser only.</SignupHint>
   {/if}
 
   {#if problem}
@@ -425,9 +431,10 @@
             One new thing at a time, from a first rhythm to four parts and past UIL 5.
             {#if selectedClass}
               Showing what <strong>{selectedClass.name}</strong> has passed.
-            {:else if !$classesAvailable}
-              <a class="underline" href="/login?next={encodeURIComponent(typeof location !== 'undefined' ? location.pathname : '/')}">Sign in</a> to track which of your classes have passed each step.
             {/if}
+          </p>
+          <p class="px-2 pb-1">
+            <SignupHint id="ladder-classes" dismissible={false}>Track which of your classes have passed each step.</SignupHint>
           </p>
           {#each ladderStages() as { stage, steps }}
             <h3 class="text-[11px] uppercase tracking-wide text-sr-faint px-2 pt-3 pb-1">{stage}</h3>
@@ -493,6 +500,9 @@
               Nothing saved yet. Set things up the way you like, then choose
               <strong>Save current</strong>.
             </p>
+            <p class="px-2 pb-2">
+              <SignupHint id="presets-tab" dismissible={false}>With an account, your presets follow you to every device.</SignupHint>
+            </p>
           {:else}
             <ul>
               {#each savedPresets as preset (preset.id)}
@@ -532,6 +542,11 @@
                 </li>
               {/each}
             </ul>
+            {#if !synced}
+              <p class="px-2 pt-2">
+                <SignupHint id="presets-tab" dismissible={false}>These are saved in this browser only.</SignupHint>
+              </p>
+            {/if}
           {/if}
         {/if}
       </div>

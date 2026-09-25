@@ -33,6 +33,7 @@
   import { downloadFile } from "../lib/download";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
+  import SignupHint from "./SignupHint.svelte";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
@@ -3639,6 +3640,7 @@
                     <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
                   {/if}
                 </p>
+                <SignupHint id="own-syllables">Want the words your choir uses - ta-a, ti-ka, whatever you teach?</SignupHint>
               </div>
             {/if}
           </div>
