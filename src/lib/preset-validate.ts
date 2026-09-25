@@ -41,6 +41,37 @@ export function checkParams(value: unknown): Checked<Record<string, unknown>> {
   return { ok: true, value: value as Record<string, unknown> };
 }
 
+/** A change to a saved preset: `{ name?, params? }`, at least one of them. */
+export interface PresetUpdate {
+  name?: string;
+  params?: Record<string, unknown>;
+}
+
+/**
+ * What PATCH accepts. Saving over a preset sends its settings; renaming sends
+ * its name; either or both, but not neither - an empty change is a mistake on
+ * the page, not a no-op worth a round trip.
+ */
+export function checkPresetUpdate(body: unknown): Checked<PresetUpdate> {
+  if (typeof body !== "object" || body === null) return { ok: false, error: "Expected a change." };
+  const b = body as Record<string, unknown>;
+  const out: PresetUpdate = {};
+  if (b.name !== undefined) {
+    const name = checkName(b.name);
+    if (!name.ok) return name;
+    out.name = name.value;
+  }
+  if (b.params !== undefined) {
+    const params = checkParams(b.params);
+    if (!params.ok) return params;
+    out.params = params.value;
+  }
+  if (out.name === undefined && out.params === undefined) {
+    return { ok: false, error: "Nothing to change." };
+  }
+  return { ok: true, value: out };
+}
+
 export interface NewPreset {
   store: PresetStore;
   name: string;

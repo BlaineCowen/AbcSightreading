@@ -1,12 +1,21 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
-  import { ChevronDown, X, Plus } from "lucide-svelte";
+  import { ChevronDown, X, Plus, Pencil } from "lucide-svelte";
   import { getPresets } from '../lib/preset-storage';
-  import { listPresets, addPreset, removePreset } from '../lib/preset-sync';
+  import { listPresets, addPreset, removePreset, updateSavedPreset } from '../lib/preset-sync';
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount } from 'svelte';
 
+  /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
+  /** The saved preset the settings came from, when it was one of these. */
+  export let activeSavedId: string | null = null;
+  /** Whether the settings have been changed since that preset was loaded. */
+  export let edited: boolean = false;
+  /** Puts the active preset's settings back as they were loaded. */
+  export let onRevert: (() => void) | undefined = undefined;
+  /** A saved preset was renamed, so the page can keep its label in step. */
+  export let onRenamed: ((preset: SavedPreset<any>) => void) | undefined = undefined;
   // `any` because the settings are the caller's: choral saves PresetParams,
   // unison its own options object. The dropdown only stores and hands back.
   export let currentParams: () => PresetParams | any;
@@ -30,6 +39,11 @@
   /** The last thing that went wrong, shown in the bar rather than an alert. */
   let problem = '';
   let busy = false;
+  /** The saved preset whose name is being edited in its chip, if any. */
+  let renamingId: string | null = null;
+  let renameValue = '';
+
+  $: activeIsSaved = !!activeSavedId && savedPresets.some(p => p.id === activeSavedId);
 
   async function refresh() {
     try {
@@ -52,6 +66,53 @@
     refresh();
   });
 
+  /**
+   * Opens the name box. Saving an edited preset as a new one starts from its
+   * name, since the new one is usually a variation on it.
+   */
+  function openSaveAs() {
+    newPresetName = activeLabel ? (activeIsSaved ? `${activeLabel} (copy)` : activeLabel) : '';
+    showSaveInput = true;
+  }
+
+  /** Saves the current settings over the active saved preset. */
+  async function handleOverwrite() {
+    if (!activeSavedId || busy) return;
+    busy = true;
+    try {
+      const updated = await updateSavedPreset(activeSavedId, { params: currentParams() }, store);
+      savedPresets = savedPresets.map(p => (p.id === updated.id ? updated : p));
+      problem = '';
+      // Re-apply it, so the page takes these settings as the preset's own and
+      // the "edited" mark clears.
+      onSelectSaved(updated);
+    } catch (e) {
+      problem = 'Could not save preset: ' + message(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function startRename(preset: SavedPreset<any>) {
+    renamingId = preset.id;
+    renameValue = preset.name;
+  }
+
+  async function handleRename() {
+    const id = renamingId;
+    const name = renameValue.trim();
+    renamingId = null;
+    if (!id || !name || savedPresets.find(p => p.id === id)?.name === name) return;
+    try {
+      const updated = await updateSavedPreset(id, { name }, store);
+      savedPresets = savedPresets.map(p => (p.id === updated.id ? updated : p));
+      problem = '';
+      onRenamed?.(updated);
+    } catch (e) {
+      problem = 'Could not rename preset: ' + message(e);
+    }
+  }
+
   async function handleSave() {
     if (!newPresetName.trim() || busy) return;
     busy = true;
@@ -71,6 +132,7 @@
 
   async function handleDelete(id: string) {
     const preset = savedPresets.find(p => p.id === id);
+    if (preset && !confirm(`Delete the preset "${preset.name}"?`)) return;
     try {
       await removePreset(id, store);
       savedPresets = savedPresets.filter(p => p.id !== id);
@@ -131,41 +193,83 @@
     <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sr-faint text-xs"><ChevronDown size={14} /></span>
   </div>
 
+  {#if activeLabel}
+    <span class="text-xs text-sr-faint ">Active: <strong class="text-sr-ink-2">{activeLabel}</strong>{edited ? " — edited" : ""}</span>
+  {/if}
+
   <!-- Save input -->
   {#if showSaveInput}
     <input
       type="text"
       bind:value={newPresetName}
       placeholder="Preset name"
-      class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-sr-action"
+      class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-sr-action"
       on:keydown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') showSaveInput = false; }}
       autofocus
     />
     <button class="sr-btn text-sm px-2 py-1" on:click={handleSave} disabled={busy}>Save</button>
     <button class="text-sm text-sr-muted underline" on:click={() => showSaveInput = false}>Cancel</button>
+  {:else if activeLabel && edited}
+    <!-- The loaded preset has been changed. A saved one can take the changes;
+         a built-in one cannot, so it offers only a copy. -->
+    {#if activeIsSaved}
+      <button
+        class="sr-btn text-xs px-2 py-1"
+        on:click={handleOverwrite}
+        disabled={busy}
+        title="Save these settings over “{activeLabel}”"
+      >Save</button>
+    {/if}
+    <button
+      class="flex items-center gap-1 border border-dashed border-sr-faint text-sr-muted rounded px-2 py-1 text-xs hover:border-sr-muted"
+      on:click={openSaveAs}
+    ><Plus size={14} /> Save as new…</button>
+    {#if onRevert}
+      <button class="text-xs text-sr-muted underline" on:click={onRevert} title="Put back the settings “{activeLabel}” was loaded with">Revert</button>
+    {/if}
   {:else}
     <button
       class="flex items-center gap-1 border border-dashed border-sr-faint text-sr-muted rounded px-2 py-1 text-xs hover:border-sr-muted"
-      on:click={() => showSaveInput = true}
+      on:click={openSaveAs}
     ><Plus size={14} /> Save Current</button>
   {/if}
 
   {#if savedPresets.length > 0}
     <div class="flex flex-wrap gap-1 w-full mt-1">
       {#each savedPresets as preset}
-        <span class="sr-chipline inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs">
-          <button
-            type="button"
-            class="text-sr-ink-2 hover:text-sr-action-fg"
-            on:click={() => onSelectSaved(preset)}
-          >{preset.name}</button>
-          <button
-            type="button"
-            class="text-sr-faint hover:text-sr-danger leading-none"
-            on:click={() => handleDelete(preset.id)}
-            title="Delete preset"
-          ><X size={12} /></button>
-        </span>
+        {#if renamingId === preset.id}
+          <input
+            type="text"
+            bind:value={renameValue}
+            aria-label="New name for {preset.name}"
+            class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-2 focus:ring-sr-action"
+            on:keydown={(e) => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') renamingId = null; }}
+            on:blur={handleRename}
+            autofocus
+          />
+        {:else}
+          <span class="sr-chipline inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs {preset.id === activeSavedId ? 'ring-1 ring-sr-action' : ''}">
+            <button
+              type="button"
+              class="text-sr-ink-2 hover:text-sr-action-fg"
+              on:click={() => onSelectSaved(preset)}
+            >{preset.name}</button>
+            <button
+              type="button"
+              class="text-sr-faint hover:text-sr-ink-2 leading-none"
+              on:click={() => startRename(preset)}
+              title="Rename preset"
+              aria-label="Rename {preset.name}"
+            ><Pencil size={11} /></button>
+            <button
+              type="button"
+              class="text-sr-faint hover:text-sr-danger leading-none"
+              on:click={() => handleDelete(preset.id)}
+              title="Delete preset"
+              aria-label="Delete {preset.name}"
+            ><X size={12} /></button>
+          </span>
+        {/if}
       {/each}
     </div>
   {/if}
@@ -178,7 +282,4 @@
     <span class="text-xs text-sr-danger" role="alert">{problem}</span>
   {/if}
 
-  {#if activeLabel}
-    <span class="text-xs text-sr-faint ml-1">Active: <strong class="text-sr-ink-2">{activeLabel}</strong></span>
-  {/if}
 </div>

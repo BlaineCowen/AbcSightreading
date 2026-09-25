@@ -87,21 +87,35 @@ export function deletePreset(id: string, store: string = STORAGE_KEY): boolean {
   return true;
 }
 
-export function renamePreset(id: string, name: string, store: string = STORAGE_KEY): boolean {
-  const presets = getPresets(store);
-  let found = false;
+/**
+ * Renames a preset, saves over its settings, or both. Returns the preset as it
+ * now is, or null when there is no such preset in this list.
+ */
+export function updatePreset<P = PresetParams>(
+  id: string,
+  change: { name?: string; params?: P },
+  store: string = STORAGE_KEY
+): SavedPreset<P> | null {
+  const presets = getPresets<P>(store);
+  let updated: SavedPreset<P> | null = null;
   const next = presets.map((p) => {
-    if (p.id === id) {
-      found = true;
-      return { ...p, name };
-    }
-    return p;
+    if (p.id !== id) return p;
+    updated = {
+      ...p,
+      ...(change.name !== undefined && { name: change.name }),
+      ...(change.params !== undefined && { params: change.params }),
+    };
+    return updated;
   });
-  if (!found) return false;
+  if (!updated) return null;
   try {
     localStorage.setItem(store, JSON.stringify(next));
   } catch (e) {
-    throw new Error('Could not rename preset: storage quota exceeded.', { cause: e });
+    throw new Error('Could not save preset: storage quota exceeded.', { cause: e });
   }
-  return true;
+  return updated;
+}
+
+export function renamePreset(id: string, name: string, store: string = STORAGE_KEY): boolean {
+  return updatePreset(id, { name }, store) !== null;
 }

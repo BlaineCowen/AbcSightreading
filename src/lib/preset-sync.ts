@@ -2,8 +2,8 @@ import { signedInUser } from "./auth-client";
 import {
   deletePreset,
   getPresets,
-  renamePreset,
   savePreset,
+  updatePreset,
   type SavedPreset,
 } from "./preset-storage";
 
@@ -82,17 +82,22 @@ export async function removePreset(id: string, store: string = CHORAL_STORE): Pr
   await api(`/api/presets/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export async function renameSavedPreset(
+/**
+ * Renames a saved preset, saves over its settings, or both, and hands back the
+ * preset as it now is.
+ */
+export async function updateSavedPreset<P>(
   id: string,
-  name: string,
+  change: { name?: string; params?: P },
   store: string = CHORAL_STORE
-): Promise<void> {
+): Promise<SavedPreset<P>> {
   if (!(await signedInUser())) {
-    renamePreset(id, name, store);
-    return;
+    const updated = updatePreset<P>(id, change, store);
+    if (!updated) throw new Error("That preset is no longer saved.");
+    return updated;
   }
-  await api(`/api/presets/${encodeURIComponent(id)}`, {
+  return api<SavedPreset<P>>(`/api/presets/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(change),
   });
 }

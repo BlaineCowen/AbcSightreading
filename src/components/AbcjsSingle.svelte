@@ -467,6 +467,9 @@
   /** The preset the settings came from, and what it held, for "edited". */
   let activePresetLabel = "";
   let activePresetSignature = "";
+  /** The saved preset the settings came from, so it can be saved over. */
+  let activeSavedId: string | null = null;
+  let activePreset: SavedPreset<any> | null = null;
   $: presetEdited =
     activePresetLabel !== "" && JSON.stringify(currentOptions) !== activePresetSignature;
 
@@ -497,6 +500,8 @@
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
     cursorMode = next.cursorMode;
     activePresetLabel = preset.name;
+    activeSavedId = preset.id;
+    activePreset = preset;
     // After the reactive snapshot has caught up with the values just set.
     setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
   }
@@ -2935,10 +2940,14 @@
   <PresetDropdown
     store={UNISON_PRESET_STORE}
     showBuiltins={false}
-    activeLabel={activePresetLabel ? `${activePresetLabel}${presetEdited ? ' — edited' : ''}` : ''}
+    activeLabel={activePresetLabel}
+    {activeSavedId}
+    edited={presetEdited}
+    onRevert={activePreset ? () => activePreset && applySavedPreset(activePreset) : undefined}
     currentParams={() => currentOptions}
     onSelectSaved={applySavedPreset}
-    onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
+    onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activePreset = p; } }}
+    onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; activePreset = null; } }}
   />
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">

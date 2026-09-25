@@ -100,6 +100,10 @@
   // ── Preset state ───────────────────────────────────────────────────────────
   let activePresetLabel = '';
   let _presetParamSig = '';
+  /** The saved preset the settings came from, so it can be saved over. */
+  let activeSavedId: string | null = null;
+  /** Loads the active preset again, for Revert. */
+  let revertPreset: (() => void) | undefined = undefined;
 
   interface Preset {
     maxSkip: number;
@@ -992,6 +996,8 @@
     selectedRhythms = allRhythms.filter((r) => p.rhythms.includes(r.name));
     activePresetLabel = name;
     activeUILLevel = null;
+    activeSavedId = null;
+    revertPreset = () => applyDifficultyPreset(name);
     // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
@@ -1187,6 +1193,8 @@
       possibleVoicing = { ...possibleVoicing };
     }
     activePresetLabel = p.label;
+    activeSavedId = null;
+    revertPreset = () => applyUILPreset(levelKey);
     // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
@@ -1222,6 +1230,8 @@
     }
     activePresetLabel = preset.name;
     activeUILLevel = null;
+    activeSavedId = preset.id;
+    revertPreset = () => applySavedPreset(preset);
     // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
@@ -1966,11 +1976,15 @@
 
   <!-- Preset bar -->
   <PresetDropdown
-    activeLabel={activePresetLabel ? `${activePresetLabel}${presetEdited ? ' — edited' : ''}` : ''}
+    activeLabel={activePresetLabel}
+    {activeSavedId}
+    edited={presetEdited}
+    onRevert={revertPreset}
     currentParams={getCurrentParams}
     onSelectBuiltin={applyBuiltinPreset}
     onSelectSaved={applySavedPreset}
-    onDelete={(id, name) => { if (name === activePresetLabel) activePresetLabel = ''; }}
+    onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
+    onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
   />
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">

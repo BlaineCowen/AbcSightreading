@@ -4,6 +4,7 @@ import {
   savePreset,
   deletePreset,
   renamePreset,
+  updatePreset,
   UNISON_PRESET_STORE,
 } from "../../src/lib/preset-storage";
 
@@ -47,6 +48,18 @@ describe("preset stores", () => {
     expect(deletePreset(u.id, UNISON_PRESET_STORE)).toBe(true);
     expect(getPresets(UNISON_PRESET_STORE)).toEqual([]);
     expect(getPresets()).toHaveLength(1);
+  });
+
+  test("saving over a preset keeps its id, name, place and creation time", () => {
+    const a = savePreset("First", { bpm: 60 } as any);
+    const b = savePreset("Second", { bpm: 70 } as any);
+    const updated = updatePreset(a.id, { params: { bpm: 90 } as any });
+    expect(updated).toEqual({ ...a, params: { bpm: 90 } as any });
+    expect(getPresets().map((p) => [p.id, p.name, (p.params as any).bpm])).toEqual([
+      [a.id, "First", 90],
+      [b.id, "Second", 70],
+    ]);
+    expect(updatePreset("missing", { name: "x" })).toBeNull();
   });
 
   test("choral's existing presets are still read from where they always were", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   checkName,
+  checkPresetUpdate,
   checkNewPreset,
   checkParams,
   isPresetStore,
@@ -92,5 +93,25 @@ describe("presetsToImport", () => {
 
   test("drops duplicates within one batch", () => {
     expect(presetsToImport([p("A", 1), p("A", 1)], [])).toHaveLength(1);
+  });
+});
+
+describe("checkPresetUpdate", () => {
+  test("takes a name, settings, or both", () => {
+    expect(checkPresetUpdate({ name: " SATB " })).toEqual({ ok: true, value: { name: "SATB" } });
+    expect(checkPresetUpdate({ params: { bpm: 80 } })).toEqual({
+      ok: true,
+      value: { params: { bpm: 80 } },
+    });
+    expect(checkPresetUpdate({ name: "A", params: {} }).ok).toBe(true);
+  });
+
+  test("refuses an empty change and bad parts", () => {
+    expect(checkPresetUpdate({}).ok).toBe(false);
+    expect(checkPresetUpdate(null).ok).toBe(false);
+    expect(checkPresetUpdate({ name: "  " }).ok).toBe(false);
+    expect(checkPresetUpdate({ params: [] }).ok).toBe(false);
+    // A bad name is not rescued by good settings beside it.
+    expect(checkPresetUpdate({ name: "", params: { bpm: 80 } }).ok).toBe(false);
   });
 });
