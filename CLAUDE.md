@@ -17,6 +17,7 @@ bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking - clean, keep it that way
 bun run check:rhythm  # Rhythm generation property checks (see below)
 bun run sweep      # Does every kind of exercise generate? (see below)
+bun run scripts/check-ladder.ts  # Does every ladder step generate? (see below)
 bun run test       # Unit tests in tests/unit/ (see the timeout note below)
 ```
 
@@ -27,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 732 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 748 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -145,6 +146,29 @@ nothing. And beware judging any of this on a small harness - a 40-exercise run
 at one cell read the yield change as making failures *worse* (4 against 9) and
 nearly got it thrown away. That difference was noise; the sweep is the gate.
 
+### The ladder
+
+`src/lib/ladder.ts` is "Step by step": 23 presets from rhythm alone (ta, ti-ti)
+through a single line on the Unison page, then two, three and four parts on the
+Choral page, to UIL 5 and past it. It follows sight-singing pedagogy - one new
+thing per step, the new thing on familiar material, rhythm before pitch, pitch
+out from do, unison before parts - and the file's header says how. Keep to that
+when adding steps. Class progress is stored against each step's `id`, so never
+rename or reuse one.
+
+`scripts/check-ladder.ts` generates every step in every voicing, key and meter
+it allows (`STEP=<id>` for one) and, for Unison steps, checks the line stays in
+the step's range and uses at least three pitches - a line stuck on one note
+"succeeds". Run it after touching a step or either generator. Step 15 is F and
+G only and 15-17 leave out C, because three close parts in C fail at these
+ranges; see the comments there.
+
+The Unison generator writes a line that prefers moving to repeating a note and
+ends on do (and heads back toward it over its last notes); chromatic chords only
+steer the line when their altered note is selected. Before that, a do-re-mi
+exercise was two-thirds repeated notes and a stepwise line ended on do 17% of
+the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
+
 ## Accounts
 
 Better Auth (`src/lib/server/auth.ts`) on Prisma ORM 7 + Prisma Postgres
@@ -154,6 +178,11 @@ required to sign in), plus Google when `GOOGLE_CLIENT_ID`/`_SECRET` are set.
 Auth endpoints live under `/api/auth/*`; pages are `/login` (also
 `?mode=signup|forgot`), `/reset-password`, `/account`.
 
+Classes (`Class`, `ClassProgress`; `/api/classes`, `src/lib/classes.ts`) are
+signed-in only: a director's choirs and which presets each has passed, keyed
+`step:<id>`, `uil:UIL n` or `saved:<preset id>`. Picked beside the preset on
+the practice pages ("Mark passed"), and shown as a grid on `/account`.
+
 Saved presets go to the account when signed in (`/api/presets`,
 `src/lib/preset-sync.ts`) and to localStorage when not - signed-out behaviour
 is the old one. The first signed-in load of each list imports that browser's
@@ -161,7 +190,11 @@ presets once; the server dedupes by name + creation time.
 
 - Schema: `prisma/schema.prisma`. After changing it: `bun run db:migrate`
   (creates a migration and applies it - **to the shared database**), commit the
-  migration, and production picks it up via `bun run db:deploy`.
+  migration, and production picks it up via `bun run db:deploy`. Safer for an
+  additive change: write the SQL with `prisma migrate diff --from-schema <old>
+  --to-schema prisma/schema.prisma --script`, read it, and apply with
+  `bun run db:deploy`, which never resets. (That is how the classes tables went
+  in.)
 - The generated client is in `src/generated/` (gitignored; `postinstall` runs
   `prisma generate`).
 - Billing is not built. `hasPremium()` in `src/lib/server/plan.ts` is the one

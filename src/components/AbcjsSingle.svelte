@@ -33,6 +33,7 @@
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
+  import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
@@ -469,7 +470,10 @@
   let activePresetSignature = "";
   /** The saved preset the settings came from, so it can be saved over. */
   let activeSavedId: string | null = null;
-  let activePreset: SavedPreset<any> | null = null;
+  /** The ladder step the settings came from, when they came from one. */
+  let activeStepId: string | null = null;
+  /** Loads the active preset or step again, for Revert. */
+  let revertPreset: (() => void) | undefined = undefined;
   $: presetEdited =
     activePresetLabel !== "" && JSON.stringify(currentOptions) !== activePresetSignature;
 
@@ -501,8 +505,50 @@
     cursorMode = next.cursorMode;
     activePresetLabel = preset.name;
     activeSavedId = preset.id;
-    activePreset = preset;
+    activeStepId = null;
+    revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
+    setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
+  }
+
+  /**
+   * A ladder step: what to read - rhythms, meter, length, and for a pitched
+   * step the key, scale degrees, skip size and range around do. The clef stays,
+   * and the range is placed on the do inside the current one, so a class reads
+   * at its own pitch. Chromatic notes go off: no step on this page teaches them. A step for the Choral page is opened there.
+   */
+  /**
+   * Read now, while the component starts: the reactive URL sync rewrites the
+   * address from the page's state before onMount runs, and the step is gone
+   * by then.
+   */
+  const linkedStepId =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get(STEP_PARAM)
+      : null;
+
+  function applyLadderStep(step: LadderStep) {
+    const u = step.unison;
+    if (!u) {
+      window.location.href = stepHref(step);
+      return;
+    }
+    rhythmOnly = u.rhythmOnly;
+    selectedRhythms = resolveSelectedRhythms(u.selectedRhythms);
+    selectedTimeSignature = u.selectedTimeSignature;
+    measures = u.measures;
+    moveEighthNotes = u.moveEighthNotes;
+    if (u.selectedKey) selectedKey = u.selectedKey;
+    if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
+    if (u.maxSkip) maxSkip = u.maxSkip;
+    const range = rangeForStep(u, selectedRange);
+    if (range) selectedRange = range;
+    selectedSharpDegrees = new Set();
+    selectedFlatDegrees = new Set();
+    activePresetLabel = stepLabel(step);
+    activeSavedId = null;
+    activeStepId = step.id;
+    revertPreset = () => applyLadderStep(step);
     setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
   }
 
@@ -2866,6 +2912,9 @@
     }
     // Belt and braces for browsers that coalesce the observer on rotation.
     window.addEventListener("orientationchange", onPaperResize);
+    // A link to a ladder step, from the other page's picker or a class's plan.
+    const linkedStep = ladderById[linkedStepId ?? ""];
+    if (linkedStep) applyLadderStep(linkedStep);
     const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
     window.addEventListener("hashchange", onHashChange);
@@ -2943,11 +2992,14 @@
     activeLabel={activePresetLabel}
     {activeSavedId}
     edited={presetEdited}
-    onRevert={activePreset ? () => activePreset && applySavedPreset(activePreset) : undefined}
+    onRevert={revertPreset}
+    page="unison"
+    onSelectStep={applyLadderStep}
+    {activeStepId}
     currentParams={() => currentOptions}
     onSelectSaved={applySavedPreset}
-    onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activePreset = p; } }}
-    onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; activePreset = null; } }}
+    onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
+    onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
   />
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">

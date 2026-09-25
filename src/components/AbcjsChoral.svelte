@@ -53,7 +53,8 @@
   import type { Chord } from "../lib/types";
   import type { Rhythm } from "../resources/rhythms";
   import RangeSelector from "./ui/rangeSelector.svelte";
-  import { uilPresets } from "../lib/uil-presets";
+  import { uilPresets, type UILPreset } from "../lib/uil-presets";
+  import { ladderById, stepHref, stepLabel, STEP_PARAM, type LadderStep, type ChoralStepSettings } from "../lib/ladder";
   import { canFillExercise } from "../lib/rhythm-feasibility";
   import { unisonProbabilityFor } from "../lib/unison-spans";
   import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
@@ -105,19 +106,14 @@
   /** Loads the active preset again, for Revert. */
   let revertPreset: (() => void) | undefined = undefined;
 
-  interface Preset {
-    maxSkip: number;
-    rhythms: string[];
-    bpm: number;
-  }
-
-  const builtinPresets: Record<string, Preset> = {
-    Beginner: { maxSkip: 2, rhythms: ["quarter", "half", "dotHalf"], bpm: 60 },
-    Intermediate: { maxSkip: 4, rhythms: ["quarter", "half", "dotHalf", "eighth", "dotQuarterEighth"], bpm: 80 },
-    Advanced: { maxSkip: 6, rhythms: ["quarter", "half", "dotHalf", "eighth", "dotQuarterEighth", "eighthEighth", "dotHalfQuarter"], bpm: 100 },
-  };
-
-  let activeUILLevel: string | null = null;
+  /**
+   * The level the settings came from - a UIL level, or a ladder step, which is
+   * shaped like one - or null when none is chosen. It dims what is outside it
+   * and sets the level-driven behaviour (unison openings, phrase rhyme).
+   */
+  let activeLevel: UILPreset | null = null;
+  /** The ladder step the settings came from, when they came from one. */
+  let activeStepId: string | null = null;
 
   // ── Generation parameters ──────────────────────────────────────────────────
   const measureOptions = [2, 4, 8, 16];
@@ -863,8 +859,13 @@
       }
       rhythmBias = parsed;
     }
-    const preset = p.get("preset");
-    if (preset && builtinPresets[preset]) applyDifficultyPreset(preset);
+    // The Beginner/Intermediate/Advanced presets gave way to the ladder. A
+    // link still carrying one opens the step nearest what it used to set.
+    const retired: Record<string, string> = {
+      Beginner: "parts-two-rhythms", Intermediate: "parts-v7", Advanced: "parts-four",
+    };
+    const step = ladderById[retired[p.get("preset") ?? ""] ?? ""];
+    if (step) applyLadderStep(step);
   }
 
   function updateURLParams() {
@@ -976,6 +977,9 @@
     // real UI forever. Take it down as soon as there is something to replace it.
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     loadParams();
+    // A link to a ladder step, from the other page's picker or a class's plan.
+    const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
+    if (linkedStep) applyLadderStep(linkedStep);
     loadMixLevels();
     const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
@@ -988,25 +992,13 @@
   });
 
   // ── Preset application ─────────────────────────────────────────────────────
-  function applyDifficultyPreset(name: string) {
-    const p = builtinPresets[name];
-    if (!p) return;
-    maxSkip = p.maxSkip;
-    bpm = p.bpm;
-    selectedRhythms = allRhythms.filter((r) => p.rhythms.includes(r.name));
-    activePresetLabel = name;
-    activeUILLevel = null;
-    activeSavedId = null;
-    revertPreset = () => applyDifficultyPreset(name);
-    // Use setTimeout so the signature captures post-update values
-    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
-  }
-
   // What the active UIL level allows, or null when no level is active. Used to
   // dim options rather than remove them - the point of the change is that
   // nothing disappears, so a reader can still see the whole vocabulary and step
   // outside the level deliberately.
-  $: activePreset = activeUILLevel ? uilPresets[activeUILLevel] : null;
+  $: activePreset = activeLevel;
+  /** "UIL 3", for the helpers keyed by level name. */
+  $: activeLevelKey = activeLevel ? `UIL ${activeLevel.level}` : undefined;
 
   /** The level number behind the active preset, or null when none is chosen. */
   $: fullLengthLevel = activePreset ? activePreset.level : null;
@@ -1124,7 +1116,45 @@
   function applyUILPreset(levelKey: string) {
     const p = uilPresets[levelKey];
     if (!p) return;
-    activeUILLevel = levelKey;
+    applyLevel(p);
+    activePresetLabel = p.label;
+    activeStepId = null;
+    revertPreset = () => applyUILPreset(levelKey);
+  }
+
+  /**
+   * A ladder step. A step for the Unison page is opened there: its settings are
+   * a single line's, and this page has no way to write one.
+   */
+  function applyLadderStep(step: LadderStep) {
+    if (!step.choral) {
+      window.location.href = stepHref(step);
+      return;
+    }
+    applyLevel({ ...step.choral, label: stepLabel(step), measureRange: [8, 16] }, step.choral);
+    activePresetLabel = stepLabel(step);
+    activeStepId = step.id;
+    revertPreset = () => applyLadderStep(step);
+  }
+
+  /**
+   * The voicing to move to when the current one is outside a level: the same
+   * kind of choir if the level has one (a tenor-bass class stays tenor-bass
+   * when a step goes from four parts to two), otherwise the level's first.
+   */
+  function nearestVoicing(allowed: string[]): string {
+    const kind = ["Tenor/Bass", "Treble", "Mixed"].find((k) => selectedVoicing.includes(k));
+    return (kind && allowed.find((v) => v.includes(kind))) || allowed[0];
+  }
+
+  /**
+   * Put a level's settings on the page. `step` carries what a ladder step says
+   * beyond a UIL level: exactly which rhythms to switch on, how long to start,
+   * and a texture.
+   */
+  function applyLevel(p: UILPreset, step?: ChoralStepSettings) {
+    activeLevel = p;
+    activeSavedId = null;
     // The key list is no longer replaced. Taking the other keys away meant a
     // preset silently removed choices instead of describing them; they are all
     // still here, and the ones outside the level are dimmed instead.
@@ -1143,7 +1173,7 @@
     // never read, so a level that says "4-part mixed, 24-28 measures" did
     // neither. They apply now.
     if (p.allowedVoicings?.length && !p.allowedVoicings.includes(selectedVoicing)) {
-      selectedVoicing = p.allowedVoicings[0];
+      selectedVoicing = nearestVoicing(p.allowedVoicings);
     }
     // The levels name their meters and nothing read them, so picking level 2 -
     // which is 3/4 and 4/4 - left 2/4 selected and generating in it.
@@ -1154,11 +1184,12 @@
     // parallel motion lines" - no polyphony at all. Staggered entrances left
     // selected from a higher level would have written some anyway.
     if ((POLYPHONY_CEILING[p.level] ?? 0) === 0) voiceTexture = "full";
+    if (step?.voiceTexture) voiceTexture = step.voiceTexture;
     // Every preset starts at 8 measures. The levels declare 24-56, but that is
     // the length of a real UIL sight-reading example, not what you want when
     // you press Generate to drill a phrase - and the form rules that would make
     // a 24+ measure exercise hold together do not exist yet.
-    measures = 8;
+    measures = step?.measures ?? 8;
     // Rests are offered but not switched on. Every UIL level lists
     // wholeRest/halfRest/quarterRest, and having them all selected sprays rests
     // through the middle of phrases, where in a sung exercise they are not
@@ -1168,12 +1199,15 @@
     // The one rest that matters is not lost by this: the quarter that completes
     // an interior phrase ending is structural and comes from the catalogue, not
     // from this selection. See interiorCadenceFigure in rhythm-generation.
-    selectedRhythms = allRhythms.filter(
-      (r) =>
-        p.allowedRhythmNames.includes(r.name) &&
-        choralSelectable(r) &&
-        !r.rest &&
-        !OFFERED_NOT_SELECTED.has(r.name)
+    // A step names exactly what it switches on - sixteenths included, when
+    // that is the step.
+    selectedRhythms = allRhythms.filter((r) =>
+      step
+        ? step.selectedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest
+        : p.allowedRhythmNames.includes(r.name) &&
+          choralSelectable(r) &&
+          !r.rest &&
+          !OFFERED_NOT_SELECTED.has(r.name)
     );
     maxSkip = p.maxSkip;
     userAllowedChords = withInversions(p.allowedChordNames ?? allChordNames);
@@ -1192,17 +1226,10 @@
       // always done this; the UIL path never did.
       possibleVoicing = { ...possibleVoicing };
     }
-    activePresetLabel = p.label;
-    activeSavedId = null;
-    revertPreset = () => applyUILPreset(levelKey);
     // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
   }
 
-  function applyBuiltinPreset(type: 'uil' | 'difficulty', key: string) {
-    if (type === 'uil') applyUILPreset(key);
-    else applyDifficultyPreset(key);
-  }
 
   function applySavedPreset(preset: SavedPreset) {
     const { params: p } = preset;
@@ -1229,7 +1256,8 @@
       possibleVoicing = { ...possibleVoicing };
     }
     activePresetLabel = preset.name;
-    activeUILLevel = null;
+    activeLevel = null;
+    activeStepId = null;
     activeSavedId = preset.id;
     revertPreset = () => applySavedPreset(preset);
     // Use setTimeout so the signature captures post-update values
@@ -1844,12 +1872,12 @@
       // Two-part writing at the beginner levels opens in unison and splits.
       // Level-driven rather than a control: it is what the level *is*, not a
       // preference, and it only ever applies to a two-voice texture.
-      unisonProbability: unisonProbabilityFor(activeUILLevel ?? undefined),
+      unisonProbability: unisonProbabilityFor(activeLevelKey),
       // The consequent phrase opens with the antecedent's material and departs
       // at the cadence - a parallel period. Level-driven for the same reason as
       // unison: repetition is what the beginner repertoire is made of, and it
       // thins as the writing is meant to become continuous.
-      rhymeProbability: rhymeProbabilityFor(activeUILLevel ?? undefined),
+      rhymeProbability: rhymeProbabilityFor(activeLevelKey),
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames
@@ -1981,7 +2009,10 @@
     edited={presetEdited}
     onRevert={revertPreset}
     currentParams={getCurrentParams}
-    onSelectBuiltin={applyBuiltinPreset}
+    page="choral"
+    onSelectBuiltin={applyUILPreset}
+    onSelectStep={applyLadderStep}
+    {activeStepId}
     onSelectSaved={applySavedPreset}
     onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
     onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}

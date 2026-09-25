@@ -1,11 +1,13 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import AccountPanel from "../components/AccountPanel.svelte";
+import ClassProgress from "../components/ClassProgress.svelte";
 ---
 
 <Layout title="ABC Sight Reading - Account" themable>
   <div class="flex flex-col w-full items-center gap-6 pb-16">
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
     <AccountPanel client:only="svelte" />
+    <ClassProgress client:only="svelte" />
   </div>
 </Layout>

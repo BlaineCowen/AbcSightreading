@@ -1,10 +1,16 @@
 <!-- src/components/PresetDropdown.svelte -->
 <script lang="ts">
-  import { ChevronDown, X, Plus, Pencil } from "lucide-svelte";
+  import { ChevronDown, X, Plus, Pencil, Check } from "lucide-svelte";
+  import {
+    classes, classesAvailable, selectedClassId, loadClasses, selectClass, createClass, setPassed,
+  } from '../lib/classes';
+  import { presetKeyOf } from '../lib/class-validate';
+  import { uilPresets } from '../lib/uil-presets';
   import { getPresets } from '../lib/preset-storage';
   import { listPresets, addPreset, removePreset, updateSavedPreset } from '../lib/preset-sync';
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
+  import { ladder, ladderStages, type LadderStep, type LadderPage } from '../lib/ladder';
 
   /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
@@ -19,13 +25,18 @@
   // `any` because the settings are the caller's: choral saves PresetParams,
   // unison its own options object. The dropdown only stores and hands back.
   export let currentParams: () => PresetParams | any;
-  export let onSelectBuiltin: (type: 'uil' | 'difficulty', key: string) => void = () => {};
+  export let onSelectBuiltin: (levelKey: string) => void = () => {};
+  /** Which page this is: a ladder step for the other page is marked as such. */
+  export let page: LadderPage = 'choral';
+  export let onSelectStep: (step: LadderStep) => void = () => {};
+  /** The ladder step the settings came from, when they came from one. */
+  export let activeStepId: string | null = null;
   export let onSelectSaved: (preset: SavedPreset<any>) => void;
   export let onDelete: ((id: string, name: string) => void) | undefined = undefined;
   export let hideUILLevels: boolean = false;
   /**
-   * Whether to offer the built-in UIL and difficulty presets. They are choral
-   * settings, so unison turns them off and shows only what was saved there.
+   * Whether to offer the UIL levels. They are choral settings, so unison turns
+   * them off. The ladder is offered on both pages; it spans both.
    */
   export let showBuiltins: boolean = true;
   /** Which list of saved presets this page reads and writes. Choral's by default. */
@@ -64,7 +75,66 @@
     // This browser's list at once, then the account's when it arrives.
     savedPresets = getPresets(store);
     refresh();
+    loadClasses().catch((e) => (problem = 'Could not load your classes: ' + message(e)));
   });
+
+  // ── Classes: who is being taught, and what they have passed ─────────────
+  $: selectedClass = $classes.find(c => c.id === $selectedClassId) ?? null;
+  $: activeUILKey = Object.entries(uilPresets).find(([, p]) => p.label === activeLabel)?.[0];
+  /** What the loaded settings would be marked passed as, if anything. */
+  $: activeKey = activeStepId ? presetKeyOf.step(activeStepId)
+    : activeIsSaved && activeSavedId ? presetKeyOf.saved(activeSavedId)
+    : activeUILKey ? presetKeyOf.uil(activeUILKey)
+    : null;
+  $: passed = (key: string) => !!selectedClass?.passed[key];
+  /**
+   * Where the class goes next: the step after the furthest one it has passed.
+   * Not the first one unpassed - a class that came in at three parts has not
+   * failed rhythm alone, it skipped it.
+   */
+  $: nextStepId = selectedClass
+    ? (() => {
+        let furthest = -1;
+        ladder.forEach((s, i) => { if (selectedClass!.passed[presetKeyOf.step(s.id)]) furthest = i; });
+        return ladder[furthest + 1]?.id ?? null;
+      })()
+    : null;
+
+  let addingClass = false;
+  let newClassName = '';
+
+  async function onClassChange(e: Event) {
+    const value = (e.currentTarget as HTMLSelectElement).value;
+    if (value === '__new') {
+      addingClass = true;
+      newClassName = '';
+      return;
+    }
+    selectClass(value || null);
+  }
+
+  async function handleAddClass() {
+    const name = newClassName.trim();
+    if (!name) { addingClass = false; return; }
+    try {
+      const created = await createClass(name);
+      selectClass(created.id);
+      addingClass = false;
+      problem = '';
+    } catch (e) {
+      problem = 'Could not add the class: ' + message(e);
+    }
+  }
+
+  async function togglePassed() {
+    if (!selectedClass || !activeKey) return;
+    try {
+      await setPassed(selectedClass.id, activeKey, !passed(activeKey));
+      problem = '';
+    } catch (e) {
+      problem = 'Could not save that: ' + message(e);
+    }
+  }
 
   /**
    * Opens the name box. Saving an edited preset as a new one starts from its
@@ -143,58 +213,141 @@
     }
   }
 
-  function handleSelectChange(e: Event) {
-    const select = e.target as HTMLSelectElement;
-    const val = select.value;
-    if (!val) return;
-    if (val.startsWith('uil:')) onSelectBuiltin('uil', val.slice(4));
-    else if (val.startsWith('diff:')) onSelectBuiltin('difficulty', val.slice(5));
-    else if (val.startsWith('saved:')) {
-      const found = savedPresets.find(p => p.id === val.slice(6));
-      if (found) onSelectSaved(found);
+  // ── The picker panel ─────────────────────────────────────────────────────
+  type Tab = 'steps' | 'uil' | 'mine';
+  let open = false;
+  let tab: Tab = 'steps';
+  let root: HTMLElement;
+  let panel: HTMLElement;
+
+  $: uilOffered = showBuiltins && !hideUILLevels;
+  $: tabs = [
+    { id: 'steps', label: 'Step by step' },
+    ...(uilOffered ? [{ id: 'uil', label: 'UIL levels' }] : []),
+    { id: 'mine', label: `My presets${savedPresets.length ? ` (${savedPresets.length})` : ''}` },
+  ] as { id: Tab; label: string }[];
+
+  const UIL_NOTES: Record<string, string> = {
+    'UIL 1': 'I, IV, V · C, F and G major · whole, half and quarter notes',
+    'UIL 2': '+ V7, D major, dotted quarter-eighth',
+    'UIL 3': '+ ii, vi, Bb major, eighth pairs, dotted halves',
+    'UIL 4': '+ secondary dominants, up to 3 sharps or flats',
+    'UIL 5': '+ minor keys, sixteenths, up to 4 sharps or flats',
+  };
+
+  /** Opens on the tab the active preset is in, and scrolls it into view. */
+  async function openPanel() {
+    tab = activeStepId ? 'steps' : activeIsSaved ? 'mine'
+      : uilOffered && Object.values(uilPresets).some(p => p.label === activeLabel) ? 'uil'
+      : tab;
+    open = true;
+    await tick();
+    // Scroll the list, not the page: scrollIntoView moves every scrolling
+    // ancestor, and took the page's heading off the top of the screen.
+    const list = panel?.querySelector<HTMLElement>('[role="tabpanel"]');
+    const current = list?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (list && current) {
+      list.scrollTop = current.offsetTop - list.offsetTop - list.clientHeight / 2 + current.clientHeight / 2;
     }
-    select.value = '';
+    panel?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+  }
+
+  function close() {
+    open = false;
+    renamingId = null;
+  }
+
+  function choose(fn: () => void) {
+    fn();
+    close();
+  }
+
+  function onDocPointer(e: PointerEvent) {
+    if (open && root && !root.contains(e.target as Node)) close();
+  }
+  function onKey(e: KeyboardEvent) {
+    if (open && e.key === 'Escape') {
+      close();
+      root?.querySelector<HTMLElement>('.preset-trigger')?.focus();
+    }
+  }
+  onMount(() => {
+    document.addEventListener('pointerdown', onDocPointer);
+    document.addEventListener('keydown', onKey);
+  });
+  onDestroy(() => {
+    if (typeof document === 'undefined') return;
+    document.removeEventListener('pointerdown', onDocPointer);
+    document.removeEventListener('keydown', onKey);
+  });
+
+  /** Arrow keys move between the tabs, as a tab list should. */
+  function onTabKey(e: KeyboardEvent) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const i = tabs.findIndex(t => t.id === tab);
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    tab = next.id;
+    tick().then(() => panel?.querySelector<HTMLElement>(`#preset-tab-${next.id}`)?.focus());
   }
 </script>
 
-<div class="preset-bar bg-sr-panel border-b border-sr-hairline px-4 py-2 flex items-center gap-3 flex-wrap no-print">
-  <span class="text-xs text-sr-muted whitespace-nowrap">Quick Start:</span>
+<div bind:this={root} class="preset-bar relative bg-sr-panel border-b border-sr-hairline px-4 py-2 flex items-center gap-3 flex-wrap no-print">
+  <!-- The trigger names what is loaded; the panel below is where to choose. -->
+  <button
+    type="button"
+    class="preset-trigger inline-flex items-center gap-2 bg-sr-raise border border-sr-hairline rounded-md px-3 py-1.5 text-sm text-sr-ink-2 hover:border-sr-faint focus:outline-none focus:ring-2 focus:ring-sr-action max-w-full"
+    aria-haspopup="dialog"
+    aria-expanded={open}
+    on:click={() => (open ? close() : openPanel())}
+  >
+    <span class="text-xs text-sr-muted">Preset</span>
+    <span class="font-medium truncate">{activeLabel || 'Choose…'}</span>
+    {#if edited}<span class="text-xs text-sr-brass">edited</span>{/if}
+    <ChevronDown size={14} class="text-sr-faint shrink-0" />
+  </button>
 
-  <!-- Dropdown -->
-  <div class="relative">
-    <select
-      class="appearance-none bg-sr-raise border border-sr-hairline rounded-md px-3 py-1.5 pr-8 text-sm font-medium text-sr-ink-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-sr-action"
-      on:change={handleSelectChange}
-    >
-      <option value="" disabled selected hidden>
-        {showBuiltins || savedPresets.length > 0 ? 'Choose a preset…' : 'No saved presets yet'}
-      </option>
-      {#if showBuiltins && !hideUILLevels}
-        <option value="" disabled>── UIL Levels ──</option>
-        <option value="uil:UIL 1">UIL 1 - Beginner choir</option>
-        <option value="uil:UIL 2">UIL 2 - Easy</option>
-        <option value="uil:UIL 3">UIL 3 - Medium</option>
-        <option value="uil:UIL 4">UIL 4 - Hard</option>
-        <option value="uil:UIL 5">UIL 5 - Advanced</option>
-      {/if}
-      {#if showBuiltins}
-        <option value="" disabled>── Difficulty ──</option>
-        <option value="diff:Beginner">Beginner</option>
-        <option value="diff:Intermediate">Intermediate</option>
-        <option value="diff:Advanced">Advanced</option>
-      {/if}
-      {#if savedPresets.length > 0}
-        <option value="" disabled>── My Presets ──</option>
-        {#each savedPresets as preset}
-          <option value="saved:{preset.id}">{preset.name}</option>
-        {/each}
-      {/if}
-    </select>
-    <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sr-faint text-xs"><ChevronDown size={14} /></span>
-  </div>
-
-  {#if activeLabel}
-    <span class="text-xs text-sr-faint ">Active: <strong class="text-sr-ink-2">{activeLabel}</strong>{edited ? " — edited" : ""}</span>
+  {#if $classesAvailable}
+    <!-- The class being taught. Its passes show in the picker, and the loaded
+         preset can be marked passed for it. -->
+    {#if addingClass}
+      <input
+        type="text"
+        bind:value={newClassName}
+        placeholder="Class name, e.g. Varsity Treble"
+        aria-label="Name for the new class"
+        class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-sr-action"
+        on:keydown={(e) => { if (e.key === 'Enter') handleAddClass(); if (e.key === 'Escape') { e.stopPropagation(); addingClass = false; } }}
+        autofocus
+      />
+      <button class="sr-btn text-sm px-2 py-1" on:click={handleAddClass}>Add</button>
+      <button class="text-sm text-sr-muted underline" on:click={() => (addingClass = false)}>Cancel</button>
+    {:else}
+      <label class="inline-flex items-center gap-1 text-xs text-sr-muted">
+        Class
+        <select
+          class="bg-sr-raise border border-sr-hairline rounded-md px-2 py-1 text-sm text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
+          value={$selectedClassId ?? ''}
+          on:change={onClassChange}
+        >
+          <option value="">None</option>
+          {#each $classes as c (c.id)}
+            <option value={c.id}>{c.name}</option>
+          {/each}
+          <option value="__new">+ New class…</option>
+        </select>
+      </label>
+    {/if}
+    {#if selectedClass && activeKey && !addingClass}
+      <button
+        type="button"
+        class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs border {passed(activeKey) ? 'border-sr-action text-sr-action-fg bg-sr-tint' : 'border-sr-hairline text-sr-ink-2 hover:border-sr-faint'}"
+        aria-pressed={passed(activeKey)}
+        on:click={togglePassed}
+        title={passed(activeKey) ? `Passed by ${selectedClass.name} - click to unmark` : `Mark “${activeLabel}” passed by ${selectedClass.name}`}
+      >
+        {#if passed(activeKey)}<Check size={13} /> Passed{:else}Mark passed{/if}
+      </button>
+    {/if}
   {/if}
 
   <!-- Save input -->
@@ -203,6 +356,7 @@
       type="text"
       bind:value={newPresetName}
       placeholder="Preset name"
+      aria-label="Name for the new preset"
       class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-sr-action"
       on:keydown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') showSaveInput = false; }}
       autofocus
@@ -231,47 +385,7 @@
     <button
       class="flex items-center gap-1 border border-dashed border-sr-faint text-sr-muted rounded px-2 py-1 text-xs hover:border-sr-muted"
       on:click={openSaveAs}
-    ><Plus size={14} /> Save Current</button>
-  {/if}
-
-  {#if savedPresets.length > 0}
-    <div class="flex flex-wrap gap-1 w-full mt-1">
-      {#each savedPresets as preset}
-        {#if renamingId === preset.id}
-          <input
-            type="text"
-            bind:value={renameValue}
-            aria-label="New name for {preset.name}"
-            class="border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-0.5 text-xs w-40 focus:outline-none focus:ring-2 focus:ring-sr-action"
-            on:keydown={(e) => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') renamingId = null; }}
-            on:blur={handleRename}
-            autofocus
-          />
-        {:else}
-          <span class="sr-chipline inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs {preset.id === activeSavedId ? 'ring-1 ring-sr-action' : ''}">
-            <button
-              type="button"
-              class="text-sr-ink-2 hover:text-sr-action-fg"
-              on:click={() => onSelectSaved(preset)}
-            >{preset.name}</button>
-            <button
-              type="button"
-              class="text-sr-faint hover:text-sr-ink-2 leading-none"
-              on:click={() => startRename(preset)}
-              title="Rename preset"
-              aria-label="Rename {preset.name}"
-            ><Pencil size={11} /></button>
-            <button
-              type="button"
-              class="text-sr-faint hover:text-sr-danger leading-none"
-              on:click={() => handleDelete(preset.id)}
-              title="Delete preset"
-              aria-label="Delete {preset.name}"
-            ><X size={12} /></button>
-          </span>
-        {/if}
-      {/each}
-    </div>
+    ><Plus size={14} /> Save current</button>
   {/if}
 
   {#if synced}
@@ -282,4 +396,145 @@
     <span class="text-xs text-sr-danger" role="alert">{problem}</span>
   {/if}
 
+  {#if open}
+    <div
+      bind:this={panel}
+      class="preset-panel absolute left-4 right-4 sm:right-auto top-full mt-1 z-40 sm:w-[30rem] bg-sr-raise border border-sr-hairline rounded-lg shadow-lg flex flex-col max-h-[70vh]"
+      role="dialog"
+      aria-label="Choose a preset"
+    >
+      <div class="flex border-b border-sr-hairline px-2 pt-2 gap-1" role="tablist" aria-label="Preset lists">
+        {#each tabs as t}
+          <button
+            id="preset-tab-{t.id}"
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls="preset-list-{t.id}"
+            tabindex={tab === t.id ? 0 : -1}
+            class="px-3 py-1.5 text-sm rounded-t-md -mb-px border-b-2 {tab === t.id ? 'border-sr-action text-sr-action-fg font-medium' : 'border-transparent text-sr-muted hover:text-sr-ink-2'}"
+            on:click={() => (tab = t.id)}
+            on:keydown={onTabKey}
+          >{t.label}</button>
+        {/each}
+      </div>
+
+      <div class="overflow-y-auto p-2" id="preset-list-{tab}" role="tabpanel" aria-labelledby="preset-tab-{tab}">
+        {#if tab === 'steps'}
+          <p class="text-xs text-sr-muted px-2 pb-2">
+            One new thing at a time, from a first rhythm to four parts and past UIL 5.
+            {#if selectedClass}
+              Showing what <strong>{selectedClass.name}</strong> has passed.
+            {:else if !$classesAvailable}
+              <a class="underline" href="/login?next={encodeURIComponent(typeof location !== 'undefined' ? location.pathname : '/')}">Sign in</a> to track which of your classes have passed each step.
+            {/if}
+          </p>
+          {#each ladderStages() as { stage, steps }}
+            <h3 class="text-[11px] uppercase tracking-wide text-sr-faint px-2 pt-3 pb-1">{stage}</h3>
+            <ul>
+              {#each steps as step}
+                <li>
+                  <button
+                    type="button"
+                    class="w-full text-left flex gap-3 items-start rounded-md px-2 py-1.5 hover:bg-sr-panel {step.id === activeStepId ? 'bg-sr-tint' : ''}"
+                    aria-current={step.id === activeStepId ? 'true' : undefined}
+                    on:click={() => choose(() => onSelectStep(step))}
+                  >
+                    {#if selectedClass && passed(presetKeyOf.step(step.id))}
+                      <span class="shrink-0 w-6 h-6 rounded-full bg-sr-action text-white flex items-center justify-center" title="Passed by {selectedClass.name}"><Check size={14} /><span class="sr-only">Passed, step {step.number}</span></span>
+                    {:else}
+                      <span class="shrink-0 w-6 h-6 rounded-full border border-sr-hairline text-xs flex items-center justify-center text-sr-muted tabular-nums">{step.number}</span>
+                    {/if}
+                    <span class="flex-1 min-w-0">
+                      <span class="block text-sm text-sr-ink font-medium">
+                        {step.title}
+                        {#if step.page !== page}
+                          <span class="ml-1 text-[11px] font-normal text-sr-muted border border-sr-hairline rounded px-1">{step.page === 'unison' ? 'Unison page' : 'Choral page'}</span>
+                        {/if}
+                        {#if step.uil}
+                          <span class="ml-1 text-[11px] font-normal text-sr-brass">≈ UIL {step.uil}</span>
+                        {/if}
+                        {#if step.id === nextStepId}
+                          <span class="ml-1 text-[11px] font-medium text-sr-action-fg border border-sr-action rounded px-1">Next up</span>
+                        {/if}
+                      </span>
+                      <span class="block text-xs text-sr-muted">{step.newThing}</span>
+                    </span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/each}
+        {:else if tab === 'uil'}
+          <ul>
+            {#each Object.entries(uilPresets) as [key, level]}
+              <li>
+                <button
+                  type="button"
+                  class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-panel {activeLabel === level.label && !activeStepId && !activeIsSaved ? 'bg-sr-tint' : ''}"
+                  aria-current={activeLabel === level.label && !activeStepId && !activeIsSaved ? 'true' : undefined}
+                  on:click={() => choose(() => onSelectBuiltin(key))}
+                >
+                  <span class="block text-sm text-sr-ink font-medium">
+                    {level.label}
+                    {#if selectedClass && passed(presetKeyOf.uil(key))}<Check size={13} class="inline text-sr-action-fg ml-1" /><span class="sr-only">passed</span>{/if}
+                  </span>
+                  <span class="block text-xs text-sr-muted">{UIL_NOTES[key] ?? ''}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <p class="text-xs text-sr-muted px-2 pt-2">
+            What each Texas UIL level asks for. For building up to one, use Step by step.
+          </p>
+        {:else}
+          {#if savedPresets.length === 0}
+            <p class="text-sm text-sr-muted px-2 py-4">
+              Nothing saved yet. Set things up the way you like, then choose
+              <strong>Save current</strong>.
+            </p>
+          {:else}
+            <ul>
+              {#each savedPresets as preset (preset.id)}
+                <li class="flex items-center gap-1 rounded-md hover:bg-sr-panel {preset.id === activeSavedId ? 'bg-sr-tint' : ''}">
+                  {#if renamingId === preset.id}
+                    <input
+                      type="text"
+                      bind:value={renameValue}
+                      aria-label="New name for {preset.name}"
+                      class="flex-1 border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1 text-sm m-1 focus:outline-none focus:ring-2 focus:ring-sr-action"
+                      on:keydown={(e) => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') { e.stopPropagation(); renamingId = null; } }}
+                      on:blur={handleRename}
+                      autofocus
+                    />
+                  {:else}
+                    <button
+                      type="button"
+                      class="flex-1 text-left text-sm text-sr-ink px-2 py-1.5 truncate"
+                      aria-current={preset.id === activeSavedId ? 'true' : undefined}
+                      on:click={() => choose(() => onSelectSaved(preset))}
+                    >{preset.name}{#if selectedClass && passed(presetKeyOf.saved(preset.id))}<Check size={13} class="inline text-sr-action-fg ml-1" /><span class="sr-only"> passed</span>{/if}</button>
+                    <button
+                      type="button"
+                      class="p-1.5 text-sr-faint hover:text-sr-ink-2"
+                      on:click={() => startRename(preset)}
+                      title="Rename"
+                      aria-label="Rename {preset.name}"
+                    ><Pencil size={13} /></button>
+                    <button
+                      type="button"
+                      class="p-1.5 text-sr-faint hover:text-sr-danger"
+                      on:click={() => handleDelete(preset.id)}
+                      title="Delete"
+                      aria-label="Delete {preset.name}"
+                    ><X size={14} /></button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        {/if}
+      </div>
+    </div>
+  {/if}
 </div>

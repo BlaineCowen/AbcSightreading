@@ -25,6 +25,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   presets       Preset[]
+  classes       Class[]
 
   @@map("user")
 }
@@ -98,7 +99,41 @@ model Preset {
   params    Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  progress  ClassProgress[]
 
   @@index([userId, store])
   @@map("preset")
+}
+
+// A director's classes (choirs), and which presets each has passed. Progress
+// is keyed by `presetKey` - "step:<ladder id>", "uil:UIL 3" or "saved:<preset
+// id>" - so built-in presets, which have no row of their own, can be checked
+// off too. A saved preset's key also sets `presetId`, so deleting the preset
+// takes its checkmarks with it.
+model Class {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  position  Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  progress  ClassProgress[]
+
+  @@index([userId])
+  @@map("class")
+}
+
+model ClassProgress {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  presetKey String
+  presetId  String?
+  preset    Preset?  @relation(fields: [presetId], references: [id], onDelete: Cascade)
+  passedAt  DateTime @default(now())
+
+  @@unique([classId, presetKey])
+  @@index([presetId])
+  @@map("class_progress")
 }
