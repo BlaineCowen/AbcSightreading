@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 756 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 759 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -174,8 +174,18 @@ the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
 ## abcTuner
 
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): a tuner,
-pitch trace, metronome and scale challenge, plus a Tuner button in the practice
-pages' playback bar that opens a small floating dial (`TunerWidget.svelte`).
+pitch trace, metronome and scale challenge. It is not in the navbar; the
+practice pages reach it from their tools.
+
+The practice pages carry a Tools button in the bottom-right corner
+(`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
+metronome, drone, starting pitches, analysis, timer - each opening as a card.
+Pages publish their exercise with `setPracticeContext(abc, bpm)`
+(`src/lib/tools/context.ts`), which reads do, the meter and each part's first
+sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the
+mic only while showing; the drone (`src/lib/tools/state.ts`), metronome and
+timer keep going with the card closed. Analysis is measured from the mic alone
+- it does not yet compare against the written notes.
 Ported from Blaine's standalone tuner project; see `src/lib/tuner/README.md`.
 The detection files are that project's unchanged, so improve detection there
 (its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the

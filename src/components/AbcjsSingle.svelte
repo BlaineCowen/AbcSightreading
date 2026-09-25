@@ -33,7 +33,8 @@
   import { downloadFile } from "../lib/download";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
-  import TunerWidget from "./tuner/TunerWidget.svelte";
+  import ToolsWheel from "./tools/ToolsWheel.svelte";
+  import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
@@ -490,6 +491,10 @@
    * Put a saved preset's settings on the page. Like choral, it sets the
    * controls and leaves the exercise alone - Generate is what uses them.
    */
+  // The practice tools read the exercise on the page: its key, meter, tempo
+  // and each part's first note.
+  $: setPracticeContext(typeof originalTuneString === "string" ? originalTuneString : null, bpm);
+
   function applySavedPreset(preset: SavedPreset<any>) {
     const next = stateFromOptions(preset.params ?? {});
     selectedClef = next.selectedClef;
@@ -3020,6 +3025,9 @@
   <!-- Preset bar: the same one as choral, over unison's own saved list. The
        built-in UIL and difficulty presets are choral settings, so they are not
        offered here. -->
+  <!-- The practice tools: a wheel in the bottom-right corner. -->
+  <ToolsWheel />
+
   <PresetDropdown
     store={UNISON_PRESET_STORE}
     showBuiltins={false}
@@ -3791,7 +3799,6 @@
     {exports}
   >
     <svelte:fragment slot="extra">
-      <TunerWidget buttonClass="flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs" />
       <!-- Instrument volume (the percussion level in rhythm-only mode) -->
       <div class="flex items-center gap-2">
         <button

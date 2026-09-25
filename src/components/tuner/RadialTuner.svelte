@@ -17,8 +17,14 @@
   export let interactive = true;
   /** Show the mic status bar and the Sustain/Octave row. */
   export let showControls = true;
-  /** Smaller type and no hint, for the practice pages' floating widget. */
+  /** Smaller type and no hint, for the practice pages' tools. */
   export let compact = false;
+  /**
+   * A key to read against instead of the tuner's own - the practice pages pass
+   * the exercise's do, so solfège matches the music without changing the key
+   * saved for abcTuner.
+   */
+  export let keyOverride: NoteName | null = null;
 
   const IN_TUNE_CENTS = 5;
   const IN_TUNE_HOLD_MS = 300;
@@ -75,7 +81,8 @@
       if (size === 0) return;
       const s = tuner.get();
       const col = canvasColors();
-      const { note, cents, octave, pitch, key, displayMode } = s;
+      const { note, cents, octave, pitch, displayMode } = s;
+      const key = keyOverride ?? s.key;
       const now = performance.now();
       const { cx, cy, outerR, innerR, baseRotation } = geometry(size, key);
       const solfege = displayMode === "solfege";
@@ -214,7 +221,7 @@
   // ---- touch / pointer playback ----
   const hit = (e: PointerEvent) => {
     const rect = canvas.getBoundingClientRect();
-    return noteAt(e.clientX - rect.left, e.clientY - rect.top, rect.width, tuner.get().key);
+    return noteAt(e.clientX - rect.left, e.clientY - rect.top, rect.width, keyOverride ?? tuner.get().key);
   };
   function onPointerDown(e: PointerEvent) {
     if (!interactive) return;

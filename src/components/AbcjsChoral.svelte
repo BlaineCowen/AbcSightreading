@@ -73,7 +73,8 @@
   } from "../lib/instruments";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PresetDropdown from "./PresetDropdown.svelte";
-  import TunerWidget from "./tuner/TunerWidget.svelte";
+  import ToolsWheel from "./tools/ToolsWheel.svelte";
+  import { setPracticeContext } from "../lib/tools/context";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
 
   // ── Playback state ─────────────────────────────────────────────────────────
@@ -1232,6 +1233,10 @@
   }
 
 
+  // The practice tools read the exercise on the page: its key, meter, tempo
+  // and each part's first note.
+  $: setPracticeContext(typeof renderedString === "string" ? renderedString : null, bpm);
+
   function applySavedPreset(preset: SavedPreset) {
     const { params: p } = preset;
     selectedKey = p.key;
@@ -2004,6 +2009,9 @@
   <p class="print-title">{selectedKey} {isMinorKey(selectedKey) ? 'minor' : 'major'} · {selectedTimeSignature} · {selectedVoicing}</p>
 
   <!-- Preset bar -->
+  <!-- The practice tools: a wheel in the bottom-right corner. -->
+  <ToolsWheel />
+
   <PresetDropdown
     activeLabel={activePresetLabel}
     {activeSavedId}
@@ -2805,7 +2813,6 @@
     {exports}
   >
     <svelte:fragment slot="extra">
-      <TunerWidget buttonClass="flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs" />
       <div class="flex items-center gap-2" title="Voices volume">
         <Volume2 size={18} class="shrink-0 text-sr-faint" aria-hidden="true" />
         <input

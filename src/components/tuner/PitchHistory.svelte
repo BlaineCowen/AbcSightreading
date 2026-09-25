@@ -1,4 +1,6 @@
 <script lang="ts">
+  /** A short trace, for the practice pages' Analysis card. */
+  export let compact = false;
   /**
    * Last-10-seconds pitch view: piano roll (absolute pitch) or cents deviation.
    * Ported from the tuner project's PitchHistory.tsx; the drawing is the same,
@@ -427,11 +429,11 @@
     </div>
   </div>
   {#if mode === "roll"}
-    <div class="w-full h-72 md:h-96 lg:h-[28rem]" use:canvasLoop={makeRollDraw()}>
+    <div class="w-full {compact ? 'h-44' : 'h-72 md:h-96 lg:h-[28rem]'}" use:canvasLoop={makeRollDraw()}>
       <canvas class="w-full h-full block"></canvas>
     </div>
   {:else}
-    <div class="w-full h-64 md:h-80 lg:h-96" use:canvasLoop={makeCentsDraw()}>
+    <div class="w-full {compact ? 'h-40' : 'h-64 md:h-80 lg:h-96'}" use:canvasLoop={makeCentsDraw()}>
       <canvas class="w-full h-full block"></canvas>
     </div>
   {/if}
