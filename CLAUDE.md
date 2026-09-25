@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 753 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 756 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -170,6 +170,20 @@ over its last notes); chromatic chords only steer the line when their altered
 note is selected. Before that, a do-re-mi
 exercise was two-thirds repeated notes and a stepwise line ended on do 17% of
 the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
+
+## abcTuner
+
+`/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): a tuner,
+pitch trace, metronome and scale challenge, plus a Tuner button in the practice
+pages' playback bar that opens a small floating dial (`TunerWidget.svelte`).
+Ported from Blaine's standalone tuner project; see `src/lib/tuner/README.md`.
+The detection files are that project's unchanged, so improve detection there
+(its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the
+site's theme colours through `src/lib/tuner/canvas-colors.ts`.
+
+To test with a real signal, run Chromium with
+`--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`;
+a synthetic 440 Hz tone reads A4 within a cent.
 
 ## Accounts
 

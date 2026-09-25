@@ -33,6 +33,7 @@
   import { downloadFile } from "../lib/download";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
+  import TunerWidget from "./tuner/TunerWidget.svelte";
   import SignupHint from "./SignupHint.svelte";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
@@ -3790,6 +3791,7 @@
     {exports}
   >
     <svelte:fragment slot="extra">
+      <TunerWidget buttonClass="flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs" />
       <!-- Instrument volume (the percussion level in rhythm-only mode) -->
       <div class="flex items-center gap-2">
         <button

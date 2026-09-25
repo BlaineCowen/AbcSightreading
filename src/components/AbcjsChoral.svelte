@@ -73,6 +73,7 @@
   } from "../lib/instruments";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PresetDropdown from "./PresetDropdown.svelte";
+  import TunerWidget from "./tuner/TunerWidget.svelte";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
 
   // ── Playback state ─────────────────────────────────────────────────────────
@@ -2804,6 +2805,7 @@
     {exports}
   >
     <svelte:fragment slot="extra">
+      <TunerWidget buttonClass="flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs" />
       <div class="flex items-center gap-2" title="Voices volume">
         <Volume2 size={18} class="shrink-0 text-sr-faint" aria-hidden="true" />
         <input

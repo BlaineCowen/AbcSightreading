@@ -1,0 +1,40 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AbcTuner from "../components/tuner/AbcTuner.svelte";
+import { currentUser } from "../lib/server/api";
+import { hasPremium } from "../lib/server/plan";
+
+// abcTuner is part of Pro. hasPremium() is the one place that decides; while
+// billing is not built it says yes to any signed-in account.
+const user = await currentUser(Astro.request);
+const allowed = !!user && hasPremium(user);
+const next = encodeURIComponent("/tuner");
+---
+
+<Layout title="abcTuner" description="A tuner, pitch trace, metronome and scale challenge for singers" themable>
+  <div class="flex flex-col w-full items-center gap-4 pb-16">
+    <div class="text-center px-4">
+      <h1 class="text-3xl font-bold text-sr-ink">abcTuner</h1>
+      <p class="text-sr-muted text-sm mt-1">Sing into your microphone to see the note and how far off it is.</p>
+    </div>
+    {allowed ? (
+      <AbcTuner client:only="svelte" />
+    ) : (
+      <div class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3 mx-4">
+        <p class="text-xs uppercase tracking-wide text-sr-brass font-semibold">Pro</p>
+        <h2 class="text-lg font-semibold text-sr-ink">abcTuner is part of Pro</h2>
+        <ul class="text-sm text-sr-ink-2 list-disc pl-5 flex flex-col gap-1">
+          <li>A tuner that follows a singing voice, in note names or solfège</li>
+          <li>Your pitch over the last ten seconds, to see a note drift</li>
+          <li>A metronome, and a scale challenge graded on tuning</li>
+          <li>A tuner button on the practice pages, beside the music</li>
+        </ul>
+        <p class="text-sm text-sr-muted">For now, Pro comes with every account.</p>
+        <div class="flex flex-wrap gap-2">
+          <a class="sr-btn" href={`/login?mode=signup&next=${next}`}>Create a free account</a>
+          <a class="sr-btn-quiet" href={`/login?next=${next}`}>Sign in</a>
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>
