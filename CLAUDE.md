@@ -171,6 +171,7 @@ presets once; the server dedupes by name + creation time.
 ## Tech Stack
 
 - **Astro** (SSR, deployed to Vercel) — pages in `src/pages/`, layout in `src/layouts/`
+  - `@astrojs/vercel` 6 only knows Node 18/20 and emits `nodejs18.x` for anything newer, which Vercel rejects. `scripts/fix-vercel-runtime.mjs` (run by `bun run build`) pins the functions to `nodejs24.x`, matching `engines.node`; drop it when Astro is upgraded.
 - **Svelte** — interactive components (used with `client:only="svelte"`)
 - **TailwindCSS** — styling
 - **abcjs** — renders ABC notation strings into sheet music in the browser
