@@ -313,8 +313,6 @@ body {
   --sr-brass-bg:   #f2e8d4;
   --sr-danger:     #a33228;
   --sr-danger-bg:  #f7e8e6;
-  /* The rhythm glyphs are static SVGs drawn in black; dark inverts them. */
-  --sr-glyph-filter: none;
   /* Loading skeleton blocks, their shimmer, and skeleton staff lines. */
   --sr-skel:       #e2e8f0;
   --sr-skel-line:  #cbd5e1;
@@ -560,7 +558,6 @@ body {
     --sr-brass-bg:   #33291a;
     --sr-danger:     #e2796d;
     --sr-danger-bg:  #3a1f1c;
-    --sr-glyph-filter: invert(0.9);
     --sr-skel:       #20252b;
     --sr-skel-line:  #2d343c;
     --sr-skel-sweep: rgba(255, 255, 255, 0.05);
@@ -590,7 +587,6 @@ body {
   --sr-brass-bg:   #33291a;
   --sr-danger:     #e2796d;
   --sr-danger-bg:  #3a1f1c;
-  --sr-glyph-filter: invert(0.9);
   --sr-skel:       #20252b;
   --sr-skel-line:  #2d343c;
   --sr-skel-sweep: rgba(255, 255, 255, 0.05);
@@ -598,5 +594,7 @@ body {
   --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
 }
 
-.rhythm-icon svg,
-.rhythm-icon-sm svg { filter: var(--sr-glyph-filter); }
+/* No dark-mode filter on the rhythm glyphs. They were black drawings once, and
+   dark inverted them; they are drawn in currentColor now (see
+   scripts/render-rhythm-icons.mjs), so they already take the light text colour,
+   and the invert turned that back to near-black on a dark tile. */
