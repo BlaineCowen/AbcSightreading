@@ -26,6 +26,7 @@ model User {
   accounts      Account[]
   presets       Preset[]
   classes       Class[]
+  preference    UserPreference?
 
   @@map("user")
 }
@@ -136,4 +137,16 @@ model ClassProgress {
   @@unique([classId, presetKey])
   @@index([presetId])
   @@map("class_progress")
+}
+
+// Per-user settings that belong to the teacher rather than to one preset.
+// `rhythmSyllables` is their own set of rhythm syllables (CustomSyllables in
+// src/resources/rhythm-syllables.ts), or null for none.
+model UserPreference {
+  userId          String   @id
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rhythmSyllables Json?
+  updatedAt       DateTime @updatedAt
+
+  @@map("user_preference")
 }

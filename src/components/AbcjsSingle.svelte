@@ -12,6 +12,7 @@
     targetMoved,
   } from "../lib/scroll-to-system";
   import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
+  import { mySyllables, syllablesAvailable, loadMySyllables } from "../lib/syllable-prefs";
   import {
     packExercise,
     unpackExercise,
@@ -48,6 +49,8 @@
     defaultSyllableSystem,
     isSyllableSystemId,
     syllableSystems,
+    CUSTOM_SYLLABLE_ID,
+    customSyllableSystem,
   } from "../resources/rhythm-syllables";
   import "abcjs/abcjs-audio.css";
   import { withoutLyrics, withoutQuotedText } from "../lib/annotations";
@@ -313,7 +316,7 @@
     }
 
     const syllableSystem = getParam("syllableSystem");
-    if (isSyllableSystemId(syllableSystem)) {
+    if (isChosenSyllableSystem(syllableSystem)) {
       options.syllableSystemId = syllableSystem;
     }
 
@@ -453,13 +456,17 @@
       rhythmOnly: options.rhythmOnly || false,
       showRhythmSyllables: options.showRhythmSyllables || false,
       // Options saved before counting existed have no id at all.
-      syllableSystemId: isSyllableSystemId(options.syllableSystemId)
+      syllableSystemId: isChosenSyllableSystem(options.syllableSystemId)
         ? options.syllableSystemId
         : defaultSyllableSystem.id,
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
     };
   }
+
+  /** A built-in syllable system, or the teacher's own ("custom"). */
+  const isChosenSyllableSystem = (v: unknown): v is string =>
+    isSyllableSystemId(v) || v === CUSTOM_SYLLABLE_ID;
 
   const isLyricSystem = (v: unknown): v is LyricSystem =>
     v === "movable" || v === "fixed" || v === "names";
@@ -776,7 +783,7 @@
     ["names", "Note names"],
   ];
 
-  let syllableSystemId =
+  let syllableSystemId: string =
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
   let cursorMode: CursorMode = initialState.cursorMode || "smooth";
@@ -833,6 +840,27 @@
    * them both and lets `withChosenAnnotations` decide what shows. Returns
    * whether anything changed, so a caller can skip a redraw it does not need.
    */
+  /** The hint under the picker; "Mine" falls back to Kodály until it loads. */
+  $: syllableHint =
+    syllableSystemId === CUSTOM_SYLLABLE_ID
+      ? $mySyllables
+        ? customSyllableSystem($mySyllables).hint
+        : `${syllableSystems.kodaly.hint} (your own set is not loaded)`
+      : (syllableSystems as Record<string, { hint: string }>)[syllableSystemId]?.hint ?? "";
+
+  /**
+   * The teacher's set arrives after the page does. An exercise already written
+   * in "Mine" was written in Kodály meanwhile, so write it again in theirs.
+   */
+  let customLoaded = false;
+  $: if ($mySyllables && !customLoaded) {
+    customLoaded = true;
+    if (syllableSystemId === CUSTOM_SYLLABLE_ID && currentScore) {
+      writtenSyllableSystem = "";
+      if (relabelScore(CUSTOM_SYLLABLE_ID) && currentTune && originalTuneString) rerenderTune();
+    }
+  }
+
   function relabelScore(systemId: string, lyric: LyricSystem = lyricSystem): boolean {
     if (!currentScore) return false;
     if (systemId === writtenSyllableSystem && lyric === writtenLyricSystem) return false;
@@ -841,6 +869,7 @@
       lyricSystem: lyric,
       showRhythmSyllables: true,
       syllableSystemId: systemId,
+      customSyllables: $mySyllables,
     });
     writtenSyllableSystem = systemId;
     writtenLyricSystem = lyric;
@@ -2016,6 +2045,7 @@
         // the solfège, so nothing appears until something asks for it.
         showRhythmSyllables: true,
         syllableSystemId,
+        customSyllables: $mySyllables,
         allowTiesAcrossBarline,
         moveOnEighthNotes: moveEighthNotes,
         accidentalsFollowStep: accidentalsFollowStep,
@@ -2881,6 +2911,7 @@
         lyricSystem,
         showRhythmSyllables: true,
         syllableSystemId,
+        customSyllables: $mySyllables,
       });
       writtenSyllableSystem = syllableSystemId;
       writtenLyricSystem = lyricSystem;
@@ -2912,6 +2943,7 @@
     }
     // Belt and braces for browsers that coalesce the observer on rotation.
     window.addEventListener("orientationchange", onPaperResize);
+    loadMySyllables().catch(() => {});
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[linkedStepId ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
@@ -3588,11 +3620,24 @@
                       aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
                     >{system.label}</button>
                   {/each}
+                  {#if $mySyllables}
+                    <button
+                      class="sr-tok {showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'sr-on' : ''}"
+                      on:click={() => setRhythmSyllables(CUSTOM_SYLLABLE_ID)}
+                      aria-pressed={showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID}
+                      title="Your own syllables, from your account"
+                    >Mine</button>
+                  {/if}
                 </div>
                 <p class="text-xs text-sr-faint">
                   {showRhythmSyllables
-                    ? syllableSystems[syllableSystemId].hint
+                    ? syllableHint
                     : 'No syllables. The exercise is unchanged - turning them back on costs nothing.'}
+                  {#if $mySyllables}
+                    <a class="underline ml-1" href="/account#syllables">Edit mine</a>
+                  {:else if $syllablesAvailable}
+                    <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
+                  {/if}
                 </p>
               </div>
             {/if}

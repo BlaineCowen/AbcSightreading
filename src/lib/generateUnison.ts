@@ -10,6 +10,9 @@ import {
 } from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
 import {
+  CUSTOM_SYLLABLE_ID,
+  checkCustomSyllables,
+  customSyllableSystem,
   defaultSyllableSystem,
   isSyllableSystemId,
   resolveSyllable,
@@ -1702,14 +1705,42 @@ function rhythmSyllableFor(
 }
 
 /**
+ * The syllables a system gives one figure, written from the downbeat of a 4/4
+ * bar - what the syllable editor previews, through the same resolver the
+ * exercises use, so the preview cannot say one thing and the page another.
+ */
+export function syllablesForFigure(rhythm: Rhythm, system: SyllableSystem): string[] {
+  let offset = 0;
+  return rhythm.meterValue.map((value, patternIndex) => {
+    const noteLength = Math.round(value * 32);
+    const note = {
+      noteLength,
+      patternIndex,
+      // A pattern marks its rests note by note, as the generator splits it:
+      // "z4" is the eighth rest of eighthRestEighth.
+      rhythm: { name: rhythm.name, rest: rhythm.rest || String(rhythm.abcValue[patternIndex]).startsWith("z") },
+    } as unknown as ChordNoteObject;
+    const syllable = rhythmSyllableFor(note, offset, 8, 32, system);
+    offset += noteLength;
+    return syllable;
+  });
+}
+
+/**
  * Only the system's id crosses the wire - a SyllableSystem holds functions,
  * which would not survive JSON. An unrecognised id falls back to the default
  * rather than throwing, so an old shared link still renders; it is loud about
  * it, because silently reading Kodaly when you asked for counting is the kind
  * of thing that takes an hour to spot.
  */
-function resolveSyllableSystem(id: unknown): SyllableSystem {
+function resolveSyllableSystem(id: unknown, custom?: unknown): SyllableSystem {
   if (isSyllableSystemId(id)) return syllableSystems[id];
+  // A teacher's own set travels with the request as data. Checked again here:
+  // it came from the page, and a bad one falls back like an unknown id.
+  if (id === CUSTOM_SYLLABLE_ID) {
+    const checked = checkCustomSyllables(custom);
+    if (checked.ok) return customSyllableSystem(checked.value);
+  }
   if (id !== undefined && id !== null) {
     console.warn(
       `Unknown syllable system ${JSON.stringify(id)}; falling back to ${defaultSyllableSystem.id}.`
@@ -1744,6 +1775,8 @@ export type UnisonDisplay = {
   lyricSystem?: LyricSystem;
   showRhythmSyllables?: boolean;
   syllableSystemId?: string;
+  /** The teacher's own set, when `syllableSystemId` is "custom". */
+  customSyllables?: unknown;
 };
 
 /** Write a generated exercise as ABC, with the annotations asked for. */
@@ -1760,7 +1793,7 @@ export function assembleUnisonAbc(
     lyricSystem: display.lyricSystem,
     key: score.key,
     showRhythmSyllables,
-    syllableSystem: resolveSyllableSystem(display.syllableSystemId),
+    syllableSystem: resolveSyllableSystem(display.syllableSystemId, display.customSyllables),
   });
 
   // Syllables ride as annotations, whose default 12pt is sized for chord

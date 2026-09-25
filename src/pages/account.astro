@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import AccountPanel from "../components/AccountPanel.svelte";
 import ClassProgress from "../components/ClassProgress.svelte";
+import SyllableEditor from "../components/SyllableEditor.svelte";
 ---
 
 <Layout title="ABC Sight Reading - Account" themable>
@@ -9,5 +10,6 @@ import ClassProgress from "../components/ClassProgress.svelte";
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
     <AccountPanel client:only="svelte" />
     <ClassProgress client:only="svelte" />
+    <SyllableEditor client:only="svelte" />
   </div>
 </Layout>

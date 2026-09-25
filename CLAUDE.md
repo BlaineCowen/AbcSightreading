@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 748 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 752 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -182,6 +182,14 @@ Classes (`Class`, `ClassProgress`; `/api/classes`, `src/lib/classes.ts`) are
 signed-in only: a director's choirs and which presets each has passed, keyed
 `step:<id>`, `uil:UIL n` or `saved:<preset id>`. Picked beside the preset on
 the practice pages ("Mark passed"), and shown as a grid on `/account`.
+
+A teacher's own rhythm syllables live in `UserPreference.rhythmSyllables`
+(`/api/preferences`, `src/lib/syllable-prefs.ts`), edited on `/account` and
+offered as "Mine" on the Unison page. The set is plain data
+(`CustomSyllables` in `rhythm-syllables.ts`) sent with each exercise as
+`customSyllables` beside `syllableSystemId: "custom"`, and turned into a system
+by `customSyllableSystem`. Its first template must equal built-in Kodály figure
+for figure - `tests/unit/custom-syllables.test.ts` holds it to that.
 
 Saved presets go to the account when signed in (`/api/presets`,
 `src/lib/preset-sync.ts`) and to localStorage when not - signed-out behaviour

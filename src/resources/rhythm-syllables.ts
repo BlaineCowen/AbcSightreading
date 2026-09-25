@@ -143,3 +143,197 @@ export function isSyllableSystemId(value: unknown): value is SyllableSystemId {
 }
 
 export const defaultSyllableSystem = kodaly;
+
+// ── A teacher's own syllables ────────────────────────────────────────────────
+//
+// Kodály is taught in many dialects - ta-a or tu-u, ti-ti or ti-ka, "sh" or
+// "rest" - and a class reads best in the words its teacher uses. So a director
+// can keep their own set on their account: the same shape as Kodály (a beat, the
+// four sixteenth positions, a held note, a rest, and the figures named whole),
+// with their words. It is plain data, so it crosses the wire with the exercise
+// where a SyllableSystem, which holds functions, cannot.
+
+/** The id a page asks for to get the teacher's own set. */
+export const CUSTOM_SYLLABLE_ID = "custom";
+
+/** The figures a set names whole, and how many notes each has. */
+export const NAMED_FIGURES = {
+  dotQuarterEighth: 2,
+  dotHalfQuarter: 2,
+  eighthQuarterEighth: 3,
+  eighthDotQuarter: 2,
+  dotEighthSixteenth: 2,
+} as const;
+export type NamedFigure = keyof typeof NAMED_FIGURES;
+
+export type CustomSyllables = {
+  /** A note that starts on a beat and fills it: the quarter. */
+  beat: string;
+  /** The four sixteenth positions of a beat. Eighths take the first and third. */
+  slots: [string, string, string, string];
+  /** A held note: this, then `holdEach` once per further beat it runs through. */
+  holdStart: string;
+  /** May be empty, for systems that do not voice the held beats. */
+  holdEach: string;
+  rest: string;
+  named: Record<NamedFigure, string[]>;
+};
+
+export const MAX_SYLLABLE_LENGTH = 12;
+/**
+ * What a syllable may not contain. It is written into an ABC annotation, so no
+ * quote or backslash; "_" is how the page splits a held note's beats; "%" starts
+ * an ABC comment; and a syllable is one word under one note, so no spaces.
+ */
+const SYLLABLE = /^[^\s"\\_%|]+$/;
+
+type Checked<T> = { ok: true; value: T } | { ok: false; error: string };
+
+function checkSyllable(value: unknown, what: string, allowEmpty = false): Checked<string> {
+  if (typeof value !== "string") return { ok: false, error: `${what} is missing.` };
+  const s = value.trim();
+  if (!s) return allowEmpty ? { ok: true, value: "" } : { ok: false, error: `${what} is empty.` };
+  if (s.length > MAX_SYLLABLE_LENGTH) {
+    return { ok: false, error: `${what} is longer than ${MAX_SYLLABLE_LENGTH} characters.` };
+  }
+  if (!SYLLABLE.test(s)) {
+    return { ok: false, error: `${what} can't contain spaces or " \\ _ % |.` };
+  }
+  return { ok: true, value: s };
+}
+
+/** A whole set as saved or sent, checked field by field. */
+export function checkCustomSyllables(value: unknown): Checked<CustomSyllables> {
+  if (typeof value !== "object" || value === null) return { ok: false, error: "Expected a set of syllables." };
+  const v = value as Record<string, any>;
+  const fields: [keyof CustomSyllables, string, boolean][] = [
+    ["beat", "The quarter note", false],
+    ["holdStart", "The held note", false],
+    ["holdEach", "The held beat", true],
+    ["rest", "The rest", false],
+  ];
+  const out: Partial<CustomSyllables> = {};
+  for (const [key, what, allowEmpty] of fields) {
+    const c = checkSyllable(v[key], what, allowEmpty);
+    if (!c.ok) return c;
+    (out as any)[key] = c.value;
+  }
+  if (!Array.isArray(v.slots) || v.slots.length !== 4) return { ok: false, error: "Expected four sixteenth syllables." };
+  const slots: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const c = checkSyllable(v.slots[i], `Sixteenth ${i + 1}`);
+    if (!c.ok) return c;
+    slots.push(c.value);
+  }
+  out.slots = slots as CustomSyllables["slots"];
+  const named = {} as CustomSyllables["named"];
+  for (const [figure, count] of Object.entries(NAMED_FIGURES) as [NamedFigure, number][]) {
+    const list = v.named?.[figure];
+    if (!Array.isArray(list) || list.length !== count) {
+      return { ok: false, error: `Expected ${count} syllables for ${figure}.` };
+    }
+    named[figure] = [];
+    for (let i = 0; i < count; i++) {
+      const c = checkSyllable(list[i], `Note ${i + 1} of ${figure}`);
+      if (!c.ok) return c;
+      named[figure].push(c.value);
+    }
+  }
+  out.named = named;
+  return { ok: true, value: out as CustomSyllables };
+}
+
+/** A set as a working system, for the resolver. */
+export function customSyllableSystem(c: CustomSyllables): SyllableSystem {
+  return {
+    id: CUSTOM_SYLLABLE_ID,
+    label: "Mine",
+    hint: `${c.beat}, ${c.slots[0]}-${c.slots[2]}, ${c.slots.join("-")}`,
+    byName: { ...c.named },
+    slots: [...c.slots],
+    beat: c.beat,
+    sustain: (ctx) => c.holdStart + c.holdEach.repeat(ctx.crossedBeats.length),
+    rest: c.rest,
+  };
+}
+
+/**
+ * Places to start from. The first is exactly what the app writes as Kodály -
+ * tests/unit/custom-syllables.test.ts holds it to that - and the rest are the
+ * common dialects, to be edited from rather than trusted as any one method's
+ * canon.
+ */
+export const syllableTemplates: { id: string; label: string; syllables: CustomSyllables }[] = [
+  {
+    id: "kodaly",
+    label: "Kodály, as the app writes it (tu-u, ti-ki)",
+    syllables: {
+      beat: "ta",
+      slots: ["ti", "ki", "ti", "ki"],
+      holdStart: "tu",
+      holdEach: "-u",
+      rest: "(sh)",
+      named: {
+        dotQuarterEighth: ["ta-(i)", "ti"],
+        dotHalfQuarter: ["tu-u-u", "ta"],
+        eighthQuarterEighth: ["syn", "co", "pa"],
+        eighthDotQuarter: ["ti", "ti-a"],
+        dotEighthSixteenth: ["tim", "ri"],
+      },
+    },
+  },
+  {
+    id: "kodaly-ta-a",
+    label: "Kodály with ta-a and ti-ka",
+    syllables: {
+      beat: "ta",
+      slots: ["ti", "ka", "ti", "ka"],
+      holdStart: "ta",
+      holdEach: "-a",
+      rest: "rest",
+      named: {
+        dotQuarterEighth: ["ta-i", "ti"],
+        dotHalfQuarter: ["ta-a-a", "ta"],
+        eighthQuarterEighth: ["syn", "co", "pa"],
+        eighthDotQuarter: ["ti", "ta-i"],
+        dotEighthSixteenth: ["tim", "ka"],
+      },
+    },
+  },
+  {
+    id: "takadimi",
+    label: "Takadimi",
+    syllables: {
+      beat: "ta",
+      slots: ["ta", "ka", "di", "mi"],
+      holdStart: "ta",
+      holdEach: "",
+      rest: "(ta)",
+      named: {
+        dotQuarterEighth: ["ta", "di"],
+        dotHalfQuarter: ["ta", "ta"],
+        eighthQuarterEighth: ["ta", "di", "di"],
+        eighthDotQuarter: ["ta", "di"],
+        dotEighthSixteenth: ["ta", "mi"],
+      },
+    },
+  },
+  {
+    id: "gordon",
+    label: "Gordon (du, du-de)",
+    syllables: {
+      beat: "du",
+      slots: ["du", "ta", "de", "ta"],
+      holdStart: "du",
+      holdEach: "",
+      rest: "(du)",
+      named: {
+        dotQuarterEighth: ["du", "de"],
+        dotHalfQuarter: ["du", "du"],
+        eighthQuarterEighth: ["du", "de", "de"],
+        eighthDotQuarter: ["du", "de"],
+        dotEighthSixteenth: ["du", "ta"],
+      },
+    },
+  },
+];
