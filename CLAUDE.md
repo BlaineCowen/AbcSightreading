@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 752 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 753 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -163,9 +163,11 @@ the step's range and uses at least three pitches - a line stuck on one note
 G only and 15-17 leave out C, because three close parts in C fail at these
 ranges; see the comments there.
 
-The Unison generator writes a line that prefers moving to repeating a note and
-ends on do (and heads back toward it over its last notes); chromatic chords only
-steer the line when their altered note is selected. Before that, a do-re-mi
+The Unison generator writes a line that prefers moving to repeating a note,
+spreads across the range it was given (favouring the pitches it has sung least,
+in both the chord it picks and the note), and ends on do (heading back toward it
+over its last notes); chromatic chords only steer the line when their altered
+note is selected. Before that, a do-re-mi
 exercise was two-thirds repeated notes and a stepwise line ended on do 17% of
 the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
 

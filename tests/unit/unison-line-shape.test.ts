@@ -3,13 +3,14 @@ import { createNewSr } from "../../src/lib/generateUnison";
 import { selectableRhythms } from "../../src/lib/selectable-rhythms";
 
 /**
- * The shape of a single line, as a reader meets it: it ends on do, and it
- * moves. Both were left to chance - any tone of the final I could end it, and
- * staying put was as likely as stepping - so an exercise meant to teach
- * do-re-mi was two-thirds repeated notes and "up to so" ended on so three
- * times in four. Rates, not rules, because both are preferences the walk may
- * have to give up; the thresholds sit well below what the generator measures
- * (ends on do 89-100%, repeats 40-50% with eighth pairs on one pitch).
+ * The shape of a single line, as a reader meets it: it ends on do, it moves,
+ * and it travels the range it was given. All three were left to chance - any
+ * tone of the final I could end it, staying put was as likely as stepping, and
+ * the line sat where I and V keep it - so a do-re-mi exercise was two-thirds
+ * repeated notes, "up to so" ended on so three times in four, and a wide range
+ * had both its ends sung in 30% of exercises. Rates, not rules, because each is
+ * a preference the walk may have to give up; the thresholds sit well below
+ * what the generator measures.
  */
 
 const quiet = () => {};
@@ -71,6 +72,22 @@ describe("unison line shape", () => {
       40
     );
     expect(r.endsOnDo).toBeGreaterThanOrEqual(0.9);
+  }, 30000);
+
+  test("a line uses the range it was given", () => {
+    // Chosen evenly, the line sat where I and V keep it: an octave's ends both
+    // came up 88% of the time, a wider range's 30%. Measured now at 100% and
+    // 80% (8 bars); the thresholds leave room for chance.
+    const bothEnds = (range: { min: number; max: number }, runs: number, measures = 8) => {
+      let hit = 0;
+      for (let i = 0; i < runs; i++) {
+        const p = line({ degrees: [1, 2, 3, 4, 5, 6, 7], maxSkip: 4, range, rhythms: ["quarter", "eighthEighth", "half"], measures }).map((n: any) => n.pitchValue);
+        if (p.includes(range.min) && p.includes(range.max)) hit++;
+      }
+      return hit / runs;
+    };
+    expect(bothEnds({ min: 14, max: 21 }, 30)).toBeGreaterThanOrEqual(0.9);
+    expect(bothEnds({ min: 12, max: 23 }, 30, 16)).toBeGreaterThanOrEqual(0.85);
   }, 30000);
 
   test("with no chromatic notes selected, only diatonic notes are written", () => {
