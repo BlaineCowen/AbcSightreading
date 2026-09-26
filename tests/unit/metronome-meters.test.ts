@@ -81,3 +81,19 @@ describe("choosing a meter", () => {
     expect(tuner.get()).toMatchObject({ beatsPerBar: 7, subdivision: 1 }); // no sixteenths-of-an-eighth
   });
 });
+
+describe("click sounds", () => {
+  test("every sound has a voice for every level, accents louder or higher", async () => {
+    const { CLICK_SOUNDS, voiceFor } = await import("../../src/lib/tuner/click-sounds");
+    for (const { id } of CLICK_SOUNDS) {
+      if (id === "beep") {
+        expect(voiceFor(id, "downbeat")).toBeNull();
+        continue;
+      }
+      const [down, beat, sub] = (["downbeat", "beat", "sub"] as const).map((l) => voiceFor(id, l)!);
+      // The downbeat stands out by sample, pitch or loudness; subdivisions sit under the beat.
+      expect(down.sample !== beat.sample || down.rate > beat.rate || down.gain > beat.gain).toBe(true);
+      expect(sub.gain).toBeLessThan(beat.gain);
+    }
+  });
+});

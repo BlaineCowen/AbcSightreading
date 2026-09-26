@@ -43,7 +43,8 @@ export function initTuner() {
       s.meter !== last.meter ||
       s.beatsPerBar !== last.beatsPerBar ||
       s.subdivision !== last.subdivision ||
-      s.accent !== last.accent
+      s.accent !== last.accent ||
+      s.clickSound !== last.clickSound
     ) {
       metronome.configure(metronomeSettings(s));
     }
@@ -62,6 +63,7 @@ const metronomeSettings = (s: TunerState) => ({
   subdivision: s.subdivision,
   accent: s.accent,
   groupStarts: meterById(s.meter).groupStarts,
+  sound: s.clickSound,
 });
 
 export async function startTuner() {

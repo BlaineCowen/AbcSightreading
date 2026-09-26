@@ -5,6 +5,7 @@ import { BPM_MAX, BPM_MIN } from "./metronome";
 import type { Sensitivity } from "./pitch-tracker";
 import type { Difficulty, Direction } from "./scale-challenge";
 import { meterById } from "./meters";
+import { isClickSound, type ClickSound } from "./click-sounds";
 
 /**
  * abcTuner's state: the settings a singer chooses (kept in this browser) and
@@ -36,6 +37,8 @@ export interface TunerState {
   bpm: number;
   /** The metronome's time signature, from meters.ts. Sets beatsPerBar. */
   meter: string;
+  /** The metronome's sound, from click-sounds.ts. */
+  clickSound: ClickSound;
   beatsPerBar: number;
   subdivision: number;
   accent: boolean;
@@ -66,7 +69,7 @@ export interface TunerState {
 }
 
 const PERSISTED = [
-  "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter",
+  "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone",
 ] as const;
@@ -81,6 +84,7 @@ const initial: TunerState = {
   sustain: false,
   bpm: 90,
   meter: "4/4",
+  clickSound: "woodblock",
   beatsPerBar: 4,
   subdivision: 1,
   accent: true,
@@ -121,6 +125,7 @@ const start: TunerState = { ...initial, ...(typeof window !== "undefined" ? rest
 // Settings saved before meters existed carry a beat count and no meter: the
 // meter decides, so the two cannot disagree.
 start.beatsPerBar = meterById(start.meter).beats;
+if (!isClickSound(start.clickSound)) start.clickSound = "woodblock";
 const state = writable<TunerState>(start);
 
 // Save the settings whenever one changes (never the live reading).
@@ -172,6 +177,7 @@ export const tuner = {
     })),
   setBpm: (bpm: number) => set({ bpm: clamp(Math.round(bpm), BPM_MIN, BPM_MAX) }),
   setBeatsPerBar: (beatsPerBar: number) => set({ beatsPerBar }),
+  setClickSound: (clickSound: ClickSound) => set({ clickSound }),
   /**
    * A time signature: its beat count, and a subdivision that makes sense in it
    * - the one already chosen if the meter has it, else the meter's own (6/8
