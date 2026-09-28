@@ -250,8 +250,9 @@ presets once; the server dedupes by name + creation time.
   Pro $19.99/yr and Educator $99/yr, found by price lookup key
   (`pro_yearly`, `educator_yearly`, `seat_pack_25` - `src/lib/server/stripe.ts`),
   so the sandbox and live accounts need the same keys and no price ids live in
-  code. Checkout uses Stripe Tax; a district is made tax-exempt on its Stripe
-  customer and invoiced by hand. Pro -> Educator is `subscription/upgrade` with
+  code. Prices are tax-inclusive: everyone pays $19.99, $99 or $25 flat, and
+  any tax owed comes out of it. Checkout asks Stripe Tax only once it is
+  active (`taxReady`); a school is billed tax-exempt through a quote. Pro -> Educator is `subscription/upgrade` with
   the existing `subscriptionId`. Seat packs are a one-time checkout
   (`/api/billing/seats`) granted by the webhook into `SeatGrant`, for a year.
 - School quotes (`src/lib/server/quotes.ts`, rules in `src/lib/quote.ts`,
