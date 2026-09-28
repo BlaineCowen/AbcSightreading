@@ -44,7 +44,7 @@
     <strong class="tabular-nums {low ? '' : 'text-sr-ink-2'}">{$usage.remaining}</strong> of {$usage.limit}
     {$usage.tier === "anonymous" ? "free exercises" : "exercises"} left this month.
     {#if $usage.tier === "anonymous"}
-      <a class="underline font-medium text-sr-action-fg" href={signupHref}>Create a free account</a> for {GENERATION_LIMITS.free} a month.
+      Increase to {GENERATION_LIMITS.free} by <a class="underline font-medium text-sr-action-fg" href={signupHref}>creating an account</a>.
     {:else}
       <a class="underline font-medium text-sr-action-fg" href={upgradeHref}>Get Pro</a> for unlimited - $19.99 a year.
     {/if}
