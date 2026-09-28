@@ -1,0 +1,13 @@
+{
+  "name": "abc Sight Reading",
+  "short_name": "abc Sight Reading",
+  "description": "Unlimited choir sight-reading and sight-singing exercises.",
+  "start_url": "/choral-sightreading",
+  "display": "standalone",
+  "background_color": "#eef1f4",
+  "theme_color": "#17566b",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

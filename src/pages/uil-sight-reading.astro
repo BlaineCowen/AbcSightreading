@@ -1,0 +1,110 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { uilPresets } from "../lib/uil-presets";
+import { stepHref, ladderById } from "../lib/ladder";
+
+/**
+ * A guide to UIL choir sight-reading practice, built from the level presets
+ * the generator uses (src/lib/uil-presets.ts), so it cannot drift from what
+ * the app does.
+ */
+const voicing = (v: string) =>
+  ({
+    "4 Part Mixed": "SATB",
+    "3 Part Mixed": "SAB",
+    "2 Part Treble": "two-part treble",
+    "2 Part Tenor/Bass": "two-part tenor-bass",
+    "3 Part Treble": "SSA",
+    "3 Part Tenor/Bass": "TTB",
+  })[v] ?? v;
+const levels = Object.values(uilPresets).map((p) => ({
+  level: p.level,
+  keys: p.allowedKeys.filter((k) => !k.endsWith("m")),
+  minor: p.allowedKeys.filter((k) => k.endsWith("m")),
+  meters: p.allowedMeters,
+  voicings: p.allowedVoicings.map(voicing),
+  measures: p.measureRange,
+}));
+
+const faq = [
+  {
+    q: "What is UIL sight-reading?",
+    a: "At UIL Concert and Sight-Reading Evaluation in Texas, a choir gets a piece it has never seen, has a set time to study it with its director, and then sings it for judges. The music is commissioned for each level, with published limits on keys, meters, rhythms and harmony.",
+  },
+  {
+    q: "Which level should my choir practise?",
+    a: "The level your conference and classification sing at contest - Level 1 and 2 for middle school, Level 3 to 5 for high school. Practise a level below to build confidence, and your own level most days in the weeks before contest.",
+  },
+  {
+    q: "Is this made by UIL?",
+    a: "No. abc Sight Reading is an independent practice tool, not affiliated with or endorsed by the University Interscholastic League. The levels follow UIL's published choir sight-reading criteria.",
+  },
+];
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+};
+const firstStep = Object.values(ladderById)[0];
+---
+
+<Layout
+  title="UIL Choir Sight-Reading Practice - Levels 1-5 | abc Sight Reading"
+  description="Practise UIL choir sight-reading with unlimited new exercises at levels 1 to 5 - the keys, meters, voicings and lengths each level allows, with solfège and playback."
+  themable
+  jsonLd={jsonLd}
+>
+  <article class="max-w-3xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-4 pb-10">
+    <h1 class="text-4xl font-bold text-sr-ink">UIL choir sight-reading practice</h1>
+    <p class="text-lg">
+      The best preparation for the sight-reading room is reading something new every day - at your level, in your
+      voicing, in keys you will actually see. abc Sight Reading writes a fresh exercise every time you press Generate,
+      inside the limits of the UIL level you choose.
+    </p>
+    <div><a class="sr-btn" href="/choral-sightreading">Practise a UIL level now</a></div>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-6">What each level uses</h2>
+    <p>These are the settings the generator applies for each level, from UIL's choir sight-reading criteria.</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-sr-muted"><th class="py-2 pr-3">Level</th><th class="pr-3">Keys</th><th class="pr-3">Meters</th><th class="pr-3">Voicings</th><th>Measures</th></tr></thead>
+        <tbody>
+          {levels.map((l) => (
+            <tr class="border-t border-sr-hairline align-top">
+              <td class="py-2 pr-3 font-semibold text-sr-ink">{l.level}</td>
+              <td class="py-2 pr-3">{l.keys.join(", ")} major{l.minor.length ? `; ${l.minor.map((k) => k.replace("m", "")).join(", ")} minor` : ""}</td>
+              <td class="py-2 pr-3">{l.meters.join(", ")}</td>
+              <td class="py-2 pr-3">{l.voicings.join(", ")}</td>
+              <td class="py-2">{l.measures[0]}-{l.measures[1]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-sm">
+      Always check the current criteria on the
+      <a class="underline" href="https://www.uiltexas.org/music/concert-sight-reading/choir-sight-reading-criteria" rel="noopener">UIL website</a>.
+    </p>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-6">A daily routine that works</h2>
+    <ol class="list-decimal pl-6 flex flex-col gap-2">
+      <li><strong>Rhythm first.</strong> Chant the rhythm on your counting system before anyone sings a pitch.</li>
+      <li><strong>Find do.</strong> Name the key, sing the tonic triad, and have each section find its first pitch.</li>
+      <li><strong>Read in solfège.</strong> Turn solfège on to check, then off to read for real.</li>
+      <li><strong>Sing it once, fix one thing, sing it again.</strong> Then press Generate - the next one is new.</li>
+    </ol>
+    <p>
+      Short and daily beats long and weekly. Directors with students who need more than rehearsal can assign practice
+      with an <a class="underline text-sr-action-fg" href="/pricing">Educator plan</a> and see the minutes each student
+      put in. Building up to it from the beginning? <a class="underline text-sr-action-fg" href={stepHref(firstStep)}>Step by step</a> starts from ta and ti-ti.
+    </p>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-6">Questions</h2>
+    {faq.map((f) => (
+      <div>
+        <h3 class="font-semibold text-sr-ink">{f.q}</h3>
+        <p class="mt-1">{f.a}</p>
+      </div>
+    ))}
+  </article>
+</Layout>

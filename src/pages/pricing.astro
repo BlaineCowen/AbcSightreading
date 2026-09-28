@@ -1,0 +1,109 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { GENERATION_LIMITS } from "../lib/plan";
+import { PLAN_OFFERS } from "../lib/seo";
+
+/**
+ * The plans, in the page's own HTML so search engines and purchasing offices
+ * can read them. The numbers come from src/lib/plan.ts and src/lib/seo.ts -
+ * change them there.
+ */
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name: "abc Sight Reading",
+  description: "Choir sight-reading and sight-singing exercise generator for directors and students.",
+  brand: { "@type": "Brand", name: "abc Sight Reading" },
+  offers: PLAN_OFFERS.map((o) => ({
+    "@type": "Offer",
+    name: o.name,
+    price: o.price,
+    priceCurrency: "USD",
+    description: o.description,
+    url: new URL("/pricing", Astro.site).href,
+  })),
+};
+
+const plans = [
+  {
+    name: "Free",
+    price: "$0",
+    per: "",
+    points: [
+      `${GENERATION_LIMITS.anonymous} exercises a month, no account needed`,
+      `${GENERATION_LIMITS.free} a month with a free account, plus saved presets on every device`,
+      "Choral and unison exercises, every voicing and UIL level",
+      "Playback, printing, solfège and Roman numerals",
+    ],
+    cta: { href: "/choral-sightreading", label: "Start sight-reading" },
+  },
+  {
+    name: "Pro",
+    price: "$19.99",
+    per: "a year",
+    points: [
+      "Unlimited exercises",
+      "Practice tools beside the music: tuner, metronome, drone, starting pitches, timer",
+      "abcTuner: a tuner that follows a singing voice, with a scale challenge",
+      "Your own rhythm syllables",
+    ],
+    cta: { href: "/account#plan", label: "Get Pro" },
+  },
+  {
+    name: "Educator",
+    price: "$99",
+    per: "a year",
+    points: [
+      "Everything in Pro",
+      "Classes with join codes, and 100 student accounts - no email needed, so students under 13 can have one",
+      "Assignments, and the practice time each student actually spent",
+      "More seats: 25 for $25 a year",
+    ],
+    cta: { href: "/account#plan", label: "Get Educator" },
+    featured: true,
+  },
+];
+---
+
+<Layout
+  title="Pricing - Free, Pro and Educator | abc Sight Reading"
+  description={`Free: ${GENERATION_LIMITS.anonymous} sight-reading exercises a month, ${GENERATION_LIMITS.free} with a free account. Pro: unlimited for $19.99 a year. Educator: $99 a year with 100 student accounts. Schools can pay by purchase order.`}
+  themable
+  jsonLd={jsonLd}
+>
+  <div class="max-w-5xl mx-auto px-2 flex flex-col gap-10 pb-10">
+    <div class="text-center">
+      <h1 class="text-4xl font-bold text-sr-ink">Pricing</h1>
+      <p class="mt-3 text-lg text-sr-ink-2">Start free. Pay once a year if you want more.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {plans.map((p) => (
+        <div class:list={["sr-panel p-6 flex flex-col gap-4", { "ring-2 ring-sr-action": p.featured }]}>
+          <div>
+            <h2 class="text-xl font-semibold text-sr-ink">{p.name}</h2>
+            <p class="mt-2"><span class="text-3xl font-bold text-sr-ink">{p.price}</span> <span class="text-sr-muted">{p.per}</span></p>
+          </div>
+          <ul class="flex flex-col gap-2 text-sm text-sr-ink-2 list-disc pl-5 flex-1">
+            {p.points.map((pt) => <li>{pt}</li>)}
+          </ul>
+          <a class="sr-btn text-center" href={p.cta.href}>{p.cta.label}</a>
+        </div>
+      ))}
+    </div>
+
+    <section class="max-w-3xl mx-auto text-sr-ink-2 flex flex-col gap-3">
+      <h2 class="text-2xl font-semibold text-sr-ink">Schools and purchase orders</h2>
+      <p>
+        Sign in, open your account page, and choose <strong>Get a quote</strong>. You get a numbered PDF quote to send
+        your purchasing office, made out to your school or district, marked tax-exempt if it is. When the purchase order
+        comes back, enter its number: the Educator plan starts right away, and the invoice goes to the school, due in 30
+        days, payable by ACH, card or check.
+      </p>
+      <p>
+        Prices are in US dollars. Sales tax is added where it applies; public schools and districts with an exemption
+        certificate pay none. Plans renew yearly and can be cancelled any time before renewal.
+      </p>
+    </section>
+  </div>
+</Layout>

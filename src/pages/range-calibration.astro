@@ -3,7 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import RangeCalibrationForm from "../components/RangeCalibration.svelte";
 ---
 
-<Layout title="ABC Sight Reading - Range Calibration">
+<Layout noindex title="ABC Sight Reading - Range Calibration">
   <div class="flex flex-col w-full h-full items-center justify-center">
     <h1 class="text-4xl font-bold mb-8">Voice Range Calibration</h1>
     <RangeCalibrationForm client:only="svelte" />

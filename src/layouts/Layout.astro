@@ -4,6 +4,7 @@ import FeedbackButton from "../components/FeedbackButton.svelte";
 import Analytics from "@vercel/analytics/astro";
 import { readFeedbackEmail } from "../lib/feedback-email";
 import { currentUser } from "../lib/server/api";
+import { serverEnv } from "../lib/server/env";
 import "../styles/globals.css";
 import "abcjs/abcjs-audio.css";
 
@@ -12,13 +13,29 @@ interface Props {
   description?: string;
   /** Opt in to the dark theme. Only pages built on the --sr- tokens can. */
   themable?: boolean;
+  /** Keep this page out of search results: accounts, sign-in, tools. */
+  noindex?: boolean;
+  /** Structured data (schema.org JSON-LD) for this page. */
+  jsonLd?: object | object[];
 }
 
 const {
   title,
-  description = "A music sight reading practice app",
+  description = "Unlimited choir sight-reading and sight-singing exercises - SATB, SSA, TTB and unison, UIL levels 1-5, with solfège and playback.",
   themable = false,
+  noindex = false,
+  jsonLd,
 } = Astro.props;
+
+/**
+ * Search engines see one address per page: the canonical link names
+ * www.abc-sightreading.com whichever domain served it. Previews and local dev
+ * are never indexed.
+ */
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const production = serverEnv("VERCEL_ENV") === "production";
+const robots = noindex || !production ? "noindex, nofollow" : "index, follow";
+const ogImage = new URL("/og.png", Astro.site).href;
 
 /**
  * A student account may belong to a child under 13. Nothing that watches or
@@ -67,6 +84,23 @@ const feedbackConfigured = !!readFeedbackEmail(
 
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={robots} />
+    <meta name="theme-color" content="#17566b" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="abc Sight Reading" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
     <!-- Before first paint, so a saved theme never flashes the other one.
          Nothing saved means no attribute, and the OS setting decides. -->
     <script is:inline>
@@ -87,6 +121,18 @@ const feedbackConfigured = !!readFeedbackEmail(
     <main class="container mx-auto px-4 pt-24">
       <slot />
     </main>
+    <!-- Plain links in the page's own HTML: the navbar is drawn in the
+         browser, so without these a crawler finds no way between pages. -->
+    <footer class="no-print mt-16 border-t border-sr-hairline py-8 px-4 text-sm text-sr-muted">
+      <nav class="max-w-5xl mx-auto flex flex-wrap gap-x-6 gap-y-2 justify-center" aria-label="Site">
+        <a class="hover:text-sr-action-fg" href="/choral-sightreading">Choral sight-reading</a>
+        <a class="hover:text-sr-action-fg" href="/sightreading">Unison sight-singing</a>
+        <a class="hover:text-sr-action-fg" href="/uil-sight-reading">UIL sight-reading practice</a>
+        <a class="hover:text-sr-action-fg" href="/pricing">Pricing</a>
+        <a class="hover:text-sr-action-fg" href="/tuner">abcTuner</a>
+        <a class="hover:text-sr-action-fg" href="/sight-reading-factory-alternative">Compared with Sight Reading Factory</a>
+      </nav>
+    </footer>
     {
       feedbackConfigured && !isStudent && <FeedbackButton client:idle page={title} />
     }

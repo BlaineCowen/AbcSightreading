@@ -1,0 +1,68 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+/**
+ * An honest comparison with Sight Reading Factory. Their prices are quoted
+ * from their public pricing page and dated; recheck before changing them.
+ */
+const checked = "September 2026";
+const rows = [
+  ["Who it's for", "Choirs and singers only", "Instrumentalists, bands, orchestras and singers"],
+  ["Choral exercises", "Two, three and four parts: SATB, SAB, SSA, TTB and more", "Full ensemble sight reading"],
+  ["UIL levels", "Levels 1-5 built in, from UIL's choir criteria", "Customisable settings"],
+  ["One teacher or singer", "$19.99 a year (Pro)", "$45 a year (individual)"],
+  ["Students", "100 included with Educator ($99 a year); more at $1 each", "From about $3 per student a year"],
+  ["Recording and grading student sight-reading", "Not yet - practice time and exercise counts per student", "Yes"],
+];
+---
+
+<Layout
+  title="A Sight Reading Factory Alternative for Choirs | abc Sight Reading"
+  description="abc Sight Reading is a choir-only alternative to Sight Reading Factory: SATB/SSA/TTB exercises, UIL levels 1-5, solfège, and 100 student accounts for $99 a year."
+  themable
+>
+  <article class="max-w-3xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-4 pb-10">
+    <h1 class="text-4xl font-bold text-sr-ink">A Sight Reading Factory alternative, made for choirs</h1>
+    <p class="text-lg">
+      Sight Reading Factory is a good tool that covers every instrument. abc Sight Reading does one thing: sight-reading
+      for singers. That focus is why it can write real four-part voice leading, follow the UIL levels exactly, and cost
+      less for a whole choir.
+    </p>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-sr-muted"><th class="py-2 pr-3"></th><th class="pr-3">abc Sight Reading</th><th>Sight Reading Factory</th></tr></thead>
+        <tbody>
+          {rows.map(([what, ours, theirs]) => (
+            <tr class="border-t border-sr-hairline align-top">
+              <th class="py-2 pr-3 text-left font-medium text-sr-ink">{what}</th>
+              <td class="py-2 pr-3">{ours}</td>
+              <td class="py-2">{theirs}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-sr-muted">
+      Sight Reading Factory prices from their public pricing page, {checked}. Sight Reading Factory is a trademark of
+      its owner; abc Sight Reading is not affiliated with it.
+    </p>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-4">When Sight Reading Factory is the better choice</h2>
+    <p>
+      If you teach band or orchestra as well as choir, want one subscription for all of them, or need students to record
+      their sight-reading for a grade today, Sight Reading Factory does that and abc Sight Reading does not.
+    </p>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-4">When abc Sight Reading is</h2>
+    <p>
+      If you teach choir, want exercises that sound like choral writing, prepare for UIL, and want every student to have
+      an account without paying per student, try it. Ten exercises a month need no account, a free account gives fifty,
+      and solfège - movable or fixed do - and Kodály rhythm syllables are built in.
+    </p>
+    <div class="flex flex-wrap gap-3">
+      <a class="sr-btn" href="/choral-sightreading">Try it free</a>
+      <a class="sr-btn-quiet" href="/pricing">See pricing</a>
+    </div>
+  </article>
+</Layout>

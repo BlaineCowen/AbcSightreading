@@ -286,6 +286,19 @@ presets once; the server dedupes by name + creation time.
   (`src/lib/usage.ts`) before generating; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
 
+## SEO
+
+`site` in astro.config.mjs is https://www.abc-sightreading.com, and every page's
+canonical link points there (abc.blainecowen.com serves the same pages).
+Layout takes `noindex` (accounts, login, join, tools) and `jsonLd`; previews
+and local dev are always noindex, and `/robots.txt` turns crawlers away
+everywhere but production. The navbar is `client:only`, so the footer in
+Layout carries plain links for crawlers. Public pages are listed in
+`src/lib/seo.ts` for `/sitemap.xml` - add new ones there. Plan prices shown on
+`/pricing` and in structured data come from `src/lib/seo.ts` and
+`src/lib/plan.ts`. The Sight Reading Factory comparison quotes their prices
+with a date; recheck before editing it. `public/og.png` is the share image.
+
 ## Tech Stack
 
 - **Astro** (SSR, deployed to Vercel) — pages in `src/pages/`, layout in `src/layouts/`

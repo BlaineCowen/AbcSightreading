@@ -4,6 +4,10 @@ import svelte from "@astrojs/svelte";
 import vercel from "@astrojs/vercel/serverless";
 
 export default defineConfig({
+  // The one address search engines should know the site by: canonical links,
+  // Open Graph URLs and the sitemap are built on it. abc.blainecowen.com
+  // serves the same pages, and canonical links point it here.
+  site: "https://www.abc-sightreading.com",
   output: "server",
   adapter: vercel({
     maxDuration: 60,
