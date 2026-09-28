@@ -1,6 +1,7 @@
 <!-- src/components/PlaybackBar.svelte -->
 <script lang="ts">
   import { onMount, onDestroy, tick } from "svelte";
+  import CountInOverlay from "./CountInOverlay.svelte";
   import SkipBack from "lucide-svelte/icons/skip-back";
   import Play from "lucide-svelte/icons/play";
   import Pause from "lucide-svelte/icons/pause";
@@ -197,6 +198,8 @@
          flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:px-4"
   style="padding-bottom: env(safe-area-inset-bottom, 0px)"
 >
+  <!-- "1, 2, Ready, Go" over the tempo controls while the count-in plays. -->
+  <CountInOverlay />
   {#if status}
     <!-- Full width and first, so it reads the same on a phone as on a desktop
          and never competes with the transport for room. -->

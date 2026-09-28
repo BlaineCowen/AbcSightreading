@@ -5,7 +5,6 @@
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
-  import CountInOverlay from "./CountInOverlay.svelte";
   import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
@@ -2054,7 +2053,6 @@
   <!-- Preset bar -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
-  <CountInOverlay />
 
   {#if !assignment}
   <PresetDropdown

@@ -37,7 +37,6 @@
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
-  import CountInOverlay from "./CountInOverlay.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
@@ -3072,7 +3071,6 @@
        offered here. -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
-  <CountInOverlay />
 
   {#if !assignment}
   <PresetDropdown

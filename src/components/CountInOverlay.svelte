@@ -2,10 +2,11 @@
   import { countInWordNow } from "../lib/count-in";
 
   /**
-   * The count-in, beat by beat: "1", "2", "Ready", "Go". At the top of the
-   * screen, under the menu, rather than over the music - singers are finding
-   * their first note while it counts. Big enough to read from the back of a
-   * room with the page projected, and it never takes a click.
+   * The count-in, beat by beat: "1", "2", "Ready", "Go". Drawn over the right
+   * end of the playback bar - the tempo controls, which nobody touches in the
+   * count - so it never covers the music singers are finding their first note
+   * in, and Pause stays within reach. Lives inside PlaybackBar, whose fixed box
+   * it is positioned against. Never takes a click.
    */
 </script>
 
@@ -19,31 +20,36 @@
 
 <style>
   .count-in {
-    position: fixed;
-    top: 5rem;
-    left: 0;
+    position: absolute;
     right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    /* The transport row: h-11 + py-2 on a phone, h-8 + py-2 from sm up. */
+    height: 3.75rem;
+    min-width: 9.5rem;
+    padding: 0 1.25rem 0 2.5rem;
     display: flex;
-    justify-content: center;
+    align-items: center;
+    justify-content: flex-end;
     pointer-events: none;
-    z-index: 40;
+    /* The bar's own slate-800, fading in from the left over the controls. */
+    background: linear-gradient(to right, rgb(30 41 59 / 0), rgb(30 41 59) 2rem);
+  }
+  @media (min-width: 640px) {
+    .count-in { height: 3rem; min-width: 12rem; }
   }
   span {
-    font-size: clamp(2.5rem, 9vw, 4.5rem);
+    font-size: 1.9rem;
     font-weight: 800;
     line-height: 1;
-    padding: 0.15em 0.45em;
-    border-radius: 0.3em;
-    color: var(--sr-ink);
-    background: color-mix(in srgb, var(--sr-panel) 82%, transparent);
-    box-shadow: 0 10px 40px rgb(0 0 0 / 0.15);
-    animation: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+    letter-spacing: -0.01em;
+    color: #f1f5f9;
+    animation: pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
   }
   .go {
-    color: var(--sr-action-fg);
+    color: #93c5fd;
   }
   @keyframes pop {
-    from { transform: scale(1.35); opacity: 0; }
+    from { transform: scale(1.4); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
   }
   @media (prefers-reduced-motion: reduce) {
