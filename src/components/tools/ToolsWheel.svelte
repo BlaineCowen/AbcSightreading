@@ -43,6 +43,8 @@
   const LISTENING: ToolId[] = ["tuner", "analysis"];
 
   let wheelOpen = false;
+  /** The slice under the pointer or keyboard focus, coloured as a whole. */
+  let hovered: ToolId | null = null;
   let tool: ToolId | null = null;
   let allowed: boolean | null = null;
   let signedIn = false;
@@ -63,6 +65,7 @@
 
   async function toggleWheel() {
     wheelOpen = !wheelOpen;
+    hovered = null;
     if (wheelOpen) {
       await tick();
       wheelEl?.querySelector<HTMLButtonElement>(`[data-tool="${tool ?? $toolSettings.lastTool}"]`)?.focus();
@@ -72,6 +75,7 @@
   /** Open a tool. A click, so it may start the microphone. */
   async function pick(id: ToolId) {
     wheelOpen = false;
+    hovered = null;
     tool = id;
     setTool({ lastTool: id });
     if (allowed === null) await checkPlan();
@@ -166,13 +170,20 @@
       role="group"
       aria-label="Practice tools"
     >
+      <!-- The slices are the targets: hovering anywhere on one, or on its label,
+           colours the whole slice, and a click anywhere on it opens the tool.
+           The buttons below carry the same action for the keyboard. -->
       <svg width="280" height="280" viewBox="0 0 280 280" class="absolute inset-0" aria-hidden="true">
         {#each TOOLS as t, i}
+          <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
           <path
             d={t.wedge}
-            class="transition-colors"
-            fill={tool === t.id ? "var(--sr-tint)" : i % 2 ? "var(--sr-panel)" : "var(--sr-raise)"}
+            class="transition-colors cursor-pointer"
+            fill={tool === t.id || hovered === t.id ? "var(--sr-tint)" : i % 2 ? "var(--sr-panel)" : "var(--sr-raise)"}
             stroke="var(--sr-hairline)"
+            on:mouseenter={() => (hovered = t.id)}
+            on:mouseleave={() => (hovered = null)}
+            on:click={() => pick(t.id)}
           />
         {/each}
         <circle cx="140" cy="140" r="46" fill="var(--sr-action)" />
@@ -180,8 +191,12 @@
       {#each TOOLS as t}
         <button
           data-tool={t.id}
-          class="absolute h-16 rounded-xl flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-sr-action-fg hover:bg-sr-tint focus:outline-none focus-visible:ring-2 focus-visible:ring-sr-action"
+          class="absolute h-16 rounded-xl flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-sr-action-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-sr-action"
           style="left: {t.x}px; top: {t.y}px; width: {t.w}px"
+          on:mouseenter={() => (hovered = t.id)}
+          on:mouseleave={() => (hovered = null)}
+          on:focus={() => (hovered = t.id)}
+          on:blur={() => (hovered = null)}
           on:click={() => pick(t.id)}
         ><Icon id={t.id} size={22} />{t.label}</button>
       {/each}
