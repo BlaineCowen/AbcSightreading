@@ -8,7 +8,8 @@
    */
   export let origin: string;
 
-  type Code = { id: string; code: string; plan: string; days: number; maxUses: number | null; uses: number; expiresAt: number | null; note: string };
+  type Redeemer = { name: string; email: string; at: number; until: number };
+  type Code = { id: string; code: string; plan: string; days: number; maxUses: number | null; uses: number; expiresAt: number | null; note: string; redeemed: Redeemer[] };
   type Sale = { id: string; amountPaid: number; commission: number; description: string; createdAt: number; paidOutAt: number | null };
   type Affiliate = { id: string; name: string; code: string; percentOff: number; commissionPercent: number; active: boolean; sales: Sale[]; earned: number; owed: number };
 
@@ -81,6 +82,18 @@
           <span class="text-sr-ink-2">{c.plan === "educator" ? "Educator" : "Pro"} · {c.days} days · used {c.uses}{c.maxUses !== null ? ` of ${c.maxUses}` : ""}</span>
         </div>
         {#if c.note}<p class="text-sr-muted">{c.note}</p>{/if}
+        {#if c.redeemed.length}
+          <table class="text-xs w-full mt-1">
+            <thead><tr class="text-left text-sr-muted"><th class="py-1 font-medium">Who</th><th class="font-medium">Email</th><th class="font-medium">Used</th><th class="font-medium text-right">Free until</th></tr></thead>
+            <tbody>
+              {#each c.redeemed as r}
+                <tr class="border-t border-sr-hairline"><td class="py-1 text-sr-ink">{r.name}</td><td class="text-sr-ink-2 break-all">{r.email}</td><td>{day(r.at)}</td><td class="text-right">{day(r.until)}</td></tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <p class="text-xs text-sr-muted">Nobody has used it yet.</p>
+        {/if}
         <div class="flex gap-3 text-xs">
           <button class="underline text-sr-action-fg" on:click={() => copy(`${origin}/account?code=${c.code}`)}>Copy link</button>
           {#if c.expiresAt}<span class="text-sr-muted">stops working {day(c.expiresAt)}</span>{/if}
