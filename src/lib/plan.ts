@@ -29,15 +29,22 @@ const LIVE = new Set(["active", "trialing", "past_due"]);
 const isLive = (s: SubscriptionLike, now: Date) =>
   LIVE.has(s.status) && (s.status === "past_due" || !s.periodEnd || s.periodEnd > now);
 
+/** A plan given by an access code (src/lib/codes.ts), until it ends. */
+export type GrantLike = { plan: string; expiresAt: Date };
+
 export function planFrom(p: {
   subscriptions: SubscriptionLike[];
+  grants?: GrantLike[];
   studentOfEducator?: boolean;
   complimentary?: boolean;
   now?: Date;
 }): Plan {
   const now = p.now ?? new Date();
   if (p.complimentary) return "educator";
-  const live = p.subscriptions.filter((s) => isLive(s, now));
+  const live = [
+    ...p.subscriptions.filter((s) => isLive(s, now)),
+    ...(p.grants ?? []).filter((g) => g.expiresAt > now),
+  ];
   if (live.some((s) => s.plan === "educator")) return "educator";
   if (live.some((s) => s.plan === "pro")) return "pro";
   return p.studentOfEducator ? "pro" : "free";

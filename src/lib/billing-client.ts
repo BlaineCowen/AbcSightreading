@@ -9,7 +9,9 @@ import type { Plan } from "./plan";
 
 export type BillingStatus = {
   plan: Plan;
-  via: "subscription" | "complimentary" | "class" | null;
+  via: "subscription" | "code" | "complimentary" | "class" | null;
+  /** When a plan given by a code ends. */
+  grantEnds: number | null;
   billingEnabled: boolean;
   subscription: { id: string | null; plan: string; status: string; periodEnd: number | null; cancelAtPeriodEnd: boolean } | null;
 };
@@ -60,4 +62,12 @@ export async function openBillingPortal() {
 
 export async function buySeatPacks(packs: number) {
   location.href = await post("/api/billing/seats", { packs });
+}
+
+/** Uses an access code on this account. Throws with the reason when it can't. */
+export async function redeemCode(code: string): Promise<{ plan: string; expiresAt: number }> {
+  const res = await fetch("/api/codes/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error ?? `The server said ${res.status}.`);
+  return body;
 }

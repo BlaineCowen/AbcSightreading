@@ -40,6 +40,7 @@ model User {
   quotes        Quote[]
   practice      PracticeTime[]
   practiceClock PracticeClock?
+  grants        AccessGrant[]
 
   @@map("user")
 }
@@ -326,4 +327,76 @@ model PracticeClock {
   lastCreditedAt DateTime
 
   @@map("practice_clock")
+}
+
+// A code that gives a plan free for `days` from the day it is used - the beta
+// testers' Educator year. `maxUses` null is unlimited; `expiresAt` null never
+// stops working. Rules: src/lib/codes.ts.
+model AccessCode {
+  id        String        @id @default(cuid())
+  /// Upper case letters and digits: "BETA2026".
+  code      String        @unique
+  plan      String
+  days      Int
+  maxUses   Int?
+  uses      Int           @default(0)
+  expiresAt DateTime?
+  note      String        @default("")
+  createdAt DateTime      @default(now())
+  grants    AccessGrant[]
+
+  @@map("access_code")
+}
+
+// A plan an account holds from a code, until `expiresAt`. Read by planFor
+// beside the account's subscriptions.
+model AccessGrant {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeId    String?
+  code      AccessCode? @relation(fields: [codeId], references: [id], onDelete: SetNull)
+  plan      String
+  expiresAt DateTime
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, codeId])
+  @@index([userId])
+  @@map("access_grant")
+}
+
+// An advertiser's discount code: a Stripe coupon and promotion code, and
+// their share of what each checkout using it paid.
+model Affiliate {
+  id                String          @id @default(cuid())
+  name              String
+  code              String          @unique
+  percentOff        Int
+  commissionPercent Int
+  stripeCouponId    String
+  stripePromotionId String          @unique
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  sales             AffiliateSale[]
+
+  @@map("affiliate")
+}
+
+// One paid checkout that used an affiliate's code. Keyed by the checkout, so
+// Stripe sending the event twice records it once. Paid out by hand;
+// `paidOutAt` marks it done.
+model AffiliateSale {
+  id               String    @id @default(cuid())
+  affiliateId      String
+  affiliate        Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  stripeCheckoutId String    @unique
+  /// What the customer paid before tax, in cents.
+  amountPaid       Int
+  commission       Int
+  description      String
+  paidOutAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([affiliateId])
+  @@map("affiliate_sale")
 }

@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 819 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 829 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -274,6 +274,16 @@ presets once; the server dedupes by name + creation time.
   since the student's last credit (`PracticeClock`), so tabs don't add up.
   Logged only for accounts in a class, all practice, not just assigned;
   minutes, exercise counts and dates only, deleted after 395 days.
+- Codes (rules `src/lib/codes.ts`, tests `codes.test.ts`; server
+  `src/lib/server/codes.ts`; owner's page `/admin`, for `ADMIN_EMAILS` only,
+  404 to anyone else): an access code (`AccessCode`) gives Pro or Educator free
+  for N days from use - `AccessGrant` rows, read by `planFor` beside
+  subscriptions. Links are `/account?code=X`, which survive sign-in/sign-up.
+  An affiliate code is a Stripe coupon (duration once) plus promotion code
+  made from `/admin`; `recordAffiliateSale` (Stripe webhook,
+  `checkout.session.completed`) records the advertiser's cut of what the
+  checkout paid before tax in `AffiliateSale`. Payouts are by hand; `/admin`
+  marks them paid.
 - Plans: the rules are in `src/lib/plan.ts` (tests: `billing.test.ts`), the
   database side in `src/lib/server/plan.ts` - `planFor`, `hasPremium`,
   `hasEducatorPlan`. Gate by those, never by reading billing fields. A student

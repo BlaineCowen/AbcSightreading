@@ -10,6 +10,7 @@ import { resetPasswordEmail, sendAccountEmail, verifyEmailEmail } from "./auth-e
 import { isStudentEmail } from "../roster";
 import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from "./stripe";
 import { becomeEducator } from "./educator";
+import { recordAffiliateSale } from "./codes";
 
 /**
  * A paid seat pack (src/pages/api/billing/seats.ts starts the checkout): 25
@@ -71,7 +72,10 @@ const billing =
             },
           },
           onEvent: async (event) => {
-            if (event.type === "checkout.session.completed") await grantSeatPack(event.data.object);
+            if (event.type === "checkout.session.completed") {
+              await grantSeatPack(event.data.object);
+              await recordAffiliateSale(event.data.object);
+            }
           },
         }),
       ]

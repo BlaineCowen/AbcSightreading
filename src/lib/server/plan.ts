@@ -23,9 +23,13 @@ const subscriptionsOf = (referenceIds: string[]) =>
     select: { referenceId: true, plan: true, status: true, periodEnd: true },
   });
 
-/** The plan of an account without looking at classes it is in. */
+const grantsOf = (userId: string) =>
+  prisma.accessGrant.findMany({ where: { userId, expiresAt: { gt: new Date() } }, select: { plan: true, expiresAt: true } });
+
+/** The plan of an account without looking at classes it is in: subscriptions, code grants, complimentary. */
 async function ownPlan(user: { id: string; email: string }): Promise<Plan> {
-  return planFrom({ subscriptions: await subscriptionsOf([user.id]), complimentary: complimentary(user.email) });
+  const [subscriptions, grants] = await Promise.all([subscriptionsOf([user.id]), grantsOf(user.id)]);
+  return planFrom({ subscriptions, grants, complimentary: complimentary(user.email) });
 }
 
 export async function planFor(userId: string): Promise<Plan> {

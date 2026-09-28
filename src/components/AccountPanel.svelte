@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { authClient } from "../lib/auth-client";
-  import { billingStatus, openBillingPortal, startCheckout, type BillingStatus } from "../lib/billing-client";
+  import { billingStatus, openBillingPortal, redeemCode, startCheckout, type BillingStatus } from "../lib/billing-client";
   import { GENERATION_LIMITS } from "../lib/plan";
 
   const session = authClient.useSession();
@@ -32,16 +32,50 @@
       location.reload();
       return;
     }
+    // A code link - /account?code=BETA2026 - is used as soon as the account is here.
+    const linkCode = params.get("code");
+    // Signed out, leave the address alone: the redirect below carries the code to sign-in and back.
+    if (linkCode && (await authClient.getSession()).data) {
+      history.replaceState(null, "", "/account#plan");
+      await useCode(linkCode);
+      return;
+    }
     if (params.get("upgraded")) {
       notice = "Thank you - Pro is on.";
       history.replaceState(null, "", "/account#plan");
     }
+    try {
+      const saved = sessionStorage.getItem("abcsr_code_notice");
+      if (saved) {
+        notice = saved;
+        sessionStorage.removeItem("abcsr_code_notice");
+      }
+    } catch {}
     billing = await billingStatus();
     if (billing?.plan === "free") {
       const res = await fetch("/api/usage");
       if (res.ok) used = (await res.json()).used;
     }
   });
+
+  // An access code: a plan free for a while.
+  let codeInput = "";
+  let redeeming = false;
+  async function useCode(code: string) {
+    redeeming = true;
+    problem = notice = "";
+    try {
+      const r = await redeemCode(code);
+      // An Educator code changes the account type; the page shows what the database says.
+      await authClient.getSession({ query: { disableCookieCache: true } });
+      sessionStorage.setItem("abcsr_code_notice", `Code applied: ${planName(r.plan)} free until ${day(r.expiresAt)}.`);
+      location.reload();
+    } catch (e) {
+      problem = e instanceof Error ? e.message : "Could not use that code.";
+      redeeming = false;
+      billing = await billingStatus();
+    }
+  }
 
   let upgrading = false;
   async function checkout(plan: "pro" | "educator") {
@@ -69,7 +103,10 @@
 
   // Signed out (or the session ended): nothing to show here.
   $: if (!$session.isPending && !$session.data) {
-    window.location.href = "/login?next=/account";
+    // Keep the address: a code link (/account?code=...) is used after signing in.
+    const back = location.pathname + location.search;
+    const mode = new URLSearchParams(location.search).has("code") ? "mode=signup&" : "";
+    window.location.href = `/login?${mode}next=${encodeURIComponent(back)}`;
   }
 
   let notice = "";
@@ -169,7 +206,11 @@
             </div>
           {/if}
         {:else}
-          <p class="text-sm text-sr-muted">{billing.via === "complimentary" ? "Complimentary." : "Through your teacher's class."}</p>
+          <p class="text-sm text-sr-muted">
+            {#if billing.via === "code" && billing.grantEnds}Free from a code until {day(billing.grantEnds)}.
+            {:else if billing.via === "complimentary"}Complimentary.
+            {:else}Through your teacher's class.{/if}
+          </p>
         {/if}
       {:else}
         <p class="text-sm text-sr-ink-2">
@@ -187,6 +228,13 @@
         {#if !billing.billingEnabled}
           <p class="text-xs text-sr-muted">Payments are not set up on this server.</p>
         {/if}
+      {/if}
+      {#if !isStudent && billing}
+        <form class="flex gap-2 items-center mt-1" on:submit|preventDefault={() => useCode(codeInput)}>
+          <label class="sr-only" for="access-code">Code</label>
+          <input id="access-code" class="flex-1 rounded border border-sr-hairline bg-sr-panel text-sr-ink text-sm px-2 py-1 uppercase" placeholder="Have a code?" bind:value={codeInput} maxlength="30" />
+          <button class="sr-btn-quiet text-sm" disabled={redeeming || !codeInput.trim()}>Use it</button>
+        </form>
       {/if}
     </section>
 
