@@ -4,7 +4,7 @@ import AuthForm from "../components/AuthForm.svelte";
 import { googleEnabled } from "../lib/server/auth";
 
 const requested = Astro.url.searchParams.get("mode");
-const mode = requested === "signup" || requested === "forgot" ? requested : "signin";
+const mode = requested === "signup" || requested === "forgot" || requested === "student" ? requested : "signin";
 ---
 
 <Layout title="ABC Sight Reading - Sign in" themable>

@@ -3,13 +3,21 @@ import Layout from "../layouts/Layout.astro";
 import AccountPanel from "../components/AccountPanel.svelte";
 import ClassProgress from "../components/ClassProgress.svelte";
 import SyllableEditor from "../components/SyllableEditor.svelte";
+import EducatorStudents from "../components/EducatorStudents.svelte";
+import { currentUser } from "../lib/server/api";
+
+// What this account is decides the page: an educator manages students; a
+// student's teacher manages theirs, so none of the director's tools show.
+const viewer = await currentUser(Astro.request).catch(() => null);
+const accountType = (viewer as { accountType?: string } | null)?.accountType ?? "standard";
 ---
 
 <Layout title="ABC Sight Reading - Account" themable>
   <div class="flex flex-col w-full items-center gap-6 pb-16">
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
     <AccountPanel client:only="svelte" />
-    <ClassProgress client:only="svelte" />
-    <SyllableEditor client:only="svelte" />
+    {accountType === "educator" && <EducatorStudents client:only="svelte" />}
+    {accountType !== "student" && <ClassProgress client:only="svelte" />}
+    {accountType !== "student" && <SyllableEditor client:only="svelte" />}
   </div>
 </Layout>

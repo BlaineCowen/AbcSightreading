@@ -20,6 +20,11 @@ model User {
   email         String    @unique
   emailVerified Boolean   @default(false)
   image         String?
+  /// Student sign-in name (Better Auth's username plugin): "ktz482.maria.g".
+  username      String?   @unique
+  /// "standard", "educator", or "student" (an account a teacher or a class
+  /// code made, with no email - see src/lib/roster.ts).
+  accountType   String    @default("standard")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
@@ -27,6 +32,7 @@ model User {
   presets       Preset[]
   classes       Class[]
   preference    UserPreference?
+  enrollments   Enrollment[]
 
   @@map("user")
 }
@@ -117,9 +123,12 @@ model Class {
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   position  Int             @default(0)
+  /// What students type to join: "KTZ482" (shown KTZ-482). Educator classes only.
+  joinCode  String?         @unique
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]
+  enrollments Enrollment[]
 
   @@index([userId])
   @@map("class")
@@ -149,4 +158,22 @@ model UserPreference {
   updatedAt       DateTime @updatedAt
 
   @@map("user_preference")
+}
+
+// A student in a class. `managed` is true when the teacher's roster or the
+// class code created the account - then the teacher may reset its password or
+// delete it; a student who joined with their own account keeps control of it.
+// Each distinct student across a teacher's classes uses one seat.
+model Enrollment {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  managed   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([classId, studentId])
+  @@index([studentId])
+  @@map("enrollment")
 }

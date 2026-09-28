@@ -3,6 +3,7 @@ import { currentUser, json, readJson } from "../../../lib/server/api";
 import { prisma } from "../../../lib/server/db";
 import { checkClassName, MAX_CLASSES } from "../../../lib/class-validate";
 import { listClasses, notSignedIn, toClass, withProgress } from "./_shared";
+import { accountTypeFor, newJoinCode } from "../../../lib/server/students";
 
 /**
  * The signed-in director's classes.
@@ -20,6 +21,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const user = await currentUser(request);
   if (!user) return notSignedIn();
+  if ((await accountTypeFor(user)) === "student") return json({ error: "Student accounts do not have classes of their own." }, 403);
   const body = (await readJson(request)) as { name?: unknown } | undefined;
   const name = checkClassName(body?.name);
   if (!name.ok) return json({ error: name.error }, 400);
@@ -31,7 +33,13 @@ export const POST: APIRoute = async ({ request }) => {
     select: { position: true },
   });
   const created = await prisma.class.create({
-    data: { userId: user.id, name: name.value, position: (last?.position ?? -1) + 1 },
+    data: {
+      userId: user.id,
+      name: name.value,
+      position: (last?.position ?? -1) + 1,
+      // An educator's class is joinable from the start.
+      joinCode: (await accountTypeFor(user)) === "educator" ? await newJoinCode() : null,
+    },
     select: withProgress,
   });
   return json(toClass(created), 201);

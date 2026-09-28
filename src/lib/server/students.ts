@@ -1,0 +1,112 @@
+import { auth } from "./auth";
+import { prisma } from "./db";
+import { formatJoinCode, generateJoinCode } from "../join-code";
+import { INCLUDED_SEATS, seatsUsed } from "../seats";
+import { generatePassword, studentEmail, studentLoginName, usernameFor, type RosterStudent } from "../roster";
+
+/**
+ * Educator accounts and their students, against the database. The rules live
+ * in src/lib/educator-policy.ts and src/lib/roster.ts (unit-tested); this file
+ * applies them.
+ */
+
+export type AccountType = "standard" | "educator" | "student";
+
+export const accountTypeOf = (user: { accountType?: unknown }): AccountType =>
+  user.accountType === "educator" || user.accountType === "student" ? user.accountType : "standard";
+
+/**
+ * The account type from the database, not the session. The session is cached
+ * in a signed cookie for five minutes (auth.ts), so right after an upgrade it
+ * still says "standard" - and a permission must never ride on a stale copy.
+ */
+export async function accountTypeFor(user: { id: string }): Promise<AccountType> {
+  const row = await prisma.user.findUnique({ where: { id: user.id }, select: { accountType: true } });
+  return accountTypeOf(row ?? {});
+}
+
+/** A class code no other class has. */
+export async function newJoinCode(): Promise<string> {
+  for (let i = 0; i < 20; i++) {
+    const code = generateJoinCode();
+    if (!(await prisma.class.findUnique({ where: { joinCode: code }, select: { id: true } }))) return code;
+  }
+  throw new Error("Could not find a free class code.");
+}
+
+/** Seats: the plan's, and how many of the teacher's students use them. */
+export async function seatInfo(teacherId: string) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: { class: { userId: teacherId } },
+    select: { studentId: true },
+  });
+  // Purchased seat packs add here (stage 4).
+  const total = INCLUDED_SEATS;
+  const used = seatsUsed(enrollments);
+  return { total, used, left: Math.max(0, total - used) };
+}
+
+/**
+ * A student account with no email, as a roster or a class code makes one.
+ * Created through Better Auth's own internals, so the password is hashed and
+ * the credential account linked exactly as a sign-up would.
+ */
+export async function createStudentAccount(s: {
+  first: string;
+  last: string;
+  joinCode: string;
+  username: string;
+  password: string;
+}) {
+  const ctx = await auth.$context;
+  const loginName = studentLoginName(s.joinCode, s.username);
+  const user = await ctx.internalAdapter.createUser({
+    email: studentEmail(loginName),
+    name: s.last ? `${s.first} ${s.last}` : s.first,
+    emailVerified: false,
+    username: loginName,
+    accountType: "student",
+  }, { method: "class-roster" });
+  await ctx.internalAdapter.linkAccount({
+    userId: user.id,
+    providerId: "credential",
+    accountId: user.id,
+    password: await ctx.password.hash(s.password),
+  });
+  return user;
+}
+
+/** The part of a student's sign-in name after the class code: "maria.g". */
+export const shortUsername = (loginName: string | null) => (loginName ? loginName.split(".").slice(1).join(".") : null);
+
+/**
+ * Add students from a roster to a class: usernames made unique within it,
+ * passwords generated where none was given. Answers with the credentials,
+ * which are shown once - for printing - and never stored in the clear.
+ */
+export async function addRoster(teacherId: string, classId: string, students: RosterStudent[]) {
+  const cls = await prisma.class.findFirst({ where: { id: classId, userId: teacherId } });
+  if (!cls) return { error: "No such class.", status: 404 } as const;
+  const joinCode = cls.joinCode ?? (await prisma.class.update({ where: { id: cls.id }, data: { joinCode: await newJoinCode() } })).joinCode!;
+
+  const seats = await seatInfo(teacherId);
+  if (students.length > seats.left) {
+    return { error: `That is ${students.length} students and ${seats.left} seats are left.`, status: 409 } as const;
+  }
+
+  const existing = await prisma.user.findMany({
+    where: { username: { startsWith: `${joinCode.toLowerCase()}.` } },
+    select: { username: true },
+  });
+  const taken = new Set(existing.map((u) => shortUsername(u.username)!));
+  const created: { name: string; username: string; password: string }[] = [];
+  for (const s of students) {
+    const username = s.username && !taken.has(s.username) ? s.username : usernameFor(s.first, s.last, taken);
+    taken.add(username);
+    const password = s.password ?? generatePassword();
+    const user = await createStudentAccount({ ...s, joinCode, username, password });
+    await prisma.enrollment.create({ data: { classId: cls.id, studentId: user.id, managed: true } });
+    created.push({ name: user.name, username, password });
+  }
+  return { created, joinCode: formatJoinCode(joinCode) } as const;
+}

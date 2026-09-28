@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 765 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 788 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -216,6 +216,20 @@ offered as "Mine" on the Unison page. The set is plain data
 `customSyllables` beside `syllableSystemId: "custom"`, and turned into a system
 by `customSyllableSystem`. Its first template must equal built-in Kodály figure
 for figure - `tests/unit/custom-syllables.test.ts` holds it to that.
+
+Educator accounts and students (`src/lib/server/students.ts`, rules in
+`src/lib/educator-policy.ts`, `roster.ts`, `join-code.ts`, `seats.ts`; tests in
+`tests/unit/students.test.ts`): `user.accountType` is standard, educator or
+student. An educator's classes get join codes (KTZ-482); students join at
+`/join` or the teacher adds a roster (pasted names or CSV) and prints login
+cards. Student accounts have **no email** - they may be under 13 - and sign in
+at `/login?mode=student` with class code, username and password (Better Auth's
+username plugin; the stored username is `<code>.<name>`, the email a
+never-delivering `@students.abc-sightreading.invalid`). Student pages load no
+analytics and no feedback form (Layout.astro). Permission checks read
+`accountType` from the database (`accountTypeFor`), not the five-minute session
+cookie. Deleting a teacher deletes the student accounts they made. 100 seats per
+educator (seat packs: stage 4, with Stripe).
 
 Saved presets go to the account when signed in (`/api/presets`,
 `src/lib/preset-sync.ts`) and to localStorage when not - signed-out behaviour

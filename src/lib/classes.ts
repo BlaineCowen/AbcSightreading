@@ -34,7 +34,9 @@ let loading: Promise<void> | null = null;
 /** Loads the list once per page; later calls share the first. */
 export function loadClasses(): Promise<void> {
   loading ??= (async () => {
-    if (!(await signedInUser())) return;
+    const user = await signedInUser();
+    // Students do not have classes of their own; their teacher's are not theirs to mark.
+    if (!user || user.accountType === "student") return;
     const list = await api<ClassWithProgress[]>("/api/classes");
     classes.set(list);
     classesAvailable.set(true);

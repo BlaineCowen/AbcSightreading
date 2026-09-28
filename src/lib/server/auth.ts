@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
+import { username } from "better-auth/plugins/username";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { resetPasswordEmail, sendAccountEmail, verifyEmailEmail } from "./auth-email";
+import { isStudentEmail } from "../roster";
 
 /**
  * Where this deployment is reached, for links in emails and the Google
@@ -48,6 +50,8 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
+      // A student account has no mailbox; its teacher resets the password.
+      if (isStudentEmail(user.email)) return;
       const { subject, text } = resetPasswordEmail(url);
       await sendAccountEmail(user.email, subject, text);
     },
@@ -56,6 +60,7 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
+      if (isStudentEmail(user.email)) return;
       const { subject, text } = verifyEmailEmail(url);
       await sendAccountEmail(user.email, subject, text);
     },
@@ -67,8 +72,41 @@ export const auth = betterAuth({
       ? { google: { clientId: googleId, clientSecret: googleSecret } }
       : {},
   user: {
-    deleteUser: { enabled: true },
+    deleteUser: {
+      enabled: true,
+      // A teacher's students go with the teacher: the accounts their roster or
+      // class codes made, unless another teacher's class also has them. The
+      // database cascade would otherwise leave them classless, holding a
+      // child's name with no one to manage it.
+      beforeDelete: async (user) => {
+        const managed = await prisma.enrollment.findMany({
+          where: { managed: true, class: { userId: user.id } },
+          select: { studentId: true },
+        });
+        for (const id of new Set(managed.map((e) => e.studentId))) {
+          const elsewhere = await prisma.enrollment.count({
+            where: { studentId: id, class: { userId: { not: user.id } } },
+          });
+          if (!elsewhere) await prisma.user.delete({ where: { id } });
+        }
+      },
+    },
+    additionalFields: {
+      // standard | educator | student. Set by the server, never by a form.
+      accountType: { type: "string", defaultValue: "standard", input: false },
+    },
   },
+  plugins: [
+    // Students sign in with a username - "ktz482.maria.g", class code first
+    // (src/lib/roster.ts) - and no email. No separate display name: the less
+    // a child's account holds, the better.
+    username({
+      minUsernameLength: 3,
+      maxUsernameLength: 40,
+      usernameValidator: (u) => /^[a-z0-9.]+$/.test(u),
+      displayUsername: false,
+    }),
+  ],
   session: {
     // Checks the session from a signed cookie for five minutes before going
     // back to the database - most requests then cost no query.
