@@ -88,8 +88,10 @@ describe("making codes", () => {
 
 describe("an affiliate's cut", () => {
   test("a share of what was paid, before tax, in cents", () => {
-    // Educator at 10% off: $89.10 paid, $7.35 tax on top.
-    expect(commissionCents({ amountTotal: 9645, amountTax: 735, percent: 20 })).toBe(1782);
+    // Educator at 10% off: $89.10 paid, $5.74 of it Texas tax (prices include tax).
+    expect(commissionCents({ amountTotal: 8910, amountTax: 574, percent: 20 })).toBe(1667);
+    // A tax-exempt school: nothing to take out.
+    expect(commissionCents({ amountTotal: 8910, amountTax: 0, percent: 20 })).toBe(1782);
     // Pro at 10% off: $17.99.
     expect(commissionCents({ amountTotal: 1799, amountTax: 0, percent: 20 })).toBe(360);
     expect(commissionCents({ amountTotal: 0, amountTax: 0, percent: 20 })).toBe(0);

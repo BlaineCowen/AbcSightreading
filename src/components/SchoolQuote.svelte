@@ -172,7 +172,7 @@
         <input type="checkbox" class="mt-1" bind:checked={form.taxExempt} />
         <span>Tax-exempt public school or district <span class="block text-xs text-sr-faint">They send their exemption certificate with the PO (Texas: Form 01-339).</span></span>
       </label>
-      <p class="text-sm text-sr-ink">Total {dollars(total)}{form.taxExempt ? "" : " plus any sales tax"}, for one year.</p>
+      <p class="text-sm text-sr-ink">Total {dollars(total)} for one year{form.taxExempt ? ", tax-exempt" : ", any sales tax included"}.</p>
       <div class="flex gap-2">
         <button class="sr-btn text-sm" disabled={busy}>{busy ? "Making the quote…" : "Make the quote"}</button>
         <button type="button" class="text-sm text-sr-muted underline" on:click={() => (open = false)}>Not now</button>

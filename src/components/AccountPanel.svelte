@@ -202,7 +202,7 @@
             <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
               <p class="text-sm text-sr-ink"><strong>Teach a choir?</strong> Educator gives your classes join codes and 100 student accounts - for students under 13 too, with no email needed. $99 a year, less what is left of your Pro year.</p>
               <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Upgrade to Educator</button>
-              <p class="text-xs text-sr-muted">School paying by purchase order? <a class="underline" href="#quote">Get a quote</a>.</p>
+              <p class="text-xs text-sr-muted">Tax-exempt school, or paying by purchase order? <a class="underline" href="#quote">Get a quote</a>.</p>
             </div>
           {/if}
         {:else}
@@ -223,7 +223,7 @@
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
           <p class="text-sm text-sr-ink"><strong>Educator - $99 a year.</strong> Everything in Pro, and your classes get join codes and 100 student accounts - for students under 13 too, with no email needed. More seats in packs of 25.</p>
           <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Get Educator</button>
-          <p class="text-xs text-sr-muted">School paying by purchase order? <a class="underline" href="#quote">Get a quote</a> for the purchasing office.</p>
+          <p class="text-xs text-sr-muted">Tax-exempt school, or paying by purchase order? <a class="underline" href="#quote">Get a quote</a> for the purchasing office.</p>
         </div>
         {#if !billing.billingEnabled}
           <p class="text-xs text-sr-muted">Payments are not set up on this server.</p>
