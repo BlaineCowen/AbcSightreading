@@ -5,11 +5,13 @@ import ClassProgress from "../components/ClassProgress.svelte";
 import SyllableEditor from "../components/SyllableEditor.svelte";
 import EducatorStudents from "../components/EducatorStudents.svelte";
 import { currentUser } from "../lib/server/api";
+import { accountTypeFor } from "../lib/server/students";
 
 // What this account is decides the page: an educator manages students; a
 // student's teacher manages theirs, so none of the director's tools show.
 const viewer = await currentUser(Astro.request).catch(() => null);
-const accountType = (viewer as { accountType?: string } | null)?.accountType ?? "standard";
+// From the database: the session cookie can be five minutes behind a purchase.
+const accountType = viewer ? await accountTypeFor(viewer) : "standard";
 ---
 
 <Layout title="ABC Sight Reading - Account" themable>

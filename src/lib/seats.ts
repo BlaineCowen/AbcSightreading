@@ -11,3 +11,9 @@ export const seatsUsed = (enrollments: { studentId: string }[]) =>
 
 export const seatsLeft = (enrollments: { studentId: string }[], total: number) =>
   Math.max(0, total - seatsUsed(enrollments));
+
+/** A purchased seat pack: its seats count until it expires, a year after purchase. */
+export type SeatGrant = { seats: number; expiresAt: Date };
+
+export const seatsTotal = (included: number, grants: SeatGrant[], now = new Date()) =>
+  included + grants.filter((g) => g.expiresAt > now).reduce((sum, g) => sum + g.seats, 0);

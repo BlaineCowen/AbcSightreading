@@ -3,6 +3,7 @@
   import { Copy, KeyRound, UserMinus, Printer, Upload } from "lucide-svelte";
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
+  import { buySeatPacks } from "../lib/billing-client";
 
   /**
    * The educator's students: seats, each class's join code, its students,
@@ -40,7 +41,26 @@
     ({ seats, classes } = await res.json());
     loaded = true;
   }
-  onMount(load);
+  onMount(() => {
+    if (new URLSearchParams(location.search).get("seats") === "added") {
+      notice = "Thank you - the seats are added. They count for a year.";
+      history.replaceState(null, "", "/account#students");
+    }
+    load();
+  });
+
+  // Seat packs: 25 seats each, for a year from purchase.
+  let packs = 1;
+  async function buySeats() {
+    problem = "";
+    busy = true;
+    try {
+      await buySeatPacks(packs);
+    } catch (e) {
+      problem = e instanceof Error ? e.message : "Could not start checkout.";
+      busy = false;
+    }
+  }
   // A class added, renamed or removed in the Classes section below.
   let lastSignature = "";
   $: {
@@ -115,9 +135,25 @@
       <div class="text-sm text-sr-ink-2 min-w-[12rem]">
         <div class="flex justify-between"><span>Seats</span><span class="tabular-nums">{seats.used} of {seats.total}</span></div>
         <div class="h-2 rounded bg-sr-track overflow-hidden mt-1"><div class="h-full bg-sr-action" style="width: {Math.min(100, (seats.used / Math.max(1, seats.total)) * 100)}%"></div></div>
+        {#if seats.total > 0}
+          <div class="flex items-center gap-1 mt-2 text-xs">
+            <label for="seat-packs" class="text-sr-muted">More seats:</label>
+            <select id="seat-packs" bind:value={packs} class="rounded border border-sr-hairline bg-sr-panel text-sr-ink text-xs px-1 py-0.5">
+              {#each [1, 2, 4, 8] as n}<option value={n}>{n * 25} (${n * 25})</option>{/each}
+            </select>
+            <button class="underline text-sr-action-fg" on:click={buySeats} disabled={busy}>Buy</button>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
+
+  {#if loaded && seats.total === 0}
+    <p class="text-sm text-sr-ink-2 rounded-md border border-sr-hairline bg-sr-raise p-3">
+      The Educator plan is not active, so no one new can join your classes. The students already in them keep their accounts.
+      <a class="underline text-sr-action-fg" href="/account#plan">Renew Educator</a>
+    </p>
+  {/if}
 
   {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
   {#if notice}<p class="text-sm text-sr-ink-2" role="status">{notice}</p>{/if}

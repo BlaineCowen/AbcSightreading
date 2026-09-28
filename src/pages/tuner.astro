@@ -4,10 +4,9 @@ import AbcTuner from "../components/tuner/AbcTuner.svelte";
 import { currentUser } from "../lib/server/api";
 import { hasPremium } from "../lib/server/plan";
 
-// abcTuner is part of Pro. hasPremium() is the one place that decides; while
-// billing is not built it says yes to any signed-in account.
+// abcTuner is part of Pro (and Educator). hasPremium() is the one place that decides.
 const user = await currentUser(Astro.request);
-const allowed = !!user && hasPremium(user);
+const allowed = !!user && (await hasPremium(user));
 const next = encodeURIComponent("/tuner");
 ---
 
@@ -29,11 +28,17 @@ const next = encodeURIComponent("/tuner");
           <li>A metronome, and a scale challenge graded on tuning</li>
           <li>A tuner button on the practice pages, beside the music</li>
         </ul>
-        <p class="text-sm text-sr-muted">For now, Pro comes with every account.</p>
-        <div class="flex flex-wrap gap-2">
-          <a class="sr-btn" href={`/login?mode=signup&next=${next}`}>Create a free account</a>
-          <a class="sr-btn-quiet" href={`/login?next=${next}`}>Sign in</a>
-        </div>
+        <p class="text-sm text-sr-muted">$19.99 a year, with unlimited exercises.</p>
+        {user ? (
+          <div class="flex flex-wrap gap-2">
+            <a class="sr-btn" href="/account#plan">Get Pro</a>
+          </div>
+        ) : (
+          <div class="flex flex-wrap gap-2">
+            <a class="sr-btn" href={`/login?mode=signup&next=${next}`}>Create an account</a>
+            <a class="sr-btn-quiet" href={`/login?next=${next}`}>Sign in</a>
+          </div>
+        )}
       </div>
     )}
   </div>

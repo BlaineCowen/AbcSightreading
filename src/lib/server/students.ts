@@ -1,7 +1,11 @@
 import { auth } from "./auth";
 import { prisma } from "./db";
-import { formatJoinCode, generateJoinCode } from "../join-code";
-import { INCLUDED_SEATS, seatsUsed } from "../seats";
+import { formatJoinCode } from "../join-code";
+import { INCLUDED_SEATS, seatsTotal, seatsUsed } from "../seats";
+import { newJoinCode } from "./educator";
+import { hasEducatorPlan } from "./plan";
+
+export { newJoinCode };
 import { generatePassword, studentEmail, studentLoginName, usernameFor, type RosterStudent } from "../roster";
 
 /**
@@ -25,23 +29,18 @@ export async function accountTypeFor(user: { id: string }): Promise<AccountType>
   return accountTypeOf(row ?? {});
 }
 
-/** A class code no other class has. */
-export async function newJoinCode(): Promise<string> {
-  for (let i = 0; i < 20; i++) {
-    const code = generateJoinCode();
-    if (!(await prisma.class.findUnique({ where: { joinCode: code }, select: { id: true } }))) return code;
-  }
-  throw new Error("Could not find a free class code.");
-}
-
-/** Seats: the plan's, and how many of the teacher's students use them. */
+/**
+ * Seats: the plan's 100 and any packs still in their year, and how many of the
+ * teacher's students use them. Without the Educator plan there are none to
+ * give - the students already in a class stay, but no one new joins.
+ */
 export async function seatInfo(teacherId: string) {
-  const enrollments = await prisma.enrollment.findMany({
-    where: { class: { userId: teacherId } },
-    select: { studentId: true },
-  });
-  // Purchased seat packs add here (stage 4).
-  const total = INCLUDED_SEATS;
+  const [enrollments, grants, educator] = await Promise.all([
+    prisma.enrollment.findMany({ where: { class: { userId: teacherId } }, select: { studentId: true } }),
+    prisma.seatGrant.findMany({ where: { userId: teacherId }, select: { seats: true, expiresAt: true } }),
+    hasEducatorPlan({ id: teacherId }),
+  ]);
+  const total = educator ? seatsTotal(INCLUDED_SEATS, grants) : 0;
   const used = seatsUsed(enrollments);
   return { total, used, left: Math.max(0, total - used) };
 }

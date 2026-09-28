@@ -1,5 +1,8 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { authClient } from "../lib/auth-client";
+  import { billingStatus, openBillingPortal, startCheckout, type BillingStatus } from "../lib/billing-client";
+  import { GENERATION_LIMITS } from "../lib/plan";
 
   const session = authClient.useSession();
   $: user = $session.data?.user;
@@ -12,22 +15,58 @@
     fetch("/api/student").then((r) => (r.ok ? r.json() : null)).then((m) => (membership = m));
   }
 
-  let upgrading = false;
-  async function becomeEducator() {
-    upgrading = true;
-    problem = "";
-    const res = await fetch("/api/educator", { method: "POST" });
-    if (res.ok) {
+  // The plan, and this month's count on the free one.
+  let billing: BillingStatus | null = null;
+  let used: number | null = null;
+  const invoiceEmail = import.meta.env.PUBLIC_FEEDBACK_EMAIL as string | undefined;
+
+  onMount(async () => {
+    const params = new URLSearchParams(location.search);
+    // Back from paying for Educator: the classes get their join codes now,
+    // whether or not Stripe's webhook has arrived yet.
+    if (params.get("upgraded") === "educator") {
+      await fetch("/api/educator", { method: "POST" });
       // The session is cached in a cookie; ask for a fresh one so the page
       // (and the server's own checks) see the new plan straight away.
       await authClient.getSession({ query: { disableCookieCache: true } });
-      window.location.reload();
+      history.replaceState(null, "", "/account#plan");
+      location.reload();
+      return;
     }
-    else {
-      problem = (await res.json().catch(() => ({}))).error ?? "Could not upgrade.";
+    if (params.get("upgraded")) {
+      notice = "Thank you - Pro is on.";
+      history.replaceState(null, "", "/account#plan");
+    }
+    billing = await billingStatus();
+    if (billing?.plan === "free") {
+      const res = await fetch("/api/usage");
+      if (res.ok) used = (await res.json()).used;
+    }
+  });
+
+  let upgrading = false;
+  async function checkout(plan: "pro" | "educator") {
+    upgrading = true;
+    problem = "";
+    try {
+      await startCheckout(plan, billing?.subscription?.id);
+    } catch (e) {
+      problem = e instanceof Error ? e.message : "Could not start checkout.";
       upgrading = false;
     }
   }
+
+  async function manageBilling() {
+    problem = "";
+    try {
+      await openBillingPortal();
+    } catch (e) {
+      problem = e instanceof Error ? e.message : "Could not open billing.";
+    }
+  }
+
+  const planName = (p: string) => (p === "educator" ? "Educator" : p === "pro" ? "Pro" : "Free");
+  const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 
   // Signed out (or the session ended): nothing to show here.
   $: if (!$session.isPending && !$session.data) {
@@ -99,18 +138,57 @@
       </section>
     {/if}
 
-    <section class="flex flex-col gap-2">
+    <section id="plan" class="flex flex-col gap-2">
       <h2 class="text-xs uppercase tracking-wide text-sr-faint">Plan</h2>
       {#if isStudent}
         <p class="text-sm text-sr-ink-2">Your teacher's class plan. If you forget your password, ask your teacher for a new one.</p>
-      {:else if accountType === "educator"}
-        <p class="text-sm text-sr-ink-2">Educator: classes with join codes, and student accounts for them. Free while billing is being set up.</p>
+      {:else if !billing}
+        <p class="text-sm text-sr-muted">…</p>
+      {:else if billing.plan !== "free"}
+        <p class="text-sm text-sr-ink-2">
+          <strong>{planName(billing.plan)}</strong>: unlimited exercises and the practice tools{billing.plan === "educator" ? ", plus classes with join codes and student accounts" : ""}.
+        </p>
+        {#if billing.subscription}
+          {@const sub = billing.subscription}
+          <p class="text-sm text-sr-muted">
+            {#if sub.status === "past_due"}
+              The last payment did not go through - update the card to keep the plan.
+            {:else if sub.cancelAtPeriodEnd && sub.periodEnd}
+              Ends {day(sub.periodEnd)}.
+            {:else if sub.periodEnd}
+              Renews {day(sub.periodEnd)}.
+            {/if}
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <button class="sr-btn-quiet text-sm" on:click={manageBilling}>Card, receipts and cancelling</button>
+          </div>
+          {#if billing.plan === "pro" && accountType !== "student"}
+            <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
+              <p class="text-sm text-sr-ink"><strong>Teach a choir?</strong> Educator gives your classes join codes and 100 student accounts - for students under 13 too, with no email needed. $99 a year, less what is left of your Pro year.</p>
+              <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Upgrade to Educator</button>
+            </div>
+          {/if}
+        {:else}
+          <p class="text-sm text-sr-muted">{billing.via === "complimentary" ? "Complimentary." : "Through your teacher's class."}</p>
+        {/if}
       {:else}
-        <p class="text-sm text-sr-ink-2">Free. Your saved presets follow you to any device you sign in on.</p>
+        <p class="text-sm text-sr-ink-2">
+          <strong>Free</strong>: {GENERATION_LIMITS.free} exercises a month{used !== null ? ` - ${used} used this month` : ""}. Your saved presets follow you to any device you sign in on.
+        </p>
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
-          <p class="text-sm text-sr-ink"><strong>Teach a choir?</strong> An educator plan gives your classes join codes and up to 100 student accounts - for students under 13 too, with no email needed.</p>
-          <button class="sr-btn text-sm self-start" on:click={becomeEducator} disabled={upgrading}>Start an educator plan</button>
+          <p class="text-sm text-sr-ink"><strong>Pro - $19.99 a year.</strong> Unlimited exercises, abcTuner, and the practice tools beside the music: tuner, metronome, drone, starting pitches.</p>
+          <button class="sr-btn text-sm self-start" on:click={() => checkout("pro")} disabled={upgrading || !billing.billingEnabled}>Get Pro</button>
         </div>
+        <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
+          <p class="text-sm text-sr-ink"><strong>Educator - $99 a year.</strong> Everything in Pro, and your classes get join codes and 100 student accounts - for students under 13 too, with no email needed. More seats in packs of 25.</p>
+          <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Get Educator</button>
+          {#if invoiceEmail}
+            <p class="text-xs text-sr-muted">A school paying by purchase order, tax-exempt? <a class="underline" href="mailto:{invoiceEmail}?subject=Educator%20plan%20invoice">Ask for an invoice</a>.</p>
+          {/if}
+        </div>
+        {#if !billing.billingEnabled}
+          <p class="text-xs text-sr-muted">Payments are not set up on this server.</p>
+        {/if}
       {/if}
     </section>
 

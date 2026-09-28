@@ -36,6 +36,8 @@
   import ToolsWheel from "./tools/ToolsWheel.svelte";
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
+  import GenerationLimit from "./GenerationLimit.svelte";
+  import { claimGeneration } from "../lib/usage";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
@@ -2010,6 +2012,13 @@
       return;
     }
 
+    // The monthly allowance (src/lib/usage.ts); GenerationLimit says what to
+    // do when it is used up. A drill cannot go on without new exercises.
+    if (!(await claimGeneration())) {
+      if (drillRunning) await stopDrill();
+      return;
+    }
+
     isLoading = true;
     error = null;
 
@@ -3046,6 +3055,7 @@
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
+    <GenerationLimit />
     {#if error}
       <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">
         <p class="text-sm text-sr-brass">{error}</p>

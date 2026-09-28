@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { signedInUser } from "../../lib/auth-client";
+  import { billingStatus } from "../../lib/billing-client";
   import { tuner } from "../../lib/tuner/store";
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { toolSettings, setTool, type ToolId } from "../../lib/tools/settings";
@@ -25,7 +26,7 @@
    * metronome, the timer) keep going with the card closed, and the button says
    * so with its dot.
    *
-   * Part of Pro: signed out, the wheel still opens, and each card says what the
+   * Part of Pro: without it the wheel still opens, and each card says what the
    * tool is and how to get it.
    */
 
@@ -44,11 +45,18 @@
   let wheelOpen = false;
   let tool: ToolId | null = null;
   let allowed: boolean | null = null;
+  let signedIn = false;
+
+  async function checkPlan() {
+    signedIn = !!(await signedInUser());
+    const status = await billingStatus();
+    allowed = !!status && status.plan !== "free";
+  }
   let wheelEl: HTMLDivElement;
   let root: HTMLDivElement;
 
   onMount(() => {
-    signedInUser().then((u) => (allowed = !!u));
+    checkPlan();
     initTuner();
     initDrone();
   });
@@ -66,7 +74,7 @@
     wheelOpen = false;
     tool = id;
     setTool({ lastTool: id });
-    if (allowed === null) allowed = !!(await signedInUser());
+    if (allowed === null) await checkPlan();
     const listening = LISTENING.includes(id);
     if (allowed && listening && tuner.get().engineStatus !== "running") startTuner();
     if (!listening && tuner.get().engineStatus === "running") stopTuner();
@@ -122,10 +130,14 @@
           <h3 class="text-[15px] font-semibold">{current?.label}</h3>
           <p class="text-sm text-sr-ink-2">
             The practice tools - tuner, metronome, drone, starting pitches,
-            analysis and timer - are part of Pro. For now, Pro comes with every account.
+            analysis and timer - are part of Pro, with unlimited exercises, for $19.99 a year.
           </p>
-          <a class="sr-btn text-sm text-center" href="/login?mode=signup&next={next}">Create a free account</a>
-          <a class="text-xs text-sr-muted underline text-center" href="/login?next={next}">I have an account</a>
+          {#if signedIn}
+            <a class="sr-btn text-sm text-center" href="/account#plan">Get Pro</a>
+          {:else}
+            <a class="sr-btn text-sm text-center" href="/login?mode=signup&next={next}">Create an account</a>
+            <a class="text-xs text-sr-muted underline text-center" href="/login?next={next}">I have an account</a>
+          {/if}
         {:else if allowed === null}
           <p class="text-sm text-sr-muted">…</p>
         {:else if tool === "tuner"}

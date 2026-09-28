@@ -4,6 +4,8 @@
     newMetronomeBeatState,
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
+  import GenerationLimit from "./GenerationLimit.svelte";
+  import { claimGeneration } from "../lib/usage";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
@@ -1828,6 +1830,9 @@
       return;
     }
 
+    // The monthly allowance (src/lib/usage.ts); GenerationLimit says what to do when it is used up.
+    if (!(await claimGeneration())) return;
+
     // Draw the key for this exercise. With one key selected this is that key, so
     // nothing changes for the ordinary case.
     let keyPool = [...selectedKeys];
@@ -2029,6 +2034,7 @@
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
+    <GenerationLimit />
     {#if generationError}
       <div
         class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"

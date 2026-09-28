@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 788 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 799 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -245,9 +245,26 @@ presets once; the server dedupes by name + creation time.
   in.)
 - The generated client is in `src/generated/` (gitignored; `postinstall` runs
   `prisma generate`).
-- Billing is not built. `hasPremium()` in `src/lib/server/plan.ts` is the one
-  place a paid-plan check belongs; the intended route is Better Auth's Stripe
-  plugin, which brings its own subscription table.
+- Billing: Better Auth's Stripe plugin (auth.ts, only when `STRIPE_SECRET_KEY`
+  and `STRIPE_WEBHOOK_SECRET` are set; webhook `/api/auth/stripe/webhook`).
+  Pro $19.99/yr and Educator $99/yr, found by price lookup key
+  (`pro_yearly`, `educator_yearly`, `seat_pack_25` - `src/lib/server/stripe.ts`),
+  so the sandbox and live accounts need the same keys and no price ids live in
+  code. Checkout uses Stripe Tax; a district is made tax-exempt on its Stripe
+  customer and invoiced by hand. Pro -> Educator is `subscription/upgrade` with
+  the existing `subscriptionId`. Seat packs are a one-time checkout
+  (`/api/billing/seats`) granted by the webhook into `SeatGrant`, for a year.
+- Plans: the rules are in `src/lib/plan.ts` (tests: `billing.test.ts`), the
+  database side in `src/lib/server/plan.ts` - `planFor`, `hasPremium`,
+  `hasEducatorPlan`. Gate by those, never by reading billing fields. A student
+  of a paying educator has Pro; `COMP_EMAILS` (comma-separated) gives Educator
+  free. `accountType: "educator"` is set when the Educator plan is paid for and
+  stays after it lapses, but seats drop to 0: no one new joins.
+- Monthly exercises: 10 signed out (counted in localStorage - a soft nudge), 50
+  on a free account (`GenerationUsage`, `/api/usage`, conditional increment),
+  unlimited on Pro/Educator. Both practice pages ask `claimGeneration()`
+  (`src/lib/usage.ts`) before generating; `GenerationLimit.svelte` says what is
+  left. Pro also unlocks the Tools wheel and `/tuner`.
 
 ## Tech Stack
 
