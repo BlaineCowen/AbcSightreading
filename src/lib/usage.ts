@@ -46,3 +46,25 @@ export async function claimGeneration(): Promise<boolean> {
 
 /** Clears the "used up" notice, as when the reader closes it. */
 export const dismissLimit = () => usage.update((u) => (u ? { ...u, blocked: false } : u));
+
+/**
+ * Loads the month's count when a page opens, so it shows before the first
+ * exercise: from this browser signed out, from the server signed in. Quiet on
+ * failure - the count then appears after the next Generate.
+ */
+export async function loadUsage() {
+  const user = await signedInUser();
+  if (!user) {
+    const storage = browserStorage();
+    if (!storage) return;
+    const a = generationAllowance("anonymous", anonymousUsage(storage));
+    usage.set({ tier: "anonymous", limit: a.limit, remaining: a.remaining, blocked: false });
+    return;
+  }
+  try {
+    const res = await fetch("/api/usage");
+    if (!res.ok) return;
+    const body = await res.json();
+    usage.set({ tier: body.plan, limit: body.limit, remaining: body.remaining, blocked: false });
+  } catch {}
+}

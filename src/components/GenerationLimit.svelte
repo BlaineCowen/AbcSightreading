@@ -1,13 +1,17 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { X } from "lucide-svelte";
-  import { usage, dismissLimit } from "../lib/usage";
+  import { usage, dismissLimit, loadUsage } from "../lib/usage";
   import { GENERATION_LIMITS } from "../lib/plan";
 
   /**
-   * What the monthly allowance says, beside Generate: a quiet count when a few
-   * are left, and when none are, what to do about it - make a free account
-   * (signed out) or get Pro (signed in). Nothing at all on an unlimited plan.
+   * What the monthly allowance says, at the top of the practice page: how many
+   * exercises are left this month and the way to more - a free account
+   * (signed out) or Pro (signed in) - in amber once three or fewer are left;
+   * and when none are, what to do about it. Nothing at all on an unlimited
+   * plan. The playback bar's Generate button carries the number too.
    */
+  onMount(loadUsage);
 
   $: here = typeof location !== "undefined" ? location.pathname + location.search : "/";
   $: signupHref = `/login?mode=signup&next=${encodeURIComponent(here)}`;
@@ -31,13 +35,18 @@
       <X size={14} />
     </button>
   </div>
-{:else if $usage && $usage.remaining !== null && $usage.remaining <= 3}
-  <p class="text-xs text-sr-muted" role="status">
-    {$usage.remaining === 0 ? "That was the last one this month." : `${$usage.remaining} ${$usage.remaining === 1 ? "exercise" : "exercises"} left this month.`}
+{:else if $usage && $usage.limit !== null && $usage.remaining !== null}
+  {@const low = $usage.remaining <= 3}
+  <p
+    class="w-full max-w-xl text-sm rounded-md px-3 py-1.5 no-print {low ? 'bg-sr-brass-bg text-sr-brass' : 'text-sr-muted'}"
+    role="status"
+  >
+    <strong class="tabular-nums {low ? '' : 'text-sr-ink-2'}">{$usage.remaining}</strong> of {$usage.limit}
+    {$usage.tier === "anonymous" ? "free exercises" : "exercises"} left this month.
     {#if $usage.tier === "anonymous"}
-      <a class="underline text-sr-action-fg" href={signupHref}>A free account</a> gives {GENERATION_LIMITS.free}.
+      <a class="underline font-medium text-sr-action-fg" href={signupHref}>Create a free account</a> for {GENERATION_LIMITS.free} a month.
     {:else}
-      <a class="underline text-sr-action-fg" href={upgradeHref}>Pro</a> is unlimited.
+      <a class="underline font-medium text-sr-action-fg" href={upgradeHref}>Get Pro</a> for unlimited - $19.99 a year.
     {/if}
   </p>
 {/if}

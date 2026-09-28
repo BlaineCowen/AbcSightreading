@@ -2,6 +2,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from "svelte";
   import CountInOverlay from "./CountInOverlay.svelte";
+  import { usage } from "../lib/usage";
   import SkipBack from "lucide-svelte/icons/skip-back";
   import Play from "lucide-svelte/icons/play";
   import Pause from "lucide-svelte/icons/pause";
@@ -229,6 +230,15 @@
         >
           <RefreshCw size={16} class={isGenerating ? "animate-spin" : ""} />
           <span class="hidden sm:inline">Generate</span>
+          {#if $usage && $usage.limit !== null && $usage.remaining !== null}
+            <!-- This month's exercises left, on the button that uses them. -->
+            <span
+              class="ml-0.5 min-w-[1.25rem] rounded-full px-1.5 text-[11px] leading-5 tabular-nums font-bold
+                     {$usage.remaining <= 3 ? 'bg-amber-400 text-slate-900' : 'bg-white/20 text-white'}"
+              title="{$usage.remaining} exercises left this month"
+              aria-label="{$usage.remaining} left this month"
+            >{$usage.remaining}</span>
+          {/if}
         </button>
       {/if}
       <button
