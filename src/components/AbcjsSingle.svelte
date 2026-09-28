@@ -3857,7 +3857,7 @@
       <!-- Instrument volume (the percussion level in rhythm-only mode) -->
       <div class="flex items-center gap-2">
         <button
-          class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8"
+          class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8"
           on:click={toggleMute}
           title={rhythmOnly ? 'Toggle percussion' : 'Toggle piano'}
           aria-label={rhythmOnly ? 'Toggle percussion' : 'Toggle piano'}
@@ -3876,7 +3876,7 @@
       <!-- Metronome -->
       <div class="flex items-center gap-2">
         <button
-          class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8"
+          class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8"
           on:click={() => (isMetronomeOn = !isMetronomeOn)}
           title="Toggle metronome"
           aria-label="Toggle metronome click during playback"
@@ -3892,7 +3892,7 @@
           aria-label="Metronome volume"
         />
         <button
-          class="rounded px-3 py-2 sm:py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+          class="rounded px-3 py-2 xl:py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
           on:click={toggleStandaloneMetronome}
           disabled={isPlaying}
           aria-pressed={metronomeRunning}
@@ -3901,12 +3901,12 @@
       </div>
 
       {#if !rhythmOnly}
-        <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+        <div class="w-px h-5 bg-slate-600 hidden 2xl:block"></div>
 
         <!-- Drone (sounds the tonic, so pitched mode only) -->
         <div class="flex items-center gap-2">
           <button
-            class="rounded px-3 py-2 sm:py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+            class="rounded px-3 py-2 xl:py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
             on:click={toggleDrone}
             aria-pressed={dronePlaying}
           >{dronePlaying ? 'Drone On' : 'Drone'}</button>
@@ -3923,11 +3923,12 @@
         </div>
       {/if}
 
-      <div class="w-px h-5 bg-slate-600 hidden sm:block"></div>
+      <div class="w-px h-5 bg-slate-600 hidden 2xl:block"></div>
 
       <!-- Display size -->
       <div class="flex items-center gap-2">
-        <span class="text-xs text-slate-400 uppercase tracking-wide">Size</span>
+        <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
+        <span class="text-xs text-slate-400 uppercase tracking-wide xl:hidden 2xl:inline">Size</span>
         <button
           class="flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6"
           on:click={() => { displayScale = Math.max(0.5, displayScale - 0.1); if (currentTune && originalTuneString) rerenderTune(); }}

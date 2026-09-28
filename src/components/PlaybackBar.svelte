@@ -178,24 +178,24 @@
 
   // 44px targets on touch, back to the original compact size from sm up.
   const iconBtn =
-    "flex items-center justify-center rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-40 h-11 w-11 sm:h-8 sm:w-8";
+    "flex items-center justify-center rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-40 h-11 w-11 xl:h-8 xl:w-8";
   const stepBtn =
-    "flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6";
+    "flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 xl:h-6 xl:w-6";
   const chipBtn =
-    "flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 sm:py-1 text-xs";
+    "flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 xl:py-1 text-xs";
   const menuItem =
-    "w-full flex flex-col items-start px-3 py-2 sm:py-1.5 text-left hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent";
+    "w-full flex flex-col items-start px-3 py-2 xl:py-1.5 text-left hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent";
 </script>
 
 <!--
-  Mobile: a column - optional sheet on top, transport below.
-  Desktop: `sm:contents` dissolves the sheet wrapper so its groups become direct
+  Phone and iPad (below xl, 1280px): a column - optional sheet on top, transport below.
+  Desktop: `xl:contents` dissolves the sheet wrapper so its groups become direct
   items of this row, reproducing the original single-row bar exactly.
 -->
 <div
   bind:this={barEl}
   class="playback-bar fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-100 z-50 shadow-lg
-         flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:px-4"
+         flex flex-col xl:flex-row xl:flex-wrap xl:items-center xl:gap-3 2xl:gap-4 xl:px-4"
   style="padding-bottom: env(safe-area-inset-bottom, 0px)"
 >
   <!-- "1, 2, Ready, Go" over the tempo controls while the count-in plays. -->
@@ -204,19 +204,24 @@
     <!-- Full width and first, so it reads the same on a phone as on a desktop
          and never competes with the transport for room. -->
     <div
-      class="w-full sm:order-first sm:basis-full bg-slate-700/80 px-3 py-1.5 text-xs font-medium text-blue-200"
+      class="w-full xl:order-first xl:basis-full bg-slate-700/80 px-3 py-1.5 text-xs font-medium text-blue-200"
       role="status"
     >{status}</div>
   {/if}
 
-  <!-- Transport. sm:order-last + sm:ml-auto park this whole group at the right
-       of the desktop row, after the mixer controls spliced in below. -->
-  <div class="flex items-center gap-2 sm:gap-4 flex-nowrap sm:flex-wrap px-3 py-2 sm:p-0 sm:py-2
-              sm:order-last sm:ml-auto">
+  <!-- Transport. xl:order-last + xl:ml-auto park this whole group at the right
+       of the desktop row, after the mixer controls spliced in below.
+
+       The one-row layout needs about 1,100px, so below xl (1280px) - phones,
+       and iPads in either orientation - the bar is the compact one: this row,
+       with everything else behind "More controls". An iPad keeps the labels
+       and the full-size buttons from sm up. -->
+  <div class="flex items-center gap-2 sm:gap-3 xl:gap-4 flex-nowrap xl:flex-wrap px-3 py-2 xl:p-0 xl:py-2
+              xl:order-last xl:ml-auto">
     <div class="flex gap-2 items-center">
       {#if onGenerate}
         <button
-          class="flex items-center justify-center gap-1.5 shrink-0 sr-btn font-bold px-3 sm:px-4 h-11 sm:h-8 text-sm disabled:opacity-50"
+          class="flex items-center justify-center gap-1.5 shrink-0 sr-btn font-bold px-3 sm:px-4 h-11 xl:h-8 text-sm disabled:opacity-50"
           on:click={onGenerate}
           disabled={isGenerating}
           title="Generate a new exercise"
@@ -236,14 +241,14 @@
 
       {#if isPlaying}
         <button
-          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 sm:h-8 text-sm font-bold disabled:opacity-40"
+          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPause}
           aria-label="Pause"
         ><Pause size={18} /><span class="hidden sm:inline">Pause</span></button>
       {:else}
         <button
-          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 sm:h-8 text-sm font-bold disabled:opacity-40"
+          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPlay}
           aria-label="Play"
@@ -259,7 +264,7 @@
       ><Square size={18} /></button>
 
       <button
-        class="hidden sm:flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 {looping
+        class="hidden xl:flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8 {looping
           ? 'bg-amber-500 text-white'
           : 'bg-slate-600 hover:bg-slate-500'}"
         on:click={onToggleLoop}
@@ -269,11 +274,12 @@
       ><Repeat size={18} /></button>
     </div>
 
-    <div class="w-px h-6 bg-slate-600 hidden sm:block"></div>
+    <div class="w-px h-6 bg-slate-600 hidden xl:block"></div>
 
     <!-- BPM -->
     <div class="flex items-center gap-1 sm:gap-2">
-      <span class="text-xs text-slate-400 uppercase tracking-wide hidden sm:inline">BPM</span>
+      <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
+      <span class="text-xs text-slate-400 uppercase tracking-wide hidden sm:inline xl:hidden 2xl:inline">BPM</span>
       <button
         class={stepBtn}
         on:click={() => (onBpmCommit ?? onBpmChange)(Math.max(40, bpm - 5))}
@@ -286,7 +292,7 @@
         value={bpm}
         on:input={handleBpmInput}
         on:change={handleBpmCommit}
-        class="hidden sm:block w-20 accent-blue-500"
+        class="hidden xl:block w-20 accent-blue-500"
         aria-label="Tempo"
       />
       <button
@@ -298,7 +304,7 @@
     </div>
 
       <button
-        class="sm:hidden ml-auto flex items-center justify-center rounded h-11 w-11 {expanded
+        class="xl:hidden ml-auto flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8 {expanded
           ? 'bg-amber-500 text-white'
           : 'bg-slate-600 hover:bg-slate-500'}"
         on:click={async () => { expanded = !expanded; await tick(); publishBarHeight(); }}
@@ -309,13 +315,13 @@
   </div>
 
   <!-- Secondary controls. order-first puts the sheet above the transport on
-       mobile; sm:contents splices these groups into the desktop row instead. -->
+       a phone or iPad; xl:contents splices these groups into the desktop row instead. -->
     <div
-      class="order-first sm:order-none {expanded ? 'flex' : 'hidden'}
-             sm:contents flex-wrap items-center gap-3 px-3 py-2 border-b border-slate-700
+      class="order-first xl:order-none {expanded ? 'flex' : 'hidden'}
+             xl:contents flex-wrap items-center gap-3 px-3 py-2 border-b border-slate-700
              max-h-[50dvh] overflow-y-auto overscroll-contain"
     >
-      <div class="flex sm:hidden items-center gap-2 w-full">
+      <div class="flex xl:hidden items-center gap-2 w-full">
         <span class="text-xs text-slate-400 uppercase tracking-wide">BPM</span>
         <input
           type="range"
@@ -330,7 +336,7 @@
       </div>
 
       <button
-        class="sm:hidden flex items-center gap-1 rounded px-3 py-2 text-xs font-semibold {looping
+        class="xl:hidden flex items-center gap-1 rounded px-3 py-2 text-xs font-semibold {looping
           ? 'bg-amber-500 text-white'
           : 'bg-slate-600 hover:bg-slate-500'}"
         on:click={onToggleLoop}
@@ -353,8 +359,8 @@
           </svelte:fragment>
           <div class="flex items-center gap-1 pl-3 pr-1 pt-1 text-[10px] uppercase tracking-wide text-slate-400" aria-hidden="true">
             <span class="flex-1"></span>
-            {#if onToggleHidden}<span class="w-11 sm:w-8 text-center">Show</span>{/if}
-            <span class="w-11 sm:w-8 text-center">Hear</span>
+            {#if onToggleHidden}<span class="w-11 xl:w-8 text-center">Show</span>{/if}
+            <span class="w-11 xl:w-8 text-center">Hear</span>
           </div>
           {#each voiceNames as name}
             {@const hidden = hiddenVoices.has(name)}
@@ -364,7 +370,7 @@
               {#if onToggleHidden}
                 {@const locked = !hidden && shownCount <= 1}
                 <button
-                  class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8
+                  class="flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8
                          hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent
                          {hidden ? 'text-slate-400' : 'text-teal-300'}"
                   on:click={() => onToggleHidden?.(name)}
@@ -377,7 +383,7 @@
                 </button>
               {/if}
               <button
-                class="flex items-center justify-center rounded h-11 w-11 sm:h-8 sm:w-8 hover:bg-slate-600
+                class="flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8 hover:bg-slate-600
                        {muted ? 'text-slate-400' : 'text-teal-300'}"
                 on:click={() => onToggleMute(name)}
                 aria-pressed={!muted}
@@ -435,7 +441,7 @@
           bind:open={exportOpen}
           menuClass="min-w-[17rem]"
         >
-          <svelte:fragment slot="trigger"><Printer size={14} /> Print / Export</svelte:fragment>
+          <svelte:fragment slot="trigger"><Printer size={14} /> Print<span class="xl:hidden 2xl:inline">/ Export</span></svelte:fragment>
           <button class={menuItem} on:click={print}>
             <span class="text-sm text-slate-100">Print / Save as PDF</span>
             <span class="text-xs text-slate-400">Your browser's print dialog</span>
