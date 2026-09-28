@@ -89,8 +89,8 @@ export async function createSchoolQuote(user: { id: string; name: string; email:
     description:
       `For ${req.school}${req.district ? `, ${req.district}` : ""}. Attention: ${req.contactName}.\n` +
       `Account holder: ${user.name} (${user.email}).\n` +
-      `One year of the Educator plan: unlimited sight-reading exercises, practice tools, and ${seats} student accounts` +
-      ` (students under 13 need no email). Renews yearly by invoice; cancel any time before renewal.`,
+      `One year of the Educator plan: unlimited sight-reading exercises, practice tools, and ${seats} secure student accounts` +
+      ` for all age groups. Renews yearly by invoice; cancel any time before renewal.`,
     footer:
       "Please put this quote number on the purchase order. Payment: net 30 by ACH, card or check through the invoice's payment link. " +
       (req.taxExempt ? "Quoted tax-exempt: please send your exemption certificate (Texas: Form 01-339) with the PO. " : "") +

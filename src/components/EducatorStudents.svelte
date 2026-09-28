@@ -146,7 +146,7 @@
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
       <h2 class="text-lg font-semibold text-sr-ink">Students</h2>
-      <p class="text-sm text-sr-muted">Students join a class with its code, or you make their accounts from a list. No email is needed, so students under 13 can have one.</p>
+      <p class="text-sm text-sr-muted">Students join a class with its code, or you make their accounts from a list. Secure student accounts for all age groups.</p>
     </div>
     {#if loaded}
       <div class="text-sm text-sr-ink-2 min-w-[12rem]">
