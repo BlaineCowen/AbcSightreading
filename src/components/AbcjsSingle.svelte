@@ -37,6 +37,8 @@
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import CountInOverlay from "./CountInOverlay.svelte";
+  import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
@@ -1486,6 +1488,8 @@
 
     timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
       beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
+        // "1, 2, Ready, Go" over the music through the count-in.
+        showCountIn(playedMeter(), beatNumber);
         // With beatSubdivisions below, beatNumber arrives fractional - 0,
         // 0.0625, 0.125 ... - so the click is tied to the whole beat rather
         // than to the callback. Without this the metronome fires once per
@@ -1553,7 +1557,7 @@
         });
       },
       qpm: tempo,
-      extraMeasuresAtBeginning: 1, // This creates the count-in period where metronome plays
+      extraMeasuresAtBeginning: countInMeasures(playedMeter()), // the count-in, where the metronome plays
       lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
       // Held at 16 whatever the mode is. abcjs reads this once when playback
       // starts, so pinning it lets the cursor mode be switched mid-session -
@@ -1699,14 +1703,20 @@
   }
 
   /**
-   * Length of the one-measure count-in, in seconds.
-   * The cursor timeline (extraMeasuresAtBeginning: 1) includes this measure,
-   * but the rendered audio buffer starts at the first real note.
+   * Length of the count-in, in seconds: one bar, or two in 2/4.
+   * The cursor timeline (extraMeasuresAtBeginning) includes it, but the
+   * rendered audio buffer starts at the first real note.
    */
   function getCountInDuration(): number {
-    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
-    return (60 / tempo) * beatsPerMeasure;
+    // Two bars in 2/4, so "1, 2, Ready, Go" fits (count-in.ts).
+    return (60 / tempo) * countInBeats(playedMeter());
   }
+
+  /** The meter of the tune on the page: the count-in follows it. */
+  const playedMeter = () => meterOf(currentTune, selectedTimeSignature);
+
+  // The count-in word goes when playback stops, pauses or ends.
+  $: if (!isPlaying) hideCountIn();
 
   /** Total length of the timeline: count-in + the audio itself. */
   function getTimelineDuration(): number {
@@ -3062,6 +3072,7 @@
        offered here. -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
+  <CountInOverlay />
 
   {#if !assignment}
   <PresetDropdown

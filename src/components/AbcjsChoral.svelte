@@ -5,6 +5,8 @@
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import CountInOverlay from "./CountInOverlay.svelte";
+  import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
@@ -794,11 +796,18 @@
   // next callback to leave it frozen mid-staff.
   $: if (cursorMode === "off" && playbackCursor) hidePlaybackCursor();
 
+  /** The meter of the tune being played, set as the synth is built: the count-in follows it. */
+  // The count-in word goes when playback stops, pauses or ends.
+  $: if (!isPlaying) hideCountIn();
+
+  let playedMeter = "4/4";
+
   function buildAudioParams() {
     return {
       drum: drumBeats[selectedTimeSignature] ?? '',
       drumBars: 1,
-      drumIntro: 1,
+      // The count-in: two bars in 2/4, so "1, 2, Ready, Go" fits (count-in.ts).
+      drumIntro: countInMeasures(playedMeter),
       // Samples come through our own origin: abcjs otherwise fetches them from
       // paulrosen.github.io, which locked-down networks block, and a blocked
       // fetch yields a silent buffer rather than an error - playback looks fine
@@ -1654,6 +1663,7 @@
 
   // ── Synth init ─────────────────────────────────────────────────────────────
   async function initSynth(tune: any) {
+    playedMeter = meterOf(tune, selectedTimeSignature);
     const voicesOff = barVoices
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
       .filter((i) => i >= 0);
@@ -1684,7 +1694,7 @@
     synthControl = new abcjs.synth.SynthController();
 
     const cursorControl = {
-      extraMeasuresAtBeginning: 1,
+      extraMeasuresAtBeginning: countInMeasures(playedMeter),
       // Held at 16 whatever the cursor mode is. abcjs reads this once when
       // playback starts, so pinning it lets the mode be changed mid-session -
       // the callbacks read cursorMode live - without rebuilding the synth.
@@ -1699,6 +1709,8 @@
       // abcjs interpolates position.left between the surrounding notes on every
       // call, which is what makes this glide rather than step.
       onBeat: (beatNumber: number, _totalBeats: number, _totalTime: number, position: any) => {
+        // "1, 2, Ready, Go" over the music through the count-in.
+        showCountIn(playedMeter, beatNumber);
         if (cursorMode !== "smooth" && cursorMode !== "beat") return;
         // Beat mode steps once per beat; smooth takes every callback, which is
         // where abcjs's interpolation between notes shows up.
@@ -2042,6 +2054,7 @@
   <!-- Preset bar -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
+  <CountInOverlay />
 
   {#if !assignment}
   <PresetDropdown
