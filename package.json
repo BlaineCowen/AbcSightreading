@@ -6,6 +6,7 @@
     "@astrojs/svelte": "5.0.0",
     "@astrojs/tailwind": "^5.1.0",
     "@astrojs/vercel": "6.1.4",
+    "@better-auth/core": "^1.7.6",
     "@better-auth/stripe": "^1.7.6",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
