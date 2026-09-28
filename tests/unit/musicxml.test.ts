@@ -189,7 +189,7 @@ describe("the score", () => {
     expect(xml.match(/<score-part /g)?.length).toBe(4);
     expect(xml).toContain("<group-symbol>bracket</group-symbol>");
     expect(xml).toContain("<per-minute>96</per-minute>");
-    expect(xml).toContain("<work-title>Sight Reading Exercise - Eb</work-title>");
+    expect(xml).toContain("<work-title>Sight Reading Exercise in Eb</work-title>");
     wellFormed(xml);
   });
 

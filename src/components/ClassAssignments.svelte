@@ -145,7 +145,7 @@
         <select class={input} bind:value={form.presetKey} required>
           <option value="" disabled>Choose…</option>
           {#each ladderStages() as stage}
-            <optgroup label="Step by step - {stage.stage}">
+            <optgroup label="Step by step: {stage.stage}">
               {#each stage.steps as step}<option value={presetKeyOf.step(step.id)}>{step.number}. {step.title}</option>{/each}
             </optgroup>
           {/each}

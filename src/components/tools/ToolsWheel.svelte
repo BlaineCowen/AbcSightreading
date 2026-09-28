@@ -129,8 +129,8 @@
         {#if allowed === false}
           <h3 class="text-[15px] font-semibold">{current?.label}</h3>
           <p class="text-sm text-sr-ink-2">
-            The practice tools - tuner, metronome, drone, starting pitches,
-            analysis and timer - are part of Pro, with unlimited exercises, for $19.99 a year.
+            The practice tools (tuner, metronome, drone, starting pitches,
+            analysis and timer) are part of Pro, with unlimited exercises, for $19.99 a year.
           </p>
           {#if signedIn}
             <a class="sr-btn text-sm text-center" href="/account#plan">Get Pro</a>

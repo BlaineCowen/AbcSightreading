@@ -54,7 +54,7 @@ export async function createAffiliate(a: { name: string; code: string; percentOf
   const coupon = await stripe.coupons.create({
     percent_off: a.percentOff,
     duration: "once",
-    name: `${a.code} - ${a.percentOff}% off the first year`,
+    name: `${a.code}: ${a.percentOff}% off the first year`,
     metadata: { kind: "affiliate", affiliate: a.name },
   });
   const promotion = await stripe.promotionCodes.create({

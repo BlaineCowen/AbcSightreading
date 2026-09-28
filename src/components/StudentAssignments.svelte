@@ -31,7 +31,7 @@
   <section class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3">
     <h2 class="text-lg font-semibold text-sr-ink">Assignments</h2>
     {#if !items.length}
-      <p class="text-sm text-sr-muted">Nothing assigned yet. Your practice time still counts - your teacher can see it.</p>
+      <p class="text-sm text-sr-muted">Nothing assigned yet. Your practice time still counts, and your teacher can see it.</p>
     {/if}
     {#each todo as a (a.id)}
       <a href={assignmentHref(a)} class="block rounded-md border border-sr-hairline bg-sr-raise p-3 hover:border-sr-action no-underline">

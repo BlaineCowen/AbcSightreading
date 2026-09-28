@@ -41,7 +41,7 @@
       return;
     }
     if (params.get("upgraded")) {
-      notice = "Thank you - Pro is on.";
+      notice = "Thank you! Pro is on.";
       history.replaceState(null, "", "/account#plan");
     }
     try {
@@ -188,7 +188,7 @@
           {@const sub = billing.subscription}
           <p class="text-sm text-sr-muted">
             {#if sub.status === "past_due"}
-              The last payment did not go through - update the card to keep the plan.
+              The last payment did not go through. Update the card to keep the plan.
             {:else if sub.cancelAtPeriodEnd && sub.periodEnd}
               Ends {day(sub.periodEnd)}.
             {:else if sub.periodEnd}
@@ -200,7 +200,7 @@
           </div>
           {#if EDUCATOR_ON_SALE && billing.plan === "pro" && accountType !== "student"}
             <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
-              <p class="text-sm text-sr-ink"><strong>Teach a choir?</strong> Educator gives your classes join codes and 100 student accounts - for students under 13 too, with no email needed. $99 a year, less what is left of your Pro year.</p>
+              <p class="text-sm text-sr-ink"><strong>Teach a choir?</strong> Educator gives your classes join codes and 100 student accounts, for students under 13 too, with no email needed. $99 a year, less what is left of your Pro year.</p>
               <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Upgrade to Educator</button>
               <p class="text-xs text-sr-muted">Tax-exempt school, or paying by purchase order? <a class="underline" href="#quote">Get a quote</a>.</p>
             </div>
@@ -214,17 +214,17 @@
         {/if}
       {:else}
         <p class="text-sm text-sr-ink-2">
-          <strong>Free</strong>: {GENERATION_LIMITS.free} exercises a month{used !== null ? ` - ${used} used this month` : ""}. Your saved presets follow you to any device you sign in on.
+          <strong>Free</strong>: {GENERATION_LIMITS.free} exercises a month{used !== null ? ` (${used} used this month)` : ""}. Your saved presets follow you to any device you sign in on.
         </p>
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
-          <p class="text-sm text-sr-ink"><strong>Pro - $19.99 a year.</strong> Unlimited exercises, abcTuner, and the practice tools beside the music: tuner, metronome, drone, starting pitches.</p>
+          <p class="text-sm text-sr-ink"><strong>Pro: $19.99 a year.</strong> Unlimited exercises, abcTuner, and the practice tools beside the music: tuner, metronome, drone, starting pitches.</p>
           <button class="sr-btn text-sm self-start" on:click={() => checkout("pro")} disabled={upgrading || !billing.billingEnabled}>Get Pro</button>
         </div>
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
           <p class="text-sm text-sr-ink">
-            <strong>Educator - $99 a year.</strong>
+            <strong>Educator: $99 a year.</strong>
             {#if !EDUCATOR_ON_SALE}<span class="ml-1 rounded bg-sr-brass-bg text-sr-brass text-xs font-semibold px-1.5 py-0.5 align-middle">Coming soon</span>{/if}
-            Everything in Pro, and your classes get join codes and 100 student accounts - for students under 13 too, with no email needed. Assign practice and see the minutes each student put in.
+            Everything in Pro, and your classes get join codes and 100 student accounts, for students under 13 too, with no email needed. Assign practice and see the minutes each student put in.
           </p>
           {#if EDUCATOR_ON_SALE}
             <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Get Educator</button>

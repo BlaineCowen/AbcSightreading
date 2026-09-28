@@ -17,7 +17,7 @@ const viewer = await currentUser(Astro.request).catch(() => null);
 const accountType = viewer ? await accountTypeFor(viewer) : "standard";
 ---
 
-<Layout noindex title="ABC Sight Reading - Account" themable>
+<Layout noindex title="Account | abc Sight Reading" themable>
   <div class="flex flex-col w-full items-center gap-6 pb-16">
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
     {accountType !== "educator" && <StudentAssignments client:only="svelte" />}

@@ -63,7 +63,7 @@
       const q: Quote = await call("/api/quotes", { method: "POST", body: JSON.stringify(form) });
       quotes = [q, ...quotes];
       open = false;
-      notice = `Quote ${q.number} is ready - download it below. A copy is on its way to your email.`;
+      notice = `Quote ${q.number} is ready. Download it below; a copy is on its way to your email.`;
     } catch (e) {
       problem = e instanceof Error ? e.message : "Could not make the quote.";
     }
@@ -147,7 +147,7 @@
   {:else}
     <form class="flex flex-col gap-3" on:submit|preventDefault={requestQuote}>
       <label class="text-sm text-sr-ink-2 flex flex-col gap-1">School <input class={input} bind:value={form.school} required /></label>
-      <label class="text-sm text-sr-ink-2 flex flex-col gap-1">District <span class="text-xs text-sr-faint">if the district pays - the quote is made out to it</span><input class={input} bind:value={form.district} placeholder="Springfield ISD" /></label>
+      <label class="text-sm text-sr-ink-2 flex flex-col gap-1">District <span class="text-xs text-sr-faint">if the district pays, the quote is made out to it</span><input class={input} bind:value={form.district} placeholder="Springfield ISD" /></label>
       <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Purchasing contact <input class={input} bind:value={form.contactName} required placeholder="Name" /></label>
       <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Their email <span class="text-xs text-sr-faint">the invoice goes here</span><input class={input} type="email" bind:value={form.contactEmail} required /></label>
       <fieldset class="flex flex-col gap-2">
@@ -164,7 +164,7 @@
         Extra seats
         <select class="rounded border border-sr-hairline bg-sr-panel text-sr-ink text-sm px-1 py-1" bind:value={form.packs}>
           {#each Array.from({ length: Math.min(MAX_PACKS, 20) + 1 }, (_, i) => i) as n}
-            <option value={n}>{n === 0 ? "none - 100 students" : `+${n * 25} - ${100 + n * 25} students`}</option>
+            <option value={n}>{n === 0 ? "none (100 students)" : `+${n * 25} (${100 + n * 25} students)`}</option>
           {/each}
         </select>
       </label>

@@ -1,0 +1,56 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { ladderById, stepHref } from "../lib/ladder";
+
+/**
+ * How to use the two practice pages, in the page's own HTML. It used to sit
+ * under the apps themselves, where it was clutter; here it is a guide a
+ * director can read, and search engines can too.
+ */
+const firstStep = Object.values(ladderById)[0];
+---
+
+<Layout
+  title="How to Use abc Sight Reading | Choir Sight-Reading and Sight-Singing"
+  description="How to use abc Sight Reading with a choir: choral exercises in SATB, SSA and TTB at UIL levels 1 to 5, single-line sight-singing on solfège, and a step by step path from ta and ti-ti."
+  themable
+>
+  <article class="max-w-3xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-4 pb-10">
+    <h1 class="text-4xl font-bold text-sr-ink">How to use abc Sight Reading</h1>
+    <p class="text-lg">
+      Two pages do the work. <strong>Choral</strong> writes exercises in parts. <strong>Unison</strong> writes one line
+      to sight-sing. Both write a new exercise every time you press Generate.
+    </p>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-4">Choral sight-reading with a choir</h2>
+    <p>
+      Pick a voicing: four-part mixed (SATB), three-part treble (SSA), tenor-bass (TTB), or the two-part voicings the
+      lower UIL levels use. Then pick a UIL level, or set the key, meter, rhythms and chords yourself. Each part stays in
+      its own range, the voice leading avoids parallel fifths and octaves, and eight bars come out as a real phrase
+      with a cadence.
+    </p>
+    <p>
+      Project it, print it, or play it back on piano or choir sound with a count-in and a moving cursor. Show
+      movable-do or fixed-do solfège under each part, or Roman numerals above, on the exercise already on screen.
+    </p>
+    <div><a class="sr-btn" href="/choral-sightreading">Open Choral</a></div>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-4">Sight-singing one line</h2>
+    <p>
+      Choose the scale degrees your singers know (do-re-mi, then up to so, then the whole scale), the rhythms they
+      read, and how far a line may leap. Every exercise is new and ends on do. Show movable-do solfège under the notes,
+      and Kodály rhythm syllables: ta and ti-ti, or the words your choir already uses.
+    </p>
+    <div><a class="sr-btn" href="/sightreading">Open Unison</a></div>
+
+    <h2 class="text-2xl font-semibold text-sr-ink mt-4">Not sure where to start?</h2>
+    <p>
+      <a class="underline text-sr-action-fg" href={stepHref(firstStep)}>Step by step</a> goes from rhythm alone,
+      through a single line, to two, three and four parts, one new thing at a time. Rhythm-only drills and a count-in
+      make it work for a whole class or a student practising at home.
+    </p>
+    <p>
+      Preparing for contest? See <a class="underline text-sr-action-fg" href="/uil-sight-reading">UIL sight-reading practice</a>.
+    </p>
+  </article>
+</Layout>

@@ -27,7 +27,7 @@
         <p><a class="underline font-medium text-sr-action-fg" href={signupHref}>Create a free account</a></p>
       {:else}
         <p class="font-semibold text-sr-ink">That's this month's {GENERATION_LIMITS.free} exercises.</p>
-        <p>Pro is unlimited, with the tuner and practice tools, for $19.99 a year. Or wait for the 1st - the count starts again each month.</p>
+        <p>Pro is unlimited, with the tuner and practice tools, for $19.99 a year. Or wait for the 1st, when the count starts again.</p>
         <p><a class="underline font-medium text-sr-action-fg" href={upgradeHref}>Get Pro</a></p>
       {/if}
     </div>

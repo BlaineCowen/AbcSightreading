@@ -73,7 +73,7 @@
   <section class="bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-4">
     <div>
       <h2 class="text-lg font-semibold text-sr-ink">Access codes</h2>
-      <p class="text-sm text-sr-muted">A plan free for a number of days from the day it's used - no card. Send the link; it signs them in or up, then applies the code.</p>
+      <p class="text-sm text-sr-muted">A plan free for a number of days from the day it's used, with no card. Send the link; it signs them in or up, then applies the code.</p>
     </div>
     {#each codes as c (c.id)}
       <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 text-sm flex flex-col gap-1">

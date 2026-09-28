@@ -85,7 +85,7 @@ export async function createSchoolQuote(user: { id: string; name: string; email:
     invoice_settings: { days_until_due: 30 },
     automatic_tax: { enabled: await taxReady() },
     expires_at: Math.floor(Date.now() / 1000) + QUOTE_DAYS * 86_400,
-    header: "abc Sight Reading - Educator plan",
+    header: "abc Sight Reading: Educator plan",
     description:
       `For ${req.school}${req.district ? `, ${req.district}` : ""}. Attention: ${req.contactName}.\n` +
       `Account holder: ${user.name} (${user.email}).\n` +
@@ -205,7 +205,7 @@ export async function acceptSchoolQuote(user: { id: string; name: string; email:
   if (owner) {
     await sendAccountEmail(
       owner,
-      `PO ${poNumber}: ${row.school} - Educator (${row.number})`,
+      `PO ${poNumber}: ${row.school}, Educator (${row.number})`,
       [
         `${user.name} (${user.email}) entered PO ${poNumber} for quote ${row.number}.`,
         `School: ${row.school}. Invoice to: ${row.contactEmail}. ${dollars(row.amountTotal)}${row.taxExempt ? ", tax-exempt - file their certificate" : ""}.`,

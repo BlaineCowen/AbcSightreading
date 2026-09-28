@@ -60,7 +60,7 @@
   onMount(() => {
     loadSaved().catch(() => {});
     if (new URLSearchParams(location.search).get("seats") === "added") {
-      notice = "Thank you - the seats are added. They count for a year.";
+      notice = "Thank you! The seats are added, and they count for a year.";
       history.replaceState(null, "", "/account#students");
     }
     load();
@@ -107,7 +107,7 @@
       return;
     }
     cards = data.created.map((c: { name: string; username: string; password: string }) => ({ ...c, className: cls.name, joinCode: data.joinCode }));
-    notice = `Added ${data.created.length} student${data.created.length === 1 ? "" : "s"} to ${cls.name}. Print their login cards now - the passwords are not shown again.`;
+    notice = `Added ${data.created.length} student${data.created.length === 1 ? "" : "s"} to ${cls.name}. Print their login cards now: the passwords are not shown again.`;
     rosterText = "";
     addingTo = null;
     await load();
@@ -234,7 +234,7 @@
             </label>
             {#if parsed.students.length || parsed.errors.length}
               <p class="text-sm text-sr-ink-2">
-                {parsed.students.length} student{parsed.students.length === 1 ? "" : "s"}{parsed.students.length > seats.left ? ` - only ${seats.left} seats left` : ""}.
+                {parsed.students.length} student{parsed.students.length === 1 ? "" : "s"}{parsed.students.length > seats.left ? `, but only ${seats.left} seats left` : ""}.
                 {#each parsed.errors as e}<span class="block text-xs text-sr-brass">{e}</span>{/each}
               </p>
             {/if}

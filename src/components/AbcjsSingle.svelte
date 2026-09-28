@@ -2866,7 +2866,7 @@
           "musicxml",
           abcToMusicXml(abc, {
             tempo,
-            title: rhythmOnly ? "Rhythm Exercise" : `Sight Reading Exercise - ${key ?? ""}`.trim(),
+            title: rhythmOnly ? "Rhythm Exercise" : `Sight Reading Exercise in ${key ?? ""}`.trim(),
             defaultPartName: rhythmOnly ? "Rhythm" : "Voice",
           })
         );

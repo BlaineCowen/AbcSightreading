@@ -7,6 +7,7 @@ export const PUBLIC_PAGES = [
   "/",
   "/choral-sightreading",
   "/sightreading",
+  "/how-to-use",
   "/uil-sight-reading",
   "/pricing",
   "/sight-reading-factory-alternative",
