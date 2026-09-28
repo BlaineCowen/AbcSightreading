@@ -56,6 +56,12 @@ const billing =
             // no tax. Schools also get to enter a tax ID for their receipts.
             getCheckoutSessionParams: async () => ({
               params: {
+                // We are the seller: Stripe Tax works out the tax, schools are
+                // made exempt on their customer, and prices include tax. The
+                // live account has Stripe's Managed Payments (Stripe as the
+                // merchant of record) on by default, which refuses a checkout
+                // without automatic tax - so it is off for ours.
+                managed_payments: { enabled: false },
                 automatic_tax: { enabled: await taxReady() },
                 billing_address_collection: "required",
                 tax_id_collection: { enabled: true },

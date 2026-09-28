@@ -39,6 +39,8 @@ export const POST: APIRoute = async ({ request }) => {
     customer,
     customer_update: { address: "auto", name: "auto" },
     line_items: [{ price: price.id, quantity: packs }],
+    // We are the seller, not Stripe's Managed Payments (see auth.ts).
+    managed_payments: { enabled: false },
     automatic_tax: { enabled: await taxReady() },
     billing_address_collection: "required",
     tax_id_collection: { enabled: true },
