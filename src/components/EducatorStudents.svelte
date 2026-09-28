@@ -4,6 +4,7 @@
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
   import { buySeatPacks } from "../lib/billing-client";
+  import { EDUCATOR_ON_SALE } from "../lib/plan";
   import ClassAssignments from "./ClassAssignments.svelte";
   import { UNISON_PRESET_STORE } from "../lib/preset-storage";
 
@@ -151,7 +152,7 @@
       <div class="text-sm text-sr-ink-2 min-w-[12rem]">
         <div class="flex justify-between"><span>Seats</span><span class="tabular-nums">{seats.used} of {seats.total}</span></div>
         <div class="h-2 rounded bg-sr-track overflow-hidden mt-1"><div class="h-full bg-sr-action" style="width: {Math.min(100, (seats.used / Math.max(1, seats.total)) * 100)}%"></div></div>
-        {#if seats.total > 0}
+        {#if seats.total > 0 && EDUCATOR_ON_SALE}
           <div class="flex items-center gap-1 mt-2 text-xs">
             <label for="seat-packs" class="text-sr-muted">More seats:</label>
             <select id="seat-packs" bind:value={packs} class="rounded border border-sr-hairline bg-sr-panel text-sr-ink text-xs px-1 py-0.5">

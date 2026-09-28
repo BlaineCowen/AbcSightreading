@@ -8,6 +8,7 @@ import SchoolQuote from "../components/SchoolQuote.svelte";
 import StudentAssignments from "../components/StudentAssignments.svelte";
 import { currentUser } from "../lib/server/api";
 import { accountTypeFor } from "../lib/server/students";
+import { EDUCATOR_ON_SALE } from "../lib/plan";
 
 // What this account is decides the page: an educator manages students; a
 // student's teacher manages theirs, so none of the director's tools show.
@@ -21,7 +22,7 @@ const accountType = viewer ? await accountTypeFor(viewer) : "standard";
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
     {accountType !== "educator" && <StudentAssignments client:only="svelte" />}
     <AccountPanel client:only="svelte" />
-    {accountType !== "student" && <SchoolQuote client:only="svelte" />}
+    {accountType !== "student" && EDUCATOR_ON_SALE && <SchoolQuote client:only="svelte" />}
     {accountType === "educator" && <EducatorStudents client:only="svelte" />}
     {accountType !== "student" && <ClassProgress client:only="svelte" />}
     {accountType !== "student" && <SyllableEditor client:only="svelte" />}

@@ -16,6 +16,14 @@ export type Tier = "anonymous" | Plan;
 
 export const GENERATION_LIMITS = { anonymous: 10, free: 50 } as const;
 
+/**
+ * Whether the Educator plan can be bought yet. While false it shows as
+ * "coming soon" everywhere it is offered - pricing, the account page, school
+ * quotes, seat packs - and the server refuses to sell it. Access codes (the
+ * beta testers') still give it. Flip to true to open sales.
+ */
+export const EDUCATOR_ON_SALE = false;
+
 /** The subscription fields the plan depends on (Better Auth's Stripe plugin's table). */
 export type SubscriptionLike = { plan: string; status: string; periodEnd?: Date | null };
 

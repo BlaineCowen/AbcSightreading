@@ -1,6 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { GENERATION_LIMITS } from "../lib/plan";
+import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 import { PLAN_OFFERS } from "../lib/seo";
 
 /**
@@ -59,15 +59,16 @@ const plans = [
       "Assignments, and the practice time each student actually spent",
       "More seats: 25 for $25 a year",
     ],
-    cta: { href: "/account#plan", label: "Get Educator" },
-    featured: true,
+    cta: EDUCATOR_ON_SALE ? { href: "/account#plan", label: "Get Educator" } : null,
+    soon: !EDUCATOR_ON_SALE,
+    featured: EDUCATOR_ON_SALE,
   },
 ];
 ---
 
 <Layout
   title="Pricing - Free, Pro and Educator | abc Sight Reading"
-  description={`Free: ${GENERATION_LIMITS.anonymous} sight-reading exercises a month, ${GENERATION_LIMITS.free} with a free account. Pro: unlimited for $19.99 a year. Educator: $99 a year with 100 student accounts. Schools can pay by purchase order.`}
+  description={`Free: ${GENERATION_LIMITS.anonymous} sight-reading exercises a month, ${GENERATION_LIMITS.free} with a free account. Pro: unlimited for $19.99 a year.${EDUCATOR_ON_SALE ? " Educator: $99 a year with 100 student accounts. Schools can pay by purchase order." : " Educator, with student accounts, is coming soon."}`}
   themable
   jsonLd={jsonLd}
 >
@@ -81,25 +82,32 @@ const plans = [
       {plans.map((p) => (
         <div class:list={["sr-panel p-6 flex flex-col gap-4", { "ring-2 ring-sr-action": p.featured }]}>
           <div>
-            <h2 class="text-xl font-semibold text-sr-ink">{p.name}</h2>
+            <h2 class="text-xl font-semibold text-sr-ink">
+              {p.name}
+              {p.soon && <span class="ml-2 align-middle rounded bg-sr-brass-bg text-sr-brass text-xs font-semibold px-2 py-0.5">Coming soon</span>}
+            </h2>
             <p class="mt-2"><span class="text-3xl font-bold text-sr-ink">{p.price}</span> <span class="text-sr-muted">{p.per}</span></p>
           </div>
           <ul class="flex flex-col gap-2 text-sm text-sr-ink-2 list-disc pl-5 flex-1">
             {p.points.map((pt) => <li>{pt}</li>)}
           </ul>
-          <a class="sr-btn text-center" href={p.cta.href}>{p.cta.label}</a>
+          {p.cta ? (
+            <a class="sr-btn text-center" href={p.cta.href}>{p.cta.label}</a>
+          ) : (
+            <span class="sr-btn-quiet text-center opacity-70" aria-disabled="true">Coming soon</span>
+          )}
         </div>
       ))}
     </div>
 
     <section class="max-w-3xl mx-auto text-sr-ink-2 flex flex-col gap-3">
-      <h2 class="text-2xl font-semibold text-sr-ink">Schools and purchase orders</h2>
-      <p>
+      {EDUCATOR_ON_SALE && <h2 class="text-2xl font-semibold text-sr-ink">Schools and purchase orders</h2>}
+      {EDUCATOR_ON_SALE && <p>
         Sign in, open your account page, and choose <strong>Get a quote</strong>. You get a numbered PDF quote to send
         your purchasing office, made out to your school or district, marked tax-exempt if it is. When the purchase order
         comes back, enter its number: the Educator plan starts right away, and the invoice goes to the school, due in 30
         days, payable by ACH, card or check.
-      </p>
+      </p>}
       <p>
         Prices are in US dollars and include any sales tax - what you see is what you pay. Public schools and districts
         with an exemption certificate are billed tax-exempt. Plans renew yearly and can be cancelled any time before renewal.

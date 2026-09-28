@@ -8,6 +8,7 @@ import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { resetPasswordEmail, sendAccountEmail, verifyEmailEmail } from "./auth-email";
 import { isStudentEmail } from "../roster";
+import { EDUCATOR_ON_SALE } from "../plan";
 import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from "./stripe";
 import { becomeEducator } from "./educator";
 import { recordAffiliateSale } from "./codes";
@@ -199,6 +200,9 @@ export const auth = betterAuth({
     // them what they need.
     before: createAuthMiddleware(async (ctx) => {
       if (!ctx.path.startsWith("/subscription/")) return;
+      if (!EDUCATOR_ON_SALE && ctx.path === "/subscription/upgrade" && (ctx.body as { plan?: string } | undefined)?.plan === "educator") {
+        throw new APIError("FORBIDDEN", { message: "The Educator plan is coming soon." });
+      }
       const session = await getSessionFromCtx(ctx);
       if (session?.user && (session.user as { accountType?: string }).accountType === "student") {
         throw new APIError("FORBIDDEN", { message: "Student accounts cannot buy a plan." });

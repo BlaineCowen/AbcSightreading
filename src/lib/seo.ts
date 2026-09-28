@@ -13,9 +13,14 @@ export const PUBLIC_PAGES = [
   "/tuner",
 ];
 
+import { EDUCATOR_ON_SALE } from "./plan";
+
 /** The plans as the pricing page and structured data state them. Keep in step with src/lib/plan.ts. */
-export const PLAN_OFFERS = [
+const ALL_OFFERS = [
   { name: "Free", price: "0", description: "10 exercises a month without an account, 50 with a free account" },
   { name: "Pro", price: "19.99", description: "Unlimited exercises, the practice tools and abcTuner, for a year" },
   { name: "Educator", price: "99", description: "Everything in Pro, plus classes, assignments, practice time and 100 student accounts, for a year" },
 ];
+
+/** What can be bought now - search engines are not told of a plan that isn't on sale. */
+export const PLAN_OFFERS = ALL_OFFERS.filter((o) => o.name !== "Educator" || EDUCATOR_ON_SALE);

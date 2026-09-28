@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../lib/server/api";
 import { prisma } from "../../../lib/server/db";
 import { hasEducatorPlan } from "../../../lib/server/plan";
+import { EDUCATOR_ON_SALE } from "../../../lib/plan";
 import { PRICES, SEATS_PER_PACK, stripe, taxReady } from "../../../lib/server/stripe";
 
 /**
@@ -14,6 +15,7 @@ export const POST: APIRoute = async ({ request }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
   if (!stripe) return json({ error: "Billing is not available here." }, 503);
+  if (!EDUCATOR_ON_SALE) return json({ error: "Seat packs are coming soon, with the Educator plan." }, 403);
   if (!(await hasEducatorPlan(user))) return json({ error: "Seat packs are for the Educator plan." }, 403);
   const packs = Number((await readJson(request) as { packs?: unknown } | undefined)?.packs ?? 1);
   if (!Number.isInteger(packs) || packs < 1 || packs > MAX_PACKS) {

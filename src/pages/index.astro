@@ -1,7 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { PLAN_OFFERS } from "../lib/seo";
-import { GENERATION_LIMITS } from "../lib/plan";
+import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 
 /**
  * The landing page.
@@ -47,7 +47,7 @@ const features = [
 const faq = [
   {
     q: "Is it free?",
-    a: `Yes, to start: ${GENERATION_LIMITS.anonymous} exercises a month with no account, ${GENERATION_LIMITS.free} with a free account. Pro is unlimited for $19.99 a year, and Educator adds student accounts for $99 a year.`,
+    a: `Yes, to start: ${GENERATION_LIMITS.anonymous} exercises a month with no account, ${GENERATION_LIMITS.free} with a free account. Pro is unlimited for $19.99 a year${EDUCATOR_ON_SALE ? ", and Educator adds student accounts for $99 a year" : ""}.`,
   },
   {
     q: "What voicings does it write?",
@@ -59,7 +59,9 @@ const faq = [
   },
   {
     q: "Can my students practise at home?",
-    a: "Yes. With an Educator plan your classes get join codes and up to 100 student accounts - no email needed, so students under 13 can have one. Assign practice, and see who opened it and how many minutes they spent.",
+    a: EDUCATOR_ON_SALE
+      ? "Yes. With an Educator plan your classes get join codes and up to 100 student accounts - no email needed, so students under 13 can have one. Assign practice, and see who opened it and how many minutes they spent."
+      : "Anyone can practise at home today. The Educator plan - class join codes, up to 100 student accounts with no email needed, and assignments with the minutes each student spent - is coming soon.",
   },
   {
     q: "Is it made with AI?",
@@ -189,14 +191,14 @@ const jsonLd = [
     <!-- Students -->
     <section class="sr-panel py-16 px-6">
       <div class="max-w-3xl mx-auto text-center">
-        <p class="sr-label text-sr-action-fg">For your students, too</p>
+        <p class="sr-label text-sr-action-fg">For your students, too{EDUCATOR_ON_SALE ? "" : " - coming soon"}</p>
         <h2 class="mt-4 text-3xl sm:text-4xl font-bold text-sr-ink">Practice that happens at home</h2>
         <p class="mt-6 text-lg text-sr-ink-2">
           Give each class a join code, or make accounts from your roster - no email needed, so students under 13 can
           have one. Assign a level for fifteen minutes, and see who opened it and how long they really practised.
         </p>
         <p class="mt-4 text-sr-ink-2">
-          Free to start. Unlimited for $19.99 a year; $99 a year with 100 student accounts.
+          Free to start. Unlimited for $19.99 a year{EDUCATOR_ON_SALE ? "; $99 a year with 100 student accounts" : ". Student accounts come with the Educator plan, coming soon"}.
           <a class="underline text-sr-action-fg" href="/pricing">See pricing</a>
         </p>
       </div>

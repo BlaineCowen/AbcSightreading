@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/server/db";
 import { accountTypeFor } from "../../../lib/server/students";
 import { QuoteError, createSchoolQuote } from "../../../lib/server/quotes";
 import { checkQuoteRequest } from "../../../lib/quote";
+import { EDUCATOR_ON_SALE } from "../../../lib/plan";
 
 /**
  * School quotes (src/lib/server/quotes.ts).
@@ -40,6 +41,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
+  if (!EDUCATOR_ON_SALE) return json({ error: "The Educator plan is coming soon." }, 403);
   if ((await accountTypeFor(user)) === "student") return json({ error: "Student accounts cannot ask for quotes." }, 403);
   const checked = checkQuoteRequest(await readJson(request));
   if (!checked.ok) return json({ error: checked.error }, 400);

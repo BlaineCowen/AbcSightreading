@@ -276,7 +276,7 @@ presets once; the server dedupes by name + creation time.
   Logged only for accounts in a class, all practice, not just assigned;
   minutes, exercise counts and dates only, deleted after 395 days.
 - Codes (rules `src/lib/codes.ts`, tests `codes.test.ts`; server
-  `src/lib/server/codes.ts`; owner's page `/admin`, for `ADMIN_EMAILS` only,
+  `src/lib/server/codes.ts`; owner's page `/admin`, for `ADMIN_EMAILS` (or `ADMIN_EMAIL`) only,
   404 to anyone else): an access code (`AccessCode`) gives Pro or Educator free
   for N days from use - `AccessGrant` rows, read by `planFor` beside
   subscriptions. Links are `/account?code=X`, which survive sign-in/sign-up.
@@ -285,6 +285,10 @@ presets once; the server dedupes by name + creation time.
   `checkout.session.completed`) records the advertiser's cut of what the
   checkout paid before tax in `AffiliateSale`. Payouts are by hand; `/admin`
   marks them paid.
+- **Educator is not on sale yet**: `EDUCATOR_ON_SALE` in `src/lib/plan.ts` is
+  false, so pricing, the account page, the home page and the guides say
+  "coming soon"; checkout (auth.ts hook), quotes and seat packs refuse it on
+  the server. Access codes still grant it (beta testers). Flip it to open sales.
 - Plans: the rules are in `src/lib/plan.ts` (tests: `billing.test.ts`), the
   database side in `src/lib/server/plan.ts` - `planFor`, `hasPremium`,
   `hasEducatorPlan`. Gate by those, never by reading billing fields. A student
