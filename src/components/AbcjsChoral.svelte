@@ -5,6 +5,10 @@
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import AssignmentBanner from "./AssignmentBanner.svelte";
+  import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
+  import { startPractice } from "../lib/practice-tracker";
+  import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { claimGeneration } from "../lib/usage";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
@@ -880,6 +884,8 @@
     p.set("measures", measures.toString());
     p.set("bpm", bpm.toString());
     p.set("cursor", cursorMode);
+    // An open assignment stays in the address, so a reload keeps it.
+    if (assignmentId) p.set(ASSIGNMENT_PARAM, assignmentId);
     p.set("sound", String(instrumentProgram));
     p.set("solfege", lyricSystem ?? "0");
     p.set("chords", showChords ? "1" : "0");
@@ -975,6 +981,23 @@
     if (value && exerciseFragment(value) !== exerciseHash) openLinkedExercise(value);
   }
 
+  // ── Assignment ─────────────────────────────────────────────────────────────
+  // Read at start: the URL sync rewrites the address from the page's state.
+  const assignmentId = assignmentIdFromUrl();
+  let assignment: OpenAssignment | null = null;
+
+  /** Opens an assignment: its preset applied, the settings locked while it is open. */
+  async function openAssignment(id: string) {
+    const a = await fetchAssignment(id, "choral");
+    if (!a) return;
+    const [kind, rest] = [a.presetKey.slice(0, a.presetKey.indexOf(":")), a.presetKey.slice(a.presetKey.indexOf(":") + 1)];
+    if (kind === "step" && ladderById[rest]) applyLadderStep(ladderById[rest]);
+    else if (kind === "uil" && uilPresets[rest]) applyLevel(uilPresets[rest]);
+    else if (kind === "saved" && a.params) applySavedPreset(a.params as SavedPreset);
+    assignment = a;
+    updateURLParams();
+  }
+
   onMount(() => {
     // Astro 4 leaves a `client:only` fallback in the DOM after the island
     // hydrates - it is not swapped out - so the skeleton would sit on top of the
@@ -984,6 +1007,9 @@
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
+    // Practice time, for a student in a class; and an assignment, if the address names one.
+    startPractice({ page: "choral", assignmentId, isBusy: () => isPlaying });
+    if (assignmentId) openAssignment(assignmentId);
     loadMixLevels();
     const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
@@ -2017,6 +2043,7 @@
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
 
+  {#if !assignment}
   <PresetDropdown
     activeLabel={activePresetLabel}
     {activeSavedId}
@@ -2031,9 +2058,11 @@
     onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
     onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
   />
+  {/if}
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
+    {#if assignment}<AssignmentBanner {assignment} />{/if}
     <GenerationLimit />
     {#if generationError}
       <div
@@ -2133,8 +2162,8 @@
         </button>
       </div>
 
-      <!-- Tab content -->
-      <div class="p-4">
+      <!-- Tab content - locked to an open assignment's settings -->
+      <div class="p-4" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
 
         <!-- Setup Tab -->
         {#if selectedTab === 'setup'}

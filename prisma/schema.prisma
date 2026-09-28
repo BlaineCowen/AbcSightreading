@@ -38,6 +38,8 @@ model User {
   seatGrants    SeatGrant[]
   usage         GenerationUsage[]
   quotes        Quote[]
+  practice      PracticeTime[]
+  practiceClock PracticeClock?
 
   @@map("user")
 }
@@ -134,6 +136,7 @@ model Class {
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]
   enrollments Enrollment[]
+  assignments Assignment[]
 
   @@index([userId])
   @@map("class")
@@ -266,4 +269,61 @@ model Quote {
 
   @@index([userId])
   @@map("quote")
+}
+
+// Practice set for a class: one preset and how many minutes, with an optional
+// due date. The preset is copied in (`params`, for a saved preset) so editing
+// or deleting it later does not change work already set. Rules:
+// src/lib/practice.ts.
+model Assignment {
+  id        String         @id @default(cuid())
+  classId   String
+  class     Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  presetKey String
+  /// What the student sees: "Step 12 · Do-re-mi-fa-so".
+  title     String
+  /// "unison" or "choral": the page it opens on.
+  page      String
+  /// A saved preset's settings as they were when assigned; null for steps and levels.
+  params    Json?
+  minutes   Int
+  dueAt     DateTime?
+  note      String         @default("")
+  createdAt DateTime       @default(now())
+  practice  PracticeTime[]
+
+  @@index([classId])
+  @@map("assignment")
+}
+
+// A student's practice, in seconds per day - on an assignment, or on their
+// own when `assignmentId` is null. Several rows may share a day (two tabs
+// racing to create one); every total is a sum, so that is harmless. Deleted
+// after RETENTION_DAYS.
+model PracticeTime {
+  id           String      @id @default(cuid())
+  studentId    String
+  student      User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// The student's calendar day, "2026-09-28".
+  day          String
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  page         String
+  seconds      Int         @default(0)
+  exercises    Int         @default(0)
+  updatedAt    DateTime    @updatedAt
+
+  @@index([studentId, day])
+  @@index([assignmentId])
+  @@map("practice_time")
+}
+
+// When a student was last credited practice time, so reports from several
+// tabs cannot count faster than the clock (creditSeconds).
+model PracticeClock {
+  studentId      String   @id
+  student        User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lastCreditedAt DateTime
+
+  @@map("practice_clock")
 }

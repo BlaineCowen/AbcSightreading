@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isStudentEmail } from "../lib/roster";
   import { onMount } from "svelte";
   import { Sun, Moon, CircleUser } from "lucide-svelte";
   import { nextNavState, type NavScroll } from "../lib/nav-reveal";
@@ -178,8 +179,8 @@
           <a
             href="/account"
             class="w-10 h-10 flex items-center justify-center rounded-md transition-colors hover:text-sr-action-fg hover:bg-sr-track {here === '/account' ? 'text-sr-action-fg' : 'text-sr-ink-2'}"
-            aria-label="Account ({account.email})"
-            title={account.email}
+            aria-label={isStudentEmail(account.email) ? "Account" : `Account (${account.email})`}
+            title={isStudentEmail(account.email) ? "Account" : account.email}
           ><CircleUser size={20} /></a>
         {:else if account === null && here !== "/login"}
           <a href="/login?next={nextHere}" class="sr-btn-quiet text-[14px]">Sign in</a>
@@ -206,7 +207,7 @@
             class="flex items-center min-h-12 px-3 rounded-md text-base transition-colors {here === '/account' || here === '/login' ? 'font-semibold text-sr-action-fg bg-sr-track' : 'text-sr-ink-2 hover:bg-sr-track'}"
             on:click={() => (isNavbarOpen = false)}
           >
-            {account ? `Account (${account.email})` : "Sign in"}
+            {account ? (isStudentEmail(account.email) ? "Account" : `Account (${account.email})`) : "Sign in"}
           </a>
         {/if}
       </div>

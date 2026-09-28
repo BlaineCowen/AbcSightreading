@@ -4,6 +4,8 @@
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
   import { buySeatPacks } from "../lib/billing-client";
+  import ClassAssignments from "./ClassAssignments.svelte";
+  import { UNISON_PRESET_STORE } from "../lib/preset-storage";
 
   /**
    * The educator's students: seats, each class's join code, its students,
@@ -41,7 +43,21 @@
     ({ seats, classes } = await res.json());
     loaded = true;
   }
+  // The teacher's own presets, both pages, for the assignment picker.
+  let savedPresets: { id: string; name: string; page: string }[] = [];
+  async function loadSaved() {
+    const lists = await Promise.all(
+      [["abcsr_presets", "Choral"], [UNISON_PRESET_STORE, "Unison"]].map(([store, page]) =>
+        fetch(`/api/presets?store=${store}`)
+          .then((r) => (r.ok ? r.json() : []))
+          .then((list: { id: string; name: string }[]) => list.map((p) => ({ id: p.id, name: p.name, page })))
+      )
+    );
+    savedPresets = lists.flat();
+  }
+
   onMount(() => {
+    loadSaved().catch(() => {});
     if (new URLSearchParams(location.search).get("seats") === "added") {
       notice = "Thank you - the seats are added. They count for a year.";
       history.replaceState(null, "", "/account#students");
@@ -202,6 +218,8 @@
             </tbody>
           </table>
         {/if}
+
+        <ClassAssignments classId={cls.id} saved={savedPresets} />
 
         {#if addingTo === cls.id}
           <div class="flex flex-col gap-2">

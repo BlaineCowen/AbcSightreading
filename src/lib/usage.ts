@@ -1,5 +1,6 @@
 import { writable } from "svelte/store";
 import { signedInUser } from "./auth-client";
+import { noteExercise } from "./practice-tracker";
 import { anonymousUsage, generationAllowance, recordAnonymousGeneration, type Tier } from "./plan";
 
 /**
@@ -35,8 +36,10 @@ export async function claimGeneration(): Promise<boolean> {
     if (!res.ok) return true;
     const body = await res.json();
     usage.set({ tier: body.plan, limit: body.limit, remaining: body.remaining, blocked: !body.granted });
+    if (body.granted) noteExercise();
     return !!body.granted;
   } catch {
+    noteExercise();
     return true;
   }
 }

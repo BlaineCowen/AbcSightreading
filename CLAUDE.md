@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 806 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 819 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -262,6 +262,18 @@ presets once; the server dedupes by name + creation time.
   carries the PO and goes to the school, and Educator starts at once - the
   subscription row is written by us, since the plugin cannot map a school's
   customer to the teacher. `FEEDBACK_TO` is told of every PO.
+- Assignments and practice time (rules `src/lib/practice.ts`, tests
+  `practice.test.ts`; server `src/lib/server/practice.ts`): a teacher assigns a
+  class one preset (step, UIL level or saved - a saved one is copied in) for N
+  minutes, optionally due. Students see them on `/account` (student sign-in
+  lands there); `?assignment=<id>` on a practice page applies the preset, locks
+  the tab content (`inert`) and hides the preset menu. `practice-tracker.ts`
+  counts a second when the page is visible and touched, or playback, the
+  metronome, drone or tuner is running, within 5 minutes; it reports every 30 s
+  to `/api/practice`, which credits at most the claim and at most the time
+  since the student's last credit (`PracticeClock`), so tabs don't add up.
+  Logged only for accounts in a class, all practice, not just assigned;
+  minutes, exercise counts and dates only, deleted after 395 days.
 - Plans: the rules are in `src/lib/plan.ts` (tests: `billing.test.ts`), the
   database side in `src/lib/server/plan.ts` - `planFor`, `hasPremium`,
   `hasEducatorPlan`. Gate by those, never by reading billing fields. A student

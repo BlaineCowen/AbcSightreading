@@ -37,6 +37,10 @@
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import AssignmentBanner from "./AssignmentBanner.svelte";
+  import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
+  import { startPractice } from "../lib/practice-tracker";
+  import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { claimGeneration } from "../lib/usage";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
@@ -170,6 +174,23 @@
   let metronomeBeat = 0;
 
   // Initialize Web Audio API components
+  // ── Assignment ─────────────────────────────────────────────────────────────
+  // Read at start: the URL sync rewrites the address from the page's state.
+  const assignmentId = assignmentIdFromUrl();
+  let assignment: OpenAssignment | null = null;
+
+  /** Opens an assignment: its preset applied, the settings locked while it is open. */
+  async function openAssignment(id: string) {
+    const a = await fetchAssignment(id, "unison");
+    if (!a) return;
+    const kind = a.presetKey.slice(0, a.presetKey.indexOf(":"));
+    const rest = a.presetKey.slice(a.presetKey.indexOf(":") + 1);
+    if (kind === "step" && ladderById[rest]) applyLadderStep(ladderById[rest]);
+    else if (kind === "saved" && a.params) applySavedPreset(a.params as SavedPreset<any>);
+    assignment = a;
+    updateUrlFromState();
+  }
+
   onMount(() => {
     // Astro 4 leaves a `client:only` fallback in the DOM after the island
     // hydrates - it is not swapped out - so the skeleton would sit on top of the
@@ -1042,6 +1063,8 @@
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
     params.set("cursor", cursorMode);
+    // An open assignment stays in the address, so a reload keeps it.
+    if (assignmentId) params.set(ASSIGNMENT_PARAM, assignmentId);
 
     // The exercise hash rides along, or the next settings change would lose it.
     const newUrl = `${window.location.pathname}?${params.toString()}${exerciseHash}`;
@@ -2963,6 +2986,9 @@
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[linkedStepId ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
+    // Practice time, for a student in a class; and an assignment, if the address names one.
+    startPractice({ page: "unison", assignmentId, isBusy: () => isPlaying });
+    if (assignmentId) openAssignment(assignmentId);
     const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
     window.addEventListener("hashchange", onHashChange);
@@ -3037,6 +3063,7 @@
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
 
+  {#if !assignment}
   <PresetDropdown
     store={UNISON_PRESET_STORE}
     showBuiltins={false}
@@ -3052,9 +3079,11 @@
     onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
     onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
   />
+  {/if}
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
+    {#if assignment}<AssignmentBanner {assignment} />{/if}
     <GenerationLimit />
     {#if error}
       <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">
@@ -3094,8 +3123,8 @@
         </button>
       </div>
 
-      <!-- Tab content -->
-      <div class="p-4">
+      <!-- Tab content - locked to an open assignment's settings -->
+      <div class="p-4" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
 
         <!-- Setup Tab -->
         {#if selectedTab === 'setup'}

@@ -42,7 +42,8 @@
           password,
         });
         if (error) problem = "That class code, username and password do not match. Check your login card.";
-        else window.location.href = next;
+        // A student starts from their assignments, unless they were sent somewhere.
+        else window.location.href = safeNext(new URLSearchParams(window.location.search).get("next"), "/account");
       } else if (mode === "signin") {
         const { error } = await authClient.signIn.email({ email, password, callbackURL: next });
         if (error) problem = error.message ?? "Could not sign in.";
