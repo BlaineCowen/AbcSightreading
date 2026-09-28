@@ -5,6 +5,7 @@
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import CountInBadge from "./CountInBadge.svelte";
   import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
@@ -2781,6 +2782,8 @@
     <div class="relative w-full" class:min-h-40={isGenerating}>
       <!-- Kept in the DOM even while hidden: renderAbc finds it by id, and it
            is un-hidden before renderTune measures its width. -->
+      <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
+      <CountInBadge />
       <div
         id="paper"
         class="sr-sheet w-full my-2"

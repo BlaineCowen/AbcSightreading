@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { countInWordNow } from "../lib/count-in";
+  import { countInOnScore, countInWordNow } from "../lib/count-in";
 
   /**
-   * The count-in, beat by beat: "1", "2", "Ready", "Go". Drawn over the right
-   * end of the playback bar - the tempo controls, which nobody touches in the
-   * count - so it never covers the music singers are finding their first note
-   * in, and Pause stays within reach. Lives inside PlaybackBar, whose fixed box
-   * it is positioned against. Never takes a click.
+   * The count-in's fallback: over the right end of the playback bar - the
+   * tempo controls, which nobody touches in the count - for when the score
+   * has no room above its first staff for CountInBadge. Never covers the
+   * music, and Pause stays within reach. Lives inside PlaybackBar, whose fixed
+   * box it is positioned against. Never takes a click.
    */
 </script>
 
-{#if $countInWordNow}
+{#if $countInWordNow && !$countInOnScore}
   {#key $countInWordNow.beat}
     <div class="count-in no-print" aria-live="assertive" aria-atomic="true">
       <span class:go={$countInWordNow.word === "Go"}>{$countInWordNow.word}</span>

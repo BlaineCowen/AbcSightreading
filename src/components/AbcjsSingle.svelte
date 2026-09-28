@@ -37,6 +37,7 @@
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import CountInBadge from "./CountInBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
@@ -1198,6 +1199,10 @@
       // the only real zoom lever.
       responsive: "resize",
       staffwidth: getStaffWidth(),
+      // Room above the first staff on a phone for the count-in word
+      // (CountInBadge), which sits there rather than on the music. A desktop
+      // has room already.
+      ...(isNarrow() ? { paddingtop: 40 } : {}),
       wrap: {
         // Syllables sit under every note, so a measure needs more width or
         // abcjs pushes colliding annotations onto a second row - "(sh)" and the
@@ -3797,6 +3802,8 @@
 
     <!-- Music Display -->
     <div class="relative w-full">
+      <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
+      <CountInBadge />
       <div
         id="paper"
         class="sr-sheet w-full my-2"
