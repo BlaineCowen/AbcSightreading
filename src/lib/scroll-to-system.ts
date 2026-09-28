@@ -46,3 +46,51 @@ export function worthScrolling(target: number, currentScroll: number): boolean {
 export function targetMoved(aimedAt: number, nowAt: number): boolean {
   return Math.abs(nowAt - aimedAt) >= 8;
 }
+
+/**
+ * Brings a line of music to the reading position, just under the navbar.
+ *
+ * `el` is the whole system (abcjs's `.abcjs-staff-wrapper`, which holds every
+ * staff of the line and whatever reaches above them, like high notes and chord
+ * symbols), or the score itself for the first line, so its title and the
+ * count-in badge above the first staff stay in view too. Aiming at the top
+ * staff line instead leaves all of that under the navbar.
+ */
+export function scrollToReadingPosition(el: Element | null | undefined) {
+  if (!el || typeof window === "undefined") return;
+  const top = el.getBoundingClientRect().top + window.scrollY;
+  const target = firstSystemScrollTarget(top, window.innerHeight);
+  if (worthScrolling(target, window.scrollY)) window.scrollTo({ top: target, behavior: "smooth" });
+}
+
+/** The line of music an element of the score belongs to. */
+export const systemOf = (el: Element | null | undefined) => el?.closest(".abcjs-staff-wrapper") ?? null;
+
+/**
+ * The line of music at a height given in abcjs's drawing units (a timing
+ * event's `top`), which are the SVG's own user units, so getBBox compares
+ * directly.
+ */
+export function systemAt(top: number | undefined): Element | null {
+  if (typeof top !== "number") return null;
+  const lines = document.querySelectorAll<SVGGraphicsElement>("#paper .abcjs-staff-wrapper");
+  for (const line of lines) {
+    const b = line.getBBox();
+    if (top >= b.y - 2 && top <= b.y + b.height + 2) return line;
+  }
+  return null;
+}
+
+/**
+ * Just before a line ends: scroll only as far as it takes for the next line
+ * to be fully on screen above the playback bar, so the line still being sung
+ * stays in view for its last notes. When the next line starts, it is brought
+ * to the reading position (scrollToReadingPosition). Turning the whole way at
+ * once pushed the line being sung off the top for its last half second.
+ */
+export function revealNextLine(next: Element | null | undefined) {
+  if (!next || typeof window === "undefined") return;
+  const barTop = document.querySelector(".playback-bar")?.getBoundingClientRect().top ?? window.innerHeight;
+  const needed = next.getBoundingClientRect().bottom + 8 - barTop;
+  if (needed > 0) window.scrollTo({ top: window.scrollY + needed, behavior: "smooth" });
+}

@@ -9,6 +9,9 @@
   import {
     firstSystemScrollTarget,
     worthScrolling,
+    scrollToReadingPosition,
+    revealNextLine,
+    systemOf,
     targetMoved,
   } from "../lib/scroll-to-system";
   import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
@@ -1523,6 +1526,15 @@
       // Fires once at each note's onset, so the cursor lands on the note and
       // stays there for its full length.
       eventCallback: (event: any) => {
+        // A new line has started: bring it to the reading position. The first
+        // line is scrollToFirstSystem's, which also keeps the score's top in view.
+        const system = systemOf(event?.elements?.[0]?.[0]);
+        if (system && system !== playingSystem) {
+          if (playingSystem && system !== document.querySelector("#paper .abcjs-staff-wrapper") && !scrollSuppressed) {
+            scrollToReadingPosition(system);
+          }
+          playingSystem = system;
+        }
         if (effectiveCursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
         movePlaybackCursor(event.left, event.top, event.height);
@@ -1537,6 +1549,12 @@
 
         const paperDiv = document.getElementById("paper");
         if (!paperDiv) return;
+        // The whole line, notes above the staff included, when abcjs has
+        // drawn it as one; otherwise the line's top from the timing data.
+        // Bring it fully on screen now; it settles at the top when it starts
+        // (eventCallback), so the line being sung stays in view to its end.
+        const system = paperDiv.querySelectorAll(".abcjs-staff-wrapper")[info?.line];
+        if (system) return revealNextLine(system);
         if (!data || data.top === undefined) return;
 
         const svg = paperDiv.querySelector("svg");
@@ -1663,11 +1681,12 @@
    *  conversion is needed. */
   /** Where the first system currently is, or null if there is no score. */
   function firstSystemTarget(): number | null {
-    const firstStaff = document
-      .getElementById("paper")
-      ?.querySelector(".abcjs-staff");
-    if (!firstStaff) return null;
-    const top = firstStaff.getBoundingClientRect().top + window.scrollY;
+    // The top of the score, not of the first staff line: what sits above the
+    // staff - high notes, the tempo, the count-in badge - has to clear the
+    // navbar too. Aiming at the staff line left it underneath on a repeat.
+    const paper = document.getElementById("paper");
+    if (!paper?.querySelector(".abcjs-staff")) return null;
+    const top = paper.getBoundingClientRect().top + window.scrollY;
     return firstSystemScrollTarget(top, window.innerHeight);
   }
 
@@ -1721,6 +1740,10 @@
 
   // The count-in word goes when playback stops, pauses or ends.
   $: if (!isPlaying) hideCountIn();
+
+  /** The line of music being played, so a new line can be scrolled to as it starts. */
+  let playingSystem: Element | null = null;
+  $: if (!isPlaying) playingSystem = null;
 
   /** Total length of the timeline: count-in + the audio itself. */
   function getTimelineDuration(): number {

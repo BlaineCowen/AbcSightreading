@@ -6,6 +6,7 @@
   import { onMount, onDestroy, tick } from "svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
   import CountInBadge from "./CountInBadge.svelte";
+  import { revealNextLine, scrollToReadingPosition, systemAt, systemOf } from "../lib/scroll-to-system";
   import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
@@ -1692,6 +1693,9 @@
     }
 
     synthControl = new abcjs.synth.SynthController();
+    // The line being played, and the one already turned to ahead of it.
+    let playingSystem: Element | null = null;
+    let turnedTo: Element | null = null;
 
     const cursorControl = {
       extraMeasuresAtBeginning: countInMeasures(playedMeter),
@@ -1725,10 +1729,29 @@
         if (cursorMode === "note" && event && typeof event.left === "number") {
           movePlaybackCursor(event.left, event.top, event.height);
         }
-        if (event?.elements?.[0]?.[0]) {
-          const el = event.elements[0][0] as HTMLElement;
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Follow the music a whole line at a time. A new line (the first after
+        // a start or a loop, or one the early turn below missed) comes to the
+        // reading position. `nearest`, used before, moved the page only as far
+        // as the next note, so a new line barely showed.
+        const system = systemOf(event?.elements?.[0]?.[0]);
+        if (system && system !== playingSystem) {
+          const first = system === document.querySelector("#paper .abcjs-staff-wrapper");
+          scrollToReadingPosition(first ? document.getElementById("paper") : system);
+          playingSystem = system;
+          turnedTo = null;
         }
+      },
+      // Half a second before the line ends, bring the next line fully on
+      // screen, so it is there when the eye gets to it.
+      lineEndAnticipation: 500,
+      // abcjs calls this whenever the next note sits at a new height, which in
+      // four parts can happen within a line; so it turns only when that height
+      // falls in a different line from the one playing.
+      onLineEnd: (lineEvent: { top?: number }) => {
+        const next = systemAt(lineEvent?.top);
+        if (!next || next === playingSystem || next === turnedTo) return;
+        revealNextLine(next);
+        turnedTo = next;
       },
     };
 
