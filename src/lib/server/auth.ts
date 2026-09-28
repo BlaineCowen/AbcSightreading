@@ -8,7 +8,7 @@ import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { resetPasswordEmail, sendAccountEmail, verifyEmailEmail } from "./auth-email";
 import { isStudentEmail } from "../roster";
-import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret } from "./stripe";
+import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from "./stripe";
 import { becomeEducator } from "./educator";
 
 /**
@@ -52,9 +52,9 @@ const billing =
             // Sales tax is worked out by Stripe Tax from the billing address;
             // a school district is marked tax-exempt on its customer and pays
             // no tax. Schools also get to enter a tax ID for their receipts.
-            getCheckoutSessionParams: () => ({
+            getCheckoutSessionParams: async () => ({
               params: {
-                automatic_tax: { enabled: true },
+                automatic_tax: { enabled: await taxReady() },
                 billing_address_collection: "required",
                 tax_id_collection: { enabled: true },
                 allow_promotion_codes: true,

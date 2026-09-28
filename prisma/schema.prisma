@@ -37,6 +37,7 @@ model User {
   enrollments   Enrollment[]
   seatGrants    SeatGrant[]
   usage         GenerationUsage[]
+  quotes        Quote[]
 
   @@map("user")
 }
@@ -235,4 +236,34 @@ model GenerationUsage {
 
   @@id([userId, month])
   @@map("generation_usage")
+}
+
+// A quote for a school's purchasing office: the Educator plan and any seat
+// packs, made in Stripe (which numbers it and renders the PDF) for a Stripe
+// customer that is the school - its billing contact, address and tax
+// exemption - not the teacher. Accepted when the teacher enters the purchase
+// order number; Stripe then invoices the school, net 30.
+model Quote {
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeQuoteId        String    @unique
+  stripeCustomerId     String
+  number               String?
+  school               String
+  contactEmail         String
+  packs                Int       @default(0)
+  taxExempt            Boolean   @default(false)
+  /// Cents, as Stripe quoted it.
+  amountTotal          Int
+  status               String    @default("open")
+  expiresAt            DateTime
+  poNumber             String?
+  acceptedAt           DateTime?
+  stripeSubscriptionId String?
+  invoiceUrl           String?
+  createdAt            DateTime  @default(now())
+
+  @@index([userId])
+  @@map("quote")
 }

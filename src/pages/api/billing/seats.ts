@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../lib/server/api";
 import { prisma } from "../../../lib/server/db";
 import { hasEducatorPlan } from "../../../lib/server/plan";
-import { PRICES, SEATS_PER_PACK, stripe } from "../../../lib/server/stripe";
+import { PRICES, SEATS_PER_PACK, stripe, taxReady } from "../../../lib/server/stripe";
 
 /**
  * Buy seat packs: POST { packs } -> { url } of a Stripe checkout. 25 seats a
@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request }) => {
     customer,
     customer_update: { address: "auto", name: "auto" },
     line_items: [{ price: price.id, quantity: packs }],
-    automatic_tax: { enabled: true },
+    automatic_tax: { enabled: await taxReady() },
     billing_address_collection: "required",
     tax_id_collection: { enabled: true },
     invoice_creation: { enabled: true, invoice_data: { metadata } },

@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 799 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 806 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -254,6 +254,14 @@ presets once; the server dedupes by name + creation time.
   customer and invoiced by hand. Pro -> Educator is `subscription/upgrade` with
   the existing `subscriptionId`. Seat packs are a one-time checkout
   (`/api/billing/seats`) granted by the webhook into `SeatGrant`, for a year.
+- School quotes (`src/lib/server/quotes.ts`, rules in `src/lib/quote.ts`,
+  `SchoolQuote.svelte` on `/account`): a Stripe customer for the school (its
+  purchasing contact, address, tax exemption - never the teacher's own
+  customer), a finalized Stripe quote, net 30, PDF emailed to the teacher.
+  Entering the PO number accepts it: the subscription starts, its first invoice
+  carries the PO and goes to the school, and Educator starts at once - the
+  subscription row is written by us, since the plugin cannot map a school's
+  customer to the teacher. `FEEDBACK_TO` is told of every PO.
 - Plans: the rules are in `src/lib/plan.ts` (tests: `billing.test.ts`), the
   database side in `src/lib/server/plan.ts` - `planFor`, `hasPremium`,
   `hasEducatorPlan`. Gate by those, never by reading billing fields. A student

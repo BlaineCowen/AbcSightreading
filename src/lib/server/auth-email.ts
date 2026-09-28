@@ -12,7 +12,12 @@ const DEFAULT_FROM = "ABC Sight Reading <accounts@send.abc-sightreading.com>";
  * server's output. In a deployed build a missing key is a configuration fault,
  * and is reported as one.
  */
-export async function sendAccountEmail(to: string, subject: string, text: string) {
+export async function sendAccountEmail(
+  to: string,
+  subject: string,
+  text: string,
+  attachments?: { filename: string; content: Buffer }[]
+) {
   const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
     if (import.meta.env.DEV) {
@@ -26,6 +31,7 @@ export async function sendAccountEmail(to: string, subject: string, text: string
     to: [to],
     subject,
     text,
+    ...(attachments ? { attachments } : {}),
   });
   if (error) {
     console.error("[auth-email] Resend refused the message:", error);
