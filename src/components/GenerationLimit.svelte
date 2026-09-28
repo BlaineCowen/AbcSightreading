@@ -46,7 +46,7 @@
     {#if $usage.tier === "anonymous"}
       Increase to {GENERATION_LIMITS.free} by <a class="underline font-medium text-sr-action-fg" href={signupHref}>creating an account</a>.
     {:else}
-      <a class="underline font-medium text-sr-action-fg" href={upgradeHref}>Get Pro</a> for unlimited - $19.99 a year.
+      <a class="underline font-medium text-sr-action-fg" href={upgradeHref}>Upgrade to Pro</a> for unlimited exercises.
     {/if}
   </p>
 {/if}
