@@ -15,7 +15,7 @@
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
-  import { claimGeneration } from "../lib/usage";
+  import { countGeneration, mayGenerate } from "../lib/usage";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
@@ -1954,7 +1954,8 @@
     }
 
     // The monthly allowance (src/lib/usage.ts); GenerationLimit says what to do when it is used up.
-    if (!(await claimGeneration())) return;
+    // Counted only once the exercise is on the page (countGeneration, below).
+    if (!(await mayGenerate())) return;
 
     // Draw the key for this exercise. With one key selected this is that key, so
     // nothing changes for the ordinary case.
@@ -2086,6 +2087,8 @@
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
       tune[0].setTiming();
       renderedTune = tune[0];
+      // The score is on the page: now it counts.
+      void countGeneration();
       createPlaybackCursor();
       systemExtents = []; // re-measured lazily once layout has settled
       cursorBeats = newMetronomeBeatState();

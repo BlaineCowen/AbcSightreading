@@ -16,32 +16,54 @@ export const usage = writable<UsageState | null>(null);
 
 const browserStorage = () => (typeof localStorage === "undefined" ? null : localStorage);
 
-/** Asks before generating: true to go ahead (and that one is counted), false when the month is used up. */
-export async function claimGeneration(): Promise<boolean> {
+/**
+ * Asks before generating: true to go ahead, false when the month is used up.
+ * Counts nothing - see countGeneration. An exercise that cannot be written
+ * does not use up one of the month's.
+ */
+export async function mayGenerate(): Promise<boolean> {
   const user = await signedInUser();
   if (!user) {
     const storage = browserStorage();
     if (!storage) return true;
-    const before = generationAllowance("anonymous", anonymousUsage(storage));
-    if (!before.allowed) {
-      usage.set({ tier: "anonymous", limit: before.limit, remaining: 0, blocked: true });
-      return false;
+    const a = generationAllowance("anonymous", anonymousUsage(storage));
+    if (!a.allowed) usage.set({ tier: "anonymous", limit: a.limit, remaining: 0, blocked: true });
+    return a.allowed;
+  }
+  try {
+    const res = await fetch("/api/usage");
+    if (!res.ok) return true;
+    const body = await res.json();
+    if (!body.allowed) {
+      usage.set({ tier: body.plan, limit: body.limit, remaining: 0, blocked: true });
     }
-    const after = generationAllowance("anonymous", recordAnonymousGeneration(storage));
-    usage.set({ tier: "anonymous", limit: after.limit, remaining: after.remaining, blocked: false });
+    return !!body.allowed;
+  } catch {
     return true;
+  }
+}
+
+/**
+ * Counts one exercise, once it is on the page. Two tabs can each pass
+ * mayGenerate on the month's last exercise and both get it; the server's
+ * conditional increment keeps the count itself from going over.
+ */
+export async function countGeneration(): Promise<void> {
+  noteExercise();
+  const user = await signedInUser();
+  if (!user) {
+    const storage = browserStorage();
+    if (!storage) return;
+    const a = generationAllowance("anonymous", recordAnonymousGeneration(storage));
+    usage.set({ tier: "anonymous", limit: a.limit, remaining: a.remaining, blocked: false });
+    return;
   }
   try {
     const res = await fetch("/api/usage", { method: "POST" });
-    if (!res.ok) return true;
+    if (!res.ok) return;
     const body = await res.json();
-    usage.set({ tier: body.plan, limit: body.limit, remaining: body.remaining, blocked: !body.granted });
-    if (body.granted) noteExercise();
-    return !!body.granted;
-  } catch {
-    noteExercise();
-    return true;
-  }
+    usage.set({ tier: body.plan, limit: body.limit, remaining: body.remaining, blocked: false });
+  } catch {}
 }
 
 /** Clears the "used up" notice, as when the reader closes it. */

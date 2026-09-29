@@ -50,7 +50,7 @@
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
-  import { claimGeneration } from "../lib/usage";
+  import { countGeneration, mayGenerate } from "../lib/usage";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
@@ -2105,7 +2105,8 @@
 
     // The monthly allowance (src/lib/usage.ts); GenerationLimit says what to
     // do when it is used up. A drill cannot go on without new exercises.
-    if (!(await claimGeneration())) {
+    // Counted only once the exercise is on the page (countGeneration, below).
+    if (!(await mayGenerate())) {
       if (drillRunning) await stopDrill();
       return;
     }
@@ -2228,6 +2229,7 @@
         exerciseHash = "";
         updateUrlFromState();
         await renderTune();
+        void countGeneration();
       } else {
         throw new Error(result.error || "Failed to generate music");
       }

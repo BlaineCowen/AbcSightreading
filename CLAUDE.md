@@ -349,8 +349,9 @@ presets once; the server dedupes by name + creation time.
   stays after it lapses, but seats drop to 0: no one new joins.
 - Monthly exercises: 10 signed out (counted in localStorage - a soft nudge), 50
   on a free account (`GenerationUsage`, `/api/usage`, conditional increment),
-  unlimited on Pro/Educator. Both practice pages ask `claimGeneration()`
-  (`src/lib/usage.ts`) before generating; `GenerationLimit.svelte` says what is
+  unlimited on Pro/Educator. Both practice pages ask `mayGenerate()`
+  (`src/lib/usage.ts`) before generating and `countGeneration()` once the score
+  is drawn, so an exercise that could not be written costs nothing; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
 
 ## SEO
