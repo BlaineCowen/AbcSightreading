@@ -2104,27 +2104,29 @@
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
 
-  {#if !assignment}
-  <PresetDropdown
-    activeLabel={activePresetLabel}
-    {activeSavedId}
-    edited={presetEdited}
-    onRevert={revertPreset}
-    currentParams={getCurrentParams}
-    page="choral"
-    onSelectBuiltin={applyUILPreset}
-    onSelectStep={applyLadderStep}
-    {activeStepId}
-    onSelectSaved={applySavedPreset}
-    onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
-    onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
-  />
-  {/if}
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
+    {#if !assignment}
+    <PresetDropdown
+      activeLabel={activePresetLabel}
+      {activeSavedId}
+      edited={presetEdited}
+      onRevert={revertPreset}
+      currentParams={getCurrentParams}
+      page="choral"
+      onSelectBuiltin={applyUILPreset}
+      onSelectStep={applyLadderStep}
+      {activeStepId}
+      onSelectSaved={applySavedPreset}
+      onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
+      onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
+    >
+      <GenerationLimit slot="end" part="counter" />
+    </PresetDropdown>
+    {/if}
     {#if assignment}<AssignmentBanner {assignment} />{/if}
-    <GenerationLimit />
+    <GenerationLimit part={assignment ? "all" : "alert"} />
     {#if generationError}
       <div
         class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"

@@ -13,12 +13,16 @@
    */
   onMount(loadUsage);
 
+  /** "counter" is the pill beside the preset picker, "alert" the box shown
+   *  when none are left; "all" is both, for a page with no preset row. */
+  export let part: "all" | "counter" | "alert" = "all";
+
   $: here = typeof location !== "undefined" ? location.pathname + location.search : "/";
   $: signupHref = `/login?mode=signup&next=${encodeURIComponent(here)}`;
   const upgradeHref = "/account#plan";
 </script>
 
-{#if $usage?.blocked}
+{#if $usage?.blocked && part !== "counter"}
   <div class="w-full max-w-xl rounded-[24px] bg-sr-peach text-sr-peach-ink p-5 flex gap-3 items-start" role="alert">
     <div class="flex-1 text-sm flex flex-col gap-2">
       {#if $usage.tier === "anonymous"}
@@ -35,10 +39,10 @@
       <X size={14} />
     </button>
   </div>
-{:else if $usage && $usage.limit !== null && $usage.remaining !== null}
+{:else if !$usage?.blocked && part !== "alert" && $usage && $usage.limit !== null && $usage.remaining !== null}
   {@const low = $usage.remaining <= 3}
   <p
-    class="w-full max-w-xl text-sm font-semibold rounded-full px-4 py-2 no-print {low ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-butter text-sr-butter-ink'}"
+    class="{part === 'counter' ? '' : 'w-full max-w-xl'} text-sm font-semibold rounded-[20px] px-4 py-2 no-print {low ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-butter text-sr-butter-ink'}"
     role="status"
   >
     <strong class="tabular-nums font-extrabold">{$usage.remaining}</strong> of {$usage.limit}

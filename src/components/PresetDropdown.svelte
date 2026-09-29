@@ -295,7 +295,7 @@
   }
 </script>
 
-<div bind:this={root} class="preset-bar relative bg-sr-raise rounded-[28px] shadow-[0_12px_34px_-26px_rgba(58,40,150,0.4)] px-3.5 py-2.5 flex items-center gap-3 flex-wrap no-print">
+<div bind:this={root} class="preset-bar relative w-full flex items-center gap-3 flex-wrap no-print">
   <!-- The trigger names what is loaded; the panel below is where to choose. -->
   <button
     type="button"
@@ -402,10 +402,13 @@
     <span class="text-xs text-sr-danger" role="alert">{problem}</span>
   {/if}
 
+  <!-- The right end of the row: the page puts the exercise counter here. -->
+  <div class="ml-auto"><slot name="end" /></div>
+
   {#if open}
     <div
       bind:this={panel}
-      class="preset-panel absolute left-4 right-4 sm:right-auto top-full mt-2 z-40 sm:w-[30rem] bg-sr-raise rounded-[24px] shadow-[0_24px_60px_-20px_rgba(30,27,58,0.45)] flex flex-col max-h-[70vh] overflow-hidden"
+      class="preset-panel absolute left-0 right-0 sm:right-auto top-full mt-2 z-40 sm:w-[30rem] bg-sr-raise rounded-[24px] shadow-[0_24px_60px_-20px_rgba(30,27,58,0.45)] flex flex-col max-h-[70vh] overflow-hidden"
       role="dialog"
       aria-label="Choose a preset"
     >
