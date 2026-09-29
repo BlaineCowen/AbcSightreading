@@ -148,6 +148,22 @@ export type ChoralExercise = {
 const BASS_RULE_ATTEMPTS = 3;
 
 /**
+ * How many more times a failed exercise is drawn again, same settings, before
+ * the reader is told it could not be written.
+ *
+ * The rhythm is drawn once per attempt, and every progression the attempt
+ * tries is fitted to that one rhythm. Some rhythms cannot be harmonised under
+ * the level's rules - eighths where a two-bar cadence has to go, say - and then
+ * all ten progressions fail together, whatever they are. A new attempt draws a
+ * new rhythm. Measured 29 September at the worst cells: UIL 5, 4 Part Mixed,
+ * C minor, 3/4, two bars, 24 in 100 failed on one draw and none in 100 on up
+ * to three; 3 Part Treble, C minor, 16 bars, 4 in 40 and none. Nothing is
+ * relaxed - the exercise is the one asked for - and a failed draw costs 7 ms
+ * at two bars and about a second at sixteen.
+ */
+const FAILED_DRAW_RETRIES = 3;
+
+/**
  * Orchestrates the generation of a choral sight-reading exercise.
  *
  * Generates, checks the bass against the chromatic-note rule, and generates
@@ -160,6 +176,7 @@ const BASS_RULE_ATTEMPTS = 3;
 export function generateChoralExercise(params: GenerateChoralParams): ChoralExercise {
   let best: ChoralExercise | undefined;
   let bestFaults = Infinity;
+  let failedDraws = 0;
   const attempts = params.accidentalsByStep ? BASS_RULE_ATTEMPTS : 1;
   for (let attempt = 0; attempt < attempts; attempt++) {
     let out: ChoralExercise;
@@ -168,6 +185,11 @@ export function generateChoralExercise(params: GenerateChoralParams): ChoralExer
     } catch (e) {
       // A failed draw after a successful one is not a failed exercise.
       if (best) break;
+      // Before any success: draw again, with a new rhythm - see FAILED_DRAW_RETRIES.
+      if (failedDraws++ < FAILED_DRAW_RETRIES) {
+        attempt--;
+        continue;
+      }
       throw e;
     }
     const faults = params.accidentalsByStep ? bassChromaticFaults(out.voiceNotes) : 0;

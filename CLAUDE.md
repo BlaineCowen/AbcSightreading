@@ -97,10 +97,14 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **112 failures in
-22,020 exercises (0.51%)** as shipped, across 67 cells, measured 29 September
-2026 after the stepwise limit learned to yield on the last progressions
-(build-chord-notes `STEPWISE_YIELD_AFTER`), against 195 (0.89%, 126 cells) on
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **1 failure in
+22,020 exercises** as shipped, measured 29 September 2026 once a failed draw
+is drawn again (generateChoral `FAILED_DRAW_RETRIES`): the rhythm is drawn once
+per attempt and all ten progressions are fitted to it, so a rhythm that cannot
+be harmonised failed them all together, and a new draw brings a new rhythm.
+Nothing is relaxed. Before that, 112 (0.51%, 67 cells) after the stepwise
+limit learned to yield on the last progressions (build-chord-notes
+`STEPWISE_YIELD_AFTER`), against 195 (0.89%, 126 cells) on
 28 September after the voice-rhythm pass and the pattern-start fix, and 204
 (0.93%, 129 cells) on 22 September after the chromatic-bass pass
 (notes/bass-chromatic-notes.md).
@@ -142,9 +146,11 @@ It also reports a quality figure: the share of short notes (an eighth or less)
 approached or left by skip: 0.8% as shipped (0.7% before the yield, 1.0% before the voice-rhythm pass), against 37.1% with
 `STEPWISE_EIGHTHS=0`.
 
-**The option is ON by default**, so that failure rate is live. The worst cells
-left are nearly all the two-bar UIL 5 minor-key cells above, at 17-50%; one
-16-bar cell (3 Part Treble, C minor, 3/4) is at 25%. `failureHint` names the option first when it fires.
+**The option is ON by default**, so that failure rate is live. Before the
+redraw the worst cells were the two-bar UIL 5 minor-key cells above, at
+17-50% on one draw; the one failure left is one of them (4 Part Mixed, C
+minor, 2/4). A failed draw costs 7 ms at two bars and about a second at
+sixteen. `failureHint` names the option first when it fires.
 
 Two numbers moved it. Giving build-chord-notes' deadlock escape the fifth to
 reach for took skips from 3.3% to 0.3% (every violation left was in the bass;
