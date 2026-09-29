@@ -2,6 +2,10 @@
 import Layout from "../layouts/Layout.astro";
 import { PLAN_OFFERS } from "../lib/seo";
 import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
+// A real exercise from the generator (four bars, SATB, F major), drawn by
+// abcjs once and saved, so the home page shows the product without loading
+// the generator or spending a visitor's free exercises.
+import heroExercise from "../assets/hero-exercise.svg?raw";
 
 /**
  * The landing page.
@@ -95,45 +99,68 @@ const jsonLd = [
   jsonLd={jsonLd}
 >
   <div class="w-full max-w-5xl mx-auto px-2 md:px-4">
-    <!-- Hero -->
+    <!-- Hero: the pitch on the left, a real exercise on the right that counts
+         itself in and plays through (a cursor sweep, CSS only). Stacked on a
+         phone, the exercise under the buttons. -->
     <section
-      class="flex flex-col items-center justify-center text-center min-h-[calc(100vh-12rem)] px-2"
+      class="grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-10 lg:gap-14 items-center min-h-[calc(100vh-12rem)] py-8 px-2"
     >
-      <p class="sr-label">Choir sight-reading &amp; sight-singing practice</p>
-      <!-- The navbar's logo at hero size, in the same proportions: "abc" in
-           the favicon's Edwin Bold Italic at 0.7 of the name, as outlines
-           (see Navbar.svelte for why). The name is read out whole. -->
-      <h1
-        class="mt-4 flex items-baseline justify-center gap-[0.13em] whitespace-nowrap text-[min(40px,11vw)] sm:text-6xl font-semibold tracking-[-0.015em] leading-none text-sr-ink"
-      >
-        <span class="sr-only">ABC</span>
-        <svg
-          class="h-[0.75em] w-auto text-[min(28px,7.7vw)] sm:text-[42px] text-sr-action-fg"
-          viewBox="0 -736 1780 750"
-          fill="currentColor"
-          aria-hidden="true"
-        ><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg>
-        <span>Sight Reading</span>
-      </h1>
-      <p class="mt-5 max-w-2xl text-lg sm:text-xl text-sr-ink-2">
-        Unlimited sight-reading exercises for your choir, generated from real
-        harmony rules, in the key, level and voicing you actually need: SATB,
-        SSA, TTB or unison, UIL levels 1 to 5.
-      </p>
-
-      <div class="mt-10 flex flex-col items-center gap-4">
-        <a href="/choral-sightreading" class="sr-btn px-8 py-3.5 text-base">
-          Start Sight-Reading
-        </a>
-        <a
-          href="/sightreading"
-          class="text-sm text-sr-muted hover:text-sr-action-fg underline underline-offset-4"
+      <div class="flex flex-col items-center lg:items-start text-center lg:text-left">
+        <p class="sr-label">Choir sight-reading &amp; sight-singing practice</p>
+        <!-- The navbar's logo at hero size, in the same proportions: "abc" in
+             the favicon's Edwin Bold Italic at 0.7 of the name, as outlines
+             (see Navbar.svelte for why). The name is read out whole. -->
+        <h1
+          class="mt-4 flex items-baseline gap-[0.13em] whitespace-nowrap text-[min(40px,11vw)] sm:text-6xl font-semibold tracking-[-0.005em] leading-none text-sr-ink"
         >
-          or practice a single part
-        </a>
+          <span class="sr-only">ABC</span>
+          <svg
+            class="h-[0.75em] w-auto text-[min(28px,7.7vw)] sm:text-[42px] text-sr-action-fg"
+            viewBox="0 -736 1780 750"
+            fill="currentColor"
+            aria-hidden="true"
+          ><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg>
+          <span>Sight Reading</span>
+        </h1>
+        <p class="mt-5 max-w-xl text-lg sm:text-xl text-sr-ink-2">
+          Unlimited sight-reading exercises for your choir, generated from real
+          harmony rules, in the key, level and voicing you actually need.
+        </p>
+        <div class="mt-5 flex flex-wrap justify-center lg:justify-start gap-2">
+          <span class="rounded-full bg-sr-mint text-sr-mint-ink px-3.5 py-1.5 text-sm font-extrabold">SATB</span>
+          <span class="rounded-full bg-sr-sky text-sr-sky-ink px-3.5 py-1.5 text-sm font-extrabold">SSA</span>
+          <span class="rounded-full bg-sr-peach text-sr-peach-ink px-3.5 py-1.5 text-sm font-extrabold">TTB</span>
+          <span class="rounded-full bg-sr-butter text-sr-butter-ink px-3.5 py-1.5 text-sm font-extrabold">Unison</span>
+          <span class="rounded-full bg-sr-tint text-sr-action-fg px-3.5 py-1.5 text-sm font-extrabold">UIL levels 1 to 5</span>
+        </div>
+
+        <div class="mt-8 flex flex-col sm:flex-row items-center gap-3 sm:gap-5">
+          <a href="/choral-sightreading" class="sr-btn px-8 py-3.5 text-base">
+            Start Sight-Reading
+          </a>
+          <a
+            href="/sightreading"
+            class="text-sm font-bold text-sr-muted hover:text-sr-action-fg underline underline-offset-4"
+          >
+            or practice a single part
+          </a>
+        </div>
       </div>
 
-      <p class="sr-label mt-16">Scroll for what it does</p>
+      <figure class="hero-demo relative w-full max-w-xl mx-auto lg:max-w-none">
+        <div class="sr-sheet relative p-5 sm:p-7 lg:rotate-[1.2deg]">
+          <div class="relative">
+            <Fragment set:html={heroExercise} />
+            <div class="hero-track" aria-hidden="true"><span class="hero-cursor"></span></div>
+          </div>
+        </div>
+        <div class="hero-countin" aria-hidden="true">
+          <span>1</span><span>2</span><span>Ready</span><span>Go</span>
+        </div>
+        <figcaption class="mt-4 text-center text-sm font-bold text-sr-muted">
+          A real exercise. Yours will be a new one.
+        </figcaption>
+      </figure>
     </section>
 
     <!-- The pain -->
@@ -244,3 +271,77 @@ const jsonLd = [
     </section>
   </div>
 </Layout>
+
+<style>
+  /* The hero's exercise plays itself on a loop: a one-bar count-in ("1, 2,
+     Ready, Go" at 120, as the practice pages count 4/4), then a cursor
+     through the four bars, then a breath. 11.5s in all. */
+  .hero-demo :global(svg) { display: block; width: 100%; height: auto; }
+  .hero-track {
+    position: absolute;
+    left: 28%;
+    right: 3%;
+    top: 5%;
+    bottom: 4%;
+    pointer-events: none;
+  }
+  .hero-cursor {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--sr-action);
+    opacity: 0;
+    animation: hero-sweep 11.5s linear infinite;
+  }
+  @keyframes hero-sweep {
+    0%, 17.3% { left: 0; opacity: 0; }
+    17.4% { left: 0; opacity: 0.9; }
+    87% { left: 100%; opacity: 0.9; }
+    88%, 100% { left: 100%; opacity: 0; }
+  }
+  .hero-countin {
+    position: absolute;
+    left: -10px;
+    top: -18px;
+    min-width: 4.5em;
+    height: 1.9em;
+    font-family: var(--sr-font-display);
+    font-weight: 700;
+    font-size: 26px;
+    transform: rotate(-4deg);
+  }
+  @media (max-width: 639px) {
+    .hero-countin { font-size: 18px; left: -4px; top: -14px; }
+  }
+  .hero-countin span {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.7em;
+    border-radius: 999px;
+    background: var(--sr-countin-bg);
+    color: var(--sr-countin-ink);
+    box-shadow: 0 10px 24px -10px rgba(58, 40, 150, 0.6);
+    opacity: 0;
+    animation: hero-word 11.5s linear infinite;
+  }
+  .hero-countin span:nth-child(2) { animation-delay: 0.5s; }
+  .hero-countin span:nth-child(3) { animation-delay: 1s; }
+  .hero-countin span:nth-child(4) { animation-delay: 1.5s; color: var(--sr-countin-go); }
+  @keyframes hero-word {
+    0% { opacity: 1; transform: scale(1.12); }
+    1.5% { transform: scale(1); }
+    4.3% { opacity: 1; }
+    4.35%, 100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-cursor, .hero-countin span { animation: none; }
+    .hero-countin span:nth-child(3) { opacity: 1; }
+  }
+</style>
+
