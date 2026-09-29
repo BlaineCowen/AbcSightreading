@@ -6,6 +6,8 @@ import { readFeedbackEmail } from "../lib/feedback-email";
 import { currentUser } from "../lib/server/api";
 import { serverEnv } from "../lib/server/env";
 import "../styles/globals.css";
+import "../styles/theme.css";
+import { themeFontsUrl } from "../styles/theme-fonts";
 import "abcjs/abcjs-audio.css";
 
 interface Props {
@@ -88,6 +90,8 @@ const feedbackConfigured = !!readFeedbackEmail(
     <meta name="robots" content={robots} />
     <meta name="theme-color" content="#17566b" />
     <link rel="manifest" href="/site.webmanifest" />
+    {themeFontsUrl && <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />}
+    {themeFontsUrl && <link rel="stylesheet" href={themeFontsUrl} />}
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="abc Sight Reading" />
     <meta property="og:title" content={title} />

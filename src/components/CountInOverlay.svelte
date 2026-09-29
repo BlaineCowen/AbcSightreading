@@ -32,7 +32,7 @@
     justify-content: flex-end;
     pointer-events: none;
     /* The bar's own slate-800, fading in from the left over the controls. */
-    background: linear-gradient(to right, rgb(30 41 59 / 0), rgb(30 41 59) 2rem);
+    background: linear-gradient(to right, rgb(var(--sr-bar-rgb, 30 41 59) / 0), rgb(var(--sr-bar-rgb, 30 41 59)) 2rem);
   }
   @media (min-width: 640px) {
     .count-in { height: 3rem; min-width: 12rem; }
@@ -42,11 +42,12 @@
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.01em;
-    color: #f1f5f9;
+    color: var(--sr-bar-ink, #f1f5f9);
+    font-family: var(--sr-font-display, inherit);
     animation: pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
   }
   .go {
-    color: #93c5fd;
+    color: var(--sr-bar-accent, #93c5fd);
   }
   @keyframes pop {
     from { transform: scale(1.4); opacity: 0; }

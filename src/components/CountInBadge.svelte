@@ -75,8 +75,9 @@
     justify-content: center;
     padding: 0 0.3em;
     border-radius: 0.28em;
-    background: #17566b;
-    color: #fff;
+    background: var(--sr-countin-bg, #17566b);
+    color: var(--sr-countin-ink, #fff);
+    font-family: var(--sr-font-display, inherit);
     font-weight: 800;
     line-height: 1;
     pointer-events: none;
@@ -87,7 +88,7 @@
     animation: pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
   }
   .go {
-    color: #b9e6f5;
+    color: var(--sr-countin-go, #b9e6f5);
   }
   @keyframes pop {
     from { transform: scale(1.4); opacity: 0; }
