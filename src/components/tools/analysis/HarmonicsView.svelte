@@ -6,6 +6,8 @@
    * they say about the tone: H1 against H2 (flow or press), ring (the singer's
    * formant, around 3 kHz), and brightness.
    */
+  /** Taller bars on the abcTuner page. */
+  export let large = false;
   const SHOW = 16;
   const FLOOR = 60;
   $: r = $voiceReading;
@@ -18,7 +20,7 @@
   $: bright = r.tone?.centroidHz ?? null;
 </script>
 
-<div class="flex items-end gap-[3px] h-32 px-1 rounded-[14px] bg-sr-track pt-3" role="img" aria-label="Harmonic levels">
+<div class="flex items-end gap-[3px] {large ? 'h-56' : 'h-32'} px-1 rounded-[14px] bg-sr-track pt-3" role="img" aria-label="Harmonic levels">
   {#if bars.length}
     {#each bars as h (h.k)}
       <div class="flex-1 flex flex-col items-center justify-end h-full gap-1 min-w-0">

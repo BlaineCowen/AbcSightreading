@@ -4,6 +4,7 @@ import {
   classifyVowel,
   estimateFormants,
   harmonicLevels,
+  noiseFloor,
   spectralEnvelope,
   toneMeasures,
   type Spectrum,
@@ -123,6 +124,34 @@ describe("the vowel's resonances", () => {
       }
     }
     expect(right / all).toBeGreaterThanOrEqual(0.9);
+  });
+
+  test("back vowels in a man's voice, with a real F3 and F4 and noise: [u] and [o], not [i]", () => {
+    // Fixed at 2600 Hz, F3 was spent explaining this voice's hump at 2300 to
+    // 2400 and F2 went up to 2900: [u] and [o] came out as [i] in 24 of 28.
+    let seed = 3;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const back: [string, [number, number, number]][] = [["oo", [300, 750, 2300]], ["oh", [430, 780, 2400]], ["oo", [320, 850, 2250]], ["oh", [480, 850, 2450]]];
+    let right = 0, all = 0;
+    for (const tilt of [12, 15, 18]) {
+      for (const f0 of [110, 147, 175, 196, 220, 262]) {
+        for (const [vowel, fm] of back) {
+          const s = voice(f0, fm, { tilt, widths: [70, 90, 150], jitter: 2, rnd, noise: -60 });
+          const est = estimateFormants(harmonicLevels(s, f0), f0, noiseFloor(s, f0));
+          all++;
+          if (est && classifyVowel(est, f0, "low").vowel === vowel) right++;
+          if (est) expect(classifyVowel(est, f0, "low").vowel).not.toBe("ee");
+        }
+      }
+    }
+    expect(right / all).toBeGreaterThanOrEqual(0.85);
+  });
+
+  test("the singer's voice type, not the pitch, sets where the vowels are", () => {
+    // A man's [o] at A3: judged against a woman's vowels it is her [u].
+    const f = { f1: 420, f2: 790 };
+    expect(classifyVowel(f, 220, "low").vowel).toBe("oh");
+    expect(classifyVowel({ f1: 500, f2: 910 }, 220, "high").vowel).toBe("oh");
   });
 
   test("high in a soprano's range the guess says it cannot tell", () => {

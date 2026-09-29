@@ -10,11 +10,11 @@ const allowed = !!user && (await hasPremium(user));
 const next = encodeURIComponent("/tuner");
 ---
 
-<Layout title="abcTuner: A Tuner for Singers & Choirs | abc Sight Reading" description="A tuner that follows a singing voice, in note names or solfège, with a pitch trace, metronome and a scale challenge graded on tuning. Part of abc Sight Reading Pro." themable>
+<Layout title="abcTuner: A Tuner for Singers & Choirs | abc Sight Reading" description="A tuner that follows a singing voice, in note names or solfège, with a pitch trace, a live spectrum of the voice's harmonics, a vowel guess, a metronome, a drone and a scale challenge graded on tuning. Part of abc Sight Reading Pro." themable>
   <div class="flex flex-col w-full items-center gap-4 pb-16">
     <div class="text-center px-4">
       <h1 class="text-3xl font-bold text-sr-ink">abcTuner</h1>
-      <p class="text-sr-muted text-sm mt-1">Sing into your microphone to see the note and how far off it is.</p>
+      <p class="text-sr-muted text-sm mt-1">Every practice tool, a tab each. Sing into your microphone to see the note, how far off it is, and what your voice is doing.</p>
     </div>
     {allowed ? (
       <AbcTuner client:only="svelte" />
@@ -25,6 +25,8 @@ const next = encodeURIComponent("/tuner");
         <ul class="text-sm text-sr-ink-2 list-disc pl-5 flex flex-col gap-1">
           <li>A tuner that follows a singing voice, in note names or solfège</li>
           <li>Your pitch over the last ten seconds, to see a note drift</li>
+          <li>Your voice's spectrum and harmonics, and a guess at the vowel</li>
+          <li>A drone, starting pitches and a practice timer</li>
           <li>A metronome, and a scale challenge graded on tuning</li>
           <li>A tuner button on the practice pages, beside the music</li>
         </ul>

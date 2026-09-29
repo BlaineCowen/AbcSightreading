@@ -5,10 +5,13 @@ import {
   MAX_HZ,
   classifyVowel,
   estimateFormants,
+  guessVoice,
   harmonicLevels,
+  noiseFloor,
   spectralEnvelope,
   toneMeasures,
   type HarmonicLevel,
+  type VoiceType,
   type VowelGuess,
   type VowelId,
 } from "../tuner/voice-spectrum";
@@ -37,6 +40,23 @@ const EMPTY: VoiceReading = { spectrum: null, binHz: 0, f0: null, harmonics: [],
 export const voiceReading = writable<VoiceReading>(EMPTY);
 /** Hold the display where it is, to study one moment. */
 export const voiceFrozen = writable(false);
+
+/**
+ * Low voice (bass, baritone, tenor) or high (alto, soprano): where the vowels
+ * sit depends on it, and the pitch cannot tell. The singer's choice is kept
+ * on the device; until they make one, the first note sung sets a guess.
+ */
+const VOICE_KEY = "sr-voice-type";
+let chosen: VoiceType | null = null;
+try {
+  const v = localStorage.getItem(VOICE_KEY);
+  if (v === "low" || v === "high") chosen = v;
+} catch {}
+export const voiceType = writable<VoiceType | null>(chosen);
+export function chooseVoice(v: VoiceType) {
+  voiceType.set(v);
+  try { localStorage.setItem(VOICE_KEY, v); } catch {}
+}
 
 const PERIOD_MS = 80;
 const VOTES = 6;
@@ -69,7 +89,9 @@ function step(now: number) {
   lastVoiced = now;
   const harmonics = harmonicLevels(s, f0);
   const envelope = spectralEnvelope(s, f0);
-  const est = estimateFormants(harmonics, f0);
+  const est = estimateFormants(harmonics, f0, noiseFloor(s, f0));
+  if (get(voiceType) === null) voiceType.set(guessVoice(f0));
+  const voice = get(voiceType) ?? undefined;
   let formants: VoiceReading["formants"] = null;
   let vowel: VowelGuess | null = null;
   if (est) {
@@ -77,7 +99,7 @@ function step(now: number) {
       ? { f1: smooth.f1 * 0.6 + est.f1 * 0.4, f2: est.f2 === null ? smooth.f2 : smooth.f2 === null ? est.f2 : smooth.f2 * 0.6 + est.f2 * 0.4 }
       : { f1: est.f1, f2: est.f2 };
     formants = { ...smooth, fit: est.fit };
-    const guess = classifyVowel(smooth, f0);
+    const guess = classifyVowel(smooth, f0, voice);
     votes = [...votes, guess.vowel].slice(-VOTES);
     const counts = new Map<VowelId, number>();
     for (const v of votes) counts.set(v, (counts.get(v) ?? 0) + 1);

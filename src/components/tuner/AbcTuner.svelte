@@ -2,26 +2,34 @@
   import { onMount } from "svelte";
   import { tuner } from "../../lib/tuner/store";
   import { initTuner, startTuner } from "../../lib/tuner/controller";
+  import { droneOn } from "../../lib/tools/state";
+  import { timer } from "../../lib/tools/timer";
   import RadialTuner from "./RadialTuner.svelte";
   import TunerSettings from "./TunerSettings.svelte";
   import VolumeMeter from "./VolumeMeter.svelte";
   import DetectionHint from "./DetectionHint.svelte";
-  import PitchHistory from "./PitchHistory.svelte";
   import TunerMetronome from "./TunerMetronome.svelte";
   import ScaleChallenge from "./ScaleChallenge.svelte";
+  import ToolAnalysis from "../tools/ToolAnalysis.svelte";
+  import ToolDrone from "../tools/ToolDrone.svelte";
+  import ToolPitches from "../tools/ToolPitches.svelte";
+  import ToolTimer from "../tools/ToolTimer.svelte";
 
   /**
-   * abcTuner: the tuner project's app as a page of this site - the dial, a
-   * trace of pitch over time, a metronome, and the scale challenge. The
-   * microphone stays on across tabs, so the pitch trace keeps recording while
-   * the metronome is showing.
+   * abcTuner: every practice tool, one tab each, at full size. The same tools
+   * the practice pages open from their Tools button, plus the scale
+   * challenge. The microphone is shared and stays on across tabs, so the pitch
+   * trace keeps recording while the metronome is showing; the drone, the
+   * metronome and the timer keep going on any tab, and their tabs say so.
    */
-
-  type Tab = "tuner" | "pitch" | "metro" | "challenge";
+  type Tab = "tuner" | "analysis" | "metro" | "drone" | "pitches" | "timer" | "challenge";
   const TABS: [Tab, string][] = [
     ["tuner", "Tuner"],
-    ["pitch", "Pitch"],
+    ["analysis", "Analysis"],
     ["metro", "Metronome"],
+    ["drone", "Drone"],
+    ["pitches", "Pitches"],
+    ["timer", "Timer"],
     ["challenge", "Scale challenge"],
   ];
   let tab: Tab = "tuner";
@@ -31,45 +39,54 @@
   } catch {}
   $: try { sessionStorage.setItem("abc-tuner-tab", tab); } catch {}
 
+  $: running = {
+    tuner: $tuner.engineStatus === "running",
+    analysis: false,
+    metro: $tuner.metronomeRunning,
+    drone: $droneOn,
+    pitches: false,
+    timer: $timer.running,
+    challenge: false,
+  } as Record<Tab, boolean>;
+
   onMount(initTuner);
 </script>
 
-<div class="w-full max-w-[760px] mx-auto px-4 flex flex-col gap-4 pb-8">
-  <div class="flex gap-1 border-b border-sr-hairline" role="tablist" aria-label="abcTuner">
+<div class="w-full max-w-4xl mx-auto px-4 flex flex-col gap-4 pb-10">
+  <div class="flex gap-1 p-1.5 rounded-[22px] bg-sr-raise shadow-[0_12px_34px_-26px_rgba(58,40,150,0.4)] overflow-x-auto" role="tablist" aria-label="abcTuner">
     {#each TABS as [id, label]}
       <button
         role="tab"
         aria-selected={tab === id}
-        class="px-3 py-2 text-sm -mb-px border-b-2 {tab === id ? 'border-sr-action text-sr-action-fg font-medium' : 'border-transparent text-sr-muted hover:text-sr-ink-2'}"
+        class="shrink-0 flex-1 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-bold transition-colors {tab === id ? 'bg-sr-action text-sr-action-ink' : 'text-sr-muted hover:text-sr-ink hover:bg-sr-track'}"
         on:click={() => (tab = id)}
       >
         {label}
-        {#if id === "tuner" && $tuner.engineStatus === "running"}
-          <span class="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500 align-middle" title="Microphone on"></span>
-        {/if}
-        {#if id === "metro" && $tuner.metronomeRunning}
-          <span class="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500 align-middle" title="Metronome running"></span>
+        {#if running[id]}
+          <span class="ml-1 inline-block w-1.5 h-1.5 rounded-full align-middle {tab === id ? 'bg-sr-action-ink' : 'bg-green-500'}" title="On"></span>
         {/if}
       </button>
     {/each}
   </div>
 
-  {#if tab === "tuner"}
-    <TunerSettings />
-    <RadialTuner />
-    <VolumeMeter />
-    <DetectionHint />
-  {:else if tab === "pitch"}
-    {#if $tuner.engineStatus !== "running"}
-      <button class="text-xs text-sr-muted underline underline-offset-2 self-center" on:click={startTuner}>
-        The microphone is off - start it
-      </button>
+  <section class="sr-panel p-5 sm:p-7 flex flex-col gap-4" role="tabpanel">
+    {#if tab === "tuner"}
+      <TunerSettings />
+      <RadialTuner />
+      <VolumeMeter />
+      <DetectionHint />
+    {:else if tab === "analysis"}
+      <ToolAnalysis large />
+    {:else if tab === "metro"}
+      <TunerMetronome />
+    {:else if tab === "drone"}
+      <ToolDrone />
+    {:else if tab === "pitches"}
+      <ToolPitches />
+    {:else if tab === "timer"}
+      <ToolTimer />
+    {:else}
+      <ScaleChallenge onStartMic={startTuner} />
     {/if}
-    <PitchHistory />
-    <VolumeMeter />
-  {:else if tab === "metro"}
-    <TunerMetronome />
-  {:else}
-    <ScaleChallenge onStartMic={startTuner} />
-  {/if}
+  </section>
 </div>

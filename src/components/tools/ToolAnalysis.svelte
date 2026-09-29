@@ -18,6 +18,9 @@
    * - Harmonics: each harmonic's level, and what they say about the tone.
    * - Vowel: a guess at the vowel, on a vowel chart.
    */
+  /** The abcTuner page's version: more room for the spectrum and bars. */
+  export let large = false;
+
   type View = "pitch" | "spectrum" | "harmonics" | "vowel";
   const VIEWS: { id: View; label: string }[] = [
     { id: "pitch", label: "Pitch" },
@@ -107,7 +110,7 @@
 {/if}
 
 {#if view === "pitch"}
-  <PitchHistory compact />
+  <PitchHistory compact={!large} />
   {#if stats}
     <div class="grid grid-cols-3 gap-2 text-center">
       <div>
@@ -127,7 +130,7 @@
     <p class="text-sm text-sr-muted text-center">Sing a few notes and the numbers appear here.</p>
   {/if}
 {:else if view === "spectrum"}
-  <SpectrumView {outline} {marks} {formantLines} />
+  <SpectrumView {outline} {marks} {formantLines} height={large ? 300 : 180} />
   <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show on the spectrum">
     <button class="sr-freq {outline ? 'sr-on' : ''}" aria-pressed={outline} on:click={() => (outline = !outline)}>Outline</button>
     <button class="sr-freq {marks ? 'sr-on' : ''}" aria-pressed={marks} on:click={() => (marks = !marks)}>Harmonics</button>
@@ -138,7 +141,7 @@
     the resonances F1 and F2.
   </p>
 {:else if view === "harmonics"}
-  <HarmonicsView />
+  <HarmonicsView {large} />
 {:else}
   <VowelView />
 {/if}

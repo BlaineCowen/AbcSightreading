@@ -174,8 +174,10 @@ the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
 ## abcTuner
 
-`/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): a tuner,
-pitch trace, metronome and scale challenge. In the navbar as abcTuner, and
+`/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): every
+practice tool at full size, a tab each (`AbcTuner.svelte`): tuner, Analysis,
+metronome, drone, pitches (in the tuner's key, with no exercise), timer and
+the scale challenge. The mic stays on across tabs. In the navbar as abcTuner, and
 the practice pages reach it from their tools.
 
 The practice pages carry a Tools button in the bottom-right corner
@@ -190,11 +192,13 @@ trace and its half-minute stats), Spectrum (live, with the outline, numbered
 harmonics and F1/F2 as overlays), Harmonics (levels, H1 vs H2, ring,
 brightness) and Vowel (a guess among ee, eh, ah, oh, oo on a vowel chart).
 The maths is `src/lib/tuner/voice-spectrum.ts` (tests `voice-spectrum.test.ts`):
-formants by analysis by synthesis over the harmonics' levels, which held up
+formants by analysis by synthesis over the harmonics' levels (F1, F2 and
+F3 searched, harmonics under the noise floor left out), which held up
 against synthetic voices with other resonance widths and noise where picking
 humps off the outline did not; the live loop is `src/lib/tools/voice-analysis.ts`,
-reading the analyser through `TunerEngine.readSpectrum`. Vowels are only
-trusted below about C5. It is all from the mic alone; nothing compares
+reading the analyser through `TunerEngine.readSpectrum`. The singer says low or high voice (the pitch
+cannot: a man's [o] above G3 read as a woman's [u]). Vowels are only
+trusted below about A4, and rough above E4. It is all from the mic alone; nothing compares
 against the written notes yet.
 Ported from Blaine's standalone tuner project; see `src/lib/tuner/README.md`.
 The detection files are that project's unchanged, so improve detection there

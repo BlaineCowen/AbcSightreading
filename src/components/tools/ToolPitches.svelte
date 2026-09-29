@@ -11,6 +11,9 @@
    */
 
   $: pitches = $exercise?.startingPitches ?? [];
+  // With no exercise (the abcTuner page): the tuner's key, do up to do.
+  const SCALE: [number, string][] = [[0, "do"], [2, "re"], [4, "mi"], [5, "fa"], [7, "so"], [9, "la"], [11, "ti"], [12, "do"]];
+  $: keyDo = 60 + NOTES.indexOf($tuner.key);
   // Do in the octave of the lowest part's first note, so it sits in reach.
   $: doMidi = (() => {
     if (!$exercise) return 60;
@@ -25,7 +28,17 @@
 <h3 class="text-[15px] font-semibold text-sr-ink">Starting pitches</h3>
 
 {#if !$exercise}
-  <p class="text-sm text-sr-muted">Generate an exercise, and each part's first note will be here.</p>
+  <p class="text-sm text-sr-muted">Pitches in {$tuner.key}. On a practice page this gives each part's first note instead.</p>
+  <div class="grid grid-cols-4 gap-2">
+    {#each SCALE as [step, name], i}
+      <button
+        class="h-11 rounded-[14px] font-bold text-sm {i === 0 || i === 7 ? 'bg-sr-action text-sr-action-ink' : 'bg-sr-track text-sr-ink-2 hover:bg-sr-tint'}"
+        on:click={() => playNotes([keyDo + step], 1.6, $tuner.a4)}
+        title="Play {name}"
+      >{name}</button>
+    {/each}
+  </div>
+  <button class="h-11 sr-btn font-semibold" on:click={() => playNotes([keyDo, keyDo + 4, keyDo + 7], 2.2, $tuner.a4)}>Play the tonic chord</button>
 {:else if $exercise.rhythmOnly}
   <p class="text-sm text-sr-muted">This is a rhythm exercise, so there are no pitches to give.</p>
 {:else}

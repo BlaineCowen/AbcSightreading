@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { voiceReading } from "../../../lib/tools/voice-analysis";
+  import { chooseVoice, voiceReading, voiceType } from "../../../lib/tools/voice-analysis";
   import { VOWELS, formantScale, RELIABLE_BELOW_HZ } from "../../../lib/tuner/voice-spectrum";
 
   /**
@@ -19,7 +19,7 @@
 
   let trail: { x: number; y: number }[] = [];
   $: r = $voiceReading;
-  $: scale = formantScale(r.f0 ?? 150);
+  $: scale = formantScale(r.f0 ?? 150, $voiceType ?? undefined);
   $: if (r.formants && r.f0) {
     const f2 = r.formants.f2 ?? 800 * scale;
     trail = [...trail, { x: clampX(x(f2)), y: clampY(y(r.formants.f1)) }].slice(-12);
@@ -42,6 +42,12 @@
   {:else}
     <p class="text-sm font-semibold text-sr-muted">Sing a vowel on one steady note.</p>
   {/if}
+</div>
+
+<div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Your voice">
+  <span class="text-xs font-bold text-sr-ink mr-1">Your voice</span>
+  <button class="sr-freq {$voiceType === 'low' ? 'sr-on' : ''}" aria-pressed={$voiceType === "low"} on:click={() => chooseVoice("low")}>Low: bass, baritone, tenor</button>
+  <button class="sr-freq {$voiceType === 'high' ? 'sr-on' : ''}" aria-pressed={$voiceType === "high"} on:click={() => chooseVoice("high")}>High: alto, soprano</button>
 </div>
 
 <svg viewBox="0 0 {W} {H}" class="w-full rounded-[14px] bg-sr-track" role="img" aria-label="Vowel chart: where your vowel sits among i, ɛ, ɑ, o and u">

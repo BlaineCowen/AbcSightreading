@@ -12,8 +12,11 @@
   export let outline = true;
   export let marks = true;
   export let formantLines = true;
+  /** Height in px: taller on the abcTuner page. */
+  export let height = 180;
 
-  const LO = 80, HI = 5000, RANGE_DB = 70, H = 180;
+  const LO = 80, HI = 5000, RANGE_DB = 70;
+  $: H = height;
   let canvas: HTMLCanvasElement;
   let c = canvasColors();
   const offTheme = onThemeChange(() => { c = canvasColors(); draw(); });
