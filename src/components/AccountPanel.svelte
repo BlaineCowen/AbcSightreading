@@ -185,7 +185,16 @@
         <p class="text-sm text-sr-ink-2">
           <strong>{planName(billing.plan)}</strong>: unlimited exercises and the practice tools{billing.plan === "educator" ? ", plus classes with join codes and student accounts" : ""}.
         </p>
-        {#if billing.subscription}
+        {#if billing.po}
+          {@const po = billing.po}
+          <!-- On a school's purchase order: no card here, the invoice is the school's. -->
+          <p class="text-sm text-sr-muted">
+            Paid by {po.school}{po.poNumber ? `, PO ${po.poNumber}` : ""}.
+            {#if po.paid}The invoice is paid.
+            {:else if po.dueAt}The invoice is due {day(po.dueAt)}; if it is still unpaid then, the plan ends.{/if}
+            {#if po.invoiceUrl && !po.paid}<a class="underline" href={po.invoiceUrl} target="_blank" rel="noopener">See the invoice</a>.{/if}
+          </p>
+        {:else if billing.subscription}
           {@const sub = billing.subscription}
           <p class="text-sm text-sr-muted">
             {#if sub.status === "past_due"}
@@ -221,6 +230,7 @@
           <p class="text-sm text-sr-ink"><strong>Pro: $19.99 a year.</strong> Unlimited exercises, abcTuner, and the practice tools beside the music: tuner, metronome, drone, starting pitches.</p>
           <ReferralNote />
           <button class="sr-btn text-sm self-start" on:click={() => checkout("pro")} disabled={upgrading || !billing.billingEnabled}>Get Pro</button>
+          <p class="text-xs text-sr-muted">Paying with a school purchase order? <a class="underline font-bold" href="#quote">Send a quote to your purchasing office</a>.</p>
         </div>
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
           <p class="text-sm text-sr-ink">

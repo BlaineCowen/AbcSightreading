@@ -22,7 +22,7 @@ const accountType = viewer ? await accountTypeFor(viewer) : "standard";
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
     {accountType !== "educator" && <StudentAssignments client:only="svelte" />}
     <AccountPanel client:only="svelte" />
-    {accountType !== "student" && EDUCATOR_ON_SALE && <SchoolQuote client:only="svelte" />}
+    {accountType !== "student" && <SchoolQuote client:only="svelte" educatorOnSale={EDUCATOR_ON_SALE} />}
     {accountType === "educator" && <EducatorStudents client:only="svelte" />}
     {accountType !== "student" && <ClassProgress client:only="svelte" />}
     {accountType !== "student" && <SyllableEditor client:only="svelte" />}

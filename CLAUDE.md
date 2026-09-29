@@ -257,13 +257,19 @@ presets once; the server dedupes by name + creation time.
   the existing `subscriptionId`. Seat packs are a one-time checkout
   (`/api/billing/seats`) granted by the webhook into `SeatGrant`, for a year.
 - School quotes (`src/lib/server/quotes.ts`, rules in `src/lib/quote.ts`,
-  `SchoolQuote.svelte` on `/account`): a Stripe customer for the school (its
-  purchasing contact, address, tax exemption - never the teacher's own
-  customer), a finalized Stripe quote, net 30, PDF emailed to the teacher.
-  Entering the PO number accepts it: the subscription starts, its first invoice
-  carries the PO and goes to the school, and Educator starts at once - the
-  subscription row is written by us, since the plugin cannot map a school's
-  customer to the teacher. `FEEDBACK_TO` is told of every PO.
+  `SchoolQuote.svelte` on `/account`), for Pro or (once on sale) Educator: a
+  Stripe customer for the school (its purchasing contact, address, tax
+  exemption - never the teacher's own customer), a finalized Stripe quote,
+  net 30. One click emails the PDF straight to up to three purchasing
+  addresses, the teacher copied and replies going to them; only from a
+  confirmed email. Entering the PO number accepts it: the subscription
+  starts, its first invoice carries the PO and goes to the school, and the
+  plan starts at once - the subscription row is written by us, since the
+  plugin cannot map a school's customer to the teacher. `FEEDBACK_TO` is told
+  of every PO. A daily Vercel cron (`/api/cron/po-invoices`, vercel.json;
+  set `CRON_SECRET`) reminds purchasing and the teacher a week before the
+  invoice is due and, if it falls due unpaid, cancels the subscription, voids
+  the invoice and ends the plan (`reviewPoInvoices`; renewals the same).
 - Assignments and practice time (rules `src/lib/practice.ts`, tests
   `practice.test.ts`; server `src/lib/server/practice.ts`): a teacher assigns a
   class one preset (step, UIL level or saved - a saved one is copied in) for N

@@ -1,16 +1,24 @@
 /**
- * School quotes: a teacher asks for the Educator plan (and seat packs) on a
- * quote their purchasing office can turn into a purchase order. Pure rules,
- * tested in tests/unit/quote.test.ts; src/pages/api/quotes/ applies them.
+ * School quotes: a teacher asks for Pro, or the Educator plan (and seat
+ * packs), on a quote their purchasing office can turn into a purchase order.
+ * The quote goes straight to up to three purchasing addresses; a plan whose
+ * invoice is not paid within the month ends. Pure rules, tested in
+ * tests/unit/quote.test.ts; src/lib/server/quotes.ts applies them.
  */
 
 type Checked<T> = { ok: true; value: T } | { ok: false; error: string };
 
+export type QuotePlan = "pro" | "educator";
+
 export type QuoteRequest = {
+  plan: QuotePlan;
   school: string;
   district: string;
   contactName: string;
+  /** Billed, and the first of sendTo. */
   contactEmail: string;
+  /** Where the quote is emailed, the teacher copied: one to MAX_RECIPIENTS. */
+  sendTo: string[];
   address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: "US" };
   packs: number;
   taxExempt: boolean;
@@ -18,6 +26,11 @@ export type QuoteRequest = {
 
 /** How long a quote holds. Purchasing offices are slow; sixty days is the usual. */
 export const QUOTE_DAYS = 60;
+/** The invoice is due this many days after the PO starts the plan (net 30)... */
+export const INVOICE_DAYS = 30;
+/** ...with a reminder this many days before. Unpaid on the day, the plan ends. */
+export const REMIND_DAYS = 7;
+export const MAX_RECIPIENTS = 3;
 export const MAX_PACKS = 40;
 const MAX_TEXT = 200;
 
@@ -28,11 +41,19 @@ export function checkQuoteRequest(body: unknown): Checked<QuoteRequest> {
   if (typeof body !== "object" || body === null) return { ok: false, error: "Expected the school's details." };
   const b = body as Record<string, unknown>;
   const a = (typeof b.address === "object" && b.address !== null ? b.address : {}) as Record<string, unknown>;
+  const plan = b.plan === undefined ? "educator" : b.plan;
+  if (plan !== "pro" && plan !== "educator") return { ok: false, error: "Choose Pro or Educator." };
+  const listed = Array.isArray(b.sendTo) ? b.sendTo : typeof b.sendTo === "string" ? b.sendTo.split(/[,;\s]+/) : [];
+  const sendTo = [...new Set(listed.map((e) => str(e).toLowerCase()).filter(Boolean))];
+  const contactEmail = str(b.contactEmail).toLowerCase() || sendTo[0] || "";
+  if (!sendTo.length && contactEmail) sendTo.push(contactEmail);
   const value: QuoteRequest = {
+    plan,
     school: str(b.school),
     district: str(b.district),
     contactName: str(b.contactName),
-    contactEmail: str(b.contactEmail).toLowerCase(),
+    contactEmail,
+    sendTo,
     address: {
       line1: str(a.line1),
       line2: str(a.line2),
@@ -49,18 +70,22 @@ export function checkQuoteRequest(body: unknown): Checked<QuoteRequest> {
   if (!value.school) return { ok: false, error: "Enter the school's name." };
   if (!value.contactName) return { ok: false, error: "Enter who the quote goes to." };
   if (!EMAIL.test(value.contactEmail)) return { ok: false, error: "Enter the purchasing contact's email." };
+  if (value.sendTo.length > MAX_RECIPIENTS) return { ok: false, error: `Send it to at most ${MAX_RECIPIENTS} addresses.` };
+  const bad = value.sendTo.find((e) => !EMAIL.test(e));
+  if (bad) return { ok: false, error: `${bad} is not an email address.` };
   if (!value.address.line1 || !value.address.city) return { ok: false, error: "Enter the billing address." };
   if (!/^[A-Z]{2}$/.test(value.address.state)) return { ok: false, error: "Enter the state as two letters, like TX." };
   if (!/^\d{5}(-\d{4})?$/.test(value.address.postalCode)) return { ok: false, error: "Enter a ZIP code." };
   if (!Number.isInteger(value.packs) || value.packs < 0 || value.packs > MAX_PACKS) {
     return { ok: false, error: `Seat packs: between 0 and ${MAX_PACKS}.` };
   }
+  if (value.plan === "pro" && value.packs > 0) return { ok: false, error: "Seat packs come with Educator, not Pro." };
   return { ok: true, value };
 }
 
-/** The lines on the quote, by price lookup key: the Educator year, then any seat packs. */
-export function quoteItems(packs: number) {
-  const items: { price: string; quantity: number }[] = [{ price: "educator_yearly", quantity: 1 }];
+/** The lines on the quote, by price lookup key: the plan's year, then any seat packs. */
+export function quoteItems(plan: QuotePlan, packs: number) {
+  const items: { price: string; quantity: number }[] = [{ price: plan === "pro" ? "pro_yearly" : "educator_yearly", quantity: 1 }];
   if (packs > 0) items.push({ price: "seat_pack_25", quantity: packs });
   return items;
 }
@@ -72,3 +97,20 @@ export function checkPoNumber(v: unknown): Checked<string> {
   if (po.length > 40) return { ok: false, error: "That purchase order number is too long." };
   return { ok: true, value: po };
 }
+
+/**
+ * Where a purchase-order invoice stands, for the daily check
+ * (/api/cron/po-invoices): paid; nothing to do yet; send the one reminder;
+ * or past due unpaid, so the plan ends.
+ */
+export function invoiceStanding(p: { dueAt: Date; paid: boolean; reminded: boolean; now: Date }):
+  | "paid"
+  | "waiting"
+  | "remind"
+  | "lapse" {
+  if (p.paid) return "paid";
+  if (p.now.getTime() >= p.dueAt.getTime()) return "lapse";
+  if (!p.reminded && p.now.getTime() >= p.dueAt.getTime() - REMIND_DAYS * 86_400_000) return "remind";
+  return "waiting";
+}
+

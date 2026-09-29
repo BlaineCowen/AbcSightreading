@@ -13,25 +13,29 @@ const DEFAULT_FROM = "ABC Sight Reading <accounts@send.abc-sightreading.com>";
  * and is reported as one.
  */
 export async function sendAccountEmail(
-  to: string,
+  to: string | string[],
   subject: string,
   text: string,
-  attachments?: { filename: string; content: Buffer }[]
+  attachments?: { filename: string; content: Buffer }[],
+  /** A quote sent in a teacher's name: the teacher copied, and replies to them. */
+  opts?: { cc?: string[]; replyTo?: string }
 ) {
   const apiKey = serverEnv("RESEND_API_KEY");
   if (!apiKey) {
     if (import.meta.env.DEV) {
-      console.info(`[auth-email] RESEND_API_KEY unset; would send to ${to}:\n${subject}\n${text}`);
+      console.info(`[auth-email] RESEND_API_KEY unset; would send to ${[to].flat().join(", ")}${opts?.cc?.length ? ` (cc ${opts.cc.join(", ")})` : ""}:\n${subject}\n${text}`);
       return;
     }
     throw new Error("Account email is not configured: no RESEND_API_KEY.");
   }
   const { error } = await new Resend(apiKey).emails.send({
     from: serverEnv("AUTH_EMAIL_FROM") ?? DEFAULT_FROM,
-    to: [to],
+    to: [to].flat(),
     subject,
     text,
     ...(attachments ? { attachments } : {}),
+    ...(opts?.cc?.length ? { cc: opts.cc } : {}),
+    ...(opts?.replyTo ? { replyTo: opts.replyTo } : {}),
   });
   if (error) {
     console.error("[auth-email] Resend refused the message:", error);

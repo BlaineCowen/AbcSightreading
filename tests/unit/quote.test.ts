@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { QUOTE_DAYS, checkPoNumber, checkQuoteRequest, quoteItems } from "../../src/lib/quote";
+import {
+  INVOICE_DAYS,
+  QUOTE_DAYS,
+  REMIND_DAYS,
+  checkPoNumber,
+  checkQuoteRequest,
+  invoiceStanding,
+  quoteItems,
+} from "../../src/lib/quote";
 
 /**
  * School quotes (billing, stage 4b). Written before the code.
@@ -24,7 +32,13 @@ describe("a quote request", () => {
     const r = checkQuoteRequest({ ...valid, school: "  Lincoln Middle School ", contactEmail: " Purchasing@Springfield.k12.tx.us" });
     expect(r).toEqual({
       ok: true,
-      value: { ...valid, contactEmail: "purchasing@springfield.k12.tx.us", address: { ...valid.address, line2: "", country: "US" } },
+      value: {
+        ...valid,
+        plan: "educator",
+        contactEmail: "purchasing@springfield.k12.tx.us",
+        sendTo: ["purchasing@springfield.k12.tx.us"],
+        address: { ...valid.address, line2: "", country: "US" },
+      },
     });
   });
 
@@ -56,11 +70,15 @@ describe("a quote request", () => {
 
 describe("what a quote is for", () => {
   test("the Educator year, and seat packs when asked for", () => {
-    expect(quoteItems(0)).toEqual([{ price: "educator_yearly", quantity: 1 }]);
-    expect(quoteItems(3)).toEqual([
+    expect(quoteItems("educator", 0)).toEqual([{ price: "educator_yearly", quantity: 1 }]);
+    expect(quoteItems("educator", 3)).toEqual([
       { price: "educator_yearly", quantity: 1 },
       { price: "seat_pack_25", quantity: 3 },
     ]);
+  });
+
+  test("a Pro year, on its own", () => {
+    expect(quoteItems("pro", 0)).toEqual([{ price: "pro_yearly", quantity: 1 }]);
   });
 
   test("good for sixty days - purchasing offices are slow", () => {
@@ -77,3 +95,79 @@ describe("a purchase order number", () => {
     expect(checkPoNumber(42).ok).toBe(false);
   });
 });
+
+/**
+ * Pro on a purchase order (29 Sept 2026): the teacher sends the quote straight
+ * to up to three purchasing addresses in one go, and a plan whose invoice is
+ * not paid within the month ends.
+ */
+describe("a Pro quote, sent straight to purchasing", () => {
+  const pro = { ...valid, plan: "pro", packs: 0 };
+
+  test("a Pro quote has no seat packs", () => {
+    const r = checkQuoteRequest(pro);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.plan).toBe("pro");
+    expect(checkQuoteRequest({ ...pro, packs: 2 }).ok).toBe(false);
+  });
+
+  test("an unknown plan is refused", () => {
+    expect(checkQuoteRequest({ ...valid, plan: "platinum" }).ok).toBe(false);
+  });
+
+  test("up to three addresses, tidied and without repeats; the first is billed", () => {
+    const r = checkQuoteRequest({
+      ...pro,
+      contactEmail: undefined,
+      sendTo: [" Buyer@ISD.org ", "bookkeeper@school.org", "buyer@isd.org", ""],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.sendTo).toEqual(["buyer@isd.org", "bookkeeper@school.org"]);
+      expect(r.value.contactEmail).toBe("buyer@isd.org");
+    }
+  });
+
+  test("a comma-separated list works too", () => {
+    const r = checkQuoteRequest({ ...pro, contactEmail: undefined, sendTo: "a@isd.org, b@isd.org" });
+    expect(r.ok && r.value.sendTo).toEqual(["a@isd.org", "b@isd.org"]);
+  });
+
+  test("more than three, or one that is not an address, is refused", () => {
+    expect(checkQuoteRequest({ ...pro, sendTo: ["a@x.org", "b@x.org", "c@x.org", "d@x.org"] }).ok).toBe(false);
+    expect(checkQuoteRequest({ ...pro, contactEmail: undefined, sendTo: ["a@x.org", "nope"] }).ok).toBe(false);
+    expect(checkQuoteRequest({ ...pro, contactEmail: undefined, sendTo: [] }).ok).toBe(false);
+  });
+});
+
+describe("an invoice on a purchase order", () => {
+  const day = 86_400_000;
+  const issued = new Date("2026-10-01T15:00:00Z");
+  const dueAt = new Date(issued.getTime() + INVOICE_DAYS * day);
+  const at = (days: number) => new Date(issued.getTime() + days * day);
+
+  test("net 30, with a reminder a week before", () => {
+    expect(INVOICE_DAYS).toBe(30);
+    expect(REMIND_DAYS).toBe(7);
+  });
+
+  test("paid is paid, whenever", () => {
+    expect(invoiceStanding({ dueAt, paid: true, reminded: false, now: at(45) })).toBe("paid");
+  });
+
+  test("nothing to do in the first three weeks", () => {
+    expect(invoiceStanding({ dueAt, paid: false, reminded: false, now: at(1) })).toBe("waiting");
+    expect(invoiceStanding({ dueAt, paid: false, reminded: false, now: at(22.9) })).toBe("waiting");
+  });
+
+  test("a week before it is due: one reminder", () => {
+    expect(invoiceStanding({ dueAt, paid: false, reminded: false, now: at(23) })).toBe("remind");
+    expect(invoiceStanding({ dueAt, paid: false, reminded: true, now: at(25) })).toBe("waiting");
+  });
+
+  test("unpaid when it falls due: the plan ends", () => {
+    expect(invoiceStanding({ dueAt, paid: false, reminded: true, now: at(30) })).toBe("lapse");
+    expect(invoiceStanding({ dueAt, paid: false, reminded: false, now: at(31) })).toBe("lapse");
+  });
+});
+

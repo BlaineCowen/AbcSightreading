@@ -2,5 +2,11 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "outputDirectory": "dist",
-  "framework": "astro"
+  "framework": "astro",
+  "crons": [
+    {
+      "path": "/api/cron/po-invoices",
+      "schedule": "0 14 * * *"
+    }
+  ]
 }

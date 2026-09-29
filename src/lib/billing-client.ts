@@ -14,6 +14,8 @@ export type BillingStatus = {
   grantEnds: number | null;
   billingEnabled: boolean;
   subscription: { id: string | null; plan: string; status: string; periodEnd: number | null; cancelAtPeriodEnd: boolean } | null;
+  /** A plan on a school purchase order. */
+  po?: { poNumber: string | null; school: string; invoiceUrl: string | null; dueAt: number | null; paid: boolean } | null;
 };
 
 let current: Promise<BillingStatus | null> | null = null;

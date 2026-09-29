@@ -10,8 +10,9 @@ import { EDUCATOR_ON_SALE } from "../../../lib/plan";
  * School quotes (src/lib/server/quotes.ts).
  *
  * GET  -> the teacher's quotes, newest first
- * POST -> { school, district?, contactName, contactEmail, address, packs?, taxExempt? }
- *         makes and finalizes a quote, and emails the teacher its PDF
+ * POST -> { plan, school, district?, contactName, sendTo, address, packs?, taxExempt? }
+ *         makes and finalizes a quote, and emails its PDF to sendTo (up to
+ *         three purchasing addresses), the teacher copied
  */
 
 const view = (q: Awaited<ReturnType<typeof prisma.quote.findFirstOrThrow>>) => ({
@@ -26,6 +27,11 @@ const view = (q: Awaited<ReturnType<typeof prisma.quote.findFirstOrThrow>>) => (
   expiresAt: q.expiresAt.getTime(),
   poNumber: q.poNumber,
   invoiceUrl: q.invoiceUrl,
+  plan: q.plan,
+  sendTo: q.sendTo ? q.sendTo.split(",") : [q.contactEmail],
+  invoiceDueAt: q.invoiceDueAt?.getTime() ?? null,
+  paidAt: q.paidAt?.getTime() ?? null,
+  lapsedAt: q.lapsedAt?.getTime() ?? null,
   createdAt: q.createdAt.getTime(),
 });
 export type QuoteView = ReturnType<typeof view>;
@@ -41,10 +47,10 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
-  if (!EDUCATOR_ON_SALE) return json({ error: "The Educator plan is coming soon." }, 403);
   if ((await accountTypeFor(user)) === "student") return json({ error: "Student accounts cannot ask for quotes." }, 403);
   const checked = checkQuoteRequest(await readJson(request));
   if (!checked.ok) return json({ error: checked.error }, 400);
+  if (checked.value.plan === "educator" && !EDUCATOR_ON_SALE) return json({ error: "The Educator plan is coming soon." }, 403);
   try {
     return json(view(await createSchoolQuote(user, checked.value)));
   } catch (e) {

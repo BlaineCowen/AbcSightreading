@@ -266,6 +266,17 @@ model Quote {
   acceptedAt           DateTime?
   stripeSubscriptionId String?
   invoiceUrl           String?
+  /// "pro" or "educator".
+  plan                 String    @default("educator")
+  /// Where the quote was emailed, comma-separated (the teacher is copied).
+  sendTo               String    @default("")
+  /// The invoice being waited on: its id, due date, and when it was paid,
+  /// reminded about, or left unpaid so the plan ended (/api/cron/po-invoices).
+  invoiceId            String?
+  invoiceDueAt         DateTime?
+  paidAt               DateTime?
+  remindedAt           DateTime?
+  lapsedAt             DateTime?
   createdAt            DateTime  @default(now())
 
   @@index([userId])
