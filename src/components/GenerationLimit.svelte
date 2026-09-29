@@ -46,9 +46,9 @@
     role="status"
   >
     <strong class="tabular-nums font-extrabold">{$usage.remaining}</strong> of {$usage.limit}
-    {$usage.tier === "anonymous" ? "free exercises" : "exercises"} left this month.
+    exercises left this month.
     {#if $usage.tier === "anonymous"}
-      Increase to {GENERATION_LIMITS.free} by <a class="underline font-extrabold" href={signupHref}>creating an account</a>.
+      Increase to {GENERATION_LIMITS.free} by <a class="underline font-extrabold" href={signupHref}>creating a free account</a>.
     {:else}
       <a class="underline font-extrabold" href={upgradeHref}>Upgrade to Pro</a> for unlimited exercises.
     {/if}
