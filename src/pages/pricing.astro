@@ -103,13 +103,14 @@ import ReferralNote from "../components/ReferralNote.svelte";
     </div>
 
     <section class="max-w-3xl mx-auto text-sr-ink-2 flex flex-col gap-3">
-      {EDUCATOR_ON_SALE && <h2 class="text-2xl font-semibold text-sr-ink">Schools and purchase orders</h2>}
-      {EDUCATOR_ON_SALE && <p>
-        Sign in, open your account page, and choose <strong>Get a quote</strong>. You get a numbered PDF quote to send
-        your purchasing office, made out to your school or district, marked tax-exempt if it is. When the purchase order
-        comes back, enter its number: the Educator plan starts right away, and the invoice goes to the school, due in 30
-        days, payable by ACH, card or check.
-      </p>}
+      <h2 class="text-2xl font-semibold text-sr-ink">Paying with a school purchase order</h2>
+      <p>
+        Sign in, open your account page, and choose <strong>Send a quote</strong>. Give your purchasing office's email
+        and one click sends them a numbered PDF quote for Pro{EDUCATOR_ON_SALE ? " or Educator" : ""}, made out to your
+        school or district, marked tax-exempt if it is, with a copy to you. When the purchase order comes back, enter its
+        number: the plan starts right away, and the invoice goes to the school, due in 30 days, payable by ACH, card or
+        check. If it is not paid by then, the plan ends.
+      </p>
       <p>
         Prices are in US dollars and include any sales tax. What you see is what you pay. Public schools and districts
         with an exemption certificate are billed tax-exempt. Plans renew yearly and can be cancelled any time before renewal.
