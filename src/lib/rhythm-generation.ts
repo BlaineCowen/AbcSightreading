@@ -298,14 +298,8 @@ export function generateRandomRhythm(
     longestDuration = longestSingleRhythm.totalValue;
 
     if (longestDuration > timeSig.tsPerMeasure * 4) {
-      console.warn(
-        `Cadence rhythm (${longestDuration}) is longer than a 4-measure block. Cadence enforcement might behave unexpectedly.`
-      );
     }
   } else {
-    console.warn(
-      "No single (non-pattern) rhythms provided. Cadence points will not be enforced with a long note."
-    );
   }
   // --- End Find Longest ---
 
@@ -332,9 +326,6 @@ export function generateRandomRhythm(
   }
 
   if (timeSig.tsPerMeasure % beatGCD !== 0) {
-    console.warn(
-      `Time signature per measure (${timeSig.tsPerMeasure}) might not be perfectly divisible by the GCD of rhythm totalValues (${beatGCD}).`
-    );
   }
   // --- End Validation ---
 
@@ -419,14 +410,8 @@ export function generateRandomRhythm(
       // This implies the remaining space is less than longestDuration.
       // Fill the rest of the block without forcing the long note.
       sectionEndTarget = blockEndTarget;
-      console.warn(
-        `Block ending at ${blockEndTarget} is too short for longest note (${longestDuration}). Filling normally.`
-      );
     }
 
-    console.log(
-      `Looping: currentBeat=${currentBeat}, blockEndTarget=${blockEndTarget}, sectionEndTarget=${sectionEndTarget}, cadenceIndex=${cadenceIndex}`
-    );
 
     // The fill is a depth-first walk, and a greedy walk can paint itself into a
     // corner: a half rest in 3/4 leaves 8 units that nothing can occupy, and no
@@ -528,9 +513,6 @@ export function generateRandomRhythm(
 
       // Handle case where no rhythm fits after applying placement rules
       if (possibleRhythms.length === 0) {
-        console.log(
-          `[Debug] No possible rhythms after placement rules at beat ${currentBeat}. measureRemaining: ${measureRemaining}, remainingBeatsInSection: ${remainingBeatsInSection}. Attempting fallback.`
-        );
 
         // Fallback 1: Try to find an exact fit for the remaining part of the measure
         // Ensure we are looking at the initially filtered 'rhythms' list
@@ -545,9 +527,6 @@ export function generateRandomRhythm(
 
         if (exactFitForMeasure) {
           possibleRhythms = [exactFitForMeasure];
-          console.log(
-            `[Debug] Fallback (1): Using exact fit for measure: ${exactFitForMeasure.name} (value: ${exactFitForMeasure.totalValue})`
-          );
         } else {
           // Fallback 2: Try to find the largest rhythm that fits the measure and section
           const bestFittingFallback = rhythms
@@ -568,16 +547,10 @@ export function generateRandomRhythm(
 
           if (bestFittingFallback.length > 0) {
             possibleRhythms = [bestFittingFallback[0]]; // Take the largest one that fits
-            console.log(
-              `[Debug] Fallback (2): No exact fit. Using largest fitting rhythm: ${possibleRhythms[0].name} (value: ${possibleRhythms[0].totalValue})`
-            );
           } else if (backtrack()) {
             // Rewound to the previous choice with that route excluded; retry.
             continue;
           } else {
-            console.error(
-              `CRITICAL: no rhythm fits at beat ${currentBeat} and every route has been tried (${backtracks} backtracks). Remaining in section: ${remainingBeatsInSection}, remaining in measure: ${measureRemaining}.`
-            );
             fillFailed = true;
             break; // Break from the inner while loop
           }
@@ -671,9 +644,6 @@ export function generateRandomRhythm(
       // it was the reserved cadence note, hand the block back and refill it
       // without one before giving up.
       if (sectionEndTarget < blockEndTarget && cadenceOptOutAt !== blockStartBeat) {
-        console.warn(
-          `Refilling the block at ${blockStartBeat} without a reserved cadence note.`
-        );
         result.length = blockStartResultLen;
         currentBeat = blockStartBeat;
         cadenceOptOutAt = blockStartBeat;
@@ -691,9 +661,6 @@ export function generateRandomRhythm(
     ) {
       if (currentBeat < totalBeats) {
         // Ensure we haven't already finished
-        console.log(
-          `Placing cadence note (${longestSingleRhythm.name}) at beat ${currentBeat}`
-        );
         // The last phrase ending gets the long note; the ones on the way there
         // settle for less, so the piece keeps moving between phrases.
         const interiorFigure = !finalBlock ? interiorCadenceFigure : null;
@@ -743,18 +710,12 @@ export function generateRandomRhythm(
         cadenceIndex++; // Move to the next planned cadence
       } else {
         // This case should ideally not be reached due to outer loop condition
-        console.warn(
-          "Reached section end exactly at totalBeats, skipping final cadence note placement logic."
-        );
       }
     } else if (currentBeat < blockEndTarget) {
       // If the inner loop broke early OR the block was too short for longest note,
       // we might have a gap before the blockEndTarget. Fill it? Or just move on?
       // For now, let's just log and move to the next block boundary by setting currentBeat.
       // A more robust solution might involve gap filling here.
-      console.warn(
-        `Gap detected or block too short at beat ${currentBeat}. Target was ${blockEndTarget}. Moving to target.`
-      );
       currentBeat = blockEndTarget;
     }
     // If currentBeat >= blockEndTarget, the loop condition `currentBeat < totalBeats` will handle termination or continuation.
@@ -763,15 +724,9 @@ export function generateRandomRhythm(
   // --- Final Validation ---
   const finalGeneratedBeats = result.reduce((sum, r) => sum + r.totalValue, 0);
   if (finalGeneratedBeats !== totalBeats) {
-    console.error(
-      `Generated rhythm mismatch! Expected ${totalBeats} beats, got ${finalGeneratedBeats}.`
-    );
     // Consider adding logic to trim or pad the result if necessary
   }
 
-  console.log(
-    `generateRandomRhythm finished. Generated ${result.length} steps, ${finalGeneratedBeats}/${totalBeats} beats.`
-  );
 
   // A short result is never usable: the caller lays it out measure by measure,
   // so the missing beats surface as a measure that does not add up rather than

@@ -61,7 +61,6 @@ function createNewNote(
 ): VoiceNote | null {
   const baseName = noteArray[newPitchValue];
   if (!baseName) {
-    console.warn(`NCT_GEN Helper: Pitch value ${newPitchValue} not found in noteArray.`);
     return null;
   }
 
@@ -381,10 +380,6 @@ function checkParallelMotion(
       rawIntervalAfter > 0;
 
     if (isParallelFifth || isParallelOctave) {
-      console.warn(
-        `NCT_GEN: Parallel ${isParallelFifth ? "5th" : "octave"} detected ` +
-          `between voice ${currentPartIndex} and ${v} at t=${tStart}. Rejecting NCT.`
-      );
       return true;
     }
   }
@@ -639,13 +634,11 @@ export function generateNonChordTones(
   const outputNotes: VoiceNote[] = [];
 
   if (!nctRhythms || nctRhythms.length === 0) {
-    console.warn("NCT_GEN: No NCT rhythms provided. Returning original notes.");
     return [...notesToProcess];
   }
 
   const patternNctRhythms = nctRhythms.filter((r) => r.pattern);
   if (patternNctRhythms.length === 0) {
-    console.warn("NCT_GEN: No *pattern* NCT rhythms provided. Returning original notes.");
     return [...notesToProcess];
   }
 
@@ -769,9 +762,6 @@ export function generateNonChordTones(
       continue;
     }
 
-    console.log(
-      `NCT_GEN: Triggered for note ${i}: ${originalNote.name} (${originalNote.length}), nextNote: ${nextNote?.name ?? "None"}`
-    );
 
     // Prefer moving with a voice that has already been decorated, when the two
     // are a 3rd or a 6th apart. Falls through to an independent decoration if
@@ -791,11 +781,9 @@ export function generateNonChordTones(
       );
       if (!why) {
         if (originalNote.chordSymbol) mirrored[0].chordSymbol = originalNote.chordSymbol;
-        console.log(`NCT_GEN: Generated ${mirrored.length} notes for Parallel Motion.`);
         outputNotes.push(...mirrored.map((n) => ({ ...n, ornament: true })));
         continue;
       }
-      console.log(`NCT_GEN: mirrored decoration rejected (${why}) at ${i}.`);
     }
 
     const originalDuration = originalNote.length;
@@ -831,9 +819,6 @@ export function generateNonChordTones(
     }
 
     if (candidates.length === 0) {
-      console.log(
-        `NCT_GEN: No suitable NCT type for note ${i} (${originalNote.name} -> ${nextNote?.name ?? "None"}). Keeping original.`
-      );
       outputNotes.push(originalNote);
       continue;
     }
@@ -843,16 +828,12 @@ export function generateNonChordTones(
       chosen = pickAcrossLibrary(nctLibrary, candidates);
     }
     if (!chosen) {
-      console.log(`NCT_GEN: nothing drawn fits note ${i}. Keeping original.`);
       outputNotes.push(originalNote);
       continue;
     }
     const selectedNctDefinition = chosen.def;
     const selectedPatternRhythm = chosen.pattern;
 
-    console.log(
-      `NCT_GEN: Attempting ${selectedNctDefinition.name} with rhythm: ${selectedPatternRhythm.name}`
-    );
 
     const generatedNctNotes = selectedNctDefinition.generator({
       currentNote: originalNote,
@@ -870,7 +851,6 @@ export function generateNonChordTones(
       outputNotes.at(-1) ?? null, originalNote
     );
     if (why) {
-      console.log(`NCT_GEN: ${why} - keeping original note at ${i}.`);
       outputNotes.push(originalNote);
       continue;
     }
@@ -892,12 +872,8 @@ export function generateNonChordTones(
         generatedNctNotes[0].chordSymbol = originalNote.chordSymbol;
       }
 
-      console.log(`NCT_GEN: Generated ${generatedNctNotes.length} notes for ${selectedNctDefinition.name}.`);
       outputNotes.push(...generatedNctNotes.map((n) => ({ ...n, ornament: true })));
     } else {
-      console.log(
-        `NCT_GEN: Generation failed for ${selectedNctDefinition.name}. Keeping original.`
-      );
       outputNotes.push(originalNote);
     }
   }

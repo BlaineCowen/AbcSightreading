@@ -86,20 +86,10 @@ export function prepareVoiceParts(
     }
   }
 
-  console.log("prepareVoiceParts - Input:", {
-    key,
-    ranges,
-    partsObject,
-  });
 
   // Generate parts using provided ranges and key
   const parts = Object.entries(partsObject.parts).map(([name, partDef]) => {
     const range = ranges?.[name] || partDef.currentRange || partDef.range;
-    console.log(`prepareVoiceParts - Processing ${name}:`, {
-      range,
-      fallbackRange: partDef.range,
-      currentRange: partDef.currentRange,
-    });
     return {
       range,
       // Carry through the original full range and the tessitura. The
@@ -117,7 +107,6 @@ export function prepareVoiceParts(
     };
   });
 
-  console.log("prepareVoiceParts - Generated parts:", parts);
   return parts;
 }
 

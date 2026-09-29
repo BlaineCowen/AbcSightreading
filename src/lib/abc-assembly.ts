@@ -65,19 +65,6 @@ export function assembleAbcString(
   metadata: AbcMetadata,
   display: AbcDisplayOptions = {}
 ): string {
-  console.log("Assembling ABC string with:");
-  console.log(
-    "  Notes per voice:",
-    allVoiceNotes.map((notes) => notes.length)
-  );
-  console.log(
-    "  Voice parts:",
-    voiceParts.map((v) => v.name)
-  );
-  console.log(
-    "  Rhythms:",
-    rhythms.map((r) => ({ name: r.name, abcValue: r.abcValue }))
-  );
 
   let abcString = "";
 
@@ -218,12 +205,6 @@ export function assembleAbcString(
       const note = notesForPart[stepIndex];
 
       // Log the note being processed
-      console.log(`ABC_ASM [V:${partSmallName}, Step:${stepIndex}]:`, {
-        name: note.name,
-        length: note.length,
-        rest: note.rest,
-        accidental: note.accidental,
-      });
 
       // Chord-symbol annotation (e.g. "I", "V⁷", "V⁶/V").
       //

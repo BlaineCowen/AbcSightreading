@@ -1099,7 +1099,6 @@
 
   async function initAudio() {
     if (!currentTune) {
-      console.warn("No tune available - generate one first");
       return false;
     }
     // Ensure AudioContext is running. resume() never settles while the browser
@@ -1157,9 +1156,6 @@
 
     const bufferSeconds = audioBuffer?.duration ?? 0;
     const peak = audioBuffer ? peakAmplitude(audioBuffer) : 0;
-    console.info(
-      `[audio] ctx=${audioContext.state} initDuration=${initResult?.duration ?? "?"} buffer=${bufferSeconds.toFixed(2)}s peak=${peak.toFixed(4)} gain=${gainNode?.gain.value.toFixed(2)}`
-    );
 
     // A silent buffer is the failure being chased: it passes every other check,
     // so the cursor runs and the metronome clicks with no instrument at all.
@@ -1593,7 +1589,6 @@
    */
   async function rerenderTune() {
     if (!originalTuneString || !currentTune) {
-      console.warn("No original tune string available for rerendering");
       return;
     }
 
@@ -1892,7 +1887,6 @@
     // Never start the cursor and metronome without the instrument audio - that
     // is what produced a click-only playthrough.
     if (!scheduleAudioFrom(resumeFrom)) {
-      console.warn("No audio buffer to schedule; not starting playback.");
       return;
     }
     pausedAt = 0;
@@ -2154,10 +2148,6 @@
         throw new Error("Invalid range");
       }
 
-      console.log(
-        "Sending params to generate:",
-        JSON.stringify(params, null, 2)
-      );
 
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -2189,7 +2179,6 @@
         );
       }
 
-      console.log("Response data:", result);
 
       if (result.success) {
         renderedString = result.data;
@@ -2619,7 +2608,6 @@
    */
   function handleRangeChange(newRange: { min: number; max: number }) {
     selectedRange = newRange;
-    console.log("Range changed:", selectedRange); // Debug
   }
 
   /**
@@ -3051,7 +3039,6 @@
       return false;
     }
 
-    console.log("Selected rhythms:", rhythms);
     let totalWeight = 0;
     rhythms.forEach((rhythm) => {
       if (!rhythm || typeof rhythm.weight !== "number") {

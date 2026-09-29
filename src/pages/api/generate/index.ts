@@ -11,20 +11,14 @@ export const GET: APIRoute = () => {
 };
 
 export const POST: APIRoute = async ({ request }) => {
-  console.log("🚀 POST request received");
 
   try {
-    console.log(
-      "🔍 Request headers:",
-      Object.fromEntries([...request.headers])
-    );
 
     let params;
     const rawBody = await request.text();
 
     try {
       params = JSON.parse(rawBody);
-      console.log("✅ Parsed params:", params);
     } catch (error: any) {
       return new Response(
         JSON.stringify({
@@ -60,7 +54,6 @@ export const POST: APIRoute = async ({ request }) => {
       throw new Error("Missing or invalid range parameter");
     }
 
-    console.log("✅ All parameters validated");
 
     // Transform params to match what createNewSr expects
     const transformedParams = {

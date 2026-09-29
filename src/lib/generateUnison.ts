@@ -199,7 +199,6 @@ function getRandomByWeight(
   arr = arr.map((element) => {
     const chord = chords.find((c) => c.name === element.name);
     if (!chord) {
-      console.warn(`Chord ${element.name} not found`);
       return element;
     }
     return {
@@ -268,7 +267,6 @@ export function generateRandomRhythmCombination(
   // });
 
   if (!rhythmArray || rhythmArray.length === 0) {
-    console.error("❌ No rhythms provided for generation");
     throw new Error("No rhythms provided for generation");
   }
 
@@ -421,13 +419,6 @@ export function generateRandomRhythmCombination(
   }
 
   if (totalRuns >= 1000 || currentSum !== targetSum) {
-    console.error("❌ Could not find valid rhythm combination");
-    console.error("🔍 Final state:", {
-      currentSum,
-      targetSum,
-      totalRuns,
-      currentCombination,
-    });
     return { numbers: [], rhythmObjects: [] };
   }
 
@@ -639,7 +630,6 @@ function generateChordProgression(
   let bassNoteArray: Note[] = [];
   let newMaxSkip = maxSkip;
 
-  console.log("🔍 Chords:", chords);
 
   // const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
   // bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
@@ -697,17 +687,6 @@ function generateChordProgression(
   // );
 
   if (bassRangeNoteList.length === 0) {
-    console.error(
-      "❌ CRITICAL ERROR: No valid notes found in range for the selected scale degrees"
-    );
-    console.error("🔍 Debug info:", {
-      originalBassRangeLength,
-      scaleDegrees: Array.from(scaleDegrees),
-      originalNotes: bassRangeNoteList.map((n) => ({
-        name: n.name,
-        degree: n.degree,
-      })),
-    });
     throw new Error(
       "No valid notes found in range for the selected scale degrees"
     );
@@ -724,17 +703,6 @@ function generateChordProgression(
   // );
 
   if (tonicNotes.length === 0) {
-    console.error(
-      "❌ CRITICAL ERROR: No tonic notes found in the selected range and scale degrees"
-    );
-    console.error("🔍 Debug info:", {
-      bassRangeNoteList: bassRangeNoteList.map((n) => ({
-        name: n.name,
-        degree: n.degree,
-      })),
-      scaleDegrees: Array.from(scaleDegrees),
-      tonicDegrees: [0, 2, 4],
-    });
     throw new Error(
       "No tonic notes found in the selected range and scale degrees. Please adjust the settings."
     );
@@ -1248,9 +1216,6 @@ function generateChordProgression(
   }
 
   if (chordGenFails >= 100) {
-    console.error(
-      "❌ Could not find a valid chord progression after 100 attempts"
-    );
     throw new Error(
       "Could not generate a melody with the selected options. Please adjust the settings, such as increasing the Max Skip or adding more scale degrees."
     );
@@ -1269,7 +1234,6 @@ function createNoteList(tonic: string, numOfNotes: number) {
   const tonicIndex = notes.indexOf(keyLetter);
 
   if (tonicIndex === -1) {
-    console.error(`Invalid tonic: ${tonic}`);
     return [];
   }
 
@@ -1303,7 +1267,6 @@ function createNoteList(tonic: string, numOfNotes: number) {
     }
   }
 
-  console.log("✅ Note list created with correct degrees for key:", tonic);
   return noteList;
 }
 
@@ -1452,7 +1415,6 @@ function generateChord(params: GenerateChordParams) {
   } else if (singlePartObject.order !== 0) {
     // check if prev note is undefined
     if (!prevNote) {
-      console.log("Error: Previous note is undefined");
       return false;
     }
 
@@ -1495,7 +1457,6 @@ function generateChord(params: GenerateChordParams) {
           }
         });
       } catch (error) {
-        console.error("An error occurred:", error);
       }
 
       let closestDegreeAbove = 0;
@@ -1510,7 +1471,6 @@ function generateChord(params: GenerateChordParams) {
 
       // check if last note is an accidental
       // see if .name includes [^, ^^, =, _, __ ]
-      console.log("prevNote.name:", prevNote.name);
       var prevNoteAccidental = prevNote.name.match(/[_^=]/g);
 
       if (prevNoteAccidental) {
@@ -1785,9 +1745,6 @@ function resolveSyllableSystem(id: unknown, custom?: unknown): SyllableSystem {
     if (checked.ok) return customSyllableSystem(checked.value);
   }
   if (id !== undefined && id !== null) {
-    console.warn(
-      `Unknown syllable system ${JSON.stringify(id)}; falling back to ${defaultSyllableSystem.id}.`
-    );
   }
   return defaultSyllableSystem;
 }
@@ -1905,7 +1862,6 @@ function createConcatString(
   var concatString = "";
 
   Object.keys(partsObject.parts).forEach((part: string) => {
-    console.log("part:", part);
     var singlePartObject = partsObject.parts[part];
     var measureString = "";
     var tsCount = 0;
@@ -1927,7 +1883,6 @@ function createConcatString(
         }
 
         let processedNoteName = note.name;
-        console.log("note.name:", note.name);
         const accidentalMatch = note.name.match(/[_^=]+/);
         const currentAccidental = accidentalMatch ? accidentalMatch[0] : null;
         const noteKey = currentAccidental
@@ -2021,7 +1976,6 @@ function createConcatString(
     // over means the note list did not fill its last measure; emit it rather
     // than dropping it, so a short exercise is visible instead of blank.
     if (measureString.trim().length > 0) {
-      console.warn("Incomplete final measure in generated rhythm.");
       concatString += measureString + "|";
       measureString = "";
     }
@@ -2426,7 +2380,6 @@ function createNewSrOnce(params: any) {
     // console.log("🔍 Validating parameters...");
 
     if (!params.selectedRhythms || params.selectedRhythms.length === 0) {
-      console.error("❌ No rhythms selected in params.selectedRhythms!");
       throw new Error("No rhythms selected");
     }
 
@@ -2437,17 +2390,14 @@ function createNewSrOnce(params: any) {
     }
 
     if (!params.selectedTimeSignature) {
-      console.error("❌ No time signature selected");
       throw new Error("No time signature selected");
     }
 
     if (!params.range || typeof params.range !== "object") {
-      console.error("❌ Invalid or missing range parameter:", params.range);
       throw new Error("Invalid range parameter");
     }
 
     if (!params.key) {
-      console.error("❌ No key specified");
       throw new Error("No key specified");
     }
 
@@ -2466,7 +2416,6 @@ function createNewSrOnce(params: any) {
       //   Array.from(params.scaleDegrees)
       // );
     } else {
-      console.warn("⚠️ No scale degrees provided, using default");
       params.scaleDegrees = new Set([0, 1, 2, 3, 4, 5, 6]); // Default to all degrees
     }
 
@@ -2508,9 +2457,6 @@ function createNewSrOnce(params: any) {
     for (const d of sharpScaleDegrees) (params.scaleDegrees as Set<number>).add((d + 1) % 7);
     for (const d of flatScaleDegrees) (params.scaleDegrees as Set<number>).add((d + 6) % 7);
 
-    console.log("🔍 Sharp scale degrees:", sharpScaleDegrees);
-    console.log("🔍 Flat scale degrees:", flatScaleDegrees);
-    console.log("🔍 Natural scale degrees:", params.scaleDegrees);
 
     // Flat 3 has no chord in the shared list, so it could never be written.
     // The minor tonic borrowed into major carries it with nothing else
@@ -2588,10 +2534,8 @@ function createNewSrOnce(params: any) {
       return false;
     });
 
-    console.log("🔍 Filtered chords:", filteredChords);
 
     if (filteredChords.length === 0) {
-      console.error("❌ No valid chords found after filtering");
       throw new Error("No valid chords found");
     }
 
@@ -2685,17 +2629,9 @@ function createNewSrOnce(params: any) {
     // });
 
     if (minIndex === -1) {
-      console.error(
-        "❌ Could not find min note in baseNoteArray:",
-        baseNoteArray[params.range.min]
-      );
       throw new Error(`Invalid range min: ${params.range.min}`);
     }
     if (maxIndex === -1) {
-      console.error(
-        "❌ Could not find max note in baseNoteArray:",
-        baseNoteArray[params.range.max + 1]
-      );
       throw new Error(`Invalid range max: ${params.range.max}`);
     }
 
@@ -2774,12 +2710,10 @@ function createNewSrOnce(params: any) {
     // });
 
     if (!renderedChordProgression || renderedChordProgression.length === 0) {
-      console.error("❌ No chord progression generated");
       throw new Error("Failed to generate chord progression");
     }
 
     if (!bassGenNoteArray || bassGenNoteArray.length === 0) {
-      console.error("❌ No bass notes generated");
       throw new Error("Failed to generate bass notes");
     }
 
@@ -2975,10 +2909,6 @@ function createNewSrOnce(params: any) {
             partIndexArray[partNum]
           ];
           if (!partsObject.parts[partName].chordNoteObject) {
-            console.error(
-              "Error: chordNoteObject is undefined for part",
-              partName
-            );
             continue;
           }
           // Add rhythm information to the note object
@@ -2997,15 +2927,11 @@ function createNewSrOnce(params: any) {
         partsObject.parts[Object.keys(partsObject.parts)[0]].chordNoteObject
           .length === renderedChordProgression.length
       ) {
-        console.log("✅ Voice generation completed successfully");
         break;
       }
     }
 
     if (totalLoopFails >= maxTotalLoopFails) {
-      console.error(
-        "❌ Could not find a valid voice leading after 100 attempts"
-      );
       throw new Error("Failed to generate valid voice leading");
     }
 
@@ -3205,7 +3131,6 @@ function createNewSrOnce(params: any) {
       partsObject.parts[part].concatNoteString = partString;
     });
 
-    console.log("✅ Final ABC string created");
     // console.log(
     //   "📝 Final string preview:",
     //   renderedString.substring(0, 200) + "..."
@@ -3221,22 +3146,6 @@ function createNewSrOnce(params: any) {
 
     return [renderedString, renderedChordProgression, score];
   } catch (error) {
-    console.error("=== UNISON SIGHT READING GENERATION FAILED ===");
-    console.error("❌ Error caught in createNewSr:", error);
-    console.error("Error details:", {
-      message: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
-      params: params
-        ? {
-            selectedRhythms: params.selectedRhythms?.length,
-            rhythms: params.rhythms?.length,
-            timeSig: params.timeSig,
-            measures: params.measures,
-            range: params.range,
-            key: params.key,
-          }
-        : "No params",
-    });
     // Returning a null pair here used to read as success at the API boundary
     // (it is still an array), so every failure surfaced as a blank score with
     // no message. Rethrow and let the route report it.

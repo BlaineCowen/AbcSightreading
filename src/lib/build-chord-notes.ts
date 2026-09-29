@@ -108,26 +108,6 @@ export function determineAccidental(
   // Check if this degree is already sharp in the key signature
   const isSharpenedInKey = keyInfo.sharps?.includes(degree);
 
-  console.log(
-    `\nAccidental check for degree ${degree} in ${key} with chord ${chord.name}:`
-  );
-  console.log(
-    `  Key signature: ${
-      isFlattedInKey ? "flat" : isSharpenedInKey ? "sharp" : "natural"
-    }`
-  );
-  console.log(
-    `  Chord wants: ${
-      chord.sharpScaleDegree === degree
-        ? "sharp"
-        : chord.flatScaleDegree === degree
-        ? "flat"
-        : "natural"
-    }`
-  );
-  console.log(
-    `  Chord scale degrees: flat=${chord.flatScaleDegree}, sharp=${chord.sharpScaleDegree}`
-  );
 
   let result: {
     accidental:
@@ -166,11 +146,6 @@ export function determineAccidental(
     result = { accidental: null, prefix: "" };
   }
 
-  console.log(
-    `  Result: ${result.accidental || "none"} (prefix: ${
-      result.prefix || "none"
-    })\n`
-  );
   return result;
 }
 
@@ -683,11 +658,6 @@ export function buildChordNotes(
       otherVoicesPrev.length === otherVoiceNotes.length
     ) {
       if (_PARALLEL_DEBUG) {
-        console.error(
-          `[PFilter] voice ${voicePart.smallName} prev=${previousNote.pitchValue} ` +
-          `candidates=${validNotes.map((n) => n.pitchValue).join(",")} ` +
-          `others=${otherVoiceNotes.map((n, i) => `${n.pitchValue}(prev=${otherVoicesPrev[i]?.pitchValue})`).join(", ")}`
-        );
       }
       const noParallels = validNotes.filter((candidate) => {
         for (let i = 0; i < otherVoiceNotes.length; i++) {
@@ -732,10 +702,6 @@ export function buildChordNotes(
       // failed retries, the bass-fallback (root → 3rd) usually finds a
       // direction that opens up new tenor/alto candidates.
       if (_PARALLEL_DEBUG) {
-        console.error(
-          `[PFilter] result: ${noParallels.length}/${validNotes.length} survive - ` +
-          (noParallels.length > 0 ? `using [${noParallels.map(n => n.pitchValue).join(",")}]` : `STRICT-FAIL`)
-        );
       }
       validNotes = noParallels;
     }
@@ -981,11 +947,6 @@ export function buildChordNotes(
       // Get current chord - only increment after processing
       const currentChord = chordProgression[chordIndex];
       if (!currentChord) {
-        console.error(
-          `Error: Chord undefined at chordIndex ${chordIndex} for step ${
-            stepIndex + 1
-          }`
-        );
         return false;
       }
 
@@ -1073,14 +1034,12 @@ export function buildChordNotes(
         }
 
         if (!bassPartInfo) {
-          console.error("Bass part definition not found!");
           stepGenerationFailed = true;
         } else {
           const bassVoiceIndex = voiceParts.findIndex((vp) => vp.order === 0);
           const bassNote = bassLine[chordIndex];
 
           if (!bassNote) {
-            console.error(`Bass note missing for chord index ${chordIndex}`);
             stepGenerationFailed = true;
           } else {
             // First attempt: use the pre-generated bass note.
@@ -1729,9 +1688,6 @@ export function buildChordNotes(
                     : undefined,
               };
             } catch (e: any) {
-              console.error(
-                `Error finding note for ${actualPartName}: ${e.message}`
-              );
               stepGenerationFailed = true;
               break;
             }
@@ -1742,9 +1698,6 @@ export function buildChordNotes(
               pitchCheckArray[originalVoiceIndex] =
                 generatedVoiceNote.pitchValue;
             } else if (!stepGenerationFailed) {
-              console.error(
-                `Generated note is unexpectedly null for ${actualPartName}`
-              );
               stepGenerationFailed = true;
               break;
             }
@@ -1814,12 +1767,6 @@ export function buildChordNotes(
           stepIndex = to - 1; // the loop's ++ lands us back on `to`
           continue;
         }
-        console.error(
-          `Failed to generate valid notes for step ${stepIndex + 1} (Rhythm: ${
-            rhythm.name
-          }, Chord: ${currentChord.symbol}) after ${maxStepRetries} attempts ` +
-            `and ${backtracks} backtracks.`
-        );
         return false; // Fail entire process
       }
 

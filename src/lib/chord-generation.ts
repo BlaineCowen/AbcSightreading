@@ -115,15 +115,6 @@ export function generateChordProgression(
    */
   focusFamily?: string
 ): { progression: Chord[]; bassLine: Note[] } {
-  console.log(
-    "\n=== Starting Chord Progression Generation (with Cadences) ==="
-  );
-  console.log("Input Chords:", allChords.map((c) => c.name).join(", "));
-  console.log("Initial Length Param:", length);
-  console.log("Bass Range:", JSON.stringify(bassRange));
-  console.log("Max Skip:", maxSkip);
-  console.log("Key:", key);
-  console.log("Cadence Plan:", selectedCadences.map((c) => c.type).join(", "));
 
   // Validate inputs
   if (!allChords || allChords.length === 0) {
@@ -158,15 +149,10 @@ export function generateChordProgression(
   if (actualNumChords === 0)
     throw new Error("No chord positions found in rhythm array.");
   if (actualNumChords !== length) {
-    console.warn(
-      `Length mismatch: Input length ${length}, actual chord positions from rhythm ${actualNumChords}. Using ${actualNumChords}.`
-    );
     length = actualNumChords; // Correct the length
   }
-  console.log(`Actual number of chords to generate: ${length}`);
 
   // --- Pre-Scan Rhythms for Cadence Constraints ---
-  console.log("\n--- Mapping Cadence Constraints --- ");
   const cadenceConstraints = new Map<
     number,
     { requiredChord: Chord; step: CadenceStep }
@@ -180,14 +166,8 @@ export function generateChordProgression(
     if (rhythm.isCadenceEnd && cadencePlanIndex < selectedCadences.length) {
       const cadence = selectedCadences[cadencePlanIndex];
       const cadenceLen = cadence.progression.length;
-      console.log(
-        `Mapping Cadence ${cadencePlanIndex + 1} (${
-          cadence.type
-        }) ending at chord index ${chordIdx} (rhythm index ${rhythmIndex}), length ${cadenceLen}`
-      );
 
       if (cadenceLen === 0) {
-        console.warn(`Cadence ${cadence.type} has an empty progression.`);
         cadencePlanIndex++;
         continue;
       }
@@ -198,11 +178,6 @@ export function generateChordProgression(
         const targetChordIndex = chordIdx - (cadenceLen - 1 - stepIdx);
 
         if (targetChordIndex < 0) {
-          console.warn(
-            `Cadence step ${stepIdx + 1} of '${
-              cadence.type
-            }' at chord index ${chordIdx} falls before start of piece.`
-          );
           continue;
         }
 
@@ -213,9 +188,6 @@ export function generateChordProgression(
             (c) => c.symbol === cadenceStep.requiredChord
           );
           if (!requiredChord) {
-            console.warn(
-              `Cadence requires symbol '${cadenceStep.requiredChord}' but not found in chord list. Attempting fallback by function.`
-            );
             // Fallback: find *any* chord matching the function if symbol fails
             const functionalMatches = allChords.filter(
               (c) => c.type === cadenceStep.function
@@ -228,25 +200,12 @@ export function generateChordProgression(
           const functionalMatches = allChords.filter(
             (c) => c.type === cadenceStep.function
           );
-          console.warn(
-            `Cadence step ${stepIdx + 1} only specified function '${
-              cadenceStep.function
-            }'. Using first available match.`
-          );
           requiredChord =
             functionalMatches.length > 0 ? functionalMatches[0] : undefined;
         }
 
         if (requiredChord) {
-          console.log(
-            `  Constraint: Chord Index ${targetChordIndex} must be ${requiredChord.name} (Symbol: ${requiredChord.symbol})`
-          );
           if (cadenceConstraints.has(targetChordIndex)) {
-            console.warn(
-              `  WARNING: Overwriting constraint at index ${targetChordIndex}. Was ${
-                cadenceConstraints.get(targetChordIndex)?.requiredChord.name
-              }, now ${requiredChord.name}. Check for overlapping cadences.`
-            );
           }
           cadenceConstraints.set(targetChordIndex, {
             requiredChord,
@@ -264,12 +223,6 @@ export function generateChordProgression(
       cadencePlanIndex++;
     }
   }
-  console.log(
-    "Cadence constraints mapped:",
-    cadenceConstraints.size > 0
-      ? Object.fromEntries(cadenceConstraints)
-      : "None"
-  );
 
   // --- Generation Loop with Retries ---
   let availableChordsForAttempt = [...allChords]; // Chords available for the current attempt
@@ -283,16 +236,8 @@ export function generateChordProgression(
     let success = false;
 
     try {
-      console.log(
-        `\n--- Generation Attempt ${maxOuterAttempts - outerAttempts + 1} ---`
-      );
       // Use the chords available for *this* attempt
       let currentAvailableChords = [...availableChordsForAttempt];
-      console.log(
-        `Available Chords for this attempt: ${currentAvailableChords
-          .map((c) => c.name)
-          .join(", ")}`
-      );
 
       progression = [];
       bassLine = [];
@@ -323,15 +268,9 @@ export function generateChordProgression(
             throw new Error(
               `Required first cadence chord ${constraint.requiredChord.name} not in available set.`
             );
-          console.log(
-            `Attempt ${firstChordAttempts}: First chord forced by cadence: ${firstChord.name}`
-          );
         } else {
           firstChord =
             tonicChords[Math.floor(Math.random() * tonicChords.length)];
-          console.log(
-            `Attempt ${firstChordAttempts}: Selected random tonic: ${firstChord.name}`
-          );
         }
         firstBassNote = findValidBassNote(
           firstChord!,
@@ -342,11 +281,6 @@ export function generateChordProgression(
           accidentalsByStep
         );
         if (!firstBassNote) {
-          console.log(
-            `No valid bass note for first chord ${
-              firstChord!.name
-            }, retrying selection if possible...`
-          );
           if (constraint)
             throw new Error(
               `Cannot find bass note for forced first cadence chord ${
@@ -362,9 +296,6 @@ export function generateChordProgression(
         );
       progression.push(firstChord);
       bassLine.push(firstBassNote);
-      console.log(
-        `Added first chord ${firstChord.name} with bass ${firstBassNote.name}`
-      );
 
       // Track whether the previous bass was a chromatic-bass note (V⁶/V style)
       // that must resolve by step. Reset to undefined each outer attempt.
@@ -384,7 +315,6 @@ export function generateChordProgression(
 
       // Step 2: Generate remaining chords (Indices 1 to length-1)
       for (let i = 1; i < length; i++) {
-        console.log(`\nGenerating chord ${i + 1} of ${length} (Index ${i})`);
         const prevChord = progression[i - 1];
         const prevBassNote = bassLine[i - 1];
         let currentChord: Chord | null = null;
@@ -394,7 +324,6 @@ export function generateChordProgression(
 
         while (!validChordFound && innerAttempts < maxInnerAttempts) {
           innerAttempts++;
-          console.log(` Inner attempt ${innerAttempts} for index ${i}`);
           let targetChord: Chord | null = null;
 
           // A. Check if cadence forces this chord
@@ -408,9 +337,6 @@ export function generateChordProgression(
               throw new Error(
                 `Required cadence chord ${constraint.requiredChord.name} not in current available set at index ${i}.`
               );
-            console.log(
-              ` Position ${i} forced by cadence to be ${targetChord.name}`
-            );
             if (
               !prevChord.nextChordPossibilities.some(
                 (p) => p.name === targetChord!.name
@@ -420,9 +346,6 @@ export function generateChordProgression(
                 `Cadence constraint violation: Cannot transition from ${prevChord.name} to required ${targetChord.name} at index ${i}`
               );
             }
-            console.log(
-              ` Transition from ${prevChord.name} to forced ${targetChord.name} is valid.`
-            );
             // If forced, this is the only chord to try
           } else {
             // B. Not forced - Apply lookahead & standard rules
@@ -430,9 +353,6 @@ export function generateChordProgression(
               prevChord.nextChordPossibilities.some((p) => p.name === c.name)
             );
             if (possibleNextChords.length === 0) {
-              console.log(
-                ` No chords in available set can follow ${prevChord.name}.`
-              );
               // Attempt to recover by allowing any chord? Or just fail?
               // Forcing a retry is safer.
               throw new Error(
@@ -453,11 +373,6 @@ export function generateChordProgression(
                   `Required next cadence chord ${nextConstraint.requiredChord.name} not in current available set.`
                 );
 
-              console.log(
-                ` Lookahead: Next chord (index ${i + 1}) forced to ${
-                  requiredNextChordObj.name
-                }. Filtering current options.`
-              );
               possibleNextChords = possibleNextChords.filter((c) =>
                 // Check if chord 'c' has the requiredNextChordObj's name in its possibilities
                 c.nextChordPossibilities.some(
@@ -473,11 +388,6 @@ export function generateChordProgression(
                   } at index ${i + 1}`
                 );
               }
-              console.log(
-                ` Remaining possibilities after lookahead: ${possibleNextChords
-                  .map((c) => c.name)
-                  .join(", ")}`
-              );
             }
 
             // Apply standard penultimate/last chord rules ONLY if not constrained
@@ -489,7 +399,6 @@ export function generateChordProgression(
                 (c) => c.type === "tonic"
               );
               if (tonics.length > 0) possibleNextChords = tonics;
-              console.log(" Applying 'last chord is tonic' rule.");
             } else if (
               isPenultimate &&
               !cadenceConstraints.has(i) &&
@@ -499,15 +408,9 @@ export function generateChordProgression(
                 (c) => c.type === "dominant"
               );
               if (dominants.length > 0) possibleNextChords = dominants;
-              console.log(
-                " Applying 'penultimate is dominant if possible' rule."
-              );
             }
 
             if (possibleNextChords.length === 0) {
-              console.log(
-                ` No possibilities remain after applying rules/lookahead for index ${i}.`
-              );
               // This usually means the previous chord choice led to a dead end. Trigger outer retry.
               throw new Error(
                 `Dead end after rules/lookahead at index ${i} following ${prevChord.name}.`
@@ -661,12 +564,8 @@ export function generateChordProgression(
 
           if (!targetChord) {
             // Should only happen if selection failed
-            console.log(
-              `Failed to select target chord at index ${i} (Attempt ${innerAttempts})`
-            );
             continue; // Retry inner loop
           }
-          console.log(`Trying chord ${targetChord.name} for index ${i}`);
 
           // C. Find bass note for the target chord.
           // At cadence-forced positions, allow larger bass leaps - cadential bass
@@ -710,13 +609,9 @@ export function generateChordProgression(
             : bassWithin(constraint ? 7 : maxSkip);
 
           if (currentBassNote) {
-            console.log(
-              `Found valid bass note ${currentBassNote.name} for ${targetChord.name}`
-            );
             currentChord = targetChord; // Confirm choice
             validChordFound = true;
           } else {
-            console.log(`Could not find bass note for ${targetChord.name}.`);
             if (constraint) {
               // If the chord was forced by cadence, this attempt failed hard
               throw new Error(
@@ -724,9 +619,6 @@ export function generateChordProgression(
               );
             }
             // If not forced, maybe another chord from possibleNextChords would work?
-            console.log(
-              ` Bass note failed for ${targetChord.name}. Retrying inner loop to select different chord.`
-            );
             // Mark this specific chord as unusable *for this inner attempt*?
             // Or just let the random selection try again? Letting it retry is simpler.
             targetChord = null; // Allow inner loop to retry selection
@@ -742,11 +634,6 @@ export function generateChordProgression(
 
         progression.push(currentChord);
         bassLine.push(currentBassNote);
-        console.log(
-          `Added chord ${i + 1}: ${currentChord.name} with bass ${
-            currentBassNote.name
-          }`
-        );
 
         // Update forced bass pitch: set when this chord placed a chromatic bass
         // note (V⁶/V style), requiring the next bass to resolve by step.
@@ -766,12 +653,6 @@ export function generateChordProgression(
       success = true;
       attemptError = null;
     } catch (error: any) {
-      console.error("\n--- ERROR during generation attempt --- ");
-      console.error(error.message);
-      console.log(
-        " Progression state at failure:",
-        progression.map((c) => c.name).join(" ")
-      );
       attemptError = error;
 
       // --- Strategy for Retry: Remove Problematic Precursor ---
@@ -789,46 +670,32 @@ export function generateChordProgression(
           cadenceRequiredNames.has(problemPrecursor.name);
 
         if (isProtected) {
-          console.log(
-            `Chord ${problemPrecursor.name} is protected (${problemPrecursor.type}/cadence-required) - not removing from available set.`
-          );
         } else {
-          console.log(
-            `Removing chord ${problemPrecursor.name} from available set for next attempt.`
-          );
           availableChordsForAttempt = availableChordsForAttempt.filter(
             (c) => c.name !== problemPrecursor.name
           );
           if (availableChordsForAttempt.length < 2) {
-            console.error("Too few chords remaining after removal. Aborting.");
             outerAttempts = 0;
           }
         }
       } else {
-        console.log("Failed on first chord, cannot remove precursor.");
         outerAttempts = 0;
       }
       // --- End Retry Strategy ---
     } // End try-catch block for outer attempt
 
     if (success) {
-      console.log("\n=== Final Progression Successful ===");
-      console.log("Chords:", progression.map((c) => c.name).join(" "));
-      console.log("Bass line:", bassLine.map((n) => n.name).join(" "));
       return { progression, bassLine };
     }
 
     // Decrement outer attempts and loop again if necessary
     outerAttempts--;
     if (outerAttempts <= 0) {
-      console.log("Maximum outer attempts reached.");
     }
   } // End outer attempts loop
 
   // If all outer attempts failed
-  console.error("\n=== ALL GENERATION ATTEMPTS FAILED ===");
   if (attemptError) {
-    console.error("Last error:", attemptError.message);
   }
   throw new Error(
     `Failed to generate valid progression after all attempts. Last error: ${
@@ -868,12 +735,6 @@ function findValidBassNote(
   /** The note before `prevNote`, which says whether the bass just leapt. */
   beforePrevNote?: Note
 ): Note | null {
-  console.log("\n=== Finding Valid Bass Note ===");
-  console.log("Chord:", chord);
-  console.log("Bass Range:", bassRange);
-  console.log("Previous Note:", prevNote);
-  console.log("Max Skip:", maxSkip);
-  console.log("Key:", key);
 
   // Root and 3rd are both valid in the bass (root position and first inversion).
   // The 5th (second inversion / 6/4) is avoided for diatonic chords in basic chorale style.
@@ -914,7 +775,6 @@ function findValidBassNote(
     }
   }
 
-  console.log("Target Degrees (root + 3rd):", [...targetDegrees]);
 
   const keyInfo = keySignatures[key];
   if (!keyInfo) {
@@ -963,10 +823,6 @@ function findValidBassNote(
     });
   }
 
-  console.log(
-    "Found possible notes:",
-    possibleNotes.map((n) => `${n.name} (pitch: ${n.pitchValue}, degree: ${n.degree})`)
-  );
 
   // Chromatic-bass chord (V⁶/V): the chromatic degree is the intended bass.
   // It must be approached by exactly one diatonic step from the previous bass note.

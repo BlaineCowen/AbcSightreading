@@ -176,17 +176,11 @@ export function generateChoralExercise(params: GenerateChoralParams): ChoralExer
       bestFaults = faults;
     }
     if (faults === 0) break;
-    console.log(
-      `Chromatic bass rule broken ${faults} time(s) on attempt ${attempt + 1}; ` +
-        (attempt + 1 < attempts ? "generating again." : "keeping the best attempt.")
-    );
   }
   return best!;
 }
 
 function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercise {
-  console.log("--- generateChoralExercise START ---");
-  console.log("Received params:", JSON.stringify(params, null, 2));
 
   const {
     key,
@@ -250,16 +244,6 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   // --- Generation Pipeline ---
 
   // 1. Prepare Voice Parts
-  console.log("1. Preparing Voice Parts...");
-  console.log("Preparing voice parts with ranges:", {
-    parts: partsObject.parts,
-    ranges: Object.fromEntries(
-      Object.entries(partsObject.parts).map(([name, part]) => [
-        name,
-        part.currentRange,
-      ])
-    ),
-  });
 
   const partRanges = Object.fromEntries(
     Object.entries(partsObject.parts).map(([name, part]) => [
@@ -272,8 +256,6 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     partRanges,
     partsObject
   );
-  console.log(`  Prepared ${voiceParts.length} voice parts.`);
-  console.log(voiceParts);
 
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
@@ -310,12 +292,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       "No suitable main rhythms found after filtering params.selectedRhythms."
     );
   }
-  console.log(
-    `  Filtered ${params.selectedRhythms.length} input rhythms into ${mainRhythms.length} main rhythms; ${patternRhythms.length} NCT patterns available.`
-  );
 
   // 1.5 Generate Cadence Plan
-  console.log("1.5 Generating Cadence Plan...");
   const numCadencePoints = Math.floor(measures / 4);
   const selectedCadences: Cadence[] = [];
 
@@ -347,24 +325,18 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
     if (isLastCadence) {
       selectedCadences.push(perfectAuthenticCadence);
-      console.log(`  Cadence Point ${i + 1} (Last): Forced Perfect Authentic`);
     } else {
       // Select a random compatible cadence for intermediate points
       const pool = intermediaryCadences.length > 0 ? intermediaryCadences : compatibleCadences;
       const randomIndex = Math.floor(Math.random() * pool.length);
       const randomCadence = pool[randomIndex];
       selectedCadences.push(randomCadence);
-      console.log(`  Cadence Point ${i + 1}: Selected ${randomCadence.type}`);
     }
   }
 
   // TODO: Use 'selectedCadences' later in chord generation logic
 
   // 2. Generate Rhythm using ONLY mainRhythms
-  console.log("2. Generating Rhythm (using main rhythms only)...");
-  console.log(
-    `  Params: timeSig=${timeSig.name}, measures=${measures}, mainRhythms count=${mainRhythms.length}`
-  );
   const generatedRhythms = generateRandomRhythm(
     timeSig,
     measures,
@@ -391,38 +363,12 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     return count + 1;
   }, 0);
 
-  console.log(
-    `  Generated ${finalRhythms.length} rhythm steps, ${numNotes} chords needed.`
-  );
-  console.log(
-    "  Rhythm array details:",
-    finalRhythms.map((r) => ({
-      name: r.name,
-      totalValue: r.totalValue,
-      meterValue: r.meterValue,
-      abcValue: r.abcValue,
-      rest: r.rest,
-      pattern: r.pattern,
-      isPatternNote: r.isPatternNote,
-      isPatternStart: r.isPatternStart,
-      isPatternEnd: r.isPatternEnd,
-      patternIndex: r.patternIndex,
-    }))
-  );
 
   // 4. Generate Chord Progression & Bass Line
-  console.log("3. Generating Chord Progression & Bass Line...");
   const bassRange = voiceParts.find((p) => p.order === 0)?.range;
   if (!bassRange) {
     throw new Error("Bass voice part not found or has no range.");
   }
-  console.log(
-    `  Params: chords count=${
-      chords.length
-    }, numNotes=${numNotes}, bassRange=[${bassRange.join(
-      ", "
-    )}], maxSkip=${maxSkip}, key=${key}`
-  );
   // Steps 3+4 share a retry loop: if voice assignment fails (e.g., no voice can approach
   // an accidental by step), regenerate the chord progression and try again.
   let chordProgression: Chord[] = [];
@@ -450,15 +396,10 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     // asked for. Try again - but not with the last attempts, so a progression
     // that cannot reach the chord still produces an exercise rather than none.
     if (!hasFocus(chordProgression) && chordalAttempt < maxChordAttempts - 3) {
-      console.log(`  Focus chord ${focus?.symbol} absent (attempt ${chordalAttempt + 1}), regenerating...`);
       continue;
     }
-    console.log(
-      `  Attempt ${chordalAttempt + 1}: progression length=${chordProgression.length}, bass line length=${bassLine.length}`
-    );
 
     // 5. Build Chord Notes for All Voices
-    console.log("4. Building Chord Notes...");
     try {
       voiceNotes = buildChordNotes(
         key,
@@ -471,11 +412,9 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
         undefined,
         params.stepwiseEighths ?? false
       );
-      console.log(`  Built notes for ${voiceNotes.length} voices.`);
       break; // success
     } catch (e) {
       if (chordalAttempt === maxChordAttempts - 1) throw e;
-      console.log(`  Voice assignment failed (attempt ${chordalAttempt + 1}), retrying with new progression...`);
     }
   }
   // 4.5 Voice texture - silence individual parts so they can enter one at a
@@ -489,8 +428,6 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   });
 
   // 5. Apply Non-Chord Tone Generation
-  console.log("5. Applying Non-Chord Tone Generation...");
-  console.log(`  NCT probability: ${nctProbability}`);
   // Voices are decorated in turn, each seeing the voices already decorated
   // rather than the original chord tones. Passing the undecorated set to every
   // voice let two of them place a decoration at the same instant, each checked
@@ -498,7 +435,6 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   // and nothing noticed.
   const notesWithNCTs: VoiceNote[][] = [...finalVoiceNotes];
   finalVoiceNotes.forEach((partNotes, index) => {
-    console.log(`  Processing voice index ${index} for NCTs...`);
     notesWithNCTs[index] = generateNonChordTones(
       partNotes,
       patternRhythms,
@@ -514,10 +450,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       params.stepwiseEighths ?? false
     );
   });
-  console.log(`  Finished NCT generation.`);
 
   // 6. Assemble ABC Notation String
-  console.log("6. Assembling ABC String...");
   const abcParams = {
     title: params.title || `Sight Reading Exercise in ${key}`,
     // On every score, and so on every printed copy handed round a choir room.
@@ -528,9 +462,6 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     tempo: bpm,
     midiProgram: params.midiProgram ?? 0,
   };
-  console.log(
-    `  Params: voiceNotes count=${notesWithNCTs.length}, voiceParts count=${voiceParts.length}, rhythms count=${finalRhythms.length}, key=${key}, timeSig=${timeSig.name}, metadata=${JSON.stringify(abcParams)}`
-  );
   // Two parts singing together for a stretch, then splitting - the way beginner
   // two-part music opens. After decoration deliberately: run before it and each
   // voice gets its own passing tones, which breaks the unison a note at a time.
@@ -630,9 +561,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
   const abcString = render(params.display ?? {});
 
-  console.log(abcString);
 
-  console.log("--- generateChoralExercise END ---");
   return {
     abcString,
     chordProgression: chordProgression,
