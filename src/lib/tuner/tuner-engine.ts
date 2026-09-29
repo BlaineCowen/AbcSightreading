@@ -16,6 +16,8 @@ export class TunerEngine {
   private analyser: AnalyserNode | null = null;
   private mediaStream: MediaStream | null = null;
   private spectrum: Float32Array<ArrayBuffer> | null = null;
+  /** A separate buffer for readSpectrum, so the display never disturbs detection's. */
+  private viewSpectrum: Float32Array<ArrayBuffer> | null = null;
   private sink: GainNode | null = null;
   private onFrameCallback: ((frame: TunerFrame) => void) | null = null;
   /** Frames actually delivered by the worklet — 0 means the graph never ran. */
@@ -45,6 +47,18 @@ export class TunerEngine {
 
   onFrame(callback: (frame: TunerFrame) => void) {
     this.onFrameCallback = callback;
+  }
+
+  /**
+   * The spectrum as it is now, dB per bin, for the Analysis tool to draw.
+   * Added here (not in the standalone tuner project): it only reads the
+   * analyser, and detection never sees it.
+   */
+  readSpectrum(): { db: Float32Array; sampleRate: number; fftSize: number } | null {
+    if (!this.analyser || !this.audioContext) return null;
+    if (!this.viewSpectrum) this.viewSpectrum = new Float32Array(this.analyser.frequencyBinCount);
+    this.analyser.getFloatFrequencyData(this.viewSpectrum);
+    return { db: this.viewSpectrum, sampleRate: this.audioContext.sampleRate, fftSize: FFT_SIZE };
   }
 
   async start(): Promise<void> {
@@ -113,6 +127,7 @@ export class TunerEngine {
     this.mediaStream = null;
     this.workletNode = null;
     this.analyser = null;
+    this.viewSpectrum = null;
     this.sink = null;
     this.audioContext = null;
     this.tracker.reset();

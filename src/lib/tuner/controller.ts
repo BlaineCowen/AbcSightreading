@@ -98,3 +98,9 @@ export function stopTuner() {
   tuner.setPlaying(null);
   tuner.setEngineStatus("idle");
 }
+
+/** The microphone's spectrum right now, for the Analysis tool; null when the mic is off. */
+export function readSpectrum() {
+  return engine?.readSpectrum() ?? null;
+}
+

@@ -125,7 +125,7 @@
   <!-- The card for the open tool -->
   {#if tool && !wheelOpen}
     <div
-      class="tools-card fixed z-50 left-3 right-3 sm:left-auto sm:right-6 sm:w-[340px] bg-sr-raise border border-sr-hairline rounded-2xl shadow-2xl flex flex-col overflow-hidden text-sr-ink"
+      class="tools-card fixed z-50 left-3 right-3 sm:left-auto sm:right-6 {tool === 'analysis' ? 'sm:w-[420px]' : 'sm:w-[340px]'} bg-sr-raise border border-sr-hairline rounded-2xl shadow-2xl flex flex-col overflow-hidden text-sr-ink"
       role="dialog"
       aria-label={current?.label ?? "Tool"}
     >

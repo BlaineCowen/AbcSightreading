@@ -175,8 +175,8 @@ the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
 ## abcTuner
 
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): a tuner,
-pitch trace, metronome and scale challenge. It is not in the navbar; the
-practice pages reach it from their tools.
+pitch trace, metronome and scale challenge. In the navbar as abcTuner, and
+the practice pages reach it from their tools.
 
 The practice pages carry a Tools button in the bottom-right corner
 (`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
@@ -185,8 +185,17 @@ Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the
 mic only while showing; the drone (`src/lib/tools/state.ts`), metronome and
-timer keep going with the card closed. Analysis is measured from the mic alone
-- it does not yet compare against the written notes.
+timer keep going with the card closed. Analysis has four views: Pitch (the
+trace and its half-minute stats), Spectrum (live, with the outline, numbered
+harmonics and F1/F2 as overlays), Harmonics (levels, H1 vs H2, ring,
+brightness) and Vowel (a guess among ee, eh, ah, oh, oo on a vowel chart).
+The maths is `src/lib/tuner/voice-spectrum.ts` (tests `voice-spectrum.test.ts`):
+formants by analysis by synthesis over the harmonics' levels, which held up
+against synthetic voices with other resonance widths and noise where picking
+humps off the outline did not; the live loop is `src/lib/tools/voice-analysis.ts`,
+reading the analyser through `TunerEngine.readSpectrum`. Vowels are only
+trusted below about C5. It is all from the mic alone; nothing compares
+against the written notes yet.
 Ported from Blaine's standalone tuner project; see `src/lib/tuner/README.md`.
 The detection files are that project's unchanged, so improve detection there
 (its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the

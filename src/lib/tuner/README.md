@@ -16,7 +16,9 @@ The detection is that project's, unchanged apart from import paths:
 - `harmonics.ts`, `pitch.ts`, `metronome.ts`, `note-player.ts`,
   `pitch-history.ts`, `scale-challenge.ts` - as there
 
-New here: `store.ts` (the zustand store as a Svelte store, same actions),
+New here: `voice-spectrum.ts` (the Analysis tool: harmonic levels, formants
+by analysis by synthesis, a vowel guess), `TunerEngine.readSpectrum` (a
+read-only view of the analyser for it, which detection never sees), `store.ts` (the zustand store as a Svelte store, same actions),
 `controller.ts` (the useTunerEngine hook as module functions - one mic per
 page), `scale-challenge-runner.ts` (the challenge hook as a class), and
 `canvas-colors.ts` (theme colours for the canvases, which were black-only).
