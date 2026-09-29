@@ -155,9 +155,11 @@ export const uilPresets: Record<string, UILPreset> = {
     // range numbers do not match UIL's published staves, and rebuilding the
     // ranges from them in September moved nearly every voice (sopranos up by as
     // much as a sixth) until they were restored. Change a range by
-    // recalibrating on that page, not from the doc.
+    // recalibrating on that page, not from the doc. The sopranos' top came down
+    // from f' to e' at Blaine's request (29 Sept 2026): this is the level the
+    // Choral page opens on, and F sat too high for it.
     voiceRanges: {
-      Soprano: [21, 31], Soprano1: [21, 31], Soprano2: [20, 30],
+      Soprano: [21, 30], Soprano1: [21, 30], Soprano2: [20, 30],
       Alto: [19, 28],
       Tenor: [16, 24], Baritone: [12, 22], Bass: [12, 21],
       Unison: [21, 30],

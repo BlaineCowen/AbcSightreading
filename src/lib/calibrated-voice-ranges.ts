@@ -27,8 +27,10 @@ export const APRIL_CALIBRATED_RANGES: Record<string, Record<string, [number, num
     Unison: [21, 28],
   },
   "UIL 3": {
-    Soprano: [21, 31],
-    Soprano1: [21, 31],
+    // The sopranos' top from f' to e' by Blaine, 29 Sept 2026 (the level the
+    // Choral page opens on).
+    Soprano: [21, 30],
+    Soprano1: [21, 30],
     Soprano2: [20, 30],
     Alto: [19, 28],
     Tenor: [16, 24],
