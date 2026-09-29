@@ -34,7 +34,7 @@ export class QuoteError extends Error {
   }
 }
 
-type Teacher = { id: string; name: string; email: string; emailVerified?: boolean };
+type Teacher = { id: string; name: string; email: string };
 
 async function priceIds() {
   const { data } = await stripe!.prices.list({ lookup_keys: ["pro_yearly", "educator_yearly", "seat_pack_25"], limit: 10 });
@@ -68,7 +68,10 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
   if (!stripe) throw new QuoteError("Quotes are not available here.", 503);
   // Mail goes to a purchasing office in the teacher's name: only from an
   // address that is theirs.
-  if (!user.emailVerified) {
+  // From the database: the session's copy is cached, and would still say
+  // "unconfirmed" for minutes after the teacher clicks the link.
+  const confirmed = (await prisma.user.findUnique({ where: { id: user.id }, select: { emailVerified: true } }))?.emailVerified;
+  if (!confirmed) {
     throw new QuoteError("Confirm your email address first (the link is in your inbox), so a quote sent in your name really comes from you.", 403);
   }
   const current = await planFor(user.id);
