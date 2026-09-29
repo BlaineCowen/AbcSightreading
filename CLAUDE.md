@@ -286,6 +286,12 @@ presets once; the server dedupes by name + creation time.
   `checkout.session.completed`) records the advertiser's cut of what the
   checkout paid before tax in `AffiliateSale`. Payouts are by hand; `/admin`
   marks them paid.
+  An advertiser's link, `/?ref=CODE` on any page, keeps the code in an
+  HttpOnly cookie for 60 days (middleware.ts, rules in `src/lib/referral.ts`,
+  tests `referral.test.ts`); that visitor's Pro checkout then has the discount
+  applied (`referralFor` in the checkout params) instead of the box to type a
+  code, and pricing and the account page say so (`ReferralNote`). `/admin`
+  shows each advertiser's link.
 - **Educator is not on sale yet**: `EDUCATOR_ON_SALE` in `src/lib/plan.ts` is
   false, so pricing, the account page, the home page and the guides say
   "coming soon"; checkout (auth.ts hook), quotes and seat packs refuse it on

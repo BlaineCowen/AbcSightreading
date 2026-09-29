@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ReferralNote from "./ReferralNote.svelte";
   import { onMount } from "svelte";
   import { authClient } from "../lib/auth-client";
   import { billingStatus, openBillingPortal, redeemCode, startCheckout, type BillingStatus } from "../lib/billing-client";
@@ -218,6 +219,7 @@
         </p>
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
           <p class="text-sm text-sr-ink"><strong>Pro: $19.99 a year.</strong> Unlimited exercises, abcTuner, and the practice tools beside the music: tuner, metronome, drone, starting pitches.</p>
+          <ReferralNote />
           <button class="sr-btn text-sm self-start" on:click={() => checkout("pro")} disabled={upgrading || !billing.billingEnabled}>Get Pro</button>
         </div>
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">

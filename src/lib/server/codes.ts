@@ -3,6 +3,7 @@ import { prisma } from "./db";
 import { stripe } from "./stripe";
 import { becomeEducator } from "./educator";
 import { checkRedemption, commissionCents, normalizeCode } from "../codes";
+import { refFromCookieHeader } from "../referral";
 
 /**
  * Access codes and affiliate codes, against the database and Stripe. Rules
@@ -122,3 +123,18 @@ export async function affiliateReport() {
     owed: a.sales.filter((s) => !s.paidOutAt).reduce((t, s) => t + s.commission, 0),
   }));
 }
+
+/**
+ * The active advertiser whose link this visitor arrived by, from the
+ * referral cookie; null when there is none, or the code is not (or no
+ * longer) an active affiliate's.
+ */
+export async function referralFor(cookieHeader: string | null | undefined) {
+  const code = refFromCookieHeader(cookieHeader);
+  if (!code) return null;
+  return prisma.affiliate.findFirst({
+    where: { code, active: true },
+    select: { code: true, name: true, percentOff: true, stripePromotionId: true },
+  });
+}
+

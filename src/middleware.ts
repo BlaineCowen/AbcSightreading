@@ -1,4 +1,5 @@
 import { defineMiddleware } from "astro:middleware";
+import { refCookie, refFromUrl } from "./lib/referral";
 
 /**
  * One address for the site. abc.blainecowen.com was the beta's address and
@@ -11,10 +12,23 @@ const MOVED: Record<string, string> = {
   "abc.blainecowen.com": "https://www.abc-sightreading.com",
 };
 
-export const onRequest = defineMiddleware((context, next) => {
+export const onRequest = defineMiddleware(async (context, next) => {
   const target = MOVED[context.url.hostname];
   if (target) {
     return Response.redirect(new URL(context.url.pathname + context.url.search, target).href, 308);
   }
-  return next();
+  const response = await next();
+  // An advertiser's link, ?ref=CODE on any page: kept for checkout (referral.ts).
+  const ref = refFromUrl(context.url);
+  if (!ref) return response;
+  const cookie = refCookie(ref, context.url.protocol === "https:");
+  try {
+    response.headers.append("Set-Cookie", cookie);
+    return response;
+  } catch {
+    // Some responses (a redirect, say) come with headers that cannot change.
+    const copy = new Response(response.body, response);
+    copy.headers.append("Set-Cookie", cookie);
+    return copy;
+  }
 });

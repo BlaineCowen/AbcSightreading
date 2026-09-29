@@ -11,7 +11,8 @@ import { isStudentEmail } from "../roster";
 import { EDUCATOR_ON_SALE } from "../plan";
 import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from "./stripe";
 import { becomeEducator } from "./educator";
-import { recordAffiliateSale } from "./codes";
+import { recordAffiliateSale, referralFor } from "./codes";
+import { checkoutDiscount } from "../referral";
 
 /**
  * A paid seat pack (src/pages/api/billing/seats.ts starts the checkout): 25
@@ -54,7 +55,7 @@ const billing =
             // Sales tax is worked out by Stripe Tax from the billing address;
             // a school district is marked tax-exempt on its customer and pays
             // no tax. Schools also get to enter a tax ID for their receipts.
-            getCheckoutSessionParams: async () => ({
+            getCheckoutSessionParams: async (_data, req) => ({
               params: {
                 // We are the seller: Stripe Tax works out the tax, schools are
                 // made exempt on their customer, and prices include tax. The
@@ -65,7 +66,8 @@ const billing =
                 automatic_tax: { enabled: await taxReady() },
                 billing_address_collection: "required",
                 tax_id_collection: { enabled: true },
-                allow_promotion_codes: true,
+                // An advertiser's link applies their code; otherwise the buyer may type one.
+                ...checkoutDiscount((await referralFor(req?.headers.get("cookie")))?.stripePromotionId ?? null),
               },
             }),
             onSubscriptionComplete: async ({ subscription, plan }) => {

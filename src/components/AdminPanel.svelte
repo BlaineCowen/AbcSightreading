@@ -125,6 +125,10 @@
           <span class="text-sr-ink-2 tabular-nums">{a.sales.length} sale{a.sales.length === 1 ? "" : "s"} · owed <strong class="text-sr-ink">{dollars(a.owed)}</strong></span>
         </button>
         <p class="text-xs text-sr-muted">{a.percentOff}% off for them · {a.commissionPercent}% to {a.name} · earned {dollars(a.earned)} in all</p>
+        <p class="text-xs text-sr-ink-2">
+          Their link, with the discount already applied:
+          <button class="font-mono underline text-sr-action-fg" title="Copy" on:click={() => navigator.clipboard?.writeText(`https://www.abc-sightreading.com/?ref=${a.code}`)}>abc-sightreading.com/?ref={a.code}</button>
+        </p>
         {#if open === a.id}
           {#if a.sales.length}
             <table class="text-xs w-full">
