@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 839 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 852 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -97,10 +97,11 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **204 failures in
-22,020 exercises (0.93%)** as shipped, across 129 cells - measured 22 September
-2026 after the chromatic-bass pass (notes/bass-chromatic-notes.md), against 210
-(0.95%, 143 cells) for the code before it on the same day. The 186 recorded
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **195 failures in
+22,020 exercises (0.89%)** as shipped, across 126 cells, measured 28 September
+2026 after the voice-rhythm pass and the pattern-start fix, against 204 (0.93%,
+129 cells) on 22 September after the chromatic-bass pass
+(notes/bass-chromatic-notes.md). The 186 recorded
 earlier had drifted to 210 by then without any change to generation, so treat
 differences under about 25 failures as noise and A/B the worst cells with more
 runs (54 each, say) before believing a change moved them.
@@ -127,7 +128,7 @@ rather than on note-building - there is not room for the cadence the level
 requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip - 1.0% as shipped, against 37.1% with
+approached or left by skip: 0.7% as shipped (1.0% before the voice-rhythm pass), against 37.1% with
 `STEPWISE_EIGHTHS=0`.
 
 **The option is ON by default**, so that failure rate is live. The worst cells
@@ -333,6 +334,20 @@ The core logic lives in `src/lib/` and is orchestrated by `generateChoralExercis
 4. **`buildChordNotes`** (`build-chord-notes.ts`) — fills upper voices (SATB) chord-by-chord, enforcing range, max skip, and no parallel 5ths/octaves
 5. **`generateNonChordTones`** (`non-chord-tone-gen.ts`) — probabilistically subdivides chord tones into passing tones, neighbors, etc.
 6. **`assembleAbcString`** (`abc-assembly.ts`) — serializes `VoiceNote[][]` into a valid multi-voice ABC notation string
+
+After decoration, the unison splice and the rhyme pass, `varyVoiceRhythms`
+(`voice-rhythm.ts`, tests `voice-rhythm.test.ts`) adjusts one voice at a time,
+inside one chord only: a dotted quarter + eighth whose eighth leaps becomes two
+quarters, and where the level allows the dotted figure one part now and then
+takes it against quarters in the others (`DOTTED_IN_ONE_PART`, 0.3). A dotted
+quarter + eighth is the same length as two quarters, so no pitch or other voice
+changes. A pattern's chord starts on its first sung note
+(`rhythm-generation.ts`): eighth rest + eighth used to start on the rest and
+failed 29 exercises in 40.
+
+The Choral page opens at UIL Level 3 in F major when the address carries no
+settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
+active preset was chosen.
 
 With `accidentalsByStep` on, `generateChoralExercise` also checks the finished
 bass against the chromatic-note rule (`bass-chromatic-check.ts`: approached by

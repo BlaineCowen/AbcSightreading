@@ -112,6 +112,8 @@
   // ── Preset state ───────────────────────────────────────────────────────────
   let activePresetLabel = '';
   let _presetParamSig = '';
+  /** Each tab's settings when the active preset was applied, for its dot. */
+  let _presetTabSigs: Record<string, string> | null = null;
   /** The saved preset the settings came from, so it can be saved over. */
   let activeSavedId: string | null = null;
   /** Loads the active preset again, for Revert. */
@@ -574,17 +576,31 @@
     rhythmNames: ['quarter', 'half', 'dotHalf'],
   };
 
-  $: setupDirty = selectedVoicing !== DEFAULTS.voicing ||
+  /**
+   * Each tab's settings as one string. With a preset active, a tab's dot
+   * means "changed since you chose the preset", not "differs from the page's
+   * bare defaults": choosing a level changes every tab, so measured against
+   * the defaults the dots lit up on arrival and said nothing.
+   */
+  $: _tabSigs = {
+    setup: [selectedVoicing, [...selectedKeys].sort().join(","), selectedTimeSignature, measures, voiceTexture].join("|"),
+    rhythm: [selectedRhythms.map((r) => r.name).sort().join(","), JSON.stringify(Object.entries(rhythmBias).sort())].join("|"),
+    harmony: [maxSkip, Math.round(nctProbability * 100), stepwiseEighths, focusChord, [...userAllowedChords].sort().join(",")].join("|"),
+    ranges: Object.values(possibleVoicing[selectedVoicing]?.parts ?? {}).map((p) => p.currentRange.join("-")).join(","),
+  };
+  $: fromPreset = activePresetLabel && _presetTabSigs ? _presetTabSigs : null;
+
+  $: setupDirty = fromPreset ? _tabSigs.setup !== fromPreset.setup : selectedVoicing !== DEFAULTS.voicing ||
     [...selectedKeys].sort().join(",") !== DEFAULTS.key ||
     selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures ||
     voiceTexture !== DEFAULTS.voiceTexture;
-  $: rhythmDirty = JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
+  $: rhythmDirty = fromPreset ? _tabSigs.rhythm !== fromPreset.rhythm : JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
     JSON.stringify([...DEFAULTS.rhythmNames].sort()) ||
     Object.keys(rhythmBias).length > 0;
-  $: harmonyDirty = maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
+  $: harmonyDirty = fromPreset ? _tabSigs.harmony !== fromPreset.harmony : maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
     stepwiseEighths !== DEFAULTS.stepwiseEighths || focusChord !== null ||
     userAllowedChords.size !== currentModeChordNames.length;
-  $: rangesDirty = Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
+  $: rangesDirty = fromPreset ? _tabSigs.ranges !== fromPreset.ranges : Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
 
   /**
@@ -1013,7 +1029,17 @@
     // hydrates - it is not swapped out - so the skeleton would sit on top of the
     // real UI forever. Take it down as soon as there is something to replace it.
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
+    // A first visit - nothing in the address - opens at UIL Level 3 in F major:
+    // four parts at a middle level reads as what the page is for, where the old
+    // C major quarters-and-halves looked like a demo. Links, steps and
+    // assignments bring their own settings and skip this.
+    const arrivedBare = !window.location.search && !exerciseParam(window.location.hash);
     loadParams();
+    if (arrivedBare) {
+      applyUILPreset("UIL 3");
+      selectedKeys = new Set(["F"]);
+      selectedKey = "F";
+    }
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
@@ -1267,7 +1293,7 @@
       possibleVoicing = { ...possibleVoicing };
     }
     // Use setTimeout so the signature captures post-update values
-    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
+    setTimeout(() => { _presetParamSig = _currentParamSig; _presetTabSigs = _tabSigs; }, 0);
   }
 
 
@@ -1305,7 +1331,7 @@
     activeSavedId = preset.id;
     revertPreset = () => applySavedPreset(preset);
     // Use setTimeout so the signature captures post-update values
-    setTimeout(() => { _presetParamSig = _currentParamSig; }, 0);
+    setTimeout(() => { _presetParamSig = _currentParamSig; _presetTabSigs = _tabSigs; }, 0);
   }
 
   function getCurrentParams(): PresetParams {
@@ -2910,12 +2936,15 @@
 </div>
 
 <style>
-  /* The little rhythm glyphs beside the frequency buttons. */
-  /* Same shared scale as the picker, just shorter - see globals.css. */
+  /* The little rhythm glyphs beside the frequency buttons, at the icons' own
+     shared scale like the picker (globals.css), capped to the row. Stretching
+     each to the row's full height blew the whole note - a notehead with no
+     stem, a quarter of the others' height - up to four times its size. */
   .rhythm-icon-sm :global(svg) {
     width: auto;
-    height: 100%;
+    height: auto;
     max-width: none;
+    max-height: 100%;
   }
 
   /*

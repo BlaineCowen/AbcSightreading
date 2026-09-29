@@ -615,6 +615,13 @@ export function generateRandomRhythm(
       // Add selected rhythm(s) to result
       if (selectedRhythm.pattern) {
         let patternBeat = 0;
+        // The pattern's chord begins on its first sung note. A pattern that
+        // opens with a rest (eighth rest, eighth) used to be "started" by the
+        // rest, which never takes a chord, so the eighth had no chord of its
+        // own: it was treated as the tail of the chord before the rest, and
+        // with stepwise eighths all four parts had to creep out of that chord
+        // by step. It failed 29 exercises in 40.
+        const firstSung = Math.max(0, selectedRhythm.abcValue.findIndex((v) => !isRestValue(v)));
         selectedRhythm.abcValue.forEach((abcVal, i) => {
           // A pattern element carries its own rest marker, so the rest flag
           // comes from the element rather than from the pattern as a whole.
@@ -627,7 +634,7 @@ export function generateRandomRhythm(
             totalValue: noteValue,
             meterValue: [selectedRhythm.meterValue[i]],
             isPatternNote: true,
-            isPatternStart: i === 0,
+            isPatternStart: i === firstSung,
             isPatternEnd: i === selectedRhythm.abcValue.length - 1,
             patternIndex: i,
             weight: selectedRhythm.weight,

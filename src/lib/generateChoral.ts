@@ -7,6 +7,13 @@ import { applyUnisonSpans } from "./unison-spans";
 import { applyRhymingPhrases, decorateRestatement } from "./rhyming-phrases";
 import { bassChromaticFaults } from "./bass-chromatic-check";
 import { generateNonChordTones } from "./non-chord-tone-gen";
+import { chordOnsets, varyVoiceRhythms } from "./voice-rhythm";
+
+/**
+ * How often a place where one part could sing a dotted quarter and eighth
+ * against quarters in the others gets it, when the level allows the figure.
+ */
+const DOTTED_IN_ONE_PART = 0.3;
 import { nctPatternsFor } from "./nct-patterns";
 import { canAppearInChoral } from "./selectable-rhythms";
 import {
@@ -575,10 +582,22 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
         )
       : rhymed;
 
+  // One voice's rhythm, adjusted after everything else is written: a dotted
+  // quarter and eighth whose eighth leaps is sung as two quarters, and where
+  // the level allows the dotted figure, one part now and then takes it against
+  // quarters in the others. See voice-rhythm.ts.
+  const voiced = varyVoiceRhythms(withRhyme, {
+    onsets: chordOnsets(finalRhythms),
+    tsPerMeasure: timeSig.tsPerMeasure,
+    stepwiseEighths: params.stepwiseEighths ?? false,
+    dottedAllowed: selectedRhythms.some((r) => r.name === "dotQuarterEighth"),
+    probability: DOTTED_IN_ONE_PART,
+  });
+
   // Adjacent rests inside a measure become one rest, so a silent measure reads
   // as a whole rest rather than four quarter rests. Last, after everything
   // time-based has run.
-  const tidied = withRhyme.map((voice) =>
+  const tidied = voiced.map((voice) =>
     mergeRestsWithinMeasures(voice, timeSig.tsPerMeasure)
   );
 
