@@ -410,7 +410,10 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
         maxSkip,
         accidentalsByStep,
         undefined,
-        params.stepwiseEighths ?? false
+        params.stepwiseEighths ?? false,
+        // The last progressions only: a skip beside an eighth rather than no
+        // exercise. See STEPWISE_YIELD_AFTER in build-chord-notes.
+        chordalAttempt >= maxChordAttempts - 3
       );
       break; // success
     } catch (e) {

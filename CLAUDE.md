@@ -97,11 +97,22 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **195 failures in
-22,020 exercises (0.89%)** as shipped, across 126 cells, measured 28 September
-2026 after the voice-rhythm pass and the pattern-start fix, against 204 (0.93%,
-129 cells) on 22 September after the chromatic-bass pass
-(notes/bass-chromatic-notes.md). The 186 recorded
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **112 failures in
+22,020 exercises (0.51%)** as shipped, across 67 cells, measured 29 September
+2026 after the stepwise limit learned to yield on the last progressions
+(build-chord-notes `STEPWISE_YIELD_AFTER`), against 195 (0.89%, 126 cells) on
+28 September after the voice-rhythm pass and the pattern-start fix, and 204
+(0.93%, 129 cells) on 22 September after the chromatic-bass pass
+(notes/bass-chromatic-notes.md).
+
+That yield: beside an eighth, every voice is held to a step at once, and when
+every note within a step was then ruled out by a hard rule (parallels, an
+overlap) the step could never succeed, so three progressions in four were
+abandoned in four-part minor keys and 16-bar C and A minor at UIL 5 failed
+18-25%. Now an upper voice may skip there, on the last three of the ten
+progressions only. Allowed on every progression it took upper-voice skips
+beside short notes from 0.9% to 4-5% in exercises that never failed, because
+each skip replaced a backtrack that would have found the step. The 186 recorded
 earlier had drifted to 210 by then without any change to generation, so treat
 differences under about 25 failures as noise and A/B the worst cells with more
 runs (54 each, say) before believing a change moved them.
@@ -128,12 +139,12 @@ rather than on note-building - there is not room for the cadence the level
 requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip: 0.7% as shipped (1.0% before the voice-rhythm pass), against 37.1% with
+approached or left by skip: 0.8% as shipped (0.7% before the yield, 1.0% before the voice-rhythm pass), against 37.1% with
 `STEPWISE_EIGHTHS=0`.
 
 **The option is ON by default**, so that failure rate is live. The worst cells
-left are UIL 5 minor keys - 16 bars in the fuller voicings, and the two-bar
-cells above - at 25-42%. `failureHint` names the option first when it fires.
+left are nearly all the two-bar UIL 5 minor-key cells above, at 17-50%; one
+16-bar cell (3 Part Treble, C minor, 3/4) is at 25%. `failureHint` names the option first when it fires.
 
 Two numbers moved it. Giving build-chord-notes' deadlock escape the fifth to
 reach for took skips from 3.3% to 0.3% (every violation left was in the bass;

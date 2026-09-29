@@ -172,7 +172,12 @@ export function buildChordNotes(
   accidentalsByStep: boolean,
   presetSoprano?: VoiceNote[],
   /** Eighths and shorter are approached and left by step or repeat. */
-  stepwiseEighths: boolean = false
+  stepwiseEighths: boolean = false,
+  /**
+   * Let that step limit give way where nothing within a step survives - the
+   * caller's last resort, see STEPWISE_YIELD_AFTER.
+   */
+  stepwiseYield: boolean = false
 ): VoiceNote[][] {
   /**
    * How far a voice may move into this step. Within a pattern the chord does
@@ -956,6 +961,26 @@ export function buildChordNotes(
        * after this many, two after twice as many. See overlapGive.
        */
       const OVERLAP_YIELD_AFTER = 6;
+      /**
+       * Retries of one step before the stepwise-eighths limit may yield to the
+       * ordinary maxSkip for an upper voice - on the caller's last progressions
+       * only (stepwiseYield), and only when nothing within a step survives.
+       *
+       * The limit already yielded when no chord tone was within a step, but not
+       * when every one within a step was ruled out further down: parallels with
+       * the bass, an overlap, a crossing. Those filters are hard, so the step
+       * failed every retry alike. In four parts, where every voice is held to a
+       * step at once beside an eighth, a progression was then abandoned three
+       * times in four, and at UIL 5 in a minor key, sixteen bars, 18-25% of
+       * exercises in C and A minor failed outright - none with the option off.
+       *
+       * Yielding on any progression fixed that and cost the texture: skips
+       * beside a short note in the upper voices went from 0.9% to 4-5%, in
+       * exercises that had never failed. Each skip had replaced a backtrack or
+       * a new progression that would have found the step. So it is kept for
+       * the last three progressions, where the alternative is no exercise.
+       */
+      const STEPWISE_YIELD_AFTER = 12;
       let stepRetryCount = 0;
       let stepSuccess = false;
       /**
@@ -1627,33 +1652,44 @@ export function buildChordNotes(
               const previousChord =
                 chordIndex > 0 ? chordProgression[chordIndex - 1] : undefined;
 
-              const selectedNote = findValidVoiceNote(
-                voicePart,
-                currentChord,
-                usedTriadDegrees,
-                otherVoiceNotes,
-                skipInto(
-                  rhythm,
-                  voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
-                  maxSkip
-                ),
-                voiceParts[originalVoiceIndex].chordNotes.at(-1) as VoiceNote | undefined,
-                accidentalsByStep,
-                otherVoicesPrev,
-                previousChord,
-                voiceParts[originalVoiceIndex].chordNotes.at(-2) as
-                  | VoiceNote
-                  | undefined,
-                (rhythm as any).isCadenceEnd === true ||
-                  (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true,
-                maxSkip,
-                // Strict for the first tries at this step - see overlapGive.
-                stepRetryCount > 2 * OVERLAP_YIELD_AFTER
-                  ? 2
-                  : stepRetryCount > OVERLAP_YIELD_AFTER
-                    ? 1
-                    : 0
-              );
+              const prevHere = voiceParts[originalVoiceIndex].chordNotes.at(-1) as
+                | VoiceNote
+                | undefined;
+              const findWith = (skip: number) =>
+                findValidVoiceNote(
+                  voicePart,
+                  currentChord,
+                  usedTriadDegrees,
+                  otherVoiceNotes,
+                  skip,
+                  prevHere,
+                  accidentalsByStep,
+                  otherVoicesPrev,
+                  previousChord,
+                  voiceParts[originalVoiceIndex].chordNotes.at(-2) as
+                    | VoiceNote
+                    | undefined,
+                  (rhythm as any).isCadenceEnd === true ||
+                    (rhythms[stepIndex + 1] as any)?.isCadenceEnd === true,
+                  maxSkip,
+                  // Strict for the first tries at this step - see overlapGive.
+                  stepRetryCount > 2 * OVERLAP_YIELD_AFTER
+                    ? 2
+                    : stepRetryCount > OVERLAP_YIELD_AFTER
+                      ? 1
+                      : 0
+                );
+              const stepSkip = skipInto(rhythm, prevHere, maxSkip);
+              let selectedNote = findWith(stepSkip);
+              // See STEPWISE_YIELD_AFTER: only when nothing within a step survives.
+              if (
+                !selectedNote &&
+                stepSkip < maxSkip &&
+                stepwiseYield &&
+                stepRetryCount > STEPWISE_YIELD_AFTER
+              ) {
+                selectedNote = findWith(maxSkip);
+              }
 
               if (!selectedNote) {
                 throw new Error(
