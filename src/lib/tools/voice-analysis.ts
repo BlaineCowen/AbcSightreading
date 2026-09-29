@@ -1,12 +1,14 @@
 import { get, writable } from "svelte/store";
 import { tuner } from "../tuner/store";
-import { readSpectrum } from "../tuner/controller";
+import { readSamples, readSpectrum } from "../tuner/controller";
 import {
+  LPC_BELOW_HZ,
   MAX_HZ,
   classifyVowel,
   estimateFormants,
   guessVoice,
   harmonicLevels,
+  lpcFormants,
   noiseFloor,
   spectralEnvelope,
   toneMeasures,
@@ -89,7 +91,11 @@ function step(now: number) {
   lastVoiced = now;
   const harmonics = harmonicLevels(s, f0);
   const envelope = spectralEnvelope(s, f0);
-  const est = estimateFormants(harmonics, f0, noiseFloor(s, f0));
+  // Low and middle voices: LPC on the waveform; high voices, or when LPC
+  // finds nothing, analysis by synthesis on the harmonics (voice-spectrum.ts).
+  const raw = f0 < LPC_BELOW_HZ ? readSamples() : null;
+  const lpc = raw ? lpcFormants(raw.samples, raw.sampleRate) : null;
+  const est = lpc ? { ...lpc, fit: 0 } : estimateFormants(harmonics, f0, noiseFloor(s, f0));
   if (get(voiceType) === null) voiceType.set(guessVoice(f0));
   const voice = get(voiceType) ?? undefined;
   let formants: VoiceReading["formants"] = null;

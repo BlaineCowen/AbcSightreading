@@ -18,6 +18,8 @@ export class TunerEngine {
   private spectrum: Float32Array<ArrayBuffer> | null = null;
   /** A separate buffer for readSpectrum, so the display never disturbs detection's. */
   private viewSpectrum: Float32Array<ArrayBuffer> | null = null;
+  /** The latest 2048 samples, for the Analysis tool's LPC (readSamples). */
+  private lastSamples: Float32Array | null = null;
   private sink: GainNode | null = null;
   private onFrameCallback: ((frame: TunerFrame) => void) | null = null;
   /** Frames actually delivered by the worklet — 0 means the graph never ran. */
@@ -59,6 +61,12 @@ export class TunerEngine {
     if (!this.viewSpectrum) this.viewSpectrum = new Float32Array(this.analyser.frequencyBinCount);
     this.analyser.getFloatFrequencyData(this.viewSpectrum);
     return { db: this.viewSpectrum, sampleRate: this.audioContext.sampleRate, fftSize: FFT_SIZE };
+  }
+
+  /** The latest buffer of samples from the mic, for reading formants by LPC. Read-only, like readSpectrum. */
+  readSamples(): { samples: Float32Array; sampleRate: number } | null {
+    if (!this.lastSamples || !this.audioContext) return null;
+    return { samples: this.lastSamples, sampleRate: this.audioContext.sampleRate };
   }
 
   async start(): Promise<void> {
@@ -128,6 +136,7 @@ export class TunerEngine {
     this.workletNode = null;
     this.analyser = null;
     this.viewSpectrum = null;
+    this.lastSamples = null;
     this.sink = null;
     this.audioContext = null;
     this.tracker.reset();
@@ -138,6 +147,7 @@ export class TunerEngine {
     if (!this.onFrameCallback || event.data.type !== "buffer") return;
     this.frameCount++;
     const buffer: Float32Array = event.data.buffer;
+    this.lastSamples = buffer;
     const level = rms(buffer);
     const levelDb = dbfs(level);
     const now = performance.now();

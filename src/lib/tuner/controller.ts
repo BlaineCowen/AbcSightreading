@@ -104,3 +104,8 @@ export function readSpectrum() {
   return engine?.readSpectrum() ?? null;
 }
 
+/** The mic's latest samples, for the Analysis tool's LPC; null when the mic is off. */
+export function readSamples() {
+  return engine?.readSamples() ?? null;
+}
+

@@ -7,7 +7,9 @@
  *   strongest.
  * - spectralEnvelope: the spectrum's outline, a smooth curve through the
  *   harmonics' peaks, where a vowel's resonances show as humps.
- * - estimateFormants: F1 and F2 by analysis by synthesis. Every pair of
+ * - lpcFormants: F1 and F2 by linear prediction from the waveform, for low
+ *   and middle voices (below LPC_BELOW_HZ).
+ * - estimateFormants: F1 and F2 by analysis by synthesis, for high voices. Every pair of
  *   resonances on a grid predicts the harmonics' levels; the singer's own
  *   downward slope is fitted as it goes; the pair that predicts the heard
  *   levels best wins. It uses every harmonic, so it copes where they are too
@@ -154,21 +156,29 @@ const F3_GRID = [2200, 2500, 2800, 3100];
  * than the top of the spectrum, and harmonics near the noise floor not at all.
  */
 export function estimateFormants(h: HarmonicLevel[], f0: number, floorDb = -60): (Formants & { fit: number }) | null {
-  const pts = h.filter((x) => x.hz <= 4000 && x.db > Math.max(-60, floorDb + 8));
-  if (pts.length < 3) return null;
-  const n = pts.length;
-  const lx = pts.map((x) => Math.log2(x.hz / f0));
-  const w = pts.map((x) => (x.hz <= 1500 ? 1 : x.hz <= 2500 ? 0.6 : 0.35));
+  const gate = Math.max(-60, floorDb + 8);
+  const all = h.filter((x) => x.hz <= 4000);
+  const heard = all.filter((x) => x.db > gate);
+  if (heard.length < 3) return null;
+  // Harmonics lost in the noise are not ignored: "nothing louder than the
+  // floor here" is what rules out a resonance there. Ignoring them let a
+  // back vowel, with almost nothing above 900 Hz, put F2 at the top of the
+  // search, where no heard harmonic contradicted it.
+  const quiet = all.filter((x) => x.db <= gate);
+  const n = heard.length;
+  const lx = heard.map((x) => Math.log2(x.hz / f0));
+  const qlx = quiet.map((x) => Math.log2(x.hz / f0));
+  const w = heard.map((x) => (x.hz <= 1500 ? 1 : x.hz <= 2500 ? 0.6 : 0.35));
   let sw = 0, swx = 0, swxx = 0;
   for (let i = 0; i < n; i++) { sw += w[i]; swx += w[i] * lx[i]; swxx += w[i] * lx[i] * lx[i]; }
   const den = sw * swxx - swx * swx || 1;
-  const table = (grid: number[], bw: number) => grid.map((fc) => pts.map((x) => resonanceDb(x.hz, fc, bw)));
+  const table = (grid: number[], bw: number, pts: HarmonicLevel[]) => grid.map((fc) => pts.map((x) => resonanceDb(x.hz, fc, bw)));
 
-  const errorOf = (r1: number[], r2: number[], r3: number[]) => {
+  const errorOf = (r1: number[], r2: number[], r3: number[], q1: number[], q2: number[], q3: number[]) => {
     let swy = 0, swxy = 0;
     const r = new Float64Array(n);
     for (let i = 0; i < n; i++) {
-      r[i] = pts[i].db - r1[i] - r2[i] - r3[i];
+      r[i] = heard[i].db - r1[i] - r2[i] - r3[i];
       swy += w[i] * r[i];
       swxy += w[i] * lx[i] * r[i];
     }
@@ -178,17 +188,26 @@ export function estimateFormants(h: HarmonicLevel[], f0: number, floorDb = -60):
     const off = (swy - slope * swx) / sw;
     let e = 0;
     for (let i = 0; i < n; i++) e += w[i] * (r[i] - off - slope * lx[i]) ** 2;
+    // A quiet harmonic the model would make audible counts against it.
+    for (let j = 0; j < quiet.length; j++) {
+      const over = off + slope * qlx[j] + q1[j] + q2[j] + q3[j] - gate;
+      if (over > 0) e += 0.5 * over * over;
+    }
+    // A gentle pull toward an ordinary voice's slope, so the slope cannot
+    // stand in for a resonance.
+    e += 0.02 * (slope + 12) ** 2;
     return e / sw;
   };
 
-  const t1 = table(F1_GRID, 90), t2 = table(F2_GRID, 110), t3 = table(F3_GRID, 150);
+  const t1 = table(F1_GRID, 90, heard), t2 = table(F2_GRID, 110, heard), t3 = table(F3_GRID, 150, heard);
+  const u1 = table(F1_GRID, 90, quiet), u2 = table(F2_GRID, 110, quiet), u3 = table(F3_GRID, 150, quiet);
   let best = { i1: -1, i2: -1, i3: -1, err: Infinity };
   for (let i1 = 0; i1 < F1_GRID.length; i1++) {
     for (let i2 = 0; i2 < F2_GRID.length; i2++) {
       if (F2_GRID[i2] < F1_GRID[i1] + 150) continue;
       for (let i3 = 0; i3 < F3_GRID.length; i3++) {
         if (F3_GRID[i3] < F2_GRID[i2] + 250) continue;
-        const err = errorOf(t1[i1], t2[i2], t3[i3]);
+        const err = errorOf(t1[i1], t2[i2], t3[i3], u1[i1], u2[i2], u3[i3]);
         if (err < best.err) best = { i1, i2, i3, err };
       }
     }
@@ -196,17 +215,121 @@ export function estimateFormants(h: HarmonicLevel[], f0: number, floorDb = -60):
   if (best.i1 < 0 || !Number.isFinite(best.err)) return null;
 
   // Refine F1 and F2 on a finer grid around the best, F3 where it was.
-  const r3 = t3[best.i3];
+  const r3 = t3[best.i3], q3 = u3[best.i3];
   const c1 = F1_GRID[best.i1], c2 = F2_GRID[best.i2];
   let fine = { f1: c1, f2: c2, err: best.err };
   for (let f1 = Math.max(200, c1 - 30); f1 <= Math.min(1100, c1 + 30); f1 += 10) {
-    const r1 = pts.map((x) => resonanceDb(x.hz, f1, 90));
+    const r1 = heard.map((x) => resonanceDb(x.hz, f1, 90)), q1 = quiet.map((x) => resonanceDb(x.hz, f1, 90));
     for (let f2 = Math.max(550, c2 - 60, f1 + 150); f2 <= Math.min(2900, c2 + 60); f2 += 20) {
-      const err = errorOf(r1, pts.map((x) => resonanceDb(x.hz, f2, 110)), r3);
+      const err = errorOf(r1, heard.map((x) => resonanceDb(x.hz, f2, 110)), r3, q1, quiet.map((x) => resonanceDb(x.hz, f2, 110)), q3);
       if (err < fine.err) fine = { f1, f2, err };
     }
   }
   return { f1: fine.f1, f2: fine.f2, fit: Math.sqrt(fine.err) };
+}
+
+/** Below this pitch the vowel is read by LPC from the waveform; above it, by analysis by synthesis. */
+export const LPC_BELOW_HZ = 260;
+
+/**
+ * F1 and F2 by linear prediction (LPC), the speech lab's method, from a
+ * stretch of the microphone's signal (at least 30 ms). The signal is
+ * low-passed and taken down to about 12 kHz, lifted 6 dB an octave, windowed,
+ * and fitted with a 12-pole filter; each resonance is a pair of the filter's
+ * poles, whose angle is its frequency and whose distance from the unit circle
+ * its width.
+ *
+ * Why both methods: on Blaine's own recording (chest voice around F3) LPC
+ * named every vowel steadily, where analysis by synthesis flipped between two
+ * near-equal answers frame to frame, [a] and [o] for [e]. LPC in turn goes
+ * wrong on a high voice, whose widely spaced harmonics pull the poles onto
+ * them; that is where analysis by synthesis did well (his falsetto).
+ */
+export function lpcFormants(samples: Float32Array, sampleRate: number): Formants | null {
+  const D = Math.max(1, Math.round(sampleRate / 12000));
+  const fs = sampleRate / D;
+  // Low-pass below the new Nyquist: a windowed-sinc FIR, then keep every Dth.
+  const taps = 31, cut = 0.45 / D;
+  const h = new Float64Array(taps);
+  for (let i = 0; i < taps; i++) {
+    const m = i - (taps - 1) / 2;
+    const sinc = m === 0 ? 2 * cut : Math.sin(2 * Math.PI * cut * m) / (Math.PI * m);
+    h[i] = sinc * (0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (taps - 1)));
+  }
+  const len = Math.floor((samples.length - taps) / D);
+  const N = Math.min(len, Math.round(0.03 * fs));
+  if (N < 200) return null;
+  const x = new Float64Array(N);
+  const start = len - N;
+  for (let k = 0; k < N; k++) {
+    const base = (start + k) * D;
+    let acc = 0;
+    for (let i = 0; i < taps; i++) acc += h[i] * samples[base + i];
+    x[k] = acc;
+  }
+  for (let k = N - 1; k > 0; k--) x[k] -= 0.97 * x[k - 1];
+  for (let k = 0; k < N; k++) x[k] *= 0.54 - 0.46 * Math.cos((2 * Math.PI * k) / (N - 1));
+
+  const p = 12;
+  const r = new Float64Array(p + 1);
+  for (let k = 0; k <= p; k++) for (let i = k; i < N; i++) r[k] += x[i] * x[i - k];
+  if (r[0] <= 0) return null;
+  r[0] *= 1.0001; // a touch of white noise keeps the solution stable
+  let a = new Float64Array(p + 1);
+  a[0] = 1;
+  let err = r[0];
+  for (let i = 1; i <= p; i++) {
+    let acc = r[i];
+    for (let j = 1; j < i; j++) acc += a[j] * r[i - j];
+    const k = -acc / err;
+    const next = a.slice();
+    for (let j = 1; j < i; j++) next[j] = a[j] + k * a[i - j];
+    next[i] = k;
+    a = next;
+    err *= 1 - k * k;
+    if (err <= 0) return null;
+  }
+
+  // The poles: roots of z^p + a1 z^(p-1) + ... + ap, by Durand-Kerner.
+  let zr = Array.from({ length: p }, (_, i) => 0.9 * Math.cos((2 * Math.PI * i) / p + 0.4));
+  let zi = Array.from({ length: p }, (_, i) => 0.9 * Math.sin((2 * Math.PI * i) / p + 0.4));
+  for (let it = 0; it < 120; it++) {
+    const nr = zr.slice(), ni = zi.slice();
+    let moved = 0;
+    for (let i = 0; i < p; i++) {
+      let pr = 1, pi = 0;
+      for (let j = 1; j <= p; j++) {
+        const tr = pr * zr[i] - pi * zi[i] + a[j];
+        pi = pr * zi[i] + pi * zr[i];
+        pr = tr;
+      }
+      let dr = 1, di = 0;
+      for (let j = 0; j < p; j++) {
+        if (j === i) continue;
+        const tr = zr[i] - zr[j], ti = zi[i] - zi[j];
+        const mr = dr * tr - di * ti;
+        di = dr * ti + di * tr;
+        dr = mr;
+      }
+      const den = dr * dr + di * di || 1e-18;
+      const qr = (pr * dr + pi * di) / den, qi = (pi * dr - pr * di) / den;
+      nr[i] = zr[i] - qr;
+      ni[i] = zi[i] - qi;
+      moved = Math.max(moved, Math.abs(qr) + Math.abs(qi));
+    }
+    zr = nr; zi = ni;
+    if (moved < 1e-9) break;
+  }
+  const poles = zr
+    .map((re, i) => ({ re, im: zi[i] }))
+    .filter((z) => z.im > 1e-6)
+    .map((z) => ({ hz: (Math.atan2(z.im, z.re) * fs) / (2 * Math.PI), bw: (-Math.log(Math.hypot(z.re, z.im)) * fs) / Math.PI }))
+    .filter((q) => q.hz > 180 && q.bw > 0 && q.bw < 500)
+    .sort((u, v) => u.hz - v.hz);
+  const f1 = poles.find((q) => q.hz <= 1100);
+  if (!f1) return null;
+  const f2 = poles.find((q) => q.hz >= f1.hz + 150 && q.hz <= 3000);
+  return { f1: f1.hz, f2: f2 ? f2.hz : null };
 }
 
 /** The five choral vowels, with formants for a man's voice (a woman's run about 15% higher). */

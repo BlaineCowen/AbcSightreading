@@ -191,12 +191,15 @@ timer keep going with the card closed. Analysis has four views: Pitch (the
 trace and its half-minute stats), Spectrum (live, with the outline, numbered
 harmonics and F1/F2 as overlays), Harmonics (levels, H1 vs H2, ring,
 brightness) and Vowel (a guess among ee, eh, ah, oh, oo on a vowel chart).
-The maths is `src/lib/tuner/voice-spectrum.ts` (tests `voice-spectrum.test.ts`):
-formants by analysis by synthesis over the harmonics' levels (F1, F2 and
-F3 searched, harmonics under the noise floor left out), which held up
-against synthetic voices with other resonance widths and noise where picking
-humps off the outline did not; the live loop is `src/lib/tools/voice-analysis.ts`,
-reading the analyser through `TunerEngine.readSpectrum`. The singer says low or high voice (the pitch
+The maths is `src/lib/tuner/voice-spectrum.ts` (tests `voice-spectrum.test.ts`).
+Formants come two ways: below C4 (`LPC_BELOW_HZ`) by LPC on the mic's raw
+samples (`TunerEngine.readSamples`), above it by analysis by synthesis over
+the harmonics' levels (F1, F2 and F3 searched; a quiet harmonic counts
+against a model that would make it audible). On Blaine's own recording of
+i e a o u in chest voice at F3, LPC named 67 of 68 frames and analysis by
+synthesis flipped between two answers; LPC fails on high voices, where
+analysis by synthesis works (his falsetto). The live loop is
+`src/lib/tools/voice-analysis.ts`, reading `TunerEngine.readSpectrum`. The singer says low or high voice (the pitch
 cannot: a man's [o] above G3 read as a woman's [u]). Vowels are only
 trusted below about A4, and rough above E4. It is all from the mic alone; nothing compares
 against the written notes yet.

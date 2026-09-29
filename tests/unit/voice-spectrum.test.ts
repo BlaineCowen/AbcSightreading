@@ -4,6 +4,7 @@ import {
   classifyVowel,
   estimateFormants,
   harmonicLevels,
+  lpcFormants,
   noiseFloor,
   spectralEnvelope,
   toneMeasures,
@@ -191,3 +192,56 @@ describe("tone", () => {
     expect(ringing.ringDb).toBeGreaterThan(plain.ringDb);
   });
 });
+
+/**
+ * A sung vowel as a waveform, for LPC: glottal pulses at f0 with vibrato,
+ * through the vowel's resonances, then the mouth's radiation.
+ */
+function sung(f0: number, formants: number[], bws: number[], seconds = 0.2, sr = 48000) {
+  const n = Math.round(seconds * sr);
+  let y = new Float64Array(n);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const f = f0 * Math.pow(2, (25 / 1200) * Math.sin(2 * Math.PI * 5.5 * (i / sr)));
+    phase += f / sr;
+    if (phase >= 1) phase -= 1;
+    y[i] = phase < 0.4 ? 0.5 * (1 - Math.cos((Math.PI * phase) / 0.4)) : phase < 0.56 ? Math.cos((Math.PI * (phase - 0.4)) / 0.32) : 0;
+  }
+  formants.forEach((fc, j) => {
+    const r = Math.exp((-Math.PI * bws[j]) / sr), th = (2 * Math.PI * fc) / sr;
+    const a1 = 2 * r * Math.cos(th), a2 = -r * r, out = new Float64Array(n);
+    for (let i = 0; i < n; i++) out[i] = (1 - a1 - a2) * y[i] + a1 * (out[i - 1] ?? 0) + a2 * (out[i - 2] ?? 0);
+    y = out;
+  });
+  const rad = new Float32Array(n);
+  for (let i = 1; i < n; i++) rad[i] = y[i] - y[i - 1];
+  return rad.subarray(n - 2048); // what the tuner hands over: one 2048-sample buffer
+}
+
+describe("LPC, for low and middle voices", () => {
+  const MEN4: Record<string, number[]> = {
+    ee: [280, 2250, 2900, 3500],
+    eh: [500, 1800, 2500, 3400],
+    ah: [720, 1150, 2500, 3400],
+    oh: [450, 800, 2400, 3300],
+    oo: [310, 780, 2250, 3300],
+  };
+  for (const f0 of [98, 131, 165, 196, 247]) {
+    test(`a man at ${f0} Hz: all five vowels`, () => {
+      for (const [vowel, fm] of Object.entries(MEN4)) {
+        const f = lpcFormants(sung(f0, fm, [70, 90, 140, 200]), 48000);
+        expect(f).not.toBeNull();
+        expect(classifyVowel(f!, f0, "low").vowel).toBe(vowel);
+      }
+    });
+  }
+
+  test("a woman at 220 Hz: all five vowels", () => {
+    for (const [vowel, fm] of Object.entries(MEN4)) {
+      const f = lpcFormants(sung(220, fm.map((x, i) => (i < 3 ? x * 1.16 : x)), [80, 100, 150, 200]), 48000);
+      expect(f).not.toBeNull();
+      expect(classifyVowel(f!, 220, "high").vowel).toBe(vowel);
+    }
+  });
+});
+
