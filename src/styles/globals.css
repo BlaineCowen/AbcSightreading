@@ -93,11 +93,13 @@
 }
 
 
-html {
-font-family: system-ui, sans-serif;
-background: #13151a;
-background-size: 224px;
+/* The page colour under the iPad's status bar (viewport-fit=cover) and in any
+   overscroll, where the navbar has slid away. */
+html { background: #eeeaf8; }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]):has(body.sr-themable) { background: #111113; }
 }
+html[data-theme="dark"]:has(body.sr-themable) { background: #111113; }
 
 code {
 font-family:

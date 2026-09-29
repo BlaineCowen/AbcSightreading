@@ -30,17 +30,33 @@
    * tool is and how to get it.
    */
 
-  type Tool = { id: ToolId; label: string; wedge: string; x: number; y: number; w: number };
+  type Tool = { id: ToolId; label: string; x: number; y: number; w: number };
   // Six wedges round a hub, clockwise from the top (the mockup's geometry).
   const TOOLS: Tool[] = [
-    { id: "tuner", label: "Tuner", wedge: "M78.4 23.2 A132 132 0 0 1 201.6 23.2 L164.3 94.0 A52 52 0 0 0 115.7 94.0 Z", x: 108, y: 16, w: 64 },
-    { id: "metronome", label: "Metronome", wedge: "M210.3 28.3 A132 132 0 0 1 271.9 134.9 L192.0 138.0 A52 52 0 0 0 167.7 96.0 Z", x: 184, y: 62, w: 72 },
-    { id: "drone", label: "Drone", wedge: "M271.9 145.1 A132 132 0 0 1 210.3 251.7 L167.7 184.0 A52 52 0 0 0 192.0 142.0 Z", x: 188, y: 154, w: 64 },
-    { id: "pitches", label: "Pitches", wedge: "M201.6 256.8 A132 132 0 0 1 78.4 256.8 L115.7 186.0 A52 52 0 0 0 164.3 186.0 Z", x: 104, y: 200, w: 72 },
-    { id: "timer", label: "Timer", wedge: "M69.7 251.7 A132 132 0 0 1 8.1 145.1 L88.0 142.0 A52 52 0 0 0 112.3 184.0 Z", x: 28, y: 154, w: 64 },
-    { id: "analysis", label: "Analysis", wedge: "M8.1 134.9 A132 132 0 0 1 69.7 28.3 L112.3 96.0 A52 52 0 0 0 88.0 138.0 Z", x: 24, y: 62, w: 72 },
+    { id: "tuner", label: "Tuner", x: 108, y: 16, w: 64 },
+    { id: "metronome", label: "Metronome", x: 184, y: 62, w: 72 },
+    { id: "drone", label: "Drone", x: 188, y: 154, w: 64 },
+    { id: "pitches", label: "Pitches", x: 104, y: 200, w: 72 },
+    { id: "timer", label: "Timer", x: 28, y: 154, w: 64 },
+    { id: "analysis", label: "Analysis", x: 24, y: 62, w: 72 },
   ];
   const LISTENING: ToolId[] = ["tuner", "analysis"];
+
+  /**
+   * The wheel's slices, all from one set of measurements: a disc, six slices
+   * that meet edge to edge (the gutters between them are the disc showing
+   * through a stroke, so they are the same width all the way out), and the
+   * centre button inside a ring as wide as the one at the rim.
+   */
+  const C = 140, RIM = 134, HUB = 54, CENTRE = 45, GUTTER = 5;
+  const at = (r: number, deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    return `${(C + r * Math.cos(a)).toFixed(2)} ${(C + r * Math.sin(a)).toFixed(2)}`;
+  };
+  const wedge = (i: number) => {
+    const a0 = i * 60 - 120, a1 = i * 60 - 60;
+    return `M${at(RIM, a0)} A${RIM} ${RIM} 0 0 1 ${at(RIM, a1)} L${at(HUB, a1)} A${HUB} ${HUB} 0 0 0 ${at(HUB, a0)} Z`;
+  };
 
   let wheelOpen = false;
   /** The slice under the pointer or keyboard focus, coloured as a whole. */
@@ -163,7 +179,7 @@
 
   <!-- The wheel, over a dimmed page; a tap on the page closes it. -->
   {#if wheelOpen}
-    <button class="fixed inset-0 z-40 bg-slate-900/20 cursor-default" aria-label="Close the tools" tabindex="-1" on:click={() => (wheelOpen = false)}></button>
+    <button class="fixed inset-0 z-40 bg-[#1e1b3a]/25 cursor-default" aria-label="Close the tools" tabindex="-1" on:click={() => (wheelOpen = false)}></button>
     <div
       bind:this={wheelEl}
       class="tools-wheel fixed z-50 w-[280px] h-[280px] left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-9"
@@ -174,24 +190,27 @@
            colours the whole slice, and a click anywhere on it opens the tool.
            The buttons below carry the same action for the keyboard. -->
       <svg width="280" height="280" viewBox="0 0 280 280" class="absolute inset-0" aria-hidden="true">
+        <circle cx={C} cy={C} r={C} fill="var(--sr-raise)" />
         {#each TOOLS as t, i}
           <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
           <path
-            d={t.wedge}
+            d={wedge(i)}
             class="transition-colors cursor-pointer"
-            fill={tool === t.id || hovered === t.id ? "var(--sr-tint)" : i % 2 ? "var(--sr-panel)" : "var(--sr-raise)"}
-            stroke="var(--sr-hairline)"
+            fill={tool === t.id || hovered === t.id ? "var(--sr-action)" : "var(--sr-track)"}
+            stroke="var(--sr-raise)"
+            stroke-width={GUTTER}
+            stroke-linejoin="round"
             on:mouseenter={() => (hovered = t.id)}
             on:mouseleave={() => (hovered = null)}
             on:click={() => pick(t.id)}
           />
         {/each}
-        <circle cx="140" cy="140" r="46" fill="var(--sr-action)" />
+        <circle cx={C} cy={C} r={CENTRE} fill="var(--sr-action)" />
       </svg>
       {#each TOOLS as t}
         <button
           data-tool={t.id}
-          class="absolute h-16 rounded-xl flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-sr-action-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-sr-action"
+          class="absolute h-16 rounded-xl flex flex-col items-center justify-center gap-1 text-[12px] font-extrabold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sr-action {tool === t.id || hovered === t.id ? 'text-sr-action-ink' : 'text-sr-ink-2'}"
           style="left: {t.x}px; top: {t.y}px; width: {t.w}px"
           on:mouseenter={() => (hovered = t.id)}
           on:mouseleave={() => (hovered = null)}
@@ -201,7 +220,7 @@
         ><Icon id={t.id} size={22} />{t.label}</button>
       {/each}
       <button
-        class="absolute left-[106px] top-[106px] w-[68px] h-[68px] rounded-full flex items-center justify-center text-sr-action-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        class="absolute left-[100px] top-[100px] w-[80px] h-[80px] rounded-full flex items-center justify-center text-sr-action-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
         on:click={() => (wheelOpen = false)}
         aria-label="Close the tools"
       ><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
