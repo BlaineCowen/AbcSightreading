@@ -3265,9 +3265,9 @@
               <p class="text-xs text-sr-faint">
                 {rhythmOnly
                   ? (rhythmSoundFor(rhythmSoundId).kind === "click"
-                      ? "A click - every note sounds the same length. Good for attacks."
+                      ? "A click: every note sounds the same length. Good for attacks."
                       : "Sustains, so a held note is heard held.")
-                  : "Changes the sound straight away - the exercise stays as it is."}
+                  : "Changes the sound straight away. The exercise stays as it is."}
               </p>
             </div>
 
@@ -3318,12 +3318,12 @@
               </div>
               <p class="text-xs text-sr-faint">
                 {#if !showSolfege}
-                  Clean - the same exercise, printed for sight-reading.
+                  Clean: the same exercise, printed for sight-reading.
                 {:else if lyricSystem === "movable"}
-                  Movable do under the staff - do is the tonic, so a tune reads the same in
+                  Movable do under the staff: do is the tonic, so a tune reads the same in
                   every key.
                 {:else if lyricSystem === "fixed"}
-                  Fixed do under the staff - C is do whatever the key.
+                  Fixed do under the staff: C is do whatever the key.
                 {:else}
                   The note names under the staff.
                 {/if}
@@ -3468,7 +3468,7 @@
               <div class="space-y-2 sm:col-span-2 border-t border-sr-hairline pt-3">
                 <p class="sr-label">On The Repeats</p>
                 <p class="text-xs text-sr-faint">
-                  The first pass is always your own settings - that is the one
+                  The first pass is always your own settings, since that is the one
                   being sight-read. These are what comes back on the way through again.
                 </p>
 
@@ -3559,7 +3559,7 @@
                         ? 'The repeats click if the metronome is on.'
                         : drillRepeatMetronome === 'on'
                           ? 'The click comes in on the repeats, even with the metronome off.'
-                          : 'No click on the repeats - keep the beat yourself.'}
+                          : 'No click on the repeats. Keep the beat yourself.'}
                     </p>
                   </div>
 
@@ -3609,11 +3609,11 @@
                 {#if repeatsSilent}
                   <p class="text-xs text-sr-faint">
                     Nothing sounds on the repeats. The music still runs, so a repeat takes
-                    exactly as long as the first pass - only the cursor moves.
+                    exactly as long as the first pass. Only the cursor moves.
                   </p>
                 {:else if repeatCountInSilent}
                   <p class="text-xs text-sr-faint">
-                    With no click on the repeats, their count-in is a silent bar - the repeat
+                    With no click on the repeats, their count-in is a silent bar, and the repeat
                     still waits it out.
                   </p>
                 {/if}
@@ -3722,14 +3722,14 @@
                 <p class="text-xs text-sr-faint">
                   {showRhythmSyllables
                     ? syllableHint
-                    : 'No syllables. The exercise is unchanged - turning them back on costs nothing.'}
+                    : 'No syllables. The exercise is unchanged, and turning them back on costs nothing.'}
                   {#if $mySyllables}
                     <a class="underline ml-1" href="/account#syllables">Edit mine</a>
                   {:else if $syllablesAvailable}
                     <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
                   {/if}
                 </p>
-                <SignupHint id="own-syllables">Want the words your choir uses - ta-a, ti-ka, whatever you teach?</SignupHint>
+                <SignupHint id="own-syllables">Want the words your choir uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
               </div>
             {/if}
           </div>

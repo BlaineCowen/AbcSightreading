@@ -72,7 +72,7 @@ export function failureHint(ctx: FailureContext): string {
   // and the cells it fails in are exactly the ones the next hint describes:
   // sixteen bars, three or more close parts, minor keys at level 5.
   if (stepwiseEighths && parts.length >= 3 && measures >= 16) {
-    return `Holding eighth notes to a step is what usually makes this combination unwritable - sixteen bars in three or more close parts leaves the voices nowhere to step to. Turn off "Eighth notes move by step" under Rhythm, try 8 bars, or ${room}.`;
+    return `Holding eighth notes to a step is what usually makes this combination unwritable: sixteen bars in three or more close parts leaves the voices nowhere to step to. Turn off "Eighth notes move by step" under Rhythm, try 8 bars, or ${room}.`;
   }
   if (parts.length >= 3 && measures >= 16) {
     return `Sixteen bars in three or more close parts is the hardest thing to ask for. Try 8 bars instead, or ${room}.`;
@@ -82,7 +82,7 @@ export function failureHint(ctx: FailureContext): string {
   if (parts.length >= 3 && tightest !== null && span(tightest) <= 10) {
     // Names the part once. Composing this from `roomHint` said "the Tenor"
     // twice in one breath.
-    return `The ${tightest.name} has the least room of any part here, and three or more voices need somewhere to go. Give it a step or two more at the top, under Voice Ranges - that is usually the end that helps.`;
+    return `The ${tightest.name} has the least room of any part here, and three or more voices need somewhere to go. Give it a step or two more at the top, under Voice Ranges. That is usually the end that helps.`;
   }
   if (chordCount <= 4) {
     return "With this few chords there may be nowhere left for the bass to go. Switching one more on under Harmony usually does it.";

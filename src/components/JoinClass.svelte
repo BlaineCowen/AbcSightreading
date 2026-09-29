@@ -103,7 +103,7 @@
           <span class="text-xs text-sr-faint">At least 8 characters. Write it down somewhere safe.</span>
         </label>
       {:else}
-        <p class="text-sm text-sr-muted">You'll join as yourself - your presets and settings come with you.</p>
+        <p class="text-sm text-sr-muted">You'll join as yourself, and your presets and settings come with you.</p>
       {/if}
 
       {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}

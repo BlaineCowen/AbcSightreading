@@ -173,7 +173,7 @@
 
       {#if state === "sent"}
         <p class="text-sm text-sr-ink py-6 text-center">
-          Thank you - that reached me.
+          Thank you, that reached me.
         </p>
       {:else}
         <div class="flex gap-2">

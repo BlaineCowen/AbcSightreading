@@ -430,7 +430,7 @@
         </button>
         {#if uncopied}
           <div class="px-3 pt-1 pb-2 text-xs text-sr-bar-muted">
-            Your browser blocked copying - copy the link from here:
+            Your browser blocked copying. Copy the link from here:
             <input
               class="mt-1 w-full rounded-full bg-sr-bar px-2 py-1 text-xs text-sr-bar-ink ring-1 ring-sr-bar-line"
               readonly

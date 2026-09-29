@@ -27,7 +27,7 @@
 {#if !$exercise}
   <p class="text-sm text-sr-muted">Generate an exercise, and each part's first note will be here.</p>
 {:else if $exercise.rhythmOnly}
-  <p class="text-sm text-sr-muted">This is a rhythm exercise - there are no pitches to give.</p>
+  <p class="text-sm text-sr-muted">This is a rhythm exercise, so there are no pitches to give.</p>
 {:else}
   <p class="text-sm text-sr-muted">{pitches.length === 1 ? "The first note of this exercise." : "Each part's first note in this exercise."}</p>
   <div class="grid gap-2 {pitches.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}">

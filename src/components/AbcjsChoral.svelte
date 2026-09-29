@@ -1790,7 +1790,10 @@
         applyMixLevels(tracks, { playback: playbackVolume, metronome: metronomeVolume }),
     };
     await synthControl.setTune(tune, false, audioParams);
-    await synthControl.load("#audio", cursorControl);
+    // displayWarp builds abcjs's tempo box in the hidden #audio div. Nothing
+    // shows it, but setWarp (every tempo change) writes to it, and without it
+    // threw part way through: after a Stop, or mid-play before it resumed.
+    await synthControl.load("#audio", cursorControl, { displayWarp: true });
   }
 
   // ── Main generate handler ─────────────────────────────────────────────────
@@ -1913,7 +1916,7 @@
     if (!rhythmsCanFill) {
       generationError =
         `These rhythms cannot fill a bar of ${selectedTimeSignature}. ` +
-        `Add a shorter note - a quarter or an eighth - or change the time signature.`;
+        `Add a shorter note (a quarter or an eighth), or change the time signature.`;
       return;
     }
 
@@ -2253,7 +2256,7 @@
                 <div class="space-y-2 {minorRow ? 'pt-1' : ''}">
                   <div class="flex items-baseline justify-between gap-3">
                     <span class="flex items-baseline gap-2">
-                      <span class="sr-label">Key &mdash; {minorRow ? 'minor' : 'major'}</span>
+                      <span class="sr-label">{minorRow ? 'Minor keys' : 'Major keys'}</span>
                       <span class="text-xs text-sr-faint tabular-nums">{chosen} of {rowKeys.length}</span>
                     </span>
                     <span class="inline-flex items-center gap-0.5 shrink-0">
@@ -2305,13 +2308,13 @@
               {/each}
               {#if selectedKeys.size > 1}
                 <p class="text-xs text-sr-faint">
-                  {selectedKeys.size} keys selected - one is drawn at random each
+                  {selectedKeys.size} keys selected. One is drawn at random each
                   time you generate. Click a key to remove it.
                 </p>
               {/if}
               {#if activePreset}
                 <p class="text-xs text-sr-faint">
-                  Dimmed keys are outside {activePreset.label}, not removed - pick
+                  Dimmed keys are outside {activePreset.label}, not removed. Pick
                   one and you simply leave the level.
                 </p>
               {/if}
@@ -2361,7 +2364,7 @@
                   {:else if formPlan && fullLengthRange}
                     <div class="space-y-1">
                       <p class="sr-label">
-                        Length &mdash; level {fullLengthLevel} wants {fullLengthRange[0]}&ndash;{fullLengthRange[1]} bars in {selectedTimeSignature}
+                        Length: level {fullLengthLevel} wants {fullLengthRange[0]}&ndash;{fullLengthRange[1]} bars in {selectedTimeSignature}
                       </p>
                       <div class="flex flex-wrap gap-2" role="group" aria-label="Full length">
                         {#each [fullLengthRange[0], Math.round((fullLengthRange[0] + fullLengthRange[1]) / 2), fullLengthRange[1]] as opt}
@@ -2398,7 +2401,7 @@
                       {#if formPlan.shortEndingBar}
                         A lower level may stop at bar {formPlan.shortEndingBar}.
                       {/if}
-                      Always major &mdash; minor keys are for the shorter exercises above.
+                      Always major. Minor keys are for the shorter exercises above.
                     </p>
                     <p class="text-xs text-sr-brass">
                       Sections marked &ldquo;toward V&rdquo; or &ldquo;toward vi&rdquo; are planned but not yet
@@ -2414,7 +2417,7 @@
               <p class="sr-label">Voice texture</p>
               {#if fullLength}
                 <p class="text-xs text-sr-muted">
-                  The form decides this per section for a full-length piece &mdash; the imitative
+                  The form decides this per section for a full-length piece: the imitative
                   passage gets staggered entrances and the rest all voices.
                 </p>
               {/if}
@@ -2432,7 +2435,7 @@
                 {voiceTexture === "full"
                   ? "Every part sings throughout, apart from rests in the rhythm."
                   : measures < 12
-                    ? "Parts drop out for a few measures at a time - needs 12 measures or more. Every part is there for the opening and the cadence."
+                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
                     : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
               </p>
             </div>
@@ -2461,7 +2464,7 @@
                 </select>
               </div>
               <p class="text-xs text-sr-faint">
-                Changes the sound straight away - the exercise stays as it is.
+                Changes the sound straight away. The exercise stays as it is.
               </p>
             </div>
 
@@ -2516,14 +2519,14 @@
                   Chord symbols above the top staff{lyricSystem ? ", " : "."}
                 {/if}
                 {#if lyricSystem === "movable"}
-                  Movable do under each part - do is the tonic, so a tune reads the same in
+                  Movable do under each part: do is the tonic, so a tune reads the same in
                   every key.
                 {:else if lyricSystem === "fixed"}
-                  Fixed do under each part - C is do whatever the key.
+                  Fixed do under each part: C is do whatever the key.
                 {:else if lyricSystem === "names"}
                   The note names under each part.
                 {:else if !showChords}
-                  Clean - the same exercise, printed for sight-reading.
+                  Clean: the same exercise, printed for sight-reading.
                 {/if}
               </p>
             </div>
@@ -2625,7 +2628,7 @@
                   {/each}
                 </div>
                 <p class="text-xs text-sr-faint">
-                  Sixteenths are kept rare on purpose - a sung exercise lives on
+                  Sixteenths are kept rare on purpose, since a sung exercise lives on
                   quarters and halves. Turn one up here if you want to drill it.
                 </p>
               </div>
@@ -2639,7 +2642,7 @@
             {#if activePreset}
               <p class="text-xs text-sr-faint">
                 Dimmed rhythms are outside {activePreset.label}. They are still
-                available - picking one just takes you off the level.
+                available. Picking one just takes you off the level.
               </p>
             {/if}
           </div>
@@ -2709,7 +2712,7 @@
                   Pick a chromatic chord to drill: every exercise is built around it, usually
                   more than once, and the other chromatic chords are left out.
                 {:else if [...selectedKeys].every((k) => isMinorKey(k))}
-                  Only minor keys are selected, and these are major-key chords - add a major key
+                  Only minor keys are selected, and these are major-key chords. Add a major key
                   for the focus to apply.
                 {:else}
                   Every exercise in a major key uses {fullChordSet.find(c => c.name === focusChord)?.symbol},
@@ -2765,7 +2768,7 @@
                 <input type="checkbox" bind:checked={stepwiseEighths} class="sr-check" />
                 Eighth notes move by step
               </label>
-              <p class="text-xs text-sr-faint">Stepwise or repeated - no skips into or out of an eighth</p>
+              <p class="text-xs text-sr-faint">Stepwise or repeated: no skips into or out of an eighth</p>
             </div>
 
             <!-- Max Skip -->
@@ -2811,7 +2814,7 @@
     {#if !rhythmsCanFill}
       <p class="text-sm text-sr-brass bg-sr-brass-bg border border-sr-brass rounded-md px-3 py-2 my-2">
         The selected rhythms cannot fill a bar of {selectedTimeSignature}, so nothing
-        can be generated. Add a shorter note - a quarter or an eighth - or change
+        can be generated. Add a shorter note (a quarter or an eighth), or change
         the time signature.
       </p>
     {/if}
@@ -2825,7 +2828,7 @@
     {#if roughSeams.length > 0}
       <p class="text-sm text-sr-brass bg-sr-brass-bg border border-sr-brass rounded-md px-3 py-2 my-2">
         The join after {roughSeams.length === 1 ? "section" : "sections"}
-        {roughSeams.join(", ")} could not be made smooth after several tries &mdash; there may be a
+        {roughSeams.join(", ")} could not be made smooth after several tries. There may be a
         wide leap or a stranded accidental where that section ends. Generating again usually
         clears it.
       </p>

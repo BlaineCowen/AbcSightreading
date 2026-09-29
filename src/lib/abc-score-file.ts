@@ -134,7 +134,7 @@ export function abcProblems(abc: string): AbcProblem[] {
     const line = normalised.slice(0, blankAt + 1).split("\n").length;
     problems.push({
       kind: "blank-line",
-      message: `There is a blank line at line ${line}. ABC ends the tune there - everything below it is silently dropped from the score. Delete it, or use a % comment line to space things out.`,
+      message: `There is a blank line at line ${line}. ABC ends the tune there, and everything below it is silently dropped from the score. Delete it, or use a % comment line to space things out.`,
     });
   }
   return problems;
