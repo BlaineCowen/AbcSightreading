@@ -85,7 +85,7 @@
 
 <nav
   bind:this={navbar}
-  class="sr-navbar fixed w-full bg-sr-raise border-b border-sr-hairline z-50 transition-transform duration-300"
+  class="sr-navbar fixed w-full bg-sr-raise shadow-[0_6px_24px_-18px_rgba(58,40,150,0.45)] z-50 transition-transform duration-300"
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
     <div class="flex justify-between items-center h-16">
@@ -106,14 +106,14 @@
           aria-hidden="true"
         ><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg>
         <span
-          class="sr-brand text-[26px] sm:text-[30px] font-semibold tracking-[-0.015em] leading-none text-sr-ink group-hover:text-sr-action-fg transition-colors"
+          class="sr-brand font-display text-[25px] sm:text-[28px] font-semibold tracking-[-0.005em] leading-none text-sr-ink group-hover:text-sr-action-fg transition-colors"
         >Sight Reading</span>
       </a>
 
       <div class="flex items-center gap-1 md:hidden">
       {#if themable}
         <button
-          class="w-11 h-11 flex items-center justify-center rounded-md text-sr-ink-2 hover:bg-sr-track transition-colors"
+          class="w-11 h-11 flex items-center justify-center rounded-full text-sr-ink-2 hover:bg-sr-track transition-colors"
           on:click={toggleTheme}
           aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
           title={isDark ? "Light mode" : "Dark mode"}
@@ -123,7 +123,7 @@
       {/if}
       <!-- Mobile menu button -->
       <button
-        class="w-11 h-11 flex items-center justify-center rounded-md text-sr-ink transition-colors {isNavbarOpen ? 'bg-sr-track' : 'hover:bg-sr-track'}"
+        class="w-11 h-11 flex items-center justify-center rounded-full text-sr-ink transition-colors {isNavbarOpen ? 'bg-sr-track' : 'hover:bg-sr-track'}"
         on:click={() => (isNavbarOpen = !isNavbarOpen)}
         aria-label={isNavbarOpen ? "Close menu" : "Open menu"}
         aria-expanded={isNavbarOpen}
@@ -155,11 +155,11 @@
       </div>
 
       <!-- Desktop menu -->
-      <div class="hidden md:flex items-center gap-7">
+      <div class="hidden md:flex items-center gap-1.5">
         {#each pages as page}
           <a
             href={page.href}
-            class="sr-navlink text-[15px] transition-colors hover:text-sr-action-fg {here === page.href ? 'font-semibold text-sr-action-fg' : 'text-sr-ink-2'}"
+            class="sr-navlink text-[15px]"
             aria-current={here === page.href ? "page" : undefined}
           >
             {page.short}
@@ -167,7 +167,7 @@
         {/each}
         {#if themable}
           <button
-            class="w-10 h-10 flex items-center justify-center rounded-md text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
+            class="w-10 h-10 flex items-center justify-center rounded-full text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
             on:click={toggleTheme}
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
             title={isDark ? "Light mode" : "Dark mode"}
@@ -178,7 +178,7 @@
         {#if account}
           <a
             href="/account"
-            class="w-10 h-10 flex items-center justify-center rounded-md transition-colors hover:text-sr-action-fg hover:bg-sr-track {here === '/account' ? 'text-sr-action-fg' : 'text-sr-ink-2'}"
+            class="w-10 h-10 flex items-center justify-center rounded-full transition-colors hover:text-sr-action-fg hover:bg-sr-track {here === '/account' ? 'text-sr-action-fg bg-sr-tint' : 'text-sr-ink-2'}"
             aria-label={isStudentEmail(account.email) ? "Account" : `Account (${account.email})`}
             title={isStudentEmail(account.email) ? "Account" : account.email}
           ><CircleUser size={20} /></a>
@@ -194,7 +194,7 @@
         {#each pages as page}
           <a
             href={page.href}
-            class="flex items-center min-h-12 px-3 rounded-md text-base transition-colors {here === page.href ? 'font-semibold text-sr-action-fg bg-sr-track' : 'text-sr-ink-2 hover:bg-sr-track'}"
+            class="flex items-center min-h-12 px-4 rounded-full text-base font-bold transition-colors {here === page.href ? 'font-extrabold text-sr-action-fg bg-sr-tint' : 'text-sr-ink-2 hover:bg-sr-track'}"
             aria-current={here === page.href ? "page" : undefined}
             on:click={() => (isNavbarOpen = false)}
           >
@@ -204,7 +204,7 @@
         {#if account !== undefined}
           <a
             href={account ? "/account" : `/login?next=${nextHere}`}
-            class="flex items-center min-h-12 px-3 rounded-md text-base transition-colors {here === '/account' || here === '/login' ? 'font-semibold text-sr-action-fg bg-sr-track' : 'text-sr-ink-2 hover:bg-sr-track'}"
+            class="flex items-center min-h-12 px-4 rounded-full text-base font-bold transition-colors {here === '/account' || here === '/login' ? 'font-extrabold text-sr-action-fg bg-sr-tint' : 'text-sr-ink-2 hover:bg-sr-track'}"
             on:click={() => (isNavbarOpen = false)}
           >
             {account ? (isStudentEmail(account.email) ? "Account" : `Account (${account.email})`) : "Sign in"}

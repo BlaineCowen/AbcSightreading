@@ -47,7 +47,7 @@
 <div class="relative w-full sm:w-auto" bind:this={root}>
   <button
     bind:this={trigger}
-    class="{triggerClass} {open ? 'bg-slate-500' : ''}"
+    class="{triggerClass} {open ? 'bg-sr-bar-btn-hi' : ''}"
     on:click={() => (open = !open)}
     aria-haspopup="true"
     aria-expanded={open}
@@ -60,7 +60,7 @@
   {#if open}
     <div
       class="mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 {menuClass}
-             rounded-md bg-slate-700 shadow-xl ring-1 ring-slate-600 py-1"
+             rounded-[18px] bg-sr-bar-menu shadow-xl ring-1 ring-sr-bar-line py-1.5 overflow-hidden"
       role="group"
       aria-label={label}
     >

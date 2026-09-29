@@ -308,7 +308,7 @@
         {#each targets as m, i}
           <div
             class="flex-1 text-center text-[10px] py-1 rounded {i === state.index
-              ? 'bg-sr-action text-white font-medium'
+              ? 'bg-sr-action text-sr-action-ink font-medium'
               : i < state.index
                 ? 'bg-sr-track text-sr-muted'
                 : 'border border-sr-hairline text-sr-faint'}"

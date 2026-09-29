@@ -2169,12 +2169,12 @@
     <div class="tab-panel sr-panel w-full my-4 no-print">
 
       <!-- Tab bar -->
-      <div class="sr-bar flex items-stretch">
+      <div class="sr-bar flex items-center">
           <div class="flex items-center overflow-x-auto tab-scroll">
         {#each ['setup', 'rhythm', 'harmony', 'ranges'] as tab}
           <button
             type="button"
-            class="sr-tab px-4 py-3 sm:py-2 -mb-px shrink-0 whitespace-nowrap
+            class="sr-tab px-4 py-2.5 sm:py-2 shrink-0 whitespace-nowrap
               {selectedTab === tab ? 'sr-on' : ''}"
             on:click={() => (selectedTab = tab)}
           >
@@ -2854,7 +2854,7 @@
               {/each}
             </div>
           {/each}
-          <p class="text-center text-sm text-slate-400">
+          <p class="text-center text-sm text-[#5f5a84] font-semibold">
             Press Generate to write an exercise.
           </p>
         </div>
@@ -2917,7 +2917,7 @@
           type="range" min="0" max="1.5" step="0.05"
           bind:value={playbackVolume}
           on:change={handleMixCommit}
-          class="w-20 accent-teal-400"
+          class="w-20 accent-sr-bar-on"
           aria-label="Voices volume"
         />
       </div>
@@ -2927,7 +2927,7 @@
           type="range" min="0" max="1.5" step="0.05"
           bind:value={metronomeVolume}
           on:change={handleMixCommit}
-          class="w-20 accent-teal-400"
+          class="w-20 accent-sr-bar-on"
           aria-label="Metronome volume"
         />
       </div>

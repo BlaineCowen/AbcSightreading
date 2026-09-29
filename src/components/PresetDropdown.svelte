@@ -295,19 +295,19 @@
   }
 </script>
 
-<div bind:this={root} class="preset-bar relative bg-sr-panel border-b border-sr-hairline px-4 py-2 flex items-center gap-3 flex-wrap no-print">
+<div bind:this={root} class="preset-bar relative bg-sr-raise rounded-[28px] shadow-[0_12px_34px_-26px_rgba(58,40,150,0.4)] px-3.5 py-2.5 flex items-center gap-3 flex-wrap no-print">
   <!-- The trigger names what is loaded; the panel below is where to choose. -->
   <button
     type="button"
-    class="preset-trigger inline-flex items-center gap-2 bg-sr-raise border border-sr-hairline rounded-md px-3 py-1.5 text-sm text-sr-ink-2 hover:border-sr-faint focus:outline-none focus:ring-2 focus:ring-sr-action max-w-full"
+    class="preset-trigger inline-flex items-center gap-2 bg-sr-mint text-sr-mint-ink rounded-full px-4 py-2 text-sm font-extrabold hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-sr-action max-w-full"
     aria-haspopup="dialog"
     aria-expanded={open}
     on:click={() => (open ? close() : openPanel())}
   >
-    <span class="text-xs text-sr-muted">Preset</span>
-    <span class="font-medium truncate">{activeLabel || 'Choose…'}</span>
-    {#if edited}<span class="text-xs text-sr-brass">edited</span>{/if}
-    <ChevronDown size={14} class="text-sr-faint shrink-0" />
+    <span class="text-xs font-bold opacity-75">Preset</span>
+    <span class="truncate">{activeLabel || 'Choose…'}</span>
+    {#if edited}<span class="text-xs font-bold rounded-full bg-sr-butter text-sr-butter-ink px-2 py-0.5">edited</span>{/if}
+    <ChevronDown size={14} class="shrink-0" />
   </button>
 
   {#if $classesAvailable}
@@ -344,7 +344,7 @@
     {#if selectedClass && activeKey && !addingClass}
       <button
         type="button"
-        class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs border {passed(activeKey) ? 'border-sr-action text-sr-action-fg bg-sr-tint' : 'border-sr-hairline text-sr-ink-2 hover:border-sr-faint'}"
+        class="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold {passed(activeKey) ? 'bg-sr-mint text-sr-mint-ink' : 'bg-sr-track text-sr-action-fg hover:bg-sr-tint'}"
         aria-pressed={passed(activeKey)}
         on:click={togglePassed}
         title={passed(activeKey) ? `Passed by ${selectedClass.name} - click to unmark` : `Mark “${activeLabel}” passed by ${selectedClass.name}`}
@@ -379,7 +379,7 @@
       >Save</button>
     {/if}
     <button
-      class="flex items-center gap-1 border border-dashed border-sr-faint text-sr-muted rounded px-2 py-1 text-xs hover:border-sr-muted"
+      class="flex items-center gap-1 border-2 border-dashed border-sr-hairline text-sr-action-fg font-bold rounded-full px-3 py-1.5 text-xs hover:bg-sr-track"
       on:click={openSaveAs}
     ><Plus size={14} /> Save as new…</button>
     {#if onRevert}
@@ -387,7 +387,7 @@
     {/if}
   {:else}
     <button
-      class="flex items-center gap-1 border border-dashed border-sr-faint text-sr-muted rounded px-2 py-1 text-xs hover:border-sr-muted"
+      class="flex items-center gap-1 border-2 border-dashed border-sr-hairline text-sr-action-fg font-bold rounded-full px-3 py-1.5 text-xs hover:bg-sr-track"
       on:click={openSaveAs}
     ><Plus size={14} /> Save current</button>
   {/if}
@@ -405,11 +405,11 @@
   {#if open}
     <div
       bind:this={panel}
-      class="preset-panel absolute left-4 right-4 sm:right-auto top-full mt-1 z-40 sm:w-[30rem] bg-sr-raise border border-sr-hairline rounded-lg shadow-lg flex flex-col max-h-[70vh]"
+      class="preset-panel absolute left-4 right-4 sm:right-auto top-full mt-2 z-40 sm:w-[30rem] bg-sr-raise rounded-[24px] shadow-[0_24px_60px_-20px_rgba(30,27,58,0.45)] flex flex-col max-h-[70vh] overflow-hidden"
       role="dialog"
       aria-label="Choose a preset"
     >
-      <div class="flex border-b border-sr-hairline px-2 pt-2 gap-1" role="tablist" aria-label="Preset lists">
+      <div class="flex border-b border-sr-hairline-2 px-3 pt-3 pb-2 gap-1" role="tablist" aria-label="Preset lists">
         {#each tabs as t}
           <button
             id="preset-tab-{t.id}"
@@ -418,7 +418,7 @@
             aria-selected={tab === t.id}
             aria-controls="preset-list-{t.id}"
             tabindex={tab === t.id ? 0 : -1}
-            class="px-3 py-1.5 text-sm rounded-t-md -mb-px border-b-2 {tab === t.id ? 'border-sr-action text-sr-action-fg font-medium' : 'border-transparent text-sr-muted hover:text-sr-ink-2'}"
+            class="px-3.5 py-1.5 text-sm rounded-full font-bold {tab === t.id ? 'bg-sr-action text-sr-action-ink' : 'text-sr-muted hover:text-sr-ink'}"
             on:click={() => (tab = t.id)}
             on:keydown={onTabKey}
           >{t.label}</button>
@@ -443,12 +443,12 @@
                 <li>
                   <button
                     type="button"
-                    class="w-full text-left flex gap-3 items-start rounded-md px-2 py-1.5 hover:bg-sr-panel {step.id === activeStepId ? 'bg-sr-tint' : ''}"
+                    class="w-full text-left flex gap-3 items-start rounded-md px-2 py-1.5 hover:bg-sr-track {step.id === activeStepId ? 'bg-sr-tint' : ''}"
                     aria-current={step.id === activeStepId ? 'true' : undefined}
                     on:click={() => choose(() => onSelectStep(step))}
                   >
                     {#if selectedClass && passed(presetKeyOf.step(step.id))}
-                      <span class="shrink-0 w-6 h-6 rounded-full bg-sr-action text-white flex items-center justify-center" title="Passed by {selectedClass.name}"><Check size={14} /><span class="sr-only">Passed, step {step.number}</span></span>
+                      <span class="shrink-0 w-6 h-6 rounded-full bg-sr-action text-sr-action-ink flex items-center justify-center" title="Passed by {selectedClass.name}"><Check size={14} /><span class="sr-only">Passed, step {step.number}</span></span>
                     {:else}
                       <span class="shrink-0 w-6 h-6 rounded-full border border-sr-hairline text-xs flex items-center justify-center text-sr-muted tabular-nums">{step.number}</span>
                     {/if}
@@ -478,7 +478,7 @@
               <li>
                 <button
                   type="button"
-                  class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-panel {activeLabel === level.label && !activeStepId && !activeIsSaved ? 'bg-sr-tint' : ''}"
+                  class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-track {activeLabel === level.label && !activeStepId && !activeIsSaved ? 'bg-sr-tint' : ''}"
                   aria-current={activeLabel === level.label && !activeStepId && !activeIsSaved ? 'true' : undefined}
                   on:click={() => choose(() => onSelectBuiltin(key))}
                 >
@@ -506,7 +506,7 @@
           {:else}
             <ul>
               {#each savedPresets as preset (preset.id)}
-                <li class="flex items-center gap-1 rounded-md hover:bg-sr-panel {preset.id === activeSavedId ? 'bg-sr-tint' : ''}">
+                <li class="flex items-center gap-1 rounded-md hover:bg-sr-track {preset.id === activeSavedId ? 'bg-sr-tint' : ''}">
                   {#if renamingId === preset.id}
                     <input
                       type="text"

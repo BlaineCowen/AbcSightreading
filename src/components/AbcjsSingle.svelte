@@ -3132,12 +3132,12 @@
     <div class="tab-panel sr-panel w-full my-4 no-print">
 
       <!-- Tab bar -->
-      <div class="sr-bar flex items-stretch">
+      <div class="sr-bar flex items-center">
         <div class="flex items-center overflow-x-auto tab-scroll">
         {#each visibleTabs as tab}
           <button
             type="button"
-            class="sr-tab px-4 py-3 sm:py-2 -mb-px shrink-0 whitespace-nowrap
+            class="sr-tab px-4 py-2.5 sm:py-2 shrink-0 whitespace-nowrap
               {selectedTab === tab ? 'sr-on' : ''}"
             on:click={() => (selectedTab = tab)}
           >
@@ -3833,7 +3833,7 @@
       >
         {#if isLoading}
           <div class="flex items-center justify-center h-48">
-            <div class="text-slate-500 text-sm">Generating exercise…</div>
+            <div class="text-sr-muted text-sm">Generating exercise…</div>
           </div>
         {/if}
       </div>
@@ -3891,7 +3891,7 @@
           type="range" min="0" max="1" step="0.05"
           bind:value={masterVolume}
           on:input={handleVolumeChange}
-          class="w-16 accent-teal-400"
+          class="w-16 accent-sr-bar-on"
           aria-label={rhythmOnly ? 'Percussion volume' : 'Piano volume'}
         />
       </div>
@@ -3911,11 +3911,11 @@
           type="range" min="0" max="1" step="0.05"
           bind:value={metronomeVolume}
           on:input={handleMetronomeVolumeChange}
-          class="w-16 accent-teal-400"
+          class="w-16 accent-sr-bar-on"
           aria-label="Metronome volume"
         />
         <button
-          class="rounded px-3 py-2 xl:py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
           on:click={toggleStandaloneMetronome}
           disabled={isPlaying}
           aria-pressed={metronomeRunning}
@@ -3924,12 +3924,12 @@
       </div>
 
       {#if !rhythmOnly}
-        <div class="w-px h-5 bg-slate-600 hidden 2xl:block"></div>
+        <div class="w-px h-5 bg-sr-bar-btn hidden 2xl:block"></div>
 
         <!-- Drone (sounds the tonic, so pitched mode only) -->
         <div class="flex items-center gap-2">
           <button
-            class="rounded px-3 py-2 xl:py-0.5 text-xs font-semibold {dronePlaying ? 'bg-amber-500 text-white' : 'bg-slate-600 hover:bg-slate-500'}"
+            class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {dronePlaying ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
             on:click={toggleDrone}
             aria-pressed={dronePlaying}
           >{dronePlaying ? 'Drone On' : 'Drone'}</button>
@@ -3938,28 +3938,28 @@
               type="range" min="-60" max="0" step="1"
               value={currentDroneVolume}
               on:input={handleDroneVolumeChange}
-              class="w-16 accent-amber-400"
+              class="w-16 accent-sr-peach"
               aria-label="Drone volume"
             />
-            <span class="text-xs text-slate-400">{currentDroneVolume}dB</span>
+            <span class="text-xs text-sr-bar-muted">{currentDroneVolume}dB</span>
           {/if}
         </div>
       {/if}
 
-      <div class="w-px h-5 bg-slate-600 hidden 2xl:block"></div>
+      <div class="w-px h-5 bg-sr-bar-btn hidden 2xl:block"></div>
 
       <!-- Display size -->
       <div class="flex items-center gap-2">
         <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
         <span class="text-xs text-slate-400 uppercase tracking-wide xl:hidden 2xl:inline">Size</span>
         <button
-          class="flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6"
+          class="flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-9 sm:h-6 sm:w-6"
           on:click={() => { displayScale = Math.max(0.5, displayScale - 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
           aria-label="Decrease score size"
         ><Minus size={14} /></button>
         <span class="text-xs font-bold w-8 text-center">{displayScale.toFixed(1)}x</span>
         <button
-          class="flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 sm:h-6 sm:w-6"
+          class="flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-9 sm:h-6 sm:w-6"
           on:click={() => { displayScale = Math.min(3, displayScale + 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
           aria-label="Increase score size"
         ><Plus size={14} /></button>

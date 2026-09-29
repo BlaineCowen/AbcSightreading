@@ -179,13 +179,13 @@
 
   // 44px targets on touch, back to the original compact size from sm up.
   const iconBtn =
-    "flex items-center justify-center rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-40 h-11 w-11 xl:h-8 xl:w-8";
+    "flex items-center justify-center rounded-full bg-sr-bar-btn hover:bg-sr-bar-btn-hi disabled:opacity-40 h-11 w-11 xl:h-8 xl:w-8";
   const stepBtn =
-    "flex items-center justify-center bg-slate-600 hover:bg-slate-500 rounded h-11 w-9 xl:h-6 xl:w-6";
+    "flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-9 xl:h-6 xl:w-6";
   const chipBtn =
-    "flex items-center gap-1 bg-slate-600 hover:bg-slate-500 rounded px-3 py-2 xl:py-1 text-xs";
+    "flex items-center gap-1 bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full px-3 py-2 xl:py-1 text-xs";
   const menuItem =
-    "w-full flex flex-col items-start px-3 py-2 xl:py-1.5 text-left hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent";
+    "w-full flex flex-col items-start px-3 py-2 xl:py-1.5 text-left hover:bg-sr-bar-btn disabled:opacity-40 disabled:hover:bg-transparent";
 </script>
 
 <!--
@@ -195,7 +195,7 @@
 -->
 <div
   bind:this={barEl}
-  class="playback-bar fixed bottom-0 left-0 right-0 bg-slate-800 text-slate-100 z-50 shadow-lg
+  class="playback-bar fixed bottom-0 left-0 right-0 bg-sr-bar text-sr-bar-ink z-50 shadow-lg rounded-t-[22px]
          flex flex-col xl:flex-row xl:flex-wrap xl:items-center xl:gap-3 2xl:gap-4 xl:px-4"
   style="padding-bottom: env(safe-area-inset-bottom, 0px)"
 >
@@ -205,7 +205,7 @@
     <!-- Full width and first, so it reads the same on a phone as on a desktop
          and never competes with the transport for room. -->
     <div
-      class="w-full xl:order-first xl:basis-full bg-slate-700/80 px-3 py-1.5 text-xs font-medium text-blue-200"
+      class="w-full xl:order-first xl:basis-full bg-sr-bar-menu px-3 py-1.5 text-xs font-medium text-sr-bar-accent"
       role="status"
     >{status}</div>
   {/if}
@@ -222,7 +222,7 @@
     <div class="flex gap-2 items-center">
       {#if onGenerate}
         <button
-          class="flex items-center justify-center gap-1.5 shrink-0 sr-btn font-bold px-3 sm:px-4 h-11 xl:h-8 text-sm disabled:opacity-50"
+          class="flex items-center justify-center gap-1.5 shrink-0 sr-btn sr-btn-go font-bold px-3 sm:px-4 h-11 xl:h-8 text-sm disabled:opacity-50"
           on:click={onGenerate}
           disabled={isGenerating}
           title="Generate a new exercise"
@@ -234,7 +234,7 @@
             <!-- This month's exercises left, on the button that uses them. -->
             <span
               class="ml-0.5 min-w-[1.25rem] rounded-full px-1.5 text-[11px] leading-5 tabular-nums font-bold
-                     {$usage.remaining <= 3 ? 'bg-amber-400 text-slate-900' : 'bg-white/20 text-white'}"
+                     {$usage.remaining <= 3 ? 'bg-sr-butter text-sr-butter-ink' : 'bg-white/60 text-sr-mint-ink'}"
               title="{$usage.remaining} exercises left this month"
               aria-label="{$usage.remaining} left this month"
             >{$usage.remaining}</span>
@@ -251,14 +251,14 @@
 
       {#if isPlaying}
         <button
-          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
+          class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPause}
           aria-label="Pause"
         ><Pause size={18} /><span class="hidden sm:inline">Pause</span></button>
       {:else}
         <button
-          class="flex items-center justify-center gap-1 sr-btn px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
+          class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPlay}
           aria-label="Play"
@@ -274,9 +274,9 @@
       ><Square size={18} /></button>
 
       <button
-        class="hidden xl:flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8 {looping
-          ? 'bg-amber-500 text-white'
-          : 'bg-slate-600 hover:bg-slate-500'}"
+        class="hidden xl:flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {looping
+          ? 'bg-sr-peach text-sr-peach-ink'
+          : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
         on:click={onToggleLoop}
         title="Loop"
         aria-label="Toggle loop"
@@ -284,12 +284,12 @@
       ><Repeat size={18} /></button>
     </div>
 
-    <div class="w-px h-6 bg-slate-600 hidden xl:block"></div>
+    <div class="w-px h-6 bg-sr-bar-btn hidden xl:block"></div>
 
     <!-- BPM -->
     <div class="flex items-center gap-1 sm:gap-2">
       <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
-      <span class="text-xs text-slate-400 uppercase tracking-wide hidden sm:inline xl:hidden 2xl:inline">BPM</span>
+      <span class="text-xs text-sr-bar-muted uppercase tracking-wide hidden sm:inline xl:hidden 2xl:inline">BPM</span>
       <button
         class={stepBtn}
         on:click={() => (onBpmCommit ?? onBpmChange)(Math.max(40, bpm - 5))}
@@ -302,7 +302,7 @@
         value={bpm}
         on:input={handleBpmInput}
         on:change={handleBpmCommit}
-        class="hidden xl:block w-20 accent-blue-500"
+        class="hidden xl:block w-20 accent-sr-bar-on"
         aria-label="Tempo"
       />
       <button
@@ -314,9 +314,9 @@
     </div>
 
       <button
-        class="xl:hidden ml-auto flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8 {expanded
-          ? 'bg-amber-500 text-white'
-          : 'bg-slate-600 hover:bg-slate-500'}"
+        class="xl:hidden ml-auto flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {expanded
+          ? 'bg-sr-peach text-sr-peach-ink'
+          : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
         on:click={async () => { expanded = !expanded; await tick(); publishBarHeight(); }}
         title="More controls"
         aria-label="More controls"
@@ -328,11 +328,11 @@
        a phone or iPad; xl:contents splices these groups into the desktop row instead. -->
     <div
       class="order-first xl:order-none {expanded ? 'flex' : 'hidden'}
-             xl:contents flex-wrap items-center gap-3 px-3 py-2 border-b border-slate-700
+             xl:contents flex-wrap items-center gap-3 px-3 py-2 border-b border-sr-bar-line
              max-h-[50dvh] overflow-y-auto overscroll-contain"
     >
       <div class="flex xl:hidden items-center gap-2 w-full">
-        <span class="text-xs text-slate-400 uppercase tracking-wide">BPM</span>
+        <span class="text-xs text-sr-bar-muted uppercase tracking-wide">BPM</span>
         <input
           type="range"
           min="40"
@@ -340,15 +340,15 @@
           value={bpm}
           on:input={handleBpmInput}
           on:change={handleBpmCommit}
-          class="flex-1 accent-blue-500"
+          class="flex-1 accent-sr-bar-on"
           aria-label="Tempo"
         />
       </div>
 
       <button
-        class="xl:hidden flex items-center gap-1 rounded px-3 py-2 text-xs font-semibold {looping
-          ? 'bg-amber-500 text-white'
-          : 'bg-slate-600 hover:bg-slate-500'}"
+        class="xl:hidden flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold {looping
+          ? 'bg-sr-peach text-sr-peach-ink'
+          : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
         on:click={onToggleLoop}
         aria-pressed={looping}
       ><Repeat size={14} /> Loop</button>
@@ -364,10 +364,10 @@
           <svelte:fragment slot="trigger">
             Voices
             {#if voicesSummary}
-              <span class="tabular-nums text-amber-300">{voicesSummary}</span>
+              <span class="tabular-nums text-sr-bar-accent">{voicesSummary}</span>
             {/if}
           </svelte:fragment>
-          <div class="flex items-center gap-1 pl-3 pr-1 pt-1 text-[10px] uppercase tracking-wide text-slate-400" aria-hidden="true">
+          <div class="flex items-center gap-1 pl-3 pr-1 pt-1 text-[10px] uppercase tracking-wide text-sr-bar-muted" aria-hidden="true">
             <span class="flex-1"></span>
             {#if onToggleHidden}<span class="w-11 xl:w-8 text-center">Show</span>{/if}
             <span class="w-11 xl:w-8 text-center">Hear</span>
@@ -376,13 +376,13 @@
             {@const hidden = hiddenVoices.has(name)}
             {@const muted = mutedVoices.has(name)}
             <div class="flex items-center gap-1 pl-3 pr-1 text-sm">
-              <span class="flex-1 truncate {hidden && muted ? 'text-slate-400' : 'text-slate-100'}">{name}</span>
+              <span class="flex-1 truncate {hidden && muted ? 'text-sr-bar-muted' : 'text-sr-bar-ink'}">{name}</span>
               {#if onToggleHidden}
                 {@const locked = !hidden && shownCount <= 1}
                 <button
-                  class="flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8
-                         hover:bg-slate-600 disabled:opacity-40 disabled:hover:bg-transparent
-                         {hidden ? 'text-slate-400' : 'text-teal-300'}"
+                  class="flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8
+                         hover:bg-sr-bar-btn disabled:opacity-40 disabled:hover:bg-transparent
+                         {hidden ? 'text-sr-bar-muted' : 'text-sr-bar-on'}"
                   on:click={() => onToggleHidden?.(name)}
                   disabled={locked}
                   aria-pressed={!hidden}
@@ -393,8 +393,8 @@
                 </button>
               {/if}
               <button
-                class="flex items-center justify-center rounded h-11 w-11 xl:h-8 xl:w-8 hover:bg-slate-600
-                       {muted ? 'text-slate-400' : 'text-teal-300'}"
+                class="flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 hover:bg-sr-bar-btn
+                       {muted ? 'text-sr-bar-muted' : 'text-sr-bar-on'}"
                 on:click={() => onToggleMute(name)}
                 aria-pressed={!muted}
                 aria-label="Hear {name}"
@@ -410,7 +410,7 @@
       <DropUp triggerClass={chipBtn} label="Share" title="Copy a link" bind:open={shareOpen} menuClass="min-w-[16rem]">
         <svelte:fragment slot="trigger">
           {#if copied}
-            <Check size={14} class="text-teal-300" /> Copied
+            <Check size={14} class="text-sr-bar-on" /> Copied
           {:else}
             <Link2 size={14} /> Share
           {/if}
@@ -421,18 +421,18 @@
           disabled={!exerciseLink}
           title={exerciseLink ? "" : "Generate an exercise first"}
         >
-          <span class="text-sm text-slate-100">Link to this exercise</span>
-          <span class="text-xs text-slate-400">Opens these exact notes</span>
+          <span class="text-sm text-sr-bar-ink">Link to this exercise</span>
+          <span class="text-xs text-sr-bar-muted">Opens these exact notes</span>
         </button>
         <button class={menuItem} on:click={() => share(settingsLink())}>
-          <span class="text-sm text-slate-100">Link to these settings</span>
-          <span class="text-xs text-slate-400">Writes a new exercise each time</span>
+          <span class="text-sm text-sr-bar-ink">Link to these settings</span>
+          <span class="text-xs text-sr-bar-muted">Writes a new exercise each time</span>
         </button>
         {#if uncopied}
-          <div class="px-3 pt-1 pb-2 text-xs text-slate-300">
+          <div class="px-3 pt-1 pb-2 text-xs text-sr-bar-muted">
             Your browser blocked copying - copy the link from here:
             <input
-              class="mt-1 w-full rounded bg-slate-800 px-2 py-1 text-xs text-slate-100 ring-1 ring-slate-600"
+              class="mt-1 w-full rounded-full bg-sr-bar px-2 py-1 text-xs text-sr-bar-ink ring-1 ring-sr-bar-line"
               readonly
               value={uncopied}
               aria-label="Link"
@@ -453,8 +453,8 @@
         >
           <svelte:fragment slot="trigger"><Printer size={14} /> Print<span class="xl:hidden 2xl:inline">/ Export</span></svelte:fragment>
           <button class={menuItem} on:click={print}>
-            <span class="text-sm text-slate-100">Print / Save as PDF</span>
-            <span class="text-xs text-slate-400">Your browser's print dialog</span>
+            <span class="text-sm text-sr-bar-ink">Print / Save as PDF</span>
+            <span class="text-xs text-sr-bar-muted">Your browser's print dialog</span>
           </button>
           {#each exports as item (item.id)}
             <button
@@ -463,12 +463,12 @@
               disabled={item.disabled}
               title={item.disabled ? "Generate an exercise first" : ""}
             >
-              <span class="text-sm text-slate-100">{item.label}</span>
-              {#if item.detail}<span class="text-xs text-slate-400">{item.detail}</span>{/if}
+              <span class="text-sm text-sr-bar-ink">{item.label}</span>
+              {#if item.detail}<span class="text-xs text-sr-bar-muted">{item.detail}</span>{/if}
             </button>
           {/each}
           {#if exportError}
-            <p class="px-3 pt-1 pb-2 text-xs text-amber-300" role="alert">{exportError}</p>
+            <p class="px-3 pt-1 pb-2 text-xs text-sr-bar-accent" role="alert">{exportError}</p>
           {/if}
         </DropUp>
       {:else}

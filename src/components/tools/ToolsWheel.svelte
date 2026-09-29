@@ -201,7 +201,7 @@
         ><Icon id={t.id} size={22} />{t.label}</button>
       {/each}
       <button
-        class="absolute left-[106px] top-[106px] w-[68px] h-[68px] rounded-full flex items-center justify-center text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        class="absolute left-[106px] top-[106px] w-[68px] h-[68px] rounded-full flex items-center justify-center text-sr-action-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
         on:click={() => (wheelOpen = false)}
         aria-label="Close the tools"
       ><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
@@ -210,7 +210,7 @@
 
   <!-- The button -->
   <button
-    class="tools-fab fixed z-50 right-4 sm:right-6 h-14 min-w-14 px-4 rounded-full bg-sr-action text-white shadow-xl flex items-center justify-center gap-2 text-sm font-semibold hover:brightness-110"
+    class="tools-fab fixed z-50 right-4 sm:right-6 h-14 min-w-14 px-4 rounded-full bg-sr-action text-sr-action-ink shadow-xl flex items-center justify-center gap-2 text-sm font-semibold hover:brightness-110"
     on:click={toggleWheel}
     aria-expanded={wheelOpen}
     aria-label="Practice tools{current ? `: ${current.label} open` : ''}"

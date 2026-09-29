@@ -6,8 +6,6 @@ import { readFeedbackEmail } from "../lib/feedback-email";
 import { currentUser } from "../lib/server/api";
 import { serverEnv } from "../lib/server/env";
 import "../styles/globals.css";
-import "../styles/theme.css";
-import { themeFontsUrl } from "../styles/theme-fonts";
 import "abcjs/abcjs-audio.css";
 
 interface Props {
@@ -88,10 +86,15 @@ const feedbackConfigured = !!readFeedbackEmail(
     <title>{title}</title>
     <link rel="canonical" href={canonical} />
     <meta name="robots" content={robots} />
-    <meta name="theme-color" content="#17566b" />
+    <meta name="theme-color" content="#6a55e0" />
     <link rel="manifest" href="/site.webmanifest" />
-    {themeFontsUrl && <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />}
-    {themeFontsUrl && <link rel="stylesheet" href={themeFontsUrl} />}
+    <!-- Fredoka for headings, Nunito for everything else (globals.css). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;500;600;700;800&display=swap"
+    />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="abc Sight Reading" />
     <meta property="og:title" content={title} />

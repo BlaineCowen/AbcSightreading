@@ -9,10 +9,18 @@ export default {
   ],
   theme: {
     extend: {
+      // Recess: everything soft. Pills are rounded-full.
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        DEFAULT: "8px",
+        sm: "8px",
+        md: "14px",
+        lg: "18px",
+        xl: "22px",
+        "2xl": "28px",
+      },
+      fontFamily: {
+        display: ["Fredoka", "Nunito", "system-ui", "sans-serif"],
+        sans: ["Nunito", "system-ui", "sans-serif"],
       },
       colors: {
         // The --sr- design tokens (globals.css), so markup can use them and
@@ -30,10 +38,32 @@ export default {
           faint: "var(--sr-faint)",
           action: "var(--sr-action)",
           "action-fg": "var(--sr-action-fg)",
+          "action-ink": "var(--sr-action-ink)",
+          "hairline-2": "var(--sr-hairline-2)",
+          paper: "var(--sr-paper)",
           brass: "var(--sr-brass)",
           "brass-bg": "var(--sr-brass-bg)",
           danger: "var(--sr-danger)",
           "danger-bg": "var(--sr-danger-bg)",
+          // The pastels, each with the ink that reads on it.
+          mint: "var(--sr-mint)",
+          "mint-ink": "var(--sr-mint-ink)",
+          peach: "var(--sr-peach)",
+          "peach-ink": "var(--sr-peach-ink)",
+          butter: "var(--sr-butter)",
+          "butter-ink": "var(--sr-butter-ink)",
+          sky: "var(--sr-sky)",
+          "sky-ink": "var(--sr-sky-ink)",
+          // The playback bar, a dark strip in both themes.
+          bar: "var(--sr-bar)",
+          "bar-btn": "var(--sr-bar-btn)",
+          "bar-btn-hi": "var(--sr-bar-btn-hi)",
+          "bar-menu": "var(--sr-bar-menu)",
+          "bar-line": "var(--sr-bar-line)",
+          "bar-ink": "var(--sr-bar-ink)",
+          "bar-muted": "var(--sr-bar-muted)",
+          "bar-on": "var(--sr-bar-on)",
+          "bar-accent": "var(--sr-bar-accent)",
         },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",

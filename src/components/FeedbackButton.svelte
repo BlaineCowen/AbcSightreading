@@ -142,7 +142,7 @@
 </script>
 
 <button
-  class="fixed bottom-20 right-4 z-20 px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-medium shadow-lg hover:bg-slate-700 print:hidden"
+  class="fixed bottom-20 right-4 z-20 px-4 py-2 rounded-full bg-sr-peach text-sr-peach-ink text-sm font-extrabold shadow-lg hover:brightness-95 print:hidden"
   on:click={() => (open = !open)}
   aria-expanded={open}
 >
