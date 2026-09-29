@@ -4,7 +4,7 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
-  import { PracticeRunner, rampEndBpm, passOverride, type PassSwitch } from "../lib/practice-run";
+  import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import {
     firstSystemScrollTarget,
@@ -492,6 +492,7 @@
         : defaultSyllableSystem.id,
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
+      run: runOptionsFrom(options.run),
     };
   }
 
@@ -545,6 +546,7 @@
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
     cursorMode = next.cursorMode;
+    if (next.run) setRunOptions(next.run);
     activePresetLabel = preset.name;
     activeSavedId = preset.id;
     activeStepId = null;
@@ -1024,6 +1026,18 @@
       syllableSystemId,
       allowTiesAcrossBarline,
       cursorMode,
+      run: {
+        exercises: drillExercises,
+        repeats: drillRepeats,
+        rampBpm: drillRampBpm,
+        previewSeconds: drillPreviewSeconds,
+        repeatCursor: drillRepeatCursor,
+        repeatAnnotation: drillRepeatAnnotation,
+        repeatNotes: drillRepeatNotes,
+        repeatMetronome: drillRepeatMetronome,
+        repeatDrone: drillRepeatDrone,
+        repeatCountIn: drillRepeatCountIn,
+      } satisfies RunOptions,
     };
   $: {
     const options = currentOptions;
@@ -2217,12 +2231,24 @@
    * however late `onended` was delivered; the drill only decides whether to
    * take another pass, move on, or stop.
    */
-  let drillExercises = 4;
-  let drillRepeats = 2;
+  /**
+   * A run's settings start from what this device last used (they are kept
+   * with the rest of the page's options, and in a saved preset), even when the
+   * page was opened from a link, which carries the exercise but not the run.
+   */
+  const initialRun: RunOptions = (() => {
+    try {
+      const saved = localStorage.getItem("sightReadingOptions");
+      if (saved) return runOptionsFrom(JSON.parse(saved).run) ?? RUN_DEFAULTS;
+    } catch {}
+    return RUN_DEFAULTS;
+  })();
+  let drillExercises = initialRun.exercises;
+  let drillRepeats = initialRun.repeats;
   /** Added to the tempo for each NEW exercise, not for each repeat. */
-  let drillRampBpm = 0;
+  let drillRampBpm = initialRun.rampBpm;
   /** Silence before each new exercise starts, to read it first. */
-  let drillPreviewSeconds = 5;
+  let drillPreviewSeconds = initialRun.previewSeconds;
   /** Cursor and auto-scroll off for the repeats, so the reader holds their own place. */
   /**
    * What the repeats look like.
@@ -2238,8 +2264,8 @@
    */
   type PassCursor = "same" | CursorMode;
   type PassAnnotation = "same" | "none" | "kodaly" | "counting" | "solfege";
-  let drillRepeatCursor: PassCursor = "same";
-  let drillRepeatAnnotation: PassAnnotation = "same";
+  let drillRepeatCursor: PassCursor = initialRun.repeatCursor;
+  let drillRepeatAnnotation: PassAnnotation = initialRun.repeatAnnotation;
   /**
    * What the repeats sound like: the notes, the click and the drone. The first
    * pass is the one being read and keeps the reader's own controls; the repeats
@@ -2248,15 +2274,28 @@
    * oscillator - so changing them costs nothing and a repeat still follows
    * straight on from the pass before.
    */
-  let drillRepeatNotes: PassSwitch = "same";
-  let drillRepeatMetronome: PassSwitch = "same";
-  let drillRepeatDrone: PassSwitch = "same";
+  let drillRepeatNotes: PassSwitch = initialRun.repeatNotes;
+  let drillRepeatMetronome: PassSwitch = initialRun.repeatMetronome;
+  let drillRepeatDrone: PassSwitch = initialRun.repeatDrone;
   /**
    * Whether a repeat starts with a bar of count-in. There is no count-in
    * control outside a run - every pass has one - so Same and On would say the
    * same thing, and only On and Off are offered.
    */
-  let drillRepeatCountIn: "on" | "off" = "on";
+  let drillRepeatCountIn: "on" | "off" = initialRun.repeatCountIn;
+  /** A preset's run settings onto the page. A run already going keeps the ones it started with. */
+  function setRunOptions(r: RunOptions) {
+    drillExercises = r.exercises;
+    drillRepeats = r.repeats;
+    drillRampBpm = r.rampBpm;
+    drillPreviewSeconds = r.previewSeconds;
+    drillRepeatCursor = r.repeatCursor;
+    drillRepeatAnnotation = r.repeatAnnotation;
+    drillRepeatNotes = r.repeatNotes;
+    drillRepeatMetronome = r.repeatMetronome;
+    drillRepeatDrone = r.repeatDrone;
+    drillRepeatCountIn = r.repeatCountIn;
+  }
   const passSwitchOptions: [PassSwitch, string][] = [
     ["same", "Same"],
     ["on", "On"],
@@ -2824,8 +2863,29 @@
    *  Play button's job - this used to call playMusic() and take that decision
    *  away from you. */
   function handleRestart() {
+    if (drillRunning) void stopDrill();
     stopMusic();
     parkPlaybackCursorAtStart();
+  }
+  /**
+   * The playback bar's Pause and Stop end a practice run too. On their own
+   * they only silenced the pass in flight: the run went on counting down to
+   * its next exercise and started playing again by itself. Ending the run also
+   * puts the tempo back where the reader had it.
+   */
+  function handleBarPause() {
+    if (drillRunning) {
+      void stopDrill();
+      return;
+    }
+    pauseMusic();
+  }
+  function handleBarStop() {
+    if (drillRunning) {
+      void stopDrill();
+      return;
+    }
+    stopMusic();
   }
   function handleToggleLoop() { looping = !looping; }
   /** Live readout while dragging - cheap, no re-render. */
@@ -3852,8 +3912,8 @@
     mutedVoices={new Set()}
     hasExercise={currentTune !== null}
     onPlay={playMusic}
-    onPause={pauseMusic}
-    onStop={stopMusic}
+    onPause={handleBarPause}
+    onStop={handleBarStop}
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
     onBpmCommit={handleBpmCommit}

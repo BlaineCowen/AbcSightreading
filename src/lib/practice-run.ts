@@ -290,3 +290,62 @@ export class PracticeRunner {
     void this.runExercise();
   }
 }
+
+/**
+ * A practice run's settings as the page keeps them: in a saved preset and on
+ * the device, beside the exercise's own (tests: run-options.test.ts).
+ */
+export type RunOptions = {
+  exercises: number;
+  repeats: number;
+  rampBpm: number;
+  previewSeconds: number;
+  repeatCursor: "same" | "off" | "smooth" | "beat" | "note";
+  repeatAnnotation: "same" | "none" | "kodaly" | "counting" | "solfege";
+  repeatNotes: PassSwitch;
+  repeatMetronome: PassSwitch;
+  repeatDrone: PassSwitch;
+  repeatCountIn: "on" | "off";
+};
+
+export const RUN_DEFAULTS: RunOptions = {
+  exercises: 4,
+  repeats: 2,
+  rampBpm: 0,
+  previewSeconds: 5,
+  repeatCursor: "same",
+  repeatAnnotation: "same",
+  repeatNotes: "same",
+  repeatMetronome: "same",
+  repeatDrone: "same",
+  repeatCountIn: "on",
+};
+
+/** The choices the page offers for how many exercises a run writes. */
+export const RUN_EXERCISE_CHOICES = [1, 2, 4, 6, 8, 12];
+
+/**
+ * Settings read back from storage, each checked on its own and falling back
+ * to the default alone. Null when there are none at all (a preset saved
+ * before runs were kept), so the page keeps the run settings it has.
+ */
+export function runOptionsFrom(v: unknown): RunOptions | null {
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as Record<string, unknown>;
+  const pick = <T>(value: unknown, ok: readonly T[], fallback: T): T => (ok.includes(value as T) ? (value as T) : fallback);
+  const int = (value: unknown, lo: number, hi: number, fallback: number) =>
+    typeof value === "number" && Number.isInteger(value) && value >= lo && value <= hi ? value : fallback;
+  const switches = ["same", "on", "off"] as const;
+  return {
+    exercises: pick(o.exercises, RUN_EXERCISE_CHOICES, RUN_DEFAULTS.exercises),
+    repeats: int(o.repeats, 1, 4, RUN_DEFAULTS.repeats),
+    rampBpm: int(o.rampBpm, 0, 20, RUN_DEFAULTS.rampBpm),
+    previewSeconds: int(o.previewSeconds, 0, 30, RUN_DEFAULTS.previewSeconds),
+    repeatCursor: pick(o.repeatCursor, ["same", "off", "smooth", "beat", "note"] as const, RUN_DEFAULTS.repeatCursor),
+    repeatAnnotation: pick(o.repeatAnnotation, ["same", "none", "kodaly", "counting", "solfege"] as const, RUN_DEFAULTS.repeatAnnotation),
+    repeatNotes: pick(o.repeatNotes, switches, RUN_DEFAULTS.repeatNotes),
+    repeatMetronome: pick(o.repeatMetronome, switches, RUN_DEFAULTS.repeatMetronome),
+    repeatDrone: pick(o.repeatDrone, switches, RUN_DEFAULTS.repeatDrone),
+    repeatCountIn: pick(o.repeatCountIn, ["on", "off"] as const, RUN_DEFAULTS.repeatCountIn),
+  };
+}
