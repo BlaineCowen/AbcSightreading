@@ -28,7 +28,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 852 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 929 pass, 5 skip, 0 fail. Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -426,6 +426,16 @@ Texas UIL Choir sight-reading levels (1–5). Each preset restricts allowed keys
 ## Main UI Component
 
 `src/components/AbcjsChoral.svelte` — the primary Svelte component. Handles all user controls (key, time sig, measures, voicing, UIL preset, NCT probability, BPM), calls `generateChoralExercise()`, and renders the result with `abcjs`. Mounted via `client:only="svelte"` in `src/pages/choral-sightreading.astro`.
+
+## Score layout
+
+Bars per line come from `src/lib/score-layout.ts` (tests `score-layout.test.ts`),
+used by both practice pages: up to 4 a line, 3 when the score is dense (lyrics,
+or sixteenths), 2 on a phone, and shared out so lines are even (4 bars dense is
+2 + 2, never 3 + 1). abcjs takes the number as a preference only and breaks
+lines itself when the notes need room, so after drawing each page reads the
+split (`drawnLines`) and, if it came out ragged, draws once more capped at the
+most bars abcjs fitted on a line.
 
 ## ABC Notation Notes
 

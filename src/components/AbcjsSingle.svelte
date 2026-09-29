@@ -7,6 +7,7 @@
   import { tuner } from "../lib/tuner/store";
   import { SampleBank, type ClickLevel } from "../lib/tuner/click-sounds";
   import { scheduleClick } from "../lib/playback-click";
+  import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import {
@@ -1205,7 +1206,7 @@
    * (displayScale) survives generating a new exercise -- `responsive: "resize"`
    * is what actually turns the narrowed staffwidth into visual zoom.
    */
-  function getAbcOptions() {
+  function getAbcOptions(most?: number) {
     return {
       add_classes: true,
       generateDownload: true,
@@ -1226,11 +1227,17 @@
         // abcjs pushes colliding annotations onto a second row - "(sh)" and the
         // eighth after it are the tight pair. Fewer measures per line is a more
         // predictable lever than shrinking the text further.
-        preferredMeasuresPerLine: isNarrow()
-          ? 2
-          : rhythmOnly && showRhythmSyllables
-            ? 3
-            : 4,
+        // Shared out evenly over the lines (score-layout.ts): asking for 3
+        // with 4 bars drew three and a lonely one.
+        preferredMeasuresPerLine: measuresPerLine({
+          measures: barCount(typeof originalTuneString === "string" ? originalTuneString : "") || measures,
+          narrow: isNarrow(),
+          dense: isDense({
+            lyrics: showRhythmSyllables || showSolfege,
+            abc: typeof originalTuneString === "string" ? originalTuneString : "",
+          }),
+          most,
+        }),
         minSpacing: 1.5,
         maxSpacing: 5,
       },
@@ -1632,11 +1639,7 @@
         paperDiv.innerHTML = "";
       }
 
-      const visualObj = abcjs.renderAbc(
-        "paper",
-        updatedTuneString,
-        getAbcOptions()
-      );
+      const visualObj = drawEven(updatedTuneString);
 
       // Check if rendering was successful
       if (!visualObj || !visualObj[0]) {
@@ -1658,6 +1661,23 @@
   }
 
   /**
+   * Draws the score with its bars shared out evenly over the lines. The bars
+   * per line asked of abcjs are only a preference: when the notes need more
+   * room, abcjs breaks the lines itself, unevenly (8 bars as 3 + 2 + 3). Then
+   * it is drawn once more with no more a line than abcjs managed.
+   */
+  function drawEven(abc: string) {
+    let visualObj = abcjs.renderAbc("paper", abc, getAbcOptions());
+    const drawn = drawnLines(document.getElementById("paper"));
+    if (!evenLines(drawn)) {
+      const paper = document.getElementById("paper");
+      if (paper) paper.innerHTML = "";
+      visualObj = abcjs.renderAbc("paper", abc, getAbcOptions(Math.max(...drawn)));
+    }
+    return visualObj;
+  }
+
+  /**
    * Renders the ABC notation to the paper div
    * @returns {Promise<any>} The rendered visual object
    */
@@ -1668,11 +1688,7 @@
       paperDiv.innerHTML = "";
     }
 
-    const visualObj = abcjs.renderAbc(
-      "paper",
-      withChosenSound(withChosenAnnotations(renderedString[0])),
-      getAbcOptions()
-    );
+    const visualObj = drawEven(withChosenSound(withChosenAnnotations(renderedString[0])));
 
     // Check if rendering was successful
     if (!visualObj || !visualObj[0]) {

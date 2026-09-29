@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tuner } from "../lib/tuner/store";
   import { drumPatternFor } from "../lib/playback-click";
+  import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
   import {
     crossedWholeBeat,
     newMetronomeBeatState,
@@ -685,27 +686,42 @@
    *  only magnifies. It rose with the page column (max-w-4xl -> 5xl, 896 ->
    *  1024px), 740 -> 846, so the extra width became room for the music at the
    *  size it already was, rather than bigger notes in the same layout. */
-  function scoreLayout() {
+  function scoreLayout(most?: number) {
     const cw = document.getElementById("paper")?.clientWidth ?? 1000;
+    // Bars shared out evenly over the lines (score-layout.ts): four bars with
+    // words under them were three and a lonely one.
+    const abc = typeof renderedString === "string" ? renderedString : "";
     return {
       staffwidth: Math.max(160, Math.min(846, cw - 30)),
-      measuresPerLine: cw < 480 ? 2 : 4,
+      measuresPerLine: barsPerLine({
+        measures: barCount(abc) || measures,
+        narrow: cw < 480,
+        dense: isDense({ lyrics: !!lyricSystem, abc }),
+        most,
+      }),
     };
   }
 
   async function renderTune() {
     const mod = await import("abcjs");
-    const { staffwidth, measuresPerLine } = scoreLayout();
-    // No `scale`: abcjs discards it when responsive:"resize" is set.
-    const result = mod.renderAbc("paper", renderedString, {
-      // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
-      // the cursor works out how tall a system is. Without it the SVG carries
-      // no staff groups at all and the cursor can only cover one voice.
-      add_classes: true,
-      responsive: "resize",
-      staffwidth,
-      wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
-    });
+    const draw = (most?: number) => {
+      const { staffwidth, measuresPerLine } = scoreLayout(most);
+      // No `scale`: abcjs discards it when responsive:"resize" is set.
+      return mod.renderAbc("paper", renderedString, {
+        // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
+        // the cursor works out how tall a system is. Without it the SVG carries
+        // no staff groups at all and the cursor can only cover one voice.
+        add_classes: true,
+        responsive: "resize",
+        staffwidth,
+        wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
+      });
+    };
+    // The bars per line are only a preference to abcjs; if it had to break the
+    // lines itself, unevenly, draw once more with no more a line than it fitted.
+    let result = draw();
+    const drawn = drawnLines(document.getElementById("paper"));
+    if (!evenLines(drawn)) result = draw(Math.max(...drawn));
     return result;
   }
 
