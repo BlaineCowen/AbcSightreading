@@ -3134,12 +3134,14 @@
     <div class="tab-panel sr-panel w-full my-4 no-print">
 
       <!-- Tab bar -->
-      <div class="sr-bar flex items-center">
-        <div class="flex items-center overflow-x-auto tab-scroll">
+      <!-- On a phone the tabs take the first row, whole, and the history and
+           Generate a second; from md up, one row. -->
+      <div class="sr-bar flex flex-wrap md:flex-nowrap items-center">
+        <div class="flex items-center overflow-x-auto tab-scroll w-full md:w-auto">
         {#each visibleTabs as tab}
           <button
             type="button"
-            class="sr-tab px-4 py-2.5 sm:py-2 shrink-0 whitespace-nowrap
+            class="sr-tab flex-1 md:flex-none px-2 sm:px-4 py-2.5 sm:py-2 text-[13px] sm:text-sm shrink-0 whitespace-nowrap
               {selectedTab === tab ? 'sr-on' : ''}"
             on:click={() => (selectedTab = tab)}
           >
@@ -3153,7 +3155,7 @@
 
         <!-- Generate button always visible in tab bar -->
         <button
-          class="sr-btn ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          class="sr-btn ml-auto md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
           on:click={handleClick}
           disabled={isLoading}
         >
