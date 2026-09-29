@@ -599,85 +599,90 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
    Only pages that opt in with `themable` on Layout take it: the
    other pages still carry hardcoded light classes and would go
    unreadable on a dark desk. Follows the OS, and a data-theme on
-   <html> can force either way. The paper stays white, and so do
+   <html> can force either way. Neutral charcoal greys, so the
+   violet and the pastels are the only colour. The paper stays white, and so do
    the pastels: they keep their dark -ink colours on either ground.
    --sr-action is a fill, --sr-action-fg is violet used as text -
    one colour cannot be both on a dark ground. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .sr-themable {
     color-scheme: dark;
-    --sr-ground:     #16132b;
-    --sr-panel:      #201c3d;
-    --sr-raise:      #29244d;
-    --sr-mat:        #120f24;
-    --sr-track:      #2e2957;
-    --sr-tint:       #3b3378;
-    --sr-hairline:   #37316a;
-    --sr-hairline-2: #2c275a;
-    --sr-ink:        #f2efff;
-    --sr-ink-2:      #d4cff2;
-    --sr-muted:      #a9a3d6;
-    --sr-faint:      #7c76aa;
-    --sr-action:     #8e7cff;
-    --sr-action-fg:  #b9adff;
+    --sr-ground:     #111113;
+    --sr-panel:      #1b1b1f;
+    --sr-raise:      #232328;
+    --sr-mat:        #0b0b0d;
+    --sr-track:      #2a2a30;
+    --sr-tint:       #37325e;
+    --sr-hairline:   #34343b;
+    --sr-hairline-2: #28282e;
+    --sr-ink:        #f4f4f6;
+    --sr-ink-2:      #d8d8de;
+    --sr-muted:      #a4a4ae;
+    --sr-faint:      #75757f;
+    --sr-action:     #9d8cff;
+    --sr-action-fg:  #b8acff;
     --sr-action-ink: #120a3a;
-    --sr-action-hi:  #a193ff;
+    --sr-action-hi:  #afa1ff;
     --sr-brass:      #ffd86b;
     --sr-brass-bg:   #3a3115;
     --sr-danger:     #ff8a7a;
     --sr-danger-bg:  #3f1d1d;
-    --sr-skel:       #29244d;
-    --sr-skel-line:  #37316a;
+    --sr-skel:       #232328;
+    --sr-skel-line:  #34343b;
     --sr-skel-sweep: rgba(255, 255, 255, 0.05);
     --sr-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     --sr-card-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.8);
     --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
-    --sr-countin-bg:  #8e7cff;
+    --sr-countin-bg:  #9d8cff;
     --sr-countin-ink: #120a3a;
     --sr-countin-go:  #120a3a;
-    --sr-bar:        #0f0c22;
-    --sr-bar-rgb:    15 12 34;
-    --sr-bar-btn:    #29244d;
-    --sr-bar-btn-hi: #37316a;
-    --sr-bar-menu:   #201c3d;
+    --sr-bar:        #0a0a0c;
+    --sr-bar-rgb:    10 10 12;
+    --sr-bar-btn:    #222226;
+    --sr-bar-btn-hi: #303036;
+    --sr-bar-menu:   #1b1b1f;
+    --sr-bar-line:   #34343b;
+    --sr-bar-muted:  #b4b4be;
   }
 }
 :root[data-theme="dark"] .sr-themable {
   color-scheme: dark;
-  --sr-ground:     #16132b;
-  --sr-panel:      #201c3d;
-  --sr-raise:      #29244d;
-  --sr-mat:        #120f24;
-  --sr-track:      #2e2957;
-  --sr-tint:       #3b3378;
-  --sr-hairline:   #37316a;
-  --sr-hairline-2: #2c275a;
-  --sr-ink:        #f2efff;
-  --sr-ink-2:      #d4cff2;
-  --sr-muted:      #a9a3d6;
-  --sr-faint:      #7c76aa;
-  --sr-action:     #8e7cff;
-  --sr-action-fg:  #b9adff;
+  --sr-ground:     #111113;
+  --sr-panel:      #1b1b1f;
+  --sr-raise:      #232328;
+  --sr-mat:        #0b0b0d;
+  --sr-track:      #2a2a30;
+  --sr-tint:       #37325e;
+  --sr-hairline:   #34343b;
+  --sr-hairline-2: #28282e;
+  --sr-ink:        #f4f4f6;
+  --sr-ink-2:      #d8d8de;
+  --sr-muted:      #a4a4ae;
+  --sr-faint:      #75757f;
+  --sr-action:     #9d8cff;
+  --sr-action-fg:  #b8acff;
   --sr-action-ink: #120a3a;
-  --sr-action-hi:  #a193ff;
+  --sr-action-hi:  #afa1ff;
   --sr-brass:      #ffd86b;
   --sr-brass-bg:   #3a3115;
   --sr-danger:     #ff8a7a;
   --sr-danger-bg:  #3f1d1d;
-  --sr-skel:       #29244d;
-  --sr-skel-line:  #37316a;
+  --sr-skel:       #232328;
+  --sr-skel-line:  #34343b;
   --sr-skel-sweep: rgba(255, 255, 255, 0.05);
   --sr-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   --sr-card-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.8);
   --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
-  --sr-countin-bg:  #8e7cff;
+  --sr-countin-bg:  #9d8cff;
   --sr-countin-ink: #120a3a;
   --sr-countin-go:  #120a3a;
-  --sr-bar:        #0f0c22;
-  --sr-bar-rgb:    15 12 34;
-  --sr-bar-btn:    #29244d;
-  --sr-bar-btn-hi: #37316a;
-  --sr-bar-menu:   #201c3d;
+  --sr-bar:        #0a0a0c;
+  --sr-bar-rgb:    10 10 12;
+  --sr-bar-btn:    #222226;
+  --sr-bar-btn-hi: #303036;
+  --sr-bar-menu:   #1b1b1f;
+  --sr-bar-line:   #34343b;
+  --sr-bar-muted:  #b4b4be;
 }
 
 /* No dark-mode filter on the rhythm glyphs. They were black drawings once, and
