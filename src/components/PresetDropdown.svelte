@@ -329,7 +329,7 @@
       <label class="inline-flex items-center gap-1 text-xs text-sr-muted">
         Class
         <select
-          class="bg-sr-raise border border-sr-hairline rounded-md px-2 py-1 text-sm text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
+          class="bg-sr-track border-0 rounded-full pl-3 pr-8 py-1.5 text-sm font-bold text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
           value={$selectedClassId ?? ''}
           on:change={onClassChange}
         >

@@ -315,6 +315,19 @@ Layout carries plain links for crawlers. Public pages are listed in
 `src/lib/plan.ts`. The Sight Reading Factory comparison quotes their prices
 with a date; recheck before editing it. `public/og.png` is the share image.
 
+## Look: "Recess"
+
+Soft pastel blocks, big rounded cards, Fredoka headings over Nunito (loaded in
+Layout.astro). Every colour is a `--sr-` token in `src/styles/globals.css`
+(light, and a dark block for `themable` pages), exposed to Tailwind as
+`sr-*` colours: violet `action` for anything chosen or primary, the pastels
+`mint`, `peach`, `butter`, `sky` each with an `-ink` that reads on it, and
+`bar-*` for the navy playback bar. The shared classes there (`sr-tok`,
+`sr-tab`, `sr-btn`, `sr-panel`, `sr-pastels` for a grid of cards...) carry
+the shapes: pills and 28px cards. Use tokens, never Tailwind's own palette
+(`slate-600` and the like), or the dark theme breaks. The score paper stays
+white in both themes.
+
 ## Tech Stack
 
 - **Astro** (SSR, deployed to Vercel) — pages in `src/pages/`, layout in `src/layouts/`
