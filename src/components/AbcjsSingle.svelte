@@ -4,6 +4,9 @@
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
   import { rhythms, type Rhythm } from "../resources/rhythms";
+  import { tuner } from "../lib/tuner/store";
+  import { SampleBank, type ClickLevel } from "../lib/tuner/click-sounds";
+  import { scheduleClick } from "../lib/playback-click";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import {
@@ -211,6 +214,8 @@
       metronomeGainNode = audioContext.createGain();
       metronomeGainNode.gain.value = metronomeVolume * 2;
       metronomeGainNode.connect(audioContext.destination);
+      // The Tools metronome's samples, so the click here sounds like it.
+      void clickBank.load(audioContext);
 
       // To Tone's own output, not gainNode: toneSynth lives in Tone's
       // AudioContext and gainNode in this one, and connecting across contexts
@@ -1972,25 +1977,27 @@
    *   The standalone metronome passes an exact future time so its clicks are
    *   sample-accurate rather than drifting with the timer that queues them.
    */
+  const clickBank = new SampleBank();
+  /**
+   * One beat of the click, as the Tools metronome sets it: its sound, its
+   * accent on the downbeat, and its subdivisions after the beat, at exact
+   * times. So turning on eighths in the Tools metronome puts eighths under
+   * the exercise and under the Click button alike; those two only turn it
+   * on and off.
+   */
   function playMetronomeClick(
     isDownbeat: boolean,
     when: number = audioContext ? audioContext.currentTime : 0
   ) {
     if (!audioContext || metronomeGainNode.gain.value === 0) return;
-
-    const osc = audioContext.createOscillator();
-    const clickGain = audioContext.createGain();
-
-    osc.frequency.value = isDownbeat ? 1000 : 800;
-
-    clickGain.gain.setValueAtTime(isDownbeat ? 2 : 1, when);
-
-    clickGain.gain.exponentialRampToValueAtTime(0.001, when + 0.03);
-
-    osc.connect(clickGain);
-    clickGain.connect(metronomeGainNode);
-    osc.start(when);
-    osc.stop(when + 0.03);
+    const { clickSound, accent, subdivision } = tuner.get();
+    const level: ClickLevel = isDownbeat && accent ? "downbeat" : "beat";
+    scheduleClick(audioContext, clickBank, metronomeGainNode, when, clickSound, level);
+    const sub = Math.max(1, Math.round(subdivision));
+    const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
+    for (let k = 1; k < sub; k++) {
+      scheduleClick(audioContext, clickBank, metronomeGainNode, when + (k * secondsPerBeat) / sub, clickSound, "sub");
+    }
   }
 
   // Lookahead scheduling: a coarse timer queues clicks slightly ahead of time at

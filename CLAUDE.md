@@ -183,6 +183,12 @@ the practice pages reach it from their tools.
 The practice pages carry a Tools button in the bottom-right corner
 (`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
 metronome, drone, starting pitches, analysis, timer - each opening as a card.
+The click under an exercise, and the Unison page's Click button, follow the
+Tools metronome's subdivision, accent and sound (`src/lib/playback-click.ts`,
+tests `playback-click.test.ts`): Choral writes them into abcjs's drum pattern
+(which abcjs spreads evenly over the bar), Unison schedules each beat's clicks
+at exact times with the metronome's own samples. Their own buttons only turn
+the click on and off.
 Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the

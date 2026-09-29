@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tuner } from "../lib/tuner/store";
+  import { drumPatternFor } from "../lib/playback-click";
   import {
     crossedWholeBeat,
     newMetronomeBeatState,
@@ -657,10 +659,24 @@
   $: showScorePlaceholder = !renderedTune && !isGenerating;
 
   // ── Synth helpers ──────────────────────────────────────────────────────────
-  const drumBeats: Record<string, string> = {
-    "4/4": "dddd 76 77 77 77 60 30 30 30",
-    "3/4": "ddd 76 77 77 60 30 30",
-  };
+  /**
+   * The click under the exercise is abcjs's drum track, written from the Tools
+   * metronome: its subdivision, accent and sound (playback-click.ts). There
+   * was no pattern for 2/4, so 2/4 exercises played without a click.
+   */
+  const drumFor = (timeSignature: string) =>
+    drumPatternFor({
+      beats: parseInt(timeSignature, 10) || 4,
+      subdivision: $tuner.subdivision,
+      accent: $tuner.accent,
+      sound: $tuner.clickSound,
+    });
+  /** The click the synth was last built with, to notice when the Tools metronome changes it. */
+  let builtClick = "";
+  $: clickKey = `${$tuner.subdivision}|${$tuner.accent}|${$tuner.clickSound}`;
+  // Rebuilt when the metronome's settings change; never mid-exercise, where it
+  // would stop the music: the next pause or stop picks the change up.
+  $: if (renderedTune && builtClick && clickKey !== builtClick && !isPlaying) initSynth(renderedTune);
 
   /** Magnification is container / (staffwidth + 30), so a fixed staffwidth of
    *  ~740 renders at under half size on a phone. Measure the container instead.
@@ -820,8 +836,9 @@
   let playedMeter = "4/4";
 
   function buildAudioParams() {
+    builtClick = clickKey;
     return {
-      drum: drumBeats[selectedTimeSignature] ?? '',
+      drum: drumFor(selectedTimeSignature),
       drumBars: 1,
       // The count-in: two bars in 2/4, so "1, 2, Ready, Go" fits (count-in.ts).
       drumIntro: countInMeasures(playedMeter),
