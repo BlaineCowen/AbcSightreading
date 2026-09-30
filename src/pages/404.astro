@@ -1,0 +1,24 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+/**
+ * Any address the site does not have. Without this page Vercel showed its own
+ * "404: NOT_FOUND" with a request id and no way back to the site.
+ */
+Astro.response.status = 404;
+---
+
+<Layout title="Page not found | abc Sight Reading" description="That page does not exist." noindex themable>
+  <section class="max-w-xl mx-auto px-2 py-16 text-center flex flex-col items-center gap-5">
+    <p class="sr-label">404</p>
+    <h1 class="text-4xl sm:text-5xl font-bold text-sr-ink text-balance">That page isn't here</h1>
+    <p class="text-lg text-sr-ink-2">
+      The link may be old, or mistyped. Everything else is where you left it.
+    </p>
+    <div class="flex flex-wrap justify-center gap-3">
+      <a class="sr-btn px-6 py-3" href="/choral-sightreading">Choral sight-reading</a>
+      <a class="sr-btn-quiet" href="/sightreading">Unison sight-singing</a>
+      <a class="sr-btn-quiet" href="/">Home</a>
+    </div>
+  </section>
+</Layout>
