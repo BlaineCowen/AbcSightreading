@@ -56,7 +56,11 @@
           callbackURL: next,
         });
         if (error) problem = error.message ?? "Could not create the account.";
-        else window.location.href = next;
+        else {
+          // A welcome on the page it lands on (WelcomeNote).
+          try { sessionStorage.setItem("sr-welcome", email); } catch {}
+          window.location.href = next;
+        }
       } else {
         const { error } = await authClient.requestPasswordReset({
           email,

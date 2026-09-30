@@ -1,6 +1,7 @@
 ---
 import Navbar from "../components/Navbar.svelte";
 import FeedbackButton from "../components/FeedbackButton.svelte";
+import WelcomeNote from "../components/WelcomeNote.svelte";
 import Analytics from "@vercel/analytics/astro";
 import { readFeedbackEmail } from "../lib/feedback-email";
 import { currentUser } from "../lib/server/api";
@@ -133,6 +134,7 @@ const feedbackConfigured = !!readFeedbackEmail(
   <body class:list={["min-h-screen sr-desk", { "sr-themable": themable }]}>
     <header class="fixed top-0 w-full z-10">
       <Navbar client:only="svelte" />
+      {!isStudent && <WelcomeNote client:only="svelte" />}
     </header>
     <main class="container mx-auto px-4 pt-24">
       <slot />
