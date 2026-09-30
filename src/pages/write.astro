@@ -1,19 +1,26 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import AbcWriter from "../components/AbcWriter.svelte";
+import NotFound from "../components/NotFound.astro";
+import { currentUser } from "../lib/server/api";
+import { isAdmin } from "../lib/server/admin";
+
+// A working tool, not a page for visitors: open on the dev server and to the
+// owner, a 404 to everyone else.
+const allowed = import.meta.env.DEV || isAdmin(await currentUser(Astro.request).catch(() => null));
+if (!allowed) Astro.response.status = 404;
 
 /**
  * Hand-write ABC with the score beside it, and save it into `scores/`.
  *
- * Not linked from anywhere. The navbar hardcodes its two links rather than
- * enumerating this directory, which is how /rhythm-game and /range-calibration
- * are already unlisted - this follows that, it does not invent anything. There
- * is no login: the save endpoint only works on the local dev server, so there
- * is nothing on the deployed site for a stranger to find but an ABC scratchpad.
+ * Not linked from anywhere, and on the deployed site a 404 to anyone but the
+ * owner (above): the save endpoint only works on the local dev server, so to a
+ * visitor it was an unfinished page that told them to run `bun run dev`.
  */
 ---
 
-<Layout noindex title="Write" description="Transcribe a score as ABC and save it.">
+<Layout noindex title={allowed ? "Write" : "Page not found | abc Sight Reading"} description="Transcribe a score as ABC and save it." themable={!allowed}>
+  {!allowed ? <NotFound /> : (
   <div class="flex flex-col w-full items-center">
     <h1 class="text-3xl font-bold mb-2">Write</h1>
     <p class="text-sm text-slate-500 mb-6">
@@ -21,4 +28,5 @@ import AbcWriter from "../components/AbcWriter.svelte";
     </p>
     <AbcWriter client:only="svelte" />
   </div>
+  )}
 </Layout>
