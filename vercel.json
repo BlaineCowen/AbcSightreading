@@ -3,6 +3,7 @@
   "installCommand": "bun install",
   "outputDirectory": "dist",
   "framework": "astro",
+  "ignoreCommand": "bash scripts/vercel-ignore.sh",
   "crons": [
     {
       "path": "/api/cron/po-invoices",
