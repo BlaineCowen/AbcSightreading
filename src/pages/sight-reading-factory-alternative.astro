@@ -29,7 +29,7 @@ const annotations = [
 ];
 
 const writing = [
-  "A chord progression that ends each phrase on a cadence",
+  "A chord progression that ends each phrase on a cadence, and the exercise on V to I",
   "A bass line written with the progression, not after it",
   "No parallel fifths or octaves",
   "Leading tones that resolve, sevenths that fall",
@@ -56,12 +56,18 @@ const controls = [
 // `checked`. Where a feature was not found on their site, the row says what
 // they do offer rather than that they lack it.
 const rows: [string, string, string][] = [
-  ["Made for", "Choirs and singers", "60+ instruments and voice types, band and orchestra"],
+  ["Made for", "Choirs and singers, with band and orchestra coming", "60+ instruments and voice types, band and orchestra"],
+  [
+    "Texture",
+    "Chordal choral writing, like UIL's contest music, at every level",
+    "Parts that move more independently as the level rises",
+  ],
   [
     "Choral writing",
-    "A chord progression with cadences, the bass written with it, and the part-writing rules above",
+    "A chord progression with cadences, the bass written with it, and the part-writing rules above, enforced",
     "Chorales \"based on the principles of part writing\", in 2 to 4 voices",
   ],
+  ["Endings", "Every exercise ends on an authentic cadence, V to I", "Varies by exercise"],
   ["Voicings", "SATB, SAB, SSA, TTB, two-part and unison", "2, 3 or 4 voices of your choice"],
   [
     "Solfège and note names",
@@ -206,6 +212,10 @@ const rows: [string, string, string][] = [
           criteria, with voice ranges set for each level. Choose one and press Generate.
         </p>
         <p>
+          It also sounds like the contest. UIL's sight-reading music is chordal choral writing, with parts that move
+          together toward clear cadences, and that is what abc writes, so the piece on contest day feels familiar.
+        </p>
+        <p>
           Step by step takes a choir from ta and ti-ti through a single line, then two, three and four parts, one new
           thing at a time. Mark each step passed for each class as you go.
         </p>
@@ -273,9 +283,10 @@ const rows: [string, string, string][] = [
     <section class="max-w-3xl w-full mx-auto flex flex-col gap-3">
       <h2 class="text-2xl font-bold text-sr-ink">When Sight Reading Factory fits better</h2>
       <p>
-        If you teach band or orchestra as well as choir and want one subscription for all of them, need students to
-        record their sight-reading and have it graded automatically, or need grades to flow into Canvas or Google
-        Classroom, Sight Reading Factory does that today and abc Sight Reading does not yet.
+        If you teach band or orchestra as well as choir and want one subscription for all of them today, need students
+        to record their sight-reading and have it graded automatically, or need grades to flow into Canvas or Google
+        Classroom, Sight Reading Factory does that now and abc Sight Reading does not yet. Band and orchestra are on
+        the way here, built with the same care as the choir exercises.
       </p>
     </section>
 
