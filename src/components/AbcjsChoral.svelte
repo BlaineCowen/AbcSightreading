@@ -17,6 +17,7 @@
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
+  import { activePresetToRestore, rememberActivePreset } from "../lib/active-preset";
   import { applyClick, clickFrom, currentClick, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import abcjs from "abcjs";
@@ -1102,23 +1103,70 @@
     // C major quarters-and-halves looked like a demo. Links, steps and
     // assignments bring their own settings and skip this.
     const arrivedBare = !window.location.search && !exerciseParam(window.location.hash);
+    // A link to a ladder step, from the other page's picker or a class's plan.
+    const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
+    const linked = exerciseParam(window.location.hash);
+    // On a reload, the preset the settings came from (active-preset.ts). Not
+    // over a step, an assignment or an exercise the address brings.
+    const remembered = linkedStep || assignmentId || linked ? null : activePresetToRestore("choral");
     loadParams();
-    if (arrivedBare) {
+    if (remembered) {
+      restoreActivePreset(remembered, !arrivedBare);
+    } else if (arrivedBare) {
       applyUILPreset("UIL 3");
       selectedKeys = new Set(["F"]);
       selectedKey = "F";
     }
-    // A link to a ladder step, from the other page's picker or a class's plan.
-    const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
     // Practice time, for a student in a class; and an assignment, if the address names one.
     startPractice({ page: "choral", assignmentId, isBusy: () => isPlaying });
     if (assignmentId) openAssignment(assignmentId);
     loadMixLevels();
-    const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
+    presetMemoryReady = true;
     window.addEventListener("hashchange", onHashChange);
   });
+
+  /** The saved preset the settings came from, whole, for remembering it. */
+  let activeSavedPreset: SavedPreset | null = null;
+  let presetMemoryReady = false;
+  $: if (presetMemoryReady) {
+    rememberActivePreset(
+      "choral",
+      activePresetLabel
+        ? {
+            label: activePresetLabel,
+            stepId: activeStepId,
+            level: !activeStepId && !activeSavedId && activeLevel ? `UIL ${activeLevel.level}` : null,
+            saved: activeSavedId ? activeSavedPreset : null,
+            sig: { paramSig: _presetParamSig, tabSigs: _presetTabSigs },
+          }
+        : null
+    );
+  }
+
+  /**
+   * Put back the preset a reload came from. This page's address carries only
+   * some settings (key, voicing, tempo, display), so the preset is applied
+   * again for the rest, then what the address says goes on top: the page ends
+   * as the reader left it, and "edited" and the tab dots measure it against
+   * what the preset held.
+   */
+  function restoreActivePreset(rec: import("../lib/active-preset").ActivePresetRecord, addressOnTop: boolean) {
+    const step = rec.stepId ? ladderById[rec.stepId] : undefined;
+    if (step?.choral) applyLadderStep(step);
+    else if (rec.level && uilPresets[rec.level]) applyUILPreset(rec.level);
+    else if (rec.saved) applySavedPreset(rec.saved as SavedPreset);
+    else return;
+    if (addressOnTop) loadParams();
+    activePresetLabel = rec.label;
+    // After the apply's own snapshot (a setTimeout of its own), so this wins.
+    const sig = rec.sig as { paramSig?: string; tabSigs?: Record<string, string> } | null;
+    setTimeout(() => {
+      _presetParamSig = sig?.paramSig ?? _currentParamSig;
+      _presetTabSigs = sig?.tabSigs ?? _tabSigs;
+    }, 0);
+  }
 
   onDestroy(() => {
     try { synthControl?.destroy?.(); } catch {}
@@ -1404,6 +1452,7 @@
     activeLevel = null;
     activeStepId = null;
     activeSavedId = preset.id;
+    activeSavedPreset = preset;
     revertPreset = () => applySavedPreset(preset);
     if (shown) void showPresetDisplay(shown);
     // Use setTimeout so the signature captures post-update values
@@ -2275,7 +2324,7 @@
       onSelectStep={applyLadderStep}
       {activeStepId}
       onSelectSaved={applySavedPreset}
-      onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
+      onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
       onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
     >
       <GenerationLimit slot="end" part="counter" />

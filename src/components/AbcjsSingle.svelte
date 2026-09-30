@@ -52,6 +52,7 @@
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
+  import { activePresetToRestore, rememberActivePreset, type ActivePresetRecord } from "../lib/active-preset";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
@@ -584,6 +585,7 @@
     }
     activePresetLabel = preset.name;
     activeSavedId = preset.id;
+    activeSavedPreset = preset;
     activeStepId = null;
     revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
@@ -3121,8 +3123,44 @@
     if (assignmentId) openAssignment(assignmentId);
     const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
+    // A reload keeps the preset the settings came from (active-preset.ts).
+    const remembered = activePresetToRestore("unison");
+    if (remembered && !linkedStep && !assignmentId && !linked) restoreActivePreset(remembered);
+    presetMemoryReady = true;
     window.addEventListener("hashchange", onHashChange);
   });
+
+  /** The saved preset the settings came from, whole, for remembering it. */
+  let activeSavedPreset: SavedPreset<any> | null = null;
+  let presetMemoryReady = false;
+  $: if (presetMemoryReady) {
+    rememberActivePreset(
+      "unison",
+      activePresetLabel
+        ? { label: activePresetLabel, stepId: activeStepId, saved: activeSavedId ? activeSavedPreset : null, sig: activePresetSignature }
+        : null
+    );
+  }
+
+  /** Which preset was active, and what it held; the settings stay as they are. */
+  function restoreActivePreset(rec: ActivePresetRecord) {
+    const step = rec.stepId ? ladderById[rec.stepId] : undefined;
+    if (step?.unison) {
+      activeStepId = step.id;
+      activeSavedId = null;
+      revertPreset = () => applyLadderStep(step);
+    } else if (rec.saved) {
+      const saved = rec.saved;
+      activeSavedId = saved.id;
+      activeSavedPreset = saved;
+      activeStepId = null;
+      revertPreset = () => applySavedPreset(saved);
+    } else {
+      return;
+    }
+    activePresetLabel = rec.label;
+    activePresetSignature = typeof rec.sig === "string" ? rec.sig : JSON.stringify(currentOptions);
+  }
 
   onDestroy(() => {
     paperObserver?.disconnect();
@@ -3210,7 +3248,7 @@
       {activeStepId}
       currentParams={() => currentOptions}
       onSelectSaved={applySavedPreset}
-      onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; revertPreset = () => applySavedPreset(p); } }}
+      onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
       onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
     >
       <GenerationLimit slot="end" part="counter" />
