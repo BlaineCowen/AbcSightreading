@@ -421,6 +421,15 @@ the shapes: pills and 28px cards. Use tokens, never Tailwind's own palette
 (`slate-600` and the like), or the dark theme breaks. The score paper stays
 white in both themes.
 
+## Deploys
+
+`main` deploys to production on every push. Preview branches (`dev`) build
+on Vercel only when the commit message contains `[preview]`
+(`scripts/vercel-ignore.sh`, vercel.json `ignoreCommand`): each build is about
+45 s of build time, and building every dev push spent most of the budget.
+Otherwise preview with `bun run dev`, or `vercel build && vercel deploy
+--prebuilt`, which builds locally and uses no Vercel build time.
+
 ## Tech Stack
 
 - **Astro** (SSR, deployed to Vercel) — pages in `src/pages/`, layout in `src/layouts/`
