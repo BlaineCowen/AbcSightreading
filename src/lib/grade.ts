@@ -16,20 +16,21 @@ import type { HistoryPoint } from "./tuner/pitch-history";
  * Tests: tests/unit/grade.test.ts.
  */
 
-/** Within this of the target, in any octave, counts as the note. */
-export const TOLERANCE_CENTS = 40;
+/** Within this of the target, in any octave, counts as the note: half a semitone. */
+export const TOLERANCE_CENTS = 50;
 /**
- * How much of a note's written length must be held for it to count. The whole
- * length felt too long: the detector takes a moment to lock on, so a quarter
- * at 60 asked for well over a second of steady singing.
+ * How long a note must be on pitch to earn its credit: a moment, whatever its
+ * length. Holding the whole written length felt too long (the detector takes a
+ * moment to lock on), and half of it moved the cursor on ahead of the beat.
+ * Now the credit comes quickly and the cursor keeps time: see noteMsFor.
  */
-export const HOLD_FRACTION = 0.5;
-/** Shortest hold asked for: detection needs about this long to be sure. */
-export const MIN_HOLD_MS = 200;
-/** Longest hold asked for, however long the note: a whole note need not be sat on. */
-export const MAX_HOLD_MS = 900;
+export const CREDIT_MS = 250;
+/** Never more than this share of a short note, so a quick eighth can still be caught. */
+export const CREDIT_SHARE = 0.8;
+/** Shortest credit asked for: detection needs about this long to be sure. */
+export const MIN_CREDIT_MS = 150;
 /** A hold survives a lapse this long (a consonant, a vibrato swing). */
-export const HOLD_GRACE_MS = 200;
+export const HOLD_GRACE_MS = 250;
 /** Finding a note within this many beats of it being shown costs nothing. */
 export const FREE_FIND_BEATS = 1;
 /** Each further beat of hunting costs this many points, */
@@ -37,7 +38,7 @@ export const FIND_POINTS_PER_BEAT = 25;
 /** up to this many. */
 export const FIND_MAX = 50;
 /** Held this close to the target, intonation costs nothing; */
-export const FREE_CENTS = 15;
+export const FREE_CENTS = 20;
 /** each cent further costs a point, up to this many. */
 export const CENTS_MAX = 25;
 /** Hearing the note itself: the most the note can then score. */
@@ -88,9 +89,12 @@ export function centsOffAnyOctave(sungMidi: number, targetMidi: number): number 
   return c > 600 ? c - 1200 : c;
 }
 
-/** How long a note must be held, at this tempo (quarter notes a minute). */
-export const holdMsFor = (beats: number, bpm: number) =>
-  Math.min(MAX_HOLD_MS, Math.max(MIN_HOLD_MS, ((beats * 60_000) / Math.max(1, bpm)) * HOLD_FRACTION));
+/** A note's written length at this tempo (quarter notes a minute), in ms. */
+export const noteMsFor = (beats: number, bpm: number) => (beats * 60_000) / Math.max(1, bpm);
+
+/** How long a note must be on pitch to earn its credit. The cursor still waits out its written length. */
+export const creditMsFor = (beats: number, bpm: number) =>
+  Math.max(MIN_CREDIT_MS, Math.min(CREDIT_MS, noteMsFor(beats, bpm) * CREDIT_SHARE));
 
 const SYLLABLES = ["do", "di", "re", "ri", "mi", "fa", "fi", "so", "si", "la", "li", "ti"];
 /** Movable do for a pitch, given do's pitch class (the exercise's key). */
@@ -124,6 +128,8 @@ export type NoteResult = {
   cents: number | null;
   help: Help;
   skipped: boolean;
+  /** Passed by: the singer went on to the next note without singing this one. */
+  missed?: boolean;
   score: number;
 };
 

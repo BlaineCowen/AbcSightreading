@@ -245,23 +245,28 @@ The detection files are that project's unchanged, so improve detection there
 (its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the
 site's theme colours through `src/lib/tuner/canvas-colors.ts`.
 
-**Grade** (Unison page, pitched, Pro): "Grade my singing" above the score.
-A reference (the first note or the tonic chord), a count-in, then the cursor
-waits on each note until it is sung, in any octave, within 40 cents, and held
-for half its written length at the tempo (0.2 to 0.9 s; the whole length felt
-too long). While it waits the card names the note being sung and the way to
-the right one in solfege ("You're singing re. Go up a step to mi"), and after
-the run the notes on the score are coloured by how each went. Help plays the note (the
-note then scores at most 50), the tonic or the tonic chord (10 off), or skips it.
-Each note loses points for time to find (a free beat, then 25 a beat, up to 50)
-and intonation (free to 15 cents, then a point a cent, up to 25), never more
-than 60 in all; the score is the average, shown to the singer only. Rules and
-constants in `src/lib/grade.ts` (tests `grade.test.ts`), the run in
-`src/lib/grade-runner.ts` (modelled on the scale challenge's), the card in
-`GradePanel.svelte`. While it listens the tuner store's `micHeld` keeps a Tools
-card from switching the microphone off. Test end to end with a synthesized WAV
-of the exercise's notes (the fake-capture flags below), answering
-`/api/auth/get-session` and `/api/billing` as Pro.
+**Grade** (Unison page, pitched, Pro): "Grade my singing" above the score
+opens a strip docked above the playback bar (the page leaves room below the
+score for it). A reference (the first note or the tonic chord), a count-in,
+then each note: it earns its credit after a moment on pitch (250 ms, less for
+a short note) within 50 cents in any octave, and the cursor moves on when the
+note's written length is over, counted from when the cursor reached it, so it
+keeps the music's time. Counted from when the detector heard each note, it
+lagged a singer in time a little more every note. Pitch sung ahead of the
+cursor counts toward the next note, and a singer who misses a note and sings
+on is caught up with: once its time is up and the next note is clearly sung,
+it is marked missed. Stuck? plays the note (the note then scores at most 50),
+the tonic or the tonic chord (10 off), or skips. Each note loses points for
+time to find (a free beat, then 25 a beat, up to 50) and intonation (free to 20
+cents, then a point a cent, up to 25), never more than 60 in all; the score is
+the average, shown to the singer, with the notes on the score coloured. While
+it waits the strip names the note being sung and the way to the right one in
+solfege. Rules and constants in `src/lib/grade.ts` (tests `grade.test.ts`),
+the run in `src/lib/grade-runner.ts`, the strip in `GradePanel.svelte`. While
+it listens the tuner store's `micHeld` keeps a Tools card from switching the
+microphone off. Test end to end with a synthesized WAV of the exercise's notes
+sung in time (the fake-capture flags below), answering `/api/auth/get-session`
+and `/api/billing` as Pro.
 
 To test with a real signal, run Chromium with
 `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`;

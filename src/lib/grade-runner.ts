@@ -8,7 +8,8 @@ import {
   TOLERANCE_CENTS,
   centsOffAnyOctave,
   holdCents,
-  holdMsFor,
+  creditMsFor,
+  noteMsFor,
   noteScore,
   summarize,
   type GradeNote,
@@ -47,6 +48,8 @@ export type GradeView = {
   target: number | null;
   /** A help sound is playing: the clock is stopped. */
   helping: boolean;
+  /** The note has its credit; the cursor waits out its written length. */
+  credited: boolean;
   result: GradeResult | null;
 };
 
@@ -61,7 +64,7 @@ export type GradeHooks = {
 };
 
 const TICK_MS = 50;
-const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, result: null };
+const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null };
 const nameOf = (midi: number) => NOTES[((midi % 12) + 12) % 12];
 const octaveOf = (midi: number) => Math.floor(midi / 12) - 1;
 const midiOfHz = (hz: number, a4: number) => 69 + 12 * Math.log2(hz / a4);
@@ -83,6 +86,22 @@ export class GradeRunner {
   private offSince: number | null = null;
   private lastTickAt = 0;
   private helpUntil = 0;
+  /** Credit given: when the cursor moves on, in time with the music. */
+  private advanceAt = 0;
+  /**
+   * The next note already being sung while the cursor waits out this one. The
+   * detector hears a note a moment after it starts, so a singer in time is
+   * always a little ahead of it; this keeps what they sang ahead of the cursor.
+   */
+  private ahead = { ms: 0, since: 0, off: null as number | null };
+  /**
+   * The next note being sung while this one is still waited on. A sight-reader
+   * who misses a note carries on in time; the cursor used to stay on the missed
+   * note while they sang on, and nothing after it matched. Once this note's
+   * time is up and the next is clearly being sung, this one counts as missed
+   * and the cursor goes with them.
+   */
+  private passing = { ms: 0, since: 0, off: null as number | null };
   private help: Help = { heardNote: false, heardKey: false };
   private tonicTriad: number[] = [];
 
@@ -157,19 +176,42 @@ export class GradeRunner {
 
   private present(i: number) {
     this.index = i;
-    this.holdMs = 0;
-    this.holdStartedAt = 0;
+    // What was sung of this note while the cursor waited on the last one counts.
+    this.holdMs = this.ahead.ms;
+    this.holdStartedAt = this.ahead.ms > 0 ? this.ahead.since : 0;
+    this.ahead = { ms: 0, since: 0, off: null };
+    this.passing = { ms: 0, since: 0, off: null };
     this.offSince = null;
+    this.advanceAt = 0;
     this.help = { heardNote: false, heardKey: false };
     this.presentedAt = this.lastTickAt = performance.now();
     this.hooks.moveTo(i);
-    this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false });
+    this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false, credited: false });
   }
 
   private tick() {
     const now = performance.now();
     const dt = Math.min(now - this.lastTickAt, 200);
     this.lastTickAt = now;
+    if (this.advanceAt) {
+      // Credited: the cursor moves on when the written note is over, so it
+      // keeps the music's time rather than jumping ahead of the beat.
+      const upcoming = this.notes[this.index + 1];
+      if (upcoming) {
+        const s = tuner.get();
+        const heard = s.pitch !== null ? centsOffAnyOctave(midiOfHz(s.pitch, s.a4), upcoming.midi) : null;
+        if (heard !== null && Math.abs(heard) <= TOLERANCE_CENTS) {
+          if (this.ahead.ms === 0) this.ahead.since = now;
+          this.ahead.ms += dt;
+          this.ahead.off = null;
+        } else if (this.ahead.ms > 0) {
+          this.ahead.off ??= now;
+          if (now - this.ahead.off > HOLD_GRACE_MS) this.ahead = { ms: 0, since: 0, off: null };
+        }
+      }
+      if (now >= this.advanceAt) this.next();
+      return;
+    }
     if (now < this.helpUntil) {
       // Listening to help: the clock stands still and nothing is heard.
       this.presentedAt += dt;
@@ -195,13 +237,39 @@ export class GradeRunner {
         this.offSince = null;
       }
     }
-    const need = holdMsFor(note.beats, this.bpm);
+    const need = creditMsFor(note.beats, this.bpm);
+    // Catching up: the next note, sung while this one never was.
+    const following = this.notes[this.index + 1];
+    if (following && following.midi % 12 !== note.midi % 12 && sung !== null && !onTarget) {
+      const toNext = centsOffAnyOctave(sung, following.midi);
+      if (Math.abs(toNext) <= TOLERANCE_CENTS) {
+        if (this.passing.ms === 0) this.passing.since = now;
+        this.passing.ms += dt;
+        this.passing.off = null;
+      } else if (this.passing.ms > 0) {
+        this.passing.off ??= now;
+        if (now - this.passing.off > HOLD_GRACE_MS) this.passing = { ms: 0, since: 0, off: null };
+      }
+      const timeUp = now - this.presentedAt >= noteMsFor(note.beats, this.bpm);
+      if (timeUp && this.passing.ms >= creditMsFor(following.beats, this.bpm)) {
+        this.record({ midi: note.midi, findBeats: null, cents: null, help: this.help, skipped: true, missed: true });
+        this.ahead = { ...this.passing };
+        this.next();
+        return;
+      }
+    }
     if (this.holdMs >= need) {
       const median = holdCents(pitchHistory.recent(need + HOLD_GRACE_MS + 500), note.midi, this.holdStartedAt, now);
       const findBeats = Math.max(0, this.holdStartedAt - this.presentedAt) / (60_000 / this.bpm);
       this.record({ midi: note.midi, findBeats, cents: median ?? cents, help: this.help, skipped: false });
-      // No chime: the singer is mid-phrase, and the cursor moving on says it.
-      this.next();
+      // No chime: the singer is mid-phrase. The cursor moves on once the note
+      // has lasted its written length from when the cursor reached it (the
+      // first note from when it was sung, which starts the clock). Counting
+      // from when the detector heard each note lagged it behind a singer in
+      // time, a little more every note. A late note waits for its credit.
+      const from = this.index === 0 ? this.holdStartedAt : this.presentedAt;
+      this.advanceAt = Math.max(now, from + noteMsFor(note.beats, this.bpm));
+      this.set({ hold: 1, onTarget: true, cents, sung, credited: true });
       return;
     }
     this.set({ hold: Math.min(1, this.holdMs / need), onTarget, cents, sung });
@@ -225,7 +293,8 @@ export class GradeRunner {
 
   /** Stuck: hear the note, the tonic, or the tonic chord. The clock stops while it sounds. */
   helpWith(kind: HelpKind) {
-    if (this.timer === null) return;
+    // Nothing to help with once the note has its credit.
+    if (this.timer === null || this.advanceAt) return;
     const a4 = tuner.get().a4;
     const now = performance.now();
     if (kind === "note") {
@@ -251,7 +320,7 @@ export class GradeRunner {
 
   /** Give up on this note: it scores the least a note can. */
   skip() {
-    if (this.timer === null) return;
+    if (this.timer === null || this.advanceAt) return;
     const note = this.notes[this.index];
     this.record({ midi: note.midi, findBeats: null, cents: null, help: this.help, skipped: true });
     this.next();

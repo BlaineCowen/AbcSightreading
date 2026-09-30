@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { X } from "lucide-svelte";
+  import { X, ChevronUp } from "lucide-svelte";
   import { tuner } from "../lib/tuner/store";
   import type { GradeRunner } from "../lib/grade-runner";
   import { guidance } from "../lib/grade";
 
   /**
-   * Grade's card on the Unison page (rules in grade.ts, the run in
-   * grade-runner.ts): set up, sing with help to hand, then the result. It sits
-   * over the bottom-left of the page, clear of the Tools card on the right.
+   * Grade's strip on the Unison page (rules in grade.ts, the run in
+   * grade-runner.ts), docked just above the playback bar. It was a tall card
+   * over the bottom-left of the page and covered the music; now it is one line
+   * while singing, and the page leaves room below the score for it. The Stuck
+   * options and the results' note chips open upward, on demand.
    */
   export let runner: GradeRunner;
   /** Pro or better; null while that is being checked. */
@@ -23,101 +25,118 @@
 
   $: v = $runner;
   $: sung = v.result?.notes ?? [];
+  $: toWork = sung.filter((n) => n.score < 90).length;
+  let stuckOpen = false;
+  let detailsOpen = false;
+  $: if (v.phase !== "sing") stuckOpen = false;
+  $: if (v.phase !== "results") detailsOpen = false;
+
   const tone = (score: number) =>
     score >= 90 ? "bg-sr-mint text-sr-mint-ink" : score >= 70 ? "bg-sr-butter text-sr-butter-ink" : "bg-sr-peach text-sr-peach-ink";
-  const RING = 2 * Math.PI * 18;
+  const RING = 2 * Math.PI * 12;
+  const help = (kind: "note" | "tonic" | "triad") => {
+    stuckOpen = false;
+    runner.helpWith(kind);
+  };
+  const skip = () => {
+    stuckOpen = false;
+    runner.skip();
+  };
+  $: line = v.helping
+    ? "Listen…"
+    : v.credited
+      ? "Got it"
+      : v.target === null
+        ? ""
+        : guidance({ sung: v.sung, target: v.target, doPc, onTarget: v.onTarget });
+  $: lineTone = v.credited || v.onTarget
+    ? "text-sr-action-fg"
+    : v.sung !== null && Math.abs(v.cents ?? 0) >= 100
+      ? "text-sr-danger"
+      : "text-sr-ink-2";
 </script>
 
-<div
-  class="grade-card fixed z-50 left-3 right-3 sm:right-auto sm:left-6 sm:w-[360px] bg-sr-raise border border-sr-hairline rounded-2xl shadow-2xl text-sr-ink no-print"
-  role="dialog"
-  aria-label="Grade"
->
-  <div class="flex items-center justify-between px-4 pt-3">
-    <h3 class="text-[15px] font-bold">Grade</h3>
-    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink" on:click={onClose} aria-label="Close">
-      <X size={16} />
-    </button>
-  </div>
-
-  <div class="p-4 pt-2 flex flex-col gap-3">
-    {#if allowed === false}
-      <p class="text-sm text-sr-ink-2">
-        Grade listens as you sing and scores each note. It's part of Pro, with the tuner and practice tools and
-        unlimited exercises, for $19.99 a year.
-      </p>
-      {#if signedIn}
-        <a class="sr-btn text-sm text-center" href="/account#plan">Get Pro</a>
-      {:else}
-        <a class="sr-btn text-sm text-center" href="/login?mode=signup&next={encodeURIComponent('/account#plan')}">Get Pro</a>
-        <a class="text-xs text-sr-muted underline text-center" href="/login?next={encodeURIComponent('/account#plan')}">I have an account</a>
-      {/if}
-    {:else if v.phase === "idle"}
-      <p class="text-sm text-sr-ink-2">
-        Sing the exercise. The cursor waits on each note until you sing it (any octave) and hold it for its length.
-        Finding each note quickly is most of the score.
-      </p>
-      <div class="flex flex-col gap-1.5">
-        <span class="text-xs font-bold text-sr-muted">Before the count-in, play</span>
-        <div class="flex gap-1.5" role="group" aria-label="Reference">
-          <button class="sr-tok text-sm {$tuner.gradeReference === 'note' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "note"} on:click={() => tuner.setGradeReference("note")}>The first note</button>
-          <button class="sr-tok text-sm {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")}>The tonic chord</button>
-        </div>
-      </div>
-      {#if blocked}<p class="text-sm text-sr-muted">{blocked}</p>{/if}
-      <button class="sr-btn py-2.5" on:click={onStart} disabled={!!blocked || allowed === null}>
-        {allowed === null ? "…" : "Start"}
-      </button>
-    {:else if v.phase === "reference" || v.phase === "countIn"}
-      <p class="text-lg font-bold text-center py-4">{v.phase === "reference" ? "Listen…" : "Get ready…"}</p>
-      <button class="sr-btn-quiet self-center" on:click={() => runner.stop()}>Stop</button>
-    {:else if v.phase === "sing"}
-      <div class="flex items-center gap-4">
-        <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-          <circle cx="24" cy="24" r="18" fill="none" stroke="var(--sr-track)" stroke-width="6" />
-          <circle cx="24" cy="24" r="18" fill="none" stroke={v.onTarget ? "var(--sr-action)" : "var(--sr-faint)"} stroke-width="6"
-            stroke-dasharray={RING} stroke-dashoffset={RING * (1 - v.hold)} transform="rotate(-90 24 24)" stroke-linecap="round" />
-        </svg>
-        <div class="flex flex-col">
-          <span class="text-sm font-bold">Note {v.index + 1} of {v.total}</span>
-          <span class="text-sm font-semibold {v.onTarget ? 'text-sr-action-fg' : v.sung !== null && Math.abs(v.cents ?? 0) >= 100 ? 'text-sr-danger' : 'text-sr-ink-2'}" aria-live="polite">
-            {v.helping ? "Listen…" : v.target === null ? "" : guidance({ sung: v.sung, target: v.target, doPc, onTarget: v.onTarget })}
-          </span>
-        </div>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <span class="text-xs font-bold text-sr-muted">Stuck?</span>
-        <div class="flex flex-wrap gap-1.5">
-          <button class="sr-tok text-sm" on:click={() => runner.helpWith("note")} title="The note caps at 50">Play this note</button>
-          <button class="sr-tok text-sm" on:click={() => runner.helpWith("tonic")}>Play the tonic</button>
-          <button class="sr-tok text-sm" on:click={() => runner.helpWith("triad")}>Play the tonic chord</button>
-          <button class="sr-tok text-sm" on:click={() => runner.skip()}>Skip</button>
-        </div>
-      </div>
-      <button class="sr-btn-quiet self-start" on:click={() => runner.stop()}>Stop</button>
-    {:else if v.phase === "results" && v.result}
-      <div class="flex items-baseline gap-3">
-        <span class="text-4xl font-extrabold tabular-nums">{v.result.score}%</span>
-        <span class="text-2xl font-extrabold text-sr-action-fg">{v.result.letter}</span>
-      </div>
+<div class="grade-dock fixed z-50 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(720px,calc(100vw-2rem))] no-print" role="region" aria-label="Grade">
+  <!-- Opened upward from the strip: the Stuck options, or the results' notes. -->
+  {#if stuckOpen}
+    <div class="mb-2 ml-auto w-fit bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-2 flex flex-col gap-1">
+      <button class="sr-tok text-sm text-left" on:click={() => help("note")} title="The note then scores at most 50">Play this note</button>
+      <button class="sr-tok text-sm text-left" on:click={() => help("tonic")}>Play the tonic</button>
+      <button class="sr-tok text-sm text-left" on:click={() => help("triad")}>Play the tonic chord</button>
+      <button class="sr-tok text-sm text-left" on:click={skip}>Skip this note</button>
+    </div>
+  {/if}
+  {#if detailsOpen && v.result}
+    <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2">
       <div class="flex flex-wrap gap-1" aria-label="Each note">
         {#each sung as n, i}
           <span
             class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.score)}"
-            title="Note {i + 1}: {n.score}%{n.skipped ? ', skipped' : n.findBeats !== null ? `, found in ${n.findBeats.toFixed(1)} beats` : ''}{n.help.heardNote ? ', heard the note' : n.help.heardKey ? ', heard the key' : ''}"
+            title="Note {i + 1}: {n.score}%{n.missed ? ', missed' : n.skipped ? ', skipped' : n.findBeats !== null ? `, found in ${n.findBeats.toFixed(1)} beats` : ''}{n.help.heardNote ? ', heard the note' : n.help.heardKey ? ', heard the key' : ''}"
           >{i + 1}</span>
         {/each}
       </div>
-      <p class="text-xs text-sr-muted">The notes on the score are coloured the same way. Green: found quickly and in tune. Amber: slow to find, or heard help. Red: stuck or skipped.</p>
-      <div class="flex gap-2">
-        <button class="sr-btn flex-1" on:click={onStart}>Try again</button>
-        <button class="sr-btn-quiet flex-1" on:click={onNewExercise}>New exercise</button>
+      <p class="text-xs text-sr-muted">
+        The notes on the score are coloured the same way. Green: found quickly and in tune. Amber: slow to find, or
+        heard help. Red: stuck or skipped.
+      </p>
+    </div>
+  {/if}
+
+  <div class="bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl px-3 py-2 flex items-center gap-2 sm:gap-3 min-h-[56px]">
+    {#if allowed === false}
+      <p class="flex-1 text-sm text-sr-ink-2">Grade scores your singing, note by note. It's part of Pro, $19.99 a year.</p>
+      <a class="sr-btn text-sm px-4 py-2 shrink-0" href={signedIn ? "/account#plan" : `/login?mode=signup&next=${encodeURIComponent("/account#plan")}`}>Get Pro</a>
+    {:else if v.phase === "idle"}
+      <div class="flex-1 min-w-0 flex flex-col gap-1">
+        <p class="text-sm font-bold text-sr-ink">Sing it. The cursor waits for each note.</p>
+        {#if blocked}
+          <p class="text-xs text-sr-muted">{blocked}</p>
+        {:else}
+          <div class="flex items-center gap-1 flex-wrap" role="group" aria-label="Before the count-in, play">
+            <span class="text-xs text-sr-muted">First, play</span>
+            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'note' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "note"} on:click={() => tuner.setGradeReference("note")}>the first note</button>
+            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")}>the tonic chord</button>
+          </div>
+        {/if}
       </div>
+      <button class="sr-btn text-sm px-5 py-2 shrink-0" on:click={onStart} disabled={!!blocked || allowed === null}>{allowed === null ? "…" : "Start"}</button>
+    {:else if v.phase === "reference" || v.phase === "countIn"}
+      <p class="flex-1 text-sm font-bold">{v.phase === "reference" ? "Listen…" : "Get ready…"}</p>
+      <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
+    {:else if v.phase === "sing"}
+      <svg width="32" height="32" viewBox="0 0 32 32" class="shrink-0" aria-hidden="true">
+        <circle cx="16" cy="16" r="12" fill="none" stroke="var(--sr-track)" stroke-width="5" />
+        <circle cx="16" cy="16" r="12" fill="none" stroke={v.onTarget || v.credited ? "var(--sr-action)" : "var(--sr-faint)"} stroke-width="5"
+          stroke-dasharray={RING} stroke-dashoffset={RING * (1 - v.hold)} transform="rotate(-90 16 16)" stroke-linecap="round" />
+      </svg>
+      <div class="flex-1 min-w-0 flex flex-col leading-tight">
+        <span class="text-xs font-bold text-sr-muted tabular-nums">Note {v.index + 1} of {v.total}</span>
+        <span class="text-sm font-semibold truncate {lineTone}" aria-live="polite">{line}</span>
+      </div>
+      <button
+        class="sr-btn-quiet text-sm shrink-0 inline-flex items-center gap-1"
+        on:click={() => (stuckOpen = !stuckOpen)}
+        aria-expanded={stuckOpen}
+      >Stuck? <ChevronUp size={14} class={stuckOpen ? "" : "rotate-180"} /></button>
+      <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
+    {:else if v.phase === "results" && v.result}
+      <span class="text-2xl font-extrabold tabular-nums shrink-0">{v.result.score}%</span>
+      <span class="text-xl font-extrabold text-sr-action-fg shrink-0">{v.result.letter}</span>
+      <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
+        {toWork === 0 ? "Every note found quickly" : `${toWork} note${toWork === 1 ? "" : "s"} to work on`}
+        <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
+      </button>
+      <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
+      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
     {/if}
+    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">
+      <X size={16} />
+    </button>
   </div>
 </div>
 
 <style>
-  /* Above the playback bar, whose height the page publishes. */
-  .grade-card { bottom: calc(var(--bottom-bar-h, 96px) + 16px); }
+  /* Just above the playback bar, whose height the page publishes. */
+  .grade-dock { bottom: calc(var(--bottom-bar-h, 96px) + 10px); }
 </style>

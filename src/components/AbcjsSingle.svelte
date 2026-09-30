@@ -3243,8 +3243,9 @@
     gradeLit = (at.absEl.elemset ?? []) as Element[];
     for (const el of gradeLit) el.classList.add("grade-now");
     const box = gradeLit[0]?.getBoundingClientRect();
-    // Kept clear of the navbar above and the Grade card and playback bar below.
-    if (box && (box.top < 90 || box.bottom > window.innerHeight - 360)) {
+    // Kept clear of the navbar above and the Grade strip and playback bar below.
+    const barH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bottom-bar-h")) || 96;
+    if (box && (box.top < 90 || box.bottom > window.innerHeight - barH - 110)) {
       window.scrollBy({ top: box.top - window.innerHeight / 3, behavior: "smooth" });
     }
   }
@@ -3379,7 +3380,7 @@
   }
 </script>
 
-<div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + 1rem)">
+<div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + {gradeOpen ? '6rem' : '1rem'})">
   <!-- Preset bar: the same one as choral, over unison's own saved list. The
        built-in UIL and difficulty presets are choral settings, so they are not
        offered here. -->

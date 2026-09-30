@@ -5,14 +5,15 @@ import {
   HELP_KEY_COST,
   HELP_NOTE_CAP,
   MAX_LOSS,
-  MAX_HOLD_MS,
-  MIN_HOLD_MS,
+  CREDIT_MS,
+  MIN_CREDIT_MS,
+  creditMsFor,
+  noteMsFor,
   guidance,
   solfegeOf,
   centsOffAnyOctave,
   gradeNotes,
   holdCents,
-  holdMsFor,
   letterFor,
   noteScore,
   summarize,
@@ -68,7 +69,7 @@ describe("a note's score", () => {
     expect(noteScore({ findBeats: 30, cents: 0, help: none })).toBe(100 - FIND_MAX);
   });
   test("intonation: free near the target, then a point a cent, capped", () => {
-    expect(noteScore({ findBeats: 0, cents: -25, help: none })).toBe(90);
+    expect(noteScore({ findBeats: 0, cents: -30, help: none })).toBe(90);
     expect(noteScore({ findBeats: 0, cents: 200, help: none })).toBe(100 - CENTS_MAX);
   });
   test("help: hearing the note caps it; the key costs a little", () => {
@@ -90,11 +91,11 @@ describe("the exercise's score", () => {
   test("letter boundaries", () => {
     expect([95, 90, 89, 80, 70, 60, 59].map(letterFor)).toEqual(["A", "A", "B", "B", "C", "D", "F"]);
   });
-  test("the hold: half the written length, within detection's floor and a ceiling", () => {
-    expect(holdMsFor(1, 60)).toBe(500);
-    expect(holdMsFor(0.5, 60)).toBe(250);
-    expect(holdMsFor(0.5, 200)).toBe(MIN_HOLD_MS);
-    expect(holdMsFor(4, 60)).toBe(MAX_HOLD_MS);
+  test("credit comes quickly; the cursor waits out the written length", () => {
+    expect(noteMsFor(1, 60)).toBe(1000);
+    expect(creditMsFor(1, 60)).toBe(CREDIT_MS);
+    expect(creditMsFor(4, 60)).toBe(CREDIT_MS);
+    expect(creditMsFor(0.5, 200)).toBe(Math.max(MIN_CREDIT_MS, 150 * 0.8));
   });
 });
 
@@ -110,7 +111,7 @@ describe("what the card says", () => {
     expect(guidance({ sung: 55, target: 69, doPc: F, onTarget: false })).toBe("You're singing re. Go up a step to mi"); // any octave
   });
   test("close, on it, or nothing heard", () => {
-    expect(guidance({ sung: 69.6, target: 69, doPc: F, onTarget: false })).toBe("Close: a little high for mi");
+    expect(guidance({ sung: 69.7, target: 69, doPc: F, onTarget: false })).toBe("Close: a little high for mi");
     expect(guidance({ sung: 68.4, target: 69, doPc: F, onTarget: false })).toBe("Close: a little low for mi");
     expect(guidance({ sung: 69.1, target: 69, doPc: F, onTarget: true })).toBe("That's it, hold it");
     expect(guidance({ sung: null, target: 69, doPc: F, onTarget: false })).toBe("Sing mi");
