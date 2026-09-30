@@ -224,7 +224,23 @@ export const auth = betterAuth({
   },
   // Serverless instances do not share memory, so a per-instance limit is not
   // one. The database is shared.
-  rateLimit: { enabled: true, storage: "database" },
+  //
+  // The limit is per client IP and path, and a whole school can share one IP.
+  // Every page asks /get-session, so thirty students opening a page together
+  // passed the default 100 in 10 s, and the page took each of them for signed
+  // out (a QA run on production hit it at 85 page loads). /get-session only
+  // reads the signed cookie, so it is not limited; sign-in, sign-up and
+  // password resets keep Better Auth's strict rules (3 per 10 s or 60 s).
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    customRules: { "/get-session": false },
+  },
+  // Vercel sets x-vercel-forwarded-for to the client's address and replaces
+  // any x-forwarded-for a client sends; read Vercel's own header first.
+  advanced: {
+    ipAddress: { ipAddressHeaders: ["x-vercel-forwarded-for", "x-forwarded-for"] },
+  },
 });
 
 /** Whether "Continue with Google" should be shown. */
