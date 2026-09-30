@@ -33,7 +33,9 @@ export const isClickSound = (v: unknown): v is ClickSound =>
   CLICK_SOUNDS.some((s) => s.id === v);
 
 /** The sounds that came before, and the new one nearest each. */
-const LEGACY: Record<string, ClickSound> = { woodblock: "block", clickbell: "quartz", claves: "tick", beep: "sine" };
+// Woodblock was the old default, so it goes to the new one: most who had it
+// never chose it.
+const LEGACY: Record<string, ClickSound> = { woodblock: "quartz", clickbell: "quartz", claves: "tick", beep: "sine" };
 
 /** A saved sound, old names included; null when it is not one. */
 export function toClickSound(v: unknown): ClickSound | null {

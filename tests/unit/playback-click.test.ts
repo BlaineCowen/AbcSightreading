@@ -54,7 +54,7 @@ describe("the Choral page's drum pattern (abcjs spreads it evenly across the bar
 
 describe("sounds saved before the samples changed", () => {
   test("map to the nearest new one", () => {
-    expect(toClickSound("woodblock")).toBe("block");
+    expect(toClickSound("woodblock")).toBe("quartz"); // the old default, to the new default
     expect(toClickSound("clickbell")).toBe("quartz");
     expect(toClickSound("claves")).toBe("tick");
     expect(toClickSound("beep")).toBe("sine");

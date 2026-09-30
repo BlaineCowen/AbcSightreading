@@ -140,6 +140,17 @@ const start: TunerState = { ...initial, ...(typeof window !== "undefined" ? rest
 start.beatsPerBar = meterById(start.meter).beats;
 // Sounds saved before the samples changed map to the nearest new one.
 start.clickSound = toClickSound(start.clickSound) ?? DEFAULT_CLICK_SOUND;
+// Once: the release that brought the new sounds sent the old woodblock default
+// to Block and saved it, so nearly everyone on Block never chose it. Quartz is
+// the default; a Block chosen after this stays.
+if (typeof window !== "undefined") {
+  try {
+    if (!localStorage.getItem("abc-click-sounds-v2")) {
+      if (start.clickSound === "block") start.clickSound = DEFAULT_CLICK_SOUND;
+      localStorage.setItem("abc-click-sounds-v2", "1");
+    }
+  } catch {}
+}
 if (typeof start.clickWithMusic !== "boolean") start.clickWithMusic = true;
 if (!(start.metronomeVolume >= 0 && start.metronomeVolume <= 1)) start.metronomeVolume = 0.5;
 const state = writable<TunerState>(start);

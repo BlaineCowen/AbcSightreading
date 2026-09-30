@@ -3458,11 +3458,16 @@
                   on:click={() => stopDrill()}
                 >Stop run</button>
               {:else}
+                <!-- Peach, with a play mark: not the blue of Generate, which it
+                     was easy to take it for. -->
                 <button
-                  class="sr-btn"
+                  class="inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
                   on:click={startDrill}
                   disabled={isLoading}
-                >Start run</button>
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1.2v9.6L10.4 6z" /></svg>
+                  Start practice run
+                </button>
               {/if}
             </div>
 

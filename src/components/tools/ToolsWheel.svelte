@@ -79,7 +79,15 @@
     initDrone();
   });
 
+  /**
+   * The Tools button opens the wheel, and closes whatever is open: the wheel,
+   * or a tool's card. Switching tools happens in the card's own toolbar.
+   */
   async function toggleWheel() {
+    if (!wheelOpen && tool) {
+      closeCard();
+      return;
+    }
     wheelOpen = !wheelOpen;
     hovered = null;
     if (wheelOpen) {
@@ -110,8 +118,15 @@
     if (wheelOpen) wheelOpen = false;
     else if (tool) closeCard();
   }
+  /**
+   * A click anywhere else on the page closes the wheel or the card. What is
+   * sounding (metronome, drone, timer) keeps going; only the listening tools
+   * stop, as with the card's own close button.
+   */
   function onDocPointer(e: PointerEvent) {
-    if (wheelOpen && root && !root.contains(e.target as Node)) wheelOpen = false;
+    if (!root || root.contains(e.target as Node)) return;
+    if (wheelOpen) wheelOpen = false;
+    else if (tool) closeCard();
   }
 
   $: running = $droneOn || $tuner.metronomeRunning || $timer.running || $tuner.engineStatus === "running";
