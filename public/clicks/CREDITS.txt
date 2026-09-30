@@ -1,0 +1,7 @@
+Metronome sounds recorded by Ludwig Peter Müller, December 2020.
+Licensed Creative Commons CC0 1.0 Universal (public domain).
+
+quartz = Perc_MetronomeQuartz, block = Synth_Block_D, sine = Synth_Sine_E,
+tick = Synth_Tick_C, square = Synth_Square_A. Each is <sound>-accent (the "hi"
+sample), <sound>-beat (the "lo" sample) and <sound>-sub (the lo sample raised:
+quartz 5 semitones, the rest an octave), mono 44.1 kHz 16-bit.

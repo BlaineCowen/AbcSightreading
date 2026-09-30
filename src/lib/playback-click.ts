@@ -10,7 +10,7 @@
  *   schedules that beat's clicks at exact times (scheduleClick) with the Tools
  *   metronome's own samples.
  */
-import { SAMPLE_BOOST, TICK_GAIN, TICK_HZ, voiceFor, type ClickLevel, type ClickSound, type SampleBank, type SampleName } from "./tuner/click-sounds";
+import { SAMPLE_BOOST, TICK_GAIN, TICK_HZ, drumNoteFor, voiceFor, type ClickLevel, type ClickSound, type SampleBank } from "./tuner/click-sounds";
 
 /** One bar's clicks in order: each beat, then its subdivisions. */
 export function barClicks(beats: number, subdivision: number, accent: boolean): ClickLevel[] {
@@ -22,18 +22,15 @@ export function barClicks(beats: number, subdivision: number, accent: boolean): 
   return out;
 }
 
-/** The General MIDI drum each sample is. */
-const DRUM: Record<SampleName, number> = { click: 33, bell: 34, claves: 75, hiBlock: 76, loBlock: 77 };
-
 /**
- * An abcjs drum pattern for one bar: "d" per click, then each click's drum,
- * then each one's velocity. The synthesized beep has no drum, so it plays as
- * woodblock here.
+ * An abcjs drum pattern for one bar: "d" per click, then each click's drum
+ * note (drumNoteFor, which the soundfont proxy serves from public/clicks),
+ * then each one's velocity.
  */
 export function drumPatternFor(o: { beats: number; subdivision: number; accent: boolean; sound: ClickSound }): string {
   const levels = barClicks(o.beats, Math.max(1, Math.round(o.subdivision)), o.accent);
-  const voices = levels.map((l) => voiceFor(o.sound, l) ?? voiceFor("woodblock", l)!);
-  const pitches = voices.map((v) => DRUM[v.sample]);
+  const voices = levels.map((l) => voiceFor(o.sound, l)!);
+  const pitches = voices.map((v) => drumNoteFor(v.sample));
   const velocities = voices.map((v) => Math.max(1, Math.min(127, Math.round(v.gain * 55))));
   return ["d".repeat(levels.length), ...pitches, ...velocities].join(" ");
 }

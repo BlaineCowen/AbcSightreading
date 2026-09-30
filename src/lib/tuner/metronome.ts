@@ -4,6 +4,7 @@ import {
   TICK_GAIN,
   TICK_HZ,
   voiceFor,
+  DEFAULT_CLICK_SOUND,
   type ClickLevel,
   type ClickSound,
 } from "./click-sounds";
@@ -131,7 +132,7 @@ export class Metronome {
   }
 
   /** One click: its sample if loaded, else the synthesized tick. */
-  private click(time: number, level: ClickLevel, sound = this.settings.sound ?? "woodblock") {
+  private click(time: number, level: ClickLevel, sound = this.settings.sound ?? DEFAULT_CLICK_SOUND) {
     const ctx = this.ctx!;
     const voice = voiceFor(sound, level);
     const buffer = voice ? this.bank.get(voice.sample) : undefined;

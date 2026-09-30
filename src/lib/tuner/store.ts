@@ -5,7 +5,7 @@ import { BPM_MAX, BPM_MIN } from "./metronome";
 import type { Sensitivity } from "./pitch-tracker";
 import type { Difficulty, Direction } from "./scale-challenge";
 import { meterById } from "./meters";
-import { isClickSound, type ClickSound } from "./click-sounds";
+import { DEFAULT_CLICK_SOUND, toClickSound, type ClickSound } from "./click-sounds";
 
 /**
  * abcTuner's state: the settings a singer chooses (kept in this browser) and
@@ -93,7 +93,7 @@ const initial: TunerState = {
   sustain: false,
   bpm: 90,
   meter: "4/4",
-  clickSound: "woodblock",
+  clickSound: DEFAULT_CLICK_SOUND,
   beatsPerBar: 4,
   subdivision: 1,
   accent: true,
@@ -138,7 +138,8 @@ const start: TunerState = { ...initial, ...(typeof window !== "undefined" ? rest
 // Settings saved before meters existed carry a beat count and no meter: the
 // meter decides, so the two cannot disagree.
 start.beatsPerBar = meterById(start.meter).beats;
-if (!isClickSound(start.clickSound)) start.clickSound = "woodblock";
+// Sounds saved before the samples changed map to the nearest new one.
+start.clickSound = toClickSound(start.clickSound) ?? DEFAULT_CLICK_SOUND;
 if (typeof start.clickWithMusic !== "boolean") start.clickWithMusic = true;
 if (!(start.metronomeVolume >= 0 && start.metronomeVolume <= 1)) start.metronomeVolume = 0.5;
 const state = writable<TunerState>(start);

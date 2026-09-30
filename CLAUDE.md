@@ -212,6 +212,14 @@ sound (`src/lib/playback-click.ts`): Choral writes them into abcjs's drum
 pattern (only when this playback clicks, so a change rebuilds the synth),
 Unison schedules each beat's clicks with the metronome's own samples. On
 `/tuner` there is no exercise and it keeps its own tempo and meter.
+Its five sounds (Quartz, the default, Block, Tick, Sine, Square) are Ludwig
+Peter Müller's CC0 recordings, chosen by ear: three files each in
+`public/clicks` (accent, beat, and a subdivision pre-pitched up), credited in
+`public/clicks/CREDITS.txt`. Only beat 1 is accented. For the Choral drum
+track each file has a drum note of its own from MIDI 60 up (`drumNoteFor`,
+since abcjs caches samples by note), and the soundfont proxy redirects those
+notes to the files. Old sound names in settings and presets map across
+(`toClickSound`).
 Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the

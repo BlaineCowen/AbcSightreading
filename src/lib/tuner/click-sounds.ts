@@ -1,85 +1,81 @@
 /**
  * What the metronome sounds like.
  *
- * It used to be a square wave - 1.6 kHz on the downbeat, 1 kHz on beats - held
- * for 40 ms: a buzzy electronic beep, hard on the ear over a practice session.
- * A good click is percussive and short, with its accent carried by pitch, the
- * way a real metronome's bell or a player's woodblock does it.
+ * Five sounds, chosen by ear from Ludwig Peter Müller's metronome recordings
+ * (December 2020, CC0 1.0, public domain - public/clicks/CREDITS.txt). Each is
+ * three short files in public/clicks: the accent on beat 1 (the recording's
+ * "hi"), the beat (its "lo"), and the subdivision, the beat raised in pitch -
+ * quartz by 5 semitones, the rest by an octave - and played quieter. Only beat
+ * 1 is accented: a different pitch on each group's first beat as well read as
+ * a tune (A F E F) rather than a pulse.
  *
- * So the clicks are recorded samples from the FluidR3 General MIDI soundfont
- * (MIT licence), which the app already serves from its own origin for playback
- * (/api/soundfont, see the proxy). The General MIDI drum map names them:
- * 33 metronome click (A1), 34 metronome bell (B♭1), 75 claves (E♭5),
- * 76 and 77 high and low woodblock (E5, F5). Measured: the click decays 30 dB in
- * 20 ms, the woodblocks in about 210 ms, the bell rings for 440 ms.
- *
- * Until the samples have loaded - or if they cannot - the metronome falls back
- * to a synthesized tick, a short sine rather than the old square.
+ * They replaced four General MIDI drums (woodblock, click and bell, claves, a
+ * synthesized beep); settings and presets naming those are mapped across
+ * (toClickSound). The synthesized tick is still the stand-in while the files
+ * load, or if they cannot.
  */
 
-export type ClickSound = "woodblock" | "clickbell" | "claves" | "beep";
-/** Downbeat, a group's first beat (7/8's 3 and 5), any other beat, a subdivision. */
+export type ClickSound = "quartz" | "block" | "tick" | "sine" | "square";
+/** Downbeat, a group's first beat (played as a beat), any other beat, a subdivision. */
 export type ClickLevel = "downbeat" | "group" | "beat" | "sub";
 
 export const CLICK_SOUNDS: { id: ClickSound; label: string }[] = [
-  { id: "woodblock", label: "Woodblock" },
-  { id: "clickbell", label: "Click & bell" },
-  { id: "claves", label: "Claves" },
-  { id: "beep", label: "Beep" },
+  { id: "quartz", label: "Quartz" },
+  { id: "block", label: "Block" },
+  { id: "tick", label: "Tick" },
+  { id: "sine", label: "Sine" },
+  { id: "square", label: "Square" },
 ];
+
+export const DEFAULT_CLICK_SOUND: ClickSound = "quartz";
 
 export const isClickSound = (v: unknown): v is ClickSound =>
   CLICK_SOUNDS.some((s) => s.id === v);
 
-/** Sample name -> the soundfont file that holds it. */
-export const SAMPLES = {
-  click: "A1",
-  bell: "Bb1",
-  claves: "Eb5",
-  hiBlock: "E5",
-  loBlock: "F5",
-} as const;
-export type SampleName = keyof typeof SAMPLES;
+/** The sounds that came before, and the new one nearest each. */
+const LEGACY: Record<string, ClickSound> = { woodblock: "block", clickbell: "quartz", claves: "tick", beep: "sine" };
+
+/** A saved sound, old names included; null when it is not one. */
+export function toClickSound(v: unknown): ClickSound | null {
+  if (isClickSound(v)) return v;
+  return typeof v === "string" && v in LEGACY ? LEGACY[v] : null;
+}
+
+export type ClickPart = "accent" | "beat" | "sub";
+export type SampleName = `${ClickSound}-${ClickPart}`;
+const PARTS: ClickPart[] = ["accent", "beat", "sub"];
+
+/** Every sample, in a fixed order: the order gives each its drum note. */
+export const SAMPLE_NAMES: SampleName[] = CLICK_SOUNDS.flatMap((c) => PARTS.map((p) => `${c.id}-${p}` as SampleName));
+export const sampleUrl = (name: SampleName) => `/clicks/${name}.wav`;
+
+/**
+ * The drum note each sample plays as in abcjs's drum track (the Choral click).
+ * abcjs caches samples by instrument and note, so every sample needs a note of
+ * its own; the soundfont proxy serves these notes from public/clicks. MIDI 60
+ * (C4) up - no General MIDI drum the app plays is up there.
+ */
+export const DRUM_NOTE_BASE = 60;
+export const drumNoteFor = (name: SampleName) => DRUM_NOTE_BASE + SAMPLE_NAMES.indexOf(name);
+export const sampleForDrumNote = (midi: number): SampleName | null => SAMPLE_NAMES[midi - DRUM_NOTE_BASE] ?? null;
+
+/** Each sound's subdivision level, as it was chosen. */
+const SUB_LEVEL: Record<ClickSound, number> = { quartz: 0.35, block: 0.4, tick: 0.4, sine: 0.35, square: 0.35 };
 
 export interface Voice {
   sample: SampleName;
   /** 0..1 before the loudness boost. */
   gain: number;
-  /** Playback rate: above 1 raises the pitch, which is how claves accent. */
+  /** Playback rate; the subdivision's pitch is in its file, so 1. */
   rate: number;
 }
 
-/** Which sample each click plays, and how loud; null means the synthesized tick. */
+/** Which sample each click plays, and how loud. */
 export function voiceFor(sound: ClickSound, level: ClickLevel): Voice | null {
-  switch (sound) {
-    case "woodblock":
-      return {
-        downbeat: { sample: "hiBlock", gain: 1, rate: 1 },
-        group: { sample: "hiBlock", gain: 0.7, rate: 1 },
-        beat: { sample: "loBlock", gain: 0.8, rate: 1 },
-        // Same pitch as the beat, only quieter: a nudge up in pitch made the
-        // subdivisions a third note in the pattern.
-        sub: { sample: "loBlock", gain: 0.35, rate: 1 },
-      }[level] as Voice;
-    case "clickbell":
-      return {
-        // The click and bell are recorded quieter than the woodblocks (peaks
-        // 0.11 and 0.13 against 0.21-0.24), so they are raised to match.
-        downbeat: { sample: "bell", gain: 1.8, rate: 1 },
-        group: { sample: "click", gain: 2, rate: 1.12 },
-        beat: { sample: "click", gain: 1.7, rate: 1 },
-        sub: { sample: "click", gain: 0.8, rate: 1 },
-      }[level] as Voice;
-    case "claves":
-      return {
-        downbeat: { sample: "claves", gain: 1, rate: 1.19 },
-        group: { sample: "claves", gain: 0.85, rate: 1.1 },
-        beat: { sample: "claves", gain: 0.75, rate: 1 },
-        sub: { sample: "claves", gain: 0.35, rate: 1 },
-      }[level] as Voice;
-    default:
-      return null;
-  }
+  const id = isClickSound(sound) ? sound : DEFAULT_CLICK_SOUND;
+  if (level === "downbeat") return { sample: `${id}-accent`, gain: 1, rate: 1 };
+  if (level === "sub") return { sample: `${id}-sub`, gain: SUB_LEVEL[id], rate: 1 };
+  return { sample: `${id}-beat`, gain: 0.8, rate: 1 };
 }
 
 /** The synthesized tick's pitch at each level. */
@@ -87,7 +83,7 @@ export const TICK_HZ: Record<ClickLevel, number> = { downbeat: 1600, group: 1300
 export const TICK_GAIN: Record<ClickLevel, number> = { downbeat: 1, group: 0.85, beat: 0.7, sub: 0.35 };
 
 /**
- * The samples peak around 0.2 (a piano note is 0.3-0.5); abcjs boosts its own
+ * The samples peak around 0.19 (a piano note is 0.3-0.5); abcjs boosts its own
  * by 3x for the same reason.
  */
 export const SAMPLE_BOOST = 3;
@@ -100,9 +96,9 @@ export class SampleBank {
   load(ctx: BaseAudioContext): Promise<void> {
     if (typeof fetch === "undefined" || typeof ctx.decodeAudioData !== "function") return Promise.resolve();
     this.loading ??= Promise.all(
-      (Object.keys(SAMPLES) as SampleName[]).map(async (name) => {
+      SAMPLE_NAMES.map(async (name) => {
         try {
-          const res = await fetch(`/api/soundfont/percussion-mp3/${SAMPLES[name]}.mp3`);
+          const res = await fetch(sampleUrl(name));
           if (!res.ok) return;
           this.buffers.set(name, await ctx.decodeAudioData(await res.arrayBuffer()));
         } catch {

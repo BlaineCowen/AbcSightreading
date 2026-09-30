@@ -3,13 +3,16 @@ import { clickFrom, numberIn } from "../../src/lib/preset-click";
 
 describe("a preset's click", () => {
   test("a saved click comes back as it was", () => {
-    expect(clickFrom({ subdivision: 2, accent: false, sound: "woodblock" })).toEqual({ subdivision: 2, accent: false, sound: "woodblock" });
+    expect(clickFrom({ subdivision: 2, accent: false, sound: "quartz" })).toEqual({ subdivision: 2, accent: false, sound: "quartz" });
   });
   test("the click's on/off and level come back too, and a click saved without them loads without them", () => {
-    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves", withMusic: false, volume: 0.3 }))
-      .toEqual({ subdivision: 1, accent: true, sound: "claves", withMusic: false, volume: 0.3 });
-    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves" })).toEqual({ subdivision: 1, accent: true, sound: "claves" });
-    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves", volume: 3 })).toEqual({ subdivision: 1, accent: true, sound: "claves" });
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "tick", withMusic: false, volume: 0.3 }))
+      .toEqual({ subdivision: 1, accent: true, sound: "tick", withMusic: false, volume: 0.3 });
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "tick" })).toEqual({ subdivision: 1, accent: true, sound: "tick" });
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "tick", volume: 3 })).toEqual({ subdivision: 1, accent: true, sound: "tick" });
+  });
+  test("a preset naming an old sound gets the new one nearest it", () => {
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves" })?.sound).toBe("tick");
   });
   test("older presets, with no click, load without one", () => {
     expect(clickFrom(undefined)).toBeNull();

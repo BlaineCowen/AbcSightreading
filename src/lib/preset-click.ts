@@ -1,5 +1,5 @@
 import { tuner } from "./tuner/store";
-import { isClickSound, type ClickSound } from "./tuner/click-sounds";
+import { toClickSound, type ClickSound } from "./tuner/click-sounds";
 
 /**
  * The click under an exercise, as a preset keeps it. It is the Tools
@@ -33,8 +33,9 @@ export function clickFrom(v: unknown): PresetClick | null {
   const o = v as Record<string, unknown>;
   const subdivision = Number(o.subdivision);
   if (!Number.isInteger(subdivision) || subdivision < 1 || subdivision > 6) return null;
-  if (typeof o.accent !== "boolean" || !isClickSound(o.sound)) return null;
-  const out: PresetClick = { subdivision, accent: o.accent, sound: o.sound };
+  const sound = toClickSound(o.sound);
+  if (typeof o.accent !== "boolean" || !sound) return null;
+  const out: PresetClick = { subdivision, accent: o.accent, sound };
   if (typeof o.withMusic === "boolean") out.withMusic = o.withMusic;
   if (typeof o.volume === "number" && o.volume >= 0 && o.volume <= 1) out.volume = o.volume;
   return out;

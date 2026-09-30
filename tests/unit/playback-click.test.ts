@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { barClicks, drumPatternFor } from "../../src/lib/playback-click";
+import { CLICK_SOUNDS, SAMPLE_NAMES, drumNoteFor, sampleForDrumNote, toClickSound } from "../../src/lib/tuner/click-sounds";
 
 /**
  * The click under the exercise, set by the Tools metronome: its subdivision,
@@ -21,29 +22,43 @@ describe("one bar's clicks", () => {
 });
 
 describe("the Choral page's drum pattern (abcjs spreads it evenly across the bar)", () => {
-  test("4/4, woodblock, beats: high block on one, low on the others, one hit per beat", () => {
-    const p = drumPatternFor({ beats: 4, subdivision: 1, accent: true, sound: "woodblock" }).split(" ");
+  const note = (name: string) => String(drumNoteFor(name as any));
+  test("4/4, quartz, beats: the accent sample on one, the beat sample on the others", () => {
+    const p = drumPatternFor({ beats: 4, subdivision: 1, accent: true, sound: "quartz" }).split(" ");
     expect(p[0]).toBe("dddd");
-    expect(p.slice(1, 5)).toEqual(["76", "77", "77", "77"]);
+    expect(p.slice(1, 5)).toEqual([note("quartz-accent"), note("quartz-beat"), note("quartz-beat"), note("quartz-beat")]);
     const vel = p.slice(5).map(Number);
     expect(vel[0]).toBeGreaterThan(vel[1]);
   });
-  test("2/4 in eighths: four hits, the offbeats quietest", () => {
-    const p = drumPatternFor({ beats: 2, subdivision: 2, accent: true, sound: "woodblock" }).split(" ");
+  test("2/4 in eighths: four hits, the offbeats the subdivision sample and quietest", () => {
+    const p = drumPatternFor({ beats: 2, subdivision: 2, accent: true, sound: "block" }).split(" ");
     expect(p[0]).toBe("dddd");
+    expect(p[2]).toBe(note("block-sub"));
     const vel = p.slice(5).map(Number);
     expect(vel[1]).toBeLessThan(vel[2]);
     expect(vel[3]).toBeLessThan(vel[2]);
   });
-  test("claves and the click-and-bell use their own drums; the synthesized beep falls back to woodblock", () => {
-    expect(drumPatternFor({ beats: 3, subdivision: 1, accent: true, sound: "claves" }).split(" ").slice(1, 4)).toEqual(["75", "75", "75"]);
-    expect(drumPatternFor({ beats: 3, subdivision: 1, accent: true, sound: "clickbell" }).split(" ").slice(1, 4)).toEqual(["34", "33", "33"]);
-    expect(drumPatternFor({ beats: 3, subdivision: 1, accent: true, sound: "beep" }).split(" ").slice(1, 4)).toEqual(["76", "77", "77"]);
+  test("every sample has a drum note of its own, which the proxy maps back", () => {
+    const notes = SAMPLE_NAMES.map(drumNoteFor);
+    expect(new Set(notes).size).toBe(SAMPLE_NAMES.length);
+    for (const name of SAMPLE_NAMES) expect(sampleForDrumNote(drumNoteFor(name))).toBe(name);
+    expect(sampleForDrumNote(33)).toBeNull(); // a General MIDI drum stays a drum
   });
   test("velocities are MIDI's, 1 to 127", () => {
-    for (const sound of ["woodblock", "claves", "clickbell"] as const) {
-      const vel = drumPatternFor({ beats: 4, subdivision: 4, accent: true, sound }).split(" ").slice(17).map(Number);
+    for (const { id } of CLICK_SOUNDS) {
+      const vel = drumPatternFor({ beats: 4, subdivision: 4, accent: true, sound: id }).split(" ").slice(17).map(Number);
       for (const v of vel) expect(v >= 1 && v <= 127 && Number.isInteger(v)).toBe(true);
     }
+  });
+});
+
+describe("sounds saved before the samples changed", () => {
+  test("map to the nearest new one", () => {
+    expect(toClickSound("woodblock")).toBe("block");
+    expect(toClickSound("clickbell")).toBe("quartz");
+    expect(toClickSound("claves")).toBe("tick");
+    expect(toClickSound("beep")).toBe("sine");
+    expect(toClickSound("quartz")).toBe("quartz");
+    expect(toClickSound("cowbell")).toBeNull();
   });
 });
