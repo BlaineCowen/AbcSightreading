@@ -51,6 +51,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
+  import { revealScore } from "../lib/reveal-score";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
@@ -2212,6 +2213,7 @@
         updateUrlFromState();
         await renderTune();
         void countGeneration();
+        revealScore(document.getElementById("paper"));
       } else {
         throw new Error(result.error || "Failed to generate music");
       }

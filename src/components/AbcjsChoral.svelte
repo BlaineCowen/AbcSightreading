@@ -16,6 +16,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
+  import { revealScore } from "../lib/reveal-score";
   import { applyClick, clickFrom, currentClick, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import abcjs from "abcjs";
@@ -2204,6 +2205,7 @@
       renderedTune = tune[0];
       // The score is on the page: now it counts.
       void countGeneration();
+      revealScore(document.getElementById("paper"));
       createPlaybackCursor();
       systemExtents = []; // re-measured lazily once layout has settled
       cursorBeats = newMetronomeBeatState();
