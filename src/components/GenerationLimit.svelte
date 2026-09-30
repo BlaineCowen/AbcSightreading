@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
+  import { revealScore } from "../lib/reveal-score";
   import { X } from "lucide-svelte";
   import { usage, dismissLimit, loadUsage } from "../lib/usage";
   import { GENERATION_LIMITS } from "../lib/plan";
@@ -11,7 +12,18 @@
    * and when none are, what to do about it. Nothing at all on an unlimited
    * plan. The playback bar's Generate button carries the number too.
    */
-  onMount(loadUsage);
+  onMount(() => {
+    loadUsage();
+    // The page's alert (not the counter pill) comes into view when a Generate
+    // is refused - see usage.ts refuse().
+    if (part === "counter") return;
+    const onLimit = async () => {
+      await tick();
+      revealScore(alertEl);
+    };
+    window.addEventListener("sr-limit-reached", onLimit);
+    return () => window.removeEventListener("sr-limit-reached", onLimit);
+  });
 
   /** "counter" is the pill beside the preset picker, "alert" the box shown
    *  when none are left; "all" is both, for a page with no preset row. */
@@ -20,10 +32,12 @@
   $: here = typeof location !== "undefined" ? location.pathname + location.search : "/";
   $: signupHref = `/login?mode=signup&next=${encodeURIComponent(here)}`;
   const upgradeHref = "/account#plan";
+
+  let alertEl: HTMLDivElement | null = null;
 </script>
 
 {#if $usage?.blocked && part !== "counter"}
-  <div class="w-full max-w-xl rounded-[24px] bg-sr-peach text-sr-peach-ink p-5 flex gap-3 items-start" role="alert">
+  <div bind:this={alertEl} class="w-full max-w-xl rounded-[24px] bg-sr-peach text-sr-peach-ink p-5 flex gap-3 items-start" role="alert">
     <div class="flex-1 text-sm flex flex-col gap-2">
       {#if $usage.tier === "anonymous"}
         <p class="font-extrabold">That's this month's {GENERATION_LIMITS.anonymous} free exercises.</p>

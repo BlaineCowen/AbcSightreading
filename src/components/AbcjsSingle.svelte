@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import abcjs from "abcjs";
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
@@ -50,7 +50,7 @@
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
-  import { countGeneration, mayGenerate } from "../lib/usage";
+  import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
@@ -2407,8 +2407,14 @@
     syncDrone();
   }
 
+  /**
+   * This run's length when the month has fewer exercises left than the run
+   * asks for: it used to start "exercise 1 of 4" with one left and stop at the
+   * wall without a word. Null for a run of the length set.
+   */
+  let runCap: number | null = null;
   $: drillSettings = {
-    exercises: drillExercises,
+    exercises: runCap ?? drillExercises,
     repeats: drillRepeats,
     rampBpm: drillRampBpm,
   };
@@ -2422,7 +2428,8 @@
    * run the reader is watching the score, not the panel.
    */
   $: drillStatusLine = drillRunning
-    ? `Practice run · exercise ${drillIndex + 1} of ${drillExercises}, pass ${drillRepeat + 1} of ${drillRepeats}` +
+    ? `Practice run · exercise ${drillIndex + 1} of ${runCap ?? drillExercises}, pass ${drillRepeat + 1} of ${drillRepeats}` +
+      (runCap !== null ? ` · ${runCap} left this month` : "") +
       (drillCountdown > 0 ? ` · starts in ${drillCountdown}s` : "") +
       (drillRampBpm > 0 ? ` · ${bpm} BPM` : "")
     : null;
@@ -2561,6 +2568,7 @@
           if (!running) {
             drillCountdown = 0;
             clearDrillTimer();
+            runCap = null;
           }
         },
         onError: (message) => {
@@ -2574,6 +2582,14 @@
 
   async function startDrill() {
     if (drillRunning || isLoading) return;
+    const left = $usage?.remaining;
+    if (left === 0) {
+      // Says so, and brings the notice into view.
+      await mayGenerate();
+      return;
+    }
+    runCap = left !== null && left !== undefined && left < drillExercises ? left : null;
+    await tick();
     drillStartBpm = bpm;
     drillFirstSolfege = showSolfege;
     drillFirstSyllables = showRhythmSyllables;

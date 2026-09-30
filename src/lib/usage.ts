@@ -27,16 +27,14 @@ export async function mayGenerate(): Promise<boolean> {
     const storage = browserStorage();
     if (!storage) return true;
     const a = generationAllowance("anonymous", anonymousUsage(storage));
-    if (!a.allowed) usage.set({ tier: "anonymous", limit: a.limit, remaining: 0, blocked: true });
+    if (!a.allowed) refuse({ tier: "anonymous", limit: a.limit, remaining: 0, blocked: true });
     return a.allowed;
   }
   try {
     const res = await fetch("/api/usage");
     if (!res.ok) return true;
     const body = await res.json();
-    if (!body.allowed) {
-      usage.set({ tier: body.plan, limit: body.limit, remaining: 0, blocked: true });
-    }
+    if (!body.allowed) refuse({ tier: body.plan, limit: body.limit, remaining: 0, blocked: true });
     return !!body.allowed;
   } catch {
     return true;
@@ -64,6 +62,16 @@ export async function countGeneration(): Promise<void> {
     const body = await res.json();
     usage.set({ tier: body.plan, limit: body.limit, remaining: body.remaining, blocked: false });
   } catch {}
+}
+
+/**
+ * A Generate refused for the month. The notice sits at the top of the page, so
+ * whoever pressed Generate from the playback bar, scrolled down at the score,
+ * saw nothing happen; GenerationLimit brings it into view on this event.
+ */
+function refuse(state: UsageState) {
+  usage.set(state);
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sr-limit-reached"));
 }
 
 /** Clears the "used up" notice, as when the reader closes it. */
