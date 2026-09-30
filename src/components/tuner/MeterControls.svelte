@@ -3,6 +3,7 @@
   import { METERS, meterById, subdivisionLabel } from "../../lib/tuner/meters";
   import { CLICK_SOUNDS, type ClickSound } from "../../lib/tuner/click-sounds";
   import { metronome } from "../../lib/tuner/metronome";
+  import { metronomeSounding } from "../../lib/tools/metronome-link";
 
   /**
    * Time signature and subdivision, shared by the metronome on /tuner and the
@@ -29,10 +30,14 @@
     onManual();
     tuner.setMeter(id);
   }
-  /** Choosing a sound plays a bar of it, so the choice is by ear. */
+  /**
+   * Choosing a sound plays a bar of it, so the choice is by ear - unless the
+   * metronome is already sounding, where the new sound is heard on the next
+   * beat and a preview on top of it was a burst of extra clicks.
+   */
   function pickSound(id: ClickSound) {
     tuner.setClickSound(id);
-    void metronome.preview(id);
+    if (!metronomeSounding($tuner)) void metronome.preview(id);
   }
   function pickSubdivision(n: number) {
     onManual();
@@ -84,7 +89,7 @@
         class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.accent ? 'sr-on' : ''}"
         on:click={tuner.toggleAccent}
         aria-pressed={$tuner.accent}
-        title="Louder click on beat 1{meter.groupStarts.length ? ', lighter on each group' : ''}"
+        title="Accent beat 1"
       >Accent</button>
     </div>
   </div>

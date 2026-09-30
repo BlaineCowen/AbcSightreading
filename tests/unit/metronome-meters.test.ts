@@ -44,16 +44,18 @@ describe("metronome meters", () => {
     ]);
   });
 
-  test("7/8 accents each group of 2+2+3", () => {
-    expect(clicksFor("7/8", 1, 120).map(([, hz]) => hz)).toEqual([1600, 1000, 1300, 1000, 1300, 1000, 1000]);
+  // Beat 1 only: accenting each group's first beat as well put a third pitch
+  // in the bar, which was more distracting than useful (see metronome.ts).
+  test("7/8 accents beat 1 only, not each group", () => {
+    expect(clicksFor("7/8", 1, 120).map(([, hz]) => hz)).toEqual([1600, 1000, 1000, 1000, 1000, 1000, 1000]);
   });
 
-  test("4/4 in sixteenths, with the half-bar lightly accented", () => {
+  test("4/4 in sixteenths: beat 1 accented, the half-bar a plain beat", () => {
     const hz = clicksFor("4/4", 4).map(([, h]) => h);
     expect(hz).toHaveLength(16);
     expect(hz.filter((h) => h === 700)).toHaveLength(12);
     expect(hz[0]).toBe(1600);
-    expect(hz[8]).toBe(1300);
+    expect(hz[8]).toBe(1000);
   });
 
   test("every meter offers its default subdivision, and names it", () => {

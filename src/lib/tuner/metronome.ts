@@ -115,9 +115,11 @@ export class Metronome {
     const beatDur = 60 / bpm;
     while (this.nextBeatTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
       const beatInBar = this.beat % beatsPerBar;
+      // Beat 1 only. Accenting each group's first beat too (4/4's 3, 12/8's
+      // 4) put a third pitch in the bar - A F E F - which drew the ear more
+      // than it helped, and the click under an exercise never did it.
       const isAccent = accent && beatInBar === 0;
-      const isGroup = accent && !isAccent && (this.settings.groupStarts ?? []).includes(beatInBar);
-      this.click(this.nextBeatTime, isAccent ? "downbeat" : isGroup ? "group" : "beat");
+      this.click(this.nextBeatTime, isAccent ? "downbeat" : "beat");
       for (let s = 1; s < subdivision; s++) {
         this.click(this.nextBeatTime + (s * beatDur) / subdivision, "sub");
       }

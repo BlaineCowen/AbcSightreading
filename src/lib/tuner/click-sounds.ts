@@ -57,7 +57,9 @@ export function voiceFor(sound: ClickSound, level: ClickLevel): Voice | null {
         downbeat: { sample: "hiBlock", gain: 1, rate: 1 },
         group: { sample: "hiBlock", gain: 0.7, rate: 1 },
         beat: { sample: "loBlock", gain: 0.8, rate: 1 },
-        sub: { sample: "loBlock", gain: 0.35, rate: 1.06 },
+        // Same pitch as the beat, only quieter: a nudge up in pitch made the
+        // subdivisions a third note in the pattern.
+        sub: { sample: "loBlock", gain: 0.35, rate: 1 },
       }[level] as Voice;
     case "clickbell":
       return {
@@ -66,7 +68,7 @@ export function voiceFor(sound: ClickSound, level: ClickLevel): Voice | null {
         downbeat: { sample: "bell", gain: 1.8, rate: 1 },
         group: { sample: "click", gain: 2, rate: 1.12 },
         beat: { sample: "click", gain: 1.7, rate: 1 },
-        sub: { sample: "click", gain: 0.8, rate: 0.9 },
+        sub: { sample: "click", gain: 0.8, rate: 1 },
       }[level] as Voice;
     case "claves":
       return {
