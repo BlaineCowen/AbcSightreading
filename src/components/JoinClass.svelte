@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { signedInUser, type SignedInUser } from "../lib/auth-client";
-  import { formatJoinCode, isJoinCode, normalizeJoinCode } from "../lib/join-code";
+  import { formatJoinCode, isJoinCode, joinCodeHint, normalizeJoinCode } from "../lib/join-code";
   import { generatePassword, usernameFor } from "../lib/roster";
 
   /**
@@ -31,6 +31,7 @@
   // Suggest a username from the name until the student types their own.
   $: if (!usernameEdited && first) username = usernameFor(first, last, new Set());
   $: codeOk = isJoinCode(normalizeJoinCode(code));
+  $: codeHint = joinCodeHint(code);
 
   function makePassword() {
     password = generatePassword();
@@ -74,6 +75,7 @@
       <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
         Class code
         <input class="{input} uppercase tracking-widest" bind:value={code} placeholder="KTZ-482" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
+        {#if codeHint}<span class="text-xs text-sr-danger" role="status">{codeHint}</span>{/if}
       </label>
 
       {#if !user}

@@ -21,3 +21,19 @@ export const isJoinCode = (code: string) => /^[A-HJKMNP-Z]{3}[2-9]{3}$/.test(cod
 
 /** "KTZ482" -> "KTZ-482", as it is printed and shown. */
 export const formatJoinCode = (code: string) => `${code.slice(0, 3)}-${code.slice(3)}`;
+
+/**
+ * Why what has been typed is not a class code yet, for the hint under the box;
+ * null while it may still become one, or when it is one. The join form only
+ * greyed out its button, so a child who typed O for 0 was stuck without a
+ * word.
+ */
+export function joinCodeHint(input: string): string | null {
+  const code = normalizeJoinCode(input);
+  if (!code || isJoinCode(code)) return null;
+  if (/[01OIL]/.test(code)) return "Class codes never use O, 0, I, L or 1. Check the code again.";
+  if (code.length >= 6 || /[0-9]/.test(code.slice(0, 3)) || /[A-Z]/.test(code.slice(3))) {
+    return "A class code is three letters, then three numbers, like KTZ-482.";
+  }
+  return null;
+}

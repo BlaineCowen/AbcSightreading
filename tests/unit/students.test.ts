@@ -242,3 +242,21 @@ describe("who may manage a student", () => {
     expect(removalFor({ managed: false, otherEnrollments: 0 })).toBe("leave-class");
   });
 });
+
+describe("the join form's hint for a mistyped code", async () => {
+  const { joinCodeHint } = await import("../../src/lib/join-code");
+  test("nothing while it may still become a code, or once it is one", () => {
+    expect(joinCodeHint("")).toBeNull();
+    expect(joinCodeHint("KT")).toBeNull();
+    expect(joinCodeHint("KTZ-4")).toBeNull();
+    expect(joinCodeHint("ktz 482")).toBeNull();
+  });
+  test("the characters codes never use, said plainly", () => {
+    expect(joinCodeHint("ABC-100")).toMatch(/never use O, 0, I, L or 1/);
+    expect(joinCodeHint("KOZ")).toMatch(/never use/);
+  });
+  test("the wrong shape", () => {
+    expect(joinCodeHint("KT4")).toMatch(/three letters, then three numbers/);
+    expect(joinCodeHint("KTZX")).toMatch(/three letters, then three numbers/);
+  });
+});
