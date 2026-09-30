@@ -1,69 +1,298 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { EDUCATOR_ON_SALE } from "../lib/plan";
+import { ladder } from "../lib/ladder";
+import choralExample from "../assets/srf-choral-annotated.svg?raw";
+import rhythmExample from "../assets/srf-rhythm-kodaly.svg?raw";
 
 /**
- * An honest comparison with Sight Reading Factory. Their prices are quoted
- * from their public pricing page and dated; recheck before changing them.
+ * Why a choir director would choose abc Sight Reading over Sight Reading
+ * Factory: what it does that a tool for every instrument does not.
+ *
+ * Every claim about Sight Reading Factory is from their own site, dated in
+ * `checked`; recheck before changing one, and never state something about
+ * them we could not confirm. Everything about us is what the app does: the
+ * two examples are real exercises drawn by the app (UIL 3 in F major with
+ * movable do and chord symbols; a Kodály rhythm line), and the step count
+ * comes from the ladder itself.
  */
 const checked = "September 2026";
-const rows = [
-  ["Who it's for", "Choirs and singers only", "Instrumentalists, bands, orchestras and singers"],
-  ["Choral exercises", "Two, three and four parts: SATB, SAB, SSA, TTB and more", "Full ensemble sight reading"],
-  ["UIL levels", "Levels 1-5 built in, from UIL's choir criteria", "Customisable settings"],
-  ["One teacher or singer", "$19.99 a year (Pro)", "$45 a year (individual)"],
-  ["Students", EDUCATOR_ON_SALE ? "100 included with Educator ($99 a year); more at $1 each" : "Educator plan coming soon: 100 included for $99 a year", "From about $3 per student a year"],
-  ["Recording and grading student sight-reading", "Not yet. Practice time and exercise counts per student", "Yes"],
+
+const annotations = [
+  { name: "Movable do", note: "do is the tonic, la-based minor" },
+  { name: "Fixed do", note: "C is always do" },
+  { name: "Note names", note: "C, B♭, F♯" },
+  { name: "Chord symbols", note: "Roman numerals with inversions" },
+  { name: "Kodály", note: "ta, ti-ti, ta-a" },
+  { name: "Counting", note: "1 & 2 &" },
+  { name: "Your own", note: "Takadimi, Gordon, or your school's" },
+];
+
+const writing = [
+  "A chord progression that ends each phrase on a cadence",
+  "A bass line written with the progression, not after it",
+  "No parallel fifths or octaves",
+  "Leading tones that resolve, sevenths that fall",
+  "A leap followed by a step back",
+  "Eighth notes that move by step",
+  "Accidentals approached and left by step",
+  "Each part kept in its own range, living in the middle of it",
+];
+
+const controls = [
+  "Several keys at once, a new one each time",
+  "SATB, SAB, SSA, TTB, two-part and unison",
+  "Each part's range, note by note",
+  "The largest leap",
+  "Which chords, down to one chromatic chord to drill",
+  "How often chromatic chords appear",
+  "Which rhythms, and how often each one",
+  "How much decoration: passing tones, neighbors, suspensions",
+  "Parts that enter one at a time",
+  "2/4, 3/4 or 4/4, from 2 to 16 bars",
+];
+
+// Their side is from sightreadingfactory.com, its help centre and blog, as of
+// `checked`. Where a feature was not found on their site, the row says what
+// they do offer rather than that they lack it.
+const rows: [string, string, string][] = [
+  ["Made for", "Choirs and singers", "60+ instruments and voice types, band and orchestra"],
+  [
+    "Choral writing",
+    "A chord progression with cadences, the bass written with it, and the part-writing rules above",
+    "Chorales \"based on the principles of part writing\", in 2 to 4 voices",
+  ],
+  ["Voicings", "SATB, SAB, SSA, TTB, two-part and unison", "2, 3 or 4 voices of your choice"],
+  [
+    "Solfège and note names",
+    "Movable do (la-based minor), fixed do, note names",
+    "Movable do (la- or do-based minor), fixed do, note names, scale degrees",
+  ],
+  [
+    "Changing the annotation",
+    "On the exercise you are looking at",
+    "On or off on the current exercise; a different one appears on the next exercise",
+  ],
+  ["Rhythm syllables", "Kodály, counting, or your own set", "Not among their annotations"],
+  ["Chord symbols", "Roman numerals with inversions, for choir", "For guitar"],
+  ["UIL levels", "Levels 1 to 5, from UIL's choir criteria", "No UIL preset; standards for about 30 other states and groups"],
+  [
+    "Practice help",
+    "Count-in, cursor, mute any part, practice runs; metronome, drone, starting pitches and tuner with Pro",
+    "Tempo control, cursor, opening pitch and tonic triad, mute any part",
+  ],
+  ["Without paying", "10 exercises a month, 50 with a free account", "No free plan"],
+  ["One teacher or singer", "$19.99 a year (Pro)", "$45 a year"],
+  [
+    "Students",
+    EDUCATOR_ON_SALE
+      ? "100 accounts included with Educator, $99 a year"
+      : "Educator, coming soon: 100 accounts included for $99 a year",
+    "$45 for the teacher, plus from $30 for one student to $3 each at 100 (about $199 for 25)",
+  ],
+  [
+    "Recording and grading",
+    "Not yet. Practice minutes and exercise counts per student",
+    "Yes, with automatic grading of solo singing, and Canvas, Google Classroom and other LMS links",
+  ],
 ];
 ---
 
 <Layout
   title="A Sight Reading Factory Alternative for Choirs | abc Sight Reading"
-  description="abc Sight Reading is a choir-only alternative to Sight Reading Factory: SATB/SSA/TTB exercises, UIL levels 1-5, solfège, and 100 student accounts for $99 a year."
+  description="abc Sight Reading writes choir sight-reading the way a musician would: chord progressions, cadences and part-writing rules, with solfège and rhythm syllables you can turn on, UIL levels 1 to 5, and $19.99 a year."
   themable
 >
-  <article class="max-w-3xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-4 pb-10">
-    <h1 class="text-4xl font-bold text-sr-ink">A Sight Reading Factory alternative, made for choirs</h1>
-    <p class="text-lg">
-      Sight Reading Factory is a good tool that covers every instrument. abc Sight Reading does one thing: sight-reading
-      for singers. That focus is why it can write real four-part voice leading, follow the UIL levels exactly, and cost
-      less for a whole choir.
-    </p>
+  <div class="max-w-5xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-16 pb-16">
+    <!-- Hero: the claim, and the proof beside it. -->
+    <section class="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-10 items-center pt-6">
+      <div class="flex flex-col gap-5">
+        <p class="sr-label">A Sight Reading Factory alternative</p>
+        <h1 class="text-4xl sm:text-5xl font-bold text-sr-ink leading-tight text-balance">
+          Sight-reading written for choirs, not adapted for them
+        </h1>
+        <p class="text-lg">
+          Sight Reading Factory covers every instrument. abc Sight Reading does one thing: it writes sight-reading for
+          singers, the way a choral musician would write it. Real progressions and cadences, voice leading your
+          sections can sing, and solfège and rhythm syllables you can turn on and off.
+        </p>
+        <div class="flex flex-wrap items-center gap-3">
+          <a class="sr-btn px-7 py-3" href="/choral-sightreading">Try it free</a>
+          <a class="sr-btn-quiet" href="/pricing">See pricing</a>
+        </div>
+        <p class="text-sm text-sr-muted">Ten exercises a month with no account, fifty with a free one.</p>
+      </div>
+      <figure class="w-full">
+        <div class="sr-sheet p-4 sm:p-6">
+          <Fragment set:html={choralExample} />
+        </div>
+        <figcaption class="mt-3 text-center text-sm font-bold text-sr-muted">
+          A real exercise at UIL level 3, with movable do and chord symbols turned on.
+        </figcaption>
+      </figure>
+    </section>
 
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead><tr class="text-left text-sr-muted"><th class="py-2 pr-3"></th><th class="pr-3">abc Sight Reading</th><th>Sight Reading Factory</th></tr></thead>
-        <tbody>
-          {rows.map(([what, ours, theirs]) => (
-            <tr class="border-t border-sr-hairline align-top">
-              <th class="py-2 pr-3 text-left font-medium text-sr-ink">{what}</th>
-              <td class="py-2 pr-3">{ours}</td>
-              <td class="py-2">{theirs}</td>
-            </tr>
+    <!-- 1. How it writes -->
+    <section class="sr-panel p-6 sm:p-10 grid md:grid-cols-2 gap-8 items-start">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Phrases, not random notes</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Written like part-writing, by the same rules</h2>
+        <p>
+          Every exercise starts from a chord progression, and every phrase ends on a cadence. The bass is written with
+          the progression, then the upper voices are filled in by the rules a theory class teaches. Nothing is
+          generated by guesswork, so nothing comes out that a choir could not sing.
+        </p>
+        <p>
+          That is what makes it good practice: the patterns your singers read are the ones in real choral music, so
+          what they learn here carries into the octavo.
+        </p>
+      </div>
+      <ul class="flex flex-col gap-2" aria-label="The rules every exercise follows">
+        {writing.map((w) => (
+          <li class="flex gap-3 items-start rounded-[14px] bg-sr-track px-4 py-2.5 text-sr-ink">
+            <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-sr-action" aria-hidden="true"></span>
+            <span>{w}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- 2. Annotations -->
+    <section class="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-10 items-center">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Annotations on demand</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Solfège and counting, on the same exercise</h2>
+        <p>
+          Read it clean, then turn the help on to check. Solfège goes under every part and chord symbols over the top,
+          and switching between them rewrites the labels on the exercise you are looking at, not a new one. On a
+          single line, rhythm syllables print over the notes in the system your choir uses.
+        </p>
+        <p>
+          A practice run can even keep the first pass clean and show the syllables only on the repeats.
+        </p>
+        <div class="flex flex-wrap gap-2" aria-label="Annotation systems">
+          {annotations.map((a) => (
+            <span class="rounded-full bg-sr-tint text-sr-action-fg px-3.5 py-1.5 text-sm font-bold" title={a.note}>
+              {a.name}<span class="font-semibold text-sr-muted"> · {a.note}</span>
+            </span>
           ))}
-        </tbody>
-      </table>
-    </div>
-    <p class="text-xs text-sr-muted">
-      Sight Reading Factory prices from their public pricing page, {checked}. Sight Reading Factory is a trademark of
-      its owner; abc Sight Reading is not affiliated with it.
-    </p>
+        </div>
+      </div>
+      <figure class="w-full">
+        <div class="sr-sheet p-4 sm:p-6">
+          <Fragment set:html={rhythmExample} />
+        </div>
+        <figcaption class="mt-3 text-center text-sm font-bold text-sr-muted">
+          A rhythm line counted in Kodály syllables.
+        </figcaption>
+      </figure>
+    </section>
 
-    <h2 class="text-2xl font-semibold text-sr-ink mt-4">When Sight Reading Factory is the better choice</h2>
-    <p>
-      If you teach band or orchestra as well as choir, want one subscription for all of them, or need students to record
-      their sight-reading for a grade today, Sight Reading Factory does that and abc Sight Reading does not.
-    </p>
+    <!-- 3. Control -->
+    <section class="sr-pastels grid md:grid-cols-2 gap-4 sm:gap-6">
+      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
+        <p class="sr-label">Fine-tuned</p>
+        <h2 class="text-2xl font-bold text-sr-ink text-balance">Set exactly what your choir is ready for</h2>
+        <ul class="flex flex-col gap-1.5 list-disc pl-5">
+          {controls.map((c) => <li>{c}</li>)}
+        </ul>
+        <p class="text-sm">Save any combination as a preset, with the display and playback settings too.</p>
+      </div>
+      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
+        <p class="sr-label">Or start from a level</p>
+        <h2 class="text-2xl font-bold text-sr-ink text-balance">UIL levels 1 to 5, and {ladder.length} steps to get there</h2>
+        <p>
+          Each UIL level uses the keys, meters, rhythms, chords, voicings and lengths from UIL's choir sight-reading
+          criteria, with voice ranges set for each level. Choose one and press Generate.
+        </p>
+        <p>
+          Step by step takes a choir from ta and ti-ti through a single line, then two, three and four parts, one new
+          thing at a time. Mark each step passed for each class as you go.
+        </p>
+        <p class="text-sm"><a class="underline text-sr-action-fg" href="/uil-sight-reading">What each UIL level uses</a></p>
+      </div>
+      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
+        <p class="sr-label">Practice, not just a page</p>
+        <h2 class="text-2xl font-bold text-sr-ink text-balance">Hear it, loop it, speed it up</h2>
+        <p>
+          Playback with a count-in and a cursor that follows the music. Mute or hide any part so a section can hear
+          itself against the rest. On a single line, practice runs write the next exercise for you, repeat each one,
+          and raise the tempo as they go.
+        </p>
+        <p>
+          With Pro, a metronome, drone, starting pitches and a tuner sit beside every exercise.
+        </p>
+      </div>
+      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
+        <p class="sr-label">Take it with you</p>
+        <h2 class="text-2xl font-bold text-sr-ink text-balance">Print it, share it, open it anywhere</h2>
+        <p>
+          Print a clean copy for the stands, send a link that opens the same exercise, or export MusicXML, MIDI or ABC
+          to open in your notation software.
+        </p>
+        <p>
+          {EDUCATOR_ON_SALE
+            ? "With Educator, classes get join codes and student accounts, and you can assign practice and see the minutes each student put in."
+            : "Coming soon with Educator: class join codes, student accounts, and assigned practice with the minutes each student put in."}
+        </p>
+      </div>
+    </section>
 
-    <h2 class="text-2xl font-semibold text-sr-ink mt-4">When abc Sight Reading is</h2>
-    <p>
-      If you teach choir, want exercises that sound like choral writing, prepare for UIL, and want every student to have
-      an account without paying per student, try it. Ten exercises a month need no account, a free account gives fifty,
-      and solfège (movable or fixed do) and Kodály rhythm syllables are built in.
-    </p>
-    <div class="flex flex-wrap gap-3">
-      <a class="sr-btn" href="/choral-sightreading">Try it free</a>
-      <a class="sr-btn-quiet" href="/pricing">See pricing</a>
-    </div>
-  </article>
+    <!-- 4. Side by side -->
+    {rows.length > 0 && (
+      <section class="flex flex-col gap-4 max-w-3xl w-full mx-auto">
+        <h2 class="text-3xl font-bold text-sr-ink">Side by side</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-sr-muted">
+                <th class="py-2 pr-3"></th>
+                <th class="pr-3 text-sr-action-fg">abc Sight Reading</th>
+                <th>Sight Reading Factory</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(([what, ours, theirs]) => (
+                <tr class="border-t border-sr-hairline align-top">
+                  <th class="py-2.5 pr-3 text-left font-semibold text-sr-ink">{what}</th>
+                  <td class="py-2.5 pr-3 text-sr-ink">{ours}</td>
+                  <td class="py-2.5">{theirs}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-sr-muted">
+          Sight Reading Factory details from their own website, {checked}. Sight Reading Factory is a trademark of its
+          owner; abc Sight Reading is not affiliated with it.
+        </p>
+      </section>
+    )}
+
+    <!-- 5. Fair -->
+    <section class="max-w-3xl w-full mx-auto flex flex-col gap-3">
+      <h2 class="text-2xl font-bold text-sr-ink">When Sight Reading Factory fits better</h2>
+      <p>
+        If you teach band or orchestra as well as choir and want one subscription for all of them, need students to
+        record their sight-reading and have it graded automatically, or need grades to flow into Canvas or Google
+        Classroom, Sight Reading Factory does that today and abc Sight Reading does not yet.
+      </p>
+    </section>
+
+    <section class="sr-panel p-8 sm:p-10 text-center flex flex-col items-center gap-4">
+      <h2 class="text-3xl font-bold text-sr-ink text-balance">Hear the difference in one exercise</h2>
+      <p class="max-w-xl">
+        Choose your voicing and a UIL level, press Generate, and turn solfège on. No account needed.
+      </p>
+      <div class="flex flex-wrap justify-center gap-3">
+        <a class="sr-btn px-7 py-3" href="/choral-sightreading">Try it free</a>
+        <a class="sr-btn-quiet" href="/pricing">$19.99 a year for unlimited</a>
+      </div>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  /* The examples are drawn in currentColor on white paper, as on the practice pages. */
+  :global(.sr-sheet svg) { width: 100%; height: auto; display: block; }
+</style>
