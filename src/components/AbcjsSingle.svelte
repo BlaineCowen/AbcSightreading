@@ -53,6 +53,7 @@
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset, type ActivePresetRecord } from "../lib/active-preset";
+  import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
@@ -603,6 +604,8 @@
    * address from the page's state before onMount runs, and the step is gone
    * by then.
    */
+  /** ?preset=, read now: the reactive URL sync rewrites the address before onMount. */
+  const arrivedPresetId = linkedPresetId();
   const linkedStepId =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get(STEP_PARAM)
@@ -3129,7 +3132,11 @@
     const linked = exerciseParam(window.location.hash);
     if (linked) openLinkedExercise(linked);
     // A reload keeps the preset the settings came from (active-preset.ts).
-    const remembered = activePresetToRestore("unison");
+    // A saved preset chosen on the Choral page's picker (preset-link.ts), read
+    // before the page rewrote its address.
+    const presetId = linkedStep || assignmentId || linked ? null : arrivedPresetId;
+    if (presetId) void openLinkedPreset("unison", presetId, (p) => applySavedPreset(p));
+    const remembered = presetId ? null : activePresetToRestore("unison");
     if (remembered && !linkedStep && !assignmentId && !linked) restoreActivePreset(remembered);
     presetMemoryReady = true;
     window.addEventListener("hashchange", onHashChange);

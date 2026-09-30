@@ -12,7 +12,6 @@
   import ScaleChallenge from "./ScaleChallenge.svelte";
   import ToolAnalysis from "../tools/ToolAnalysis.svelte";
   import ToolDrone from "../tools/ToolDrone.svelte";
-  import ToolPitches from "../tools/ToolPitches.svelte";
   import ToolTimer from "../tools/ToolTimer.svelte";
 
   /**
@@ -22,13 +21,14 @@
    * trace keeps recording while the metronome is showing; the drone, the
    * metronome and the timer keep going on any tab, and their tabs say so.
    */
-  type Tab = "tuner" | "analysis" | "metro" | "drone" | "pitches" | "timer" | "challenge";
+  // No Pitches tab: it gives each part its first note from an exercise, and
+  // there is no exercise here. It stays in the practice pages' Tools wheel.
+  type Tab = "tuner" | "analysis" | "metro" | "drone" | "timer" | "challenge";
   const TABS: [Tab, string][] = [
     ["tuner", "Tuner"],
     ["analysis", "Analysis"],
     ["metro", "Metronome"],
     ["drone", "Drone"],
-    ["pitches", "Pitches"],
     ["timer", "Timer"],
     ["challenge", "Scale challenge"],
   ];
@@ -44,7 +44,6 @@
     analysis: false,
     metro: $tuner.metronomeRunning,
     drone: $droneOn,
-    pitches: false,
     timer: $timer.running,
     challenge: false,
   } as Record<Tab, boolean>;
@@ -81,8 +80,6 @@
       <TunerMetronome />
     {:else if tab === "drone"}
       <ToolDrone />
-    {:else if tab === "pitches"}
-      <ToolPitches />
     {:else if tab === "timer"}
       <ToolTimer />
     {:else}

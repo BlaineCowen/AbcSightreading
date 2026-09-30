@@ -3,6 +3,8 @@ const STORAGE_KEY = 'abcsr_presets';
 
 /** Unison's presets: a different set of settings, so a different list. */
 export const UNISON_PRESET_STORE = 'abcsr_unison_presets';
+/** The Choral page's store (the default everywhere a store is optional). */
+export const CHORAL_PRESET_STORE = STORAGE_KEY;
 
 export interface PresetParams {
   /** The key most recently used. Kept for presets saved before `keys` existed. */

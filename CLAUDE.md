@@ -193,7 +193,7 @@ the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): every
 practice tool at full size, a tab each (`AbcTuner.svelte`): tuner, Analysis,
-metronome, drone, pitches (in the tuner's key, with no exercise), timer and
+metronome, drone, timer and
 the scale challenge. The mic stays on across tabs. In the navbar as abcTuner, and
 the practice pages reach it from their tools.
 

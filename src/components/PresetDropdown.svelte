@@ -12,6 +12,7 @@
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount, onDestroy, tick } from 'svelte';
   import { ladder, ladderStages, type LadderStep, type LadderPage } from '../lib/ladder';
+  import { presetHref, storeFor } from '../lib/preset-link';
 
   /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
@@ -59,7 +60,23 @@
 
   $: activeIsSaved = !!activeSavedId && savedPresets.some(p => p.id === activeSavedId);
 
+  /**
+   * The other practice page's saved presets, listed after this page's.
+   * Choosing one goes to that page, which applies it (preset-link.ts).
+   */
+  $: otherPage = (page === 'choral' ? 'unison' : 'choral') as 'choral' | 'unison';
+  let otherPresets: SavedPreset<any>[] = [];
+  const PAGE_NAME = { choral: 'Choral', unison: 'Unison' } as const;
+  async function refreshOther() {
+    try {
+      ({ presets: otherPresets } = await listPresets(storeFor(otherPage)));
+    } catch {
+      otherPresets = getPresets(storeFor(otherPage));
+    }
+  }
+
   async function refresh() {
+    refreshOther();
     try {
       ({ presets: savedPresets, synced } = await listPresets(store));
       problem = '';
@@ -77,6 +94,7 @@
   onMount(() => {
     // This browser's list at once, then the account's when it arrives.
     savedPresets = getPresets(store);
+    otherPresets = getPresets(storeFor(otherPage));
     refresh();
     loadClasses().catch((e) => (problem = 'Could not load your classes: ' + message(e)));
   });
@@ -228,7 +246,7 @@
   $: tabs = [
     { id: 'steps', label: 'Step by step' },
     ...(uilOffered ? [{ id: 'uil', label: 'UIL levels' }] : []),
-    { id: 'mine', label: `My presets${savedPresets.length ? ` (${savedPresets.length})` : ''}` },
+    { id: 'mine', label: `My presets${savedPresets.length + otherPresets.length ? ` (${savedPresets.length + otherPresets.length})` : ''}` },
   ] as { id: Tab; label: string }[];
 
   const UIL_NOTES: Record<string, string> = {
@@ -498,7 +516,7 @@
             What each Texas UIL level asks for. For building up to one, use Step by step.
           </p>
         {:else}
-          {#if savedPresets.length === 0}
+          {#if savedPresets.length === 0 && otherPresets.length === 0}
             <p class="text-sm text-sr-muted px-2 py-4">
               Nothing saved yet. Set things up the way you like, then choose
               <strong>Save current</strong>.
@@ -507,6 +525,10 @@
               <SignupHint id="presets-tab" dismissible={false}>With an account, your presets follow you to every device.</SignupHint>
             </p>
           {:else}
+            {#if otherPresets.length}
+              <p class="px-2 pt-1 pb-1 text-[11px] font-extrabold uppercase tracking-wide text-sr-muted">{PAGE_NAME[page]}</p>
+              {#if savedPresets.length === 0}<p class="px-2 pb-2 text-xs text-sr-muted">None saved on this page yet.</p>{/if}
+            {/if}
             <ul>
               {#each savedPresets as preset (preset.id)}
                 <li class="flex items-center gap-1 rounded-md hover:bg-sr-track {preset.id === activeSavedId ? 'bg-sr-tint' : ''}">
@@ -545,6 +567,24 @@
                 </li>
               {/each}
             </ul>
+            {#if otherPresets.length}
+              <p class="px-2 pt-3 pb-1 text-[11px] font-extrabold uppercase tracking-wide text-sr-muted">{PAGE_NAME[otherPage]}</p>
+              <ul>
+                {#each otherPresets as preset (preset.id)}
+                  <li class="rounded-md hover:bg-sr-track">
+                    <!-- A link, not a load: it opens the other page with this preset. -->
+                    <a
+                      class="flex items-center gap-2 text-sm text-sr-ink px-2 py-1.5"
+                      href={presetHref(otherPage, preset.id)}
+                      title="Opens on the {PAGE_NAME[otherPage]} page"
+                    >
+                      <span class="flex-1 truncate">{preset.name}{#if selectedClass && passed(presetKeyOf.saved(preset.id))}<Check size={13} class="inline text-sr-action-fg ml-1" /><span class="sr-only"> passed</span>{/if}</span>
+                      <span class="shrink-0 text-[11px] font-bold text-sr-action-fg">{PAGE_NAME[otherPage]} ›</span>
+                    </a>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
             {#if !synced}
               <p class="px-2 pt-2">
                 <SignupHint id="presets-tab" dismissible={false}>These are saved in this browser only.</SignupHint>

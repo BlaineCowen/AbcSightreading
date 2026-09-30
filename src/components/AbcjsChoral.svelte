@@ -18,6 +18,7 @@
   import { countGeneration, mayGenerate } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset } from "../lib/active-preset";
+  import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import { applyClick, clickFrom, currentClick, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import abcjs from "abcjs";
@@ -1115,7 +1116,9 @@
     const linked = exerciseParam(window.location.hash);
     // On a reload, the preset the settings came from (active-preset.ts). Not
     // over a step, an assignment or an exercise the address brings.
-    const remembered = linkedStep || assignmentId || linked ? null : activePresetToRestore("choral");
+    // A saved preset chosen on the Unison page's picker (preset-link.ts).
+    const presetId = linkedStep || assignmentId || linked ? null : linkedPresetId();
+    const remembered = linkedStep || assignmentId || linked || presetId ? null : activePresetToRestore("choral");
     loadParams();
     if (remembered) {
       restoreActivePreset(remembered, !arrivedBare);
@@ -1125,6 +1128,7 @@
       selectedKey = "F";
     }
     if (linkedStep) applyLadderStep(linkedStep);
+    if (presetId) void openLinkedPreset<PresetParams>("choral", presetId, (p) => applySavedPreset(p));
     // Practice time, for a student in a class; and an assignment, if the address names one.
     startPractice({ page: "choral", assignmentId, isBusy: () => isPlaying });
     if (assignmentId) openAssignment(assignmentId);
