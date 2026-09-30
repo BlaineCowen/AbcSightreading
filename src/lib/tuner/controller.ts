@@ -44,7 +44,8 @@ export function initTuner() {
       s.beatsPerBar !== last.beatsPerBar ||
       s.subdivision !== last.subdivision ||
       s.accent !== last.accent ||
-      s.clickSound !== last.clickSound
+      s.clickSound !== last.clickSound ||
+      s.metronomeVolume !== last.metronomeVolume
     ) {
       metronome.configure(metronomeSettings(s));
     }
@@ -64,6 +65,8 @@ const metronomeSettings = (s: TunerState) => ({
   accent: s.accent,
   groupStarts: meterById(s.meter).groupStarts,
   sound: s.clickSound,
+  // The store's 0.5 middle is the level the metronome always had.
+  volume: s.metronomeVolume * 2,
 });
 
 export async function startTuner() {

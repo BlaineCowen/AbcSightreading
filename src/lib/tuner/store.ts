@@ -63,7 +63,16 @@ export interface TunerState {
   framesReceived: number;
   engineRunningSince: number | null;
   playing: PlayingNote | null;
+  /** Ticking on its own. Never while an exercise plays: Play stops it. */
   metronomeRunning: boolean;
+  /** The click plays with an exercise's playback (the practice pages). */
+  clickWithMusic: boolean;
+  /** One level, 0-1, for the metronome and the click under an exercise. */
+  metronomeVolume: number;
+  /** A practice page's exercise is playing (not saved). */
+  exercisePlaying: boolean;
+  /** That playback is clicking - see metronome-link.ts (not saved). */
+  musicClick: boolean;
   /** 0-based beat within the bar, -1 when stopped. */
   metronomeBeat: number;
 }
@@ -71,7 +80,7 @@ export interface TunerState {
 const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
-  "challengeShowTuner", "challengeDifficulty", "challengeGuideTone",
+  "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume",
 ] as const;
 const STORAGE_KEY = "abc-tuner-settings";
 
@@ -107,6 +116,10 @@ const initial: TunerState = {
   engineRunningSince: null,
   playing: null,
   metronomeRunning: false,
+  clickWithMusic: true,
+  metronomeVolume: 0.5,
+  exercisePlaying: false,
+  musicClick: false,
   metronomeBeat: -1,
 };
 
@@ -126,6 +139,8 @@ const start: TunerState = { ...initial, ...(typeof window !== "undefined" ? rest
 // meter decides, so the two cannot disagree.
 start.beatsPerBar = meterById(start.meter).beats;
 if (!isClickSound(start.clickSound)) start.clickSound = "woodblock";
+if (typeof start.clickWithMusic !== "boolean") start.clickWithMusic = true;
+if (!(start.metronomeVolume >= 0 && start.metronomeVolume <= 1)) start.metronomeVolume = 0.5;
 const state = writable<TunerState>(start);
 
 // Save the settings whenever one changes (never the live reading).
@@ -195,6 +210,9 @@ export const tuner = {
     }),
   setSubdivision: (subdivision: number) => set({ subdivision }),
   toggleAccent: () => state.update((s) => ({ ...s, accent: !s.accent })),
+  setClickWithMusic: (clickWithMusic: boolean) => set({ clickWithMusic }),
+  setPlayback: (exercisePlaying: boolean, musicClick: boolean) => set({ exercisePlaying, musicClick }),
+  setMetronomeVolume: (v: number) => set({ metronomeVolume: clamp(Number.isFinite(v) ? v : 0.5, 0, 1) }),
   setMetronomeRunning: (metronomeRunning: boolean) => set({ metronomeRunning, metronomeBeat: -1 }),
   setMetronomeBeat: (metronomeBeat: number) => set({ metronomeBeat }),
   setChallengeDirection: (challengeDirection: Direction) => set({ challengeDirection }),

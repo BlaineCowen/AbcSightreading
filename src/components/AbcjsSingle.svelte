@@ -52,6 +52,7 @@
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
+  import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
@@ -174,14 +175,8 @@
   let masterVolume = 0.5; // Master volume, 0-1
   let isMuted = false;
   let previousVolume = masterVolume; // To restore volume after unmuting
-  let isMetronomeOn = true;
-  let metronomeVolume = 0.5;
-
-  // Standalone metronome: clicks on its own, with no playback and no cursor.
-  let metronomeRunning = false;
-  let metronomeTimer: ReturnType<typeof setInterval> | null = null;
-  let nextClickTime = 0;
-  let metronomeBeat = 0;
+  // The metronome - on or off with the music, its level, and ticking on its
+  // own - is the page's one metronome, in the tuner store: see metronome-link.
 
   // Initialize Web Audio API components
   // ── Assignment ─────────────────────────────────────────────────────────────
@@ -214,7 +209,7 @@
       gainNode.connect(audioContext.destination);
 
       metronomeGainNode = audioContext.createGain();
-      metronomeGainNode.gain.value = metronomeVolume * 2;
+      metronomeGainNode.gain.value = tuner.get().metronomeVolume * 2;
       metronomeGainNode.connect(audioContext.destination);
       // The Tools metronome's samples, so the click here sounds like it.
       void clickBank.load(audioContext);
@@ -565,16 +560,14 @@
     cursorMode = next.cursorMode;
     if (next.run) setRunOptions(next.run);
     if (next.click) applyClick(next.click);
-    if (next.isMetronomeOn !== undefined) isMetronomeOn = next.isMetronomeOn;
+    // Presets from before the metronome was one kept these on their own.
+    if (next.isMetronomeOn !== undefined && next.click?.withMusic === undefined) tuner.setClickWithMusic(next.isMetronomeOn);
     if (next.masterVolume !== undefined) {
       masterVolume = next.masterVolume;
       isMuted = masterVolume === 0;
       applyInstrumentGain();
     }
-    if (next.metronomeVolume !== undefined) {
-      metronomeVolume = next.metronomeVolume;
-      if (metronomeGainNode) metronomeGainNode.gain.value = metronomeVolume * 2;
-    }
+    if (next.metronomeVolume !== undefined && next.click?.volume === undefined) tuner.setMetronomeVolume(next.metronomeVolume);
     const soundChanged =
       (next.rhythmSoundId !== undefined && next.rhythmSoundId !== rhythmSoundId) ||
       (next.instrumentProgram !== undefined && next.instrumentProgram !== instrumentProgram) ||
@@ -687,12 +680,11 @@
   }
 
   const initialState = getInitialState();
-  if (initialState.isMetronomeOn !== undefined) isMetronomeOn = initialState.isMetronomeOn;
   if (initialState.masterVolume !== undefined) {
     masterVolume = previousVolume = initialState.masterVolume;
     isMuted = masterVolume === 0;
   }
-  if (initialState.metronomeVolume !== undefined) metronomeVolume = initialState.metronomeVolume;
+
   let selectedClef = initialState.selectedClef;
   let selectedRange = initialState.selectedRange;
   let selectedScaleDegrees: Set<number> = initialState.selectedScaleDegrees;
@@ -1076,11 +1068,12 @@
       rhythmSoundId,
       instrumentProgram,
       transposeSemitones,
-      isMetronomeOn,
       masterVolume,
-      metronomeVolume,
-      // The Tools metronome's, which the click follows (preset-click.ts).
-      click: { subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound },
+      // The page's one metronome (preset-click.ts).
+      click: {
+        subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
+        withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
+      },
       run: {
         exercises: drillExercises,
         repeats: drillRepeats,
@@ -1577,7 +1570,7 @@
           beatNumber,
           beatsPerMeasure
         );
-        if ((passMetronomeOverride ?? isMetronomeOn) && beat.click) playMetronomeClick(beat.isDownbeat);
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click) playMetronomeClick(beat.isDownbeat);
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -1955,9 +1948,10 @@
       isStartingPlayback = false;
     }
 
-    // Playback drives its own click from beatCallback, so hand off here rather
-    // than at the top - a Play press that bails out above must not silence it.
-    stopStandaloneMetronome();
+    // The metronome ticking on its own becomes the exercise's click, from beat 1
+    // of the count-in (metronome-link). Here rather than at the top - a Play
+    // press that bails out above must not silence it.
+    exercisePlays(true);
 
     // A pause left us a position on the timeline; anything else starts over.
     let resumeFrom = pausedAt;
@@ -2065,67 +2059,6 @@
     }
   }
 
-  // Lookahead scheduling: a coarse timer queues clicks slightly ahead of time at
-  // exact audioContext times, so the pulse doesn't drift the way a bare
-  // setInterval would.
-  const METRONOME_TICK_MS = 25; // how often we look for clicks to queue
-  const METRONOME_LOOKAHEAD = 0.1; // how far ahead (seconds) we queue them
-  const METRONOME_MAX_PER_TICK = 64; // belt-and-braces: never spin
-
-  function scheduleMetronomeClicks() {
-    if (!audioContext) return;
-
-    // Clamp to 30-600 BPM so a corrupt stored tempo can't stall or spin the loop.
-    const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
-    const beatsPerMeasure = parseInt(selectedTimeSignature[0]) || 4;
-
-    // A backgrounded tab throttles this timer to ~1s, so we can come back to
-    // find the next click is already overdue. Web Audio clamps a past start
-    // time to "now", so queueing the backlog would fire several clicks at once
-    // as one loud pop. Resync instead, and re-establish the downbeat.
-    if (nextClickTime < audioContext.currentTime) {
-      nextClickTime = audioContext.currentTime + 0.05;
-      metronomeBeat = 0;
-    }
-
-    const horizon = audioContext.currentTime + METRONOME_LOOKAHEAD;
-    let guard = 0;
-    while (nextClickTime < horizon && guard++ < METRONOME_MAX_PER_TICK) {
-      playMetronomeClick(metronomeBeat % beatsPerMeasure === 0, nextClickTime);
-      nextClickTime += secondsPerBeat;
-      metronomeBeat++;
-    }
-  }
-
-  /** Starts the click on its own - no exercise audio, no cursor. */
-  async function startStandaloneMetronome() {
-    // Playback drives its own click; two sources would beat against each other.
-    if (metronomeRunning || isPlaying || !audioContext) return;
-
-    // The button click is the user gesture that unlocks audio.
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
-    }
-
-    metronomeBeat = 0;
-    nextClickTime = audioContext.currentTime + 0.05;
-    metronomeRunning = true;
-    metronomeTimer = setInterval(scheduleMetronomeClicks, METRONOME_TICK_MS);
-    scheduleMetronomeClicks(); // don't wait a full tick for the first click
-  }
-
-  function stopStandaloneMetronome() {
-    metronomeRunning = false;
-    if (metronomeTimer) {
-      clearInterval(metronomeTimer);
-      metronomeTimer = null;
-    }
-  }
-
-  function toggleStandaloneMetronome() {
-    if (metronomeRunning) stopStandaloneMetronome();
-    else startStandaloneMetronome();
-  }
 
 
   /**
@@ -2378,11 +2311,11 @@
   /** Whether a repeat would sound nothing at all, which is worth saying. */
   $: repeatsSilent =
     !(passOverride(1, drillRepeatNotes) ?? masterVolume > 0) &&
-    !(passOverride(1, drillRepeatMetronome) ?? isMetronomeOn) &&
+    !(passOverride(1, drillRepeatMetronome) ?? $tuner.clickWithMusic) &&
     (rhythmOnly || !(passOverride(1, drillRepeatDrone) ?? dronePlaying));
   /** A count-in with nothing clicking in it is a bar of silence, also worth saying. */
   $: repeatCountInSilent =
-    drillRepeatCountIn === "on" && !(passOverride(1, drillRepeatMetronome) ?? isMetronomeOn);
+    drillRepeatCountIn === "on" && !(passOverride(1, drillRepeatMetronome) ?? $tuner.clickWithMusic);
 
   /** The syllable system a repeat asks for, if it asks for one. */
   /**
@@ -2838,13 +2771,7 @@
     }
   }
 
-  function handleMetronomeVolumeChange(event: Event) {
-    const value = Number((event.target as HTMLInputElement).value);
-    metronomeVolume = value;
-    if (metronomeGainNode) {
-      metronomeGainNode.gain.value = metronomeVolume * 2;
-    }
-  }
+  $: if (metronomeGainNode) metronomeGainNode.gain.value = $tuner.metronomeVolume * 2;
 
   /**
    * Toggles the drone sound on/off
@@ -2974,6 +2901,32 @@
     handleBpmChange(newBpm);
     if (currentTune && originalTuneString) rerenderTune();
   }
+
+  /**
+   * The metronome's tempo is this page's (metronome-link): a change there
+   * lands here as if made with the tempo buttons, the re-render held back
+   * until the presses stop.
+   */
+  let bpmCommitTimer: ReturnType<typeof setTimeout> | null = null;
+  let unlinkTempo: (() => void) | null = null;
+  onMount(() => {
+    unlinkTempo = linkPageTempo({
+      min: 40,
+      max: 200,
+      setBpm: (v) => {
+        handleBpmChange(v);
+        if (bpmCommitTimer) clearTimeout(bpmCommitTimer);
+        bpmCommitTimer = setTimeout(() => handleBpmCommit(v), 400);
+      },
+    });
+  });
+
+  // Stop, pause or the last note: the click stops with the music.
+  let playedBefore = false;
+  $: {
+    if (playedBefore && !isPlaying) exercisePlays(false);
+    playedBefore = isPlaying;
+  }
   /** A link that opens these settings, and writes a new exercise from them. */
   function settingsLink(): string {
     updateUrlFromState();
@@ -3057,7 +3010,7 @@
    *  the timing callbacks - so never re-render mid-exercise. Defer instead. */
   function applyViewportChange() {
     if (!currentTune || !originalTuneString) return;
-    if (isPlaying || isStartingPlayback || metronomeRunning) {
+    if (isPlaying || isStartingPlayback) {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(applyViewportChange, 500);
       return;
@@ -3158,7 +3111,9 @@
     window.removeEventListener("orientationchange", onPaperResize);
     window.removeEventListener("hashchange", onHashChange);
     if (resizeTimer) clearTimeout(resizeTimer);
-    stopStandaloneMetronome();
+    exercisePlays(false);
+    unlinkTempo?.();
+    if (bpmCommitTimer) clearTimeout(bpmCommitTimer);
     if (droneOscillator) {
       droneOscillator.stop();
       droneOscillator = null;
@@ -3337,7 +3292,7 @@
                 {#each Object.keys(timeSignatures) as ts}
                   <button
                     class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''}"
-                    on:click={() => { selectedTimeSignature = ts; metronomeBeat = 0; }}
+                    on:click={() => { selectedTimeSignature = ts; }}
                   >{ts}</button>
                 {/each}
               </div>
@@ -4025,27 +3980,26 @@
       <div class="flex items-center gap-2">
         <button
           class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8"
-          on:click={() => (isMetronomeOn = !isMetronomeOn)}
-          title="Toggle metronome"
+          on:click={() => setClickWithMusic(!$tuner.clickWithMusic)}
+          title="Click with the music"
           aria-label="Toggle metronome click during playback"
-          aria-pressed={isMetronomeOn}
+          aria-pressed={$tuner.clickWithMusic}
         >
           <MetronomeIcon size={22} />
         </button>
         <input
           type="range" min="0" max="1" step="0.05"
-          bind:value={metronomeVolume}
-          on:input={handleMetronomeVolumeChange}
+          value={$tuner.metronomeVolume}
+          on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
           class="w-16 accent-sr-bar-on"
           aria-label="Metronome volume"
         />
         <button
-          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold disabled:opacity-40 {metronomeRunning ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
-          on:click={toggleStandaloneMetronome}
-          disabled={isPlaying}
-          aria-pressed={metronomeRunning}
-          title="Free-running click, no playback"
-        >{metronomeRunning ? 'Click On' : 'Click'}</button>
+          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+          on:click={toggleMetronome}
+          aria-pressed={metronomeSounding($tuner)}
+          title="The metronome, the same one as in Tools: on its own, or with the music while it plays"
+        >{metronomeSounding($tuner) ? 'Click On' : 'Click'}</button>
       </div>
 
       {#if !rhythmOnly}

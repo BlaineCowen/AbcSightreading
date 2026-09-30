@@ -14,6 +14,8 @@
   /** Called when the singer picks a meter or subdivision themselves. */
   export let onManual: () => void = () => {};
   export let compact = false;
+  /** On a practice page the meter is the exercise's: shown, not chosen. */
+  export let lockedMeter = false;
 
   const GROUPS: [string, typeof METERS][] = [
     ["Simple", METERS.filter((m) => m.kind === "simple")],
@@ -41,6 +43,12 @@
 <div class="flex flex-col gap-2 text-sm">
   <div class="flex flex-col gap-1.5" role="group" aria-label="Time signature">
     <span class="text-xs text-sr-muted">Time signature</span>
+    {#if lockedMeter}
+      <div class="flex items-center gap-2">
+        <span class="sr-tok sr-on tabular-nums {compact ? 'px-2 text-xs' : ''}">{meter.id}</span>
+        <span class="text-xs text-sr-muted">the exercise's</span>
+      </div>
+    {:else}
     <div class="flex flex-wrap items-center gap-1">
       {#each GROUPS as [label, meters], g}
         {#if g > 0}<span class="w-px h-6 bg-sr-hairline mx-1" aria-hidden="true"></span>{/if}
@@ -55,6 +63,7 @@
         {/each}
       {/each}
     </div>
+    {/if}
   </div>
 
   <div class="flex flex-col gap-1.5" role="group" aria-label="Subdivision">

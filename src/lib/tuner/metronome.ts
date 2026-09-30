@@ -21,6 +21,8 @@ export interface MetronomeSettings {
   groupStarts?: number[];
   /** What it sounds like - see click-sounds.ts. Woodblock when unset. */
   sound?: ClickSound;
+  /** Level; 1 is the level it always had. Full when unset. */
+  volume?: number;
 }
 
 export const BPM_MIN = 30;
@@ -40,6 +42,8 @@ export class Metronome {
   private beat = 0;
   private settings: MetronomeSettings = { bpm: 90, beatsPerBar: 4, subdivision: 1, accent: true };
   private bank = new SampleBank();
+  /** Every click goes through this, so the level can change while it ticks. */
+  private out: GainNode | null = null;
   onBeat: ((beatInBar: number) => void) | null = null;
 
   get running() {
@@ -48,11 +52,23 @@ export class Metronome {
 
   configure(settings: MetronomeSettings) {
     this.settings = settings;
+    if (this.out) this.out.gain.value = settings.volume ?? 1;
+  }
+
+  /** The context, made on first use, with the level node on it. */
+  private context(): AudioContext {
+    if (!this.ctx) {
+      this.ctx = new AudioContext();
+      this.out = this.ctx.createGain();
+      this.out.gain.value = this.settings.volume ?? 1;
+      this.out.connect(this.ctx.destination);
+    }
+    return this.ctx;
   }
 
   start() {
     if (this.timer) return;
-    const ctx = (this.ctx ??= new AudioContext());
+    const ctx = this.context();
     void ctx.resume();
     void this.bank.load(ctx);
     this.beat = 0;
@@ -69,11 +85,12 @@ export class Metronome {
     this.stop();
     this.ctx?.close().catch(() => {});
     this.ctx = null;
+    this.out = null;
   }
 
   /** One click right now, for callers driving their own timeline. */
   clickNow(accent = false) {
-    const ctx = (this.ctx ??= new AudioContext());
+    const ctx = this.context();
     if (ctx.state !== "running") void ctx.resume();
     void this.bank.load(ctx);
     this.click(ctx.currentTime + 0.001, accent ? "downbeat" : "beat");
@@ -81,7 +98,7 @@ export class Metronome {
 
   /** Let a singer hear a sound before choosing it: waits for its sample. */
   async preview(sound: ClickSound) {
-    const ctx = (this.ctx ??= new AudioContext());
+    const ctx = this.context();
     if (ctx.state !== "running") await ctx.resume();
     await this.bank.load(ctx);
     const t = ctx.currentTime + 0.02;
@@ -122,7 +139,7 @@ export class Metronome {
       src.playbackRate.value = voice.rate;
       const gain = ctx.createGain();
       gain.gain.value = voice.gain * SAMPLE_BOOST;
-      src.connect(gain).connect(ctx.destination);
+      src.connect(gain).connect(this.out!);
       src.start(time);
       // The files run 2.4 s; nothing here needs more than the bell's ring.
       src.stop(time + 0.6);
@@ -149,7 +166,7 @@ export class Metronome {
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.exponentialRampToValueAtTime(TICK_GAIN[level] * 0.6, time + 0.001);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this.out!);
     osc.start(time);
     osc.stop(time + 0.04);
     osc.onended = () => {

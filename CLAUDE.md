@@ -200,12 +200,18 @@ the practice pages reach it from their tools.
 The practice pages carry a Tools button in the bottom-right corner
 (`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
 metronome, drone, starting pitches, analysis, timer - each opening as a card.
-The click under an exercise, and the Unison page's Click button, follow the
-Tools metronome's subdivision, accent and sound (`src/lib/playback-click.ts`,
-tests `playback-click.test.ts`): Choral writes them into abcjs's drum pattern
-(which abcjs spreads evenly over the bar), Unison schedules each beat's clicks
-at exact times with the metronome's own samples. Their own buttons only turn
-the click on and off.
+A practice page has one metronome (`src/lib/tools/metronome-link.ts`, tests
+`metronome-link.test.ts`): the Tools card, the transport's metronome icon,
+volume and Click are the same thing, kept in the tuner store (`clickWithMusic`,
+`metronomeVolume`, `metronomeRunning`, and the session-only `exercisePlaying`
+/ `musicClick`). Its tempo is the page's tempo, set from either side, and its
+meter the exercise's. Ticking on its own, it carries on into Play as the
+exercise's click from beat 1 of the count-in (`exercisePlays`), and stops with
+the music. The click under an exercise follows its subdivision, accent and
+sound (`src/lib/playback-click.ts`): Choral writes them into abcjs's drum
+pattern (only when this playback clicks, so a change rebuilds the synth),
+Unison schedules each beat's clicks with the metronome's own samples. On
+`/tuner` there is no exercise and it keeps its own tempo and meter.
 Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the
@@ -273,8 +279,9 @@ educator (seat packs: stage 4, with Stripe).
 
 A preset holds every setting on its page (Choral `getCurrentParams`, Unison
 `currentOptions`): generation, display (lyrics, chords, cursor, hidden and
-muted voices), sound (instrument, transposition, volumes, the click) and the
-Tools metronome's subdivision, accent and sound (`src/lib/preset-click.ts`).
+muted voices), sound (instrument, transposition, volumes) and the metronome: its
+subdivision, accent, sound, on/off with the music and level
+(`src/lib/preset-click.ts`).
 All of it counts toward "edited". Fields added later are optional, so an older
 preset loads and leaves what it lacks alone. The one thing a Choral preset does
 not keep is full length, which only exists while a UIL level is chosen.

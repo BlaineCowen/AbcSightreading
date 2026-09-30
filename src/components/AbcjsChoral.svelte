@@ -17,6 +17,7 @@
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
   import { applyClick, clickFrom, currentClick, numberIn } from "../lib/preset-click";
+  import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
@@ -106,7 +107,6 @@
   let generatedBpm = 60;
   /** 0-1.5, 1 = as written. Remembered per browser, not put in the share link. */
   let playbackVolume = 1;
-  let metronomeVolume = 1;
   const MIX_STORAGE_KEY = "choral-mix-levels";
 
   // ── Tab state ──────────────────────────────────────────────────────────────
@@ -633,7 +633,7 @@
     accidentalsByStep, chromaticFrequency, focusChord,
     lyricSystem, showChords, cursorMode, instrumentProgram, transposeSemitones,
     [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','),
-    playbackVolume, metronomeVolume,
+    playbackVolume, $tuner.metronomeVolume, $tuner.clickWithMusic,
     $tuner.subdivision, $tuner.accent, $tuner.clickSound,
   ].join('|');
 
@@ -681,12 +681,35 @@
       accent: $tuner.accent,
       sound: $tuner.clickSound,
     });
-  /** The click the synth was last built with, to notice when the Tools metronome changes it. */
+  /**
+   * Whether the synth is built with the click. Playing, it is whether this
+   * playback clicks; stopped, whether the next one will - with the music, or
+   * because the metronome is ticking on its own and Play will take it over
+   * (metronome-link).
+   */
+  const clickOnFor = (t: typeof $tuner) => (t.exercisePlaying ? t.musicClick : t.clickWithMusic || t.metronomeRunning);
+  const clickKeyFor = (t: typeof $tuner) =>
+    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}`;
+  $: clickOn = clickOnFor($tuner);
+  /** The click the synth was last built with, to notice when the metronome changes it. */
   let builtClick = "";
-  $: clickKey = `${$tuner.subdivision}|${$tuner.accent}|${$tuner.clickSound}`;
-  // Rebuilt when the metronome's settings change; never mid-exercise, where it
-  // would stop the music: the next pause or stop picks the change up.
-  $: if (renderedTune && builtClick && clickKey !== builtClick && !isPlaying) initSynth(renderedTune);
+  $: clickKey = clickKeyFor($tuner);
+  // Rebuilt when the metronome changes, once the changes stop (a volume drag
+  // is many). Never mid-exercise, where it would stop the music: the next pause
+  // or stop picks the change up - except turning the click on or off, below.
+  let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+  $: if (renderedTune && builtClick && clickKey !== builtClick && !isPlaying) {
+    if (rebuildTimer) clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => {
+      if (renderedTune && clickKeyFor(tuner.get()) !== builtClick && !isPlaying) initSynth(renderedTune);
+    }, 250);
+  }
+  // The click turned on or off while the music plays: pause and rebuild, the
+  // way muting a voice does. The choice is kept, so Play carries on with it.
+  $: if (isPlaying && renderedTune && builtClick && builtClick.split("|")[0] !== String(clickOn)) {
+    pausePlayback();
+    initSynth(renderedTune);
+  }
 
   /** Magnification is container / (staffwidth + 30), so a fixed staffwidth of
    *  ~740 renders at under half size on a phone. Measure the container instead.
@@ -861,10 +884,12 @@
   let playedMeter = "4/4";
 
   function buildAudioParams() {
-    builtClick = clickKey;
+    // From the store as it is now, not the reactive copies: Play changes the
+    // store and builds in the same breath, before those catch up.
+    const t = tuner.get();
+    builtClick = clickKeyFor(t);
     return {
-      drum: drumFor(selectedTimeSignature),
-      drumBars: 1,
+      ...(clickOnFor(t) ? { drum: drumFor(selectedTimeSignature), drumBars: 1 } : {}),
       // The count-in: two bars in 2/4, so "1, 2, Ready, Go" fits (count-in.ts).
       drumIntro: countInMeasures(playedMeter),
       // Samples come through our own origin: abcjs otherwise fetches them from
@@ -1415,7 +1440,6 @@
       hiddenVoices: [...hiddenVoices],
       mutedVoices: [...mutedVoices],
       playbackVolume,
-      metronomeVolume,
       click: currentClick(),
     };
   }
@@ -1436,7 +1460,11 @@
       hiddenVoices: new Set(Array.isArray(p.hiddenVoices) ? p.hiddenVoices.map(String) : []),
       mutedVoices: new Set(Array.isArray(p.mutedVoices) ? p.mutedVoices.map(String) : []),
       playbackVolume: numberIn(p.playbackVolume, 0, 1, playbackVolume),
-      metronomeVolume: numberIn(p.metronomeVolume, 0, 1, metronomeVolume),
+      // Presets from before the metronome was one kept its level here, on
+      // this page's 0-1.5 scale; the store's 0.5 is this page's 1.
+      metronomeVolume: p.metronomeVolume === undefined || clickFrom(p.click)?.volume !== undefined
+        ? null
+        : numberIn(p.metronomeVolume / 2, 0, 1, 0.5),
     };
   }
 
@@ -1450,9 +1478,9 @@
     hiddenVoices = d.hiddenVoices;
     mutedVoices = d.mutedVoices;
     playbackVolume = d.playbackVolume;
-    metronomeVolume = d.metronomeVolume;
+    if (d.metronomeVolume !== null) tuner.setMetronomeVolume(d.metronomeVolume);
     try {
-      localStorage.setItem(MIX_STORAGE_KEY, JSON.stringify({ playback: playbackVolume, metronome: metronomeVolume }));
+      localStorage.setItem(MIX_STORAGE_KEY, JSON.stringify({ playback: playbackVolume }));
     } catch {}
     if (isPlaying) pausePlayback();
     // Re-drawing rebuilds the synth too, which is where the instrument,
@@ -1521,6 +1549,11 @@
   async function handlePlay() {
     if (!synthControl) return;
     if (!(await ensureAudioRunning())) return;
+    // A metronome ticking on its own becomes this playback's click, from beat 1
+    // of the count-in (metronome-link). If the synth was built without the
+    // click, it is built again with it first.
+    const click = exercisePlays(true);
+    if (renderedTune && builtClick.split("|")[0] !== String(click)) await initSynth(renderedTune);
     await synthControl.play();
     isPlaying = true;
   }
@@ -1592,6 +1625,18 @@
       try { synthControl.setWarp(Math.round((newBpm / generatedBpm) * 100)); } catch {}
     }
   }
+
+  // The metronome's tempo is this page's (metronome-link): a change made on it
+  // lands here as if made with the tempo buttons.
+  onMount(() => linkPageTempo({ min: 40, max: 200, setBpm: handleBpmChange }));
+
+  // Stop, pause or the last note: the click stops with the music.
+  let playedBefore = false;
+  $: {
+    if (playedBefore && !isPlaying) exercisePlays(false);
+    playedBefore = isPlaying;
+  }
+  onDestroy(() => exercisePlays(false));
 
   /**
    * Change the playback voice without regenerating the exercise.
@@ -1711,7 +1756,6 @@
     try {
       const saved = JSON.parse(localStorage.getItem(MIX_STORAGE_KEY) ?? "null");
       if (typeof saved?.playback === "number") playbackVolume = saved.playback;
-      if (typeof saved?.metronome === "number") metronomeVolume = saved.metronome;
     } catch {}
   }
 
@@ -1724,7 +1768,7 @@
     try {
       localStorage.setItem(
         MIX_STORAGE_KEY,
-        JSON.stringify({ playback: playbackVolume, metronome: metronomeVolume })
+        JSON.stringify({ playback: playbackVolume })
       );
     } catch {}
     if (renderedTune) {
@@ -1890,7 +1934,8 @@
       // Read at render time, so a level change needs the synth rebuilt - see
       // handleMixCommit.
       sequenceCallback: (tracks: any[]) =>
-        applyMixLevels(tracks, { playback: playbackVolume, metronome: metronomeVolume }),
+        // The metronome's level is the page's one (0.5 in the store is 1 here).
+        applyMixLevels(tracks, { playback: playbackVolume, metronome: tuner.get().metronomeVolume * 2 }),
     };
     await synthControl.setTune(tune, false, audioParams);
     // displayWarp builds abcjs's tempo box in the hidden #audio div. Nothing
@@ -3034,15 +3079,30 @@
           aria-label="Voices volume"
         />
       </div>
-      <div class="flex items-center gap-2" title="Metronome volume">
-        <MetronomeIcon size={18} class="shrink-0 text-sr-faint" />
+      <!-- The page's one metronome, the same as in Tools (metronome-link). -->
+      <div class="flex items-center gap-2">
+        <button
+          class="flex-shrink-0 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8 {$tuner.clickWithMusic ? 'opacity-100' : 'opacity-50'}"
+          on:click={() => setClickWithMusic(!$tuner.clickWithMusic)}
+          title="Click with the music"
+          aria-label="Toggle metronome click during playback"
+          aria-pressed={$tuner.clickWithMusic}
+        >
+          <MetronomeIcon size={20} />
+        </button>
         <input
-          type="range" min="0" max="1.5" step="0.05"
-          bind:value={metronomeVolume}
-          on:change={handleMixCommit}
-          class="w-20 accent-sr-bar-on"
+          type="range" min="0" max="1" step="0.05"
+          value={$tuner.metronomeVolume}
+          on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
+          class="w-16 accent-sr-bar-on"
           aria-label="Metronome volume"
         />
+        <button
+          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+          on:click={toggleMetronome}
+          aria-pressed={metronomeSounding($tuner)}
+          title="The metronome, the same one as in Tools: on its own, or with the music while it plays"
+        >{metronomeSounding($tuner) ? 'Click On' : 'Click'}</button>
       </div>
     </svelte:fragment>
   </PlaybackBar>

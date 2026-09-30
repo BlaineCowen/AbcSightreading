@@ -5,6 +5,12 @@ describe("a preset's click", () => {
   test("a saved click comes back as it was", () => {
     expect(clickFrom({ subdivision: 2, accent: false, sound: "woodblock" })).toEqual({ subdivision: 2, accent: false, sound: "woodblock" });
   });
+  test("the click's on/off and level come back too, and a click saved without them loads without them", () => {
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves", withMusic: false, volume: 0.3 }))
+      .toEqual({ subdivision: 1, accent: true, sound: "claves", withMusic: false, volume: 0.3 });
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves" })).toEqual({ subdivision: 1, accent: true, sound: "claves" });
+    expect(clickFrom({ subdivision: 1, accent: true, sound: "claves", volume: 3 })).toEqual({ subdivision: 1, accent: true, sound: "claves" });
+  });
   test("older presets, with no click, load without one", () => {
     expect(clickFrom(undefined)).toBeNull();
     expect(clickFrom(null)).toBeNull();

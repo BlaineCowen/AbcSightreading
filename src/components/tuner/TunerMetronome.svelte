@@ -90,4 +90,10 @@
   </div>
 
   <MeterControls />
+
+  <label class="flex items-center gap-3 text-sm text-sr-ink-2">
+    <span class="shrink-0">Volume</span>
+    <input type="range" min="0" max="1" step="0.05" class="flex-1 sr-range" aria-label="Metronome volume"
+      value={$tuner.metronomeVolume} on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))} />
+  </label>
 </div>
