@@ -181,7 +181,7 @@
   const iconBtn =
     "flex items-center justify-center rounded-full bg-sr-bar-btn hover:bg-sr-bar-btn-hi disabled:opacity-40 h-11 w-11 xl:h-8 xl:w-8";
   const stepBtn =
-    "flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-9 xl:h-6 xl:w-6";
+    "flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-8 min-[380px]:w-9 xl:h-6 xl:w-6 max-[359px]:hidden";
   const chipBtn =
     "flex items-center gap-1 bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full px-3 py-2 xl:py-1 text-xs";
   const menuItem =
@@ -217,9 +217,9 @@
        and iPads in either orientation - the bar is the compact one: this row,
        with everything else behind "More controls". An iPad keeps the labels
        and the full-size buttons from sm up. -->
-  <div class="flex items-center gap-2 sm:gap-3 xl:gap-4 flex-nowrap xl:flex-wrap px-3 py-2 xl:p-0 xl:py-2
+  <div class="flex items-center gap-1.5 min-[380px]:gap-2 sm:gap-3 xl:gap-4 flex-nowrap xl:flex-wrap px-3 py-2 xl:p-0 xl:py-2
               xl:order-last xl:ml-auto">
-    <div class="flex gap-2 items-center">
+    <div class="flex gap-1.5 min-[380px]:gap-2 items-center">
       {#if onGenerate}
         <button
           class="flex items-center justify-center gap-1.5 shrink-0 sr-btn sr-btn-go font-bold px-3 sm:px-4 h-11 xl:h-8 text-sm disabled:opacity-50"
@@ -241,8 +241,10 @@
           {/if}
         </button>
       {/if}
+      <!-- Not on a phone: the row did not fit at 360px and pushed More controls
+           off the edge, and Stop already goes back to the start. -->
       <button
-        class={iconBtn}
+        class="{iconBtn} max-sm:hidden"
         disabled={!hasExercise}
         on:click={onRestart}
         title="Back to start"
@@ -314,7 +316,7 @@
     </div>
 
       <button
-        class="xl:hidden ml-auto flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {expanded
+        class="xl:hidden ml-auto shrink-0 flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {expanded
           ? 'bg-sr-peach text-sr-peach-ink'
           : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
         on:click={async () => { expanded = !expanded; await tick(); publishBarHeight(); }}
