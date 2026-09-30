@@ -179,7 +179,7 @@
 
   <!-- The wheel, over a dimmed page; a tap on the page closes it. -->
   {#if wheelOpen}
-    <button class="fixed inset-0 z-40 bg-[#1e1b3a]/25 cursor-default" aria-label="Close the tools" tabindex="-1" on:click={() => (wheelOpen = false)}></button>
+    <button class="fixed inset-0 z-40 bg-[#15213a]/25 cursor-default" aria-label="Close the tools" tabindex="-1" on:click={() => (wheelOpen = false)}></button>
     <div
       bind:this={wheelEl}
       class="tools-wheel fixed z-50 w-[280px] h-[280px] left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-9"

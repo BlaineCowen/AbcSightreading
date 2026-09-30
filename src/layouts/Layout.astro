@@ -36,7 +36,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
 const production = serverEnv("VERCEL_ENV") === "production";
 const robots = noindex || !production ? "noindex, nofollow" : "index, follow";
 // The version makes link previews that cached the old picture fetch this one.
-const ogImage = new URL("/og.png?v=recess", Astro.site).href;
+const ogImage = new URL("/og.png?v=blue", Astro.site).href;
 
 /**
  * A student account may belong to a child under 13. Nothing that watches or
@@ -87,7 +87,7 @@ const feedbackConfigured = !!readFeedbackEmail(
     <title>{title}</title>
     <link rel="canonical" href={canonical} />
     <meta name="robots" content={robots} />
-    <meta name="theme-color" content="#6a55e0" />
+    <meta name="theme-color" content="#2f6fe0" />
     <link rel="manifest" href="/site.webmanifest" />
     <!-- Fredoka for headings, Nunito for everything else (globals.css). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

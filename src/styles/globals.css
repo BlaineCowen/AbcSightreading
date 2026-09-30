@@ -95,7 +95,7 @@
 
 /* The page colour under the iPad's status bar (viewport-fit=cover) and in any
    overscroll, where the navbar has slid away. */
-html { background: #eeeaf8; }
+html { background: #eaf0f9; }
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]):has(body.sr-themable) { background: #111113; }
 }
@@ -209,7 +209,7 @@ body {
 /* The playback cursor. Drawn by hand in AbcjsSingle and AbcjsChoral rather than
    by abcjs, so the rule lives here instead of inside one component's <style>. */
 .abcjs-cursor {
-  stroke: #6a55e0;
+  stroke: #2f6fe0;
   stroke-width: 2;
   pointer-events: none;
 }
@@ -282,7 +282,7 @@ body {
    page the choir reads, so the pastels sit around it, never on it.
 
    Colour has these jobs:
-     violet   every active state - chosen, on, focused, Generate
+     blue     every active state - chosen, on, focused, Generate
      ink      type and structure
      pastels  mint, peach, butter, sky: surfaces that should feel
               friendly (preset picker, cards, badges). Each has an
@@ -299,23 +299,23 @@ body {
   --sr-font-display: "Fredoka", "Nunito", system-ui, sans-serif;
   --sr-font-body: "Nunito", system-ui, sans-serif;
 
-  --sr-ground:     #eeeaf8;
+  --sr-ground:     #eaf0f9;
   --sr-panel:      #ffffff;
   --sr-raise:      #ffffff;
   --sr-paper:      #ffffff;
-  --sr-mat:        #e4def7;
-  --sr-track:      #f3f0fc;
-  --sr-tint:       #e6e0ff;
-  --sr-hairline:   #e2dcf5;
-  --sr-hairline-2: #ece8f9;
-  --sr-ink:        #1e1b3a;
-  --sr-ink-2:      #3a3660;
-  --sr-muted:      #5f5a84;
-  --sr-faint:      #8f8ab0;
-  --sr-action:     #6a55e0;
-  --sr-action-fg:  #5a45d6;
+  --sr-mat:        #dce6f5;
+  --sr-track:      #f0f5fc;
+  --sr-tint:       #dce8ff;
+  --sr-hairline:   #d8e2f1;
+  --sr-hairline-2: #e6edf8;
+  --sr-ink:        #15213a;
+  --sr-ink-2:      #34405e;
+  --sr-muted:      #56637f;
+  --sr-faint:      #8793ad;
+  --sr-action:     #2f6fe0;
+  --sr-action-fg:  #1e56c0;
   --sr-action-ink: #ffffff;
-  --sr-action-hi:  #5a45d6;
+  --sr-action-hi:  #1e56c0;
   --sr-brass:      #8a5a00;
   --sr-brass-bg:   #fff3c4;
   --sr-danger:     #c2352b;
@@ -327,31 +327,31 @@ body {
   --sr-sky:    #c9e4ff;  --sr-sky-ink:    #0e3563;
 
   /* Loading skeleton blocks, their shimmer, and skeleton staff lines. */
-  --sr-skel:       #e6e1f7;
-  --sr-skel-line:  #d6cff0;
+  --sr-skel:       #e1e9f6;
+  --sr-skel-line:  #cfdaec;
   --sr-skel-sweep: rgba(255, 255, 255, 0.6);
 
   --sr-r-sm: 14px;
   --sr-r-md: 18px;
   --sr-r-lg: 28px;
-  --sr-thumb-shadow: 0 1px 3px rgba(30, 27, 58, 0.12);
-  --sr-card-shadow: 0 12px 34px -26px rgba(58, 40, 150, 0.4);
-  --sr-paper-shadow: 0 2px 4px rgba(30, 27, 58, 0.04), 0 18px 40px -24px rgba(58, 40, 150, 0.35);
+  --sr-thumb-shadow: 0 1px 3px rgba(21, 33, 58, 0.12);
+  --sr-card-shadow: 0 12px 34px -26px rgba(30, 70, 160, 0.4);
+  --sr-paper-shadow: 0 2px 4px rgba(21, 33, 58, 0.04), 0 18px 40px -24px rgba(30, 70, 160, 0.35);
 
   /* The count-in badge over the score. */
-  --sr-countin-bg:  #6a55e0;
+  --sr-countin-bg:  #2f6fe0;
   --sr-countin-ink: #ffffff;
   --sr-countin-go:  #ffefa8;
 
   /* The playback bar: deep navy in both themes. */
-  --sr-bar:        #1e1b3a;
-  --sr-bar-rgb:    30 27 58;
-  --sr-bar-btn:    #2e2a52;
-  --sr-bar-btn-hi: #3d3870;
-  --sr-bar-menu:   #2a2650;
-  --sr-bar-line:   #3d3870;
+  --sr-bar:        #15213a;
+  --sr-bar-rgb:    21 33 58;
+  --sr-bar-btn:    #243353;
+  --sr-bar-btn-hi: #34466d;
+  --sr-bar-menu:   #1f2d4a;
+  --sr-bar-line:   #34466d;
   --sr-bar-ink:    #ffffff;
-  --sr-bar-muted:  #c9c3ee;
+  --sr-bar-muted:  #c3d0ea;
   --sr-bar-on:     #bdebd9;
   --sr-bar-accent: #ffefa8;
 }
@@ -373,7 +373,7 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
     color: var(--sr-ink);
   }
 
-  /* The workhorse: one option among many. A soft pill, violet when chosen. */
+  /* The workhorse: one option among many. A soft pill, blue when chosen. */
   .sr-tok {
     font-size: 14px;
     font-weight: 700;
@@ -443,11 +443,11 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
     transition: background 120ms ease;
   }
   .sr-btn:hover:not(:disabled) { background: var(--sr-action-hi); }
-  /* On the navy playback bar: Generate is mint, Play a light violet. */
+  /* On the navy playback bar: Generate is mint, Play a light blue. */
   .sr-btn-go { background: var(--sr-mint); color: var(--sr-mint-ink); }
   .sr-btn-go:hover:not(:disabled) { background: #a8e3cc; }
-  .sr-btn-play { background: #8e7cff; color: #120a3a; }
-  .sr-btn-play:hover:not(:disabled) { background: #a193ff; }
+  .sr-btn-play { background: #6fa8ff; color: #06162f; }
+  .sr-btn-play:hover:not(:disabled) { background: #8cbaff; }
   .sr-btn:disabled { opacity: 0.5; cursor: default; }
 
   .sr-btn-quiet {
@@ -471,7 +471,7 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
   .sr-icon-btn:hover:not(:disabled) { color: var(--sr-ink); background: var(--sr-tint); }
   .sr-icon-btn:disabled { opacity: 0.35; cursor: default; }
 
-  /* Tabs: a segmented pill, the chosen tab filled violet */
+  /* Tabs: a segmented pill, the chosen tab filled blue */
   .sr-tab {
     font-size: 14px;
     font-weight: 700;
@@ -494,10 +494,10 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
   .sr-sheet {
     background: var(--sr-paper);
     /* abcjs draws in currentColor, and the paper is white in every theme. */
-    color: #1e1b3a;
+    color: #15213a;
     /* Skeleton staves drawn on the paper stay paper-coloured too. */
-    --sr-skel:       #ece8f9;
-    --sr-skel-line:  #d6cff0;
+    --sr-skel:       #e6edf8;
+    --sr-skel-line:  #cfdaec;
     --sr-skel-sweep: rgba(255, 255, 255, 0.6);
     border-radius: 24px;
     box-shadow: var(--sr-paper-shadow);
@@ -602,9 +602,9 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
    other pages still carry hardcoded light classes and would go
    unreadable on a dark desk. Follows the OS, and a data-theme on
    <html> can force either way. Neutral charcoal greys, so the
-   violet and the pastels are the only colour. The paper stays white, and so do
+   blue and the pastels are the only colour. The paper stays white, and so do
    the pastels: they keep their dark -ink colours on either ground.
-   --sr-action is a fill, --sr-action-fg is violet used as text -
+   --sr-action is a fill, --sr-action-fg is the blue used as text -
    one colour cannot be both on a dark ground. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .sr-themable {
@@ -614,17 +614,17 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
     --sr-raise:      #232328;
     --sr-mat:        #0b0b0d;
     --sr-track:      #2a2a30;
-    --sr-tint:       #37325e;
+    --sr-tint:       #203a66;
     --sr-hairline:   #34343b;
     --sr-hairline-2: #28282e;
     --sr-ink:        #f4f4f6;
     --sr-ink-2:      #d8d8de;
     --sr-muted:      #a4a4ae;
     --sr-faint:      #75757f;
-    --sr-action:     #9d8cff;
-    --sr-action-fg:  #b8acff;
-    --sr-action-ink: #120a3a;
-    --sr-action-hi:  #afa1ff;
+    --sr-action:     #5c9dff;
+    --sr-action-fg:  #8dbaff;
+    --sr-action-ink: #06162f;
+    --sr-action-hi:  #78adff;
     --sr-brass:      #ffd86b;
     --sr-brass-bg:   #3a3115;
     --sr-danger:     #ff8a7a;
@@ -635,9 +635,9 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
     --sr-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     --sr-card-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.8);
     --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
-    --sr-countin-bg:  #9d8cff;
-    --sr-countin-ink: #120a3a;
-    --sr-countin-go:  #120a3a;
+    --sr-countin-bg:  #5c9dff;
+    --sr-countin-ink: #06162f;
+    --sr-countin-go:  #06162f;
     --sr-bar:        #0a0a0c;
     --sr-bar-rgb:    10 10 12;
     --sr-bar-btn:    #222226;
@@ -654,17 +654,17 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
   --sr-raise:      #232328;
   --sr-mat:        #0b0b0d;
   --sr-track:      #2a2a30;
-  --sr-tint:       #37325e;
+  --sr-tint:       #203a66;
   --sr-hairline:   #34343b;
   --sr-hairline-2: #28282e;
   --sr-ink:        #f4f4f6;
   --sr-ink-2:      #d8d8de;
   --sr-muted:      #a4a4ae;
   --sr-faint:      #75757f;
-  --sr-action:     #9d8cff;
-  --sr-action-fg:  #b8acff;
-  --sr-action-ink: #120a3a;
-  --sr-action-hi:  #afa1ff;
+  --sr-action:     #5c9dff;
+  --sr-action-fg:  #8dbaff;
+  --sr-action-ink: #06162f;
+  --sr-action-hi:  #78adff;
   --sr-brass:      #ffd86b;
   --sr-brass-bg:   #3a3115;
   --sr-danger:     #ff8a7a;
@@ -675,9 +675,9 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
   --sr-thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   --sr-card-shadow: 0 16px 40px -24px rgba(0, 0, 0, 0.8);
   --sr-paper-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -20px rgba(0, 0, 0, 0.9);
-  --sr-countin-bg:  #9d8cff;
-  --sr-countin-ink: #120a3a;
-  --sr-countin-go:  #120a3a;
+  --sr-countin-bg:  #5c9dff;
+  --sr-countin-ink: #06162f;
+  --sr-countin-go:  #06162f;
   --sr-bar:        #0a0a0c;
   --sr-bar-rgb:    10 10 12;
   --sr-bar-btn:    #222226;

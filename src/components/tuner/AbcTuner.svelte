@@ -53,7 +53,7 @@
 </script>
 
 <div class="w-full max-w-4xl mx-auto px-4 flex flex-col gap-4 pb-10">
-  <div class="flex gap-1 p-1.5 rounded-[22px] bg-sr-raise shadow-[0_12px_34px_-26px_rgba(58,40,150,0.4)] overflow-x-auto" role="tablist" aria-label="abcTuner">
+  <div class="flex gap-1 p-1.5 rounded-[22px] bg-sr-raise shadow-[0_12px_34px_-26px_rgba(30,70,160,0.4)] overflow-x-auto" role="tablist" aria-label="abcTuner">
     {#each TABS as [id, label]}
       <button
         role="tab"

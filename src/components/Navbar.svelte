@@ -86,7 +86,7 @@
 
 <nav
   bind:this={navbar}
-  class="sr-navbar fixed w-full bg-sr-raise shadow-[0_6px_24px_-18px_rgba(58,40,150,0.45)] z-50 transition-transform duration-300"
+  class="sr-navbar fixed w-full bg-sr-raise shadow-[0_6px_24px_-18px_rgba(30,70,160,0.45)] z-50 transition-transform duration-300"
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
     <div class="flex justify-between items-center h-16">
