@@ -5,7 +5,10 @@ import {
   HELP_KEY_COST,
   HELP_NOTE_CAP,
   MAX_LOSS,
+  MAX_HOLD_MS,
   MIN_HOLD_MS,
+  guidance,
+  solfegeOf,
   centsOffAnyOctave,
   gradeNotes,
   holdCents,
@@ -87,9 +90,29 @@ describe("the exercise's score", () => {
   test("letter boundaries", () => {
     expect([95, 90, 89, 80, 70, 60, 59].map(letterFor)).toEqual(["A", "A", "B", "B", "C", "D", "F"]);
   });
-  test("the hold: the written length at the tempo, never shorter than detection needs", () => {
-    expect(holdMsFor(1, 60)).toBe(1000);
-    expect(holdMsFor(2, 120)).toBe(1000);
-    expect(holdMsFor(0.5, 200)).toBe(Math.max(MIN_HOLD_MS, 150));
+  test("the hold: half the written length, within detection's floor and a ceiling", () => {
+    expect(holdMsFor(1, 60)).toBe(500);
+    expect(holdMsFor(0.5, 60)).toBe(250);
+    expect(holdMsFor(0.5, 200)).toBe(MIN_HOLD_MS);
+    expect(holdMsFor(4, 60)).toBe(MAX_HOLD_MS);
+  });
+});
+
+describe("what the card says", () => {
+  // F major: do is F (pitch class 5).
+  const F = 5;
+  test("solfege in the exercise's key", () => {
+    expect([65, 67, 69, 72, 64].map((m) => solfegeOf(m, F))).toEqual(["do", "re", "mi", "so", "ti"]);
+  });
+  test("the note sung, and which way and how far to the one asked for", () => {
+    expect(guidance({ sung: 67, target: 69, doPc: F, onTarget: false })).toBe("You're singing re. Go up a step to mi");
+    expect(guidance({ sung: 72, target: 69, doPc: F, onTarget: false })).toBe("You're singing so. Go down a third to mi");
+    expect(guidance({ sung: 55, target: 69, doPc: F, onTarget: false })).toBe("You're singing re. Go up a step to mi"); // any octave
+  });
+  test("close, on it, or nothing heard", () => {
+    expect(guidance({ sung: 69.6, target: 69, doPc: F, onTarget: false })).toBe("Close: a little high for mi");
+    expect(guidance({ sung: 68.4, target: 69, doPc: F, onTarget: false })).toBe("Close: a little low for mi");
+    expect(guidance({ sung: 69.1, target: 69, doPc: F, onTarget: true })).toBe("That's it, hold it");
+    expect(guidance({ sung: null, target: 69, doPc: F, onTarget: false })).toBe("Sing mi");
   });
 });

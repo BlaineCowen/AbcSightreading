@@ -248,7 +248,10 @@ site's theme colours through `src/lib/tuner/canvas-colors.ts`.
 **Grade** (Unison page, pitched, Pro): "Grade my singing" above the score.
 A reference (the first note or the tonic chord), a count-in, then the cursor
 waits on each note until it is sung, in any octave, within 40 cents, and held
-for its written length at the tempo (at least 0.25 s). Help plays the note (the
+for half its written length at the tempo (0.2 to 0.9 s; the whole length felt
+too long). While it waits the card names the note being sung and the way to
+the right one in solfege ("You're singing re. Go up a step to mi"), and after
+the run the notes on the score are coloured by how each went. Help plays the note (the
 note then scores at most 50), the tonic or the tonic chord (10 off), or skips it.
 Each note loses points for time to find (a free beat, then 25 a beat, up to 50)
 and intonation (free to 15 cents, then a point a cent, up to 25), never more

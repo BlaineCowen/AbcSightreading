@@ -41,6 +41,10 @@ export type GradeView = {
   onTarget: boolean;
   /** Live cents from the target in any octave, null when nothing is heard. */
   cents: number | null;
+  /** What is being sung, as a MIDI number with cents, null when nothing is heard. */
+  sung: number | null;
+  /** The note asked for, null outside the singing. */
+  target: number | null;
   /** A help sound is playing: the clock is stopped. */
   helping: boolean;
   result: GradeResult | null;
@@ -52,10 +56,12 @@ export type GradeHooks = {
   /** Count-in beat `beat` (0-based) of `total`; -1 when it ends. */
   countIn: (beat: number, total: number) => void;
   click: (downbeat: boolean) => void;
+  /** The run is over: each note's score, in order, to mark on the score. */
+  marked?: (scores: number[]) => void;
 };
 
 const TICK_MS = 50;
-const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, helping: false, result: null };
+const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, result: null };
 const nameOf = (midi: number) => NOTES[((midi % 12) + 12) % 12];
 const octaveOf = (midi: number) => Math.floor(midi / 12) - 1;
 const midiOfHz = (hz: number, a4: number) => 69 + 12 * Math.log2(hz / a4);
@@ -157,7 +163,7 @@ export class GradeRunner {
     this.help = { heardNote: false, heardKey: false };
     this.presentedAt = this.lastTickAt = performance.now();
     this.hooks.moveTo(i);
-    this.set({ index: i, hold: 0, onTarget: false, cents: null, helping: false });
+    this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false });
   }
 
   private tick() {
@@ -175,7 +181,8 @@ export class GradeRunner {
     }
     const note = this.notes[this.index];
     const s = tuner.get();
-    const cents = s.pitch !== null ? centsOffAnyOctave(midiOfHz(s.pitch, s.a4), note.midi) : null;
+    const sung = s.pitch !== null ? midiOfHz(s.pitch, s.a4) : null;
+    const cents = sung !== null ? centsOffAnyOctave(sung, note.midi) : null;
     const onTarget = cents !== null && Math.abs(cents) <= TOLERANCE_CENTS;
     if (onTarget) {
       if (this.holdMs === 0) this.holdStartedAt = now;
@@ -197,7 +204,7 @@ export class GradeRunner {
       this.next();
       return;
     }
-    this.set({ hold: Math.min(1, this.holdMs / need), onTarget, cents });
+    this.set({ hold: Math.min(1, this.holdMs / need), onTarget, cents, sung });
   }
 
   private record(r: Omit<NoteResult, "score">) {
@@ -212,7 +219,8 @@ export class GradeRunner {
   private finish() {
     this.clear();
     this.hooks.moveTo(-1);
-    this.set({ phase: "results", index: -1, hold: 0, result: summarize(this.results) });
+    this.hooks.marked?.(this.results.map((r) => r.score));
+    this.set({ phase: "results", index: -1, hold: 0, target: null, sung: null, result: summarize(this.results) });
   }
 
   /** Stuck: hear the note, the tonic, or the tonic chord. The clock stops while it sounds. */

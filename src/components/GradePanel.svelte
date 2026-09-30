@@ -2,6 +2,7 @@
   import { X } from "lucide-svelte";
   import { tuner } from "../lib/tuner/store";
   import type { GradeRunner } from "../lib/grade-runner";
+  import { guidance } from "../lib/grade";
 
   /**
    * Grade's card on the Unison page (rules in grade.ts, the run in
@@ -17,6 +18,8 @@
   export let onNewExercise: () => void;
   /** Why it cannot start now (no exercise, rhythm only), or null. */
   export let blocked: string | null = null;
+  /** Do's pitch class in the exercise's key, for naming notes in solfege. */
+  export let doPc = 0;
 
   $: v = $runner;
   $: sung = v.result?.notes ?? [];
@@ -77,8 +80,8 @@
         </svg>
         <div class="flex flex-col">
           <span class="text-sm font-bold">Note {v.index + 1} of {v.total}</span>
-          <span class="text-xs text-sr-muted">
-            {v.helping ? "Listen…" : v.onTarget ? "That's it, hold it" : v.cents === null ? "Sing the note at the cursor" : v.cents > 0 ? "A little high" : "A little low"}
+          <span class="text-sm font-semibold {v.onTarget ? 'text-sr-action-fg' : v.sung !== null && Math.abs(v.cents ?? 0) >= 100 ? 'text-sr-danger' : 'text-sr-ink-2'}" aria-live="polite">
+            {v.helping ? "Listen…" : v.target === null ? "" : guidance({ sung: v.sung, target: v.target, doPc, onTarget: v.onTarget })}
           </span>
         </div>
       </div>
@@ -105,7 +108,7 @@
           >{i + 1}</span>
         {/each}
       </div>
-      <p class="text-xs text-sr-muted">Green: found quickly and in tune. Amber: slow to find, or heard help. Red: stuck or skipped.</p>
+      <p class="text-xs text-sr-muted">The notes on the score are coloured the same way. Green: found quickly and in tune. Amber: slow to find, or heard help. Red: stuck or skipped.</p>
       <div class="flex gap-2">
         <button class="sr-btn flex-1" on:click={onStart}>Try again</button>
         <button class="sr-btn-quiet flex-1" on:click={onNewExercise}>New exercise</button>

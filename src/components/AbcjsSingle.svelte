@@ -3166,7 +3166,32 @@
       if (audioContext?.state === "suspended") void audioContext.resume();
       playMetronomeClick(downbeat);
     },
+    marked: (scores) => markGradedNotes(scores),
   });
+  /** Do's pitch class for naming notes in solfege, with the playback transposition. */
+  $: gradeDoPc = (() => {
+    const info = originalTuneString ? exerciseInfo(originalTuneString) : null;
+    return (((info ? NOTES.indexOf(info.doNote) : 0) + transposeSemitones) % 12 + 12) % 12;
+  })();
+
+  /** After a run, colour each note on the score as the card does. */
+  let gradeMarked: Element[] = [];
+  function clearGradeMarks() {
+    for (const el of gradeMarked) el.classList.remove("grade-good", "grade-ok", "grade-bad");
+    gradeMarked = [];
+  }
+  function markGradedNotes(scores: number[]) {
+    clearGradeMarks();
+    const drawn = drawnNotes();
+    scores.forEach((score, i) => {
+      const at = drawn[gradeList[i]?.cursor ?? -1];
+      const cls = score >= 90 ? "grade-good" : score >= 70 ? "grade-ok" : "grade-bad";
+      for (const el of (at?.absEl?.elemset ?? []) as Element[]) {
+        el.classList.add(cls);
+        gradeMarked.push(el);
+      }
+    });
+  }
   $: gradePhase = $gradeRunner.phase;
   $: grading = gradePhase === "reference" || gradePhase === "countIn" || gradePhase === "sing";
   $: gradeBlocked = rhythmOnly
@@ -3193,6 +3218,7 @@
 
   function closeGrade() {
     gradeRunner.stop();
+    clearGradeMarks();
     gradeOpen = false;
   }
 
@@ -3225,6 +3251,7 @@
 
   async function startGrade() {
     if (gradeBlocked || !originalTuneString || !gradeAllowed) return;
+    clearGradeMarks();
     if (drillRunning) await stopDrill();
     if (isPlaying) stopMusic();
     gradeList = gradeNotes(originalTuneString, transposeSemitones);
@@ -3367,6 +3394,7 @@
       onStart={startGrade}
       onClose={closeGrade}
       onNewExercise={gradeNewExercise}
+      doPc={gradeDoPc}
     />
   {/if}
 
@@ -4271,11 +4299,14 @@
 </div>
 
 <style>
-  /* Grade: the note waiting to be sung. */
+  /* Grade: the note waiting to be sung, then how each went. */
   :global(#paper .grade-now), :global(#paper .grade-now path) {
     fill: #2f6fe0;
     color: #2f6fe0;
   }
+  :global(#paper .grade-good), :global(#paper .grade-good path) { fill: #1f9d6b; color: #1f9d6b; }
+  :global(#paper .grade-ok), :global(#paper .grade-ok path) { fill: #c98a00; color: #c98a00; }
+  :global(#paper .grade-bad), :global(#paper .grade-bad path) { fill: #d13f2f; color: #d13f2f; }
   :global(.abcjs-pitch-cursor) {
     stroke: #1411c4;
     stroke-width: 2;

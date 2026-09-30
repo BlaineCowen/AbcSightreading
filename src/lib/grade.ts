@@ -18,8 +18,16 @@ import type { HistoryPoint } from "./tuner/pitch-history";
 
 /** Within this of the target, in any octave, counts as the note. */
 export const TOLERANCE_CENTS = 40;
+/**
+ * How much of a note's written length must be held for it to count. The whole
+ * length felt too long: the detector takes a moment to lock on, so a quarter
+ * at 60 asked for well over a second of steady singing.
+ */
+export const HOLD_FRACTION = 0.5;
 /** Shortest hold asked for: detection needs about this long to be sure. */
-export const MIN_HOLD_MS = 250;
+export const MIN_HOLD_MS = 200;
+/** Longest hold asked for, however long the note: a whole note need not be sat on. */
+export const MAX_HOLD_MS = 900;
 /** A hold survives a lapse this long (a consonant, a vibrato swing). */
 export const HOLD_GRACE_MS = 200;
 /** Finding a note within this many beats of it being shown costs nothing. */
@@ -81,7 +89,30 @@ export function centsOffAnyOctave(sungMidi: number, targetMidi: number): number 
 }
 
 /** How long a note must be held, at this tempo (quarter notes a minute). */
-export const holdMsFor = (beats: number, bpm: number) => Math.max(MIN_HOLD_MS, (beats * 60_000) / Math.max(1, bpm));
+export const holdMsFor = (beats: number, bpm: number) =>
+  Math.min(MAX_HOLD_MS, Math.max(MIN_HOLD_MS, ((beats * 60_000) / Math.max(1, bpm)) * HOLD_FRACTION));
+
+const SYLLABLES = ["do", "di", "re", "ri", "mi", "fa", "fi", "so", "si", "la", "li", "ti"];
+/** Movable do for a pitch, given do's pitch class (the exercise's key). */
+export const solfegeOf = (midi: number, doPc: number) => SYLLABLES[(((Math.round(midi) - doPc) % 12) + 12) % 12];
+
+const STEP_NAMES = ["", "a half step", "a step", "a third", "a third", "a fourth", "a tritone"];
+
+/**
+ * What the card says while a note is waited on: the note sung, and which way
+ * and how far to the one asked for, in solfège. "A little high" said nothing
+ * about a singer who was a third away.
+ */
+export function guidance(o: { sung: number | null; target: number; doPc: number; onTarget: boolean }): string {
+  const want = solfegeOf(o.target, o.doPc);
+  if (o.onTarget) return "That's it, hold it";
+  if (o.sung === null) return `Sing ${want}`;
+  const cents = centsOffAnyOctave(o.sung, o.target);
+  if (Math.abs(cents) < 100) return cents > 0 ? `Close: a little high for ${want}` : `Close: a little low for ${want}`;
+  const semis = Math.round(-cents / 100);
+  const way = semis > 0 ? "up" : "down";
+  return `You're singing ${solfegeOf(o.sung, o.doPc)}. Go ${way} ${STEP_NAMES[Math.abs(semis)]} to ${want}`;
+}
 
 export type Help = { heardNote: boolean; heardKey: boolean };
 
