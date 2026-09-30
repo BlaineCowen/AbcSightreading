@@ -182,12 +182,14 @@ G only and 15-17 leave out C, because three close parts in C fail at these
 ranges; see the comments there.
 
 The Unison generator writes a line that prefers moving to repeating a note,
-spreads across the range it was given (favouring the pitches it has sung least,
-in both the chord it picks and the note), and ends on do (heading back toward it
-over its last notes); chromatic chords only steer the line when their altered
-note is selected. Before that, a do-re-mi
-exercise was two-thirds repeated notes and a stepwise line ended on do 17% of
-the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
+spreads across the range it was given (favouring the pitches and the scale
+degrees it has sung least, in both the chord it picks and the note), and starts
+and ends on a note of the tonic triad: do, mi or so, whichever are selected,
+not always do. Chromatic chords only steer the line when their altered note is
+selected. Before that, a do-re-mi exercise was two-thirds repeated notes; and
+when the line was made to end on do and steered there, 1 2 3 5 6 gave so and la
+a tenth of the line each against do's third (now each 12-29%).
+`tests/unit/unison-line-shape.test.ts` holds those rates.
 
 ## abcTuner
 

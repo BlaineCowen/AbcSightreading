@@ -3,12 +3,13 @@ import { createNewSr } from "../../src/lib/generateUnison";
 import { selectableRhythms } from "../../src/lib/selectable-rhythms";
 
 /**
- * The shape of a single line, as a reader meets it: it ends on do, it moves,
- * and it travels the range it was given. All three were left to chance - any
- * tone of the final I could end it, staying put was as likely as stepping, and
- * the line sat where I and V keep it - so a do-re-mi exercise was two-thirds
- * repeated notes, "up to so" ended on so three times in four, and a wide range
- * had both its ends sung in 30% of exercises. Rates, not rules, because each is
+ * The shape of a single line, as a reader meets it: it starts and ends on do,
+ * mi or so, it moves, it travels the range it was given, and it sings every
+ * degree selected. Staying put was once as likely as stepping, and the line
+ * sat where I and V keep it - so a do-re-mi exercise was two-thirds repeated
+ * notes, and a wide range had both its ends sung in 30% of exercises. Then it
+ * was made to end on do and steered there, and with 1 2 3 5 6 selected so and
+ * la were a tenth of the line each. Rates, not rules, because each is
  * a preference the walk may have to give up; the thresholds sit well below
  * what the generator measures.
  */
@@ -42,36 +43,68 @@ function line(opts: {
   }
 }
 
+const TONIC_TRIAD = [0, 2, 4];
+
 function rates(make: () => any[], runs: number) {
-  let endsOnDo = 0, repeats = 0, moves = 0;
+  let endsHome = 0, startsHome = 0, endsOnDo = 0, repeats = 0, moves = 0, notesSung = 0;
+  const byDegree: Record<number, number> = {};
   for (let i = 0; i < runs; i++) {
     const notes = make();
-    if (notes[notes.length - 1].degree === 0) endsOnDo++;
+    const last = notes[notes.length - 1].degree;
+    if (TONIC_TRIAD.includes(last)) endsHome++;
+    if (last === 0) endsOnDo++;
+    if (TONIC_TRIAD.includes(notes[0].degree)) startsHome++;
+    for (const n of notes) byDegree[n.degree] = (byDegree[n.degree] ?? 0) + 1;
+    notesSung += notes.length;
     for (let k = 1; k < notes.length; k++) {
       moves++;
       if (notes[k].pitchValue === notes[k - 1].pitchValue) repeats++;
     }
   }
-  return { endsOnDo: endsOnDo / runs, repeats: repeats / moves };
+  const share = (degree: number) => (byDegree[degree] ?? 0) / notesSung;
+  return {
+    endsHome: endsHome / runs,
+    startsHome: startsHome / runs,
+    endsOnDo: endsOnDo / runs,
+    repeats: repeats / moves,
+    share,
+  };
 }
 
 describe("unison line shape", () => {
-  test("a line by step from do to so ends on do, and mostly moves", () => {
+  test("a line by step from do to so ends on the tonic triad, and mostly moves", () => {
     const r = rates(
       () => line({ degrees: [1, 2, 3, 4, 5], maxSkip: 1, range: { min: 14, max: 18 }, rhythms: ["quarter", "half"] }),
       40
     );
-    expect(r.endsOnDo).toBeGreaterThanOrEqual(0.7);
+    expect(r.endsHome).toBeGreaterThanOrEqual(0.9);
     // Quarters and halves only, so no eighth pairs repeating by design.
     expect(r.repeats).toBeLessThan(0.4);
   }, 30000);
 
-  test("an ordinary line ends on do", () => {
+  test("an ordinary line starts and ends on do, mi or so, and not always do", () => {
     const r = rates(
       () => line({ degrees: [1, 2, 3, 4, 5, 6, 7], maxSkip: 4, range: { min: 14, max: 21 }, rhythms: ["quarter", "eighthEighth", "half"], key: "F" }),
       40
     );
-    expect(r.endsOnDo).toBeGreaterThanOrEqual(0.9);
+    expect(r.startsHome).toBe(1);
+    expect(r.endsHome).toBeGreaterThanOrEqual(0.9);
+    // Measured about 30-50%: do is one home among three.
+    expect(r.endsOnDo).toBeLessThan(0.8);
+  }, 30000);
+
+  test("every degree selected gets its share of the line", () => {
+    // 1 2 3 5 6 in C and F, a third: la was 10-14% and do 30%, since the line
+    // was steered to do at the end and a range with two dos offered it twice.
+    // Measured now at 12-19% la and 20-27% do; an even share is 20%.
+    for (const key of ["C", "F"]) {
+      const r = rates(
+        () => line({ degrees: [1, 2, 3, 5, 6], maxSkip: 2, range: { min: 14, max: 21 }, rhythms: ["quarter", "eighthEighth", "half"], key }),
+        60
+      );
+      for (const degree of [0, 1, 2, 4, 5]) expect(r.share(degree)).toBeGreaterThan(0.08);
+      expect(r.share(0)).toBeLessThan(0.29);
+    }
   }, 30000);
 
   test("a line uses the range it was given", () => {

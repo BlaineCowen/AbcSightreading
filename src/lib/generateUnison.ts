@@ -575,8 +575,12 @@ function generateChordProgression(
     // chords keep it - do and so a sixth of the notes each, la and ti half
     // that, the outer notes of a wide range 4% - and a reader practised the
     // middle of their voice only.
-    const uses = (n: Note) => bassNoteArray.filter((b) => b.pitchValue === n.pitchValue).length;
-    const weights = from.map((n) => 1 / Math.pow(1 + uses(n), RANGE_SPREAD));
+    // By degree as well as by pitch: counted by pitch alone, a range with
+    // two dos in it offered do twice as often as la, and a 1 2 3 5 6 line
+    // was a third do and a tenth la.
+    const weights = from.map(
+      (n) => 1 / (Math.pow(1 + uses(n), RANGE_SPREAD) * Math.pow(1 + degreeUses(n), DEGREE_SPREAD))
+    );
     let r = Math.random() * weights.reduce((a, w) => a + w, 0);
     for (let k = 0; k < from.length; k++) {
       r -= weights[k];
@@ -594,24 +598,36 @@ function generateChordProgression(
    * held (87-100%), repeats did not rise, and nothing failed.
    */
   const RANGE_SPREAD = 2;
+  const DEGREE_SPREAD = 1;
   const CHORD_SPREAD = 0.5;
+  const uses = (n: Note) => bassNoteArray.filter((b) => b.pitchValue === n.pitchValue).length;
+  const degreeUses = (n: Note) => bassNoteArray.filter((b) => b.degree === n.degree).length;
+  /** Least sung first: a pitch's own count, then its degree's as the tiebreak. */
+  const sungScore = (n: Note) => uses(n) * 1000 + degreeUses(n);
   /**
-   * How many notes early a line starts heading back to do: the notes it needs
-   * to walk there, plus this. Measured on "up to so" (by step, do to so): 2
-   * ended on do 62% of the time, 4 at 80%, 6 at 89%, with no loss of variety.
+   * A line starts and ends on a note of the tonic triad - do, mi or so,
+   * whichever of them are selected. It used to be made to end on do, and it
+   * steered toward do over its last notes to get there, which with 1 2 3 5 6
+   * left so and la a tenth of the line each.
+   */
+  const isHome = (note: Note) => [0, 2, 4].includes(note.degree) && scaleDegrees.includes(note.degree);
+  /**
+   * How many notes early a line starts heading home: the notes it needs to
+   * walk there, plus this. Measured on "up to so" (by step, do to so) when
+   * home was do alone: 2 ended there 62% of the time, 4 at 80%, 6 at 89%.
    */
   const HOME_MARGIN = 6;
-  /** How far a note is from the nearest do in range, in scale steps. */
-  const distanceToDo = (note: Note) =>
+  /** How far a note is from the nearest home note in range, in scale steps. */
+  const distanceHome = (note: Note) =>
     Math.min(
       Infinity,
-      ...bassRangeNoteList.filter((n) => n.degree === 0).map((n) => Math.abs(n.pitchValue - note.pitchValue))
+      ...bassRangeNoteList.filter(isHome).map((n) => Math.abs(n.pitchValue - note.pitchValue))
     );
-  /** Whether a do other than this note is within a skip of it. */
-  const leadsToDo = (note: Note) =>
+  /** Whether a home note other than this one is within a skip of it. */
+  const leadsHome = (note: Note) =>
     bassRangeNoteList.some(
       (n) =>
-        n.degree === 0 &&
+        isHome(n) &&
         n.pitchValue !== note.pitchValue &&
         Math.abs(n.pitchValue - note.pitchValue) <= maxSkip
     );
@@ -708,7 +724,15 @@ function generateChordProgression(
     );
   }
 
-  bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
+  // Degree first, then which octave: drawn by pitch, a range holding two dos
+  // started on do half the time.
+  const pickStart = () => {
+    const degrees = [...new Set(tonicNotes.map((n) => n.degree))];
+    const degree = degrees[Math.floor(Math.random() * degrees.length)];
+    const at = tonicNotes.filter((n) => n.degree === degree);
+    return at[Math.floor(Math.random() * at.length)];
+  };
+  bassNoteArray.push(pickStart());
 
   let prevBassNote = bassNoteArray[0];
   let prevChord = {
@@ -730,7 +754,7 @@ function generateChordProgression(
   while (!validProgression && chordGenFails < 100) {
     // console.log(`🔄 Chord progression attempt ${chordGenFails + 1}/100`);
     chordProgression = [];
-    bassNoteArray = [tonicNotes[Math.floor(Math.random() * tonicNotes.length)]];
+    bassNoteArray = [pickStart()];
 
     for (let i = 0; i < numOfChords; i++) {
       // console.log(`📝 Generating chord ${i + 1}/${numOfChords}`);
@@ -1000,8 +1024,8 @@ function generateChordProgression(
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
                 newMaxSkip
             )
-            // One from which do is in reach first, so the line can end there.
-            .sort((a, b) => Number(leadsToDo(b)) - Number(leadsToDo(a)))
+            // One from which home is in reach first, so the line can end there.
+            .sort((a, b) => Number(leadsHome(b)) - Number(leadsHome(a)))
             .slice(0, 1); // Take only the first note
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
@@ -1035,11 +1059,9 @@ function generateChordProgression(
             (note) =>
               Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
           );
-        // End on do when it is in reach. Any tone of the final I used to do,
-        // so a line could stop on so or mi and sound unfinished - and a reader
-        // learning to hear the tonic was left without one.
-        const onDo = bassNoteToAdd.filter((note) => note.degree === 0);
-        if (onDo.length > 0) bassNoteToAdd = onDo;
+        // End on do, mi or so, whichever are selected and in reach.
+        const home = bassNoteToAdd.filter(isHome);
+        if (home.length > 0) bassNoteToAdd = home;
         if (bassNoteToAdd.length > 0) {
           bassNoteArray.push(
             pickBass(bassNoteToAdd, nextChord.chord)
@@ -1112,18 +1134,18 @@ function generateChordProgression(
           // Heading home: when the notes left are only just enough to walk
           // back to do, go toward it. A stepwise line otherwise wandered up to
           // so and had nowhere to end but so - three "up to so" lines in four.
-          const homeDistance = distanceToDo(prevBassNote);
+          const homeDistance = distanceHome(prevBassNote);
           const homing =
             numOfChords - 1 - i <= Math.ceil(homeDistance / Math.max(1, newMaxSkip)) + HOME_MARGIN &&
             homeDistance > 0;
-          const towardDo = (note: Note) => distanceToDo(note) < homeDistance;
+          const towardHome = (note: Note) => distanceHome(note) < homeDistance;
           if (homing) {
             const closer = nextChordPossibilities.filter((possibleNext) => {
               const info = chords.find((c) => c.name === possibleNext.name);
               return bassDegrees.some(
                 (note) =>
                   usable(info, note) &&
-                  towardDo(note) &&
+                  towardHome(note) &&
                   Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
               );
             });
@@ -1140,10 +1162,9 @@ function generateChordProgression(
                   note.pitchValue !== prevBassNote.pitchValue &&
                   Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
               );
-            const uses = (n: Note) => bassNoteArray.filter((b) => b.pitchValue === n.pitchValue).length;
             const offers = nextChordPossibilities.map((possibleNext) => {
               const notes = reachable(chords.find((c) => c.name === possibleNext.name));
-              return { possibleNext, least: notes.length ? Math.min(...notes.map(uses)) : Infinity };
+              return { possibleNext, least: notes.length ? Math.min(...notes.map(sungScore)) : Infinity };
             });
             const fewest = Math.min(...offers.map((o) => o.least));
             if (Number.isFinite(fewest)) {
@@ -1186,7 +1207,7 @@ function generateChordProgression(
                   newMaxSkip
               );
             if (homing) {
-              const closer = bassNoteToAdd.filter(towardDo);
+              const closer = bassNoteToAdd.filter(towardHome);
               if (closer.length > 0) bassNoteToAdd = closer;
             }
             if (bassNoteToAdd.length > 0) {
