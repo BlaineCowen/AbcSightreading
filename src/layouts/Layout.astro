@@ -131,7 +131,7 @@ const feedbackConfigured = !!readFeedbackEmail(
          deployment - and needs no cookie. -->
     {!isStudent && <Analytics />}
   </head>
-  <body class:list={["min-h-screen sr-desk", { "sr-themable": themable }]}>
+  <body class:list={["min-h-screen sr-desk", { "sr-themable": themable }]} data-feedback={feedbackConfigured && !isStudent ? "1" : undefined}>
     <header class="fixed top-0 w-full z-10">
       <Navbar client:only="svelte" />
       {!isStudent && <WelcomeNote client:only="svelte" />}

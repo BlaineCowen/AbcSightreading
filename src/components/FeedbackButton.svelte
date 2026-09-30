@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   /**
    * Tester feedback, with the context already filled in.
    *
@@ -139,10 +140,20 @@
     state = "idle";
     failure = "";
   }
+
+  // The navbar's menu opens this on a phone, where the button is hidden.
+  onMount(() => {
+    const show = () => (open = true);
+    window.addEventListener("sr-open-feedback", show);
+    return () => window.removeEventListener("sr-open-feedback", show);
+  });
 </script>
 
+<!-- Floating from a tablet up. On a phone it covered footer links, the ends of
+     buttons and the practice controls, so there it is in the navbar's menu
+     instead, which opens this dialog with the sr-open-feedback event. -->
 <button
-  class="fixed bottom-20 right-4 z-20 px-4 py-2 rounded-full bg-sr-peach text-sr-peach-ink text-sm font-extrabold shadow-lg hover:brightness-95 print:hidden"
+  class="max-md:hidden fixed bottom-20 right-4 z-20 px-4 py-2 rounded-full bg-sr-peach text-sr-peach-ink text-sm font-extrabold shadow-lg hover:brightness-95 print:hidden"
   on:click={() => (open = !open)}
   aria-expanded={open}
 >

@@ -5,6 +5,8 @@
   import { nextNavState, type NavScroll } from "../lib/nav-reveal";
   import { signedInUser } from "../lib/auth-client";
   let isNavbarOpen = false;
+  /** The page has the feedback form (Layout marks it on <body>). */
+  const feedbackHere = typeof document !== "undefined" && document.body.dataset.feedback === "1";
 
   /**
    * The two modules. Short names on the bar - the logo already says "Sight
@@ -210,6 +212,14 @@
           >
             {account ? (isStudentEmail(account.email) ? "Account" : `Account (${account.email})`) : "Sign in"}
           </a>
+        {/if}
+        {#if feedbackHere}
+          <!-- The floating Feedback button is hidden on a phone; it lives here. -->
+          <button
+            type="button"
+            class="flex items-center min-h-12 px-4 rounded-full text-base font-bold text-left text-sr-ink-2 hover:bg-sr-track"
+            on:click={() => { isNavbarOpen = false; window.dispatchEvent(new CustomEvent("sr-open-feedback")); }}
+          >Send feedback</button>
         {/if}
       </div>
     {/if}
