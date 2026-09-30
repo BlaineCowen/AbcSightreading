@@ -54,6 +54,14 @@
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset, type ActivePresetRecord } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
+  import GradePanel from "./GradePanel.svelte";
+  import { GradeRunner } from "../lib/grade-runner";
+  import { gradeNotes, type GradeNote } from "../lib/grade";
+  import { billingStatus } from "../lib/billing-client";
+  import { signedInUser } from "../lib/auth-client";
+  import { initTuner, startTuner, stopTuner } from "../lib/tuner/controller";
+  import { exerciseInfo } from "../lib/tools/context";
+  import { NOTES } from "../lib/tuner/pitch";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
@@ -2083,6 +2091,7 @@
    * since generating is about to write a fresh tune at it anyway.
    */
   async function handleClick() {
+    if (grading) return;
     if (drillRunning) await stopDrill(false);
     await generateExercise();
   }
@@ -3142,6 +3151,112 @@
     window.addEventListener("hashchange", onHashChange);
   });
 
+  // ── Grade (grade.ts, grade-runner.ts) ─────────────────────────────────────
+  // Sing the exercise into the microphone: the cursor waits on each note until
+  // it is sung and held for its length. Pro, pitched exercises only.
+  let gradeOpen = false;
+  let gradeAllowed: boolean | null = null;
+  let gradeSignedIn = false;
+  let gradeList: GradeNote[] = [];
+  let gradeLit: Element[] = [];
+  const gradeRunner = new GradeRunner({
+    moveTo: (i) => gradeCursorTo(i),
+    countIn: (beat) => (beat < 0 ? hideCountIn() : showCountIn(playedMeter(), beat)),
+    click: (downbeat) => {
+      if (audioContext?.state === "suspended") void audioContext.resume();
+      playMetronomeClick(downbeat);
+    },
+  });
+  $: gradePhase = $gradeRunner.phase;
+  $: grading = gradePhase === "reference" || gradePhase === "countIn" || gradePhase === "sing";
+  $: gradeBlocked = rhythmOnly
+    ? "Grade is for pitched exercises. Switch Mode to Pitched."
+    : !originalTuneString
+      ? "Generate an exercise first."
+      : null;
+  // The microphone is Grade's only while it runs.
+  let gradeHadMic = false;
+  $: if (!grading && gradeHadMic) {
+    gradeHadMic = false;
+    tuner.setMicHeld(false);
+    stopTuner();
+  }
+
+  async function openGrade() {
+    gradeOpen = true;
+    if (gradeAllowed === null) {
+      gradeSignedIn = !!(await signedInUser());
+      const status = await billingStatus();
+      gradeAllowed = !!status && status.plan !== "free";
+    }
+  }
+
+  function closeGrade() {
+    gradeRunner.stop();
+    gradeOpen = false;
+  }
+
+  /** The notes and rests abcjs drew, in order: what a note's `cursor` counts. */
+  const drawnNotes = () => selectableArray.filter((e: any) => e?.absEl?.abcelem?.el_type === "note");
+
+  /** Point at note `i` of the graded list (none for -1), and bring it into view. */
+  function gradeCursorTo(i: number) {
+    for (const el of gradeLit) el.classList.remove("grade-now");
+    gradeLit = [];
+    if (i < 0) {
+      hidePlaybackCursor();
+      return;
+    }
+    const at = drawnNotes()[gradeList[i]?.cursor ?? -1];
+    if (!at?.absEl || !playbackCursor) return;
+    const x = Math.max(0, at.absEl.x - 2);
+    playbackCursor.setAttribute("x1", String(x));
+    playbackCursor.setAttribute("x2", String(x));
+    playbackCursor.setAttribute("y1", String(at.staffPos.top - 10));
+    playbackCursor.setAttribute("y2", String(at.staffPos.top + 80));
+    gradeLit = (at.absEl.elemset ?? []) as Element[];
+    for (const el of gradeLit) el.classList.add("grade-now");
+    const box = gradeLit[0]?.getBoundingClientRect();
+    // Kept clear of the navbar above and the Grade card and playback bar below.
+    if (box && (box.top < 90 || box.bottom > window.innerHeight - 360)) {
+      window.scrollBy({ top: box.top - window.innerHeight / 3, behavior: "smooth" });
+    }
+  }
+
+  async function startGrade() {
+    if (gradeBlocked || !originalTuneString || !gradeAllowed) return;
+    if (drillRunning) await stopDrill();
+    if (isPlaying) stopMusic();
+    gradeList = gradeNotes(originalTuneString, transposeSemitones);
+    if (!gradeList.length) return;
+    // The button press is the gesture the microphone needs.
+    initTuner();
+    await startTuner();
+    if (tuner.get().engineStatus !== "running") return;
+    tuner.setMicHeld(true);
+    gradeHadMic = true;
+    // The tonic chord near the first note: do's chord, or la's in minor.
+    const info = exerciseInfo(originalTuneString);
+    const doPc = ((info ? NOTES.indexOf(info.doNote) : 0) + transposeSemitones + 120) % 12;
+    const tonicPc = (doPc + (info?.minor ? 9 : 0)) % 12;
+    const first = gradeList[0].midi;
+    const tonic = first - ((((first - tonicPc) % 12) + 12) % 12);
+    const meter = playedMeter();
+    gradeRunner.start({
+      notes: gradeList,
+      bpm: tempo,
+      beatsPerBar: parseInt(meter, 10) || 4,
+      countInBeats: countInBeats(meter),
+      reference: tuner.get().gradeReference,
+      tonicTriad: info?.minor ? [tonic, tonic + 3, tonic + 7] : [tonic, tonic + 4, tonic + 7],
+    });
+  }
+
+  async function gradeNewExercise() {
+    gradeRunner.reset();
+    await generateExercise();
+  }
+
   /** The saved preset the settings came from, whole, for remembering it. */
   let activeSavedPreset: SavedPreset<any> | null = null;
   let presetMemoryReady = false;
@@ -3243,6 +3358,17 @@
        offered here. -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
+  {#if gradeOpen}
+    <GradePanel
+      runner={gradeRunner}
+      allowed={gradeAllowed}
+      signedIn={gradeSignedIn}
+      blocked={gradeBlocked}
+      onStart={startGrade}
+      onClose={closeGrade}
+      onNewExercise={gradeNewExercise}
+    />
+  {/if}
 
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
@@ -3980,6 +4106,19 @@
     <div class="relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
       <CountInBadge />
+      {#if !rhythmOnly}
+        <div class="flex justify-end">
+          <button
+            class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+            on:click={openGrade}
+            disabled={grading}
+            title="Sing it into the microphone and get a score"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+            Grade my singing
+          </button>
+        </div>
+      {/if}
       <!-- Before the first exercise, say what to do: the page used to open on an
            empty white card. Outside #paper, which abcjs empties when it draws. -->
       {#if !originalTuneString && !isLoading}
@@ -4024,7 +4163,7 @@
     voiceNames={[]}
     mutedVoices={new Set()}
     hasExercise={currentTune !== null}
-    onPlay={playMusic}
+    onPlay={() => { if (!grading) playMusic(); }}
     onPause={handleBarPause}
     onStop={handleBarStop}
     onRestart={handleRestart}
@@ -4132,6 +4271,11 @@
 </div>
 
 <style>
+  /* Grade: the note waiting to be sung. */
+  :global(#paper .grade-now), :global(#paper .grade-now path) {
+    fill: #2f6fe0;
+    color: #2f6fe0;
+  }
   :global(.abcjs-pitch-cursor) {
     stroke: #1411c4;
     stroke-width: 2;

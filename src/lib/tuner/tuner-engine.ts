@@ -144,7 +144,9 @@ export class TunerEngine {
   }
 
   private handleMessage(event: MessageEvent) {
-    if (!this.onFrameCallback || event.data.type !== "buffer") return;
+    // A buffer the worklet sent just before stop() can still arrive after it,
+    // with the context gone; there is nothing to analyse it against.
+    if (!this.onFrameCallback || event.data.type !== "buffer" || !this.audioContext) return;
     this.frameCount++;
     const buffer: Float32Array = event.data.buffer;
     this.lastSamples = buffer;

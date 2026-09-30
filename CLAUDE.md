@@ -245,6 +245,21 @@ The detection files are that project's unchanged, so improve detection there
 (its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the
 site's theme colours through `src/lib/tuner/canvas-colors.ts`.
 
+**Grade** (Unison page, pitched, Pro): "Grade my singing" above the score.
+A reference (the first note or the tonic chord), a count-in, then the cursor
+waits on each note until it is sung, in any octave, within 40 cents, and held
+for its written length at the tempo (at least 0.25 s). Help plays the note (the
+note then scores at most 50), the tonic or the tonic chord (10 off), or skips it.
+Each note loses points for time to find (a free beat, then 25 a beat, up to 50)
+and intonation (free to 15 cents, then a point a cent, up to 25), never more
+than 60 in all; the score is the average, shown to the singer only. Rules and
+constants in `src/lib/grade.ts` (tests `grade.test.ts`), the run in
+`src/lib/grade-runner.ts` (modelled on the scale challenge's), the card in
+`GradePanel.svelte`. While it listens the tuner store's `micHeld` keeps a Tools
+card from switching the microphone off. Test end to end with a synthesized WAV
+of the exercise's notes (the fake-capture flags below), answering
+`/api/auth/get-session` and `/api/billing` as Pro.
+
 To test with a real signal, run Chromium with
 `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`;
 a synthetic 440 Hz tone reads A4 within a cent.

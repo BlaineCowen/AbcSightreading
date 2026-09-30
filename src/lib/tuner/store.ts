@@ -47,6 +47,10 @@ export interface TunerState {
   challengeShowTuner: boolean;
   challengeDifficulty: Difficulty;
   challengeGuideTone: boolean;
+  /** Grade's reference before the count-in: the first note, or the tonic chord. */
+  gradeReference: "note" | "triad";
+  /** Grade has the microphone: closing a Tools card must not stop it. */
+  micHeld: boolean;
   // Live analysis, from the last frame
   pitch: number | null;
   note: NoteName | null;
@@ -80,7 +84,7 @@ export interface TunerState {
 const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
-  "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume",
+  "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
 ] as const;
 const STORAGE_KEY = "abc-tuner-settings";
 
@@ -102,6 +106,8 @@ const initial: TunerState = {
   challengeShowTuner: true,
   challengeDifficulty: "normal",
   challengeGuideTone: true,
+  gradeReference: "note",
+  micHeld: false,
   pitch: null,
   note: null,
   cents: 0,
@@ -233,4 +239,6 @@ export const tuner = {
   toggleChallengeShowTuner: () => state.update((s) => ({ ...s, challengeShowTuner: !s.challengeShowTuner })),
   setChallengeDifficulty: (challengeDifficulty: Difficulty) => set({ challengeDifficulty }),
   toggleChallengeGuideTone: () => state.update((s) => ({ ...s, challengeGuideTone: !s.challengeGuideTone })),
+  setGradeReference: (gradeReference: "note" | "triad") => set({ gradeReference }),
+  setMicHeld: (micHeld: boolean) => set({ micHeld }),
 };

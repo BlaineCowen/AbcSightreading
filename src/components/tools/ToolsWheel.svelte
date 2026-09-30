@@ -105,12 +105,13 @@
     if (allowed === null) await checkPlan();
     const listening = LISTENING.includes(id);
     if (allowed && listening && tuner.get().engineStatus !== "running") startTuner();
-    if (!listening && tuner.get().engineStatus === "running") stopTuner();
+    if (!listening && tuner.get().engineStatus === "running" && !tuner.get().micHeld) stopTuner();
   }
 
   function closeCard() {
     tool = null;
-    if (tuner.get().engineStatus === "running") stopTuner();
+    // Grade holds the microphone while it listens; leave it on for that.
+    if (tuner.get().engineStatus === "running" && !tuner.get().micHeld) stopTuner();
   }
 
   function onKey(e: KeyboardEvent) {
