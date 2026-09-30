@@ -28,7 +28,7 @@
   {/if}
   {#if assignment.note}<p class="text-sm text-sr-ink-2">{assignment.note}</p>{/if}
   <p class="text-xs text-sr-muted">
-    {#if percent >= 100}Done! Keep going if you like.{:else}Time counts while you're practising here.{/if}
+    {#if percent >= 100}Done! Keep going if you like.{:else}Time counts while you're practicing here.{/if}
     {#if assignment.dueAt}Due {day(assignment.dueAt)}.{/if}
     The settings are the assignment's. <a class="underline" href={leave}>Leave the assignment</a>
   </p>

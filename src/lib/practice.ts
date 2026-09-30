@@ -4,7 +4,7 @@
  * the server credits (src/pages/api/practice.ts), and the numbers teachers see
  * come from here.
  *
- * Only whether and for how long a student practised is kept - minutes,
+ * Only whether and for how long a student practiced is kept - minutes,
  * exercise counts and dates. No recordings, no device, no address: the
  * students may be under 13.
  */
@@ -67,7 +67,7 @@ export type AssignmentRequest = { presetKey: string; minutes: number; dueAt: Dat
 export function checkAssignmentRequest(body: unknown, now = new Date()): Checked<AssignmentRequest> {
   if (typeof body !== "object" || body === null) return { ok: false, error: "Expected an assignment." };
   const b = body as Record<string, unknown>;
-  if (!parsePresetKey(b.presetKey)) return { ok: false, error: "Choose what to practise." };
+  if (!parsePresetKey(b.presetKey)) return { ok: false, error: "Choose what to practice." };
   const minutes = Number(b.minutes);
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_MINUTES) {
     return { ok: false, error: `Minutes: a whole number from 1 to ${MAX_MINUTES}.` };

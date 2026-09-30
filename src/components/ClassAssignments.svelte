@@ -136,12 +136,12 @@
   {/each}
 
   {#if loaded && !assignments.length && !assigning}
-    <p class="text-xs text-sr-muted">Nothing assigned yet. Students see assignments when they sign in, and their time counts while they practise.</p>
+    <p class="text-xs text-sr-muted">Nothing assigned yet. Students see assignments when they sign in, and their time counts while they practice.</p>
   {/if}
 
   {#if assigning}
     <form class="flex flex-col gap-2 border border-sr-hairline rounded-md p-2" on:submit|preventDefault={assign}>
-      <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Practise
+      <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Practice
         <select class={input} bind:value={form.presetKey} required>
           <option value="" disabled>Choose…</option>
           {#each ladderStages() as stage}
