@@ -131,7 +131,6 @@
 
   $: running = $droneOn || $tuner.metronomeRunning || $timer.running || $tuner.engineStatus === "running";
   $: current = TOOLS.find((t) => t.id === tool);
-  $: next = typeof location !== "undefined" ? encodeURIComponent(location.pathname + location.search) : "%2F";
 </script>
 
 <svelte:window on:keydown={onKey} on:pointerdown={onDocPointer} />
@@ -170,8 +169,12 @@
           {#if signedIn}
             <a class="sr-btn text-sm text-center" href="/account#plan">Get Pro</a>
           {:else}
-            <a class="sr-btn text-sm text-center" href="/login?mode=signup&next={next}">Create an account</a>
-            <a class="text-xs text-sr-muted underline text-center" href="/login?next={next}">I have an account</a>
+            <!-- A free account alone does not unlock them: say so, and send the
+                 sign-up straight on to choosing Pro. -->
+            <p class="text-sm text-sr-ink-2">Pro goes with an account: create one, then choose Pro.</p>
+            <a class="sr-btn text-sm text-center" href="/login?mode=signup&next={encodeURIComponent('/account#plan')}">Get Pro</a>
+            <a class="text-xs text-sr-muted underline text-center" href="/login?next={encodeURIComponent('/account#plan')}">I have an account</a>
+            <a class="text-xs text-sr-muted underline text-center" href="/pricing">Compare plans</a>
           {/if}
         {:else if allowed === null}
           <p class="text-sm text-sr-muted">…</p>
