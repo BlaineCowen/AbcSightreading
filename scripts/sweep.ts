@@ -37,17 +37,19 @@ const STEPWISE = process.env.STEPWISE_EIGHTHS !== "0";
  * approached or left by skip, across the choral exercises that generated. With
  * the stepwise rule on it is about 1%; with STEPWISE_EIGHTHS=0 it is the
  * baseline, around 37%. A rest breaks the line, so the note beside one is not
- * counted against.
+ * counted against. In the bass only the approach counts: a bass may leave an
+ * eighth by leap (G G c2), just not arrive on one by leap (G c G2).
  */
 const shortTally = { notes: 0, skipped: 0 };
 function tallyShortNotes(voices: any[][]) {
   for (const voice of voices) {
+    const isBass = voice.find((n: any) => n.order !== undefined)?.order === 0;
     for (let k = 0; k < voice.length; k++) {
       const n = voice[k];
       if (n.rest || n.length > 4) continue;
       shortTally.notes++;
       const skips = (m: any) => m && !m.rest && Math.abs(m.pitchValue - n.pitchValue) > 1;
-      if (skips(voice[k - 1]) || skips(voice[k + 1])) shortTally.skipped++;
+      if (skips(voice[k - 1]) || (!isBass && skips(voice[k + 1]))) shortTally.skipped++;
     }
   }
 }

@@ -105,7 +105,8 @@ export function generateChordProgression(
   /**
    * The bass holds one pitch across a pattern, so its eighths can only skip at
    * the pattern's edges: arriving at one that opens it, or leaving one that
-   * closes it. With this on, both of those bass moves are a step or a repeat.
+   * closes it. With this on, the arrival is a step or a repeat; leaving by
+   * leap is ordinary bass writing and allowed.
    */
   stepwiseEighths: boolean = false,
   /**
@@ -140,12 +141,12 @@ export function generateChordProgression(
   const actualNumChords = chordIndicesMap.length;
 
   // The bass holds chord i's note through that chord's whole pattern, so it is
-  // the pitch of any eighth that opens the pattern (arrived at here) and the
-  // pitch the last eighth of the previous pattern is left for.
+  // the pitch of any eighth that opens the pattern, arrived at here. Only the
+  // arrival is held to a step: a bass may leave an eighth by leap, G G c2 or
+  // G3 G C2, the way it leaps to the next root, but not arrive on one by
+  // leap, G c G2 or G3 C G2.
   const besideEighthAt = (i: number) =>
-    stepwiseEighths &&
-    (isShortSung(finalRhythms[chordIndicesMap[i]]) ||
-      isShortSung(finalRhythms[chordIndicesMap[i] - 1]));
+    stepwiseEighths && isShortSung(finalRhythms[chordIndicesMap[i]]);
   if (actualNumChords === 0)
     throw new Error("No chord positions found in rhythm array.");
   if (actualNumChords !== length) {

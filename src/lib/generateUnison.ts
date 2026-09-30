@@ -463,7 +463,13 @@ function shouldTieEighthNotes(
   const isCurrentEighth = rhythms[index]?.totalValue <= 4;
   const isPreviousEighth = rhythms[index - 1]?.totalValue <= 4;
 
-  return isCurrentEighth && isPreviousEighth;
+  // Only inside one figure: ti-ti is sung on one pitch, and the next ti-ti
+  // is free to move. Any two eighths in a row used to count, so pairs back to
+  // back chained into one held pitch - up to 18 notes in an 8-bar line.
+  const inSameFigure =
+    rhythms[index]?.isPatternNote === true && rhythms[index]?.isPatternStart !== true;
+
+  return isCurrentEighth && isPreviousEighth && inSameFigure;
 }
 
 function generateChordProgression(
@@ -569,7 +575,8 @@ function generateChordProgression(
     // do-re-mi exercise, which is meant to teach the steps. Moving is preferred
     // now; a repeat still comes when it is all the chord offers, or by chance.
     const moving = pool.filter((n) => n.pitchValue !== prevBassNote?.pitchValue);
-    const from = moving.length > 0 && Math.random() < MOVE_PREFERENCE ? moving : pool;
+    const from =
+      moving.length > 0 && (justRepeated() || Math.random() < MOVE_PREFERENCE) ? moving : pool;
     // Favour the pitches the line has sung least, so it travels the range it
     // was given. Chosen evenly, the line sat where the tonic and dominant
     // chords keep it - do and so a sixth of the notes each, la and ti half
@@ -589,6 +596,18 @@ function generateChordProgression(
     return from[from.length - 1];
   };
   const MOVE_PREFERENCE = 0.8;
+  /**
+   * Whether the last two notes were one pitch - a ti-ti on one note, most
+   * often, with Move eighths off. The next note then moves whenever anything
+   * lets it: a third note on the same pitch came once or twice an exercise.
+   */
+  const justRepeated = () => {
+    const n = bassNoteArray.length;
+    if (n >= 2 && bassNoteArray[n - 1].pitchValue === bassNoteArray[n - 2].pitchValue) return true;
+    // Likewise a note that opens a ti-ti sung on one pitch: it is about to be
+    // sung twice, so it should not repeat the note before it as well.
+    return shouldTieEighthNotes(n + 1, moveOnEighthNotes, randRhythmObjects as RhythmWithPattern[]);
+  };
   /**
    * How hard the line reaches for pitches it has sung least: a candidate's
    * weight is 1 / (1 + times sung)^RANGE_SPREAD, and CHORD_SPREAD is how often
@@ -1023,10 +1042,12 @@ function generateChordProgression(
               (note) =>
                 Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
                 newMaxSkip
-            )
-            // One from which home is in reach first, so the line can end there.
-            .sort((a, b) => Number(leadsHome(b)) - Number(leadsHome(a)))
-            .slice(0, 1); // Take only the first note
+            );
+          // One from which home is in reach, so the line can end there. Only
+          // the first of them was taken, so the same note came every time and
+          // with the final often a repeat of it.
+          const leading = bassNoteToAdd.filter(leadsHome);
+          if (leading.length > 0) bassNoteToAdd = leading;
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
               pickBass(bassNoteToAdd, nextChord.chord)
@@ -1178,6 +1199,19 @@ function generateChordProgression(
                   usable(info, note) &&
                   note.pitchValue !== prevBassNote.pitchValue &&
                   Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+              );
+            });
+            if (moving.length > 0) nextChordPossibilities = moving;
+          }
+          if (justRepeated()) {
+            const moving = nextChordPossibilities.filter((possibleNext) => {
+              const info = chords.find((c) => c.name === possibleNext.name);
+              return bassDegrees.some(
+                (note) =>
+                  usable(info, note) &&
+                  note.pitchValue !== prevBassNote.pitchValue &&
+                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip &&
+                  (!homing || towardHome(note))
               );
             });
             if (moving.length > 0) nextChordPossibilities = moving;

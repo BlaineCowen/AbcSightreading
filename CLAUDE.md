@@ -97,8 +97,9 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **1 failure in
-22,020 exercises** as shipped, measured 29 September 2026 once a failed draw
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **0 failures in
+22,020 exercises** as shipped, measured 30 September 2026 after the bass was
+allowed to leave an eighth by leap (below). 1 failure on 29 September once a failed draw
 is drawn again (generateChoral `FAILED_DRAW_RETRIES`): the rhythm is drawn once
 per attempt and all ten progressions are fitted to it, so a rhythm that cannot
 be harmonised failed them all together, and a new draw brings a new rhythm.
@@ -143,7 +144,12 @@ rather than on note-building - there is not room for the cadence the level
 requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip: 0.8% as shipped (0.7% before the yield, 1.0% before the voice-rhythm pass), against 37.1% with
+approached or left by skip, and in the bass approached only. The bass may leave
+an eighth by leap, G G c2 or G3 G C2, the way it leaps to the next root, but
+not arrive on one by leap, G c G2 or G3 C G2 (chord-generation
+`besideEighthAt`, build-chord-notes `bassSkipInto`, non-chord-tone-gen
+`approachOnly`). Those leaps out are about 4.6% of short notes. 0.7% as shipped on
+30 September, 0.8% before the bass change (0.7% before the yield, 1.0% before the voice-rhythm pass), against 37.1% with
 `STEPWISE_EIGHTHS=0`.
 
 **The option is ON by default**, so that failure rate is live. Before the
@@ -189,7 +195,10 @@ not always do. Chromatic chords only steer the line when their altered note is
 selected. Before that, a do-re-mi exercise was two-thirds repeated notes; and
 when the line was made to end on do and steered there, 1 2 3 5 6 gave so and la
 a tenth of the line each against do's third (now each 12-29%).
-`tests/unit/unison-line-shape.test.ts` holds those rates.
+With Move eighths off a ti-ti is sung on one pitch, and only inside the pair:
+any two eighths in a row used to count, so pairs back to back chained into one
+held pitch (up to 18 notes). A note that opens a pair or follows one now moves
+when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
 ## abcTuner
 

@@ -22,6 +22,7 @@ function line(opts: {
   rhythms: string[];
   measures?: number;
   key?: string;
+  moveOnEighthNotes?: boolean;
 }) {
   const saved = { log: console.log, warn: console.warn, error: console.error };
   Object.assign(console, { log: quiet, warn: quiet, error: quiet });
@@ -34,7 +35,7 @@ function line(opts: {
       selectedRhythms: opts.rhythms, scaleDegrees: opts.degrees,
       selectedSharpDegrees: [], selectedFlatDegrees: [], key: opts.key ?? "C",
       showSolfege: true, lyricSystem: "movable", rhythmOnly: false,
-      showRhythmSyllables: true, syllableSystemId: "kodaly", moveOnEighthNotes: false,
+      showRhythmSyllables: true, syllableSystemId: "kodaly", moveOnEighthNotes: opts.moveOnEighthNotes ?? false,
       partsObject: { numofParts: 1, parts: { Unison: { order: 0, smallName: "U" } } },
     } as any);
     return result[2].partsObject.parts.Unison.chordNoteObject.filter((n: any) => !n.rhythm?.rest);
@@ -91,6 +92,34 @@ describe("unison line shape", () => {
     expect(r.endsHome).toBeGreaterThanOrEqual(0.9);
     // Measured about 30-50%: do is one home among three.
     expect(r.endsOnDo).toBeLessThan(0.8);
+  }, 30000);
+
+  test("with Move eighths off, a ti-ti holds one pitch and the line does not", () => {
+    // Any two eighths in a row were sung on one pitch, so ti-ti pairs back to
+    // back chained: 2.5 runs of three or more notes on one pitch an exercise,
+    // one of them 18 long. Now the tie stays inside the pair, and a note that
+    // opens a pair or follows one moves: measured 0.00 runs, longest 2.
+    let runs = 0, longest = 0, pairsHeld = 0, pairs = 0;
+    for (let i = 0; i < 40; i++) {
+      const notes = line({ degrees: [1, 2, 3, 4, 5, 6, 7], maxSkip: 4, range: { min: 14, max: 21 }, rhythms: ["quarter", "eighthEighth", "half"], key: "F" });
+      let run = 1;
+      for (let k = 1; k < notes.length; k++) {
+        if (notes[k].pitchValue === notes[k - 1].pitchValue) {
+          run++;
+          if (run === 3) runs++;
+          longest = Math.max(longest, run);
+        } else run = 1;
+        const pairEnd = notes[k].rhythm?.isPatternNote && !notes[k].rhythm?.isPatternStart && notes[k].rhythm?.totalValue <= 4;
+        if (pairEnd) {
+          pairs++;
+          if (notes[k].pitchValue === notes[k - 1].pitchValue) pairsHeld++;
+        }
+      }
+    }
+    expect(pairs).toBeGreaterThan(40);
+    expect(pairsHeld).toBe(pairs);
+    expect(runs / 40).toBeLessThan(0.25);
+    expect(longest).toBeLessThanOrEqual(4);
   }, 30000);
 
   test("every degree selected gets its share of the line", () => {
