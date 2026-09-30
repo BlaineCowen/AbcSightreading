@@ -1713,11 +1713,16 @@
    */
   function drawEven(abc: string) {
     let visualObj = abcjs.renderAbc("paper", abc, getAbcOptions());
-    const drawn = drawnLines(document.getElementById("paper"));
-    if (!evenLines(drawn)) {
+    let drawn = drawnLines(document.getElementById("paper"));
+    // Fewer a line each time until the lines come out even: on a phone two bars
+    // with lyrics may not fit either, and abcjs then broke them 1 + 1 + 2.
+    let most = Math.max(...drawn);
+    while (!evenLines(drawn) && most >= 1) {
       const paper = document.getElementById("paper");
       if (paper) paper.innerHTML = "";
-      visualObj = abcjs.renderAbc("paper", abc, getAbcOptions(Math.max(...drawn)));
+      visualObj = abcjs.renderAbc("paper", abc, getAbcOptions(most));
+      drawn = drawnLines(document.getElementById("paper"));
+      most = Math.min(most - 1, Math.max(...drawn));
     }
     return visualObj;
   }

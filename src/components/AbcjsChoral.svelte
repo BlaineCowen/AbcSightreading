@@ -752,10 +752,17 @@
       });
     };
     // The bars per line are only a preference to abcjs; if it had to break the
-    // lines itself, unevenly, draw once more with no more a line than it fitted.
+    // lines itself, unevenly, draw again with no more a line than it fitted.
     let result = draw();
-    const drawn = drawnLines(document.getElementById("paper"));
-    if (!evenLines(drawn)) result = draw(Math.max(...drawn));
+    let drawn = drawnLines(document.getElementById("paper"));
+    // Fewer a line each time until they come out even: on a phone two bars with
+    // lyrics may not fit either, and abcjs then broke them 1 + 1 + 2.
+    let most = Math.max(...drawn);
+    while (!evenLines(drawn) && most >= 1) {
+      result = draw(most);
+      drawn = drawnLines(document.getElementById("paper"));
+      most = Math.min(most - 1, Math.max(...drawn));
+    }
     return result;
   }
 
