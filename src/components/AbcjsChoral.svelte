@@ -16,6 +16,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
+  import { applyClick, clickFrom, currentClick, numberIn } from "../lib/preset-click";
   import abcjs from "abcjs";
   import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
@@ -588,7 +589,7 @@
   $: _tabSigs = {
     setup: [selectedVoicing, [...selectedKeys].sort().join(","), selectedTimeSignature, measures, voiceTexture].join("|"),
     rhythm: [selectedRhythms.map((r) => r.name).sort().join(","), JSON.stringify(Object.entries(rhythmBias).sort())].join("|"),
-    harmony: [maxSkip, Math.round(nctProbability * 100), stepwiseEighths, focusChord, [...userAllowedChords].sort().join(",")].join("|"),
+    harmony: [maxSkip, Math.round(nctProbability * 100), stepwiseEighths, focusChord, accidentalsByStep, chromaticFrequency, [...userAllowedChords].sort().join(",")].join("|"),
     ranges: Object.values(possibleVoicing[selectedVoicing]?.parts ?? {}).map((p) => p.currentRange.join("-")).join(","),
   };
   $: fromPreset = activePresetLabel && _presetTabSigs ? _presetTabSigs : null;
@@ -626,6 +627,14 @@
     [...userAllowedChords].sort().join(','),
     Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
       .map(p => p.currentRange.join('-')).join(','),
+    // Everything else a preset keeps (getCurrentParams), so changing any of it
+    // says "edited" too.
+    stepwiseEighths, voiceTexture, JSON.stringify(Object.entries(rhythmBias).sort()),
+    accidentalsByStep, chromaticFrequency, focusChord,
+    lyricSystem, showChords, cursorMode, instrumentProgram, transposeSemitones,
+    [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','),
+    playbackVolume, metronomeVolume,
+    $tuner.subdivision, $tuner.accent, $tuner.clickSound,
   ].join('|');
 
   /**
@@ -1350,6 +1359,13 @@
     // Optional, so presets saved before voice texture existed still load.
     if (isVoiceTextureMode(p.voiceTexture)) voiceTexture = p.voiceTexture;
     rhythmBias = p.rhythmBias ? { ...p.rhythmBias } : {};
+    // The rest came later: a preset saved before it leaves each one as it is.
+    if (typeof p.accidentalsByStep === "boolean") accidentalsByStep = p.accidentalsByStep;
+    if (p.chromaticFrequency !== undefined) chromaticFrequency = numberIn(p.chromaticFrequency, 0, 5, chromaticFrequency);
+    if (p.focusChord !== undefined) focusChord = typeof p.focusChord === "string" ? p.focusChord : null;
+    const shown = presetDisplayFrom(p);
+    const click = clickFrom(p.click);
+    if (click) applyClick(click);
     const ranges = p.voiceRanges;
     if (ranges && possibleVoicing[p.voicing]) {
       for (const [partName, range] of Object.entries(ranges)) {
@@ -1363,6 +1379,7 @@
     activeStepId = null;
     activeSavedId = preset.id;
     revertPreset = () => applySavedPreset(preset);
+    if (shown) void showPresetDisplay(shown);
     // Use setTimeout so the signature captures post-update values
     setTimeout(() => { _presetParamSig = _currentParamSig; _presetTabSigs = _tabSigs; }, 0);
   }
@@ -1387,7 +1404,60 @@
           ([name, part]) => [name, part.currentRange as [number, number]]
         )
       ),
+      accidentalsByStep,
+      chromaticFrequency,
+      focusChord,
+      lyricSystem,
+      showChords,
+      cursorMode,
+      instrumentProgram,
+      transposeSemitones,
+      hiddenVoices: [...hiddenVoices],
+      mutedVoices: [...mutedVoices],
+      playbackVolume,
+      metronomeVolume,
+      click: currentClick(),
     };
+  }
+
+  /**
+   * A preset's display and playback settings, or null when it was saved before
+   * they were kept - it then leaves them as they are.
+   */
+  function presetDisplayFrom(p: PresetParams) {
+    if (p.lyricSystem === undefined && p.instrumentProgram === undefined) return null;
+    const lyrics = p.lyricSystem;
+    return {
+      lyricSystem: lyrics === "movable" || lyrics === "fixed" || lyrics === "names" ? lyrics : null,
+      showChords: p.showChords === true,
+      cursorMode: isCursorMode(p.cursorMode) ? p.cursorMode : cursorMode,
+      instrumentProgram: isInstrumentProgram(p.instrumentProgram) ? Number(p.instrumentProgram) : instrumentProgram,
+      transposeSemitones: clampTranspose(Number(p.transposeSemitones ?? 0)),
+      hiddenVoices: new Set(Array.isArray(p.hiddenVoices) ? p.hiddenVoices.map(String) : []),
+      mutedVoices: new Set(Array.isArray(p.mutedVoices) ? p.mutedVoices.map(String) : []),
+      playbackVolume: numberIn(p.playbackVolume, 0, 1, playbackVolume),
+      metronomeVolume: numberIn(p.metronomeVolume, 0, 1, metronomeVolume),
+    };
+  }
+
+  /** Put them on the page, and re-write the exercise on screen to match. */
+  async function showPresetDisplay(d: NonNullable<ReturnType<typeof presetDisplayFrom>>) {
+    lyricSystem = d.lyricSystem;
+    showChords = d.showChords;
+    cursorMode = d.cursorMode;
+    instrumentProgram = d.instrumentProgram;
+    transposeSemitones = d.transposeSemitones;
+    hiddenVoices = d.hiddenVoices;
+    mutedVoices = d.mutedVoices;
+    playbackVolume = d.playbackVolume;
+    metronomeVolume = d.metronomeVolume;
+    try {
+      localStorage.setItem(MIX_STORAGE_KEY, JSON.stringify({ playback: playbackVolume, metronome: metronomeVolume }));
+    } catch {}
+    if (isPlaying) pausePlayback();
+    // Re-drawing rebuilds the synth too, which is where the instrument,
+    // transposition, mutes and levels are baked in.
+    await reRenderAnnotations();
   }
 
   // ── Range change ───────────────────────────────────────────────────────────

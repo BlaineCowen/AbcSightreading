@@ -51,6 +51,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate } from "../lib/usage";
+  import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
@@ -499,6 +500,16 @@
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
       run: runOptionsFrom(options.run),
+      // How it sounds. Undefined when not saved (older presets and options),
+      // which leaves the page's own setting alone.
+      rhythmSoundId: isRhythmSoundId(options.rhythmSoundId) ? (options.rhythmSoundId as string) : undefined,
+      instrumentProgram: isInstrumentProgram(options.instrumentProgram) ? Number(options.instrumentProgram) : undefined,
+      transposeSemitones:
+        options.transposeSemitones === undefined ? undefined : clampTranspose(Number(options.transposeSemitones)),
+      isMetronomeOn: typeof options.isMetronomeOn === "boolean" ? options.isMetronomeOn : undefined,
+      masterVolume: options.masterVolume === undefined ? undefined : numberIn(options.masterVolume, 0, 1, 0.5),
+      metronomeVolume: options.metronomeVolume === undefined ? undefined : numberIn(options.metronomeVolume, 0, 1, 0.5),
+      click: clickFrom(options.click),
     };
   }
 
@@ -553,6 +564,30 @@
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
     cursorMode = next.cursorMode;
     if (next.run) setRunOptions(next.run);
+    if (next.click) applyClick(next.click);
+    if (next.isMetronomeOn !== undefined) isMetronomeOn = next.isMetronomeOn;
+    if (next.masterVolume !== undefined) {
+      masterVolume = next.masterVolume;
+      isMuted = masterVolume === 0;
+      applyInstrumentGain();
+    }
+    if (next.metronomeVolume !== undefined) {
+      metronomeVolume = next.metronomeVolume;
+      if (metronomeGainNode) metronomeGainNode.gain.value = metronomeVolume * 2;
+    }
+    const soundChanged =
+      (next.rhythmSoundId !== undefined && next.rhythmSoundId !== rhythmSoundId) ||
+      (next.instrumentProgram !== undefined && next.instrumentProgram !== instrumentProgram) ||
+      (next.transposeSemitones !== undefined && next.transposeSemitones !== transposeSemitones);
+    if (next.rhythmSoundId !== undefined) rhythmSoundId = next.rhythmSoundId;
+    if (next.instrumentProgram !== undefined) instrumentProgram = next.instrumentProgram;
+    if (next.transposeSemitones !== undefined) transposeSemitones = next.transposeSemitones;
+    if (soundChanged) {
+      // The audio was built with the old sound or pitch - see handleSoundChange.
+      audioBuffer = null;
+      createSynth = null;
+      if (currentTune && originalTuneString) void rerenderTune();
+    }
     activePresetLabel = preset.name;
     activeSavedId = preset.id;
     activeStepId = null;
@@ -652,6 +687,12 @@
   }
 
   const initialState = getInitialState();
+  if (initialState.isMetronomeOn !== undefined) isMetronomeOn = initialState.isMetronomeOn;
+  if (initialState.masterVolume !== undefined) {
+    masterVolume = previousVolume = initialState.masterVolume;
+    isMuted = masterVolume === 0;
+  }
+  if (initialState.metronomeVolume !== undefined) metronomeVolume = initialState.metronomeVolume;
   let selectedClef = initialState.selectedClef;
   let selectedRange = initialState.selectedRange;
   let selectedScaleDegrees: Set<number> = initialState.selectedScaleDegrees;
@@ -1032,6 +1073,14 @@
       syllableSystemId,
       allowTiesAcrossBarline,
       cursorMode,
+      rhythmSoundId,
+      instrumentProgram,
+      transposeSemitones,
+      isMetronomeOn,
+      masterVolume,
+      metronomeVolume,
+      // The Tools metronome's, which the click follows (preset-click.ts).
+      click: { subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound },
       run: {
         exercises: drillExercises,
         repeats: drillRepeats,

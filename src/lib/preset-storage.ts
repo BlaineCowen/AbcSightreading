@@ -33,6 +33,23 @@ export interface PresetParams {
   /** Per-rhythm frequency multipliers. Optional, for presets saved before it. */
   rhythmBias?: Record<string, number>;
   voiceRanges: Record<string, [number, number]>;
+  // Everything below is optional, for presets saved before it was kept.
+  accidentalsByStep?: boolean;
+  chromaticFrequency?: number;
+  /** The one chromatic chord drilled, or null for none. */
+  focusChord?: string | null;
+  /** What is printed and how it sounds: the Display and playback controls. */
+  lyricSystem?: "movable" | "fixed" | "names" | null;
+  showChords?: boolean;
+  cursorMode?: string;
+  instrumentProgram?: number;
+  transposeSemitones?: number;
+  hiddenVoices?: string[];
+  mutedVoices?: string[];
+  playbackVolume?: number;
+  metronomeVolume?: number;
+  /** The click's subdivision, accent and sound - see preset-click.ts. */
+  click?: import("./preset-click").PresetClick;
 }
 
 /**

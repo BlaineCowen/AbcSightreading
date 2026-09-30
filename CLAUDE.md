@@ -271,6 +271,14 @@ analytics and no feedback form (Layout.astro). Permission checks read
 cookie. Deleting a teacher deletes the student accounts they made. 100 seats per
 educator (seat packs: stage 4, with Stripe).
 
+A preset holds every setting on its page (Choral `getCurrentParams`, Unison
+`currentOptions`): generation, display (lyrics, chords, cursor, hidden and
+muted voices), sound (instrument, transposition, volumes, the click) and the
+Tools metronome's subdivision, accent and sound (`src/lib/preset-click.ts`).
+All of it counts toward "edited". Fields added later are optional, so an older
+preset loads and leaves what it lacks alone. The one thing a Choral preset does
+not keep is full length, which only exists while a UIL level is chosen.
+
 Saved presets go to the account when signed in (`/api/presets`,
 `src/lib/preset-sync.ts`) and to localStorage when not - signed-out behaviour
 is the old one. The first signed-in load of each list imports that browser's
