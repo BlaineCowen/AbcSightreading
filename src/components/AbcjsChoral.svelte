@@ -3070,7 +3070,7 @@
               {/each}
             </div>
           {/each}
-          <p class="text-center text-sm text-[#5f5a84] font-semibold">
+          <p class="text-center text-sm text-[#56637f] font-semibold">
             Press Generate to write an exercise.
           </p>
         </div>

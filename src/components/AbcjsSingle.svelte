@@ -3973,9 +3973,20 @@
     <div class="relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
       <CountInBadge />
+      <!-- Before the first exercise, say what to do: the page used to open on an
+           empty white card. Outside #paper, which abcjs empties when it draws. -->
+      {#if !originalTuneString && !isLoading}
+        <div class="sr-sheet w-full my-2 px-6 py-8 flex flex-col gap-4">
+          <div class="skel-staff">
+            {#each [0, 1, 2, 3, 4] as _line}<div class="skel-staff-line"></div>{/each}
+          </div>
+          <p class="text-center text-sm text-[#56637f] font-semibold">Press Generate to write an exercise.</p>
+        </div>
+      {/if}
       <div
         id="paper"
         class="sr-sheet w-full my-2"
+        style={!originalTuneString && !isLoading ? "height:0;margin:0;box-shadow:none" : undefined}
       >
         {#if isLoading}
           <div class="flex items-center justify-center h-48">
