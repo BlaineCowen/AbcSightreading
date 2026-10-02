@@ -1,0 +1,5 @@
+<!-- GENERATED - do not edit; run `bun run icons:rhythm`.
+     sixteenth, engraved by LilyPond 2.26.0 (svg backend, -dcrop).
+     Units are LilyPond staff-spaces; colour follows currentColor. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.0000 -0.0250 4.1324 3.9450" width="37.2" height="35.5" fill="currentColor" role="img" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><g transform="translate(2.0000, 3.3750)"><path transform="scale(0.0040, -0.0040)" d="M0 -46c0 91 116 182 217 182c63 0 109 -35 109 -90c0 -87 -110 -182 -220 -182c-67 0 -106 39 -106 90z"/></g><g transform="translate(3.2392, 3.3750)"><rect x="-0.0650" y="-3.3750" width="0.1300" height="3.1888" ry="0.0400"/></g><g transform="translate(3.3042, 0.0400)"><path transform="scale(0.0040, -0.0040)" d="M123 -854c0 10 42 76 42 172c0 97 -94 190 -165 257v-125h-16v550h16c0 -177 201 -293 201 -470c0 -33 -9 -65 -23 -95c18 -37 29 -75 29 -117c0 -63 -15 -125 -41 -183c-5 -8 -13 -12 -20 -12c-12 0 -23 9 -23 23zM151 -517c5 15 8 31 8 47c0 96 -91 190 -159 257
+c0 -118 90 -206 151 -304z"/></g></svg>
