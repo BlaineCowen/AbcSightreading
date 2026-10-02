@@ -33,6 +33,7 @@ import {
   type SkipNote,
   type SkipPolicy,
 } from "./skip-policy";
+import { figureCap, shortCapsFrom, type ShortCaps } from "./short-note-skips";
 
 // interface AbcObject {
 //   key: string;
@@ -454,42 +455,16 @@ export function generateRandomRhythmCombination(
 }
 
 /**
- * Determines if two consecutive eighth notes should be tied based on user settings and position in the piece.
- * @param index - The current note index.
- * @param moveOnEighthNotes - The flag from user settings.
- * @param rhythms - The array of rhythm objects, which may have cadence info.
- * @returns True if the notes should be tied.
+ * Is note `index` sung on the pitch before it? Yes when it is a short note
+ * inside a figure (short-note-skips.ts) and its cap is 0 - ti-ti on one
+ * pitch, what "Move 8th Notes" off always did. Draws no random number.
  */
 function shouldTieEighthNotes(
   index: number,
-  moveOnEighthNotes: boolean,
+  caps: ShortCaps,
   rhythms: RhythmWithPattern[]
 ): boolean {
-  // If user wants notes to move, don't tie.
-  if (moveOnEighthNotes) {
-    return false;
-  }
-
-  // Not applicable for the first note.
-  if (index === 0) {
-    return false;
-  }
-
-  // Cadence Protection: Don't tie if it's a cadence point.
-  if (rhythms[index]?.isCadenceEnd) {
-    return false;
-  }
-
-  const isCurrentEighth = rhythms[index]?.totalValue <= 4;
-  const isPreviousEighth = rhythms[index - 1]?.totalValue <= 4;
-
-  // Only inside one figure: ti-ti is sung on one pitch, and the next ti-ti
-  // is free to move. Any two eighths in a row used to count, so pairs back to
-  // back chained into one held pitch - up to 18 notes in an 8-bar line.
-  const inSameFigure =
-    rhythms[index]?.isPatternNote === true && rhythms[index]?.isPatternStart !== true;
-
-  return isCurrentEighth && isPreviousEighth && inSameFigure;
+  return figureCap(index, rhythms as any, caps) === 0;
 }
 
 function generateChordProgression(
@@ -500,7 +475,8 @@ function generateChordProgression(
   randNoteLengths: number[],
   chords: Chord[],
   scaleDegrees: number[],
-  moveOnEighthNotes: boolean,
+  /** Max 8th / 16th skip: the moves between the short notes inside a figure. */
+  shortCaps: ShortCaps,
   randRhythmObjects: RhythmWithPattern[],
   accidentalsFollowStep: boolean,
   /**
@@ -626,7 +602,7 @@ function generateChordProgression(
     if (n >= 2 && bassNoteArray[n - 1].pitchValue === bassNoteArray[n - 2].pitchValue) return true;
     // Likewise a note that opens a ti-ti sung on one pitch: it is about to be
     // sung twice, so it should not repeat the note before it as well.
-    return shouldTieEighthNotes(n + 1, moveOnEighthNotes, randRhythmObjects as RhythmWithPattern[]);
+    return shouldTieEighthNotes(n + 1, shortCaps, randRhythmObjects as RhythmWithPattern[]);
   };
   /**
    * How hard the line reaches for pitches it has sung least: a candidate's
@@ -826,9 +802,12 @@ function generateChordProgression(
    * May the line move from note i-1 to `note`, sung over `chord` (undefined
    * while no chord is chosen yet), under the rule in force for this note?
    * In Max skip mode this is exactly the old check of the distance against
-   * the max skip (1 after an altered note).
+   * the max skip (1 after an altered note). Inside a figure, Max 8th / 16th
+   * skip must allow it too.
    */
   const reaches = (note: Note, chord: Chord | undefined, i: number) =>
+    Math.abs(note.pitchValue - bassNoteArray[i - 1].pitchValue) <=
+      figureCap(i, randRhythmObjects as any, shortCaps) &&
     isAllowedMove(
       sungNote(bassNoteArray[i - 1], chordProgression[i - 1]?.chord),
       sungNote(note, chord),
@@ -850,7 +829,7 @@ function generateChordProgression(
       if (
         shouldTieEighthNotes(
           i,
-          moveOnEighthNotes,
+          shortCaps,
           randRhythmObjects as RhythmWithPattern[]
         )
       ) {
@@ -2754,6 +2733,7 @@ function createNewSrOnce(params: any) {
     var keyRendered = params.key;
     // A number (older callers, the scripts) or a policy (the page) - one rule either way.
     var maxSkip = toSkipPolicy(params.maxSkip);
+    const shortCaps = shortCapsFrom(params);
     var level = params.level;
     var timeSig = params.timeSig;
     var bpm = params.bpm;
@@ -2877,7 +2857,7 @@ function createNewSrOnce(params: any) {
       randNoteLengths,
       filteredChords,
       Array.from(params.scaleDegrees),
-      params.moveOnEighthNotes,
+      shortCaps,
       randRhythmObjects,
       params.accidentalsFollowStep,
       { sharps: sharpScaleDegrees, flats: flatScaleDegrees }
@@ -2937,7 +2917,7 @@ function createNewSrOnce(params: any) {
         if (
           shouldTieEighthNotes(
             noteIndex,
-            params.moveOnEighthNotes,
+            shortCaps,
             randRhythmObjects
           )
         ) {
