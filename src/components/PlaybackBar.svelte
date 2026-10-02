@@ -6,6 +6,7 @@
   import SkipBack from "lucide-svelte/icons/skip-back";
   import Play from "lucide-svelte/icons/play";
   import Pause from "lucide-svelte/icons/pause";
+  import LoaderCircle from "lucide-svelte/icons/loader-circle";
   import Square from "lucide-svelte/icons/square";
   import Repeat from "lucide-svelte/icons/repeat";
   import Minus from "lucide-svelte/icons/minus";
@@ -65,6 +66,12 @@
   /** Omit to leave Generate out of the bar entirely. */
   export let onGenerate: (() => void) | null = null;
   export let isGenerating: boolean = false;
+  /**
+   * True from a Play press until the sound starts: the first Play fetches the
+   * instrument samples, which can take a few seconds on a slow connection, and
+   * a button that does nothing for that long gets pressed again.
+   */
+  export let isPreparing: boolean = false;
   /**
    * A line of state that belongs on screen wherever the reader is looking.
    *
@@ -288,11 +295,14 @@
         ><Pause size={18} /><span class="hidden sm:inline">Pause</span></button>
       {:else}
         <button
-          class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
-          disabled={!hasExercise}
+          class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold
+                 disabled:opacity-40 {isPreparing ? 'disabled:opacity-80 cursor-progress' : ''}"
+          disabled={!hasExercise || isPreparing}
           on:click={onPlay}
-          aria-label="Play"
-        ><Play size={18} /><span class="hidden sm:inline">Play</span></button>
+          aria-label={isPreparing ? "Loading sounds…" : "Play"}
+          aria-busy={isPreparing}
+          title={isPreparing ? "Loading sounds…" : undefined}
+        >{#if isPreparing}<LoaderCircle size={18} class="animate-spin" />{:else}<Play size={18} />{/if}<span class="hidden sm:inline">Play</span></button>
       {/if}
 
       <button

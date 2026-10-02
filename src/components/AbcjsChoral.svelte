@@ -1607,16 +1607,38 @@
     }
   }
 
+  /**
+   * True from a Play press until the sound starts. The first play fetches the
+   * instrument samples, and a rebuild (muting, a new sound) fetches again; on a
+   * slow connection that is seconds of a Play button that seems to do nothing.
+   */
+  let isPreparing = false;
+
   async function handlePlay() {
-    if (!synthControl) return;
-    if (!(await ensureAudioRunning())) return;
-    // A metronome ticking on its own becomes this playback's click, from beat 1
-    // of the count-in (metronome-link). If the synth was built without the
-    // click, it is built again with it first.
-    const click = exercisePlays(true);
-    if (renderedTune && builtClick.split("|")[0] !== String(click)) await initSynth(renderedTune);
-    await synthControl.play();
-    isPlaying = true;
+    if (!synthControl || isPreparing) return;
+    isPreparing = true;
+    try {
+      if (!(await ensureAudioRunning())) return;
+      // A rebuild started by muting or the mix slider is not awaited where it
+      // starts; playing before it finishes would start a half-built synth.
+      // Capped, so a build that never settles cannot hold Play forever.
+      if (synthBuild) {
+        await Promise.race([
+          synthBuild.catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 15000)),
+        ]);
+      }
+      // A metronome ticking on its own becomes this playback's click, from beat 1
+      // of the count-in (metronome-link). If the synth was built without the
+      // click, it is built again with it first.
+      const click = exercisePlays(true);
+      if (renderedTune && builtClick.split("|")[0] !== String(click)) await initSynth(renderedTune);
+      if (!synthControl) return;
+      await synthControl.play();
+      isPlaying = true;
+    } finally {
+      isPreparing = false;
+    }
   }
 
   /**
@@ -1897,7 +1919,20 @@
   ];
 
   // ── Synth init ─────────────────────────────────────────────────────────────
-  async function initSynth(tune: any) {
+  /** The synth build in flight, if any - handlePlay waits for it. */
+  let synthBuild: Promise<void> | null = null;
+
+  function initSynth(tune: any): Promise<void> {
+    const build = buildSynth(tune);
+    synthBuild = build;
+    const settle = () => {
+      if (synthBuild === build) synthBuild = null;
+    };
+    build.then(settle, settle);
+    return build;
+  }
+
+  async function buildSynth(tune: any) {
     playedMeter = meterOf(tune, selectedTimeSignature);
     const voicesOff = barVoices
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
@@ -3121,6 +3156,7 @@
     onStop={handleStop}
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
+    {isPreparing}
     onGenerate={handleClick}
     onToggleLoop={handleToggleLoop}
     onToggleMute={handleToggleMute}

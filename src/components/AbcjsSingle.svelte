@@ -4030,6 +4030,7 @@
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
     onBpmCommit={handleBpmCommit}
+    isPreparing={isStartingPlayback}
     onGenerate={handleClick}
     isGenerating={isLoading}
     status={drillStatusLine}
