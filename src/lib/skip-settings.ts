@@ -87,6 +87,19 @@ function unique(moves: SkipMove[]): SkipMove[] {
   return moves.filter((m) => !seen.has(moveKey(m)) && !!seen.add(moveKey(m))).map((m) => ({ ...m }));
 }
 
+/**
+ * Other skips as a set, for comparing - a ↕ row low degree first, the rows
+ * in one order. The page keeps the order they were added in; only "edited"
+ * (presetSignature) uses this.
+ */
+export function canonicalSkips(list: readonly unknown[]): SkipMove[] {
+  return unique(
+    list.filter(isSkipMove).map((m) =>
+      m.dir === "both" ? { from: Math.min(m.from, m.to), to: Math.max(m.from, m.to), dir: m.dir } : m
+    )
+  ).sort((a, b) => (moveKey(a) < moveKey(b) ? -1 : moveKey(a) > moveKey(b) ? 1 : 0));
+}
+
 /** Turn a pattern on or off. Turning one on turns exact skips on; turning one off leaves the switch alone. */
 export function togglePattern(s: SkipSettings, id: SkipChipId): SkipSettings {
   const on = s.patterns.includes(id);

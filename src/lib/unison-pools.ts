@@ -1,6 +1,7 @@
 import { dynamicsSetFrom } from "./dynamics";
 import { rangeForSpan } from "./ladder";
 import { meterKindOf } from "./meter";
+import { canonicalSkips } from "./skip-settings";
 
 /**
  * Keys and meters on the Unison page as pools: one of each is drawn per
@@ -77,7 +78,7 @@ const rank = (order: readonly string[], v: string) => {
 };
 
 /**
- * What "edited" compares: the saved options with the pools (and the dynamics) in a fixed order,
+ * What "edited" compares: the saved options with the pools (and the dynamics and other skips) in a fixed order,
  * and the key, meter and placed range taken from that order. A pool is a set -
  * removing a key and adding it back is no edit. The stored options keep the
  * reader's order; only the comparison sorts. Fields keep their places, so a
@@ -108,6 +109,8 @@ export function presetSignature(
   }
   // Printed dynamics are a set too, compared soft to loud (dynamics.ts).
   if (Array.isArray(options.dynamics)) out.dynamics = dynamicsSetFrom(options.dynamics);
+  // Other skips are a set as well: removing one and adding it back is no edit.
+  if (Array.isArray(options.extraSkips)) out.extraSkips = canonicalSkips(options.extraSkips);
   return JSON.stringify(out);
 }
 

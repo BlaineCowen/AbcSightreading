@@ -113,6 +113,17 @@ describe("a range that follows the key", () => {
     expect(presetSignature(base, KEYS, ["3/4"])).toBe(JSON.stringify(base));
   });
 
+  test("other skips are a set: their order is no edit, nor a ↕ row written the other way round, but a different set is", () => {
+    const base = { selectedClef: "treble", selectedKey: "G", selectedTimeSignature: "3/4", exactOn: true };
+    const sig = (extraSkips: unknown[]) => presetSignature({ ...base, extraSkips }, KEYS, ["3/4"]);
+    const a = sig([{ from: 2, to: 5, dir: "up" }, { from: 6, to: 4, dir: "both" }]);
+    expect(sig([{ from: 4, to: 6, dir: "both" }, { from: 2, to: 5, dir: "up" }])).toBe(a);
+    expect(sig([{ from: 2, to: 5, dir: "down" }, { from: 6, to: 4, dir: "both" }])).not.toBe(a);
+    expect(sig([{ from: 2, to: 5, dir: "up" }])).not.toBe(a);
+    // None saved passes through, as before.
+    expect(presetSignature(base, KEYS, ["3/4"])).toBe(JSON.stringify(base));
+  });
+
   test("a signature from before pools passes through", () => {
     const old = { selectedClef: "treble", selectedKey: "G", selectedTimeSignature: "3/4", selectedRange: { min: 14, max: 21 } };
     expect(presetSignature(old, KEYS, ["3/4"])).toBe(JSON.stringify(old));
