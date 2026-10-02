@@ -62,7 +62,7 @@
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
-  import { activePresetToRestore, rememberActivePreset, type ActivePresetRecord } from "../lib/active-preset";
+  import { activePresetToRestore, rememberActivePreset, restoredSignature, type ActivePresetRecord } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
@@ -3255,7 +3255,8 @@
       return;
     }
     activePresetLabel = rec.label;
-    activePresetSignature = typeof rec.sig === "string" ? rec.sig : JSON.stringify(currentOptions);
+    // A record from before a setting existed gets it from the page (active-preset.ts).
+    activePresetSignature = restoredSignature(rec.sig, currentOptions);
   }
 
   onDestroy(() => {
@@ -4017,7 +4018,8 @@
               <p class="sr-label">Max Melodic Skip</p>
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <div class="flex items-center gap-3 transition-opacity" class:opacity-40={skips.exactOn}
-                  role="group" aria-label="Max Melodic Skip">
+                  role="group" aria-label="Max Melodic Skip"
+                  aria-describedby={skips.exactOn ? 'exact-skips-note' : undefined}>
                   <button type="button" class="sr-btn-quiet"
                     aria-label="Decrease max skip"
                     on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
@@ -4028,7 +4030,7 @@
                   <span class="text-xs text-sr-faint">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
                 </div>
                 {#if skips.exactOn}
-                  <span class="text-xs font-bold text-sr-action-fg">Using your exact skips</span>
+                  <span id="exact-skips-note" class="text-xs font-bold text-sr-muted">Using your exact skips</span>
                 {/if}
               </div>
 
@@ -4063,26 +4065,24 @@
                           on:click={() => (skips = togglePattern(skips, chip.id))}>{chip.label}</button>
                       {/each}
                     </div>
-                  </div>
 
-                  <div class="space-y-2">
-                    <p class="text-xs font-bold text-sr-muted">Other skips</p>
-                    <div class="flex flex-wrap items-center gap-2">
-                      {#each skips.extraSkips as move, k}
-                        <span class="inline-flex items-center gap-1 rounded-full bg-sr-sky text-sr-sky-ink pl-3 pr-1 py-1 text-[13px] font-bold">
-                          {DEGREE_NAMES[move.from - 1]} {DIR_ARROWS[move.dir]} {DEGREE_NAMES[move.to - 1]}
-                          <button type="button" class="rounded-full p-1 hover:bg-sr-panel"
-                            aria-label="Remove {DEGREE_NAMES[move.from - 1]} {skipDirChoices.find((c) => c.dir === move.dir)?.label} to {DEGREE_NAMES[move.to - 1]}"
-                            on:click={() => (skips = { ...skips, extraSkips: skips.extraSkips.filter((_, j) => j !== k) })}><X size={13} /></button>
-                        </span>
-                      {/each}
-                      {#if !skipPickerOpen}
-                        <button type="button" class="sr-btn-quiet px-3 py-1 text-[13px]"
-                          on:click={openSkipPicker}>+ Add</button>
-                      {/if}
-                    </div>
-
-                    {#if skipPickerOpen}
+                    <!-- Other skips: hidden until there are some. Most teachers only need the patterns. -->
+                    {#if skips.extraSkips.length}
+                      <p class="pt-1 text-xs font-bold text-sr-muted">Other skips</p>
+                      <div class="flex flex-wrap items-center gap-2">
+                        {#each skips.extraSkips as move, k}
+                          <span class="inline-flex items-center gap-1 rounded-full bg-sr-sky text-sr-sky-ink pl-3 pr-1 py-1 text-[13px] font-bold">
+                            {DEGREE_NAMES[move.from - 1]} {DIR_ARROWS[move.dir]} {DEGREE_NAMES[move.to - 1]}
+                            <button type="button" class="rounded-full p-1 hover:bg-sr-panel"
+                              aria-label="Remove {DEGREE_NAMES[move.from - 1]} {skipDirChoices.find((c) => c.dir === move.dir)?.label} to {DEGREE_NAMES[move.to - 1]}"
+                              on:click={() => (skips = { ...skips, extraSkips: skips.extraSkips.filter((_, j) => j !== k) })}><X size={13} /></button>
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+                    {#if !skipPickerOpen}
+                      <button type="button" class="sr-link -ml-1.5" on:click={openSkipPicker}>+ Add another skip</button>
+                    {:else}
                       <div class="flex w-fit max-w-full flex-wrap items-end gap-x-4 gap-y-3 rounded-2xl border-2 border-sr-track p-3"
                         role="group" aria-label="Add a skip">
                         <div class="space-y-1">
