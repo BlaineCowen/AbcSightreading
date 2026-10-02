@@ -54,7 +54,7 @@ const longDay = (d: Date) => d.toLocaleDateString("en-US", { month: "long", day:
 
 function planLine(plan: QuotePlan, seats: number) {
   return plan === "pro"
-    ? "One year of abcSightReading Pro: unlimited sight-reading exercises for choir, the practice tools (tuner, metronome, drone, starting pitches) and abcTuner."
+    ? "One year of abcSightReading Pro: unlimited sight-reading exercises for choirs and ensembles, the practice tools (tuner, metronome, drone, starting pitches) and abcTuner."
     : `One year of the Educator plan: unlimited sight-reading exercises, practice tools, and ${seats} secure student accounts for all age groups.`;
 }
 
@@ -156,7 +156,7 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
     [
       `Hello ${req.contactName},`,
       "",
-      `${user.name} (${user.email}) at ${req.school} would like a year of ${product}, a sight-reading practice tool for choir.`,
+      `${user.name} (${user.email}) at ${req.school} would like a year of ${product}, a sight-reading practice tool for choirs and ensembles.`,
       `Quote ${quote.number} is attached: ${dollars(quote.amount_total)}${req.taxExempt ? ", quoted tax-exempt" : ""}, good until ${longDay(row.expiresAt)}.`,
       "",
       `To buy it, please issue a purchase order to abcSightReading for quote ${quote.number}, and send the PO number to ${user.name} (reply to this email to reach them).`,

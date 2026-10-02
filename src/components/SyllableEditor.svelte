@@ -123,7 +123,7 @@
   <div class="flex flex-col gap-1">
     <h2 class="text-lg font-semibold text-sr-ink">Rhythm syllables</h2>
     <p class="text-sm text-sr-muted">
-      Use the words your choirs already say. Your set appears as <strong>Mine</strong>
+      Use the words your groups already say. Your set appears as <strong>Mine</strong>
       beside Kodály and Counting on the Unison page.
     </p>
   </div>
@@ -192,7 +192,7 @@
             <input class={input} bind:value={draft.holdEach} aria-label="Each further beat of a held note" placeholder="(nothing)" />
             for each beat it is held
           </div>
-          <p class="text-xs text-sr-muted">Leave the second empty if your choirs do not voice the held beats.</p>
+          <p class="text-xs text-sr-muted">Leave the second empty if your groups do not voice the held beats.</p>
         </fieldset>
 
         <fieldset class="flex flex-col gap-1">

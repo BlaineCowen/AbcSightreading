@@ -3741,7 +3741,7 @@
                     <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
                   {/if}
                 </p>
-                <SignupHint id="own-syllables">Want the words your choir uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
+                <SignupHint id="own-syllables">Want the words your group uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
               </div>
             {/if}
           </div>

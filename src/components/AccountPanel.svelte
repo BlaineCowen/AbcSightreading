@@ -210,7 +210,7 @@
           </div>
           {#if EDUCATOR_ON_SALE && billing.plan === "pro" && accountType !== "student"}
             <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
-              <p class="text-sm text-sr-ink"><strong>Teach a choir?</strong> Educator gives your classes join codes and 100 secure student accounts for all age groups. $99 a year, less what is left of your Pro year.</p>
+              <p class="text-sm text-sr-ink"><strong>Teach a class?</strong> Educator gives your classes join codes and 100 secure student accounts for all age groups. $99 a year, less what is left of your Pro year.</p>
               <button class="sr-btn text-sm self-start" on:click={() => checkout("educator")} disabled={upgrading || !billing.billingEnabled}>Upgrade to Educator</button>
               <p class="text-xs text-sr-muted">Tax-exempt school, or paying by purchase order? <a class="underline" href="#quote">Get a quote</a>.</p>
             </div>

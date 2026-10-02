@@ -51,7 +51,7 @@ const annotations = [
   { name: "Note names", note: "C, B♭, F♯" },
   { name: "Kodály", note: "ta, ti-ti" },
   { name: "Counting", note: "1 & 2 &" },
-  { name: "Your own", note: "your choir's syllables" },
+  { name: "Your own", note: "your group's syllables" },
 ];
 
 const tools = ["Tuner", "Metronome", "Drone", "Starting pitches", "Voice analysis", "Timer"];
@@ -60,7 +60,7 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
 ---
 
 <Layout
-  title="Why abcSightReading | Sight-Reading Practice Made for Choirs"
+  title="Why abcSightReading | Sight-Reading Practice for Choirs & Ensembles"
   description="Choir sight-reading that sounds like real choral music: singable SATB, SSA, TTB and unison parts, UIL levels 1 to 5, solfège and rhythm syllables, hands-free drills, a tuner and student practice, plus unison reading in four clefs for instrumentalists. Free to start."
   themable
 >
@@ -68,9 +68,9 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
     <!-- Hero -->
     <section class="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-10 items-center pt-6">
       <div class="flex flex-col gap-5">
-        <p class="sr-label">For choir directors</p>
+        <p class="sr-label">For ensemble directors</p>
         <h1 class="text-4xl sm:text-5xl font-bold text-sr-ink leading-tight text-balance">
-          Sight reading made for choirs
+          Sight reading made for ensembles
         </h1>
         <p class="text-lg">
           abcSightReading is built for singers and the people who teach them. Every exercise sounds like real choral
@@ -78,7 +78,7 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
           sing.
         </p>
         <p>
-          Pick a level and press Generate, or set it exactly the way your choir needs it. Then put the syllables on,
+          Pick a level and press Generate, or set it exactly the way your group needs it. Then put the syllables on,
           start a drill, and keep a tuner right beside the music.
         </p>
         <div class="flex flex-wrap items-center gap-3">
@@ -101,7 +101,7 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
 
     <!-- The benefits at a glance -->
     <section aria-labelledby="benefits-heading" class="flex flex-col gap-6">
-      <h2 id="benefits-heading" class="text-3xl font-bold text-sr-ink text-balance">What your choir gets</h2>
+      <h2 id="benefits-heading" class="text-3xl font-bold text-sr-ink text-balance">What your group gets</h2>
       <ul class="sr-pastels grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         {benefits.map((b) => (
           <li class="sr-panel p-5 flex flex-col gap-1">
@@ -120,7 +120,7 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
         <p>
           Your singers read best when what they practice looks and sounds like what they perform. Exercises here have a
           shape: a phrase that goes somewhere, an ending that feels like one, and parts that make sense to sing on their
-          own and together. What your choir learns in practice carries straight into the octavo.
+          own and together. What your group learns in practice carries straight into the octavo.
         </p>
         <p>
           Every exercise is new, so nobody memorizes the answer, and every one is singable, so nobody wastes a rehearsal
@@ -179,7 +179,7 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
     <section class="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-10 items-center">
       <div class="flex flex-col gap-4">
         <p class="sr-label text-sr-action-fg">Solfège and rhythm syllables</p>
-        <h2 class="text-3xl font-bold text-sr-ink text-balance">The syllables your choir already uses</h2>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">The syllables your group already uses</h2>
         <p>
           Read it clean, then turn the help on to check. Solfège prints under every part in movable do, fixed do or note
           names, and switching changes the exercise you're looking at, not a new one.

@@ -88,7 +88,7 @@
   <div class="flex flex-col gap-1">
     <h2 class="text-lg font-semibold text-sr-ink">Classes</h2>
     <p class="text-sm text-sr-muted">
-      Keep track of what each of your choirs can read. Tick a step when a class
+      Keep track of what each of your groups can read. Tick a step when a class
       sings it well at sight; on the practice pages, pick the class beside the
       preset and use <strong>Mark passed</strong>.
     </p>
