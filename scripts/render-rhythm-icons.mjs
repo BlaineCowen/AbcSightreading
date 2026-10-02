@@ -57,8 +57,10 @@ const PRELUDE = String.raw`\version "2.26.0"
 const MUSIC = {
   // Not a rhythm: the "Skips land on" toggle and the Max 8th skip stepper on the Pitches tab.
   eighth: "c8",
-  // Not a rhythm: the Max 16th skip stepper on the Pitches tab.
-  sixteenth: "c16",
+  // Not a rhythm: the Max 16th skip stepper on the Pitches tab. The stem is
+  // lengthened so the two flags have room - at the eighth's length they
+  // crowd into its one flag's space and read as an eighth at stepper size.
+  sixteenth: String.raw`\once \override Stem.length = #9 c16`,
   quarter: "c4",
   half: "c2",
   whole: "c1",

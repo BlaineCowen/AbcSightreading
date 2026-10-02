@@ -123,9 +123,29 @@ describe("Max 8th / 16th skip in the generator", () => {
   });
 
   test("compound meter: the caps apply to each eighth of three", () => {
+    let inside = 0;
     for (let run = 0; run < RUNS; run++) {
-      const notes = unison("6/8", ["threeEighths"], { maxEighthSkip: 1, maxSixteenthSkip: 1 });
-      for (const mv of moves(notes)) if (mv.inside) expect(mv.distance).toBeLessThanOrEqual(1);
+      const notes = unison("6/8", ["threeEighths", "dotQuarter"], { maxEighthSkip: 1, maxSixteenthSkip: 1 });
+      for (const mv of moves(notes)) {
+        if (!mv.inside) continue;
+        inside++;
+        expect(mv.distance).toBeLessThanOrEqual(1);
+      }
     }
+    expect(inside).toBeGreaterThan(0);
+  });
+
+  test("compound meter: six sixteenths take the 16th cap", () => {
+    let inside = 0;
+    for (let run = 0; run < RUNS; run++) {
+      const notes = unison("6/8", ["sixSixteenths", "dotQuarter"], { maxEighthSkip: 4, maxSixteenthSkip: 1 });
+      for (const mv of moves(notes)) {
+        if (!mv.inside) continue;
+        inside++;
+        expect(mv.length).toBe(2);
+        expect(mv.distance).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(inside).toBeGreaterThan(0);
   });
 });

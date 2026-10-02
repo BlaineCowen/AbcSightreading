@@ -787,9 +787,11 @@
   let shortSkipsLinked: boolean = initialState.shortSkips.linked;
   function stepSkip(which: SkipStepper, delta: number) {
     const current = { maxSkip, max8th, max16th }[which];
-    ({ maxSkip, max8th, max16th } = setShortSkip(
-      { maxSkip, max8th, max16th, linked: shortSkipsLinked }, which, current + delta
-    ));
+    const next = setShortSkip({ maxSkip, max8th, max16th, linked: shortSkipsLinked }, which, current + delta);
+    ({ max8th, max16th } = next);
+    // With exact skips on, Max skip is dimmed and not in force: a linked 8th or
+    // 16th change leaves it alone, so nothing springs back when they go off.
+    if (!(skips.exactOn && which !== 'maxSkip')) maxSkip = next.maxSkip;
   }
   /** Linking sets the 8th and 16th skips to Max skip, so "Linked" always means one value. */
   function toggleShortSkipsLink() {
@@ -805,6 +807,13 @@
     { which: 'max8th', label: 'Max 8th skip', icon: 'eighth', min: 0 },
     { which: 'max16th', label: 'Max 16th skip', icon: 'sixteenth', min: 0 },
   ];
+  /**
+   * One scale for the three icons, so their noteheads match: an icon's height
+   * follows its own viewBox (LilyPond staff-spaces). Shrunk to fit the cell,
+   * the sixteenth's longer stem made its notehead smaller than the quarter's.
+   */
+  const skipIconHeight = (raw: string) =>
+    Math.round(Number(/viewBox="[\d.\s-]*?\s([\d.]+)"/.exec(raw)?.[1] ?? 4) * 5.4);
   const skipRowSvgs = Object.fromEntries(
     skipRows.map((r) => [r.which, import(`../assets/svgs/${r.icon}.svg?raw`)])
   );
@@ -3781,11 +3790,12 @@
                 <button type="button"
                   class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold transition-colors
                     {shortSkipsLinked ? 'bg-sr-tint text-sr-action-fg' : 'bg-sr-track text-sr-muted'}"
+                  aria-label="Link the three skips"
                   aria-pressed={shortSkipsLinked}
                   title={shortSkipsLinked ? 'The three skips move together' : 'Each skip is set on its own'}
                   on:click={toggleShortSkipsLink}>
                   {#if shortSkipsLinked}<Link2 size={14} />{:else}<Link2Off size={14} />{/if}
-                  <span>Linked</span>
+                  <span aria-hidden="true">{shortSkipsLinked ? 'Linked' : 'Unlinked'}</span>
                 </button>
               </div>
               <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 sm:grid-cols-[auto_auto_auto_minmax(0,1fr)] sm:gap-x-3"
@@ -3793,9 +3803,9 @@
                 {#each skipRows as row}
                   {@const value = row.which === 'maxSkip' ? maxSkip : row.which === 'max8th' ? max8th : max16th}
                   {@const dimmed = row.which === 'maxSkip' && skips.exactOn}
-                  <span class="flex h-8 w-6 items-center justify-center text-sr-ink transition-opacity" class:opacity-40={dimmed} aria-hidden="true">
+                  <span class="flex h-8 w-7 items-end justify-center pb-0.5 text-sr-ink transition-opacity" class:opacity-40={dimmed} aria-hidden="true">
                     {#await skipRowSvgs[row.which] then svg}
-                      <span class="rhythm-icon">{@html svg.default}</span>
+                      <span class="skip-icon flex" style="height: {skipIconHeight(svg.default)}px">{@html svg.default}</span>
                     {/await}
                   </span>
                   <!-- On a phone the interval name sits under the label, so nothing wraps. -->
@@ -4463,6 +4473,10 @@
   /* Horizontal-scroll fallback for a score too wide to shrink further */
   .tab-scroll {
     scrollbar-width: none;
+  }
+  .skip-icon :global(svg) {
+    height: 100%;
+    width: auto;
   }
   .tab-scroll::-webkit-scrollbar {
     display: none;
