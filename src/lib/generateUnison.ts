@@ -13,6 +13,7 @@ import { resolveMeter } from "./meter";
 import {
   CUSTOM_SYLLABLE_ID,
   checkCustomSyllables,
+  counting,
   customSyllableSystem,
   defaultSyllableSystem,
   isSyllableSystemId,
@@ -1709,13 +1710,21 @@ const flatSolfegeMap = { 1: "ra", 2: "me", 4: "se", 5: "le", 6: "te" };
  * duration is what keeps a beat-long note that straddles the beat - the quarter
  * inside the syncopation figure - from claiming the downbeat's name.
  */
+/** What the resolver needs of the meter: its beat, its bar, and eighths to a beat. */
+type SyllableMeter = { beatUnits: number; tsPerMeasure: number; subdivision: number };
+
 function rhythmSyllableFor(
   note: ChordNoteObject,
   offsetInMeasure: number,
-  beatUnits: number,
-  tsPerMeasure: number,
+  meter: SyllableMeter,
   system: SyllableSystem
 ): string {
+  const { beatUnits, tsPerMeasure } = meter;
+  // Compound meter divides the beat in three. A set with no words for that is
+  // read in Counting, whole - not its beat word with Counting's slots.
+  const compound = meter.subdivision === 3;
+  const active = compound && !system.compoundSlots ? counting : system;
+  const slots = compound ? active.compoundSlots! : active.slots;
   const beatsPerMeasure = Math.max(1, Math.round(tsPerMeasure / beatUnits));
   const beatNumberAt = (beatIndex: number) =>
     (((beatIndex % beatsPerMeasure) + beatsPerMeasure) % beatsPerMeasure) + 1;
@@ -1743,23 +1752,25 @@ function rhythmSyllableFor(
   };
 
   const onBeat = offsetInMeasure % beatUnits === 0;
-  const slotWidth = beatUnits / system.slots.length;
+  // Each division of the beat is two sixteenth slots: four to a quarter beat,
+  // six to a dotted-quarter one. From the subdivision, not the slot count.
+  const slotWidth = beatUnits / (meter.subdivision * 2);
   const slot = Math.floor((offsetInMeasure % beatUnits) / slotWidth);
   const startLabel =
     onBeat && note.noteLength >= beatUnits
-      ? resolveSyllable(system.beat, position)
-      : resolveSyllable(system.slots[slot % system.slots.length], position);
+      ? resolveSyllable(active.beat, position)
+      : resolveSyllable(slots[slot % slots.length], position);
 
   const ctx: SyllableContext = { ...position, startLabel };
 
-  const named = note.rhythm?.name ? system.byName[note.rhythm.name] : undefined;
+  const named = note.rhythm?.name ? active.byName[note.rhythm.name] : undefined;
   const fromName = named?.[note.patternIndex ?? 0];
   if (fromName !== undefined) return resolveSyllable(fromName, ctx);
 
-  if (note.rhythm?.rest) return resolveSyllable(system.rest, ctx);
+  if (note.rhythm?.rest) return resolveSyllable(active.rest, ctx);
 
   return crossedBeats.length
-    ? resolveSyllable(system.sustain, ctx)
+    ? resolveSyllable(active.sustain, ctx)
     : startLabel;
 }
 
@@ -1769,6 +1780,8 @@ function rhythmSyllableFor(
  * exercises use, so the preview cannot say one thing and the page another.
  */
 export function syllablesForFigure(rhythm: Rhythm, system: SyllableSystem): string[] {
+  // From the downbeat of a 4/4 bar, or of a 6/8 bar for a compound figure.
+  const meter = resolveMeter(rhythm.meterKind === "compound" ? "6/8" : "4/4");
   let offset = 0;
   return rhythm.meterValue.map((value, patternIndex) => {
     const noteLength = Math.round(value * 32);
@@ -1779,7 +1792,7 @@ export function syllablesForFigure(rhythm: Rhythm, system: SyllableSystem): stri
       // "z4" is the eighth rest of eighthRestEighth.
       rhythm: { name: rhythm.name, rest: rhythm.rest || String(rhythm.abcValue[patternIndex]).startsWith("z") },
     } as unknown as ChordNoteObject;
-    const syllable = rhythmSyllableFor(note, offset, 8, 32, system);
+    const syllable = rhythmSyllableFor(note, offset, meter, system);
     offset += noteLength;
     return syllable;
   });
@@ -2006,8 +2019,7 @@ function createConcatString(
           ? rhythmSyllableFor(
               note,
               tsCount,
-              beatUnits,
-              params.timeSig.tsPerMeasure,
+              { beatUnits, tsPerMeasure: params.timeSig.tsPerMeasure, subdivision: meter.subdivision },
               params.syllableSystem ?? defaultSyllableSystem
             )
           : "";

@@ -63,6 +63,12 @@ export type SyllableSystem = {
   byName: Record<string, Syllable[]>;
   /** Syllables for the sixteenth-note slots within one beat. */
   slots: PositionSyllable[];
+  /**
+   * Compound meter: the six sixteenth slots of a dotted-quarter beat. Eighths
+   * take the first, third and fifth. A system without them - a teacher's own
+   * set from before compound meter - is read in Counting there.
+   */
+  compoundSlots?: PositionSyllable[];
   /** A note that starts on a beat and fills exactly one. */
   beat: PositionSyllable;
   /** A note whose duration carries it past at least one further downbeat. */
@@ -93,6 +99,7 @@ export const kodaly: SyllableSystem = {
     eighthDotQuarter: ["ti", "ti-a"],
   },
   slots: ["ti", "ki", "ti", "ki"],
+  compoundSlots: ["ti", "ri", "ti", "ri", "ti", "ri"],
   beat: "ta",
   sustain: (c) => "tu" + "-u".repeat(c.crossedBeats.length),
   rest: "(sh)",
@@ -117,11 +124,13 @@ const heldBeats = (c: SyllableContext, parenthesised = false) =>
 export const counting: SyllableSystem = {
   id: "counting",
   label: "Counting",
-  hint: "1 2 & 3 e & a 4",
+  hint: "1 2 & 3 e & a 4; 6/8: 1 la li",
   // Nothing to name: the positional rules already produce the standard count
   // for every figure, the dotted pairs and the syncopation included.
   byName: {},
   slots: [(c) => String(c.beatNumber), "e", "&", "a"],
+  // Eastman: 1 la li, and 1 ta la ta li ta in sixteenths.
+  compoundSlots: [(c) => String(c.beatNumber), "ta", "la", "ta", "li", "ta"],
   beat: (c) => String(c.beatNumber),
   sustain: (c) => c.startLabel + heldBeats(c),
   // A rest is counted silently, which is what the parentheses mean.
@@ -171,6 +180,8 @@ export type CustomSyllables = {
   beat: string;
   /** The four sixteenth positions of a beat. Eighths take the first and third. */
   slots: [string, string, string, string];
+  /** Compound meter's six sixteenths of a dotted-quarter beat. Absent: read in Counting. */
+  compoundSlots?: [string, string, string, string, string, string];
   /** A held note: this, then `holdEach` once per further beat it runs through. */
   holdStart: string;
   /** May be empty, for systems that do not voice the held beats. */
@@ -226,6 +237,28 @@ export function checkCustomSyllables(value: unknown): Checked<CustomSyllables> {
     slots.push(c.value);
   }
   out.slots = slots as CustomSyllables["slots"];
+  // Optional. Six empty fields, or none at all, mean "read compound meter in
+  // Counting"; a row is used only when all six are filled.
+  const compoundRaw = v.compoundSlots;
+  if (compoundRaw !== undefined && compoundRaw !== null) {
+    if (!Array.isArray(compoundRaw) || compoundRaw.length !== 6) {
+      return { ok: false, error: "Expected six compound syllables." };
+    }
+    if (compoundRaw.some((s) => typeof s === "string" && s.trim() !== "")) {
+      const compound: string[] = [];
+      for (let i = 0; i < 6; i++) {
+        const c = checkSyllable(compoundRaw[i], `Compound sixteenth ${i + 1}`);
+        if (!c.ok) {
+          return {
+            ok: false,
+            error: `${c.error} Fill all six compound syllables, or leave them all empty to read 6/8 in Counting.`,
+          };
+        }
+        compound.push(c.value);
+      }
+      out.compoundSlots = compound as CustomSyllables["compoundSlots"];
+    }
+  }
   const named = {} as CustomSyllables["named"];
   for (const [figure, count] of Object.entries(NAMED_FIGURES) as [NamedFigure, number][]) {
     const list = v.named?.[figure];
@@ -251,6 +284,7 @@ export function customSyllableSystem(c: CustomSyllables): SyllableSystem {
     hint: `${c.beat}, ${c.slots[0]}-${c.slots[2]}, ${c.slots.join("-")}`,
     byName: { ...c.named },
     slots: [...c.slots],
+    ...(c.compoundSlots ? { compoundSlots: [...c.compoundSlots] } : {}),
     beat: c.beat,
     sustain: (ctx) => c.holdStart + c.holdEach.repeat(ctx.crossedBeats.length),
     rest: c.rest,
@@ -270,6 +304,7 @@ export const syllableTemplates: { id: string; label: string; syllables: CustomSy
     syllables: {
       beat: "ta",
       slots: ["ti", "ki", "ti", "ki"],
+      compoundSlots: ["ti", "ri", "ti", "ri", "ti", "ri"],
       holdStart: "tu",
       holdEach: "-u",
       rest: "(sh)",
@@ -288,6 +323,7 @@ export const syllableTemplates: { id: string; label: string; syllables: CustomSy
     syllables: {
       beat: "ta",
       slots: ["ti", "ka", "ti", "ka"],
+      compoundSlots: ["ti", "ka", "ti", "ka", "ti", "ka"],
       holdStart: "ta",
       holdEach: "-a",
       rest: "rest",
@@ -306,6 +342,7 @@ export const syllableTemplates: { id: string; label: string; syllables: CustomSy
     syllables: {
       beat: "ta",
       slots: ["ta", "ka", "di", "mi"],
+      compoundSlots: ["ta", "va", "ki", "di", "da", "ma"],
       holdStart: "ta",
       holdEach: "",
       rest: "(ta)",
@@ -324,6 +361,7 @@ export const syllableTemplates: { id: string; label: string; syllables: CustomSy
     syllables: {
       beat: "du",
       slots: ["du", "ta", "de", "ta"],
+      compoundSlots: ["du", "ta", "da", "ta", "di", "ta"],
       holdStart: "du",
       holdEach: "",
       rest: "(du)",

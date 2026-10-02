@@ -293,45 +293,60 @@ const SYLLABLE_TABLE: Record<string, Record<string, string[]>> = {
   },
 };
 
+/** Compound figures, read from a 6/8 downbeat. */
+const COMPOUND_SYLLABLE_TABLE: Record<string, Record<string, string[]>> = {
+  kodaly: {
+    dotQuarter: ["ta"],
+    dotHalfCompound: ["tu-u"],
+    threeEighths: ["ti", "ti", "ti"],
+    quarterEighth: ["ti", "ti"],
+    sixSixteenths: ["ti", "ri", "ti", "ri", "ti", "ri"],
+    twoSixteenthsTwoEighths: ["ti", "ri", "ti", "ti"],
+  },
+  counting: {
+    dotQuarter: ["1"],
+    dotHalfCompound: ["1_2"],
+    threeEighths: ["1", "la", "li"],
+    quarterEighth: ["1", "li"],
+    eighthQuarter: ["1", "la"],
+    sixSixteenths: ["1", "ta", "la", "ta", "li", "ta"],
+    eighthTwoSixteenthsEighth: ["1", "la", "ta", "li"],
+    quarterTwoSixteenths: ["1", "li", "ta"],
+  },
+};
+
 function checkSyllables() {
-  const timeSig = TIME_SIGS["4/4"];
+  const cases = [
+    { tables: SYLLABLE_TABLE, timeSig: TIME_SIGS["4/4"], pool: selectableRhythms },
+    { tables: COMPOUND_SYLLABLE_TABLE, timeSig: COMPOUND_TIME_SIGS["6/8"], pool: selectableRhythmsFor("compound") },
+  ];
   let checked = 0;
-  for (const systemId of Object.keys(syllableSystems)) {
-    const table = SYLLABLE_TABLE[systemId];
-    if (!table) {
-      fail(`syllables: no expected mapping recorded for system "${systemId}"`);
-      continue;
-    }
-    for (const [rhythmName, expected] of Object.entries(table)) {
-      const rhythm = selectableRhythms.find((r) => r.name === rhythmName);
-      if (!rhythm) {
-        fail(`syllables: "${rhythmName}" is not a selectable rhythm`);
+  for (const { tables, timeSig, pool } of cases) {
+    for (const systemId of Object.keys(syllableSystems)) {
+      const table = tables[systemId];
+      if (!table) {
+        fail(`syllables: no expected ${timeSig.name} mapping recorded for system "${systemId}"`);
         continue;
       }
-      // Every figure in the table tiles a 4/4 measure on its own, so it always
-      // starts on beat 1 and the expected reading is exact rather than likely.
-      const set = [rhythm];
-
-      let seenExpected = false;
-      for (let i = 0; i < 12 && !seenExpected; i++) {
-        const body = generate({
-          rhythms: set,
-          timeSig,
-          measures: 2,
-          syllables: systemId,
-        });
-        if (!body) continue;
-        const syllables = [...body.matchAll(/"_([^"]*)"/g)].map((m) => m[1]);
-        // The figure starting on beat 1 must read exactly as the table says.
-        if (syllables.slice(0, expected.length).join(" ") === expected.join(" ")) {
-          seenExpected = true;
+      for (const [rhythmName, expected] of Object.entries(table)) {
+        const rhythm = pool.find((r) => r.name === rhythmName);
+        if (!rhythm) {
+          fail(`syllables: "${rhythmName}" is not a selectable ${timeSig.name} rhythm`);
+          continue;
         }
-      }
-      checked++;
-      if (!seenExpected) {
-        fail(
-          `syllables: ${systemId}/${rhythmName} never produced "${expected.join(" ")}" on beat 1`
-        );
+        // Every figure in the tables fills its meter's bar on its own, so it
+        // always starts on beat 1 and the expected reading is exact.
+        let seenExpected = false;
+        for (let i = 0; i < 12 && !seenExpected; i++) {
+          const body = generate({ rhythms: [rhythm], timeSig, measures: 2, syllables: systemId });
+          if (!body) continue;
+          const syllables = [...body.matchAll(/"_([^"]*)"/g)].map((m) => m[1]);
+          if (syllables.slice(0, expected.length).join(" ") === expected.join(" ")) seenExpected = true;
+        }
+        checked++;
+        if (!seenExpected) {
+          fail(`syllables: ${systemId}/${rhythmName} never produced "${expected.join(" ")}" on beat 1 of ${timeSig.name}`);
+        }
       }
     }
   }
