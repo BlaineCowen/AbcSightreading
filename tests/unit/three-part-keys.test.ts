@@ -47,7 +47,7 @@ function successes(voicing: string, key: string, runs: number) {
       try {
         generateChoralExercise({
           key,
-          timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+          timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
           partsObject: structuredClone(parts),
           measures: 16,
           maxSkip: p.maxSkip,

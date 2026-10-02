@@ -11,6 +11,7 @@
   import { BachSRGenerationError, type Violation } from "../lib/bach-sr/validate";
   import type { TimeSignature, PartsObject } from "../lib/types";
   import { ClefType } from "../lib/types";
+  import { timeSignaturesFor } from "../lib/meter";
   import type { Chord } from "../lib/types";
   import type { Rhythm } from "../resources/rhythms";
   import RangeSelector from "./ui/rangeSelector.svelte";
@@ -114,11 +115,7 @@
     },
   };
 
-  let timeSignatures: Record<string, TimeSignature> = {
-    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-  };
+  let timeSignatures: Record<string, TimeSignature> = timeSignaturesFor(["4/4", "3/4", "2/4"]);
 
   let selectedTimeSignature = "4/4";
   let possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"];

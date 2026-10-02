@@ -24,14 +24,11 @@ import { canFillExercise } from "../src/lib/rhythm-feasibility";
 import { selectableRhythms } from "../src/lib/selectable-rhythms";
 import { syllableSystems } from "../src/resources/rhythm-syllables";
 import type { Rhythm } from "../src/resources/rhythms";
+import { timeSignaturesFor, type ExerciseTimeSignature } from "../src/lib/meter";
 
-const TIME_SIGS = {
-  "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-  "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-  "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-} as const;
+const TIME_SIGS = timeSignaturesFor(["4/4", "3/4", "2/4"]);
 
-type TimeSig = (typeof TIME_SIGS)[keyof typeof TIME_SIGS];
+type TimeSig = ExerciseTimeSignature;
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);

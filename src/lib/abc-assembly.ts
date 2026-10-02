@@ -7,6 +7,7 @@ import {
   type TimeSignature,
 } from "./types";
 import { lyricLineFor, type LyricSystem } from "../resources/solfege";
+import { beatUnitOf } from "./meter";
 import { keySignatures } from "../resources/key-signatures";
 import { getDiatonicDegree } from "./prep-params";
 
@@ -134,7 +135,7 @@ export function assembleAbcString(
    * How wide one beam group is, in 32nd-note units - a quarter in simple time,
    * a dotted quarter in compound. Already carried on every time signature.
    */
-  const beamUnit = timeSig.beamGroupSize ?? 8;
+  const beamUnit = beatUnitOf(timeSig);
 
   /**
    * Whether these two notes should be joined by a beam.

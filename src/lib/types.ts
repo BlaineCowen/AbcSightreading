@@ -124,14 +124,14 @@ export interface RhythmWithPattern extends Rhythm {
   isPhraseBreath?: boolean;
 }
 
-// Add TimeSignature type definition
+// A time signature, as the generators are handed it. Build one with
+// timeSignatureFor (src/lib/meter.ts) rather than writing it out.
 export interface TimeSignature {
   name: string; // e.g., "4/4", "3/4", "6/8"
   tsPerMeasure: number; // Number of base units (e.g., 32nd notes if L:1/32) per measure
-  /** How many 32nd-note units form one beam group (one "beat" for beaming).
-   *  Simple time (2/4, 3/4, 4/4): 8 (quarter note).
-   *  Compound time (6/8, 9/8, 12/8): 12 (dotted quarter). */
-  beamGroupSize: number;
+  /** One beat in 32nd-note units: 8 (quarter) in simple time, 12 (dotted
+   *  quarter) in compound. Beams group by it. Was `beamGroupSize`. */
+  beatUnits: number;
 }
 
 // --- Add KeySignatureInfo --- New Interface

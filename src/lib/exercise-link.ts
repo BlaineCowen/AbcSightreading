@@ -257,9 +257,9 @@ function choralInput(input: ChoralRenderInput): ChoralInputV1 {
   const { key, timeSig, metadata } = input;
   const encoded: ChoralInputV1 = {
     k: key,
-    m: timeSig.beamGroupSize === undefined
+    m: timeSig.beatUnits === undefined
       ? [timeSig.name, timeSig.tsPerMeasure]
-      : [timeSig.name, timeSig.tsPerMeasure, timeSig.beamGroupSize],
+      : [timeSig.name, timeSig.tsPerMeasure, timeSig.beatUnits],
     q: metadata.tempo,
     p: input.voiceParts.map((part) => [part.name, part.smallName, part.clef]),
     n: input.voices.map((voice) => voice.map(choralNote)),
@@ -290,7 +290,7 @@ function readChoralInput(raw: unknown): ChoralRenderInput {
   check(typeof key === "string" && key in keySignatures);
   const meter = readMeter(r.m);
   // Choral meters always carry their beam group; the choral type requires it.
-  check(meter.beamGroupSize !== undefined);
+  check(meter.beatUnits !== undefined);
   const timeSig = meter as TimeSignature;
   const tempo = r.q;
   check(isInt(tempo, 20, 400));
@@ -370,7 +370,7 @@ function readChordSymbol(raw: unknown): string | undefined {
   if (raw === undefined || raw === 0) return undefined;
   // Lands inside an ABC annotation, "^…": no quote to close it early, nothing
   // ABC reads as a comment or an escape, no line break.
-  check(typeof raw === "string" && raw.length >= 1 && raw.length <= 16 && !/["%\\ -]/.test(raw));
+  check(typeof raw === "string" && raw.length >= 1 && raw.length <= 16 && !/["%\\\x00-\x1f]/.test(raw));
   return raw as string;
 }
 
@@ -417,9 +417,9 @@ function unisonPayload(score: UnisonScore): PayloadV1 {
     v: VERSION,
     t: "u",
     st: score.staff === "rhythm" ? "r" : "p",
-    m: timeSig.beamGroupSize === undefined
+    m: timeSig.beatUnits === undefined
       ? [timeSig.name, timeSig.tsPerMeasure]
-      : [timeSig.name, timeSig.tsPerMeasure, timeSig.beamGroupSize],
+      : [timeSig.name, timeSig.tsPerMeasure, timeSig.beatUnits],
     ...(score.key === undefined ? {} : { k: score.key }),
     ...(score.clef === undefined ? {} : { c: score.clef }),
     ...(score.partsObject.numofParts === undefined ? {} : { np: score.partsObject.numofParts }),
@@ -500,15 +500,15 @@ function check(condition: unknown): asserts condition {
   if (!condition) throw new InvalidPayload();
 }
 
-function readMeter(raw: unknown): { name: string; tsPerMeasure: number; beamGroupSize?: number } {
+function readMeter(raw: unknown): { name: string; tsPerMeasure: number; beatUnits?: number } {
   check(Array.isArray(raw) && (raw.length === 2 || raw.length === 3));
-  const [name, tsPerMeasure, beamGroupSize] = raw as unknown[];
+  const [name, tsPerMeasure, beatUnits] = raw as unknown[];
   check(typeof name === "string" && /^\d{1,2}\/\d{1,2}$/.test(name));
   check(isInt(tsPerMeasure, 1, 128));
-  check(beamGroupSize === undefined || isInt(beamGroupSize, 1, 64));
-  return beamGroupSize === undefined
+  check(beatUnits === undefined || isInt(beatUnits, 1, 64));
+  return beatUnits === undefined
     ? { name, tsPerMeasure: tsPerMeasure as number }
-    : { name, tsPerMeasure: tsPerMeasure as number, beamGroupSize: beamGroupSize as number };
+    : { name, tsPerMeasure: tsPerMeasure as number, beatUnits: beatUnits as number };
 }
 
 const isObject = (v: unknown): v is Record<string, any> =>

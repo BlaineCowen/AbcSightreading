@@ -29,7 +29,7 @@ function line(opts: {
   try {
     const result: any = createNewSr({
       bpm: 60, clef: "treble", selectedClef: "treble",
-      timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }, selectedTimeSignature: "4/4",
+      timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }, selectedTimeSignature: "4/4",
       measures: opts.measures ?? 8, maxSkip: opts.maxSkip, tempo: 60, range: opts.range,
       rhythms: selectableRhythms.filter((r) => opts.rhythms.includes(r.name)),
       selectedRhythms: opts.rhythms, scaleDegrees: opts.degrees,

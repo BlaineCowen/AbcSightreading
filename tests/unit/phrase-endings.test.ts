@@ -22,7 +22,7 @@ const UIL3 = ["whole", "dotHalf", "half", "quarter", "eighthEighth", "quarterRes
 const UIL1 = ["whole", "half", "quarter", "quarterRest", "halfRest"];
 
 function gen(names: string[], tsPerMeasure: number, measures = 8) {
-  const timeSig = { name: "x", tsPerMeasure, beamGroupSize: 8 } as any;
+  const timeSig = { name: "x", tsPerMeasure, beatUnits: 8 } as any;
   for (let attempt = 0; attempt < 60; attempt++) {
     // Cadence enforcement keys off there being any single (non-pattern,
     // non-rest) rhythm available, not off the cadence plan, so [] is fine here -

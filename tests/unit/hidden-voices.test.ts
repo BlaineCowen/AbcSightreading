@@ -34,7 +34,7 @@ function assemble(display: Parameters<typeof assembleAbcString>[6]) {
     PARTS,
     [],
     "C",
-    { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 } as any,
+    { name: "4/4", tsPerMeasure: 32, beatUnits: 8 } as any,
     { title: "t", composer: "", tempo: 72, midiProgram: 0 },
     display
   );

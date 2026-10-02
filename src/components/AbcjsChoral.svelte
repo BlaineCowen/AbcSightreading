@@ -28,6 +28,7 @@
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
+  import { timeSignaturesFor } from "../lib/meter";
   import { failureHint, type PartSpan } from "../lib/failure-hint";
   import {
     planForm,
@@ -217,11 +218,8 @@
     )
   );
 
-  let timeSignatures: Record<string, TimeSignature> = {
-    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-  };
+  /** Choral is simple meter only: compound meter is Unison's for now. */
+  let timeSignatures: Record<string, TimeSignature> = timeSignaturesFor(["4/4", "3/4", "2/4"]);
 
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   /**

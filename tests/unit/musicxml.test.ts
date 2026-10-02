@@ -43,7 +43,7 @@ function choral(key: string, meter: "4/4" | "3/4" = "4/4") {
       kind: "exercise",
       params: {
         key,
-        timeSig: { name: meter, tsPerMeasure: meter === "4/4" ? 32 : 24, beamGroupSize: 8 },
+        timeSig: { name: meter, tsPerMeasure: meter === "4/4" ? 32 : 24, beatUnits: 8 },
         partsObject: SATB,
         measures: 8,
         maxSkip: 4,
@@ -222,7 +222,7 @@ describe("unison", () => {
     quietly(() =>
       createNewSr({
         bpm: 60, clef: "bass", selectedClef: "bass",
-        timeSig: { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 }, selectedTimeSignature: "3/4",
+        timeSig: { name: "3/4", tsPerMeasure: 24, beatUnits: 8 }, selectedTimeSignature: "3/4",
         measures: 8, maxSkip: 4, tempo: 60, range: { min: 2, max: 12 },
         selectedRhythms: ["quarter", "half", "dotHalf", "eighthEighth"],
         rhythms: rhythms.filter((r) => ["quarter", "half", "dotHalf", "eighthEighth"].includes(r.name)),

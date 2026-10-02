@@ -53,7 +53,7 @@ function attempt(key: string, measures: number, tsName: string) {
   const perMeasure = { "4/4": 32, "3/4": 24, "2/4": 16 }[tsName]!;
   return generateChoralExercise({
     key,
-    timeSig: { name: tsName, tsPerMeasure: perMeasure, beamGroupSize: 8 },
+    timeSig: { name: tsName, tsPerMeasure: perMeasure, beatUnits: 8 },
     partsObject: twoPartTenorBass(),
     measures,
     maxSkip: level1.maxSkip,

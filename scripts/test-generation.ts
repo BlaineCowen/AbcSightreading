@@ -10,6 +10,7 @@ import { uilPresets } from "../src/lib/uil-presets";
 import { chords as fullChordSet } from "../src/resources/chords";
 import { rhythms as allRhythms } from "../src/resources/rhythms";
 import type { PartsObject, TimeSignature } from "../src/lib/types";
+import { timeSignatureFor } from "../src/lib/meter";
 
 // ── Mirror the possibleVoicing from AbcjsChoral.svelte ────────────────────────
 const ClefType = {
@@ -67,10 +68,7 @@ const baseVoicings: Record<string, PartsObject> = {
   },
 };
 
-const timeSignatures: TimeSignature[] = [
-  { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-  { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-];
+const timeSignatures: TimeSignature[] = ["4/4", "3/4"].map(timeSignatureFor);
 
 // ── Silence all console output during runs ─────────────────────────────────
 function silence<T>(fn: () => T): T {

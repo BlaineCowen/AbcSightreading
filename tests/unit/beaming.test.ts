@@ -27,7 +27,7 @@ const PARTS = {
 
 const BEAT = 8; // one quarter, in 32nd-note units
 
-function generate(rhythmNames: string[], timeSig = { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }) {
+function generate(rhythmNames: string[], timeSig = { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }) {
   const selectedRhythms = allRhythms.filter((r) => rhythmNames.includes(r.name));
   for (let attempt = 0; attempt < 40; attempt++) {
     try {
@@ -129,7 +129,7 @@ describe("choral beaming", () => {
   test("holds in 3/4 as well", () => {
     const abc = generate(
       ["quarter", "half", "eighthEighth", "fourSixteenths"],
-      { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 } as any
+      { name: "3/4", tsPerMeasure: 24, beatUnits: 8 } as any
     );
     for (const g of beamGroups(abc, 24).filter(beamed)) {
       const total = g.durations.reduce((a, b) => a + b, 0);

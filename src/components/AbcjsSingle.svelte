@@ -38,6 +38,7 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
+  import { timeSignaturesFor } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -101,11 +102,9 @@
 
   // --- Static Options ---
   const possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
-  const timeSignatures = {
-    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-  };
+  // Simple meter only until the compound vocabulary lands (the meter picker
+  // shows these keys, in this order).
+  const timeSignatures = timeSignaturesFor(["4/4", "3/4", "2/4"]);
   const clefOptions = ["treble", "bass", "alto", "tenor"];
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   const cursorModes = ["off", "smooth", "beat", "note"] as const;

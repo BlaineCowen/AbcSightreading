@@ -70,7 +70,7 @@ describe("stepwise eighths in a whole exercise", () => {
     try {
       return generateChoralExercise({
         key: "C",
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
         partsObject,
         measures: 8,
         maxSkip: p.maxSkip,

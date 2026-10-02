@@ -9,6 +9,7 @@ import {
   type LyricSystem,
 } from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
+import { beatUnitOf } from "./meter";
 import {
   CUSTOM_SYLLABLE_ID,
   checkCustomSyllables,
@@ -1818,7 +1819,7 @@ function resolveSyllableSystem(id: unknown, custom?: unknown): SyllableSystem {
 export type UnisonScore = {
   staff: "pitched" | "rhythm";
   partsObject: PartsObject;
-  timeSig: { name: string; tsPerMeasure: number; beamGroupSize?: number };
+  timeSig: { name: string; tsPerMeasure: number; beatUnits?: number };
   /** Pitched staff only. */
   key?: string;
   clef?: string;
@@ -1904,7 +1905,7 @@ export function assembleUnisonAbc(
 function createConcatString(
   partsObject: PartsObject,
   params: {
-    timeSig: { tsPerMeasure: number; beamGroupSize?: number };
+    timeSig: { name: string; tsPerMeasure: number; beatUnits?: number };
     showSolfege: boolean;
     /** Which lyric the `w:` line carries. Movable do when unset. */
     lyricSystem?: LyricSystem;
@@ -1915,6 +1916,8 @@ function createConcatString(
   }
 ) {
   var concatString = "";
+  /** One beat in 32nds, from the meter model: beams and syllables follow it. */
+  const beatUnits = beatUnitOf(params.timeSig);
 
   Object.keys(partsObject.parts).forEach((part: string) => {
     var singlePartObject = partsObject.parts[part];
@@ -1972,7 +1975,7 @@ function createConcatString(
           ? rhythmSyllableFor(
               note,
               tsCount,
-              params.timeSig.beamGroupSize ?? 8,
+              beatUnits,
               params.timeSig.tsPerMeasure,
               params.syllableSystem ?? defaultSyllableSystem
             )
@@ -1981,7 +1984,6 @@ function createConcatString(
         // A note longer than the room left in the measure is written as tied
         // notes either side of the barline. The generator only produces one
         // when ties are enabled, so ordinarily this runs a single pass.
-        const beamGroupSize = params.timeSig.beamGroupSize ?? 8;
         let lengthLeft = note.noteLength;
         let isAttack = true;
         let segments = 0;
@@ -2007,11 +2009,11 @@ function createConcatString(
           isAttack = false;
 
           // Insert a space at every beam-group boundary so abcjs beams notes
-          // correctly within each beat. beamGroupSize drives this: 8 for simple
+          // correctly within each beat. beatUnits drives this: 8 for simple
           // time (quarter-note beat), 12 for compound time (dotted-quarter beat).
           // Non-pattern notes (quarter, half, whole) always get a space.
           // The barline "|" already breaks beams at measure boundaries.
-          if (tsCount % beamGroupSize === 0 || !note.rhythm?.pattern) {
+          if (tsCount % beatUnits === 0 || !note.rhythm?.pattern) {
             measureString += " ";
           }
 

@@ -87,7 +87,7 @@ const choral = () =>
         kind: "exercise",
         params: {
           key: "D",
-          timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+          timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
           partsObject: SATB,
           measures: 4,
           maxSkip: 4,
@@ -131,7 +131,7 @@ describe("the MIDI file", () => {
     const [, , score] = quietly(() =>
       createNewSr({
         bpm: 60, clef: "treble", selectedClef: "treble",
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }, selectedTimeSignature: "4/4",
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }, selectedTimeSignature: "4/4",
         measures: 4, maxSkip: 4, tempo: 60, range: { min: 14, max: 23 },
         selectedRhythms: ["quarter", "half"], rhythms: rhythms.filter((r) => ["quarter", "half"].includes(r.name)),
         scaleDegrees: new Set([1, 3, 5]), key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],

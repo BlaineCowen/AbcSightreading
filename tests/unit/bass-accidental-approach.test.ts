@@ -78,7 +78,7 @@ function bassAccidentalApproach(runs = 60, mode: "minor" | "major" = "minor") {
     try {
       out = generateChoralExercise({
         key: keys[i % keys.length],
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
         partsObject: SATB,
         measures: 8,
         maxSkip: preset.maxSkip,

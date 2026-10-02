@@ -104,7 +104,7 @@ const generate = (sharps: number[], flats: number[], key = "C") => {
   try {
     return createNewSr({
       bpm: 60, clef: "treble", selectedClef: "treble",
-      timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }, selectedTimeSignature: "4/4",
+      timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }, selectedTimeSignature: "4/4",
       measures: 8, maxSkip: 4, tempo: 60, range: { min: 14, max: 23 },
       selectedRhythms: ["quarter", "half"], rhythms: rhythms.filter((r) => ["quarter", "half"].includes(r.name)),
       // Only 1, 3 and 5: the case that could produce nothing chromatic at all.
@@ -194,7 +194,7 @@ describe("selecting chromatic degrees in unison", () => {
         expect(() =>
           createNewSr({
             bpm: 60, clef: "treble", selectedClef: "treble",
-            timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }, selectedTimeSignature: "4/4",
+            timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }, selectedTimeSignature: "4/4",
             measures: 8, maxSkip: 4, tempo: 60, range: { min: 17, max: 21 },
             selectedRhythms: ["quarter"], rhythms: rhythms.filter((r) => r.name === "quarter"),
             scaleDegrees: [1, 3, 5], selectedSharpDegrees: [4], selectedFlatDegrees: [7],
@@ -220,7 +220,7 @@ describe("a natural sign in unison's movable-do lyrics", () => {
         staff: "pitched",
         key,
         clef: "treble",
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
         partsObject: {
           numofParts: 1,
           parts: {

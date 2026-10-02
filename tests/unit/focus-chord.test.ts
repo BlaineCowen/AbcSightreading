@@ -35,7 +35,7 @@ function progressions(overrides: Record<string, unknown>, runs = 12): Chord[][] 
     try {
       out.push(quiet(() => generateChoralExercise({
         key: "C",
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
         partsObject: PARTS,
         measures: 8,
         maxSkip: 4,

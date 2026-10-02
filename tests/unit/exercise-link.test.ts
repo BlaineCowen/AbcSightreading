@@ -46,7 +46,7 @@ const SATB = {
 
 const choralParams = (key: string, meter: "4/4" | "3/4") => ({
   key,
-  timeSig: { name: meter, tsPerMeasure: meter === "4/4" ? 32 : 24, beamGroupSize: 8 },
+  timeSig: { name: meter, tsPerMeasure: meter === "4/4" ? 32 : 24, beatUnits: 8 },
   partsObject: SATB,
   measures: 8,
   maxSkip: 4,
@@ -134,7 +134,7 @@ const unisonParams = (over: Record<string, unknown> = {}) => ({
   bpm: 60,
   clef: "treble",
   selectedClef: "treble",
-  timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+  timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
   selectedTimeSignature: "4/4",
   measures: 8,
   maxSkip: 4,
@@ -196,7 +196,7 @@ describe("a unison exercise in a link", () => {
         selectedClef: "bass",
         key: "F",
         range: { min: 2, max: 12 },
-        timeSig: { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
+        timeSig: { name: "3/4", tsPerMeasure: 24, beatUnits: 8 },
         selectedTimeSignature: "3/4",
       }) as any)
     ) as any;
@@ -315,5 +315,26 @@ describe("a bad link is a problem to show, never an exception", () => {
     for (const payload of [null, 1, "x", [], {}, { v: 1 }, { v: 1, t: "c" }, { v: 1, t: "c", s: [{ r: 0 }] }, { v: 1, t: "u" }]) {
       expect(fromPayload(payload).ok).toBe(false);
     }
+  });
+});
+
+describe("the meter in a unison link", () => {
+  const opened = (m: unknown[]) => {
+    const result = fromPayload({ v: 1, t: "u", st: "r", m, pt: [["Unison", "U", [["B", 8], ["B", 16]]]] });
+    if (!result.ok || result.exercise.kind !== "unison") throw new Error("did not open");
+    return result.exercise.score.timeSig;
+  };
+
+  test("reads back with its beat", () => {
+    expect(opened(["3/4", 24, 8])).toEqual({ name: "3/4", tsPerMeasure: 24, beatUnits: 8 });
+  });
+
+  test("compound meters carry the dotted-quarter beat", () => {
+    expect(opened(["6/8", 24, 12])).toEqual({ name: "6/8", tsPerMeasure: 24, beatUnits: 12 });
+    expect(opened(["12/8", 48, 12])).toEqual({ name: "12/8", tsPerMeasure: 48, beatUnits: 12 });
+  });
+
+  test("a link from before the beat was stored still opens", () => {
+    expect(opened(["4/4", 32])).toEqual({ name: "4/4", tsPerMeasure: 32 });
   });
 });
