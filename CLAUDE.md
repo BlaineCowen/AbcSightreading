@@ -257,6 +257,20 @@ one pitch. It is mutation-tested (loosen `isAllowedMove`, drop its landing
 check, or disable the rest-holds-line block and it fails). Last run 2 October
 2026: every cell clean. Level VI waits only for triplet eighths and hairpins (compound meter has shipped).
 
+With exact skips (and only then) the line is shaped (`src/lib/unison-phrasing.ts`,
+tests `unison-phrasing.test.ts`): a listed skip is weighted hard until the line
+has sung one, then until about 3 per 8 bars; notes a skip can start from (do,
+mi) are reached for; going back to the note two before (A-B-A) is penalised,
+A-B-A-B far more, and a step run carries on; a line with no skip is drawn again
+(`SKIP_DRAWS`). Rests end only at breaths - the end of bar 2, 4 or 6 of 8 -
+any other rest is sung as the note of its length, and a level with rests gets
+one at bar 4 most of the time. `scripts/measure-nyssma-music.ts` measures it
+(treble, 200 runs a cell): a listed skip in 49/40/35/95% of Level II-V
+exercises before, 100% at every level now; skips per exercise 2.5/2.2/2.0/4.2;
+A-B-A 33-41% of moves -> 11-16%, A-B-A-B 11-25% -> 1-4%; top-2 pitches' share
+58/53/52/41% -> 52/48/40/38%; rests inside a phrase 80-88% -> 0, 0.8-0.9 rests
+per 8 bars. Max skip mode is untouched (its snapshots pin it).
+
 ### Play-along videos
 
 Pro, rhythm only: the peach Video button beside Generate on the Unison page
