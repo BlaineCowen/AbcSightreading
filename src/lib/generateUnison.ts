@@ -851,8 +851,12 @@ function generateChordProgression(
       // the rest, and a rest cannot hide a skip the list forbids: do, rest,
       // sol is do to sol. (Max skip mode is unchanged: there the snapshot in
       // unison-skip-regression.test.ts holds the walk to what it always did.)
+      // It holds the pitch and chord only, never the length: the rest is as long
+      // as its own rhythm. Pushing the entry before it as it was wrote a
+      // quarter rest after a half as a half, one after an eighth as an eighth
+      // rest, and slid every later note off the beat by the difference.
       if (policy.kind === "custom" && i > 0 && (randRhythmObjects[i] as any)?.rest === true) {
-        chordProgression.push(chordProgression[i - 1]);
+        chordProgression.push({ ...chordProgression[i - 1], length: randNoteLengths[i] });
         bassNoteArray.push(bassNoteArray[i - 1]);
         continue;
       }

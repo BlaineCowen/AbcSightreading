@@ -71,6 +71,29 @@ describe("custom skips in the generator", () => {
     expect(skips).toBeGreaterThan(0); // not vacuous
   });
 
+  test("a rest held for the line keeps its own length, so every bar adds up", () => {
+    // The rest repeats the note before it for the skip rule only. It used to
+    // take that note's length too: a quarter rest after a half sounded as a
+    // half, one after an eighth as an eighth rest, and every note after it
+    // slid off the beat.
+    const bad: string[] = [];
+    let rests = 0;
+    for (let run = 0; run < 40; run++) {
+      const notes = line(DO_MI_SOL_UP, {
+        degrees: [1, 2, 3, 4, 5, 6], range: { min: 14, max: 19 },
+        rhythms: ["quarter", "half", "quarterRest", "eighthEighth"], moveOnEighthNotes: true,
+      });
+      for (const n of notes) {
+        if (n.rhythm?.rest) rests++;
+        if (n.noteLength !== n.rhythm?.totalValue) bad.push(`${n.rhythm?.name} written ${n.noteLength}`);
+      }
+      const total = notes.reduce((sum, n) => sum + n.noteLength, 0);
+      if (total !== 8 * 32) bad.push(`${total}/32 in 8 bars`);
+    }
+    expect(bad).toEqual([]);
+    expect(rests).toBeGreaterThan(0); // not vacuous
+  });
+
   test("landOn quarters only: no skip lands on a note that is not a quarter, in another key", () => {
     const policy: SkipPolicy = {
       kind: "custom",

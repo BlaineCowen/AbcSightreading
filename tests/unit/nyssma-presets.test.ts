@@ -202,3 +202,40 @@ describe("each level generates", () => {
     }
   });
 });
+
+describe("each level writes its rhythms by the beat", () => {
+  // The chart lists eighths only as ti-ti and (Level V) ta-(i) ti, and no
+  // eighth rest: so an eighth is half of a pair on one beat or the eighth
+  // after a dotted quarter on a beat, and every other note and rest starts on
+  // a beat and is whole beats long.
+  test("ti-ti on a beat, ta-(i) ti at Level V only, no eighth rests, nothing off the beat", () => {
+    const saved = { log: console.log, warn: console.warn, error: console.error };
+    Object.assign(console, { log: () => {}, warn: () => {}, error: () => {} });
+    const bad = new Set<string>();
+    let eighths = 0;
+    try {
+      for (const l of nyssmaVoiceLevels) for (const meter of l.meters) for (let run = 0; run < 8; run++) {
+        const [, , score] = createNewSr(nyssmaGenerationParams(l, { key: l.keys[run % l.keys.length], meter, clef: "treble", anchor: 14 }) as any) as any;
+        const notes: any[] = score.partsObject.parts.Unison.chordNoteObject;
+        let at = 0;
+        for (let k = 0; k < notes.length; k++) {
+          const n = notes[k], next = notes[k + 1];
+          const onBeat = at % 8 === 0;
+          const pair = !n.rhythm.rest && next && !next.rhythm.rest && next.noteLength === 4;
+          if (onBeat && n.noteLength === 4 && pair) { eighths += 2; at += 8; k++; continue; }
+          if (onBeat && n.noteLength === 12 && pair) {
+            if (l.short !== "Level V") bad.add(`${l.short}: ta-(i) ti`);
+            at += 16; k++; continue;
+          }
+          if (!onBeat) bad.add(`${l.short}: ${n.rhythm.name} (${n.noteLength}) off the beat`);
+          else if (n.noteLength % 8 !== 0) bad.add(`${l.short}: ${n.rhythm.rest ? "rest" : "note"} of ${n.noteLength} on the beat`);
+          at += n.noteLength;
+        }
+      }
+    } finally {
+      Object.assign(console, saved);
+    }
+    expect([...bad]).toEqual([]);
+    expect(eighths).toBeGreaterThan(0); // not vacuous
+  });
+});

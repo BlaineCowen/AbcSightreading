@@ -9,13 +9,19 @@
  *  - stay inside the level's range around do, with no accidentals;
  *  - use only the level's rhythms and rests;
  *  - step (never skip) between any two adjacent eighths (in a figure or across figures), Max 8th/16th being 1;
+ *  - write its rhythms by the beat: an eighth only as half of a ti-ti filling
+ *    one beat, or as the ti of ta-(i) ti (Level V only, the one dotted
+ *    figure); no lone eighth, no note or rest off the beat or across one (no
+ *    syncopation), no eighth rest, no other dotted note, no tie, and every
+ *    note as long as its rhythm says;
  *  - not hold one pitch for the whole exercise (a dead-end line);
  *  - print a dynamic on its first sung note, from the level's set.
  *
  * The expectations below are copied from the spec's table, not read from
  * src/lib/nyssma-presets.ts or skip-policy.ts, so a fault in either shows here.
  * Mutation-tested: make isAllowedMove allow every custom skip, or drop its
- * landing check, and this fails.
+ * landing check, and this fails; so does letting a rest held for the line
+ * take the length of the note before it (generateUnison.ts).
  *
  *   bun run check:nyssma              (RUNS=40)
  *   LEVEL=V RUNS=10 bun run check:nyssma
@@ -49,6 +55,36 @@ function silenced<T>(fn: () => T): T {
   const saved = { log: console.log, warn: console.warn, error: console.error };
   Object.assign(console, quiet);
   try { return fn(); } finally { Object.assign(console, saved); }
+}
+
+/**
+ * What breaks the beat rule, walking the notes from the downbeat. Simple
+ * meters only (I-V), so a beat is a quarter, 8/32.
+ */
+function beatProblems(notes: any[], taItiAllowed: boolean): string[] {
+  const out: string[] = [];
+  let at = 0;
+  for (let k = 0; k < notes.length; k++) {
+    const n = notes[k];
+    const next = notes[k + 1];
+    const len: number = n.noteLength;
+    const rest = !!n.rhythm?.rest;
+    if (len !== n.rhythm?.totalValue) out.push(`${n.rhythm?.name} written ${len}/32`);
+    const onBeat = at % 8 === 0;
+    const eighthFollows = !rest && next && !next.rhythm?.rest && next.noteLength === 4;
+    if (onBeat && len === 4 && eighthFollows) { at += 8; k++; continue; } // ti-ti
+    if (onBeat && len === 12 && eighthFollows) { // ta-(i) ti
+      if (!taItiAllowed) out.push("ta-(i) ti");
+      at += 16; k++; continue;
+    }
+    if (rest && len % 8 !== 0) out.push("an eighth rest");
+    else if (!onBeat && at + len > Math.ceil(at / 8) * 8) out.push(`syncopation: ${len}/32 across the beat`);
+    else if (!onBeat) out.push(rest ? "a rest off the beat" : len === 4 ? "a lone eighth off the beat" : `${len}/32 off the beat`);
+    else if (len === 4) out.push("a lone eighth");
+    else if (len % 8 !== 0) out.push(`a dotted note (${len}/32) outside ta-(i) ti`);
+    at += len;
+  }
+  return out;
 }
 
 type Row = { label: string; runs: number; failed: number; problems: Map<string, number> };
@@ -92,6 +128,9 @@ for (const level of nyssmaVoiceLevels.filter((l) => !ONLY || l.short === `Level 
         if (a.rhythm?.rest || b.rhythm?.rest) continue;
         if (a.noteLength <= 4 && b.noteLength <= 4 && Math.abs(b.pitchValue - a.pitchValue) > 1) note("an eighth move wider than a step");
       }
+      for (const p of beatProblems(notes, level.short === "Level V")) note(p);
+      const body = abc.split("\n").filter((l: string) => !/^[A-Za-z]:|^%/.test(l)).join(" ").replace(/"[^"]*"/g, "");
+      if (/\d-/.test(body)) note("a tie");
       if (sung.length > 1 && sung.every((n) => n.pitchValue === sung[0].pitchValue)) note(`frozen line on ${sung[0].name}`);
       const dynamics: any[] = score.dynamics ?? [];
       if (dynamics[0]?.at !== notes.findIndex((n) => !n.rhythm?.rest)) note("no dynamic on the first sung note");
