@@ -4050,7 +4050,7 @@
   <PlaybackBar
     {isPlaying}
     bpm={tempo}
-    beatSymbol={beatSymbolOf(selectedTimeSignature)}
+    beatSymbol={beatSymbolOf(meterOf(currentTune, selectedTimeSignature))}
     {looping}
     voiceNames={[]}
     mutedVoices={new Set()}
