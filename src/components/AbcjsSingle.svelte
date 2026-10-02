@@ -100,8 +100,10 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Link2, Link2Off } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Link2, Link2Off, Clapperboard } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
+  import PlayAlongVideo from "./PlayAlongVideo.svelte";
+  import { billingStatus } from "../lib/billing-client";
   import {
     defaultSyllableSystem,
     isSyllableSystemId,
@@ -2365,6 +2367,110 @@
     await generateExercise();
   }
 
+  /**
+   * What /api/generate is asked for: the page's settings with the key, meter
+   * and range drawn for this exercise. Shared by Generate and the play-along
+   * video, which writes a longer rhythm at its backing track's tempo.
+   */
+  function generationParams(drawnKey: string, drawnMeter: string, drawnRange: typeof selectedRange) {
+    return {
+      bpm,
+      clef: selectedClef,
+      timeSig:
+        timeSignatures[drawnMeter as keyof typeof timeSignatures],
+      measures: measures,
+      // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
+      maxSkip: skipPolicy,
+      tempo: tempo,
+      range: drawnRange,
+      rhythms: selectedRhythms,
+      scaleDegrees: Array.from(selectedScaleDegrees),
+      selectedSharpDegrees: Array.from(selectedSharpDegrees),
+      selectedFlatDegrees: Array.from(selectedFlatDegrees),
+
+      selectedClef: selectedClef,
+      selectedTimeSignature: drawnMeter,
+      key: drawnKey,
+      // Always written in, whatever the buttons say - they strip at render,
+      // so either can come back without regenerating the exercise.
+      showSolfege: !rhythmOnly,
+      lyricSystem,
+      rhythmOnly: rhythmOnly,
+      // Written into a pitched exercise too, not just the rhythm staff, so a
+      // practice run can show them on its repeats. Stripped at render like
+      // the solfège, so nothing appears until something asks for it.
+      showRhythmSyllables: true,
+      syllableSystemId,
+      customSyllables: $mySyllables,
+      allowTiesAcrossBarline,
+      // Max 8th / 16th skip: the moves between the short notes inside a figure.
+      maxEighthSkip: max8th,
+      maxSixteenthSkip: max16th,
+      accidentalsFollowStep: accidentalsFollowStep,
+      dynamics: rhythmOnly ? [] : dynamicsSet,
+      partsObject: {
+        numofParts: 1,
+        parts: {
+          Unison: {
+            order: 0,
+            smallName: "U",
+          },
+        },
+      },
+    };
+  }
+
+  /**
+   * A rhythm-only exercise for the play-along video (PlayAlongVideo.svelte),
+   * at its backing track's tempo and meter, long enough to fill the video.
+   * Ties across the barline are off: each bar is shown alone. Counted against
+   * the monthly allowance like any other exercise. Returns the ABC ready to
+   * draw, with the page's rhythm sound and syllables.
+   */
+  async function playAlongExercise(o: { measures: number; bpm: number; meter: string }): Promise<string> {
+    if (!(await mayGenerate())) throw new Error("This month's exercises are used up.");
+    const params = {
+      ...generationParams(selectedKey, o.meter, selectedRange),
+      bpm: o.bpm,
+      tempo: o.bpm,
+      timeSig: timeSignatures[o.meter as keyof typeof timeSignatures],
+      measures: o.measures,
+      rhythmOnly: true,
+      allowTiesAcrossBarline: false,
+    };
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success) throw new Error(result?.error ?? "The exercise could not be written.");
+    void countGeneration();
+    const abc = (result.data[0] as string).replace(/Q:\d+\/\d+=\d+/g, tempoField(o.meter, o.bpm));
+    return withChosenSound(withChosenAnnotations(abc));
+  }
+
+  /**
+   * The play-along video is Pro: the Video button beside Generate opens it
+   * for Pro and Educator, and takes anyone else to the pricing page. Null
+   * until the plan is known.
+   */
+  let videoAllowed: boolean | null = null;
+  onMount(async () => {
+    const status = await billingStatus();
+    videoAllowed = !!status && status.plan !== "free";
+  });
+
+  let playAlongOpen = false;
+  function openPlayAlong() {
+    if (!videoAllowed) {
+      window.location.href = "/pricing";
+      return;
+    }
+    stopMusic();
+    playAlongOpen = true;
+  }
+
   async function generateExercise() {
     // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
     // Skips that no selected rhythm can land are no skips: the line steps.
@@ -2417,51 +2523,7 @@
       createSynth = null;
       currentTune = null;
 
-      const params = {
-        bpm,
-        clef: selectedClef,
-        timeSig:
-          timeSignatures[drawnMeter as keyof typeof timeSignatures],
-        measures: measures,
-        // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
-        maxSkip: skipPolicy,
-        tempo: tempo,
-        range: drawnRange,
-        rhythms: selectedRhythms,
-        scaleDegrees: Array.from(selectedScaleDegrees),
-        selectedSharpDegrees: Array.from(selectedSharpDegrees),
-        selectedFlatDegrees: Array.from(selectedFlatDegrees),
-
-        selectedClef: selectedClef,
-        selectedTimeSignature: drawnMeter,
-        key: drawnKey,
-        // Always written in, whatever the buttons say - they strip at render,
-        // so either can come back without regenerating the exercise.
-        showSolfege: !rhythmOnly,
-        lyricSystem,
-        rhythmOnly: rhythmOnly,
-        // Written into a pitched exercise too, not just the rhythm staff, so a
-        // practice run can show them on its repeats. Stripped at render like
-        // the solfège, so nothing appears until something asks for it.
-        showRhythmSyllables: true,
-        syllableSystemId,
-        customSyllables: $mySyllables,
-        allowTiesAcrossBarline,
-        // Max 8th / 16th skip: the moves between the short notes inside a figure.
-        maxEighthSkip: max8th,
-        maxSixteenthSkip: max16th,
-        accidentalsFollowStep: accidentalsFollowStep,
-        dynamics: rhythmOnly ? [] : dynamicsSet,
-        partsObject: {
-          numofParts: 1,
-          parts: {
-            Unison: {
-              order: 0,
-              smallName: "U",
-            },
-          },
-        },
-      };
+      const params = generationParams(drawnKey, drawnMeter, drawnRange);
 
       // Validate parameters before sending
       if (!params.rhythms || params.rhythms.length === 0) {
@@ -3570,6 +3632,14 @@
        NYSSMA Voice levels are this page's (nyssma-presets.ts). -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
+  {#if playAlongOpen}
+    <PlayAlongVideo
+      meters={[...selectedTimeSignatures]}
+      generate={playAlongExercise}
+      {rhythmSoundId}
+      onClose={() => (playAlongOpen = false)}
+    />
+  {/if}
 
 
   <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
@@ -3627,9 +3697,24 @@
         {/each}
         </div>
 
+        <!-- Rhythm only: the play-along video (Pro), beside Generate. -->
+        {#if rhythmOnly}
+          <button
+            class="sr-btn sr-btn-video ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+            on:click={openPlayAlong}
+            title={videoAllowed ? "A full-screen play-along over a backing track, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
+          >
+            <Clapperboard size={16} />
+            <span>Video</span>
+            {#if videoAllowed === false}
+              <span class="sr-pro-tag">Pro</span>
+            {/if}
+          </button>
+        {/if}
+
         <!-- Generate button always visible in tab bar -->
         <button
-          class="sr-btn ml-auto md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          class="sr-btn {rhythmOnly ? '' : 'ml-auto'} md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
           on:click={handleClick}
           disabled={isLoading}
         >
@@ -4733,5 +4818,24 @@
   }
   .tab-scroll::-webkit-scrollbar {
     display: none;
+  }
+  /* The play-along video button: peach, so it reads as its own thing beside
+     Generate's blue. */
+  .sr-btn-video {
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+  }
+  .sr-btn-video:hover:not(:disabled) {
+    background: var(--sr-peach);
+    filter: brightness(0.96);
+  }
+  .sr-pro-tag {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: var(--sr-peach-ink);
+    color: var(--sr-peach);
   }
 </style>

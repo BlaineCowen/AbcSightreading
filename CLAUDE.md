@@ -257,6 +257,40 @@ one pitch. It is mutation-tested (loosen `isAllowedMove`, drop its landing
 check, or disable the rest-holds-line block and it fails). Last run 2 October
 2026: every cell clean. Level VI waits only for triplet eighths and hairpins (compound meter has shipped).
 
+### Play-along videos
+
+Pro, rhythm only: the peach Video button beside Generate on the Unison page
+(`PlayAlongVideo.svelte`, `src/lib/play-along/`; anyone else is sent to
+/pricing). A backing loop plays while two bars show, one above the other; a
+ball bounces from note to note through the top bar, then the bottom, and the
+top turns over to the next bar the moment the ball leaves it, so the reader can
+always look a bar ahead. How it looks is `scene.ts` (Recess pastels, a colour
+a bar, beat dots, a popping count-in, a finish card with confetti). About 1:30: `barsForLength` picks whole loop repeats and an
+even number of bars (36 at 4/4, 100). `frameAt` says what is on screen at any
+audio time and `ballAt` where the ball is (tests `play-along-timeline.test.ts`);
+both are driven by the AudioContext clock, not abcjs's timer, so it stays on the loop for 90 seconds.
+
+The exercise takes its tempo and meter from the loop (never stretched: that
+would change its pitch), is written with ties across the barline off (each bar
+is shown alone) and counts as one exercise. Long rhythms generate cleanly:
+`bun run scripts/check-play-along-length.ts` (24-72 bars, every meter).
+The bars are one abcjs render at a bar a line, each line cut out as its own SVG
+image (`bar-images.ts`), drawn on one 1920x1080 canvas, so full screen and the
+exported video are the same picture. Export records that canvas and the
+mix with MediaRecorder in real time - MP4 where the browser can, else WebM - and
+cancels itself if the tab is hidden, since a hidden tab gets no frames.
+
+Sound (the overlay's Sound panel): levels for the loop, a guide (the rhythm
+played over the loop, on any rhythm sound) and a click (any metronome sound),
+live while it plays and into the export; remembered in this browser. abcjs
+cannot render the guide while audio is suspended (`prime()` never settles), so
+it is rendered once a click lets sound start - at the latest on Play.
+
+Loops are listed in `backing-tracks.ts` (bpm, meter, bars, where beat 1 falls,
+an optional intro) with files in `public/backing/`. The four there now are
+synthesized placeholders (`scripts/make-placeholder-loops.ts`) until real loops
+replace them.
+
 ## abcTuner
 
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): every

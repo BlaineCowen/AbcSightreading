@@ -120,10 +120,11 @@ export const auth = betterAuth({
   secret: serverEnv("BETTER_AUTH_SECRET"),
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   // The origins a sign-in form may post from. The dev server listens on the
-  // LAN too (`--host`), so a phone on the network is trusted locally.
+  // LAN too (`--host`), so a phone on the network is trusted locally, and so
+  // is a `tailscale serve` link to it (https://<machine>.<tailnet>.ts.net:<port>).
   trustedOrigins: [
     url,
-    ...(import.meta.env.DEV ? ["http://localhost:4321", "http://*:4321"] : []),
+    ...(import.meta.env.DEV ? ["http://localhost:4321", "http://*:4321", "https://*.ts.net", "https://*.ts.net:*"] : []),
     ...["VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"]
       .map((name) => serverEnv(name))
       .filter((host): host is string => !!host)

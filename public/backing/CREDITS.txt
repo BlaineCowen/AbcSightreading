@@ -1,0 +1,1 @@
+Placeholder loops (placeholder-*.wav): synthesized by scripts/make-placeholder-loops.ts for this project. No samples; no licence needed.
