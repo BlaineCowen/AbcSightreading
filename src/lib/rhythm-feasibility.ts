@@ -23,6 +23,28 @@ export function canFillExercise(
   /** One beat in 32nds, from the meter model (beatUnitOf): 8 in simple meter. */
   beatUnits = 8
 ): boolean {
+  // Compound meter: every figure is whole beats, so walk beat positions. A
+  // plain note may cross the barline when ties are on; split at a beat it is
+  // two dotted values, which compound meter writes plainly - so no dotted-split
+  // rule here. Kept in step with compound-rhythm.ts's fill, but written out
+  // separately on purpose: this is the reference that fill is checked against.
+  if (beatUnits === 12) {
+    const usable = rhythms.filter((r) => r.totalValue > 0 && r.totalValue % beatUnits === 0);
+    const seenAt = new Set<number>();
+    const walkBeats = (pos: number): boolean => {
+      if (pos === totalUnits) return true;
+      if (pos > totalUnits || seenAt.has(pos)) return false;
+      seenAt.add(pos);
+      const room = tsPerMeasure - (pos % tsPerMeasure);
+      for (const r of usable) {
+        if (r.totalValue > room && !(allowTies && !r.pattern && !r.rest)) continue;
+        if (walkBeats(pos + r.totalValue)) return true;
+      }
+      return false;
+    };
+    return walkBeats(0);
+  }
+
   const DOTTED = new Set([6, 12, 24]);
   const seen = new Set<number>();
 

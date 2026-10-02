@@ -7,7 +7,8 @@
  * of these was a real bug found by eye. So the properties are asserted directly
  * against the generator, with no dev server involved.
  *
- *   1. Well-formedness  - every emitted measure sums to exactly one measure.
+ *   1. Well-formedness  - every emitted measure sums to exactly one measure,
+ *                         and in compound meter no figure crosses a beat.
  *   2. Completeness     - the generator succeeds on exactly the selections that
  *                         are solvable under its own rules. This is the one that
  *                         catches a dead end: a greedy walk that fails on a
@@ -21,12 +22,14 @@
  */
 import { createNewSr } from "../src/lib/generateUnison";
 import { canFillExercise } from "../src/lib/rhythm-feasibility";
-import { selectableRhythms } from "../src/lib/selectable-rhythms";
+import { selectableRhythms, selectableRhythmsFor } from "../src/lib/selectable-rhythms";
 import { syllableSystems } from "../src/resources/rhythm-syllables";
 import type { Rhythm } from "../src/resources/rhythms";
-import { timeSignaturesFor, type ExerciseTimeSignature } from "../src/lib/meter";
+import { meterKindOf, timeSignaturesFor, type ExerciseTimeSignature } from "../src/lib/meter";
 
 const TIME_SIGS = timeSignaturesFor(["4/4", "3/4", "2/4"]);
+const COMPOUND_TIME_SIGS = timeSignaturesFor(["6/8", "9/8", "12/8"]);
+const EVERY_TIME_SIG = [...Object.values(TIME_SIGS), ...Object.values(COMPOUND_TIME_SIGS)];
 
 type TimeSig = ExerciseTimeSignature;
 
@@ -96,6 +99,22 @@ const durationsIn = (measure: string) =>
     Number(m[1] ?? m[2])
   );
 
+/**
+ * Compound only: a figure that starts inside a beat ends inside it, and a note
+ * that starts on a beat lasts whole beats. Every compound figure fills whole
+ * beats, so a failure here is a figure placed off the beat.
+ */
+function crossesABeat(measure: string, beatUnits: number): boolean {
+  let at = 0;
+  for (const d of durationsIn(measure)) {
+    const into = at % beatUnits;
+    if (into !== 0 && into + d > beatUnits) return true;
+    if (into === 0 && d > beatUnits && d % beatUnits !== 0) return true;
+    at += d;
+  }
+  return false;
+}
+
 // ── The reference solver ─────────────────────────────────────────────────────
 // Now lives in src/lib so the UI can warn before Generate is ever pressed. It is
 // still a separate implementation from the *generator*, which is what this check
@@ -110,7 +129,7 @@ const durationsIn = (measure: string) =>
 // ── Every one- and two-rhythm selection ──────────────────────────────────────
 
 function selections(timeSig: TimeSig): Rhythm[][] {
-  const usable = selectableRhythms.filter(
+  const usable = selectableRhythmsFor(meterKindOf(timeSig)).filter(
     (r) => r.totalValue <= timeSig.tsPerMeasure
   );
   const out: Rhythm[][] = [];
@@ -124,7 +143,7 @@ function selections(timeSig: TimeSig): Rhythm[][] {
 
 function checkMeasuresAndCompleteness() {
   let checked = 0;
-  for (const timeSig of Object.values(TIME_SIGS)) {
+  for (const timeSig of EVERY_TIME_SIG) {
     for (const ties of [false, true]) {
       for (const set of selections(timeSig)) {
         const label = `${timeSig.name} [${set.map((r) => r.name).join(" + ")}] ties=${ties}`;
@@ -138,7 +157,7 @@ function checkMeasuresAndCompleteness() {
         }
         checked++;
 
-        const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties);
+        const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties, timeSig.beatUnits);
         if (!!body !== canSolve) {
           fail(
             `completeness: ${label} generator=${body ? "ok" : "refused"} solver=${canSolve ? "solvable" : "impossible"}`
@@ -153,6 +172,10 @@ function checkMeasuresAndCompleteness() {
             fail(
               `well-formed: ${label} measure sums to ${sum}, want ${timeSig.tsPerMeasure}  (${measure})`
             );
+            break;
+          }
+          if (meterKindOf(timeSig) === "compound" && crossesABeat(measure, timeSig.beatUnits)) {
+            fail(`beats: ${label} a figure crosses a dotted-quarter beat  (${measure})`);
             break;
           }
         }

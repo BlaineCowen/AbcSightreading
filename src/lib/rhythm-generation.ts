@@ -1,5 +1,6 @@
 import { rhythms as rhythmCatalogue } from "../resources/rhythms";
-import { beatUnitOf } from "./meter";
+import { generateCompoundRhythm } from "./compound-rhythm";
+import { beatUnitOf, resolveMeter } from "./meter";
 import type {
   Rhythm,
   RhythmWithPattern,
@@ -88,7 +89,16 @@ export function generateRandomRhythm(
   allowTiesAcrossBarline: boolean = false,
   options: RhythmOptions = {}
 ): RhythmWithPattern[] {
-  let rhythms = [...availableRhythms]; // Start with all available rhythms
+  // Compound meter fills beat by beat with its own vocabulary. Branch before
+  // anything else - above all before any Math.random draw - so simple meter's
+  // sequence of draws, and so its output, cannot move.
+  const meter = resolveMeter(timeSig);
+  if (meter.kind === "compound") {
+    return generateCompoundRhythm(meter, measures, availableRhythms, selectedCadences, allowTiesAcrossBarline);
+  }
+
+  // The vocabularies never mix: simple meter never writes a compound figure.
+  let rhythms = availableRhythms.filter((r) => (r.meterKind ?? "simple") === "simple");
 
   if (!disableRhythmFilter) {
     // Filter rhythms:
@@ -96,7 +106,7 @@ export function generateRandomRhythm(
     // - Exclude notes with totalValue > timeSig.tsPerMeasure (longer than a measure)
     // - Exclude patterns containing any note with value < 8
     // TODO: Add filter for dotted notes if needed
-    rhythms = availableRhythms.filter((r) => {
+    rhythms = rhythms.filter((r) => {
       // Exclude if the total value is less than a quarter note
       if (r.totalValue < 8) {
         return false;
