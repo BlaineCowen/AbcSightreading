@@ -37,7 +37,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
 const production = serverEnv("VERCEL_ENV") === "production";
 const robots = noindex || !production ? "noindex, nofollow" : "index, follow";
 // The version makes link previews that cached the old picture fetch this one.
-const ogImage = new URL("/og.png?v=blue", Astro.site).href;
+const ogImage = new URL("/og.png?v=abcsr", Astro.site).href;
 
 /**
  * A student account may belong to a child under 13. Nothing that watches or
