@@ -91,22 +91,85 @@ describe("voice texture", () => {
     }
   });
 
-  test("the upper parts then drop away and come back one at a time", () => {
+  test("one part leads throughout, the others come back one at a time", () => {
     for (let i = 0; i < 50; i++) {
       const out = applyVoiceTexture(satb(16), {
         texture: "staggered",
         measures: 16,
         tsPerMeasure: TS,
       });
-      // satb() builds voices in order 3,2,1,0 - so reversed is lowest first.
-      const backAt = [...out].reverse().map(reEntry);
-      expect(backAt[0]).toBe(0); // the lowest part never leaves
+      // Exactly one part never leaves - whichever one leads.
+      const leaders = out.filter((v) => v.every((n) => !n.rest));
+      expect(leaders.length).toBe(1);
+      // Everyone else drops out and comes back, each at its own time: sixteen
+      // bars leave room for a bar between every entrance.
+      const backAt = out
+        .filter((v) => v.some((n) => n.rest))
+        .map(reEntry)
+        .sort((a, b) => a - b);
+      expect(backAt.length).toBe(out.length - 1);
+      for (const t of backAt) expect(t).toBeGreaterThan(0);
       for (let k = 1; k < backAt.length; k++) {
-        expect(backAt[k]).toBeGreaterThanOrEqual(backAt[k - 1]);
+        expect(backAt[k]).toBeGreaterThan(backAt[k - 1]);
       }
-      // and somebody really does drop out, or this proves nothing
-      expect(Math.max(...backAt)).toBeGreaterThan(0);
     }
+  });
+
+  /** A small seeded generator, so a run can be repeated exactly. */
+  function mulberry32(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /** Which voice (by part order, bass 0) sings throughout. */
+  const leaderOrder = (out: VoiceNote[][]) =>
+    out.find((v) => v.every((n) => !n.rest))?.[0].order;
+
+  test("any part may lead, not just the bass", () => {
+    // It used to be lowest first, every time. Twenty-four seeded runs of four
+    // voices miss a given leader with odds near 1 in 1,000.
+    const leaders = new Set<number | undefined>();
+    for (let seed = 1; seed <= 24; seed++) {
+      const out = applyVoiceTexture(satb(16), {
+        texture: "staggered",
+        measures: 16,
+        tsPerMeasure: TS,
+        rng: mulberry32(seed),
+      });
+      leaders.add(leaderOrder(out));
+    }
+    expect(leaders.size).toBeGreaterThan(1);
+    expect([...leaders].some((o) => o !== 0)).toBe(true);
+  });
+
+  test("the same seed gives the same entrance order", () => {
+    const run = () =>
+      applyVoiceTexture(satb(16), {
+        texture: "staggered",
+        measures: 16,
+        tsPerMeasure: TS,
+        rng: mulberry32(7),
+      }).map((v) => v.map((n) => n.rest));
+    expect(run()).toEqual(run());
+  });
+
+  test("the leader varies on Math.random too", () => {
+    // Unseeded, as the app runs it: over 200 runs every part leads at least once.
+    const leaders = new Set<number | undefined>();
+    for (let i = 0; i < 200; i++) {
+      leaders.add(
+        leaderOrder(
+          applyVoiceTexture(satb(16), { texture: "staggered", measures: 16, tsPerMeasure: TS })
+        )
+      );
+    }
+    expect([...leaders].sort()).toEqual([0, 1, 2, 3]);
   });
 
   test("nothing is silenced in the opening bar", () => {

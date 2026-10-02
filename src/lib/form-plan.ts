@@ -335,7 +335,7 @@ export function planForm(opts: FormPlanOptions): FormPlan {
       keyArea: s.keyArea ?? "tonic",
       // The fugue-like texture we do not have; staggered entrances are what
       // stand in for it, and they are genuinely imitative in effect - each part
-      // enters on its own, lowest first.
+      // enters on its own, in a random order.
       texture: imitative ? "staggered" : "full",
       ...(s.restates ? { restates: s.restates } : {}),
     });
