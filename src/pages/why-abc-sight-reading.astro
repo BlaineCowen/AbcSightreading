@@ -55,11 +55,13 @@ const annotations = [
 ];
 
 const tools = ["Tuner", "Metronome", "Drone", "Starting pitches", "Voice analysis", "Timer"];
+
+const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef", "Transpose ±12", "Rhythm only"];
 ---
 
 <Layout
   title="Why ABC Sight Reading | Sight-Reading Practice Made for Choirs"
-  description="Choir sight-reading that sounds like real choral music: singable SATB, SSA, TTB and unison parts, UIL levels 1 to 5, solfège and rhythm syllables, hands-free drills, a tuner and student practice. Free to start."
+  description="Choir sight-reading that sounds like real choral music: singable SATB, SSA, TTB and unison parts, UIL levels 1 to 5, solfège and rhythm syllables, hands-free drills, a tuner and student practice, plus unison reading in four clefs for instrumentalists. Free to start."
   themable
 >
   <div class="max-w-5xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-16 pb-16">
@@ -133,7 +135,8 @@ const tools = ["Tuner", "Metronome", "Drone", "Starting pitches", "Voice analysi
       <p class="text-sm">
         Choral exercises in every common voicing, with parts that sing together or enter one at a time, plus single-line
         unison reading and rhythm-only drills on the
-        <a class="underline font-bold text-sr-action-fg" href="/sightreading">Unison</a> page.
+        <a class="underline font-bold text-sr-action-fg" href="/sightreading">Unison</a> page, which works for
+        instrumentalists too.
       </p>
     </section>
 
@@ -222,6 +225,33 @@ const tools = ["Tuner", "Metronome", "Drone", "Starting pitches", "Voice analysi
       </div>
       <ul class="sr-pastels grid grid-cols-2 gap-2" aria-label="Practice tools">
         {tools.map((t) => (
+          <li class="sr-panel rounded-[18px] px-4 py-3 text-sm font-extrabold">{t}</li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- Instrumentalists: the Unison page, in any of its clefs, with playback transpose -->
+    <section class="grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] gap-8 items-center">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">For band, orchestra and studio teachers</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Unison reading for your instrumentalists too</h2>
+        <p>
+          The <a class="underline font-bold text-sr-action-fg" href="/sightreading">Unison</a> page writes single-line
+          reading in treble, bass, alto or tenor clef, within the range you set, so a viola reads in alto clef and a
+          trombone or cello can work in tenor clef.
+        </p>
+        <p>
+          <strong class="text-sr-ink">Playback transpose</strong> leaves the page in the key it was written in and moves
+          only the sound, up to an octave either way. Set it to −2 and a B♭ clarinet or trumpet player hears the line at
+          concert pitch, right where their instrument sounds; −7 does the same for horn in F and −9 for alto sax.
+        </p>
+        <p>
+          Rhythm-only lines, Drill and abcTuner work the same for a section or a private student, with piano, strings
+          or clarinet on playback.
+        </p>
+      </div>
+      <ul class="sr-pastels grid grid-cols-2 gap-2" aria-label="For instrumentalists">
+        {instrumentFeatures.map((t) => (
           <li class="sr-panel rounded-[18px] px-4 py-3 text-sm font-extrabold">{t}</li>
         ))}
       </ul>
