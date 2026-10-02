@@ -176,6 +176,14 @@ interface ChordNoteObject {
   patternIndex: number | null;
 }
 
+/**
+ * A rhythm failure, with the ties hint where ties could help. "No rhythms of
+ * this kind are selected" is not one: no tie fills a bar from nothing.
+ */
+function withTiesHint(message: string, tiesOn: boolean): string {
+  return tiesOn || /rhythms are selected/.test(message) ? message : `${message} Or turn on "Ties across barline".`;
+}
+
 function checkForIllegalVoiceLeading(arr: number[]) {
   // if array length is 1, return true
   if (arr.length === 1) {
@@ -2196,11 +2204,7 @@ function createRhythmOnlySr(params: any) {
     );
   } catch (err) {
     const base = err instanceof Error ? err.message : "Rhythm generation failed.";
-    throw new Error(
-      params.allowTiesAcrossBarline === true
-        ? base
-        : `${base} Or turn on "Ties across barline".`
-    );
+    throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
   }
 
   if (!randRhythmObjects || randRhythmObjects.length === 0) {
@@ -2780,11 +2784,7 @@ function createNewSrOnce(params: any) {
       );
     } catch (err) {
       const base = err instanceof Error ? err.message : "Rhythm generation failed.";
-      throw new Error(
-        params.allowTiesAcrossBarline === true
-          ? base
-          : `${base} Or turn on "Ties across barline".`
-      );
+      throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
     }
     const randNoteLengths = randRhythmObjects.map((r) => r.totalValue);
 
