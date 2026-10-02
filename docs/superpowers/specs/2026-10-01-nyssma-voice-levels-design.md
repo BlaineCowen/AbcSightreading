@@ -29,7 +29,7 @@ Obsidian `Dev-stuff/NYSSMA Sight Reading Criteria (transcribed).md`.
 | Question | Decision |
 |---|---|
 | Skip list meaning | Each listed skip is allowed on its own, in any octave; a melody may chain them. Unlisted skips are forbidden. |
-| Where | NYSSMA presets set the rules, and the Pitches tab exposes them as a "Custom skips" mode any teacher can use. |
+| Where | NYSSMA presets set the rules, and the Pitches tab exposes them in a collapsed "Choose exact skips" panel any teacher can use. |
 | Rhythm of interval | Enforced: a skip may only land on the level's listed note values. |
 | Dynamics | Printed, and playback follows them. |
 | Level VI | After compound meter and triplets. |
@@ -37,20 +37,21 @@ Obsidian `Dev-stuff/NYSSMA Sight Reading Criteria (transcribed).md`.
 
 ## 1. Allowed skips control (Pitches tab, Unison)
 
-Modelled on Sight Reading Factory's "Leap Style" (Max Leaps / Custom Leaps),
-made faster with quick-add chips.
+Redesigned 2 Oct 2026 after the owner saw the first build (a row editor of
+three dropdowns per skip, which read badly, especially on a phone). Max skip
+stays the everyday control; exact skips live in a collapsed advanced panel
+built from toggle buttons, in the page's existing `sr-tok` style.
 
-- Mode toggle: **Max skip** (today's control, 2nd-octave, unchanged) or
-  **Custom skips**.
-- Custom skips is a list of rows: `From [degree] · [↑ ascending | ↓
-  descending | ↕ both] · To [degree]`, with a remove button per row and
-  "+ Add skip". Steps are always allowed.
-- An empty list means **stepwise only**, shown as a plain note, not an
-  error.
-- Quick-add chips above the list; one click adds the rows, which stay
-  editable:
+- **Max skip** (today's 2nd-octave buttons) stays at the top, unchanged.
+- **"Choose exact skips"**: a collapsed panel (`<details>`), open by default
+  only when exact skips are on (e.g. a NYSSMA preset was applied).
+  - **Only allow these skips**: an on/off switch. Turning on any pattern
+    turns it on; turning it off keeps the choices for later. While on, the
+    Max skip row is dimmed with "Using your exact skips".
+  - **Patterns**: the chips are on/off toggles. The allowed skips are the
+    union of the patterns that are on plus any other skips:
 
-| Chip | Rows added |
+| Pattern | Skips it allows |
 |---|---|
 | Do-Mi-Sol ↑ | 1↑3, 3↑5 |
 | Do-Sol ↑ | 1↑5 |
@@ -59,13 +60,21 @@ made faster with quick-add chips.
 | Do-Sol ↓ | 1↓5 |
 | Sol-Ti-Re ↑ | 5↑7, 7↑2 |
 | Tonic triad ↕ | 1↕3, 3↕5, 1↕5 |
-| 4ths & 5ths ↕ | every diatonic pair a 4th or 5th apart, both directions |
-| Clear | removes all rows |
+| 4ths & 5ths ↕ | every diatonic pair a 4th or 5th apart (12 rows, no fa-ti tritone) |
 
-- **Skips land on:** checkboxes for eighth, quarter, dotted quarter, half.
-  All checked (no limit) by default.
-- Saved in presets and URLs alongside `maxSkip`. Presets and links without
-  the new fields load in Max skip mode, unchanged.
+  - "↕" rows are symmetric: the pair either way, up or down.
+  - **Other skips**: extra skips shown as pills (`re ↗ sol ✕`). "+ Add" opens
+    a small inline picker on one line: From (do-ti buttons), direction
+    (↗ ↘ ↕), To (do-ti), Add. No dropdowns.
+  - An exact list with nothing on means **stepwise only**, shown as a plain
+    note, not an error.
+  - **Skips land on**: four icon toggles - eighth, quarter, dotted quarter,
+    half - using the rhythm-picker icons (a standalone eighth icon is rendered
+    with `scripts/render-rhythm-icons.mjs`). All on (no limit) by default.
+- Saved in presets and URLs alongside `maxSkip` as: exact on/off, the
+  pattern ids that are on, the other skips, and the land-on values. Presets
+  and links without the new fields load in Max skip mode, unchanged.
+- Works at phone width: everything is wrapping button rows.
 
 ## 2. Skip policy (`src/lib/skip-policy.ts`, new)
 
