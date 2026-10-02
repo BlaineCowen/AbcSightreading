@@ -68,9 +68,9 @@
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
-  import type { SkipDir } from "../lib/skip-policy";
+  import { landablePolicy, type SkipDir } from "../lib/skip-policy";
   import {
-    ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, SKIP_CHIPS, addExtraSkip, degreesConnected,
+    ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected,
     policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams,
     type SkipSettings,
   } from "../lib/skip-settings";
@@ -2365,9 +2365,14 @@
 
   async function generateExercise() {
     // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
-    if (!rhythmOnly && skips.exactOn && !degreesConnected(Array.from(selectedScaleDegrees), skipPolicy)) {
-      error =
-        "With these skips the line cannot get between all the selected notes. Add a skip, or select the notes in between.";
+    // Skips that no selected rhythm can land are no skips: the line steps.
+    if (
+      !rhythmOnly && skips.exactOn &&
+      !degreesConnected(Array.from(selectedScaleDegrees), landablePolicy(skipPolicy, selectedRhythms))
+    ) {
+      error = degreesConnected(Array.from(selectedScaleDegrees), skipPolicy)
+        ? NO_LANDING_MESSAGE
+        : "With these skips the line cannot get between all the selected notes. Add a skip, or select the notes in between.";
       isLoading = false;
       return;
     }

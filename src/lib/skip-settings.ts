@@ -176,6 +176,14 @@ export function readSkipParams(params: URLSearchParams): SkipSettings | null {
 }
 
 /**
+ * What the page and the generator say when exact skips are on, no selected
+ * rhythm sings a note value a skip may land on (landablePolicy), and by step
+ * alone the line cannot get between the selected notes.
+ */
+export const NO_LANDING_MESSAGE =
+  'No selected rhythm has a note a skip may land on, so the line could only step, and by step it cannot get between all the selected notes. Turn on more "Skips land on" values, select rhythms with those notes, or select the notes in between.';
+
+/**
  * Can a line with exact skips get from every selected degree to every other,
  * by steps between selected neighbours and the allowed skips? Ignores the
  * range and the landing limit - a quick check before generating, so the

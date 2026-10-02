@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
-  isAllowedMove, largestSkip, livePitches, toSkipPolicy, STEP_ONLY, type SkipPolicy,
+  isAllowedMove, landablePolicy, largestSkip, livePitches, sungLengths, toSkipPolicy, STEP_ONLY, type SkipPolicy,
 } from "../../src/lib/skip-policy";
+import { degreesConnected } from "../../src/lib/skip-settings";
 
 /**
  * The move rule. A note in C major: pitchValue indexes noteArray, which is
@@ -192,5 +193,45 @@ describe("livePitches", () => {
     const notes = [14, 17, 18, 19, 21].map((p) => inF(p));
     expect(livePitches(notes, { kind: "max", maxSkip: 1 }, isHomeDegree)).toEqual(notes);
     expect(livePitches([inF(17)], { kind: "max", maxSkip: 4 }, isHomeDegree)).toEqual([inF(17)]);
+  });
+});
+
+/**
+ * landablePolicy: exact skips limited to note values that no selected rhythm
+ * sings can never be sung, so the line is treated as stepwise.
+ */
+describe("landablePolicy", () => {
+  const triad: SkipPolicy = {
+    kind: "custom",
+    moves: [{ from: 1, to: 3, dir: "both" }, { from: 3, to: 5, dir: "both" }, { from: 1, to: 5, dir: "both" }],
+  };
+  const quarter = { abcValue: ["8"] };
+  const eighthPair = { abcValue: ["4", "4"] };
+  const eighthRestEighth = { abcValue: ["z4", "4"] };
+  const halfRest = { abcValue: ["z16"] };
+
+  test("sungLengths leaves rests out", () => {
+    expect(sungLengths([eighthRestEighth, halfRest, quarter]).sort((a, b) => a - b)).toEqual([4, 8]);
+  });
+  test("halves only, quarters selected: stepwise, and 1, 3, 5 no longer connect", () => {
+    const p = landablePolicy({ ...triad, landOn: [HALF] }, [quarter]);
+    expect(p).toEqual({ kind: "custom", moves: [] });
+    expect(degreesConnected([1, 3, 5], p)).toBe(false);
+  });
+  test("quarters only, eighth pairs selected: stepwise", () => {
+    expect(landablePolicy({ ...triad, landOn: [QUARTER] }, [eighthPair])).toEqual({ kind: "custom", moves: [] });
+  });
+  test("a rest of the landing length is no landing", () => {
+    expect(landablePolicy({ ...triad, landOn: [HALF] }, [quarter, halfRest])).toEqual({ kind: "custom", moves: [] });
+  });
+  test("one selected rhythm that sings a landing value keeps the policy as it is", () => {
+    const p = { ...triad, landOn: [QUARTER] };
+    expect(landablePolicy(p, [eighthPair, quarter])).toBe(p);
+  });
+  test("no landing limit, Max skip, or no listed skips: unchanged", () => {
+    expect(landablePolicy(triad, [eighthPair])).toBe(triad);
+    expect(landablePolicy(STEP_ONLY, [eighthPair])).toBe(STEP_ONLY);
+    const none: SkipPolicy = { kind: "custom", moves: [], landOn: [HALF] };
+    expect(landablePolicy(none, [quarter])).toBe(none);
   });
 });

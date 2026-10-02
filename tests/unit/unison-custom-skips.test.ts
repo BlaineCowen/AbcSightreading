@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createNewSr } from "../../src/lib/generateUnison";
+import { createNewSr, generationFailedMessage } from "../../src/lib/generateUnison";
 import { selectableRhythms } from "../../src/lib/selectable-rhythms";
-import type { SkipPolicy } from "../../src/lib/skip-policy";
+import type { SkipMove, SkipPolicy } from "../../src/lib/skip-policy";
 
 /**
  * Custom skips in the generator (skip-policy.ts). The line sings only the
@@ -219,9 +219,41 @@ describe("custom skips in the generator", () => {
     ).toThrow(/get stuck on a note it cannot leave/);
   });
 
+  // The final review's probes: the listed skips connect do, mi and sol, but
+  // no selected rhythm has a note a skip may land on, so not one skip can be
+  // sung. The line used to sit on one pitch for the whole exercise.
+  const TONIC_TRIAD_BOTH: SkipMove[] = [
+    { from: 1, to: 3, dir: "both" }, { from: 3, to: 5, dir: "both" }, { from: 1, to: 5, dir: "both" },
+  ];
+  test("Tonic triad ↕ landing on halves, quarters only: refused plainly, not 32 × one pitch", () => {
+    expect(() =>
+      line({ kind: "custom", moves: TONIC_TRIAD_BOTH, landOn: [16] }, { degrees: [1, 3, 5], range: { min: 14, max: 21 }, rhythms: ["quarter"] })
+    ).toThrow(/No selected rhythm has a note a skip may land on/);
+  });
+  test("Tonic triad ↕ landing on quarters, eighth pairs only: refused plainly, not 64 × one pitch", () => {
+    expect(() =>
+      line({ kind: "custom", moves: TONIC_TRIAD_BOTH, landOn: [8] }, { degrees: [1, 3, 5], range: { min: 14, max: 21 }, rhythms: ["eighthEighth"] })
+    ).toThrow(/No selected rhythm has a note a skip may land on/);
+  });
+  test("no landing note but the notes join by step: the line steps, with more than one pitch", () => {
+    for (let run = 0; run < 10; run++) {
+      const notes = line({ kind: "custom", moves: TONIC_TRIAD_BOTH, landOn: [16] }, { degrees: [1, 2, 3, 4, 5], range: { min: 14, max: 21 }, rhythms: ["quarter"] });
+      const moves = sungMoves(notes);
+      expect(moves.every((m) => Math.abs(m.rise) <= 1)).toBe(true);
+      expect(new Set(notes.map((n) => n.pitchValue)).size).toBeGreaterThan(1);
+    }
+  });
+
   test("with no do, mi or sol selected, custom mode gives the tonic message, as Max skip does", () => {
     expect(() =>
       line({ kind: "custom", moves: [] }, { degrees: [2, 4, 6], range: { min: 14, max: 21 }, rhythms: ["quarter", "half"] })
     ).toThrow(/No tonic notes found/);
+  });
+
+  test("the give-up message names Max Skip only when Max skip is in force", () => {
+    expect(generationFailedMessage({ kind: "max", maxSkip: 4 })).toMatch(/increasing the Max Skip/);
+    const exact = generationFailedMessage({ kind: "custom", moves: [] });
+    expect(exact).not.toMatch(/Max Skip/);
+    expect(exact).toMatch(/adding a skip or more scale degrees/);
   });
 });

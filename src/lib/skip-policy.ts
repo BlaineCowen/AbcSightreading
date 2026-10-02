@@ -128,6 +128,33 @@ export function livePitches<T extends SkipNote>(
   }
 }
 
+/** The lengths (32nds) of the notes these rhythms sing - rests left out. */
+export function sungLengths(rhythms: readonly { abcValue: readonly string[] }[]): number[] {
+  return [
+    ...new Set(
+      rhythms.flatMap((r) =>
+        r.abcValue.filter((v) => !String(v).startsWith("z")).map((v) => parseInt(String(v), 10))
+      )
+    ),
+  ].filter((l) => l > 0);
+}
+
+/**
+ * The policy as these rhythms can use it. With exact skips limited to some
+ * note values, rhythms that never sing one of them can never sing a skip:
+ * the line is stepwise, so it is treated as stepwise - and the checks that
+ * say "add a skip" or "select the notes in between" see that, instead of
+ * listed skips that promise a way between notes the line can never take.
+ */
+export function landablePolicy(
+  policy: SkipPolicy,
+  rhythms: readonly { abcValue: readonly string[] }[]
+): SkipPolicy {
+  if (policy.kind !== "custom" || !policy.landOn || policy.moves.length === 0) return policy;
+  const landOn = policy.landOn;
+  return sungLengths(rhythms).some((l) => landOn.includes(l)) ? policy : { kind: "custom", moves: [] };
+}
+
 const DIRS: readonly SkipDir[] = ["up", "down", "both"];
 const isDegree = (v: unknown): v is number =>
   Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 7;

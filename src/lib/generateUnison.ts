@@ -26,6 +26,7 @@ import {
 import type { Cadence, RhythmWithPattern } from "./types";
 import {
   isAllowedMove,
+  landablePolicy,
   largestSkip,
   livePitches,
   toSkipPolicy,
@@ -34,6 +35,7 @@ import {
   type SkipPolicy,
 } from "./skip-policy";
 import { figureCap, shortCapsFrom, type ShortCaps } from "./short-note-skips";
+import { degreesConnected, NO_LANDING_MESSAGE } from "./skip-settings";
 import {
   drawDynamics,
   dynamicsSetFrom,
@@ -472,6 +474,16 @@ function shouldTieEighthNotes(
   rhythms: RhythmWithPattern[]
 ): boolean {
   return figureCap(index, rhythms as any, caps) === 0;
+}
+
+/**
+ * The message when 100 walks all failed. Max skip is not in force with exact
+ * skips on (the control is dimmed), so that hint names a skip instead.
+ */
+export function generationFailedMessage(policy: SkipPolicy): string {
+  return policy.kind === "max"
+    ? "Could not generate a melody with the selected options. Please adjust the settings, such as increasing the Max Skip or adding more scale degrees."
+    : "Could not generate a melody with the selected options. Please adjust the settings, such as adding a skip or more scale degrees.";
 }
 
 function generateChordProgression(
@@ -1322,9 +1334,7 @@ function generateChordProgression(
   }
 
   if (chordGenFails >= 100) {
-    throw new Error(
-      "Could not generate a melody with the selected options. Please adjust the settings, such as increasing the Max Skip or adding more scale degrees."
-    );
+    throw new Error(generationFailedMessage(policy));
   }
   // console.log(
   //   "✅ Chord progression generated:",
@@ -2777,7 +2787,16 @@ function createNewSrOnce(params: any) {
     var clef = params.clef;
     var keyRendered = params.key;
     // A number (older callers, the scripts) or a policy (the page) - one rule either way.
-    var maxSkip = toSkipPolicy(params.maxSkip);
+    // Exact skips that no selected rhythm can land: the line is stepwise, and
+    // is refused if steps cannot join the notes - it used to sing one pitch.
+    const askedSkips = toSkipPolicy(params.maxSkip);
+    var maxSkip = landablePolicy(askedSkips, params.rhythms ?? []);
+    if (
+      maxSkip !== askedSkips &&
+      !degreesConnected([...(params.scaleDegrees as Set<number>)].map((d) => d + 1), maxSkip)
+    ) {
+      throw new Error(NO_LANDING_MESSAGE);
+    }
     const shortCaps = shortCapsFrom(params);
     var level = params.level;
     var timeSig = params.timeSig;
