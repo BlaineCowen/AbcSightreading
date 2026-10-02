@@ -101,8 +101,8 @@ export function composeEmail(report: FeedbackReport): {
 } {
   const subject =
     report.kind === "bug"
-      ? "Sight Reading: something is wrong"
-      : "Sight Reading: an idea";
+      ? "abcSightReading: something is wrong"
+      : "abcSightReading: an idea";
 
   // Only the parts that have something in them, and the divider only if
   // anything is going underneath it. A report that arrives with a bare heading

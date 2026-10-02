@@ -11,6 +11,6 @@ const allowed = import.meta.env.DEV || isAdmin(await currentUser(Astro.request).
 if (!allowed) Astro.response.status = 404;
 ---
 
-<Layout noindex title={allowed ? "Rhythm Game" : "Page not found | abc Sight Reading"} themable={!allowed}>
+<Layout noindex title={allowed ? "Rhythm Game | abcSightReading" : "Page not found | abcSightReading"} themable={!allowed}>
   {allowed ? <Abcjs client:only="svelte" /> : <NotFound />}
 </Layout>

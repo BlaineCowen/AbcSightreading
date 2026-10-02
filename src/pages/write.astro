@@ -19,7 +19,7 @@ if (!allowed) Astro.response.status = 404;
  */
 ---
 
-<Layout noindex title={allowed ? "Write" : "Page not found | abc Sight Reading"} description="Transcribe a score as ABC and save it." themable={!allowed}>
+<Layout noindex title={allowed ? "Write | abcSightReading" : "Page not found | abcSightReading"} description="Transcribe a score as ABC and save it." themable={!allowed}>
   {!allowed ? <NotFound /> : (
   <div class="flex flex-col w-full items-center">
     <h1 class="text-3xl font-bold mb-2">Write</h1>

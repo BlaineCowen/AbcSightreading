@@ -54,7 +54,7 @@ const longDay = (d: Date) => d.toLocaleDateString("en-US", { month: "long", day:
 
 function planLine(plan: QuotePlan, seats: number) {
   return plan === "pro"
-    ? "One year of abc Sight Reading Pro: unlimited sight-reading exercises for choir, the practice tools (tuner, metronome, drone, starting pitches) and abcTuner."
+    ? "One year of abcSightReading Pro: unlimited sight-reading exercises for choir, the practice tools (tuner, metronome, drone, starting pitches) and abcTuner."
     : `One year of the Educator plan: unlimited sight-reading exercises, practice tools, and ${seats} secure student accounts for all age groups.`;
 }
 
@@ -115,7 +115,7 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
     invoice_settings: { days_until_due: INVOICE_DAYS },
     automatic_tax: { enabled: await taxReady() },
     expires_at: Math.floor(Date.now() / 1000) + QUOTE_DAYS * 86_400,
-    header: `abc Sight Reading: ${req.plan === "pro" ? "Pro" : "Educator plan"}`,
+    header: `abcSightReading: ${req.plan === "pro" ? "Pro" : "Educator plan"}`,
     description:
       `For ${req.school}${req.district ? `, ${req.district}` : ""}. Attention: ${req.contactName}.\n` +
       `Account holder: ${user.name} (${user.email}).\n` +
@@ -149,7 +149,7 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
 
   // Straight to purchasing, the teacher copied and replies going to them.
   const pdf = await quotePdf(quote.id).catch(() => null);
-  const product = req.plan === "pro" ? "abc Sight Reading Pro" : "the abc Sight Reading Educator plan";
+  const product = req.plan === "pro" ? "abcSightReading Pro" : "the abcSightReading Educator plan";
   await sendAccountEmail(
     req.sendTo,
     `Quote ${quote.number}: ${product} for ${user.name}, ${req.school}`,
@@ -159,13 +159,13 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
       `${user.name} (${user.email}) at ${req.school} would like a year of ${product}, a sight-reading practice tool for choir.`,
       `Quote ${quote.number} is attached: ${dollars(quote.amount_total)}${req.taxExempt ? ", quoted tax-exempt" : ""}, good until ${longDay(row.expiresAt)}.`,
       "",
-      `To buy it, please issue a purchase order to abc Sight Reading for quote ${quote.number}, and send the PO number to ${user.name} (reply to this email to reach them).`,
+      `To buy it, please issue a purchase order to abcSightReading for quote ${quote.number}, and send the PO number to ${user.name} (reply to this email to reach them).`,
       `Once they enter it, the plan starts and the invoice comes to ${req.contactEmail}, due in ${INVOICE_DAYS} days, payable by ACH, card or check through its payment link. If it is not paid by then, the plan ends.`,
       req.taxExempt ? "Please send your exemption certificate (Texas: Form 01-339) with the PO." : "",
       "A W-9 is available on request.",
       "",
       "Thank you,",
-      "abc Sight Reading",
+      "abcSightReading",
       "https://www.abc-sightreading.com",
     ]
       .filter((l, i, all) => l !== "" || all[i - 1] !== "")
@@ -310,7 +310,7 @@ export async function reviewPoInvoices(now = new Date()) {
       const dueAt = state.dueAt ?? new Date((row.acceptedAt ?? row.createdAt).getTime() + INVOICE_DAYS * 86_400_000);
       const standing = invoiceStanding({ dueAt, paid: inv.status === "paid", reminded: !!state.remindedAt, now });
       const sendTo = row.sendTo ? row.sendTo.split(",") : [row.contactEmail];
-      const product = row.plan === "pro" ? "abc Sight Reading Pro" : "the abc Sight Reading Educator plan";
+      const product = row.plan === "pro" ? "abcSightReading Pro" : "the abcSightReading Educator plan";
 
       if (standing === "paid") {
         if (!state.paidAt) {
@@ -330,7 +330,7 @@ export async function reviewPoInvoices(now = new Date()) {
             "",
             "If it has already been paid, thank you, and please ignore this.",
             "",
-            "abc Sight Reading",
+            "abcSightReading",
           ].filter((l, i, all) => l !== "" || all[i - 1] !== "").join("\n"),
           undefined,
           { cc: [row.user.email], replyTo: row.user.email }
@@ -353,7 +353,7 @@ export async function reviewPoInvoices(now = new Date()) {
             "",
             "Your account, presets and classes are all still there. To start again, send a new quote from your account page, or buy Pro by card.",
             "",
-            "abc Sight Reading",
+            "abcSightReading",
           ].join("\n"),
           undefined,
           { cc: sendTo }

@@ -391,7 +391,7 @@ export function musicXmlFor(score: ScoreModel, options: MusicXmlOptions = {}): s
   line(1, "<identification>");
   if (score.composer) line(2, `<creator type="composer">${esc(score.composer)}</creator>`);
   line(2, "<encoding>");
-  line(3, "<software>ABC Sight Reading</software>");
+  line(3, "<software>abcSightReading</software>");
   line(3, `<encoding-date>${esc(date)}</encoding-date>`);
   line(3, '<supports element="accidental" type="yes"/>');
   line(3, '<supports element="beam" type="yes"/>');

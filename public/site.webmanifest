@@ -1,6 +1,6 @@
 {
-  "name": "abc Sight Reading",
-  "short_name": "abc Sight Reading",
+  "name": "abcSightReading",
+  "short_name": "abcSightReading",
   "description": "Unlimited choir sight-reading and sight-singing exercises.",
   "start_url": "/choral-sightreading",
   "display": "standalone",
