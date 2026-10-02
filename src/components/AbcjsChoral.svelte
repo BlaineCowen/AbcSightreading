@@ -201,6 +201,22 @@
     },
   };
 
+  /**
+   * Each part's range as the page ships it, before a preset, a link or the
+   * Ranges tab touches anything - those all mutate possibleVoicing in place, so
+   * without this copy there is nothing to reset a part to.
+   */
+  const DEFAULT_RANGES: Record<string, Record<string, [number, number]>> = structuredClone(
+    Object.fromEntries(
+      Object.entries(possibleVoicing).map(([voicing, def]) => [
+        voicing,
+        Object.fromEntries(
+          Object.entries(def.parts).map(([part, p]) => [part, p.currentRange as [number, number]])
+        ),
+      ])
+    )
+  );
+
   let timeSignatures: Record<string, TimeSignature> = {
     "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
     "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
@@ -607,8 +623,45 @@
   $: harmonyDirty = fromPreset ? _tabSigs.harmony !== fromPreset.harmony : maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
     stepwiseEighths !== DEFAULTS.stepwiseEighths || focusChord !== null ||
     userAllowedChords.size !== currentModeChordNames.length;
-  $: rangesDirty = fromPreset ? _tabSigs.ranges !== fromPreset.ranges : Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
-    .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
+  /**
+   * The range a part goes back to: the preset's, while one is on, else the
+   * page's default. Without a preset this used to be measured against the
+   * part's full range, which nobody starts at, so the Ranges dot was lit
+   * almost always.
+   *
+   * Takes its inputs as arguments so the reactive statements below re-run when
+   * any of them changes.
+   */
+  function rangeTarget(
+    voicing: string,
+    partName: string,
+    presetOn: boolean,
+    level: UILPreset | null,
+    saved: SavedPreset | null
+  ): [number, number] | undefined {
+    if (presetOn) {
+      // A saved preset sets the ranges of its own voicing only.
+      const fromSaved = saved && saved.params.voicing === voicing ? saved.params.voiceRanges?.[partName] : undefined;
+      if (fromSaved) return fromSaved;
+      // A UIL level or ladder step names every part, in every voicing.
+      const fromLevel = !saved ? level?.voiceRanges?.[partName] : undefined;
+      if (fromLevel) return fromLevel as [number, number];
+    }
+    return DEFAULT_RANGES[voicing]?.[partName];
+  }
+
+  $: rangeTargets = Object.fromEntries(
+    Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {}).map((name) => [
+      name,
+      rangeTarget(selectedVoicing, name, !!fromPreset, activeLevel, activeSavedId ? activeSavedPreset : null),
+    ])
+  ) as Record<string, [number, number] | undefined>;
+
+  const rangeDiffers = (current: number[], target: [number, number] | undefined) =>
+    !!target && (current[0] !== target[0] || current[1] !== target[1]);
+
+  $: rangesDirty = Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {})
+    .some(([name, p]) => rangeDiffers(p.currentRange, rangeTargets[name]));
 
   /**
    * What the controls are set to, for telling "still the preset" from "edited".
@@ -1558,6 +1611,12 @@
       // Ranges are part of _currentParamSig now, so the edited flag follows on
       // its own - and does not append "(modified)" again on the next drag.
     }
+  }
+
+  /** One part back to its preset's range, or the default without a preset. */
+  function resetRange(partName: string) {
+    const target = rangeTargets[partName];
+    if (target) handleRangeChange(partName, { min: target[0], max: target[1] });
   }
 
   // ── Playback controls ──────────────────────────────────────────────────────
@@ -3041,7 +3100,20 @@
             <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
                 <div class="space-y-1.5">
-                  <p class="sr-label">{partName}</p>
+                  <!-- A text button, so showing it does not make this row taller
+                       than the next card's and knock the grid out of line. -->
+                  <div class="flex items-baseline gap-3">
+                    <p class="sr-label">{partName}</p>
+                    {#if rangeDiffers(part.currentRange, rangeTargets[partName])}
+                      <button
+                        type="button"
+                        class="text-xs font-semibold text-sr-brass hover:underline underline-offset-2"
+                        on:click={() => resetRange(partName)}
+                        title={fromPreset ? `Back to ${activePresetLabel}'s ${partName} range` : `Back to the default ${partName} range`}
+                        aria-label="Reset {partName} range"
+                      >Reset</button>
+                    {/if}
+                  </div>
                   <RangeSelector
                     range={{ min: part.currentRange[0], max: part.currentRange[1] }}
                     clef={part.clef}
