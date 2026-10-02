@@ -1,0 +1,118 @@
+import { describe, expect, test } from "bun:test";
+import {
+  isAllowedMove, largestSkip, toSkipPolicy, STEP_ONLY, type SkipPolicy,
+} from "../../src/lib/skip-policy";
+
+/**
+ * The move rule. A note in C major: pitchValue indexes noteArray, which is
+ * diatonic (C4 = 14, so a distance of 2 is a 3rd), and degree is 0-based.
+ */
+const n = (pitchValue: number, chromatic = false) => ({ pitchValue, degree: pitchValue % 7, chromatic });
+const [G3, C4, D4, E4, F4, G4, C5, E5] = [11, 14, 15, 16, 17, 18, 21, 23];
+const EIGHTH = 4, QUARTER = 8, HALF = 16;
+const LEVEL_II: SkipPolicy = {
+  kind: "custom",
+  moves: [{ from: 1, to: 3, dir: "up" }, { from: 3, to: 5, dir: "up" }],
+  landOn: [QUARTER],
+};
+
+describe("isAllowedMove", () => {
+  test("re↑fa is refused at Level II", () => {
+    expect(isAllowedMove(n(D4), n(F4), QUARTER, LEVEL_II)).toBe(false);
+  });
+
+  test("do↑mi is allowed in any octave, and so is mi↑sol", () => {
+    expect(isAllowedMove(n(C4), n(E4), QUARTER, LEVEL_II)).toBe(true);
+    expect(isAllowedMove(n(C5), n(E5), QUARTER, LEVEL_II)).toBe(true);
+    expect(isAllowedMove(n(7), n(9), QUARTER, LEVEL_II)).toBe(true); // C3 to E3
+    expect(isAllowedMove(n(E4), n(G4), QUARTER, LEVEL_II)).toBe(true);
+  });
+
+  test("do↓mi and mi↓do are refused when only ↑ is listed", () => {
+    expect(isAllowedMove(n(C5), n(E4), QUARTER, LEVEL_II)).toBe(false);
+    expect(isAllowedMove(n(E4), n(C4), QUARTER, LEVEL_II)).toBe(false);
+  });
+
+  test("a 10th is refused for a 1↑3 row: listed skips are simple intervals", () => {
+    expect(isAllowedMove(n(C4), n(E5), QUARTER, LEVEL_II)).toBe(false);
+  });
+
+  test("a skip onto an eighth (or a half) is refused when skips land on quarters", () => {
+    expect(isAllowedMove(n(C4), n(E4), EIGHTH, LEVEL_II)).toBe(false);
+    expect(isAllowedMove(n(C4), n(E4), HALF, LEVEL_II)).toBe(false);
+    const anywhere: SkipPolicy = { kind: "custom", moves: LEVEL_II.kind === "custom" ? LEVEL_II.moves : [] };
+    expect(isAllowedMove(n(C4), n(E4), EIGHTH, anywhere)).toBe(true);
+  });
+
+  test("steps and repeated notes are always allowed, on any length", () => {
+    const policies: SkipPolicy[] = [LEVEL_II, { kind: "custom", moves: [] }, STEP_ONLY, { kind: "max", maxSkip: 3 }];
+    for (const p of policies) {
+      for (const len of [EIGHTH, QUARTER, HALF]) {
+        expect(isAllowedMove(n(C4), n(D4), len, p)).toBe(true);
+        expect(isAllowedMove(n(D4), n(C4), len, p)).toBe(true);
+        expect(isAllowedMove(n(C4), n(C4), len, p)).toBe(true);
+      }
+    }
+  });
+
+  test("in custom mode a chromatic note is reached and left only by step", () => {
+    const doMi: SkipPolicy = { kind: "custom", moves: [{ from: 1, to: 3, dir: "both" }] };
+    expect(isAllowedMove(n(C4), n(E4, true), QUARTER, doMi)).toBe(false);
+    expect(isAllowedMove(n(C4, true), n(E4), QUARTER, doMi)).toBe(false);
+    expect(isAllowedMove(n(D4), n(E4, true), QUARTER, doMi)).toBe(true);
+    // Max skip mode is today's rule, which never looked at alterations.
+    expect(isAllowedMove(n(C4), n(E4, true), QUARTER, { kind: "max", maxSkip: 4 })).toBe(true);
+  });
+
+  test("max mode is exactly today's rule: diatonic distance <= maxSkip", () => {
+    for (let d = 0; d <= 9; d++) {
+      expect(isAllowedMove(n(C4), n(C4 + d), QUARTER, { kind: "max", maxSkip: 4 })).toBe(d <= 4);
+      expect(isAllowedMove(n(C4), n(C4 + d), EIGHTH, STEP_ONLY)).toBe(d <= 1);
+    }
+  });
+
+  test("↕ both allows either direction; Do-Sol ↓ is the 4th down to the sol below", () => {
+    const both: SkipPolicy = { kind: "custom", moves: [{ from: 1, to: 5, dir: "both" }] };
+    expect(isAllowedMove(n(C4), n(G4), QUARTER, both)).toBe(true); // a 5th up
+    expect(isAllowedMove(n(C4), n(G3), QUARTER, both)).toBe(true); // a 4th down
+    expect(isAllowedMove(n(G4), n(C4), QUARTER, both)).toBe(false); // sol→do is not listed
+    const doSolDown: SkipPolicy = { kind: "custom", moves: [{ from: 1, to: 5, dir: "down" }] };
+    expect(isAllowedMove(n(C4), n(G3), QUARTER, doSolDown)).toBe(true);
+    expect(isAllowedMove(n(C4), n(G4), QUARTER, doSolDown)).toBe(false);
+  });
+});
+
+describe("largestSkip", () => {
+  test("is maxSkip, or the widest listed interval, or 1 for stepwise only", () => {
+    expect(largestSkip({ kind: "max", maxSkip: 4 })).toBe(4);
+    expect(largestSkip({ kind: "custom", moves: [] })).toBe(1);
+    expect(largestSkip(LEVEL_II)).toBe(2);
+    expect(largestSkip({ kind: "custom", moves: [{ from: 1, to: 5, dir: "up" }] })).toBe(4);
+    expect(largestSkip({ kind: "custom", moves: [{ from: 1, to: 5, dir: "down" }] })).toBe(3);
+    expect(largestSkip({ kind: "custom", moves: [{ from: 1, to: 5, dir: "both" }] })).toBe(4);
+  });
+});
+
+describe("toSkipPolicy", () => {
+  test("wraps a number as Max skip, at least a step", () => {
+    expect(toSkipPolicy(3)).toEqual({ kind: "max", maxSkip: 3 });
+    expect(toSkipPolicy(0)).toEqual({ kind: "max", maxSkip: 1 });
+    expect(toSkipPolicy({ kind: "max", maxSkip: 2 })).toEqual({ kind: "max", maxSkip: 2 });
+  });
+
+  test("keeps only well-formed rows and lengths", () => {
+    expect(
+      toSkipPolicy({
+        kind: "custom",
+        moves: [{ from: 1, to: 3, dir: "up" }, { from: 1, to: 1, dir: "up" }, { from: 9, to: 3, dir: "up" }, "x"],
+        landOn: [8, "q", -1],
+      })
+    ).toEqual({ kind: "custom", moves: [{ from: 1, to: 3, dir: "up" }], landOn: [8] });
+    expect(toSkipPolicy({ kind: "custom", moves: [], landOn: [] })).toEqual({ kind: "custom", moves: [] });
+  });
+
+  test("falls back to the page's default Max skip", () => {
+    expect(toSkipPolicy(undefined)).toEqual({ kind: "max", maxSkip: 4 });
+    expect(toSkipPolicy("nonsense")).toEqual({ kind: "max", maxSkip: 4 });
+  });
+});
