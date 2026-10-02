@@ -67,6 +67,11 @@
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
+  import type { SkipMove } from "../lib/skip-policy";
+  import {
+    ALL_LAND_ON, LAND_ON_CHOICES, SKIP_CHIPS, SKIP_DEGREES, addMoves, degreesConnected,
+    policyFor, readSkipParams, skipSettingsFrom, toggleLandOn, writeSkipParams, type SkipMode,
+  } from "../lib/skip-settings";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import {
     DEFAULT_RHYTHM_NAMES,
@@ -85,7 +90,7 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import {
     defaultSyllableSystem,
@@ -330,6 +335,10 @@
       options.maxSkip = s;
     }
 
+    // Custom skips (skip-settings.ts). A link without them is in Max skip mode.
+    const skips = readSkipParams(urlParams);
+    if (skips) Object.assign(options, skips);
+
     // The tempo slider's range. 30-120 turned a link made at 132 into one at 60.
     const b = parseInt(getParam("bpm") || "", 10);
     if (!isNaN(b) && b >= 40 && b <= 200) {
@@ -483,6 +492,8 @@
       selectedTimeSignature: ts,
       measures: options.measures || 8,
       maxSkip: options.maxSkip || 4,
+      // Max skip or Custom skips; presets and options from before load in Max skip.
+      ...skipSettingsFrom(options),
       bpm: options.bpm || 60,
       moveEighthNotes: options.moveEighthNotes || false,
       accidentalsFollowStep:
@@ -551,6 +562,9 @@
     selectedTimeSignature = next.selectedTimeSignature;
     measures = next.measures;
     maxSkip = next.maxSkip;
+    skipMode = next.skipMode;
+    customSkips = next.customSkips;
+    skipLandOn = next.skipLandOn;
     bpm = next.bpm;
     moveEighthNotes = next.moveEighthNotes;
     accidentalsFollowStep = next.accidentalsFollowStep;
@@ -625,6 +639,8 @@
     if (u.selectedKey) selectedKey = u.selectedKey;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
     if (u.maxSkip) maxSkip = u.maxSkip;
+    // A step's skip size is a Max skip.
+    skipMode = "max";
     const range = rangeForStep(u, selectedRange);
     if (range) selectedRange = range;
     selectedSharpDegrees = new Set();
@@ -673,6 +689,7 @@
       selectedTimeSignature: "4/4",
       measures: 8,
       maxSkip: 4,
+      ...skipSettingsFrom({}),
       bpm: 60,
       moveEighthNotes: false,
       accidentalsFollowStep: false,
@@ -717,6 +734,18 @@
   }
   let measures = initialState.measures;
   let maxSkip = initialState.maxSkip;
+  /** Max skip, or Custom skips: the skips allowed and what they may land on (skip-settings.ts). */
+  let skipMode: SkipMode = initialState.skipMode;
+  let customSkips: SkipMove[] = initialState.customSkips;
+  let skipLandOn: number[] = initialState.skipLandOn;
+  $: skipPolicy = policyFor(maxSkip, { skipMode, customSkips, skipLandOn });
+
+  /** One custom skip row's select changed: its From, To or direction. */
+  function editSkip(k: number, field: "from" | "to" | "dir", value: string) {
+    const patch: Partial<SkipMove> =
+      field === "dir" ? { dir: value as SkipMove["dir"] } : { [field]: Number(value) };
+    customSkips = customSkips.map((m, j) => (j === k ? { ...m, ...patch } : m));
+  }
   let bpm = initialState.bpm;
   let moveEighthNotes = initialState.moveEighthNotes;
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
@@ -1051,7 +1080,7 @@
     selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map((r: Rhythm) => r.name).sort()) !==
     JSON.stringify([...DEFAULT_RHYTHM_NAMES[meterKindOf(selectedTimeSignature)]].sort());
-  $: notesDirty = maxSkip !== DEFAULTS.maxSkip ||
+  $: notesDirty = maxSkip !== DEFAULTS.maxSkip || skipMode !== "max" ||
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
     accidentalsFollowStep !== false || moveEighthNotes !== false;
@@ -1076,6 +1105,9 @@
       selectedTimeSignature,
       measures,
       maxSkip,
+      skipMode,
+      customSkips,
+      skipLandOn,
       bpm,
       moveEighthNotes,
       accidentalsFollowStep,
@@ -1140,6 +1172,7 @@
     params.set("timeSignature", selectedTimeSignature);
     params.set("measures", measures.toString());
     params.set("maxSkip", maxSkip.toString());
+    writeSkipParams({ skipMode, customSkips, skipLandOn }, params);
     params.set("bpm", bpm.toString());
     params.set("moveEighthNotes", moveEighthNotes.toString());
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
@@ -2110,7 +2143,13 @@
 
   async function generateExercise() {
     // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
-    if (!rhythmOnly && !validateSettings(selectedScaleDegrees, maxSkip)) {
+    if (!rhythmOnly && skipMode === "custom" && !degreesConnected(Array.from(selectedScaleDegrees), skipPolicy)) {
+      error =
+        "With these skips the line cannot get between all the selected notes. Add a skip, or select the notes in between.";
+      isLoading = false;
+      return;
+    }
+    if (!rhythmOnly && skipMode === "max" && !validateSettings(selectedScaleDegrees, maxSkip)) {
       error =
         "The gap between selected scale degrees is larger than the Max Skip. Please increase Max Skip or select more notes to fill the gap.";
       isLoading = false;
@@ -2146,7 +2185,8 @@
         timeSig:
           timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
         measures: measures,
-        maxSkip: maxSkip,
+        // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
+        maxSkip: skipPolicy,
         tempo: tempo,
         range: selectedRange,
         rhythms: selectedRhythms,
@@ -3949,19 +3989,97 @@
               </div>
             </div>
 
-            <!-- Max Skip -->
+            <!-- Skips: the largest skip, or a list of the skips allowed (skip-settings.ts). -->
             <div class="space-y-2">
-              <p class="sr-label">Max Melodic Skip</p>
-              <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
-                <button type="button" class="sr-btn-quiet"
-                  aria-label="Decrease max skip"
-                  on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
-                <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
-                <button type="button" class="sr-btn-quiet"
-                  aria-label="Increase max skip"
-                  on:click={() => { if (maxSkip < 8) maxSkip += 1; }}><Plus size={16} /></button>
-                <span class="text-xs text-sr-faint">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
+              <p class="sr-label">Skips</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Skip style">
+                <button class="sr-tok {skipMode === 'max' ? 'sr-on' : ''}" aria-pressed={skipMode === 'max'}
+                  on:click={() => (skipMode = 'max')}>Max skip</button>
+                <button class="sr-tok {skipMode === 'custom' ? 'sr-on' : ''}" aria-pressed={skipMode === 'custom'}
+                  on:click={() => (skipMode = 'custom')}>Custom skips</button>
               </div>
+
+              {#if skipMode === 'max'}
+                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
+                  <button type="button" class="sr-btn-quiet"
+                    aria-label="Decrease max skip"
+                    on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
+                  <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
+                  <button type="button" class="sr-btn-quiet"
+                    aria-label="Increase max skip"
+                    on:click={() => { if (maxSkip < 8) maxSkip += 1; }}><Plus size={16} /></button>
+                  <span class="text-xs text-sr-faint">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
+                </div>
+              {:else}
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Add skips">
+                  {#each SKIP_CHIPS as chip}
+                    <button type="button" class="sr-tok text-xs"
+                      on:click={() => (customSkips = addMoves(customSkips, chip.moves))}>{chip.label}</button>
+                  {/each}
+                  <button type="button" class="sr-link text-xs" disabled={customSkips.length === 0}
+                    on:click={() => (customSkips = [])}>Clear</button>
+                </div>
+
+                {#if customSkips.length === 0}
+                  <p class="text-xs text-sr-faint">No skips listed: the line moves by step only.</p>
+                {/if}
+                <ul class="space-y-1.5">
+                  {#each customSkips as move, k}
+                    <li class="flex flex-wrap items-center gap-2 text-sm">
+                      <span class="text-xs text-sr-muted">From</span>
+                      <select
+                        class="bg-sr-track border-0 rounded-full pl-3 pr-8 py-1 text-sm font-bold text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
+                        aria-label="Skip {k + 1}: from"
+                        value={move.from}
+                        on:change={(e) => editSkip(k, 'from', e.currentTarget.value)}
+                      >
+                        {#each SKIP_DEGREES as d}<option value={d.value} disabled={d.value === move.to}>{d.label}</option>{/each}
+                      </select>
+                      <select
+                        class="bg-sr-track border-0 rounded-full pl-3 pr-8 py-1 text-sm font-bold text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
+                        aria-label="Skip {k + 1}: direction"
+                        value={move.dir}
+                        on:change={(e) => editSkip(k, 'dir', e.currentTarget.value)}
+                      >
+                        <option value="up">↑ ascending</option>
+                        <option value="down">↓ descending</option>
+                        <option value="both">↕ both</option>
+                      </select>
+                      <span class="text-xs text-sr-muted">To</span>
+                      <select
+                        class="bg-sr-track border-0 rounded-full pl-3 pr-8 py-1 text-sm font-bold text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
+                        aria-label="Skip {k + 1}: to"
+                        value={move.to}
+                        on:change={(e) => editSkip(k, 'to', e.currentTarget.value)}
+                      >
+                        {#each SKIP_DEGREES as d}<option value={d.value} disabled={d.value === move.from}>{d.label}</option>{/each}
+                      </select>
+                      <button type="button" class="p-1 text-sr-faint hover:text-sr-danger"
+                        aria-label="Remove skip {k + 1}"
+                        on:click={() => (customSkips = customSkips.filter((_, j) => j !== k))}><X size={14} /></button>
+                    </li>
+                  {/each}
+                </ul>
+                <button type="button" class="sr-link text-xs"
+                  on:click={() => (customSkips = [...customSkips, { from: 1, to: 3, dir: 'up' }])}>+ Add skip</button>
+                <p class="text-xs text-sr-faint">Steps are always allowed. Each skip listed may be sung in any octave.</p>
+
+                <div class="space-y-1 pt-1">
+                  <p class="sr-label">Skips land on</p>
+                  <div class="flex flex-wrap gap-2" role="group" aria-label="Skips land on">
+                    {#each LAND_ON_CHOICES as choice}
+                      <button class="sr-tok {skipLandOn.includes(choice.length) ? 'sr-on' : ''}"
+                        aria-pressed={skipLandOn.includes(choice.length)}
+                        on:click={() => (skipLandOn = toggleLandOn(skipLandOn, choice.length))}>{choice.label}</button>
+                    {/each}
+                  </div>
+                  <p class="text-xs text-sr-faint">
+                    {skipLandOn.length === ALL_LAND_ON.length
+                      ? 'A skip may land on any note.'
+                      : 'A skip may only land on the values chosen. Steps land anywhere.'}
+                  </p>
+                </div>
+              {/if}
             </div>
 
             <!-- Toggles -->
