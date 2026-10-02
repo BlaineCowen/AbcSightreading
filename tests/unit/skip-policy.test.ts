@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  isAllowedMove, largestSkip, toSkipPolicy, STEP_ONLY, type SkipPolicy,
+  isAllowedMove, largestSkip, livePitches, toSkipPolicy, STEP_ONLY, type SkipPolicy,
 } from "../../src/lib/skip-policy";
 
 /**
@@ -123,5 +123,74 @@ describe("toSkipPolicy", () => {
   test("falls back to the page's default Max skip", () => {
     expect(toSkipPolicy(undefined)).toEqual({ kind: "max", maxSkip: 4 });
     expect(toSkipPolicy("nonsense")).toEqual({ kind: "max", maxSkip: 4 });
+  });
+});
+
+/**
+ * livePitches: with exact skips, the pitches a line may start on or move to -
+ * each has a way on to another pitch, and a way home. A note in F major here:
+ * degree is 0-based from F (C4 = 14 is sol).
+ */
+describe("livePitches", () => {
+  const inF = (pitchValue: number, chromatic = false) => ({
+    pitchValue, degree: (((pitchValue - 17) % 7) + 7) % 7, chromatic,
+  });
+  const isHomeDegree = (x: { degree: number }) => [0, 2, 4].includes(x.degree);
+  const pitches = (notes: { pitchValue: number }[]) => notes.map((x) => x.pitchValue);
+  // Do-Mi-Sol ↑ + Sol-Do ↓ + re ↗ sol.
+  const TASK_6R: SkipPolicy = {
+    kind: "custom",
+    moves: [
+      { from: 1, to: 3, dir: "up" }, { from: 3, to: 5, dir: "up" },
+      { from: 5, to: 1, dir: "down" }, { from: 2, to: 5, dir: "up" },
+    ],
+    landOn: [QUARTER],
+  };
+
+  test("low sol, with only sol↓do below the range and no selected neighbour, is pruned", () => {
+    // C4-C5 in F with do re mi sol: C4 sol, F4 do, G4 re, A4 mi, C5 sol.
+    const notes = [14, 17, 18, 19, 21].map((p) => inF(p));
+    expect(pitches(livePitches(notes, TASK_6R, isHomeDegree))).toEqual([17, 18, 19, 21]);
+  });
+
+  test("a set where every pitch has a way on and a way home is unchanged", () => {
+    const notes = [17, 18, 19, 20, 21, 22].map((p) => inF(p)); // F4-D5, by step
+    expect(livePitches(notes, TASK_6R, isHomeDegree)).toEqual(notes);
+  });
+
+  test("pruning is repeated: a pitch whose only way on was pruned goes too", () => {
+    // Sol-Ti ↑ only, with do re sol ti: ti (E5) has no way on, so then sol
+    // (C5), whose only way on was up to ti, has none either. Do and re stay.
+    const policy: SkipPolicy = { kind: "custom", moves: [{ from: 5, to: 7, dir: "up" }] };
+    const notes = [17, 18, 21, 23].map((p) => inF(p));
+    expect(pitches(livePitches(notes, policy, isHomeDegree))).toEqual([17, 18]);
+  });
+
+  test("the landing limit does not prune: a skip may land on some note value", () => {
+    const policy: SkipPolicy = { kind: "custom", moves: [{ from: 5, to: 1, dir: "down" }], landOn: [HALF] };
+    const notes = [17, 18, 21].map((p) => inF(p)); // do re, and sol a 4th above do
+    expect(pitches(livePitches(notes, policy, isHomeDegree))).toEqual([17, 18, 21]);
+  });
+
+  test("a chromatic note is left by step only", () => {
+    // fi would be left by sol↓do-style skips if it were natural; altered, it needs a neighbour.
+    const policy: SkipPolicy = { kind: "custom", moves: [{ from: 7, to: 3, dir: "down" }] };
+    const notes = [inF(17), inF(18), inF(19), inF(23, true)];
+    expect(pitches(livePitches(notes, policy, isHomeDegree))).toEqual([17, 18, 19]);
+    expect(pitches(livePitches([...notes.slice(0, 3), inF(23)], policy, isHomeDegree))).toEqual([17, 18, 19, 23]);
+  });
+
+  test("pitches that cannot get home are pruned, and nothing is left when home is cut off", () => {
+    // Steps only: la-ti (D5-E5) is an island with no home in it.
+    const island = [17, 18, 22, 23].map((p) => inF(p));
+    expect(pitches(livePitches(island, { kind: "custom", moves: [] }, isHomeDegree))).toEqual([17, 18]);
+    // Do alone, nothing to step to: no way on, so nothing is left.
+    expect(livePitches([inF(17)], { kind: "custom", moves: [] }, isHomeDegree)).toEqual([]);
+  });
+
+  test("Max skip never prunes", () => {
+    const notes = [14, 17, 18, 19, 21].map((p) => inF(p));
+    expect(livePitches(notes, { kind: "max", maxSkip: 1 }, isHomeDegree)).toEqual(notes);
+    expect(livePitches([inF(17)], { kind: "max", maxSkip: 4 }, isHomeDegree)).toEqual([inF(17)]);
   });
 });

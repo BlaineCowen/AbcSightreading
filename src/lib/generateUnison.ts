@@ -27,6 +27,7 @@ import type { Cadence, RhythmWithPattern } from "./types";
 import {
   isAllowedMove,
   largestSkip,
+  livePitches,
   toSkipPolicy,
   STEP_ONLY,
   type SkipNote,
@@ -750,6 +751,28 @@ function generateChordProgression(
     throw new Error(
       "No valid notes found in range for the selected scale degrees"
     );
+  }
+
+  // Exact skips: leave out any pitch the line could start on or move to but
+  // never leave, or never get home from - low sol, say, when the only skip
+  // from sol is down to a do below the range and no neighbour is selected.
+  // The line used to sit on it for the whole exercise. A note whose degree is
+  // only selected altered is sung altered, so left by step. (Max skip mode
+  // keeps every pitch: livePitches returns them all.)
+  if (policy.kind === "custom") {
+    const live = new Set(
+      livePitches(
+        bassRangeNoteList.map((n) => ({ ...n, chromatic: !scaleDegrees.includes(n.degree) })),
+        policy,
+        isHome
+      ).map((n) => n.pitchValue)
+    );
+    if (live.size === 0) {
+      throw new Error(
+        "With these skips the line would get stuck on a note it cannot leave in this range. Add a skip, select the notes in between, or widen the range."
+      );
+    }
+    bassRangeNoteList = bassRangeNoteList.filter((n) => live.has(n.pitchValue));
   }
 
   // pick a random note from bassRangeNoteList degree 0,2,4

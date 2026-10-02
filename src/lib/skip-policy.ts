@@ -89,6 +89,45 @@ export function largestSkip(policy: SkipPolicy): number {
   return widest;
 }
 
+/**
+ * Of the pitches a line may sing, the ones it can't be trapped on. With exact
+ * skips a pitch can be a dead end: low sol in C4-C5 when the only skip from sol
+ * is down to do (below the range) and no neighbour is selected - a line that
+ * started there sang it for the whole exercise. Kept: each pitch with a move
+ * on to another kept pitch (a step to a neighbour in the list, or an allowed
+ * skip onto any note value - the landing limit only says where a skip may
+ * fall) and a way, in moves like that, to a kept pitch `isHome` accepts.
+ * Repeated until nothing changes, since dropping one pitch can strand another.
+ * Empty, or without a home pitch, when the list can't make an exercise.
+ * Max skip mode keeps every pitch, as it always has.
+ */
+export function livePitches<T extends SkipNote>(
+  notes: readonly T[],
+  policy: SkipPolicy,
+  isHome: (note: T) => boolean
+): T[] {
+  if (policy.kind === "max") return [...notes];
+  const anyLength: SkipPolicy = { kind: "custom", moves: policy.moves };
+  const movesTo = (a: T, b: T) => a.pitchValue !== b.pitchValue && isAllowedMove(a, b, 0, anyLength);
+  let live = [...notes];
+  for (;;) {
+    const onward = live.filter((a) => live.some((b) => movesTo(a, b)));
+    const home = new Set(onward.filter(isHome));
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const a of onward) {
+        if (!home.has(a) && onward.some((b) => home.has(b) && movesTo(a, b))) {
+          home.add(a);
+          grew = true;
+        }
+      }
+    }
+    const next = onward.filter((a) => home.has(a));
+    if (next.length === live.length) return live;
+    live = next;
+  }
+}
+
 const DIRS: readonly SkipDir[] = ["up", "down", "both"];
 const isDegree = (v: unknown): v is number =>
   Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 7;

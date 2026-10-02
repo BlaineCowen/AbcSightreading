@@ -133,4 +133,66 @@ describe("custom skips in the generator", () => {
     expect(bad).toEqual([]);
     expect(altered).toBeGreaterThan(0);
   });
+
+  /** How many different pitches the line sings: a line frozen on one note sings one. */
+  const distinctPitches = (notes: any[]) =>
+    new Set(notes.filter((n) => !n.rhythm?.rest).map((n) => n.pitchValue)).size;
+
+  test("no dead-end start: low sol with only sol↓do below the range is never sung (Task 6R)", () => {
+    // C4-C5 in F: C4 is sol. Do-Mi-Sol ↑, Sol-Do ↓ and re ↗ sol; from low
+    // sol the only skip is down to do, below the range, and la is not selected.
+    const policy: SkipPolicy = {
+      kind: "custom",
+      moves: [
+        { from: 1, to: 3, dir: "up" }, { from: 3, to: 5, dir: "up" },
+        { from: 5, to: 1, dir: "down" }, { from: 2, to: 5, dir: "up" },
+      ],
+      landOn: [QUARTER],
+    };
+    const frozen: number[] = [];
+    let lowSol = 0;
+    for (let run = 0; run < 20; run++) {
+      const notes = line(policy, {
+        key: "F", degrees: [1, 2, 3, 5], range: { min: 14, max: 21 },
+        rhythms: ["quarter", "half", "quarterRest", "eighthEighth"],
+      });
+      if (distinctPitches(notes) < 3) frozen.push(run);
+      lowSol += notes.filter((n) => !n.rhythm?.rest && n.pitchValue === 14).length;
+    }
+    expect(frozen).toEqual([]);
+    expect(lowSol).toBe(0);
+  });
+
+  test("NYSSMA Level II-like (Do-Mi-Sol ↑ on quarters, do-la) in C, F and G: no frozen lines, no failures", () => {
+    const policy: SkipPolicy = {
+      kind: "custom",
+      moves: [{ from: 1, to: 3, dir: "up" }, { from: 3, to: 5, dir: "up" }],
+      landOn: [QUARTER],
+    };
+    const ranges: Record<string, { min: number; max: number }> = {
+      C: { min: 14, max: 19 }, F: { min: 17, max: 22 }, G: { min: 18, max: 23 },
+    };
+    const problems: string[] = [];
+    for (const key of ["C", "F", "G"]) {
+      for (let run = 0; run < 20; run++) {
+        try {
+          const notes = line(policy, {
+            key, degrees: [1, 2, 3, 4, 5, 6], range: ranges[key],
+            rhythms: ["quarter", "half", "quarterRest", "eighthEighth"],
+          });
+          if (distinctPitches(notes) < 3) problems.push(`${key} run ${run}: frozen`);
+        } catch (e) {
+          problems.push(`${key} run ${run}: ${(e as Error).message}`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  test("a list with no way out of the range fails with a plain message, not a frozen line", () => {
+    // Steps only, and the range holds do alone among the selected notes.
+    expect(() =>
+      line({ kind: "custom", moves: [] }, { degrees: [1, 3, 5], range: { min: 14, max: 15 }, rhythms: ["quarter", "half"] })
+    ).toThrow(/skip/i);
+  });
 });
