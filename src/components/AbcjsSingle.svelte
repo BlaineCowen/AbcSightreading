@@ -76,7 +76,11 @@
   import {
     readShortSkipParams, setShortSkip, shortSkipsFrom, writeShortSkipParams, type SkipStepper,
   } from "../lib/short-note-skips";
-  import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
+  import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
+  import {
+    drawFromPool, meterPoolClick, parsePool, parseSpan, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
+    type Span,
+  } from "../lib/unison-pools";
   import {
     DEFAULT_RHYTHM_NAMES,
     resolveRhythmSelection,
@@ -309,9 +313,11 @@
       }
     }
 
-    const key = getParam("key");
-    if (key && possibleKeys.includes(key)) {
-      options.selectedKey = key;
+    // One key, or several to draw from ("C,F"). An old link names one.
+    const keys = parsePool(getParam("key"), possibleKeys);
+    if (keys.length > 0) {
+      options.selectedKeys = keys;
+      options.selectedKey = keys[0];
     }
 
     const rhythmNames = getParam("rhythms")?.split(",");
@@ -324,9 +330,19 @@
       }
     }
 
-    const ts = getParam("timeSignature");
-    if (ts && Object.keys(timeSignatures).includes(ts)) {
-      options.selectedTimeSignature = ts;
+    // One meter, or several of one kind to draw from ("4/4,2/4").
+    const meters = sameKindPool(parsePool(getParam("timeSignature"), Object.keys(timeSignatures)));
+    if (meters.length > 0) {
+      options.selectedTimeSignatures = meters;
+      options.selectedTimeSignature = meters[0];
+    }
+    // A range that follows the key (a NYSSMA level): scale steps around do,
+    // placed on the do at or above `anchor` for each key drawn.
+    const span = parseSpan(getParam("span"));
+    const anchor = parseInt(getParam("anchor") || "", 10);
+    if (span && !isNaN(anchor)) {
+      options.rangeSpan = span;
+      options.rangeAnchor = anchor;
     }
 
     const m = parseInt(getParam("measures") || "", 10);
@@ -487,15 +503,24 @@
           ? options.selectedTimeSignature.name || "4/4"
           : options.selectedTimeSignature;
     }
+    // Pools of keys and meters; options from before pools hold one of each.
+    // A meter pool is one kind, and the rhythms are resolved for its first meter.
+    const keys = poolFrom(options.selectedKeys, options.selectedKey, possibleKeys, "F");
+    const meters = sameKindPool(poolFrom(options.selectedTimeSignatures, ts, Object.keys(timeSignatures), "4/4"));
+    const selectedRange = options.selectedRange || { ...DEFAULT_TREBLE_RANGE };
     return {
       selectedClef: options.selectedClef || "treble",
-      selectedRange: options.selectedRange || { ...DEFAULT_TREBLE_RANGE },
+      selectedRange,
       selectedScaleDegrees: new Set<number>(options.selectedScaleDegrees || [1, 3, 5]),
       selectedSharpDegrees: new Set<number>(options.selectedSharpDegrees || []),
       selectedFlatDegrees: new Set<number>(options.selectedFlatDegrees || []),
-      selectedKey: options.selectedKey || "F",
-      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms, ts),
-      selectedTimeSignature: ts,
+      selectedKeys: keys,
+      selectedKey: keys[0],
+      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms, meters[0]),
+      selectedTimeSignatures: meters,
+      selectedTimeSignature: meters[0],
+      rangeSpan: spanFrom(options.rangeSpan),
+      rangeAnchor: Number.isInteger(options.rangeAnchor) ? (options.rangeAnchor as number) : selectedRange.min,
       measures: options.measures || 8,
       maxSkip: options.maxSkip || 4,
       // Exact skips; presets and options from before load in Max skip mode.
@@ -566,8 +591,12 @@
     selectedSharpDegrees = next.selectedSharpDegrees;
     selectedFlatDegrees = next.selectedFlatDegrees;
     selectedKey = next.selectedKey;
+    selectedKeys = new Set(next.selectedKeys);
     selectedRhythms = next.selectedRhythms;
     selectedTimeSignature = next.selectedTimeSignature;
+    selectedTimeSignatures = new Set(next.selectedTimeSignatures);
+    rangeSpan = next.rangeSpan;
+    rangeAnchor = next.rangeAnchor;
     measures = next.measures;
     maxSkip = next.maxSkip;
     skips = next.skips;
@@ -640,8 +669,13 @@
     rhythmOnly = u.rhythmOnly;
     selectedRhythms = resolveSelectedRhythms(u.selectedRhythms, u.selectedTimeSignature);
     selectedTimeSignature = u.selectedTimeSignature;
+    selectedTimeSignatures = new Set([u.selectedTimeSignature]);
     measures = u.measures;
-    if (u.selectedKey) selectedKey = u.selectedKey;
+    if (u.selectedKey) {
+      selectedKey = u.selectedKey;
+      selectedKeys = new Set([u.selectedKey]);
+    }
+    rangeSpan = null;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
     if (u.maxSkip) maxSkip = u.maxSkip;
     // A step's Move 8th Notes, read the way a saved preset's is.
@@ -692,8 +726,12 @@
       selectedSharpDegrees: new Set(),
       selectedFlatDegrees: new Set(),
       selectedKey: "F",
+      selectedKeys: ["F"],
       selectedRhythms: resolveSelectedRhythms([]),
       selectedTimeSignature: "4/4",
+      selectedTimeSignatures: ["4/4"],
+      rangeSpan: null as Span | null,
+      rangeAnchor: DEFAULT_TREBLE_RANGE.min,
       measures: 8,
       maxSkip: 4,
       skips: skipSettingsFrom({}),
@@ -722,8 +760,15 @@
   let selectedSharpDegrees = initialState.selectedSharpDegrees;
   let selectedFlatDegrees = initialState.selectedFlatDegrees;
   let selectedKey = initialState.selectedKey;
+  /** Keys to draw from; `selectedKey` is the key of the exercise on screen. */
+  let selectedKeys: Set<string> = new Set(initialState.selectedKeys);
   let selectedRhythms = initialState.selectedRhythms;
   let selectedTimeSignature = initialState.selectedTimeSignature;
+  /** Meters to draw from, all of one kind; `selectedTimeSignature` is the exercise's own. */
+  let selectedTimeSignatures: Set<string> = new Set(initialState.selectedTimeSignatures);
+  /** A NYSSMA level's range: scale steps around do, placed from `rangeAnchor` for each key drawn. */
+  let rangeSpan: Span | null = initialState.rangeSpan ?? null;
+  let rangeAnchor: number = initialState.rangeAnchor ?? initialState.selectedRange.min;
   /** The picker follows the meter's kind: compound figures in 6/8, 9/8, 12/8. */
   $: filterRhythms = selectableRhythmsFor(meterKindOf(selectedTimeSignature));
   /** Each kind's selection while the reader is in the other (switchRhythmKind). */
@@ -1145,8 +1190,8 @@
     key: 'F', clef: 'treble', timeSig: '4/4', measures: 8,
     maxSkip: 4, scaleDegrees: [1, 3, 5], range: DEFAULT_TREBLE_RANGE,
   };
-  $: setupDirty = selectedKey !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
-    selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
+  $: setupDirty = [...selectedKeys].join(",") !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
+    [...selectedTimeSignatures].join(",") !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map((r: Rhythm) => r.name).sort()) !==
     JSON.stringify([...DEFAULT_RHYTHM_NAMES[meterKindOf(selectedTimeSignature)]].sort());
   $: notesDirty = maxSkip !== DEFAULTS.maxSkip || skips.exactOn ||
@@ -1166,13 +1211,16 @@
   // stores, and what "edited" is measured against.
   $: currentOptions = {
       selectedClef,
-      selectedRange: { ...selectedRange },
+      // The pools and the range they imply - never the key and meter last
+      // drawn, or every Generate would mark a preset edited (unison-pools.ts).
+      ...setupSnapshot({
+        keys: [...selectedKeys], meters: [...selectedTimeSignatures],
+        span: rangeSpan, anchor: rangeAnchor, range: selectedRange,
+      }),
       selectedScaleDegrees: Array.from(selectedScaleDegrees),
       selectedSharpDegrees: Array.from(selectedSharpDegrees),
       selectedFlatDegrees: Array.from(selectedFlatDegrees),
-      selectedKey,
       selectedRhythms: selectedRhythms.map((r: Rhythm) => r.name),
-      selectedTimeSignature,
       measures,
       maxSkip,
       ...skips,
@@ -1226,6 +1274,10 @@
     const params = new URLSearchParams();
     params.set("clef", selectedClef);
     params.set("range", `${selectedRange.min}-${selectedRange.max}`);
+    if (rangeSpan) {
+      params.set("span", rangeSpan.join(","));
+      params.set("anchor", String(rangeAnchor));
+    }
     params.set("scaleDegrees", Array.from(selectedScaleDegrees).join(","));
     params.set(
       "selectedSharpDegrees",
@@ -1235,11 +1287,11 @@
       "selectedFlatDegrees",
       Array.from(selectedFlatDegrees).join(",")
     );
-    params.set("key", selectedKey);
+    params.set("key", [...selectedKeys].join(","));
     params.set("rhythmSound", rhythmSoundId);
     params.set("sound", String(instrumentProgram));
     params.set("rhythms", selectedRhythms.map((r: Rhythm) => r.name).join(","));
-    params.set("timeSignature", selectedTimeSignature);
+    params.set("timeSignature", [...selectedTimeSignatures].join(","));
     params.set("measures", measures.toString());
     params.set("maxSkip", maxSkip.toString());
     writeSkipParams(skips, params);
@@ -2238,6 +2290,13 @@
     error = null;
 
     try {
+      // One key and one meter per exercise, drawn from the pools; a range that
+      // follows the key is placed for the key drawn, from the same anchor.
+      // The meter pool is one kind, so the rhythm selection still fits.
+      selectedKey = drawFromPool([...selectedKeys]);
+      selectedTimeSignature = drawFromPool([...selectedTimeSignatures]);
+      if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+
       // Validate rhythms first
       if (!validateSelectedRhythms(selectedRhythms)) {
         throw new Error("Please select at least one valid rhythm");
@@ -2814,6 +2873,8 @@
    * @param {Object} newRange - The new range object with min and max values
    */
   function handleRangeChange(newRange: { min: number; max: number }) {
+    // Set by hand, the range is the teacher's own and no longer follows the key.
+    rangeSpan = null;
     selectedRange = newRange;
   }
 
@@ -2877,6 +2938,9 @@
         selectedRange = { min: 10, max: 17 };
         break;
     }
+    // A range that follows the key moves to the new clef's octave.
+    rangeAnchor = selectedRange.min;
+    if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
   }
 
   // Add state variables
@@ -3213,8 +3277,18 @@
       currentTune = null;
 
       rhythmOnly = score.staff === "rhythm";
-      if (score.timeSig.name in timeSignatures) chooseMeter(score.timeSig.name);
-      if (score.key && possibleKeys.includes(score.key)) selectedKey = score.key;
+      if (score.timeSig.name in timeSignatures) {
+        const ts = score.timeSig.name;
+        const sameKind = meterKindOf(ts) === meterKindOf([...selectedTimeSignatures][0] ?? ts);
+        chooseMeter(ts);
+        // A pool of one follows the exercise, as the single setting always did;
+        // a pool of the other kind is replaced, since a pool holds one kind.
+        if (selectedTimeSignatures.size <= 1 || !sameKind) selectedTimeSignatures = new Set([ts]);
+      }
+      if (score.key && possibleKeys.includes(score.key)) {
+        selectedKey = score.key;
+        if (selectedKeys.size <= 1) selectedKeys = new Set([score.key]);
+      }
       if (score.clef && clefOptions.includes(score.clef)) selectedClef = score.clef;
 
       currentScore = score;
@@ -3468,11 +3542,24 @@
                 <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
                   {#each possibleKeys as key}
                     <button
-                      class="sr-tok {selectedKey === key ? 'sr-on' : ''}"
-                      on:click={() => (selectedKey = key)}
+                      class="sr-tok {selectedKeys.has(key) ? 'sr-on' : ''}"
+                      aria-pressed={selectedKeys.has(key)}
+                      on:click={() => {
+                        const next = togglePoolMember([...selectedKeys], key);
+                        selectedKeys = new Set(next);
+                        // The key shown follows the click, and stays inside the pool.
+                        selectedKey = next.includes(key) ? key : next[0];
+                        if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+                      }}
                     >{key}</button>
                   {/each}
                 </div>
+                {#if selectedKeys.size > 1}
+                  <p class="text-xs text-sr-faint">
+                    {selectedKeys.size} keys selected. One is drawn at random each time you generate.
+                    Click a key to remove it.
+                  </p>
+                {/if}
               </div>
 
               <div class="space-y-2">
@@ -3495,13 +3582,24 @@
                 <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature: {group.label}">
                   {#each group.names as ts}
                     <button
-                      class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''}"
-                      aria-pressed={selectedTimeSignature === ts}
-                      on:click={() => chooseMeter(ts)}
+                      class="sr-tok {selectedTimeSignatures.has(ts) ? 'sr-on' : ''}"
+                      aria-pressed={selectedTimeSignatures.has(ts)}
+                      on:click={() => {
+                        // Same kind: in or out of the pool. The other kind
+                        // replaces the pool and swaps the rhythms (chooseMeter).
+                        const next = meterPoolClick([...selectedTimeSignatures], ts);
+                        chooseMeter(next.includes(ts) ? ts : next[0]);
+                        selectedTimeSignatures = new Set(next);
+                      }}
                     >{ts}</button>
                   {/each}
                 </div>
               {/each}
+              {#if selectedTimeSignatures.size > 1}
+                <p class="text-xs text-sr-faint">
+                  {selectedTimeSignatures.size} meters selected. One is drawn each time you generate.
+                </p>
+              {/if}
               {#if meterKindOf(selectedTimeSignature) === "compound"}
                 <p class="text-xs text-sr-faint">
                   Felt in dotted-quarter beats: the tempo counts ♩., and the rhythms are compound figures.
@@ -3989,6 +4087,12 @@
               clef={selectedClef}
               onRangeChange={handleRangeChange}
             />
+            {#if rangeSpan}
+              <p class="text-xs text-sr-faint">
+                This range follows the key: it is placed around do for each key drawn. Change it
+                here and it becomes your own.
+              </p>
+            {/if}
           </div>
         {/if}
 
