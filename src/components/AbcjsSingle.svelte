@@ -4219,7 +4219,7 @@
       <div
         id="paper"
         class="sr-sheet w-full my-2"
-        style={!originalTuneString && !isLoading ? "height:0;margin:0;box-shadow:none" : undefined}
+        class:hidden={!originalTuneString && !isLoading}
       >
         {#if isLoading}
           <div class="flex items-center justify-center h-48">
