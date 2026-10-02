@@ -95,3 +95,41 @@ describe("click sounds", () => {
     }
   });
 });
+
+describe("subdivision across simple and compound meters", () => {
+  const { tuner: tunerStore } = require("../../src/lib/tuner/store");
+  const { get } = require("svelte/store");
+  const sub = () => get(tunerStore).subdivision;
+  const go = (id: string, s?: number) => {
+    tunerStore.setMeter(id);
+    if (s !== undefined) tunerStore.setSubdivision(s);
+  };
+
+  test("eighths in 4/4 stay eighths after a visit to 6/8", () => {
+    go("4/4", 2);
+    go("6/8");
+    expect(sub()).toBe(3);
+    go("4/4");
+    expect(sub()).toBe(2);
+  });
+
+  test("sixteenths map 4 -> 6 -> 4", () => {
+    go("4/4", 4);
+    go("12/8");
+    expect(sub()).toBe(6);
+    go("3/4");
+    expect(sub()).toBe(4);
+  });
+
+  test("same-kind moves are unchanged", () => {
+    go("4/4", 3);
+    go("3/4");
+    expect(sub()).toBe(3);
+    go("6/8", 3);
+    go("9/8");
+    expect(sub()).toBe(3);
+    go("4/4", 1);
+    go("6/8");
+    expect(sub()).toBe(1);
+  });
+});

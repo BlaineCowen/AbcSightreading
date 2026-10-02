@@ -4,7 +4,7 @@ import { A4_DEFAULT, clampA4 } from "./pitch";
 import { BPM_MAX, BPM_MIN } from "./metronome";
 import type { Sensitivity } from "./pitch-tracker";
 import type { Difficulty, Direction } from "./scale-challenge";
-import { meterById } from "./meters";
+import { carrySubdivision, meterById } from "./meters";
 import { DEFAULT_CLICK_SOUND, toClickSound, type ClickSound } from "./click-sounds";
 
 /**
@@ -207,17 +207,19 @@ export const tuner = {
   setClickSound: (clickSound: ClickSound) => set({ clickSound }),
   /**
    * A time signature: its beat count, and a subdivision that makes sense in it
-   * - the one already chosen if the meter has it, else the meter's own (6/8
+   * - the one already chosen if the meter has it (carried by meaning across
+   * simple and compound: eighths stay eighths), else the meter's own (6/8
    * starts on its three eighths).
    */
   setMeter: (id: string) =>
     state.update((s) => {
       const m = meterById(id);
+      const kept = carrySubdivision(meterById(s.meter), m, s.subdivision);
       return {
         ...s,
         meter: m.id,
         beatsPerBar: m.beats,
-        subdivision: m.subdivisions.includes(s.subdivision) ? s.subdivision : m.defaultSubdivision,
+        subdivision: m.subdivisions.includes(kept) ? kept : m.defaultSubdivision,
       };
     }),
   setSubdivision: (subdivision: number) => set({ subdivision }),
