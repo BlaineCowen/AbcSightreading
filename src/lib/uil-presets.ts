@@ -23,8 +23,8 @@ export interface UILPreset {
    *
    * These were stated in the criteria and nowhere in the code, so choosing a
    * level left every meter available - level 2 and 3 are 3/4 and 4/4 only, and
-   * both offered 2/4. Listed as the app spells them, so 6/8 at level 4 is
-   * absent because the page does not offer compound meters at all.
+   * both offered 2/4. UIL choir sight-reading is simple meter only, so no level
+   * lists a compound meter (the criteria once said 6/8 at level 4, in error).
    */
   allowedMeters: string[];
   /** [min, max] measure count */

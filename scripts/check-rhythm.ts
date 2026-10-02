@@ -144,39 +144,43 @@ function selections(timeSig: TimeSig): Rhythm[][] {
 function checkMeasuresAndCompleteness() {
   let checked = 0;
   for (const timeSig of EVERY_TIME_SIG) {
-    for (const ties of [false, true]) {
-      for (const set of selections(timeSig)) {
-        const label = `${timeSig.name} [${set.map((r) => r.name).join(" + ")}] ties=${ties}`;
-        const total = 4 * timeSig.tsPerMeasure;
+    // Compound also gets eight bars: its search fills beat by beat, and a
+    // phrase block of four does not reach the two-phrase case.
+    for (const measures of meterKindOf(timeSig) === "compound" ? [4, 8] : [4]) {
+      for (const ties of [false, true]) {
+        for (const set of selections(timeSig)) {
+          const label = `${timeSig.name} [${set.map((r) => r.name).join(" + ")}] ties=${ties} ${measures}m`;
+          const total = measures * timeSig.tsPerMeasure;
 
-        // The generator picks randomly, so give it a few tries before believing
-        // a refusal.
-        let body: string | null = null;
-        for (let i = 0; i < 4 && !body; i++) {
-          body = generate({ rhythms: set, timeSig, ties, measures: 4 });
-        }
-        checked++;
-
-        const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties, timeSig.beatUnits);
-        if (!!body !== canSolve) {
-          fail(
-            `completeness: ${label} generator=${body ? "ok" : "refused"} solver=${canSolve ? "solvable" : "impossible"}`
-          );
-          continue;
-        }
-        if (!body) continue;
-
-        for (const measure of measuresOf(body)) {
-          const sum = durationsIn(measure).reduce((a, b) => a + b, 0);
-          if (sum !== timeSig.tsPerMeasure) {
-            fail(
-              `well-formed: ${label} measure sums to ${sum}, want ${timeSig.tsPerMeasure}  (${measure})`
-            );
-            break;
+          // The generator picks randomly, so give it a few tries before believing
+          // a refusal.
+          let body: string | null = null;
+          for (let i = 0; i < 4 && !body; i++) {
+            body = generate({ rhythms: set, timeSig, ties, measures });
           }
-          if (meterKindOf(timeSig) === "compound" && crossesABeat(measure, timeSig.beatUnits)) {
-            fail(`beats: ${label} a figure crosses a dotted-quarter beat  (${measure})`);
-            break;
+          checked++;
+
+          const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties, timeSig.beatUnits);
+          if (!!body !== canSolve) {
+            fail(
+              `completeness: ${label} generator=${body ? "ok" : "refused"} solver=${canSolve ? "solvable" : "impossible"}`
+            );
+            continue;
+          }
+          if (!body) continue;
+
+          for (const measure of measuresOf(body)) {
+            const sum = durationsIn(measure).reduce((a, b) => a + b, 0);
+            if (sum !== timeSig.tsPerMeasure) {
+              fail(
+                `well-formed: ${label} measure sums to ${sum}, want ${timeSig.tsPerMeasure}  (${measure})`
+              );
+              break;
+            }
+            if (meterKindOf(timeSig) === "compound" && crossesABeat(measure, timeSig.beatUnits)) {
+              fail(`beats: ${label} a figure crosses a dotted-quarter beat  (${measure})`);
+              break;
+            }
           }
         }
       }

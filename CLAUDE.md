@@ -61,6 +61,11 @@ when one fails:
 `generateUnison.test.ts` whose assertion compares semitone offsets to
 scale-degree indices.
 
+On bun 1.3.0 six tests in `tests/unit/exercise-link.test.ts` fail (four choral
+byte-for-byte, the full-length piece, unison "a link is short"): the runtime has
+no `CompressionStream`, so `packExercise` falls back to codec 0. That is the
+environment, not a regression; any other failure is real.
+
 The UI itself is still validated manually via the browser. Rhythm generation
 additionally has property checks, where a wrong answer is quiet:
 a malformed measure still renders, a misaligned lyric still prints, a note tied
@@ -68,11 +73,12 @@ across a barline still plays. `scripts/check-rhythm.ts` asserts those properties
 directly against the generator (no dev server needed), over every one- and
 two-rhythm selection in each time signature with ties on and off:
 
-- every emitted measure sums to exactly one measure
+- every emitted measure sums to exactly one measure (2/4, 3/4, 4/4, 6/8, 9/8, 12/8), and in compound meter no figure crosses a beat
 - generation succeeds on **exactly** the selections a reference solver proves
   solvable — this is what catches a dead end, where the search fails on
   something a different route would have filled
 - a note split across a barline never lands on a dotted note
+- a compound tie joins whole dotted-quarter beats
 - the `w:` lyric line keeps one slot per ABC note element, so ties do not shift
   solfège
 - each rhythm-syllable system spells the standard figures correctly
@@ -85,9 +91,10 @@ in the generator and the corresponding check should fail.
 
 `scripts/sweep.ts` walks the configuration space a user can actually reach -
 every UIL level with its own voicings, keys, chords, rhythms, ranges and max
-skip, across all three meters, every measure count the picker offers, all three
-voice textures, and both unison modes - and reports the failure rate per cell.
-About 1,800 cells; `RUNS` (default 12) exercises each.
+skip, across all three simple meters, every measure count the picker offers, all
+three voice textures, and both unison modes - which also cover Unison's compound
+meters (6/8, 9/8, 12/8, Core rhythms, Counting syllables) - and reports the
+failure rate per cell. 1,910 cells; `RUNS` (default 12) exercises each.
 
 Run it after touching generation. It exists because narrow checks lie: every
 earlier "0% failures" in this project was measured at 4/4, eight bars, with
@@ -98,7 +105,9 @@ the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
 `STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **0 failures in
-22,020 exercises** as shipped, measured 30 September 2026 after the bass was
+22,920 exercises** as shipped (1,910 cells, 75 of them the compound Unison
+cells, all at 0), measured 1 October 2026 after compound meter. Before that, 0
+failures in 22,020 exercises on 30 September 2026 after the bass was
 allowed to leave an eighth by leap (below). 1 failure on 29 September once a failed draw
 is drawn again (generateChoral `FAILED_DRAW_RETRIES`): the rhythm is drawn once
 per attempt and all ten progressions are fitted to it, so a rhythm that cannot
@@ -199,6 +208,29 @@ With Move eighths off a ti-ti is sung on one pitch, and only inside the pair:
 any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
+
+### Meters
+
+`src/lib/meter.ts` is the one meter model: 2/4, 3/4, 4/4 and the compound 6/8,
+9/8, 12/8, whose beat is the dotted quarter (`beatUnits` 12, three eighths a
+beat). It is derived from the metronome's table (`src/lib/tuner/meters.ts`).
+Beats, beat length, subdivision and the tempo mark (`Q:3/8=` in compound) all
+come from it - never from the top number (12/8 is four beats) and never from
+bar length (3/4 and 6/8 are both 24 units). A `TimeSignature` carries
+`beatUnits` (it was `beamGroupSize`; old links still open).
+
+Compound meter is Unison and rhythm-only; Choral offers simple meters only.
+Compound figures (`meterKind: "compound"` in rhythms.ts) fill whole beats, and
+`src/lib/compound-rhythm.ts` fills bars beat by beat with an exact search, so
+it fails exactly where `rhythm-feasibility`'s compound branch finds no tiling.
+abcjs counts `qpm` in the meter's own beat, so playback passes the page's BPM
+unchanged; a MIDI file needs the Q: line, which `midiFileFor` writes.
+UIL choir sight-reading is simple meter only, so no UIL preset lists a compound
+meter.
+
+`tests/unit/meter-regression.test.ts` freezes simple-meter Unison and Choral
+output for fixed seeds. Never update its snapshot to make it pass: a failure
+means a change reached simple meter.
 
 ## abcTuner
 

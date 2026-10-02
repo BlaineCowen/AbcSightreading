@@ -3,7 +3,8 @@
  *
  * Not a unit test: it walks the configuration space a user can actually reach -
  * every UIL level, with that level's own voicings, keys, chords, rhythms,
- * ranges and max skip, across every meter, texture and a spread of lengths -
+ * ranges and max skip, across every meter, texture and a spread of lengths,
+ * and Unison's compound meters (6/8, 9/8, 12/8) -
  * and reports the failure rate per cell.
  *
  * It exists because narrow checks lie. Every earlier "0% failures" in this
@@ -17,6 +18,8 @@ import { uilPresets } from "../src/lib/uil-presets";
 import { chords as fullChordSet } from "../src/resources/chords";
 import { rhythms as allRhythms } from "../src/resources/rhythms";
 import { canFillExercise } from "../src/lib/rhythm-feasibility";
+import { COMPOUND_METER_NAMES, timeSignatureFor } from "../src/lib/meter";
+import { DEFAULT_RHYTHM_NAMES } from "../src/lib/selectable-rhythms";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "./generation-fixtures";
 
 const RUNS = Number(process.env.RUNS ?? 12);
@@ -137,23 +140,33 @@ for (const voiceTexture of ["full", "staggered"]) {
 }
 
 // ----------------------------------------------------------------- unison
-const UNISON_RHYTHMS = ["quarter", "half", "eighthEighth", "dotHalf"];
+// One loop over every meter Unison offers. Choral offers no compound meter;
+// Unison and rhythm-only do, with the Core set the picker starts on, and
+// Counting (Eastman: 1 la li), the system that spells compound beats.
+const UNISON_METERS = [
+  { tsName: "4/4", rhythmNames: ["quarter", "half", "eighthEighth", "dotHalf"], syllableSystemId: "kodaly" },
+  { tsName: "3/4", rhythmNames: ["quarter", "half", "eighthEighth", "dotHalf"], syllableSystemId: "kodaly" },
+  { tsName: "2/4", rhythmNames: ["quarter", "half", "eighthEighth", "dotHalf"], syllableSystemId: "kodaly" },
+  ...COMPOUND_METER_NAMES.map((tsName) => ({
+    tsName, rhythmNames: DEFAULT_RHYTHM_NAMES.compound, syllableSystemId: "counting",
+  })),
+];
 for (const rhythmOnly of [false, true]) {
-  for (const tsName of Object.keys(TIME_SIGS)) {
+  for (const { tsName, rhythmNames, syllableSystemId } of UNISON_METERS) {
     for (const clef of ["treble", "bass", "alto", "tenor"]) {
       for (const measures of [1, 2, 4, 8, 16]) {
         if (rhythmOnly && clef !== "treble") continue; // one staff, one clef
         run(`unison ${rhythmOnly ? "rhythm" : "pitched"} | ${clef} | ${tsName} | ${measures}m`, () => {
           createNewSr({
             bpm: 60, clef, selectedClef: clef,
-            timeSig: TIME_SIGS[tsName], selectedTimeSignature: tsName,
+            timeSig: timeSignatureFor(tsName), selectedTimeSignature: tsName,
             measures, maxSkip: 4, tempo: 60, range: { min: 14, max: 21 },
-            selectedRhythms: UNISON_RHYTHMS,
-            rhythms: allRhythms.filter((r) => UNISON_RHYTHMS.includes(r.name)),
+            selectedRhythms: rhythmNames,
+            rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
             scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]),
             key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],
             showSolfege: !rhythmOnly, rhythmOnly,
-            showRhythmSyllables: true, syllableSystemId: "kodaly",
+            showRhythmSyllables: true, syllableSystemId,
             partsObject: { numofParts: 1, parts: { Unison: {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
           } as any);
