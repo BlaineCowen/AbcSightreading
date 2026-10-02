@@ -25,6 +25,13 @@
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
+  /**
+   * The note the tempo counts, "♩" or "♩.", shown as "♩. = 60". Omit it and
+   * the bar says BPM, as Choral's does.
+   */
+  export let beatSymbol: string | null = null;
+  $: tempoLabel = beatSymbol ? `${beatSymbol} =` : "BPM";
+  $: tempoAria = beatSymbol === "♩." ? "Tempo in dotted-quarter beats per minute" : "Tempo in beats per minute";
   export let looping: boolean = false;
   export let voiceNames: string[] = [];
   export let mutedVoices: Set<string> = new Set();
@@ -329,7 +336,7 @@
     <!-- BPM -->
     <div class="flex items-center gap-1 sm:gap-2">
       <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
-      <span class="text-xs text-sr-bar-muted uppercase tracking-wide hidden sm:inline xl:hidden 2xl:inline">BPM</span>
+      <span class="text-xs text-sr-bar-muted tracking-wide hidden sm:inline xl:hidden 2xl:inline {beatSymbol ? '' : 'uppercase'}">{tempoLabel}</span>
       <button
         class={stepBtn}
         on:click={() => (onBpmCommit ?? onBpmChange)(Math.max(40, bpm - 5))}
@@ -362,7 +369,7 @@
         on:focus={(e) => e.currentTarget.select()}
         class="bpm-field font-bold text-sm w-8 text-center bg-transparent text-sr-bar-ink rounded p-0
                border-0 focus:outline-none focus:ring-2 focus:ring-sr-bar-on hover:bg-sr-bar-btn"
-        aria-label="Tempo in beats per minute"
+        aria-label={tempoAria}
         title="Type a tempo, 40 to 200"
       />
     </div>
@@ -386,7 +393,7 @@
              max-h-[50dvh] overflow-y-auto overscroll-contain"
     >
       <div class="flex xl:hidden items-center gap-2 w-full">
-        <span class="text-xs text-sr-bar-muted uppercase tracking-wide">BPM</span>
+        <span class="text-xs text-sr-bar-muted tracking-wide {beatSymbol ? '' : 'uppercase'}">{tempoLabel}</span>
         <input
           type="range"
           min="40"

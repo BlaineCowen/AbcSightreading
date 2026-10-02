@@ -38,7 +38,7 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
-  import { beatsOf, tempoField, timeSignaturesFor } from "../lib/meter";
+  import { beatsOf, beatSymbolOf, tempoField, timeSignaturesFor } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -1191,6 +1191,8 @@
       audioContext: audioContext, // Pass our context to abcjs
       visualObj: currentTune,
       options: {
+        // abcjs counts qpm in the meter's beat - the dotted quarter in 6/8 -
+        // so the page's BPM goes in unchanged (tests/unit/compound-playback.test.ts).
         qpm: tempo,
         // Serve the samples from our own origin. abcjs defaults to
         // paulrosen.github.io, which locked-down networks block - and a blocked
@@ -1649,6 +1651,8 @@
           behavior: "smooth",
         });
       },
+      // abcjs counts qpm in the meter's beat - the dotted quarter in 6/8 -
+      // so the page's BPM goes in unchanged (tests/unit/compound-playback.test.ts).
       qpm: tempo,
       extraMeasuresAtBeginning: countInMeasures(playedMeter()), // the count-in, where the metronome plays
       lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
@@ -4021,6 +4025,7 @@
   <PlaybackBar
     {isPlaying}
     bpm={tempo}
+    beatSymbol={beatSymbolOf(selectedTimeSignature)}
     {looping}
     voiceNames={[]}
     mutedVoices={new Set()}
