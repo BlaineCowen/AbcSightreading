@@ -204,7 +204,10 @@ not always do. Chromatic chords only steer the line when their altered note is
 selected. Before that, a do-re-mi exercise was two-thirds repeated notes; and
 when the line was made to end on do and steered there, 1 2 3 5 6 gave so and la
 a tenth of the line each against do's third (now each 12-29%).
-With Move eighths off a ti-ti is sung on one pitch, and only inside the pair:
+Max 8th skip and Max 16th skip (`src/lib/short-note-skips.ts`, replacing the old
+"Move 8th Notes" switch) cap the moves between the short notes inside a figure;
+a figure's first note follows Max skip or the exact skips. At 0 (what Move
+eighths off maps to in old presets and links) a ti-ti is sung on one pitch, and only inside the pair:
 any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
