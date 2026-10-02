@@ -38,7 +38,16 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
-  import { beatsOf, beatSymbolOf, tempoField, timeSignaturesFor } from "../lib/meter";
+  import {
+    beatsOf,
+    beatSymbolOf,
+    COMPOUND_METER_NAMES,
+    EXERCISE_METER_NAMES,
+    meterKindOf,
+    SIMPLE_METER_NAMES,
+    tempoField,
+    timeSignaturesFor,
+  } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -59,7 +68,16 @@
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
-  import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
+  import {
+    DEFAULT_RHYTHM_NAMES,
+    resolveRhythmSelection,
+    rhythmPickerGroups,
+    selectableCompoundRhythms,
+    selectableRhythms,
+    selectableRhythmsFor,
+    switchRhythmKind,
+    type RhythmMemory,
+  } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
     metronomeClickFor,
@@ -102,9 +120,12 @@
 
   // --- Static Options ---
   const possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
-  // Simple meter only until the compound vocabulary lands (the meter picker
-  // shows these keys, in this order).
-  const timeSignatures = timeSignaturesFor(["4/4", "3/4", "2/4"]);
+  const timeSignatures = timeSignaturesFor(EXERCISE_METER_NAMES);
+  /** The meter picker: simple meters, then compound. */
+  const meterGroups = [
+    { label: "Simple", names: SIMPLE_METER_NAMES },
+    { label: "Compound", names: COMPOUND_METER_NAMES },
+  ];
   const clefOptions = ["treble", "bass", "alto", "tenor"];
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   const cursorModes = ["off", "smooth", "beat", "note"] as const;
@@ -413,40 +434,20 @@
     toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n");
   };
 
-  // The selectable set is shared with scripts/check-rhythm.ts, so the checks
-  // there exercise exactly what the UI offers.
-  let filterRhythms = selectableRhythms;
-
-  const DEFAULT_RHYTHM_NAMES = ["eighthEighth", "quarter"];
-
   /**
-   * Resolve saved rhythm names against the *selectable* set, not the full list.
-   * A stale link or an old save can name something the UI never offers - a
-   * sixteenth rest, whose 2-unit length is shorter than a beat - and letting one
-   * through puts notes off the beat grid that the barlines, the rhythm syllables
-   * and the fill's measure arithmetic all assume.
-   *
-   * Falls back to the defaults when nothing resolves: the previous `|| [...]`
-   * could never fire, because .filter() always returns an array, so a bad
-   * ?rhythms= left the selection empty and generation refused outright.
+   * Resolve saved rhythm names against what the meter's kind offers - see
+   * resolveRhythmSelection. Never empty: a bad ?rhythms= falls back to the
+   * kind's defaults.
    */
-  function resolveSelectedRhythms(names: unknown): Rhythm[] {
-    const wanted = Array.isArray(names) ? names : [];
-    const resolved = wanted
-      .map((name) => filterRhythms.find((r) => r.name === name))
-      .filter(Boolean) as Rhythm[];
-    if (resolved.length > 0) return resolved;
-    return DEFAULT_RHYTHM_NAMES.map((name) =>
-      filterRhythms.find((r) => r.name === name)
-    ).filter(Boolean) as Rhythm[];
+  function resolveSelectedRhythms(names: unknown, meter: string = "4/4"): Rhythm[] {
+    return resolveRhythmSelection(names, meterKindOf(meter));
   }
 
   const rhythmSvgs = Object.fromEntries(
-    selectableRhythms
-      .map((rhythm) => [
-        rhythm.name,
-        import(`../assets/svgs/${rhythm.name}.svg?raw`),
-      ])
+    [...selectableRhythms, ...selectableCompoundRhythms].map((rhythm) => [
+      rhythm.name,
+      import(`../assets/svgs/${rhythm.name}.svg?raw`),
+    ])
   );
 
   /**
@@ -478,7 +479,7 @@
       selectedSharpDegrees: new Set<number>(options.selectedSharpDegrees || []),
       selectedFlatDegrees: new Set<number>(options.selectedFlatDegrees || []),
       selectedKey: options.selectedKey || "F",
-      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms),
+      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms, ts),
       selectedTimeSignature: ts,
       measures: options.measures || 8,
       maxSkip: options.maxSkip || 4,
@@ -617,7 +618,7 @@
       return;
     }
     rhythmOnly = u.rhythmOnly;
-    selectedRhythms = resolveSelectedRhythms(u.selectedRhythms);
+    selectedRhythms = resolveSelectedRhythms(u.selectedRhythms, u.selectedTimeSignature);
     selectedTimeSignature = u.selectedTimeSignature;
     measures = u.measures;
     moveEighthNotes = u.moveEighthNotes;
@@ -698,6 +699,22 @@
   let selectedKey = initialState.selectedKey;
   let selectedRhythms = initialState.selectedRhythms;
   let selectedTimeSignature = initialState.selectedTimeSignature;
+  /** The picker follows the meter's kind: compound figures in 6/8, 9/8, 12/8. */
+  $: filterRhythms = selectableRhythmsFor(meterKindOf(selectedTimeSignature));
+  /** Each kind's selection while the reader is in the other (switchRhythmKind). */
+  let rhythmMemory: RhythmMemory = {};
+
+  /** Choose a meter; crossing between simple and compound swaps the rhythm selection. */
+  function chooseMeter(ts: string) {
+    const from = meterKindOf(selectedTimeSignature);
+    const to = meterKindOf(ts);
+    if (from !== to) {
+      const switched = switchRhythmKind(rhythmMemory, from, to, selectedRhythms.map((r: Rhythm) => r.name));
+      rhythmMemory = switched.memory;
+      selectedRhythms = switched.selection;
+    }
+    selectedTimeSignature = ts;
+  }
   let measures = initialState.measures;
   let maxSkip = initialState.maxSkip;
   let bpm = initialState.bpm;
@@ -1029,12 +1046,11 @@
   const DEFAULTS = {
     key: 'F', clef: 'treble', timeSig: '4/4', measures: 8,
     maxSkip: 4, scaleDegrees: [1, 3, 5], range: DEFAULT_TREBLE_RANGE,
-    rhythmNames: ['eighthEighth', 'quarter'],
   };
   $: setupDirty = selectedKey !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
     selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map((r: Rhythm) => r.name).sort()) !==
-    JSON.stringify([...DEFAULTS.rhythmNames].sort());
+    JSON.stringify([...DEFAULT_RHYTHM_NAMES[meterKindOf(selectedTimeSignature)]].sort());
   $: notesDirty = maxSkip !== DEFAULTS.maxSkip ||
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
@@ -3085,7 +3101,7 @@
       currentTune = null;
 
       rhythmOnly = score.staff === "rhythm";
-      if (score.timeSig.name in timeSignatures) selectedTimeSignature = score.timeSig.name;
+      if (score.timeSig.name in timeSignatures) chooseMeter(score.timeSig.name);
       if (score.key && possibleKeys.includes(score.key)) selectedKey = score.key;
       if (score.clef && clefOptions.includes(score.clef)) selectedClef = score.clef;
 
@@ -3361,14 +3377,23 @@
 
             <div class="space-y-2">
               <p class="sr-label">Time Signature</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
-                {#each Object.keys(timeSignatures) as ts}
-                  <button
-                    class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''}"
-                    on:click={() => { selectedTimeSignature = ts; }}
-                  >{ts}</button>
-                {/each}
-              </div>
+              {#each meterGroups as group}
+                <p class="text-xs text-sr-faint">{group.label}</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature: {group.label}">
+                  {#each group.names as ts}
+                    <button
+                      class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''}"
+                      aria-pressed={selectedTimeSignature === ts}
+                      on:click={() => chooseMeter(ts)}
+                    >{ts}</button>
+                  {/each}
+                </div>
+              {/each}
+              {#if meterKindOf(selectedTimeSignature) === "compound"}
+                <p class="text-xs text-sr-faint">
+                  Felt in dotted-quarter beats: the tempo counts ♩., and the rhythms are compound figures.
+                </p>
+              {/if}
             </div>
 
             <div class="space-y-2">

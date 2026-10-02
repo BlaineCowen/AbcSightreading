@@ -115,3 +115,46 @@ export function rhythmPickerGroups<R extends Rhythm>(
     { label: "Rests" as const, rhythms: ordered(list.filter((r) => containsRest(r))) },
   ].filter((g) => g.rhythms.length > 0);
 }
+
+/** What a fresh selection is, per kind: eighths and quarters, or compound's Core set. */
+export const DEFAULT_RHYTHM_NAMES: Record<MeterKind, string[]> = {
+  simple: ["eighthEighth", "quarter"],
+  compound: selectableCompoundRhythms.filter((r) => r.pickerGroup === "Core").map((r) => r.name),
+};
+
+/**
+ * Saved rhythm names, resolved against the figures this kind of meter offers.
+ * A preset, link or old save can name the other kind's figures - or nothing
+ * real - and a selection must never come back empty, so that falls back to the
+ * kind's defaults.
+ */
+export function resolveRhythmSelection(names: unknown, kind: MeterKind): Rhythm[] {
+  const pool = selectableRhythmsFor(kind);
+  const wanted = Array.isArray(names) ? names : [];
+  const resolved = wanted
+    .map((name) => pool.find((r) => r.name === name))
+    .filter((r): r is Rhythm => r !== undefined);
+  if (resolved.length > 0) return resolved;
+  return DEFAULT_RHYTHM_NAMES[kind]
+    .map((name) => pool.find((r) => r.name === name))
+    .filter((r): r is Rhythm => r !== undefined);
+}
+
+/** Each kind's last selection, kept while the reader moves between them. */
+export type RhythmMemory = Partial<Record<MeterKind, string[]>>;
+
+/**
+ * Moving between a simple and a compound meter puts away one kind's selection
+ * and brings back the other's - Core, the first time. 4/4 -> 6/8 -> 4/4
+ * restores what the teacher had ticked in 4/4.
+ */
+export function switchRhythmKind(
+  memory: RhythmMemory,
+  from: MeterKind,
+  to: MeterKind,
+  current: string[]
+): { memory: RhythmMemory; selection: Rhythm[] } {
+  if (from === to) return { memory, selection: resolveRhythmSelection(current, to) };
+  const next: RhythmMemory = { ...memory, [from]: [...current] };
+  return { memory: next, selection: resolveRhythmSelection(next[to] ?? [], to) };
+}

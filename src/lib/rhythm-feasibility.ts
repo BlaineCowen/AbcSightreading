@@ -29,7 +29,11 @@ export function canFillExercise(
   // rule here. Kept in step with compound-rhythm.ts's fill, but written out
   // separately on purpose: this is the reference that fill is checked against.
   if (beatUnits === 12) {
-    const usable = rhythms.filter((r) => r.totalValue > 0 && r.totalValue % beatUnits === 0);
+    // Only compound figures: a simple one (a dotted half is 24, two beats) can
+    // never stand in, because the two vocabularies never mix.
+    const usable = rhythms.filter(
+      (r) => r.meterKind === "compound" && r.totalValue > 0 && r.totalValue % beatUnits === 0
+    );
     const seenAt = new Set<number>();
     const walkBeats = (pos: number): boolean => {
       if (pos === totalUnits) return true;
