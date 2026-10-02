@@ -43,6 +43,14 @@
   export let showBuiltins: boolean = true;
   /** Which list of saved presets this page reads and writes. Choral's by default. */
   export let store: string | undefined = undefined;
+  /**
+   * Built-in levels for this page beside the ladder - the Unison page's NYSSMA
+   * Voice levels. Empty, the tab is not shown.
+   */
+  export let nyssmaLevels: { id: string; label: string; short: string; summary: string }[] = [];
+  /** The NYSSMA level the settings came from, if any. */
+  export let activeNyssmaId: string | null = null;
+  export let onSelectNyssma: (id: string) => void = () => {};
 
   let savedPresets: SavedPreset<any>[] = [];
   let showSaveInput = false;
@@ -236,7 +244,7 @@
   }
 
   // ── The picker panel ─────────────────────────────────────────────────────
-  type Tab = 'steps' | 'uil' | 'mine';
+  type Tab = 'steps' | 'uil' | 'nyssma' | 'mine';
   let open = false;
   let tab: Tab = 'steps';
   let root: HTMLElement;
@@ -246,6 +254,7 @@
   $: tabs = [
     { id: 'steps', label: 'Step by step' },
     ...(uilOffered ? [{ id: 'uil', label: 'UIL levels' }] : []),
+    ...(nyssmaLevels.length ? [{ id: 'nyssma', label: 'NYSSMA Voice' }] : []),
     { id: 'mine', label: `My presets${savedPresets.length + otherPresets.length ? ` (${savedPresets.length + otherPresets.length})` : ''}` },
   ] as { id: Tab; label: string }[];
 
@@ -260,6 +269,7 @@
   /** Opens on the tab the active preset is in, and scrolls it into view. */
   async function openPanel() {
     tab = activeStepId ? 'steps' : activeIsSaved ? 'mine'
+      : activeNyssmaId && nyssmaLevels.length ? 'nyssma'
       : uilOffered && Object.values(uilPresets).some(p => p.label === activeLabel) ? 'uil'
       : tab;
     open = true;
@@ -514,6 +524,27 @@
           </ul>
           <p class="text-xs text-sr-muted px-2 pt-2">
             What each Texas UIL level asks for. For building up to one, use Step by step.
+          </p>
+        {:else if tab === 'nyssma'}
+          <ul>
+            {#each nyssmaLevels as level}
+              <li>
+                <button
+                  type="button"
+                  class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-track {level.id === activeNyssmaId ? 'bg-sr-tint' : ''}"
+                  aria-current={level.id === activeNyssmaId ? 'true' : undefined}
+                  on:click={() => choose(() => onSelectNyssma(level.id))}
+                >
+                  <span class="block text-sm text-sr-ink font-medium">{level.short}</span>
+                  <span class="block text-xs text-sr-muted">{level.summary}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <p class="text-xs text-sr-muted px-2 pt-2">
+            NYSSMA solo voice sight-reading criteria (Manual, Edition 33). Each level sets keys,
+            meters, skips, rhythms, tempo and dynamics; your clef and range stay. Level VI
+            comes later.
           </p>
         {:else}
           {#if savedPresets.length === 0 && otherPresets.length === 0}

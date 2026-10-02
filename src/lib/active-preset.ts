@@ -15,7 +15,7 @@ import type { SavedPreset } from "./preset-storage";
  */
 export type ActivePresetRecord = {
   label: string;
-  /** "UIL 3", for a UIL level. */
+  /** "UIL 3" for a UIL level (Choral), or a NYSSMA level id (Unison, nyssma-presets.ts). */
   level?: string | null;
   stepId?: string | null;
   /** A saved preset, whole, so Revert works without loading the list. */

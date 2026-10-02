@@ -77,6 +77,7 @@
   import {
     readShortSkipParams, setShortSkip, shortSkipsFrom, writeShortSkipParams, type SkipStepper,
   } from "../lib/short-note-skips";
+  import { nyssmaById, nyssmaVoiceLevels, type NyssmaLevel } from "../lib/nyssma-presets";
   import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import {
     drawFromPool, meterPoolClick, parsePool, parseSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
@@ -575,6 +576,8 @@
   let activeSavedId: string | null = null;
   /** The ladder step the settings came from, when they came from one. */
   let activeStepId: string | null = null;
+  /** The NYSSMA level the settings came from, when they came from one. */
+  let activeNyssmaId: string | null = null;
   /** Loads the active preset or step again, for Revert. */
   let revertPreset: (() => void) | undefined = undefined;
   /**
@@ -649,6 +652,7 @@
     activeSavedId = preset.id;
     activeSavedPreset = preset;
     activeStepId = null;
+    activeNyssmaId = null;
     revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
@@ -701,7 +705,57 @@
     activePresetLabel = stepLabel(step);
     activeSavedId = null;
     activeStepId = step.id;
+    activeNyssmaId = null;
     revertPreset = () => applyLadderStep(step);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
+  }
+
+  /**
+   * A NYSSMA Voice level (nyssma-presets.ts): the keys and meters to draw
+   * from, its exact skips and what they land on, the Max / 8th / 16th skips,
+   * rhythms, tempo, dynamics, length. Clef and range stay the teacher's - the
+   * level's span around do is placed on the do at or above the range they had,
+   * and again for each key drawn. Like a ladder step it sets the controls and
+   * leaves the exercise.
+   */
+  function applyNyssmaLevel(level: NyssmaLevel) {
+    rhythmOnly = false;
+    // The meter first: from a compound meter it puts that selection away
+    // (chooseMeter), then the level's rhythms replace the simple one.
+    chooseMeter(level.meters[0]);
+    selectedRhythms = resolveSelectedRhythms(level.rhythms, level.meters[0]);
+    selectedTimeSignatures = new Set(level.meters);
+    selectedKeys = new Set(level.keys);
+    selectedKey = level.keys[0];
+    measures = level.measures;
+    handleBpmChange(level.bpm);
+    allowTiesAcrossBarline = false;
+    selectedScaleDegrees = new Set(level.scaleDegrees);
+    selectedSharpDegrees = new Set();
+    selectedFlatDegrees = new Set();
+    maxSkip = level.maxSkip;
+    max8th = level.max8th;
+    max16th = level.max16th;
+    shortSkipsLinked = level.shortSkipsLinked;
+    skips = {
+      ...level.skips,
+      patterns: [...level.skips.patterns],
+      extraSkips: level.skips.extraSkips.map((m) => ({ ...m })),
+      landOn: [...level.skips.landOn],
+    };
+    dynamicsSet = [...level.dynamics];
+    // Span and anchor go together. The anchor is the teacher's range - but not
+    // a range a level (or a preset with a span) already placed, or choosing a
+    // level twice would walk it. A range set by hand cleared the span
+    // (handleRangeChange), so it is read afresh.
+    if (!rangeSpan) rangeAnchor = selectedRange.min;
+    rangeSpan = [...level.span] as Span;
+    selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+    activePresetLabel = level.label;
+    activeNyssmaId = level.id;
+    activeSavedId = null;
+    activeStepId = null;
+    revertPreset = () => applyNyssmaLevel(level);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
@@ -3405,7 +3459,7 @@
     rememberActivePreset(
       "unison",
       activePresetLabel
-        ? { label: activePresetLabel, stepId: activeStepId, saved: activeSavedId ? activeSavedPreset : null, sig: activePresetSignature }
+        ? { label: activePresetLabel, stepId: activeStepId, level: activeNyssmaId, saved: activeSavedId ? activeSavedPreset : null, sig: activePresetSignature }
         : null
     );
   }
@@ -3423,6 +3477,12 @@
       activeSavedPreset = saved;
       activeStepId = null;
       revertPreset = () => applySavedPreset(saved);
+    } else if (rec.level && nyssmaById[rec.level]) {
+      const level = nyssmaById[rec.level];
+      activeNyssmaId = level.id;
+      activeSavedId = null;
+      activeStepId = null;
+      revertPreset = () => applyNyssmaLevel(level);
     } else {
       return;
     }
@@ -3496,8 +3556,8 @@
 
 <div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + 1rem)">
   <!-- Preset bar: the same one as choral, over unison's own saved list. The
-       built-in UIL and difficulty presets are choral settings, so they are not
-       offered here. -->
+       UIL levels are Choral's built-ins, so they are not offered here; the
+       NYSSMA Voice levels are this page's (nyssma-presets.ts). -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
 
@@ -3515,6 +3575,9 @@
       page="unison"
       onSelectStep={applyLadderStep}
       {activeStepId}
+      nyssmaLevels={nyssmaVoiceLevels}
+      {activeNyssmaId}
+      onSelectNyssma={(id) => { if (nyssmaById[id]) applyNyssmaLevel(nyssmaById[id]); }}
       currentParams={() => currentOptions}
       onSelectSaved={applySavedPreset}
       onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
