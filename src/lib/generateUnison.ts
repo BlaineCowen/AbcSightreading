@@ -662,12 +662,17 @@ function generateChordProgression(
       ...bassRangeNoteList.filter(isHome).map((n) => Math.abs(n.pitchValue - note.pitchValue))
     );
   /** Whether a home note other than this one is within a skip of it. */
-  const leadsHome = (note: Note) =>
+  const leadsHome = (note: Note, chord: Chord | undefined) =>
     bassRangeNoteList.some(
       (n) =>
         isHome(n) &&
         n.pitchValue !== note.pitchValue &&
-        isAllowedMove(note, n, randNoteLengths[randNoteLengths.length - 1], policy)
+        isAllowedMove(
+          sungNote(note, chord),
+          sungNote(n, undefined),
+          randNoteLengths[randNoteLengths.length - 1],
+          policy
+        )
     );
 
   // console.log("=== CHORD PROGRESSION GENERATION START ===");
@@ -827,6 +832,17 @@ function generateChordProgression(
       ) {
         const prevChord = chordProgression[i - 1];
         chordProgression.push(prevChord);
+        bassNoteArray.push(bassNoteArray[i - 1]);
+        continue;
+      }
+
+      // A rest is not sung. In custom mode it holds the line where it was, so
+      // the next note's skip is measured from the note actually sung before
+      // the rest, and a rest cannot hide a skip the list forbids: do, rest,
+      // sol is do to sol. (Max skip mode is unchanged: there the snapshot in
+      // unison-skip-regression.test.ts holds the walk to what it always did.)
+      if (policy.kind === "custom" && i > 0 && (randRhythmObjects[i] as any)?.rest === true) {
+        chordProgression.push(chordProgression[i - 1]);
         bassNoteArray.push(bassNoteArray[i - 1]);
         continue;
       }
@@ -1074,7 +1090,7 @@ function generateChordProgression(
           // One from which home is in reach, so the line can end there. Only
           // the first of them was taken, so the same note came every time and
           // with the final often a repeat of it.
-          const leading = bassNoteToAdd.filter(leadsHome);
+          const leading = bassNoteToAdd.filter((n) => leadsHome(n, nextChord.chord));
           if (leading.length > 0) bassNoteToAdd = leading;
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
