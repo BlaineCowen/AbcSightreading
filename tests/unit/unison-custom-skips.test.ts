@@ -193,6 +193,12 @@ describe("custom skips in the generator", () => {
     // Steps only, and the range holds do alone among the selected notes.
     expect(() =>
       line({ kind: "custom", moves: [] }, { degrees: [1, 3, 5], range: { min: 14, max: 15 }, rhythms: ["quarter", "half"] })
-    ).toThrow(/skip/i);
+    ).toThrow(/get stuck on a note it cannot leave/);
+  });
+
+  test("with no do, mi or sol selected, custom mode gives the tonic message, as Max skip does", () => {
+    expect(() =>
+      line({ kind: "custom", moves: [] }, { degrees: [2, 4, 6], range: { min: 14, max: 21 }, rhythms: ["quarter", "half"] })
+    ).toThrow(/No tonic notes found/);
   });
 });

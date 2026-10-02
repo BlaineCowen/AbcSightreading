@@ -758,8 +758,9 @@ function generateChordProgression(
   // from sol is down to a do below the range and no neighbour is selected.
   // The line used to sit on it for the whole exercise. A note whose degree is
   // only selected altered is sung altered, so left by step. (Max skip mode
-  // keeps every pitch: livePitches returns them all.)
-  if (policy.kind === "custom") {
+  // keeps every pitch: livePitches returns them all.) With no home note in
+  // range at all, the tonic check below says so instead.
+  if (policy.kind === "custom" && bassRangeNoteList.some(isHome)) {
     const live = new Set(
       livePitches(
         bassRangeNoteList.map((n) => ({ ...n, chromatic: !scaleDegrees.includes(n.degree) })),
