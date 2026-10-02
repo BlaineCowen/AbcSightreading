@@ -257,3 +257,19 @@ describe("unison", () => {
     wellFormed(xml);
   });
 });
+
+describe("tempo in compound meter", () => {
+  test("a dotted-quarter metronome mark, and the sound in quarters", () => {
+    const xml = abcToMusicXml("X:1\nM:6/8\nL:1/32\nQ:3/8=60\nK:C\nB12 B12|\n");
+    expect(xml).toContain("<beat-unit>quarter</beat-unit>");
+    expect(xml).toContain("<beat-unit-dot/>");
+    expect(xml).toContain("<per-minute>60</per-minute>");
+    expect(xml).toContain('<sound tempo="90"/>');
+  });
+
+  test("simple meter is unchanged", () => {
+    const xml = abcToMusicXml("X:1\nM:4/4\nL:1/32\nQ:1/4=72\nK:C\nB8 B8 B8 B8|\n");
+    expect(xml).not.toContain("<beat-unit-dot/>");
+    expect(xml).toContain('<sound tempo="72"/>');
+  });
+});

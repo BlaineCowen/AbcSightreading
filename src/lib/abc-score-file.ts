@@ -17,6 +17,7 @@
  */
 
 import { ClefType } from "./types";
+import { tempoField } from "./meter";
 
 export type ScoreMeta = {
   title: string;
@@ -226,7 +227,7 @@ export function buildHeader(meta: ScoreMeta): string {
   if (meta.source) lines.push(`S:${fieldValue(meta.source)}`);
   lines.push(`M:${fieldValue(meta.meter || "4/4")}`);
   lines.push(`L:${UNIT_LENGTH}`);
-  lines.push(`Q:1/4=${meta.tempo ?? 72}`);
+  lines.push(tempoField(meta.meter || "4/4", meta.tempo ?? 72));
 
   const parts = voicePartsFor(meta.voicing);
   lines.push(`%%score ${parts.map((p) => p.id).join(" ")}`);

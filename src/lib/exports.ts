@@ -1,5 +1,6 @@
 import abcjs from "abcjs";
 import { withPlaybackTranspose } from "./transpose";
+import { tempoField } from "./meter";
 
 /**
  * The files the Print / Export menu hands over, built from the ABC on screen.
@@ -22,7 +23,10 @@ export type ExportType = keyof typeof EXPORT_TYPES;
  * voices, as for playback - `midiTranspose` never reached the tenor.
  */
 export function midiFileFor(abc: string, opts: { bpm: number; transpose?: number }): Uint8Array {
-  const [tune] = abcjs.parseOnly(withPlaybackTranspose(abc, opts.transpose ?? 0));
+  // The tempo goes into the ABC as well as qpm: for */8 meters abcjs's MIDI
+  // writer takes the tempo from the Q: line alone, and unison has none - a
+  // 6/8 file came out at 180 a quarter whatever the page said.
+  const [tune] = abcjs.parseOnly(withPlaybackTranspose(withTempo(abc, opts.bpm), opts.transpose ?? 0));
   const file = (abcjs.synth as any).getMidiFile(tune, {
     midiOutputType: "binary",
     qpm: opts.bpm,
@@ -33,9 +37,9 @@ export function midiFileFor(abc: string, opts: { bpm: number; transpose?: number
   return file;
 }
 
-/** The ABC with its tempo set, replacing a Q: line or adding one. */
+/** The ABC with its tempo set, counted in the meter's beat (Q:3/8 in compound), replacing a Q: line or adding one. */
 export function withTempo(abc: string, bpm: number): string {
-  const q = `Q:1/4=${Math.round(bpm)}`;
+  const q = tempoField(keyAndMeterOf(abc).meter, Math.round(bpm));
   if (/^Q:.*$/m.test(abc)) return abc.replace(/^Q:.*$/m, q);
   // A header field goes in the header: after L:, else M:, else X:.
   for (const field of ["L", "M", "X"]) {

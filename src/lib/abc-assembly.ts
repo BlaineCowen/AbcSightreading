@@ -7,7 +7,7 @@ import {
   type TimeSignature,
 } from "./types";
 import { lyricLineFor, type LyricSystem } from "../resources/solfege";
-import { beatUnitOf } from "./meter";
+import { beatUnitOf, tempoField } from "./meter";
 import { keySignatures } from "../resources/key-signatures";
 import { getDiatonicDegree } from "./prep-params";
 
@@ -75,7 +75,7 @@ export function assembleAbcString(
   abcString += `C:${metadata.composer}\n`;
   abcString += `M:${timeSig.name}\n`;
   abcString += `L:1/32\n`; // Base unit is 32nd notes
-  abcString += `Q:1/4=${metadata.tempo}\n`;
+  abcString += `${tempoField(timeSig, metadata.tempo)}\n`;
   // abcjs reads the playback instrument from here - it becomes a program event
   // in the generated MIDI track, which create-synth maps to a sample folder.
   abcString += `%%MIDI program ${metadata.midiProgram ?? 0}\n`;
@@ -152,6 +152,7 @@ export function assembleAbcString(
    *
    * `startsAt` is the position of the first note within its measure.
    */
+  const QUARTER = 8;
   const beamsTogether = (
     note: VoiceNote,
     next: VoiceNote | undefined,
@@ -159,7 +160,9 @@ export function assembleAbcString(
   ): boolean => {
     if (!next) return false;
     if (note.rest || next.rest) return false;
-    if (note.length >= beamUnit || next.length >= beamUnit) return false;
+    // Only eighths and shorter carry a beam. Testing against the beat let a
+    // quarter (8) beam inside a dotted-quarter (12) beat.
+    if (note.length >= QUARTER || next.length >= QUARTER) return false;
     // Same beat: the note must not carry the group over a beat boundary.
     const endsAt = startsAt + note.length;
     return Math.floor(startsAt / beamUnit) === Math.floor(endsAt / beamUnit);

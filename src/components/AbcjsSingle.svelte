@@ -38,7 +38,7 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
-  import { beatsOf, timeSignaturesFor } from "../lib/meter";
+  import { beatsOf, tempoField, timeSignaturesFor } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -1243,8 +1243,8 @@
    * @returns {string} The ABC string with updated tempo
    */
   function updateTempoInAbcString(abcString: string, newTempo: number): string {
-    // Replace the Q: (tempo) line in the ABC string
-    return abcString.replace(/Q:1\/4=\d+/g, `Q:1/4=${newTempo}`);
+    // Replace the Q: (tempo) line, counted in the meter's beat.
+    return abcString.replace(/Q:\d+\/\d+=\d+/g, tempoField(selectedTimeSignature, newTempo));
   }
 
   /**

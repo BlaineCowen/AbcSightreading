@@ -1,4 +1,5 @@
 import abcjs from "abcjs";
+import { isCompound } from "./meter";
 
 /**
  * MusicXML from the ABC on screen, for MuseScore, Finale, Sibelius, Dorico and
@@ -137,12 +138,14 @@ export function scoreFromAbc(abc: string, options: MusicXmlOptions = {}): ScoreM
   const percmap = tune.formatting?.percmap ?? {};
   const percussionSound = Object.values(percmap as Record<string, { sound: number }>)[0]?.sound;
   const tempo = tune.metaText?.tempo;
+  const compound = isCompound(`${meter.beats}/${meter.beatType}`);
+  const beatLength = compound ? 0.375 : 0.25;
   return {
     title: options.title ?? tune.metaText?.title,
     composer: options.composer ?? tune.metaText?.composer,
     tempo:
       options.tempo ??
-      (tempo?.bpm && (tempo.duration?.[0] ?? 0.25) === 0.25 ? tempo.bpm : undefined),
+      (tempo?.bpm && (tempo.duration?.[0] ?? beatLength) === beatLength ? tempo.bpm : undefined),
     program: typeof program === "number" ? program : 0,
     ...(typeof percussionSound === "number" ? { percussionSound } : {}),
     time: meter,
@@ -455,14 +458,18 @@ export function musicXmlFor(score: ScoreModel, options: MusicXmlOptions = {}): s
         }
         line(3, "</attributes>");
         if (index === 0 && score.tempo) {
+          // The mark counts the meter's beat; <sound tempo> is always quarter
+          // notes a minute, so a dotted-quarter 60 sounds as 90.
+          const compound = isCompound(`${score.time.beats}/${score.time.beatType}`);
           line(3, '<direction placement="above">');
           line(4, "<direction-type>");
           line(5, "<metronome>");
           line(6, "<beat-unit>quarter</beat-unit>");
+          if (compound) line(6, "<beat-unit-dot/>");
           line(6, `<per-minute>${score.tempo}</per-minute>`);
           line(5, "</metronome>");
           line(4, "</direction-type>");
-          line(4, `<sound tempo="${score.tempo}"/>`);
+          line(4, `<sound tempo="${compound ? score.tempo * 1.5 : score.tempo}"/>`);
           line(3, "</direction>");
         }
       }
