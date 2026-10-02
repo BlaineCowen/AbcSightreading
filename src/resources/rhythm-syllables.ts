@@ -244,14 +244,22 @@ export function checkCustomSyllables(value: unknown): Checked<CustomSyllables> {
     if (!Array.isArray(compoundRaw) || compoundRaw.length !== 6) {
       return { ok: false, error: "Expected six compound syllables." };
     }
-    if (compoundRaw.some((s) => typeof s === "string" && s.trim() !== "")) {
+    if (compoundRaw.some((s) => typeof s !== "string")) {
+      return { ok: false, error: "Compound syllables must be text." };
+    }
+    if (compoundRaw.some((s) => s.trim() !== "")) {
       const compound: string[] = [];
       for (let i = 0; i < 6; i++) {
         const c = checkSyllable(compoundRaw[i], `Compound sixteenth ${i + 1}`);
         if (!c.ok) {
+          // The fill-all-six advice is for a half-filled row, not for a
+          // syllable that is itself malformed.
+          const halfFilled = compoundRaw[i].trim() === "";
           return {
             ok: false,
-            error: `${c.error} Fill all six compound syllables, or leave them all empty to read 6/8 in Counting.`,
+            error: halfFilled
+              ? `${c.error} Fill all six compound syllables, or leave them all empty to read 6/8 in Counting.`
+              : c.error,
           };
         }
         compound.push(c.value);

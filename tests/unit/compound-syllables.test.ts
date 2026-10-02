@@ -73,6 +73,20 @@ describe("a teacher's own set in compound meter", () => {
     if (!checked.ok) expect(checked.error).toMatch(/all six/);
   });
 
+  test("a malformed syllable in a row gets its own error, without the fill-all-six advice", () => {
+    for (const bad of ["t i", "x".repeat(40)]) {
+      const checked = checkCustomSyllables({ ...before, compoundSlots: ["ti", "ka", bad, "ti", "ka", "ti"] });
+      expect(checked.ok).toBe(false);
+      if (!checked.ok) expect(checked.error).not.toMatch(/Fill all six/);
+    }
+  });
+
+  test("a non-string entry is refused, not read as empty", () => {
+    for (const row of [[1, "", "", "", "", ""], ["", "", "", "", "", null], [{}, "ti", "ti", "ti", "ti", "ti"]]) {
+      expect(checkCustomSyllables({ ...before, compoundSlots: row }).ok).toBe(false);
+    }
+  });
+
   test("a row of the wrong length is refused", () => {
     expect(checkCustomSyllables({ ...before, compoundSlots: ["ti", "ka"] }).ok).toBe(false);
   });
