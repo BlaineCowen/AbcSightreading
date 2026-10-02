@@ -9,7 +9,7 @@ import {
   type LyricSystem,
 } from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
-import { beatUnitOf } from "./meter";
+import { resolveMeter } from "./meter";
 import {
   CUSTOM_SYLLABLE_ID,
   checkCustomSyllables,
@@ -1902,6 +1902,35 @@ export function assembleUnisonAbc(
   );
 }
 
+const QUARTER = 8;
+
+/**
+ * Lengths one compound-meter note can be written at, longest first: dotted
+ * whole, dotted half, half, dotted quarter, quarter, eighth, sixteenth. 36 -
+ * 9/8's whole bar, or 12/8's held cadence - is none of them, so it is written
+ * as a dotted half tied to a dotted quarter: split at the beat.
+ */
+const COMPOUND_WRITABLE = [48, 24, 16, 12, 8, 4, 2];
+const writableCompoundLength = (units: number) => COMPOUND_WRITABLE.find((w) => w <= units) ?? units;
+
+/**
+ * Whether the beam stops after this note in compound meter. A beam shows the
+ * dotted-quarter beat, so it stops at each one; only eighths and shorter carry
+ * a beam, so it stops either side of a quarter or longer; and a rest ends it.
+ * Simple meter keeps its own rule, unchanged byte for byte.
+ */
+function compoundBeamBreaks(
+  note: ChordNoteObject,
+  segment: number,
+  next: ChordNoteObject | undefined,
+  tsCount: number,
+  beatUnits: number
+): boolean {
+  if (tsCount % beatUnits === 0) return true;
+  if (!note.rhythm?.pattern || note.rhythm?.rest || segment >= QUARTER) return true;
+  return !next || next.rhythm?.rest === true || next.noteLength >= QUARTER;
+}
+
 function createConcatString(
   partsObject: PartsObject,
   params: {
@@ -1916,8 +1945,10 @@ function createConcatString(
   }
 ) {
   var concatString = "";
+  const meter = resolveMeter(params.timeSig);
   /** One beat in 32nds, from the meter model: beams and syllables follow it. */
-  const beatUnits = beatUnitOf(params.timeSig);
+  const beatUnits = meter.beatUnits;
+  const compound = meter.kind === "compound";
 
   Object.keys(partsObject.parts).forEach((part: string) => {
     var singlePartObject = partsObject.parts[part];
@@ -1983,15 +2014,20 @@ function createConcatString(
 
         // A note longer than the room left in the measure is written as tied
         // notes either side of the barline. The generator only produces one
-        // when ties are enabled, so ordinarily this runs a single pass.
+        // when ties are enabled, so ordinarily this runs a single pass. In
+        // compound meter a length no single note can show (36) is also split,
+        // at the beat, inside the bar.
         let lengthLeft = note.noteLength;
         let isAttack = true;
         let segments = 0;
+        const next = singlePartObject.chordNoteObject[index + 1];
 
         while (lengthLeft > 0) {
           segments++;
           const roomInMeasure = params.timeSig.tsPerMeasure - tsCount;
-          const segment = Math.min(lengthLeft, roomInMeasure);
+          const segment = compound
+            ? writableCompoundLength(Math.min(lengthLeft, roomInMeasure))
+            : Math.min(lengthLeft, roomInMeasure);
           const isFinalSegment = segment === lengthLeft;
 
           if (isAttack && syllable) measureString += `"_${syllable}"`;
@@ -2009,11 +2045,15 @@ function createConcatString(
           isAttack = false;
 
           // Insert a space at every beam-group boundary so abcjs beams notes
-          // correctly within each beat. beatUnits drives this: 8 for simple
-          // time (quarter-note beat), 12 for compound time (dotted-quarter beat).
-          // Non-pattern notes (quarter, half, whole) always get a space.
-          // The barline "|" already breaks beams at measure boundaries.
-          if (tsCount % beatUnits === 0 || !note.rhythm?.pattern) {
+          // correctly within each beat. Simple time breaks at each quarter-note
+          // beat and after every non-pattern note (quarter, half, whole);
+          // compound time follows compoundBeamBreaks. The barline "|" already
+          // breaks beams at measure boundaries.
+          if (
+            compound
+              ? compoundBeamBreaks(note, segment, isFinalSegment ? next : undefined, tsCount, beatUnits)
+              : tsCount % beatUnits === 0 || !note.rhythm?.pattern
+          ) {
             measureString += " ";
           }
 

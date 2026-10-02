@@ -11,6 +11,7 @@ import {
   fromPayload,
   toPayload,
 } from "../../src/lib/exercise-link";
+import { timeSignatureFor } from "../../src/lib/meter";
 import { chords as fullChordSet } from "../../src/resources/chords";
 import { rhythms } from "../../src/resources/rhythms";
 
@@ -215,6 +216,27 @@ describe("a unison exercise in a link", () => {
     const value = await packExercise({ kind: "unison", score });
     expect(value.length).toBeLessThan(600);
   });
+
+  for (const [meter, over] of [
+    ["6/8", { allowTiesAcrossBarline: true }],
+    ["9/8", { rhythmOnly: true }],
+    ["12/8", {}],
+  ] as const) {
+    test(`${meter} re-renders byte for byte`, async () => {
+      const names = ["dotQuarter", "threeEighths", "quarterEighth", "eighthQuarter", "dotHalfCompound", "sixSixteenths"];
+      const [, , score] = quietly(() =>
+        createNewSr(unisonParams({
+          timeSig: timeSignatureFor(meter),
+          selectedTimeSignature: meter,
+          selectedRhythms: names,
+          rhythms: rhythms.filter((r) => names.includes(r.name)),
+          ...over,
+        }) as any)
+      ) as any;
+      const reopened = await expectUnisonRoundTrip(score);
+      expect(reopened.timeSig).toEqual(timeSignatureFor(meter));
+    });
+  }
 });
 
 // ── The link itself ─────────────────────────────────────────────────────────

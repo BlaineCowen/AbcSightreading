@@ -208,32 +208,47 @@ function checkTieShapes() {
   return ties;
 }
 
+/** Compound meter: a tie - over a barline or inside a 9/8 bar - joins whole beats. */
+function checkCompoundTieShapes() {
+  let ties = 0;
+  for (const timeSig of Object.values(COMPOUND_TIME_SIGS)) {
+    const set = selectableRhythmsFor("compound").filter((r) => !r.rest);
+    for (let i = 0; i < 40; i++) {
+      const body = generate({ rhythms: set, timeSig, ties: true, measures: 8 });
+      if (!body) continue;
+      for (const m of body.matchAll(/[A-Ga-g][,']*(\d+)-\s*\|?\s*[A-Ga-g][,']*(\d+)/g)) {
+        ties++;
+        const [a, b] = [Number(m[1]), Number(m[2])];
+        if (a % timeSig.beatUnits !== 0 || b % timeSig.beatUnits !== 0) {
+          fail(`tie shape: ${timeSig.name} produced ${a} tied to ${b} (not whole beats)`);
+        }
+      }
+    }
+  }
+  return ties;
+}
+
 function checkLyricAlignment() {
-  const timeSig = TIME_SIGS["4/4"];
-  const set = selectableRhythms.filter((r) => !r.rest && !r.pattern);
+  const cases = [
+    { timeSig: TIME_SIGS["4/4"], set: selectableRhythms.filter((r) => !r.rest && !r.pattern) },
+    // 9/8's last bar is a dotted half tied to a dotted quarter inside the bar.
+    { timeSig: COMPOUND_TIME_SIGS["9/8"], set: selectableRhythmsFor("compound").filter((r) => !r.rest && !r.pattern) },
+  ];
   let checked = 0;
-  for (let i = 0; i < 40; i++) {
-    const body = generate({
-      rhythms: set,
-      timeSig,
-      ties: true,
-      measures: 4,
-      solfege: true,
-    });
-    if (!body) continue;
-    checked++;
-    const lines = body.split("\n");
-    const music = lines.filter((l) => !l.startsWith("w:")).join(" ");
-    const lyric = lines.find((l) => l.startsWith("w:")) ?? "";
-    const noteEls = (music.match(/[A-Ga-g][,']*\d+/g) || []).length;
-    const slots = lyric
-      .replace(/^w:\s*/, "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean).length;
-    if (noteEls !== slots) {
-      fail(`lyric alignment: ${noteEls} note elements but ${slots} lyric slots`);
-      break;
+  for (const { timeSig, set } of cases) {
+    for (let i = 0; i < 40; i++) {
+      const body = generate({ rhythms: set, timeSig, ties: true, measures: 4, solfege: true });
+      if (!body) continue;
+      checked++;
+      const lines = body.split("\n");
+      const music = lines.filter((l) => !l.startsWith("w:")).join(" ");
+      const lyric = lines.find((l) => l.startsWith("w:")) ?? "";
+      const noteEls = (music.match(/[A-Ga-g][,']*\d+/g) || []).length;
+      const slots = lyric.replace(/^w:\s*/, "").trim().split(/\s+/).filter(Boolean).length;
+      if (noteEls !== slots) {
+        fail(`lyric alignment: ${timeSig.name} ${noteEls} note elements but ${slots} lyric slots`);
+        break;
+      }
     }
   }
   return checked;
@@ -335,6 +350,7 @@ const report = (...args: unknown[]) => process.stdout.write(args.join(" ") + "\n
 const started = Date.now();
 const selectionCount = checkMeasuresAndCompleteness();
 const tieCount = checkTieShapes();
+const compoundTieCount = checkCompoundTieShapes();
 const lyricCount = checkLyricAlignment();
 const syllableCount = checkSyllables();
 const elapsed = ((Date.now() - started) / 1000).toFixed(1);
@@ -343,6 +359,7 @@ report(`rhythm checks (${elapsed}s)`);
 report(`  ${selectionCount} selections: well-formed measures, and generation`);
 report(`     succeeds on exactly the solvable ones`);
 report(`  ${tieCount} barline ties, none landing on a dotted note`);
+report(`  ${compoundTieCount} compound ties, each joining whole dotted-quarter beats`);
 report(`  ${lyricCount} exercises with solfege aligned across ties`);
 report(`  ${syllableCount} syllable mappings across ${Object.keys(syllableSystems).length} systems`);
 
