@@ -846,7 +846,7 @@ function generateChordProgression(
         continue;
       }
 
-      // A rest is not sung. In custom mode it holds the line where it was, so
+      // A rest is not sung. With exact skips on it holds the line where it was, so
       // the next note's skip is measured from the note actually sung before
       // the rest, and a rest cannot hide a skip the list forbids: do, rest,
       // sol is do to sol. (Max skip mode is unchanged: there the snapshot in

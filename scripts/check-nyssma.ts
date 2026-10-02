@@ -8,7 +8,7 @@
  *    a rest cannot hide a skip;
  *  - stay inside the level's range around do, with no accidentals;
  *  - use only the level's rhythms and rests;
- *  - step (never skip) between two eighths of a figure, Max 8th/16th being 1;
+ *  - step (never skip) between any two adjacent eighths (in a figure or across figures), Max 8th/16th being 1;
  *  - not hold one pitch for the whole exercise (a dead-end line);
  *  - print a dynamic on its first sung note, from the level's set.
  *

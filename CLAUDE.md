@@ -186,7 +186,7 @@ nearly got it thrown away. That difference was noise; the sweep is the gate.
 
 ### The ladder
 
-`src/lib/ladder.ts` is "Step by step": 23 presets from rhythm alone (ta, ti-ti)
+`src/lib/ladder.ts` is abcStepByStep: 23 presets from rhythm alone (ta, ti-ti)
 through a single line on the Unison page, then two, three and four parts on the
 Choral page, to UIL 5 and past it. It follows sight-singing pedagogy - one new
 thing per step, the new thing on familiar material, rhythm before pitch, pitch
@@ -246,7 +246,7 @@ means a change reached simple meter.
 I-V (Manual Ed. 33, p. 7-2), the Unison page's built-in presets ("NYSSMA
 Voice" in the picker). Their interval rules are skip lists, not a largest
 skip: `src/lib/skip-policy.ts` decides every move the Unison generator makes
-(Max skip, or exact skips with what a skip may land on), and in custom mode a
+(Max skip, or exact skips with what a skip may land on), and with exact skips on a
 rest holds the line, so a skip is measured between sung notes.
 `tests/unit/unison-skip-regression.test.ts` pins Max skip output byte for
 byte. `scripts/check-nyssma.ts` checks every level x key x meter x clef (94
@@ -255,7 +255,7 @@ listed skips, landing on allowed lengths, inside the range, only the level's
 rhythms, eighths by step, dynamics from the level's set, and no line frozen on
 one pitch. It is mutation-tested (loosen `isAllowedMove`, drop its landing
 check, or disable the rest-holds-line block and it fails). Last run 2 October
-2026: every cell clean. Level VI waits for compound meter and triplets.
+2026: every cell clean. Level VI waits only for triplet eighths and hairpins (compound meter has shipped).
 
 ## abcTuner
 
