@@ -139,7 +139,11 @@ export function degreesConnected(degrees: number[], policy: SkipPolicy): boolean
   if (selected.length <= 1 || policy.kind === "max") return true;
   const nextOf = (d: number) => [
     ...[deg(d + 1), deg(d - 1)].filter((s) => selected.includes(s)),
-    ...policy.moves.filter((m) => m.from === d && selected.includes(m.to)).map((m) => m.to),
+    ...policy.moves.flatMap((m) => {
+      if (m.from === d) return selected.includes(m.to) ? [m.to] : [];
+      if (m.dir === "both" && m.to === d) return selected.includes(m.from) ? [m.from] : []; // ↕ is symmetric
+      return [];
+    }),
   ];
   return selected.every((start) => {
     const seen = new Set([start]);

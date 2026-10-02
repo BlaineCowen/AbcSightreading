@@ -71,11 +71,20 @@ describe("isAllowedMove", () => {
     }
   });
 
+  test("↑ and ↓ rows stay directed: Sol-Do ↓ does not allow do→sol", () => {
+    const solDo: SkipPolicy = { kind: "custom", moves: [{ from: 5, to: 1, dir: "down" }] };
+    expect(isAllowedMove(n(G4), n(C4), QUARTER, solDo)).toBe(true);
+    expect(isAllowedMove(n(G3), n(C4), QUARTER, solDo)).toBe(false);
+    expect(isAllowedMove(n(C4), n(G3), QUARTER, solDo)).toBe(false);
+  });
+
   test("↕ both allows either direction; Do-Sol ↓ is the 4th down to the sol below", () => {
     const both: SkipPolicy = { kind: "custom", moves: [{ from: 1, to: 5, dir: "both" }] };
     expect(isAllowedMove(n(C4), n(G4), QUARTER, both)).toBe(true); // a 5th up
     expect(isAllowedMove(n(C4), n(G3), QUARTER, both)).toBe(true); // a 4th down
-    expect(isAllowedMove(n(G4), n(C4), QUARTER, both)).toBe(false); // sol→do is not listed
+    expect(isAllowedMove(n(G4), n(C4), QUARTER, both)).toBe(true); // ↕ is symmetric: sol↓do
+    expect(isAllowedMove(n(G3), n(C4), QUARTER, both)).toBe(true); // sol↑do, a 4th up
+    expect(isAllowedMove(n(C4), n(E4), QUARTER, both)).toBe(false); // other pairs stay unlisted
     const doSolDown: SkipPolicy = { kind: "custom", moves: [{ from: 1, to: 5, dir: "down" }] };
     expect(isAllowedMove(n(C4), n(G3), QUARTER, doSolDown)).toBe(true);
     expect(isAllowedMove(n(C4), n(G4), QUARTER, doSolDown)).toBe(false);

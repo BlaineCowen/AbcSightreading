@@ -44,7 +44,8 @@ const mod7 = (n: number) => ((n % 7) + 7) % 7;
  *
  * - A step or a repeat (distance <= 1): always.
  * - max: distance <= maxSkip - exactly the rule the generator always had.
- * - custom: never onto or off a chromatic note; a simple interval (less than
+ * - custom: a ↕ row is symmetric (its two degrees in either order, either
+ *   direction); ↑ and ↓ rows are directed. Never onto or off a chromatic note; a simple interval (less than
  *   an octave) whose degrees and direction match a listed move, in any
  *   octave; and, when `landOn` is set, onto one of those lengths.
  */
@@ -65,7 +66,10 @@ export function isAllowedMove(
   const to = mod7(next.degree) + 1;
   const dir: SkipDir = rise > 0 ? "up" : "down";
   return policy.moves.some(
-    (m) => m.from === from && m.to === to && (m.dir === "both" || m.dir === dir)
+    (m) =>
+      m.dir === "both"
+        ? (m.from === from && m.to === to) || (m.from === to && m.to === from)
+        : m.from === from && m.to === to && m.dir === dir
   );
 }
 
@@ -80,6 +84,7 @@ export function largestSkip(policy: SkipPolicy): number {
   for (const m of policy.moves) {
     if (m.dir !== "down") widest = Math.max(widest, mod7(m.to - m.from));
     if (m.dir !== "up") widest = Math.max(widest, mod7(m.from - m.to));
+    // ↕ is symmetric: both orderings, both directions, so the wider of the two.
   }
   return widest;
 }

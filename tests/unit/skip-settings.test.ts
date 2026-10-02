@@ -125,10 +125,8 @@ describe("degreesConnected", () => {
   test("1, 3, 5 with only Do-Mi-Sol ↑ cannot get back down", () => {
     expect(degreesConnected([1, 3, 5], { kind: "custom", moves: chipMoves("do-mi-sol-up") })).toBe(false);
   });
-  // Rows are directed in degrees (isAllowedMove: "1↕5" is do→sol up or down, never sol→do),
-  // so the Tonic triad chip alone leaves sol a dead end. The check must agree with the generator.
-  test("1, 3, 5 with the tonic triad chip alone has no way home from sol", () => {
-    expect(degreesConnected([1, 3, 5], { kind: "custom", moves: chipMoves("tonic-triad") })).toBe(false);
+  test("1, 3, 5 with the tonic triad both ways is connected", () => {
+    expect(degreesConnected([1, 3, 5], { kind: "custom", moves: chipMoves("tonic-triad") })).toBe(true);
   });
   test("1, 3, 5 with the tonic triad plus Sol-Do ↓ is connected", () => {
     const moves = addMoves(chipMoves("tonic-triad"), chipMoves("sol-do-down"));
