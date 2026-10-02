@@ -83,6 +83,34 @@
   }
 
   /**
+   * The typed tempo. Committed on change (Enter or leaving the field), never per
+   * keystroke: Unison re-renders on a commit, and "1" on the way to "120" is
+   * not a tempo. Out of range clamps; empty or junk puts the current tempo back.
+   */
+  function handleBpmTyped(e: Event) {
+    const field = e.target as HTMLInputElement;
+    const typed = parseInt(field.value, 10);
+    if (Number.isNaN(typed)) {
+      field.value = String(bpm);
+      return;
+    }
+    const next = Math.min(200, Math.max(40, typed));
+    // Svelte will not rewrite the field when bpm is unchanged (200 typed as 500).
+    field.value = String(next);
+    if (next !== bpm) (onBpmCommit ?? onBpmChange)(next);
+  }
+
+  function handleBpmKey(e: KeyboardEvent) {
+    const field = e.target as HTMLInputElement;
+    if (e.key === "Enter") {
+      field.blur();
+    } else if (e.key === "Escape") {
+      field.value = String(bpm);
+      field.blur();
+    }
+  }
+
+  /**
    * Voices live in a drop-up rather than a row of chips: a row grows with the
    * voicing, and at SSAATTBB it crowded everything else off the bar.
    */
@@ -312,7 +340,21 @@
         on:click={() => (onBpmCommit ?? onBpmChange)(Math.min(200, bpm + 5))}
         aria-label="Increase tempo"
       ><Plus size={14} /></button>
-      <span class="font-bold text-sm w-8 text-center">{bpm}</span>
+      <input
+        type="number"
+        min="40"
+        max="200"
+        step="1"
+        inputmode="numeric"
+        value={bpm}
+        on:change={handleBpmTyped}
+        on:keydown={handleBpmKey}
+        on:focus={(e) => e.currentTarget.select()}
+        class="bpm-field font-bold text-sm w-8 text-center bg-transparent text-sr-bar-ink rounded p-0
+               border-0 focus:outline-none focus:ring-2 focus:ring-sr-bar-on hover:bg-sr-bar-btn"
+        aria-label="Tempo in beats per minute"
+        title="Type a tempo, 40 to 200"
+      />
     </div>
 
       <button
@@ -480,3 +522,16 @@
       {/if}
     </div>
 </div>
+
+<style>
+  /* The typed tempo reads as the plain number it replaced: no spinner arrows. */
+  .bpm-field {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .bpm-field::-webkit-outer-spin-button,
+  .bpm-field::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+</style>
