@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   rhythmPickerGroups,
+  selectableCompoundRhythms,
   selectableRhythms,
   containsRest,
 } from "../../src/lib/selectable-rhythms";
@@ -31,5 +32,23 @@ describe("the rhythm picker's order", () => {
   test("a single note comes before the patterns of its length", () => {
     const notes = groups[0].rhythms.map((r) => r.name);
     expect(notes.indexOf("quarter")).toBeLessThan(notes.indexOf("eighthEighth"));
+  });
+});
+
+describe("the compound picker", () => {
+  const groups = rhythmPickerGroups(selectableCompoundRhythms);
+
+  test("Core, then Rests, then Sixteenths, nothing lost", () => {
+    expect(groups.map((g) => g.label)).toEqual(["Core", "Rests", "Sixteenths"]);
+    expect(groups.flatMap((g) => g.rhythms.map((r) => r.name)).sort()).toEqual(
+      selectableCompoundRhythms.map((r) => r.name).sort()
+    );
+  });
+
+  test("each group runs shortest to longest", () => {
+    for (const g of groups) {
+      const lengths = g.rhythms.map((r) => r.totalValue);
+      expect(lengths).toEqual([...lengths].sort((a, b) => a - b));
+    }
   });
 });

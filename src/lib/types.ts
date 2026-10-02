@@ -103,6 +103,16 @@ export interface Rhythm {
   maxRng: number;
   pattern?: boolean;
   symbol: string;
+  /**
+   * The meter this figure belongs to. Compound figures fill whole
+   * dotted-quarter beats and are only offered, and only generated, in 6/8,
+   * 9/8 and 12/8; simple figures only in 2/4, 3/4 and 4/4. Optional only so
+   * figures built elsewhere (nct-patterns, cadence notes) type-check: every
+   * entry in this catalogue sets it (tests/unit/rhythm-catalogue.test.ts).
+   */
+  meterKind?: "simple" | "compound";
+  /** The compound picker's group. Simple figures group by notes and rests. */
+  pickerGroup?: "Core" | "Rests" | "Sixteenths";
   isPatternNote?: boolean;
   isPatternStart?: boolean;
   isPatternEnd?: boolean;

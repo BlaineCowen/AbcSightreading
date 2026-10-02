@@ -1,4 +1,5 @@
 import { rhythms, type Rhythm } from "../resources/rhythms";
+import type { MeterKind } from "./meter";
 
 /**
  * The rhythms a user can actually pick, and the single source of truth for it.
@@ -29,13 +30,27 @@ export function containsRest(rhythm: Rhythm): boolean {
 }
 
 export function isSelectableRhythm(rhythm: Rhythm): boolean {
+  // Simple meter's picker. Compound figures (the dotted quarter among them)
+  // have their own: selectableCompoundRhythms.
+  if ((rhythm.meterKind ?? "simple") !== "simple") return false;
   if (rhythm.name.includes("thirtySecond")) return false;
-  if (rhythm.name === "dotQuarter") return false;
   if (rhythm.rest) return SELECTABLE_RESTS.has(rhythm.name);
   return true;
 }
 
 export const selectableRhythms: Rhythm[] = rhythms.filter(isSelectableRhythm);
+
+/** Compound meter's picker: every compound figure that has a picker group. */
+export function isSelectableCompoundRhythm(rhythm: Rhythm): boolean {
+  return rhythm.meterKind === "compound" && rhythm.pickerGroup !== undefined;
+}
+
+export const selectableCompoundRhythms: Rhythm[] = rhythms.filter(isSelectableCompoundRhythm);
+
+/** The figures a meter of this kind offers - and the only ones it generates. */
+export function selectableRhythmsFor(kind: MeterKind): Rhythm[] {
+  return kind === "compound" ? selectableCompoundRhythms : selectableRhythms;
+}
 
 /**
  * Whether a selected rhythm can actually appear in a choral exercise.
@@ -70,9 +85,13 @@ export function canAppearInChoral(
  * it is. Figures of the same length keep a single note ahead of the patterns
  * that fill that length, and are otherwise left in file order.
  */
+export type PickerGroupLabel = "Notes" | "Rests" | "Core" | "Sixteenths";
+
+const COMPOUND_GROUPS = ["Core", "Rests", "Sixteenths"] as const;
+
 export function rhythmPickerGroups<R extends Rhythm>(
   list: R[]
-): { label: "Notes" | "Rests"; rhythms: R[] }[] {
+): { label: PickerGroupLabel; rhythms: R[] }[] {
   const ordered = (rs: R[]) =>
     rs
       .map((r, i) => ({ r, i }))
@@ -83,6 +102,14 @@ export function rhythmPickerGroups<R extends Rhythm>(
           a.i - b.i
       )
       .map(({ r }) => r);
+  // Compound meter groups as the spec does: the core figures, the ones with
+  // rests, the ones with sixteenths.
+  if (list.length > 0 && list.every((r) => r.meterKind === "compound")) {
+    return COMPOUND_GROUPS.map((label) => ({
+      label,
+      rhythms: ordered(list.filter((r) => r.pickerGroup === label)),
+    })).filter((g) => g.rhythms.length > 0);
+  }
   return [
     { label: "Notes" as const, rhythms: ordered(list.filter((r) => !containsRest(r))) },
     { label: "Rests" as const, rhythms: ordered(list.filter((r) => containsRest(r))) },

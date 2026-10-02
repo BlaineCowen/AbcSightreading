@@ -74,6 +74,20 @@ const MUSIC = {
   wholeRest: "r1",
   eighthRest: "r8",
   eighthRestEighth: "r8 c8",
+  dotQuarterRest: "r4.",
+  dotHalfRest: "r2.",
+  dotHalfCompound: "c2.",
+  threeEighths: "c8[ c8 c8]",
+  quarterEighth: "c4 c8",
+  eighthQuarter: "c8 c4",
+  quarterEighthRest: "c4 r8",
+  eighthRestTwoEighths: "r8 c8[ c8]",
+  twoEighthsEighthRest: "c8[ c8] r8",
+  sixSixteenths: "c16[ c16 c16 c16 c16 c16]",
+  twoSixteenthsTwoEighths: "c16[ c16 c8 c8]",
+  eighthTwoSixteenthsEighth: "c8[ c16 c16 c8]",
+  twoEighthsTwoSixteenths: "c8[ c8 c16 c16]",
+  quarterTwoSixteenths: "c4 c16[ c16]",
 };
 
 const lyFor = (music) =>
@@ -175,6 +189,7 @@ function withRestLine(frag, id, below) {
 const DECORATE = {
   halfRest: (f) => withRestLine(f, "halfRest", true),
   wholeRest: (f) => withRestLine(f, "wholeRest", false),
+  dotHalfRest: (f) => withRestLine(f, "dotHalfRest", true),
 };
 
 /**
