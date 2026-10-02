@@ -16,13 +16,15 @@ describe("the Levels tab's sections", () => {
     expect(sectionToOpen(choral, { step: false, nyssma: false, uil: true })).toBe("uil");
   });
 
-  test("with no built-in preset active, the first section opens", () => {
+  test("with no built-in preset active, every section starts collapsed", () => {
     const choral = levelSections({ uil: true, nyssma: false });
-    expect(sectionToOpen(choral, { step: false, nyssma: false, uil: false })).toBe("steps");
+    const unison = levelSections({ uil: false, nyssma: true });
+    expect(sectionToOpen(choral, { step: false, nyssma: false, uil: false })).toBeNull();
+    expect(sectionToOpen(unison, { step: false, nyssma: false, uil: false })).toBeNull();
   });
 
-  test("an active level whose section is not offered opens the first section", () => {
+  test("an active level whose section is not offered opens nothing", () => {
     const unison = levelSections({ uil: false, nyssma: true });
-    expect(sectionToOpen(unison, { step: false, nyssma: false, uil: true })).toBe("steps");
+    expect(sectionToOpen(unison, { step: false, nyssma: false, uil: true })).toBeNull();
   });
 });

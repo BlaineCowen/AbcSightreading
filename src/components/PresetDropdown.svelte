@@ -256,7 +256,7 @@
   $: uilOffered = showBuiltins && !hideUILLevels;
   $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0 });
   /** The Levels sections showing their presets; the rest show only a header. */
-  let expanded: Set<LevelSectionId> = new Set(['steps']);
+  let expanded: Set<LevelSectionId> = new Set();
   function toggleSection(id: LevelSectionId) {
     const next = new Set(expanded);
     if (!next.delete(id)) next.add(id);
@@ -278,14 +278,16 @@
 
   /**
    * Opens on the tab the active preset is in, with its Levels section open
-   * and the others shut, and scrolls it into view.
+   * and the others shut (all shut when no built-in preset is active), and
+   * scrolls it into view.
    */
   async function openPanel() {
     const active = { step: !!activeStepId, nyssma: !!activeNyssmaId, uil: activeUILLevel };
     tab = activeStepId ? 'levels' : activeIsSaved ? 'mine'
       : activeNyssmaId || activeUILLevel ? 'levels'
       : tab;
-    expanded = new Set([sectionToOpen(sections, active)]);
+    const toOpen = sectionToOpen(sections, active);
+    expanded = new Set(toOpen ? [toOpen] : []);
     open = true;
     await tick();
     // Scroll the list, not the page: scrollIntoView moves every scrolling

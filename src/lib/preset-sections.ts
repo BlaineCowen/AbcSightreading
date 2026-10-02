@@ -25,12 +25,12 @@ export function levelSections(offered: { uil: boolean; nyssma: boolean }): Level
 
 /**
  * The section to open when the picker opens: the one holding the active
- * preset, or the first when no built-in preset is active.
+ * preset, or none (every section collapsed) when no built-in preset is active.
  */
 export function sectionToOpen(
   sections: LevelSection[],
   active: { step: boolean; nyssma: boolean; uil: boolean },
-): LevelSectionId {
+): LevelSectionId | null {
   const want: LevelSectionId | null = active.step ? "steps" : active.nyssma ? "nyssma" : active.uil ? "uil" : null;
-  return sections.find((s) => s.id === want)?.id ?? sections[0].id;
+  return sections.find((s) => s.id === want)?.id ?? null;
 }
