@@ -39,6 +39,9 @@ function seeded(seed: number, fn: () => string): string {
 
 const SIMPLE_METERS = ["2/4", "3/4", "4/4"] as const;
 
+/** Cases registered at collection time; asserted at the end so none can vanish silently. */
+const registered = { choral: 0, unison: 0 };
+
 describe("Choral in simple meter, fixed seeds", () => {
   for (const level of ["UIL 1", "UIL 3", "UIL 5"]) {
     const preset = (uilPresets as any)[level];
@@ -53,7 +56,10 @@ describe("Choral in simple meter, fixed seeds", () => {
           !r.rest &&
           r.totalValue <= timeSig.tsPerMeasure
       );
-      if (!usable.length || !canFillExercise(usable, timeSig.tsPerMeasure, 8 * timeSig.tsPerMeasure, false)) continue;
+      if (!usable.length || !canFillExercise(usable, timeSig.tsPerMeasure, 8 * timeSig.tsPerMeasure, false)) {
+        throw new Error(`meter-regression: Choral case ${level} | ${voicing} | ${key} | ${meter} has no fillable rhythms; it must not be skipped silently`);
+      }
+      registered.choral += 2;
       for (const seed of [11, 4242]) {
         test(`${level} | ${voicing} | ${key} | ${meter} | seed ${seed}`, () => {
           const abc = seeded(seed, () =>
@@ -95,6 +101,7 @@ describe("Unison in simple meter, fixed seeds", () => {
     for (const rhythmOnly of [false, true]) {
       for (const ties of [false, true]) {
         const syllableSystemId = ties ? "counting" : "kodaly";
+        registered.unison++;
         test(`${meter} | ${rhythmOnly ? "rhythm" : "pitched"} | ties ${ties} | ${syllableSystemId}`, () => {
           const abc = seeded(ties ? 99 : 7, () =>
             createNewSr({
@@ -129,4 +136,10 @@ describe("Unison in simple meter, fixed seeds", () => {
       }
     }
   }
+});
+
+describe("Regression guard coverage", () => {
+  test("all 18 Choral and 12 Unison cases are registered", () => {
+    expect(registered).toEqual({ choral: 18, unison: 12 });
+  });
 });
