@@ -556,7 +556,7 @@
       masterVolume: options.masterVolume === undefined ? undefined : numberIn(options.masterVolume, 0, 1, 0.5),
       metronomeVolume: options.metronomeVolume === undefined ? undefined : numberIn(options.metronomeVolume, 0, 1, 0.5),
       click: clickFrom(options.click),
-      // Undefined when not saved (older presets), which leaves the page's own setting alone.
+      // Undefined when not saved (older presets and options): Off.
       dynamics: options.dynamics === undefined ? undefined : dynamicsSetFrom(options.dynamics),
     };
   }
@@ -624,7 +624,9 @@
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
     cursorMode = next.cursorMode;
-    if (next.dynamics !== undefined) dynamicsSet = next.dynamics;
+    // Every preset saved before dynamics existed meant Off - not whatever the
+    // page last held (a NYSSMA level's p, mf and f, say).
+    dynamicsSet = next.dynamics ?? [];
     if (next.run) setRunOptions(next.run);
     if (next.click) applyClick(next.click);
     // Presets from before the metronome was one kept these on their own.
