@@ -70,13 +70,26 @@ describe("NYSSMA Voice levels match the chart (spec table)", () => {
     ]);
   });
 
+  test("Max skip per level, from its own skip list", () => {
+    expect(nyssmaVoiceLevels.map((l) => l.maxSkip)).toEqual([1, 2, 2, 4, 4]);
+  });
+
+  test("maxSkip equals the widest chipMoves interval (drift guard)", () => {
+    const mod = (n: number) => ((n % 7) + 7) % 7;
+    for (const l of nyssmaVoiceLevels) {
+      const widths = l.skips.patterns.flatMap((id) => chipMoves(id)).map((m) =>
+        m.dir === "up" ? mod(m.to - m.from) : m.dir === "down" ? mod(m.from - m.to) : Math.max(mod(m.to - m.from), mod(m.from - m.to)));
+      expect(l.maxSkip).toBe(Math.max(1, ...widths));
+    }
+  });
+
   test("tempo, dynamics, length, short-note skips", () => {
     expect(nyssmaVoiceLevels.every((l) => l.bpm === 72 && l.measures === 8)).toBe(true);
     expect(nyssmaVoiceLevels.map((l) => l.dynamics)).toEqual([
       ["mf"], ["mf"], ["mf"], ["p", "mf", "f"], ["p", "mp", "mf", "f"],
     ]);
     for (const l of nyssmaVoiceLevels) {
-      expect(l.shortSkipsLinked).toBe(true);
+      expect(l.shortSkipsLinked).toBe(false);
       expect([l.max8th, l.max16th]).toEqual([1, 1]);
     }
   });
@@ -162,6 +175,11 @@ describe("what the levels name exists", () => {
     expect(nyssmaRange(L(1), "C", 14)).toEqual({ min: 14, max: 18 });
     expect(nyssmaRange(L(2), "F", 14)).toEqual({ min: 17, max: 22 });
     expect(nyssmaRange(L(4), "G", 14)).toEqual({ min: 18, max: 25 });
+  });
+
+  test("Level V's range in F and D", () => {
+    expect(nyssmaRange(L(5), "F", 14)).toEqual({ min: 14, max: 22 });
+    expect(nyssmaRange(L(5), "D", 14)).toEqual({ min: 12, max: 20 });
   });
 
   test("Level V's 9th has the sol below do", () => {

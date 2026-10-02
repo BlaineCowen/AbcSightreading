@@ -1,5 +1,5 @@
-import { ALL_LAND_ON, policyFor, type SkipChipId, type SkipSettings } from "./skip-settings";
-import type { SkipPolicy } from "./skip-policy";
+import { ALL_LAND_ON, chipMoves, policyFor, type SkipChipId, type SkipSettings } from "./skip-settings";
+import type { SkipMove, SkipPolicy } from "./skip-policy";
 import type { DynamicMark } from "./dynamics";
 import { rangeForSpan } from "./ladder";
 import { timeSignatureFor } from "./meter";
@@ -40,7 +40,9 @@ export interface NyssmaLevel {
   bpm: number;
   dynamics: DynamicMark[];
   measures: number;
-  /** Max 8th / Max 16th skip: steps inside a figure (eighth pairs only step). Linked, as the page's default. */
+  /** Max skip: the widest interval (diatonic steps, 1 a 2nd) among the level's own skips; 1 with none. Applies only with exact skips off. */
+  maxSkip: number;
+  /** Max 8th / Max 16th skip: steps inside a figure (eighth pairs only step). Not linked, so Max skip can differ. */
   max8th: number;
   max16th: number;
   shortSkipsLinked: boolean;
@@ -68,7 +70,19 @@ const METERS_III = ["4/4", "2/4", "3/4"];
 
 // Eighth pairs (III-V) move by step only: a skip may land only on a quarter
 // (or a half at V), never on an eighth.
-const SHORT = { max8th: 1, max16th: 1, shortSkipsLinked: true };
+const SHORT = { max8th: 1, max16th: 1, shortSkipsLinked: false };
+
+/** Diatonic distance a listed skip travels (a ↕ row: its larger way round). */
+function moveSpan(m: SkipMove): number {
+  const mod = (n: number) => ((n % 7) + 7) % 7;
+  const up = mod(m.to - m.from);
+  const down = mod(m.from - m.to);
+  return m.dir === "up" ? up : m.dir === "down" ? down : Math.max(up, down);
+}
+
+/** A level's Max skip, from its own skip list: the widest skip, or 1 (steps) with none. */
+const widestSkip = (patterns: SkipChipId[]): number =>
+  Math.max(1, ...patterns.flatMap((id) => chipMoves(id)).map(moveSpan));
 
 export const nyssmaVoiceLevels: NyssmaLevel[] = [
   {
@@ -76,28 +90,28 @@ export const nyssmaVoiceLevels: NyssmaLevel[] = [
     summary: "C, F · 4/4 · do to sol, by step · quarter, half · mf",
     keys: ["C", "F"], meters: ["4/4"], span: [0, 4], scaleDegrees: [1, 2, 3, 4, 5],
     // Stepwise only: exact skips on with nothing chosen. Nothing to limit, so every landing is on.
-    skips: exact([], [...ALL_LAND_ON]),
+    skips: exact([], [...ALL_LAND_ON]), maxSkip: widestSkip([]),
     rhythms: ["quarter", "half"], bpm: TEMPO, dynamics: ["mf"], measures: MEASURES, ...SHORT,
   },
   {
     id: "nyssma-voice-2", label: "NYSSMA Voice Level II", short: "Level II",
     summary: "+ G, 2/4 · do to la · Do-Mi-Sol ↑ on quarters · quarter rest",
     keys: ["C", "F", "G"], meters: ["4/4", "2/4"], span: [0, 5], scaleDegrees: [1, 2, 3, 4, 5, 6],
-    skips: exact(II_SKIPS, [QUARTER]),
+    skips: exact(II_SKIPS, [QUARTER]), maxSkip: widestSkip(II_SKIPS),
     rhythms: RHYTHMS_II, bpm: TEMPO, dynamics: ["mf"], measures: MEASURES, ...SHORT,
   },
   {
     id: "nyssma-voice-3", label: "NYSSMA Voice Level III", short: "Level III",
     summary: "+ 3/4 · eighth pairs",
     keys: ["C", "F", "G"], meters: METERS_III, span: [0, 5], scaleDegrees: [1, 2, 3, 4, 5, 6],
-    skips: exact(II_SKIPS, [QUARTER]),
+    skips: exact(II_SKIPS, [QUARTER]), maxSkip: widestSkip(II_SKIPS),
     rhythms: RHYTHMS_III, bpm: TEMPO, dynamics: ["mf"], measures: MEASURES, ...SHORT,
   },
   {
     id: "nyssma-voice-4", label: "NYSSMA Voice Level IV", short: "Level IV",
     summary: "+ D, E♭ · do to high do · + Do-Sol ↑ · p, f",
     keys: KEYS_IV, meters: METERS_III, span: [0, 7], scaleDegrees: [1, 2, 3, 4, 5, 6, 7],
-    skips: exact(IV_SKIPS, [QUARTER]),
+    skips: exact(IV_SKIPS, [QUARTER]), maxSkip: widestSkip(IV_SKIPS),
     rhythms: RHYTHMS_III, bpm: TEMPO, dynamics: ["p", "mf", "f"], measures: MEASURES, ...SHORT,
   },
   {
@@ -105,7 +119,7 @@ export const nyssmaVoiceLevels: NyssmaLevel[] = [
     summary: "low sol to la · + Sol-Mi-Do ↓, Sol-Do ↓, Sol-Ti-Re ↑, Do-Sol ↓ on quarters and halves · dotted quarter-eighth · mp",
     // A 9th from the sol below do, so Sol-Ti-Re ↑ and Do-Sol ↓ have their low sol.
     keys: KEYS_IV, meters: METERS_III, span: [-3, 5], scaleDegrees: [1, 2, 3, 4, 5, 6, 7],
-    skips: exact(V_SKIPS, [QUARTER, HALF]),
+    skips: exact(V_SKIPS, [QUARTER, HALF]), maxSkip: widestSkip(V_SKIPS),
     rhythms: [...RHYTHMS_III, "dotQuarterEighth"], bpm: TEMPO, dynamics: ["p", "mp", "mf", "f"],
     measures: MEASURES, ...SHORT,
   },
@@ -117,7 +131,7 @@ export const nyssmaById: Record<string, NyssmaLevel> = Object.fromEntries(
 
 /** The level's skip rule: exactly the skips it lists, landing where it says. */
 export function nyssmaPolicy(level: NyssmaLevel): SkipPolicy {
-  return policyFor(1, level.skips);
+  return policyFor(level.maxSkip, level.skips);
 }
 
 /** The level's range in a key, placed on the do at or above `anchorMin`. */
@@ -139,6 +153,7 @@ export function nyssmaGenerationParams(
     bpm: level.bpm, tempo: level.bpm, clef: opts.clef, selectedClef: opts.clef,
     timeSig: timeSignatureFor(opts.meter), selectedTimeSignature: opts.meter,
     measures: opts.measures ?? level.measures,
+    // The generator reads the SkipPolicy under `maxSkip` (not the level's numeric maxSkip).
     maxSkip: nyssmaPolicy(level),
     range: nyssmaRange(level, opts.key, opts.anchor),
     rhythms: selectableRhythms.filter((r) => level.rhythms.includes(r.name)),
