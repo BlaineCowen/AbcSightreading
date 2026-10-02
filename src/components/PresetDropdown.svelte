@@ -543,8 +543,8 @@
           </ul>
           <p class="text-xs text-sr-muted px-2 pt-2">
             NYSSMA solo voice sight-reading criteria (Manual, Edition 33). Each level sets keys,
-            meters, skips, rhythms, tempo and dynamics; your clef and range stay. Level VI
-            comes later.
+            meters, skips, rhythms, tempo and dynamics. Your clef stays, and the level's range
+            is placed from your low note. Level VI comes later.
           </p>
         {:else}
           {#if savedPresets.length === 0 && otherPresets.length === 0}

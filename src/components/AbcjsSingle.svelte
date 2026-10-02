@@ -702,6 +702,8 @@
     if (range) selectedRange = range;
     selectedSharpDegrees = new Set();
     selectedFlatDegrees = new Set();
+    // No step prints dynamics; a level's marks would otherwise stay on.
+    dynamicsSet = [];
     activePresetLabel = stepLabel(step);
     activeSavedId = null;
     activeStepId = step.id;
@@ -713,10 +715,11 @@
   /**
    * A NYSSMA Voice level (nyssma-presets.ts): the keys and meters to draw
    * from, its exact skips and what they land on, the Max / 8th / 16th skips,
-   * rhythms, tempo, dynamics, length. Clef and range stay the teacher's - the
-   * level's span around do is placed on the do at or above the range they had,
-   * and again for each key drawn. Like a ladder step it sets the controls and
-   * leaves the exercise.
+   * rhythms, tempo, dynamics, length. The clef stays the teacher's; the range
+   * becomes the level's span around do, placed on the do at or above the
+   * teacher's low note (Level V reaches below it, to low sol), and again for
+   * each key drawn. Like a ladder step it sets the controls and leaves the
+   * exercise.
    */
   function applyNyssmaLevel(level: NyssmaLevel) {
     rhythmOnly = false;
@@ -3477,7 +3480,7 @@
       activeSavedPreset = saved;
       activeStepId = null;
       revertPreset = () => applySavedPreset(saved);
-    } else if (rec.level && nyssmaById[rec.level]) {
+    } else if (rec.level && Object.hasOwn(nyssmaById, rec.level)) {
       const level = nyssmaById[rec.level];
       activeNyssmaId = level.id;
       activeSavedId = null;
@@ -3577,7 +3580,7 @@
       {activeStepId}
       nyssmaLevels={nyssmaVoiceLevels}
       {activeNyssmaId}
-      onSelectNyssma={(id) => { if (nyssmaById[id]) applyNyssmaLevel(nyssmaById[id]); }}
+      onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
       currentParams={() => currentOptions}
       onSelectSaved={applySavedPreset}
       onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
