@@ -78,7 +78,7 @@
   } from "../lib/short-note-skips";
   import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import {
-    drawFromPool, meterPoolClick, parsePool, parseSpan, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
+    drawFromPool, meterPoolClick, parsePool, parseSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
     type Span,
   } from "../lib/unison-pools";
   import {
@@ -572,8 +572,14 @@
   let activeStepId: string | null = null;
   /** Loads the active preset or step again, for Revert. */
   let revertPreset: (() => void) | undefined = undefined;
+  /**
+   * What "edited" compares: the options with each pool in picker order, so a
+   * key removed and added back is no edit (presetSignature, unison-pools.ts).
+   */
+  const signatureOf = (options: Record<string, unknown>) =>
+    presetSignature(options, possibleKeys, Object.keys(timeSignatures));
   $: presetEdited =
-    activePresetLabel !== "" && JSON.stringify(currentOptions) !== activePresetSignature;
+    activePresetLabel !== "" && signatureOf(currentOptions) !== activePresetSignature;
 
   /**
    * Put a saved preset's settings on the page. Like choral, it sets the
@@ -639,7 +645,7 @@
     activeStepId = null;
     revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
-    setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
   /**
@@ -690,7 +696,7 @@
     activeSavedId = null;
     activeStepId = step.id;
     revertPreset = () => applyLadderStep(step);
-    setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
   function getInitialState() {
@@ -1199,7 +1205,10 @@
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
     accidentalsFollowStep !== false ||
     !(shortSkipsLinked && max8th === maxSkip && max16th === maxSkip);
-  $: rangeDirty = selectedRange.min !== DEFAULTS.range.min || selectedRange.max !== DEFAULTS.range.max;
+  // A range that follows the key is judged by its placement for the pool's
+  // first key in picker order, not the key drawn, so Generate cannot flip the dot.
+  $: settledRange = (rangeSpan && rangeForSpan(rangeSpan, possibleKeys.find((k) => selectedKeys.has(k)) ?? selectedKey, rangeAnchor)) || selectedRange;
+  $: rangeDirty = settledRange.min !== DEFAULTS.range.min || settledRange.max !== DEFAULTS.range.max;
 
   // Notes and Range only mean something when there are pitches to control.
   $: visibleTabs = (rhythmOnly ? ['setup', 'rhythm'] : ['setup', 'rhythm', 'notes', 'range']) as Tab[];
@@ -2293,9 +2302,11 @@
       // One key and one meter per exercise, drawn from the pools; a range that
       // follows the key is placed for the key drawn, from the same anchor.
       // The meter pool is one kind, so the rhythm selection still fits.
-      selectedKey = drawFromPool([...selectedKeys]);
-      selectedTimeSignature = drawFromPool([...selectedTimeSignatures]);
-      if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+      // Drawn into locals, and put on the page only once the exercise is: a
+      // failed Generate leaves the key, meter and range of the one on screen.
+      const drawnKey = drawFromPool([...selectedKeys]);
+      const drawnMeter = drawFromPool([...selectedTimeSignatures]);
+      const drawnRange = (rangeSpan && rangeForSpan(rangeSpan, drawnKey, rangeAnchor)) || selectedRange;
 
       // Validate rhythms first
       if (!validateSelectedRhythms(selectedRhythms)) {
@@ -2312,20 +2323,20 @@
         bpm,
         clef: selectedClef,
         timeSig:
-          timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
+          timeSignatures[drawnMeter as keyof typeof timeSignatures],
         measures: measures,
         // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
         maxSkip: skipPolicy,
         tempo: tempo,
-        range: selectedRange,
+        range: drawnRange,
         rhythms: selectedRhythms,
         scaleDegrees: Array.from(selectedScaleDegrees),
         selectedSharpDegrees: Array.from(selectedSharpDegrees),
         selectedFlatDegrees: Array.from(selectedFlatDegrees),
 
         selectedClef: selectedClef,
-        selectedTimeSignature: selectedTimeSignature,
-        key: selectedKey,
+        selectedTimeSignature: drawnMeter,
+        key: drawnKey,
         // Always written in, whatever the buttons say - they strip at render,
         // so either can come back without regenerating the exercise.
         showSolfege: !rhythmOnly,
@@ -2404,6 +2415,9 @@
 
 
       if (result.success) {
+        selectedKey = drawnKey;
+        selectedTimeSignature = drawnMeter;
+        selectedRange = drawnRange;
         renderedString = result.data;
         originalTuneString = result.data[0]; // Store the original tune string
         currentScore = (result.data[2] as UnisonScore) ?? null;
@@ -3379,7 +3393,7 @@
     }
     activePresetLabel = rec.label;
     // A record from before a setting existed gets it from the page (active-preset.ts).
-    activePresetSignature = restoredSignature(rec.sig, currentOptions);
+    activePresetSignature = signatureOf(JSON.parse(restoredSignature(rec.sig, currentOptions)));
   }
 
   onDestroy(() => {

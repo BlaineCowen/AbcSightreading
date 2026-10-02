@@ -67,6 +67,47 @@ export function spanFrom(value: unknown): Span | null {
 
 export const parseSpan = (raw: string | null | undefined): Span | null => (raw ? spanFrom(raw.split(",")) : null);
 
+/** The pool in picker order; anything the order does not know goes last, as it was. */
+const inOrder = (pool: readonly string[], order: readonly string[]) =>
+  [...pool].sort((a, b) => rank(order, a) - rank(order, b));
+const rank = (order: readonly string[], v: string) => {
+  const i = order.indexOf(v);
+  return i === -1 ? order.length : i;
+};
+
+/**
+ * What "edited" compares: the saved options with the pools in picker order,
+ * and the key, meter and placed range taken from that order. A pool is a set -
+ * removing a key and adding it back is no edit. The stored options keep the
+ * reader's order; only the comparison sorts. Fields keep their places, so a
+ * signature already in this form comes back unchanged, and options from
+ * before pools (no `selectedKeys`) pass through as they are.
+ */
+export function presetSignature(
+  options: Record<string, unknown>,
+  keyOrder: readonly string[],
+  meterOrder: readonly string[]
+): string {
+  const out: Record<string, unknown> = { ...options };
+  if (Array.isArray(options.selectedKeys) && options.selectedKeys.length) {
+    const keys = inOrder(options.selectedKeys as string[], keyOrder);
+    out.selectedKeys = keys;
+    out.selectedKey = keys[0];
+    const span = spanFrom(options.rangeSpan);
+    const anchor = options.rangeAnchor;
+    if (span && typeof anchor === "number") {
+      const placed = rangeForSpan(span, keys[0], anchor);
+      if (placed) out.selectedRange = placed;
+    }
+  }
+  if (Array.isArray(options.selectedTimeSignatures) && options.selectedTimeSignatures.length) {
+    const meters = inOrder(options.selectedTimeSignatures as string[], meterOrder);
+    out.selectedTimeSignatures = meters;
+    out.selectedTimeSignature = meters[0];
+  }
+  return JSON.stringify(out);
+}
+
 /**
  * What the page saves - presets, localStorage, "edited" - for its key, meter
  * and range: the pools, and the range placed for the pool's first key. Never

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  drawFromPool, meterPoolClick, parsePool, parseSpan, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
+  drawFromPool, meterPoolClick, parsePool, presetSignature, parseSpan, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
 } from "../../src/lib/unison-pools";
 import { rangeForSpan } from "../../src/lib/ladder";
 
@@ -77,6 +77,35 @@ describe("a range that follows the key", () => {
       const range = rangeForSpan(s.span, key, s.anchor)!;
       expect(JSON.stringify(setupSnapshot({ ...s, range }))).toBe(JSON.stringify(expected));
     }
+  });
+
+  test("the preset signature is the pools' set, not the order they were clicked in", () => {
+    const METERS = ["2/4", "3/4", "4/4", "6/8", "9/8", "12/8"];
+    const opts = (keys: string[], meters: string[]) => ({
+      selectedClef: "treble",
+      ...setupSnapshot({ keys, meters, span: [0, 4], anchor: 14, range: { min: 14, max: 18 } }),
+      measures: 8,
+    });
+    const a = presetSignature(opts(["C", "F"], ["4/4", "2/4"]), KEYS, METERS);
+    const b = presetSignature(opts(["F", "C"], ["2/4", "4/4"]), KEYS, METERS);
+    expect(a).toBe(b);
+    // The first key in picker order (F before C) places the range.
+    const parsed = JSON.parse(a);
+    expect(parsed.selectedKeys).toEqual(["F", "C"]);
+    expect(parsed.selectedKey).toBe("F");
+    expect(parsed.selectedTimeSignatures).toEqual(["2/4", "4/4"]);
+    expect(parsed.selectedTimeSignature).toBe("2/4");
+    expect(parsed.selectedRange).toEqual({ min: 17, max: 21 });
+    // The fields keep their places, so a signature already canonical is unchanged.
+    expect(Object.keys(parsed)).toEqual(Object.keys(opts(["C", "F"], ["4/4"])));
+    expect(presetSignature(parsed, KEYS, METERS)).toBe(a);
+    // A different set is a different signature.
+    expect(presetSignature(opts(["C", "G"], ["4/4", "2/4"]), KEYS, METERS)).not.toBe(a);
+  });
+
+  test("a signature from before pools passes through", () => {
+    const old = { selectedClef: "treble", selectedKey: "G", selectedTimeSignature: "3/4", selectedRange: { min: 14, max: 21 } };
+    expect(presetSignature(old, KEYS, ["3/4"])).toBe(JSON.stringify(old));
   });
 
   test("without a span the range is the teacher's, and no span fields are saved", () => {
