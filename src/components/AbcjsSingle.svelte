@@ -38,7 +38,7 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
-  import { timeSignaturesFor } from "../lib/meter";
+  import { beatsOf, timeSignaturesFor } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -1555,7 +1555,9 @@
       timingCallbacks = null;
     }
 
-    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+    // From the meter model: 6/8 is two beats and 12/8 four. The first digit
+    // read 12/8 as one beat a bar.
+    const beatsPerMeasure = beatsOf(playedMeter());
     // Reset per attach: beatCallback now fires many times per beat, so the
     // metronome tracks which whole beat it last sounded rather than firing on
     // every call.

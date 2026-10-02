@@ -19,7 +19,9 @@ export function canFillExercise(
   rhythms: Rhythm[],
   tsPerMeasure: number,
   totalUnits: number,
-  allowTies: boolean
+  allowTies: boolean,
+  /** One beat in 32nds, from the meter model (beatUnitOf): 8 in simple meter. */
+  beatUnits = 8
 ): boolean {
   const DOTTED = new Set([6, 12, 24]);
   const seen = new Set<number>();
@@ -35,10 +37,10 @@ export function canFillExercise(
     ) {
       return false;
     }
-    const p = (pos % tsPerMeasure) % 8;
-    if (tsPerMeasure >= 8) {
-      if ((p === 2 || p === 6) && r.totalValue >= 8) return false;
-      if (p === 4 && r.totalValue >= 16) return false;
+    const p = (pos % tsPerMeasure) % beatUnits;
+    if (tsPerMeasure >= beatUnits) {
+      if ((p === beatUnits / 4 || p === (3 * beatUnits) / 4) && r.totalValue >= 8) return false;
+      if (p === beatUnits / 2 && r.totalValue >= 16) return false;
     }
     if (lastShort && r.totalValue >= 16) return false;
     return true;

@@ -28,7 +28,7 @@
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
-  import { timeSignaturesFor } from "../lib/meter";
+  import { beatsOf, timeSignaturesFor } from "../lib/meter";
   import { failureHint, type PartSpan } from "../lib/failure-hint";
   import {
     planForm,
@@ -730,7 +730,7 @@
    */
   const drumFor = (timeSignature: string) =>
     drumPatternFor({
-      beats: parseInt(timeSignature, 10) || 4,
+      beats: beatsOf(timeSignature),
       subdivision: $tuner.subdivision,
       accent: $tuner.accent,
       sound: $tuner.clickSound,

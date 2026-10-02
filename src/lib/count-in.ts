@@ -1,4 +1,5 @@
 import { writable } from "svelte/store";
+import { beatsOf } from "./meter";
 
 /**
  * The count-in, as a director says it: "1, 2, Ready, Go" in 4/4, "1, Ready,
@@ -11,7 +12,8 @@ import { writable } from "svelte/store";
  * `countInWordNow` on each beat of it for CountInOverlay to show.
  */
 
-const beatsPerBar = (meter: string) => parseInt(meter, 10) || 4;
+/** Beats in a bar, from the meter model: 6/8 is two dotted-quarter beats, not six. */
+const beatsPerBar = (meter: string) => beatsOf(meter);
 
 export const countInMeasures = (meter: string) => (beatsPerBar(meter) === 2 ? 2 : 1);
 
