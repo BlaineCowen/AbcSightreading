@@ -58,6 +58,8 @@ export const CASES: Case[] = [
   { label: "te in F, step rule off", key: "F", meter: "4/4", maxSkip: 3, degrees: ALL, rhythms: ["quarter", "eighthEighth"], measures: 8, flats: [7], followStep: false, range: { min: 14, max: 25 } },
   { label: "ties across barline", key: "C", meter: "3/4", maxSkip: 2, degrees: [1, 2, 3, 4, 5], rhythms: ["quarter", "half", "dotHalf"], measures: 8, ties: true },
   { label: "one bar", key: "E", meter: "4/4", maxSkip: 2, degrees: [1, 2, 3, 4, 5], rhythms: ["quarter"], measures: 1 },
+  { label: "sixths, wide range", key: "D", meter: "4/4", maxSkip: 5, degrees: ALL, rhythms: ["quarter", "half", "eighthEighth"], measures: 8, range: { min: 12, max: 24 } },
+  { label: "sevenths, wide range", key: "Ab", meter: "3/4", maxSkip: 6, degrees: ALL, rhythms: ["quarter", "half", "dotHalf"], measures: 8, range: { min: 12, max: 24 } },
   { label: "rhythm only", key: "C", meter: "4/4", maxSkip: 4, degrees: [1, 3, 5], rhythms: ["quarter", "eighthEighth", "quarterRest"], measures: 4, rhythmOnly: true },
 ];
 
@@ -106,9 +108,10 @@ describe("unison output in Max skip mode, fixed seed", () => {
     for (const c of CASES) for (const seed of SEEDS) out[`${c.label} #${seed}`] = generate(c, seed);
     // Every case must have produced an entry: none skipped, none overwritten.
     expect(Object.keys(out).length).toBe(CASES.length * SEEDS.length);
-    expect(Object.keys(out).length).toBe(36);
-    // Mostly music, not errors: a snapshot of failures would guard nothing.
-    expect(Object.values(out).filter((s) => s.startsWith("ERROR")).length).toBeLessThan(4);
+    expect(Object.keys(out).length).toBe(42);
+    // Music only: a snapshot of failures would guard nothing, and a refreshed
+    // snapshot must not be able to absorb a case that has started to throw.
+    expect(Object.values(out).filter((s) => s.startsWith("ERROR")).length).toBe(0);
     expect(out).toMatchSnapshot();
   });
 });

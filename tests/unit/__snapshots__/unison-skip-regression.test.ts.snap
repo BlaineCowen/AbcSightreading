@@ -293,6 +293,90 @@ K:C clef=perc stafflines=1
 "_ti"B4"_ti"B4 "_ta"B8 "_ta"B8 "_ta"B8 |"_ti"B4"_ti"B4 "_(sh)"z8  "_(sh)"z8  "_ta"B8 |"_ta"B8 "_(sh)"z8  "_ta"B8 "_ta"B8 |"_ti"B4"_ti"B4 "_(sh)"z8  "_ti"B4"_ti"B4 "_ta"B8 |
 "
 ,
+  "sevenths, wide range #1": 
+"X:1 
+M:3/4
+L:1/32
+%%MIDI program 0
+%%annotationfont Helvetica 10
+%%score 
+V:U
+K: Ab clef=treble 
+%            End of header, start of tune body: 
+"_tu-u"A,16 "_ta"F8 |"_ta"B,8 "_tu-u"A16 |"_tu-u"D16 "_ta"C8 |"_tu-u"B16 "_ta"E8 |"_tu-u"G16 "_ta"E8 |"_tu-u-u"F24 |"_ta"e8 "_ta"G8 "_ta"c8 |"_tu-u-u"A24 |
+w: do la re do fa mi re so ti so la so ti mi do 
+"
+,
+  "sevenths, wide range #2": 
+"X:1 
+M:3/4
+L:1/32
+%%MIDI program 0
+%%annotationfont Helvetica 10
+%%score 
+V:U
+K: Ab clef=treble 
+%            End of header, start of tune body: 
+"_tu-u"E16 "_ta"d8 |"_ta"c8 "_ta"B8 "_ta"A8 |"_tu-u"f16 "_ta"G8 |"_tu-u"e16 "_(sh)"z8  |"_tu-u"E16 "_ta"A,8 |"_tu-u"D16 "_ta"E8 |"_ta"B,8 "_tu-u"A16 |"_tu-u-u"C24 |
+w: so fa mi re do la ti so so do fa so re do mi 
+"
+,
+  "sevenths, wide range #3": 
+"X:1 
+M:3/4
+L:1/32
+%%MIDI program 0
+%%annotationfont Helvetica 10
+%%score 
+V:U
+K: Ab clef=treble 
+%            End of header, start of tune body: 
+"_tu-u"E16 "_ta"G8 |"_ta"A8 "_ta"B8 "_ta"c8 |"_ta"d8 "_ta"F8 "_ta"d8 |"_tu-u"G16 "_(sh)"z8  |"_tu-u"e16 "_ta"A8 |"_ta"D8 "_tu-u"E16 |"_tu-u"C16 "_ta"A,8 |"_tu-u-u"C24 |
+w: so ti do re mi fa la fa ti so do fa so mi do mi 
+"
+,
+  "sixths, wide range #1": 
+"X:1 
+M:4/4
+L:1/32
+%%MIDI program 0
+%%annotationfont Helvetica 10
+%%score 
+V:U
+K: D clef=treble 
+%            End of header, start of tune body: 
+"_tu-u"F16 "_ta"G8 "_ta"c8 |"_ti"e4"_ti"e4 "_ti"f4"_ti"f4 "_ta"B8 "_ti"A4"_ti"A4 |"_ti"D4"_ti"D4 "_ta"A,8 "_ti"B,4"_ti"B,4 "_ta"E8 |"_tu-u"C16 "_tu-u"E16 |"_ta"G8 "_tu-u"d16 "_ta"F8 |"_ta"A,8 "_tu-u"C16 "_ta"A8 |"_tu-u"C16 "_ti"A,4"_ti"A,4 "_ta"F8 |"_ta"c8 "_ta"d8 "_tu-u"d16 |
+w: mi fa ti re re mi mi la so so do do so la la re ti re fa do mi so ti so ti so so mi ti do do 
+"
+,
+  "sixths, wide range #2": 
+"X:1 
+M:4/4
+L:1/32
+%%MIDI program 0
+%%annotationfont Helvetica 10
+%%score 
+V:U
+K: D clef=treble 
+%            End of header, start of tune body: 
+"_ti"A,4"_ti"A,4 "_ta"D8 "_ta"A8 "_ta"d8 |"_ti"f4"_ti"f4 "_ti"B4"_ti"B4 "_ta"A8 "_ta"D8 |"_ti"G4"_ti"G4 "_ta"c8 "_ti"F4"_ti"F4 "_ta"B,8 |"_tu-u"C16 "_tu-u"E16 |"_ti"A4"_ti"A4 "_ti"e4"_ti"e4 "_ta"B8 "_ti"e4"_ti"e4 |"_ta"c8 "_ti"d4"_ti"d4 "_ta"G8 "_ti"F4"_ti"F4 |"_ta"C8 "_ta"D8 "_ta"B,8 "_ta"F8 |"_ti"D4"_ti"D4 "_ta"E8 "_tu-u"D16 |
+w: so so do so do mi mi la la so do fa fa ti mi mi la ti re so so re re la re re ti do do fa mi mi ti do la mi do do re do 
+"
+,
+  "sixths, wide range #3": 
+"X:1 
+M:4/4
+L:1/32
+%%MIDI program 0
+%%annotationfont Helvetica 10
+%%score 
+V:U
+K: D clef=treble 
+%            End of header, start of tune body: 
+"_ti"d4"_ti"d4 "_ta"G8 "_tu-u"A16 |"_ta"E8 "_ti"A4"_ti"A4 "_ta"c8 "_ta"f8 |"_ta"B8 "_ta"e8 "_tu-u"f16 |"_ta"c8 "_ta"F8 "_tu-u"B,16 |"_ti"E4"_ti"E4 "_ti"D4"_ti"D4 "_ti"A,4"_ti"A,4 "_ti"F4"_ti"F4 |"_ta"G8 "_ti"c4"_ti"c4 "_ta"d8 "_ti"G4"_ti"G4 |"_ti"C4"_ti"C4 "_ti"A4"_ti"A4 "_ta"E8 "_ta"F8 |"_ti"B4"_ti"B4 "_ta"d8 "_tu-u"f16 |
+w: do do fa so re so so ti mi la re mi ti mi la re re do do so so mi mi fa ti ti do fa fa ti ti so so re mi la la do mi 
+"
+,
   "stepwise do-so #1": 
 "X:1 
 M:4/4
