@@ -289,7 +289,7 @@ function readChoralInput(raw: unknown): ChoralRenderInput {
   const key = r.k;
   check(typeof key === "string" && key in keySignatures);
   const meter = readMeter(r.m);
-  // Choral meters always carry their beam group; the choral type requires it.
+  // Choral meters always carry their beat (beatUnits); the choral type requires it.
   check(meter.beatUnits !== undefined);
   const timeSig = meter as TimeSignature;
   const tempo = r.q;

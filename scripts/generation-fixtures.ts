@@ -6,7 +6,7 @@ import { ClefType } from "../src/lib/types";
 import { isSelectableRhythm, containsRest } from "../src/lib/selectable-rhythms";
 import { timeSignaturesFor } from "../src/lib/meter";
 
-/** Simple meters: the sweep's Choral cells and the ladder. Compound is Unison's - see COMPOUND_TIME_SIGS in sweep.ts. */
+/** Simple meters: the sweep's Choral cells and the ladder. Compound is Unison's - see UNISON_METERS in scripts/sweep.ts. */
 export const TIME_SIGS: Record<string, any> = timeSignaturesFor(["4/4", "3/4", "2/4"]);
 
 /** The component's voicing table, verbatim - this is what a user can pick. */

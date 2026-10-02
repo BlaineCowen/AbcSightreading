@@ -76,6 +76,10 @@ export function canAppearInChoral(
   return true;
 }
 
+export type PickerGroupLabel = "Notes" | "Rests" | "Core" | "Sixteenths";
+
+const COMPOUND_GROUPS = ["Core", "Rests", "Sixteenths"] as const;
+
 /**
  * The picker's order: notes, then rests, each shortest first.
  *
@@ -85,10 +89,6 @@ export function canAppearInChoral(
  * it is. Figures of the same length keep a single note ahead of the patterns
  * that fill that length, and are otherwise left in file order.
  */
-export type PickerGroupLabel = "Notes" | "Rests" | "Core" | "Sixteenths";
-
-const COMPOUND_GROUPS = ["Core", "Rests", "Sixteenths"] as const;
-
 export function rhythmPickerGroups<R extends Rhythm>(
   list: R[]
 ): { label: PickerGroupLabel; rhythms: R[] }[] {

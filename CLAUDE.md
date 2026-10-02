@@ -73,7 +73,7 @@ across a barline still plays. `scripts/check-rhythm.ts` asserts those properties
 directly against the generator (no dev server needed), over every one- and
 two-rhythm selection in each time signature with ties on and off:
 
-- every emitted measure sums to exactly one measure (2/4, 3/4, 4/4, 6/8, 9/8, 12/8), and in compound meter no figure crosses a beat
+- every emitted measure sums to exactly one measure (2/4, 3/4, 4/4, 6/8, 9/8, 12/8), and in compound meter no figure crosses a beat (compound meters run at 4 and 8 bars, simple at 4)
 - generation succeeds on **exactly** the selections a reference solver proves
   solvable — this is what catches a dead end, where the search fails on
   something a different route would have filled
@@ -106,8 +106,8 @@ the per-cell table matters more than the total.
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
 `STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **0 failures in
 22,920 exercises** as shipped (1,910 cells, 75 of them the compound Unison
-cells, all at 0), measured 1 October 2026 after compound meter. Before that, 0
-failures in 22,020 exercises on 30 September 2026 after the bass was
+cells, all at 0), measured 1 October 2026 after compound meter. The run before
+that, 0 failures in 22,020 exercises on 30 September 2026 after the bass was
 allowed to leave an eighth by leap (below). 1 failure on 29 September once a failed draw
 is drawn again (generateChoral `FAILED_DRAW_RETRIES`): the rhythm is drawn once
 per attempt and all ten progressions are fitted to it, so a rhythm that cannot
