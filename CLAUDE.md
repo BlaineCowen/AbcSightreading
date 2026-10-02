@@ -16,6 +16,7 @@ bun run build      # Build for production
 bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking - clean, keep it that way
 bun run check:rhythm  # Rhythm generation property checks (see below)
+bun run check:nyssma  # Do the NYSSMA Voice levels write what the chart asks? (see below)
 bun run sweep      # Does every kind of exercise generate? (see below)
 bun run scripts/check-ladder.ts  # Does every ladder step generate? (see below)
 bun run test       # Unit tests in tests/unit/ (see the timeout note below)
@@ -93,8 +94,10 @@ in the generator and the corresponding check should fail.
 every UIL level with its own voicings, keys, chords, rhythms, ranges and max
 skip, across all three simple meters, every measure count the picker offers, all
 three voice textures, and both unison modes - which also cover Unison's compound
-meters (6/8, 9/8, 12/8, Core rhythms, Counting syllables) - and reports the
-failure rate per cell. 1,910 cells; `RUNS` (default 12) exercises each.
+meters (6/8, 9/8, 12/8, Core rhythms, Counting syllables), and the NYSSMA Voice
+levels in every key and meter each draws from (94 combinations x 4, 8 and 16
+bars = 282 cells) - and reports the
+failure rate per cell. 2,192 cells; `RUNS` (default 12) exercises each.
 
 Run it after touching generation. It exists because narrow checks lie: every
 earlier "0% failures" in this project was measured at 4/4, eight bars, with
@@ -105,8 +108,10 @@ the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
 `STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **0 failures in
-22,920 exercises** as shipped (1,910 cells, 75 of them the compound Unison
-cells, all at 0), measured 1 October 2026 after compound meter. The run before
+26,304 exercises** as shipped (2,192 cells, 282 of them NYSSMA Voice, all at 0),
+measured 2 October 2026 after the NYSSMA levels. The run before that, 0 failures
+in 22,920 exercises (1,910 cells, 75 of them the compound Unison
+cells, all at 0), 1 October 2026 after compound meter. The run before
 that, 0 failures in 22,020 exercises on 30 September 2026 after the bass was
 allowed to leave an eighth by leap (below). 1 failure on 29 September once a failed draw
 is drawn again (generateChoral `FAILED_DRAW_RETRIES`): the rhythm is drawn once
@@ -234,6 +239,23 @@ meter.
 `tests/unit/meter-regression.test.ts` freezes simple-meter Unison and Choral
 output for fixed seeds. Never update its snapshot to make it pass: a failure
 means a change reached simple meter.
+
+### NYSSMA Voice levels
+
+`src/lib/nyssma-presets.ts` holds NYSSMA's solo voice sight-reading Levels
+I-V (Manual Ed. 33, p. 7-2), the Unison page's built-in presets ("NYSSMA
+Voice" in the picker). Their interval rules are skip lists, not a largest
+skip: `src/lib/skip-policy.ts` decides every move the Unison generator makes
+(Max skip, or exact skips with what a skip may land on), and in custom mode a
+rest holds the line, so a skip is measured between sung notes.
+`tests/unit/unison-skip-regression.test.ts` pins Max skip output byte for
+byte. `scripts/check-nyssma.ts` checks every level x key x meter x clef (94
+cells, 40 runs each) against the chart's table, copied into the script: only
+listed skips, landing on allowed lengths, inside the range, only the level's
+rhythms, eighths by step, dynamics from the level's set, and no line frozen on
+one pitch. It is mutation-tested (loosen `isAllowedMove`, drop its landing
+check, or disable the rest-holds-line block and it fails). Last run 2 October
+2026: every cell clean. Level VI waits for compound meter and triplets.
 
 ## abcTuner
 

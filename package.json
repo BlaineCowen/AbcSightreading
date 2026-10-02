@@ -41,6 +41,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "check:rhythm": "bun run scripts/check-rhythm.ts",
+    "check:nyssma": "bun run scripts/check-nyssma.ts",
     "test": "bun test --timeout 30000 tests/unit",
     "sweep": "bun run scripts/sweep.ts",
     "icons:rhythm": "node scripts/render-rhythm-icons.mjs",

@@ -4,7 +4,8 @@
  * Not a unit test: it walks the configuration space a user can actually reach -
  * every UIL level, with that level's own voicings, keys, chords, rhythms,
  * ranges and max skip, across every meter, texture and a spread of lengths,
- * and Unison's compound meters (6/8, 9/8, 12/8) -
+ * and Unison's compound meters (6/8, 9/8, 12/8), and the NYSSMA Voice levels
+ * (Unison presets) in every key and meter each draws from -
  * and reports the failure rate per cell.
  *
  * It exists because narrow checks lie. Every earlier "0% failures" in this
@@ -15,6 +16,7 @@
 import { generateChoralExercise } from "../src/lib/generateChoral";
 import { createNewSr } from "../src/lib/generateUnison";
 import { uilPresets } from "../src/lib/uil-presets";
+import { nyssmaGenerationParams, nyssmaVoiceLevels } from "../src/lib/nyssma-presets";
 import { chords as fullChordSet } from "../src/resources/chords";
 import { rhythms as allRhythms } from "../src/resources/rhythms";
 import { canFillExercise } from "../src/lib/rhythm-feasibility";
@@ -171,6 +173,26 @@ for (const rhythmOnly of [false, true]) {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
           } as any);
         });
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------- NYSSMA
+// Each NYSSMA Voice level (Unison page) in every key and meter it draws from,
+// both clefs, at the lengths the measure picker offers around its 8. What the
+// exercises contain is scripts/check-nyssma.ts; this is whether they generate.
+for (const level of nyssmaVoiceLevels) {
+  for (const key of level.keys) {
+    for (const meter of level.meters) {
+      for (const clef of ["treble", "bass"]) {
+        for (const measures of [4, 8, 16]) {
+          run(`nyssma ${level.short} | ${key} | ${meter} | ${clef} | ${measures}m`, () => {
+            createNewSr(nyssmaGenerationParams(level, {
+              key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures,
+            }) as any);
+          });
+        }
       }
     }
   }
