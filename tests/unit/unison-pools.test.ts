@@ -103,6 +103,16 @@ describe("a range that follows the key", () => {
     expect(presetSignature(opts(["C", "G"], ["4/4", "2/4"]), KEYS, METERS)).not.toBe(a);
   });
 
+  test("dynamics are a set: their order is no edit, a different set is, and none saved passes through", () => {
+    const base = { selectedClef: "treble", selectedKey: "G", selectedTimeSignature: "3/4" };
+    const a = presetSignature({ ...base, dynamics: ["p", "f"] }, KEYS, ["3/4"]);
+    expect(presetSignature({ ...base, dynamics: ["f", "p"] }, KEYS, ["3/4"])).toBe(a);
+    expect(JSON.parse(a).dynamics).toEqual(["p", "f"]);
+    expect(presetSignature({ ...base, dynamics: ["p", "mf", "f"] }, KEYS, ["3/4"])).not.toBe(a);
+    expect(presetSignature({ ...base, dynamics: [] }, KEYS, ["3/4"])).not.toBe(a);
+    expect(presetSignature(base, KEYS, ["3/4"])).toBe(JSON.stringify(base));
+  });
+
   test("a signature from before pools passes through", () => {
     const old = { selectedClef: "treble", selectedKey: "G", selectedTimeSignature: "3/4", selectedRange: { min: 14, max: 21 } };
     expect(presetSignature(old, KEYS, ["3/4"])).toBe(JSON.stringify(old));

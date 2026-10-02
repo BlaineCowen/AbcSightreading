@@ -134,4 +134,17 @@ describe("dynamics in the exercise", () => {
     expect(shaped[16]).toBe(105);
     expect(Math.max(...shaped.slice(0, 16))).toBeLessThan(Math.min(...shaped.slice(16)));
   });
+
+  test("with solfege and rhythm syllables written before each mark, p, mp, mf and f still play apart", () => {
+    // 16 bars of quarters: phrases start on notes 0, 16, 32 and 48, each a downbeat.
+    const [, , score] = exercise(["quarter"], undefined, { measures: 16 });
+    const marked = { ...score, dynamics: (["p", "mp", "mf", "f"] as const).map((mark, i) => ({ at: i * 16, mark })) };
+    const abc = assembleUnisonAbc(marked, {
+      showSolfege: true, lyricSystem: "movable", showRhythmSyllables: true, syllableSystemId: "kodaly",
+    });
+    expect(abc).toMatch(/"[^"]*"!mf!/); // the annotation text sits before the decoration
+    const [tune] = (abcjs as any).parseOnly(abc);
+    const v = tune.setUpAudio({ qpm: 72 }).tracks.flat().filter((e: any) => e.cmd === "note").map((e: any) => e.volume);
+    expect([v[0], v[16], v[32], v[48]]).toEqual([60, 75, 90, 105]);
+  });
 });

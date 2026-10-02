@@ -1,3 +1,4 @@
+import { dynamicsSetFrom } from "./dynamics";
 import { rangeForSpan } from "./ladder";
 import { meterKindOf } from "./meter";
 
@@ -76,7 +77,7 @@ const rank = (order: readonly string[], v: string) => {
 };
 
 /**
- * What "edited" compares: the saved options with the pools in picker order,
+ * What "edited" compares: the saved options with the pools (and the dynamics) in a fixed order,
  * and the key, meter and placed range taken from that order. A pool is a set -
  * removing a key and adding it back is no edit. The stored options keep the
  * reader's order; only the comparison sorts. Fields keep their places, so a
@@ -105,6 +106,8 @@ export function presetSignature(
     out.selectedTimeSignatures = meters;
     out.selectedTimeSignature = meters[0];
   }
+  // Printed dynamics are a set too, compared soft to loud (dynamics.ts).
+  if (Array.isArray(options.dynamics)) out.dynamics = dynamicsSetFrom(options.dynamics);
   return JSON.stringify(out);
 }
 

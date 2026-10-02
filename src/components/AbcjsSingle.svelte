@@ -18,7 +18,8 @@
     systemOf,
     targetMoved,
   } from "../lib/scroll-to-system";
-  import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
+  import { assembleUnisonAbc, withDynamics, type UnisonScore } from "../lib/generateUnison";
+  import { DYNAMIC_MARKS, dynamicsSetFrom, toggleDynamic, type DynamicMark } from "../lib/dynamics";
   import { mySyllables, syllablesAvailable, loadMySyllables } from "../lib/syllable-prefs";
   import {
     packExercise,
@@ -407,6 +408,8 @@
       options.syllableSystemId = syllableSystem;
     }
 
+    if (urlParams.has("dynamics")) options.dynamics = dynamicsSetFrom(getParam("dynamics"));
+
     return Object.keys(options).length > 0 ? options : null;
   }
 
@@ -552,6 +555,8 @@
       masterVolume: options.masterVolume === undefined ? undefined : numberIn(options.masterVolume, 0, 1, 0.5),
       metronomeVolume: options.metronomeVolume === undefined ? undefined : numberIn(options.metronomeVolume, 0, 1, 0.5),
       click: clickFrom(options.click),
+      // Undefined when not saved (older presets), which leaves the page's own setting alone.
+      dynamics: options.dynamics === undefined ? undefined : dynamicsSetFrom(options.dynamics),
     };
   }
 
@@ -616,6 +621,7 @@
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
     cursorMode = next.cursorMode;
+    if (next.dynamics !== undefined) dynamicsSet = next.dynamics;
     if (next.run) setRunOptions(next.run);
     if (next.click) applyClick(next.click);
     // Presets from before the metronome was one kept these on their own.
@@ -751,6 +757,7 @@
       syllableSystemId: defaultSyllableSystem.id,
       allowTiesAcrossBarline: false,
       cursorMode: "smooth",
+      dynamics: [] as DynamicMark[],
     };
   }
 
@@ -1034,6 +1041,8 @@
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
   let cursorMode: CursorMode = initialState.cursorMode || "smooth";
+  /** Printed dynamics: the marks to draw from, or empty for Off (dynamics.ts). */
+  let dynamicsSet: DynamicMark[] = initialState.dynamics ?? [];
   // Turning the cursor off should clear it at once, not leave the last
   // position frozen on the staff until playback next moves it.
   $: if ((passCursorOverride ?? cursorMode) === "off" && playbackCursor) hidePlaybackCursor();
@@ -1121,6 +1130,29 @@
     writtenSyllableSystem = systemId;
     writtenLyricSystem = lyric;
     return true;
+  }
+
+  /**
+   * Dynamics are a score option: changing them redraws the marks on the
+   * exercise on screen rather than writing a new one. The audio was built
+   * with the old velocities, so it goes.
+   */
+  async function handleDynamicsChange(next: DynamicMark[]) {
+    dynamicsSet = next;
+    if (!currentScore || currentScore.staff !== "pitched") return;
+    currentScore = withDynamics(currentScore, next);
+    originalTuneString = assembleUnisonAbc(currentScore, {
+      showSolfege: !rhythmOnly,
+      lyricSystem: writtenLyricSystem,
+      showRhythmSyllables: true,
+      syllableSystemId: writtenSyllableSystem,
+      customSyllables: $mySyllables,
+    });
+    renderedString = [originalTuneString, [], currentScore];
+    useExerciseScore(currentScore);
+    audioBuffer = null;
+    createSynth = null;
+    if (currentTune) await rerenderTune();
   }
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
@@ -1245,6 +1277,7 @@
       syllableSystemId,
       allowTiesAcrossBarline,
       cursorMode,
+      dynamics: dynamicsSet,
       rhythmSoundId,
       instrumentProgram,
       transposeSemitones,
@@ -1315,6 +1348,7 @@
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
     params.set("cursor", cursorMode);
+    if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
     if (assignmentId) params.set(ASSIGNMENT_PARAM, assignmentId);
 
@@ -2353,6 +2387,7 @@
         maxEighthSkip: max8th,
         maxSixteenthSkip: max16th,
         accidentalsFollowStep: accidentalsFollowStep,
+        dynamics: rhythmOnly ? [] : dynamicsSet,
         partsObject: {
           numofParts: 1,
           parts: {
@@ -3726,6 +3761,33 @@
                 {:else}
                   The note names under the staff.
                 {/if}
+              </p>
+            </div>
+            {/if}
+
+            {#if !rhythmOnly}
+            <div class="space-y-2">
+              <p class="sr-label">Dynamics</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Dynamics">
+                <button
+                  class="sr-tok {dynamicsSet.length === 0 ? 'sr-on' : ''}"
+                  aria-pressed={dynamicsSet.length === 0}
+                  on:click={() => handleDynamicsChange([])}
+                >Off</button>
+                {#each DYNAMIC_MARKS as mark}
+                  <button
+                    class="sr-tok italic {dynamicsSet.includes(mark) ? 'sr-on' : ''}"
+                    aria-pressed={dynamicsSet.includes(mark)}
+                    on:click={() => handleDynamicsChange(toggleDynamic(dynamicsSet, mark))}
+                  >{mark}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {dynamicsSet.length === 0
+                  ? "No dynamics printed."
+                  : dynamicsSet.length === 1
+                    ? `${dynamicsSet[0]} under the first note. Playback follows it.`
+                    : "One under the first note, and each 4-bar phrase may change it. Playback follows them."}
               </p>
             </div>
             {/if}
