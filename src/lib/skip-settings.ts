@@ -2,32 +2,41 @@ import { isSkipMove, type SkipMove, type SkipPolicy } from "./skip-policy";
 
 /**
  * The Unison page's skip controls as data (NYSSMA Voice levels spec, section 1):
- * Max skip or Custom skips, the rows, the quick-add chips, what a skip may
- * land on - and how they are kept in presets and URLs. Pure, so it is tested
- * here rather than in the component.
+ * Max skip, and the "Choose exact skips" panel - an on/off switch, pattern
+ * toggles, other skips, and what a skip may land on - and how they are kept
+ * in presets and URLs. Pure, so it is tested here rather than in the component.
  */
 
-export type SkipMode = "max" | "custom";
-
 export interface SkipSettings {
-  skipMode: SkipMode;
-  /** Kept while in Max skip mode too, so switching back restores the list. */
-  customSkips: SkipMove[];
+  /** "Only allow these skips". Off: Max skip rules, and the choices below are kept for later. */
+  exactOn: boolean;
+  /** Ids of the patterns that are on, in SKIP_CHIPS order. */
+  patterns: SkipChipId[];
+  /** Other skips, in the order they were added. */
+  extraSkips: SkipMove[];
   /** Lengths (32nds) a skip may land on. All four: no limit. */
-  skipLandOn: number[];
+  landOn: number[];
 }
 
-export const LAND_ON_CHOICES: readonly { length: number; label: string }[] = [
-  { length: 4, label: "Eighth" },
-  { length: 8, label: "Quarter" },
-  { length: 12, label: "Dotted quarter" },
-  { length: 16, label: "Half" },
+export const LAND_ON_CHOICES: readonly { length: number; label: string; icon: string }[] = [
+  { length: 4, label: "eighth", icon: "eighth" },
+  { length: 8, label: "quarter", icon: "quarter" },
+  { length: 12, label: "dotted quarter", icon: "dotQuarter" },
+  { length: 16, label: "half", icon: "half" },
 ];
 export const ALL_LAND_ON: number[] = LAND_ON_CHOICES.map((c) => c.length);
 
-export const SKIP_DEGREES: readonly { value: number; label: string }[] = [
-  "do", "re", "mi", "fa", "sol", "la", "ti",
-].map((name, k) => ({ value: k + 1, label: `${k + 1} ${name}` }));
+/** Max skip mode, nothing chosen: what a page, preset or link without the fields gets. */
+export const DEFAULT_SKIP_SETTINGS: SkipSettings = Object.freeze({
+  exactOn: false,
+  patterns: Object.freeze([]),
+  extraSkips: Object.freeze([]),
+  landOn: Object.freeze([...ALL_LAND_ON]),
+}) as unknown as SkipSettings;
+
+/** Solfège for scale degrees 1-7, as the panel names them. */
+export const DEGREE_NAMES = ["do", "re", "mi", "fa", "sol", "la", "ti"] as const;
+export const DIR_ARROWS = { up: "↗", down: "↘", both: "↕" } as const;
 
 const up = (from: number, to: number): SkipMove => ({ from, to, dir: "up" });
 const down = (from: number, to: number): SkipMove => ({ from, to, dir: "down" });
@@ -45,7 +54,7 @@ export type SkipChipId =
   | "do-mi-sol-up" | "do-sol-up" | "sol-mi-do-down" | "sol-do-down"
   | "do-sol-down" | "sol-ti-re-up" | "tonic-triad" | "fourths-fifths";
 
-/** One click adds the rows, which stay editable. "Clear" is the page's own button. */
+/** The patterns: each one on allows its rows. Ids are saved in presets and links - keep them stable. */
 export const SKIP_CHIPS: readonly { id: SkipChipId; label: string; moves: SkipMove[] }[] = [
   { id: "do-mi-sol-up", label: "Do-Mi-Sol ↑", moves: [up(1, 3), up(3, 5)] },
   { id: "do-sol-up", label: "Do-Sol ↑", moves: [up(1, 5)] },
@@ -56,21 +65,48 @@ export const SKIP_CHIPS: readonly { id: SkipChipId; label: string; moves: SkipMo
   { id: "tonic-triad", label: "Tonic triad ↕", moves: [both(1, 3), both(3, 5), both(1, 5)] },
   { id: "fourths-fifths", label: "4ths & 5ths ↕", moves: FOURTHS_AND_FIFTHS },
 ];
+const CHIP_IDS: readonly string[] = SKIP_CHIPS.map((c) => c.id);
 
-/** A chip's rows, as copies. */
+/** A pattern's rows, as copies. */
 export function chipMoves(id: SkipChipId): SkipMove[] {
   return (SKIP_CHIPS.find((c) => c.id === id)?.moves ?? []).map((m) => ({ ...m }));
 }
 
-/** Add rows: one already listed is left alone, and the other direction of one makes it ↕. */
-export function addMoves(list: SkipMove[], add: SkipMove[]): SkipMove[] {
-  const out = list.map((m) => ({ ...m }));
-  for (const m of add) {
-    const same = out.find((o) => o.from === m.from && o.to === m.to);
-    if (!same) out.push({ ...m });
-    else if (same.dir !== m.dir && same.dir !== "both") same.dir = "both";
-  }
-  return out;
+/** Known ids only, once each, in SKIP_CHIPS order. */
+function cleanPatterns(ids: readonly unknown[]): SkipChipId[] {
+  return SKIP_CHIPS.map((c) => c.id).filter((id) => ids.includes(id));
+}
+
+/** One key per distinct skip: a ↕ row is the same either way round. */
+const moveKey = (m: SkipMove) =>
+  m.dir === "both" ? `${Math.min(m.from, m.to)}b${Math.max(m.from, m.to)}` : `${m.from}${m.dir}${m.to}`;
+
+/** Rows once each, first one kept. */
+function unique(moves: SkipMove[]): SkipMove[] {
+  const seen = new Set<string>();
+  return moves.filter((m) => !seen.has(moveKey(m)) && !!seen.add(moveKey(m))).map((m) => ({ ...m }));
+}
+
+/** Turn a pattern on or off. Turning one on turns exact skips on; turning one off leaves the switch alone. */
+export function togglePattern(s: SkipSettings, id: SkipChipId): SkipSettings {
+  const on = s.patterns.includes(id);
+  return {
+    ...s,
+    exactOn: on ? s.exactOn : true,
+    patterns: cleanPatterns(on ? s.patterns.filter((p) => p !== id) : [...s.patterns, id]),
+  };
+}
+
+/** The "Only allow these skips" switch. Every choice is kept either way. */
+export function setExactOn(s: SkipSettings, exactOn: boolean): SkipSettings {
+  return { ...s, exactOn };
+}
+
+/** Add an other skip. One already there, or a unison, changes nothing. */
+export function addExtraSkip(list: SkipMove[], move: SkipMove): SkipMove[] {
+  if (!isSkipMove(move)) return list;
+  const key = moveKey(move);
+  return list.some((m) => moveKey(m) === key) ? list : [...list, { from: move.from, to: move.to, dir: move.dir }];
 }
 
 /** Turn one land-on value on or off, in note-value order. The last one stays on. */
@@ -79,57 +115,69 @@ export function toggleLandOn(list: number[], length: number): number[] {
   return ALL_LAND_ON.filter((l) => l === length || list.includes(l));
 }
 
-/** The rule these controls describe. */
+/** The rule these controls describe: Max skip, or the union of the patterns on and the other skips. */
 export function policyFor(maxSkip: number, s: SkipSettings): SkipPolicy {
-  if (s.skipMode === "max") return { kind: "max", maxSkip };
-  const moves = s.customSkips.filter(isSkipMove).map((m) => ({ ...m }));
-  const limited = ALL_LAND_ON.some((l) => !s.skipLandOn.includes(l));
-  return limited ? { kind: "custom", moves, landOn: [...s.skipLandOn] } : { kind: "custom", moves };
+  if (!s.exactOn) return { kind: "max", maxSkip };
+  const moves = unique([
+    ...s.patterns.flatMap((id) => chipMoves(id)),
+    ...s.extraSkips.filter(isSkipMove),
+  ]);
+  const limited = ALL_LAND_ON.some((l) => !s.landOn.includes(l));
+  return limited ? { kind: "custom", moves, landOn: [...s.landOn] } : { kind: "custom", moves };
 }
 
-/** The settings in a saved options object; one without them is Max skip mode. */
+/** The settings in a saved options object. Anything missing or malformed falls back to the default (Max skip). */
 export function skipSettingsFrom(options: unknown): SkipSettings {
   const o = (options && typeof options === "object" ? options : {}) as Record<string, unknown>;
-  const customSkips = Array.isArray(o.customSkips)
-    ? o.customSkips.filter(isSkipMove).map((m) => ({ from: m.from, to: m.to, dir: m.dir }))
+  const extraSkips = Array.isArray(o.extraSkips)
+    ? unique(o.extraSkips.filter(isSkipMove))
     : [];
-  const landOn = Array.isArray(o.skipLandOn)
-    ? ALL_LAND_ON.filter((l) => (o.skipLandOn as unknown[]).includes(l))
+  const landOn = Array.isArray(o.landOn)
+    ? ALL_LAND_ON.filter((l) => (o.landOn as unknown[]).includes(l))
     : [];
   return {
-    skipMode: o.skipMode === "custom" ? "custom" : "max",
-    customSkips,
-    skipLandOn: landOn.length ? landOn : [...ALL_LAND_ON],
+    exactOn: o.exactOn === true,
+    patterns: Array.isArray(o.patterns) ? cleanPatterns(o.patterns) : [],
+    extraSkips: extraSkips.map((m) => ({ from: m.from, to: m.to, dir: m.dir })),
+    landOn: landOn.length ? landOn : [...ALL_LAND_ON],
   };
 }
 
 const DIR_CODE = { up: "u", down: "d", both: "b" } as const;
 const CODE_DIR = { u: "up", d: "down", b: "both" } as const;
+const SKIP_PARAMS = ["exactSkips", "skipPatterns", "skips", "skipLand"] as const;
 
-/** Custom skips only: `skipMode=custom&skips=1u3,3u5&skipLand=8`. Max skip mode adds nothing. */
+/**
+ * `exactSkips=1&skipPatterns=do-mi-sol-up&skips=2u5,6b4&skipLand=8,16`, each
+ * only when it differs from the default - so Max skip with nothing chosen
+ * adds nothing, and the choices survive a reload with the switch off.
+ */
 export function writeSkipParams(s: SkipSettings, params: URLSearchParams): void {
-  if (s.skipMode !== "custom") return;
-  params.set("skipMode", "custom");
-  params.set("skips", s.customSkips.map((m) => `${m.from}${DIR_CODE[m.dir]}${m.to}`).join(","));
-  params.set("skipLand", s.skipLandOn.join(","));
+  if (s.exactOn) params.set("exactSkips", "1");
+  if (s.patterns.length) params.set("skipPatterns", s.patterns.join(","));
+  if (s.extraSkips.length) params.set("skips", s.extraSkips.map((m) => `${m.from}${DIR_CODE[m.dir]}${m.to}`).join(","));
+  if (ALL_LAND_ON.some((l) => !s.landOn.includes(l))) params.set("skipLand", s.landOn.join(","));
 }
 
-/** The settings a link carries, or null for a link in Max skip mode (every old link). */
+/** The settings a link carries, or null for a link without any (every old link: Max skip mode). */
 export function readSkipParams(params: URLSearchParams): SkipSettings | null {
-  if (params.get("skipMode") !== "custom") return null;
-  const customSkips = (params.get("skips") ?? "").split(",").flatMap((text) => {
-    const m = /^([1-7])([udb])([1-7])$/.exec(text.trim());
-    if (!m) return [];
-    const move = { from: Number(m[1]), to: Number(m[3]), dir: CODE_DIR[m[2] as keyof typeof CODE_DIR] };
-    return isSkipMove(move) ? [move] : [];
+  if (!SKIP_PARAMS.some((p) => params.has(p))) return null;
+  const list = (name: string) => (params.get(name) ?? "").split(",").map((t) => t.trim());
+  const extraSkips = list("skips").flatMap((text) => {
+    const m = /^([1-7])([udb])([1-7])$/.exec(text);
+    return m ? [{ from: Number(m[1]), to: Number(m[3]), dir: CODE_DIR[m[2] as keyof typeof CODE_DIR] }] : [];
   });
-  const skipLandOn = (params.get("skipLand") ?? "").split(",").map(Number);
-  return skipSettingsFrom({ skipMode: "custom", customSkips, skipLandOn });
+  return skipSettingsFrom({
+    exactOn: params.get("exactSkips") === "1",
+    patterns: list("skipPatterns"),
+    extraSkips,
+    landOn: list("skipLand").map(Number),
+  });
 }
 
 /**
- * Can a line in custom mode get from every selected degree to every other,
- * by steps between selected neighbours and the listed skips? Ignores the
+ * Can a line with exact skips get from every selected degree to every other,
+ * by steps between selected neighbours and the allowed skips? Ignores the
  * range and the landing limit - a quick check before generating, so the
  * teacher hears "add a skip", not "increase Max Skip". Max skip mode keeps
  * the page's own gap check, so this says true for it.
