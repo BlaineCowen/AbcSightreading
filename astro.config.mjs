@@ -9,6 +9,12 @@ export default defineConfig({
   // serves the same pages, and canonical links point it here.
   site: "https://www.abc-sightreading.com",
   output: "server",
+  // Old addresses that moved. Permanent, so search results follow; the
+  // Vercel adapter writes these into its routes, and the dev server honours
+  // them too.
+  redirects: {
+    "/sight-reading-factory-alternative": { status: 301, destination: "/why-abc-sight-reading" },
+  },
   adapter: vercel({
     maxDuration: 60,
     // No runtime specified - let Vercel decide

@@ -1,0 +1,258 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
+import { ladder } from "../lib/ladder";
+import choralExample from "../assets/example-choral-annotated.svg?raw";
+import rhythmExample from "../assets/example-rhythm-kodaly.svg?raw";
+
+/**
+ * Why a choir director would pick abc Sight Reading: what it does for a
+ * teacher and a choir, said as outcomes. This page sells the results and
+ * deliberately says nothing about how exercises are made - no rules, no
+ * form plans, no algorithm. Keep it that way, and keep every claim to
+ * something the app does today.
+ *
+ * The two examples are real exercises drawn by the app (UIL 3 in F major
+ * with movable do and chord symbols; a Kodály rhythm line).
+ */
+
+const benefits = [
+  {
+    title: "It sounds like choral music",
+    body: "Phrases that breathe and cadences that land, so reading practice feels like the music on your stands.",
+  },
+  {
+    title: "Parts your singers can sing",
+    body: "Every line sits where that section lives, and moves the way a choral part moves.",
+  },
+  {
+    title: "Ready for contest",
+    body: `UIL levels 1 to 5, a ${ladder.length}-step path from rhythm to four parts, and presets of your own.`,
+  },
+  {
+    title: "The syllables you teach",
+    body: "Solfège under the notes and rhythm syllables over them, on when you want them and off when you don't.",
+  },
+  {
+    title: "Practice that runs itself",
+    body: "Drill hands your singers exercise after exercise, and abcTuner and the practice tools sit beside the music.",
+  },
+  {
+    title: "Your whole program",
+    body: "Print it, share it, assign it, and see who practiced.",
+  },
+];
+
+const voicings = ["SATB", "SAB", "SSA", "TTB", "Two-part", "Unison", "Rhythm only"];
+
+const annotations = [
+  { name: "Movable do", note: "la-based minor" },
+  { name: "Fixed do", note: "C is always do" },
+  { name: "Note names", note: "C, B♭, F♯" },
+  { name: "Kodály", note: "ta, ti-ti" },
+  { name: "Counting", note: "1 & 2 &" },
+  { name: "Your own", note: "your choir's syllables" },
+];
+
+const tools = ["Tuner", "Metronome", "Drone", "Starting pitches", "Voice analysis", "Timer"];
+---
+
+<Layout
+  title="Why ABC Sight Reading | Sight-Reading Practice Made for Choirs"
+  description="Choir sight-reading that sounds like real choral music: singable SATB, SSA, TTB and unison parts, UIL levels 1 to 5, solfège and rhythm syllables, hands-free drills, a tuner and student practice. Free to start."
+  themable
+>
+  <div class="max-w-5xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-16 pb-16">
+    <!-- Hero -->
+    <section class="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-10 items-center pt-6">
+      <div class="flex flex-col gap-5">
+        <p class="sr-label">For choir directors</p>
+        <h1 class="text-4xl sm:text-5xl font-bold text-sr-ink leading-tight text-balance">
+          Sight reading made for choirs
+        </h1>
+        <p class="text-lg">
+          abc Sight Reading is built for singers and the people who teach them. Every exercise sounds like real choral
+          music, with phrases that breathe and cadences that land, and every part is one your sections can actually
+          sing.
+        </p>
+        <p>
+          Pick a level and press Generate, or set it exactly the way your choir needs it. Then put the syllables on,
+          start a drill, and keep a tuner right beside the music.
+        </p>
+        <div class="flex flex-wrap items-center gap-3">
+          <a class="sr-btn px-7 py-3" href="/choral-sightreading">Try it free</a>
+          <a class="sr-btn-quiet" href="/pricing">See pricing</a>
+        </div>
+        <p class="text-sm text-sr-muted">
+          {GENERATION_LIMITS.anonymous} exercises a month with no account, {GENERATION_LIMITS.free} with a free one.
+        </p>
+      </div>
+      <figure class="w-full">
+        <div class="sr-sheet p-4 sm:p-6">
+          <Fragment set:html={choralExample} />
+        </div>
+        <figcaption class="mt-3 text-center text-sm font-bold text-sr-muted">
+          A real exercise at UIL level 3, with movable do and chord symbols turned on.
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- The benefits at a glance -->
+    <section aria-labelledby="benefits-heading" class="flex flex-col gap-6">
+      <h2 id="benefits-heading" class="text-3xl font-bold text-sr-ink text-balance">What your choir gets</h2>
+      <ul class="sr-pastels grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+        {benefits.map((b) => (
+          <li class="sr-panel p-5 flex flex-col gap-1">
+            <span class="text-lg font-semibold text-sr-ink" style="font-family: var(--sr-font-display)">{b.title}</span>
+            <span class="text-sm">{b.body}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- Music, not a test -->
+    <section class="sr-panel p-6 sm:p-10 flex flex-col gap-6">
+      <div class="max-w-3xl flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Written for voices</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Sight-reading that sounds like music, not a test</h2>
+        <p>
+          Your singers read best when what they practice looks and sounds like what they perform. Exercises here have a
+          shape: a phrase that goes somewhere, an ending that feels like one, and parts that make sense to sing on their
+          own and together. What your choir learns in practice carries straight into the octavo.
+        </p>
+        <p>
+          Every exercise is new, so nobody memorizes the answer, and every one is singable, so nobody wastes a rehearsal
+          on something that would never appear in real music.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2" aria-label="Voicings">
+        {voicings.map((v) => (
+          <span class="rounded-full bg-sr-track text-sr-ink px-3.5 py-1.5 text-sm font-bold">{v}</span>
+        ))}
+      </div>
+      <p class="text-sm">
+        Choral exercises in every common voicing, with parts that sing together or enter one at a time, plus single-line
+        unison reading and rhythm-only drills on the
+        <a class="underline font-bold text-sr-action-fg" href="/sightreading">Unison</a> page.
+      </p>
+    </section>
+
+    <!-- Presets -->
+    <section class="flex flex-col gap-6">
+      <div class="max-w-3xl flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Presets</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Pick a level and press Generate</h2>
+        <p>
+          You don't need to set anything up. When you do want control, keys, meters, rhythms, chords, ranges and length
+          are all yours to choose.
+        </p>
+      </div>
+      <div class="sr-pastels grid md:grid-cols-3 gap-4 sm:gap-6">
+        <div class="sr-panel p-6 flex flex-col gap-3">
+          <p class="sr-label">UIL levels 1 to 5</p>
+          <p>
+            Each level follows UIL's choir sight-reading criteria, so the music on contest day feels familiar.
+          </p>
+          <p class="text-sm"><a class="underline font-bold" href="/uil-sight-reading">What each level uses</a></p>
+        </div>
+        <div class="sr-panel p-6 flex flex-col gap-3">
+          <p class="sr-label">Step by step</p>
+          <p>
+            {ladder.length} steps from rhythm alone to four parts, one new idea at a time. With an account, mark each
+            step passed for each of your classes.
+          </p>
+        </div>
+        <div class="sr-panel p-6 flex flex-col gap-3">
+          <p class="sr-label">Your own presets</p>
+          <p>
+            Save the settings you like under a name you'll recognize, and find them on any device when you're signed
+            in.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Syllables -->
+    <section class="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-10 items-center">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Solfège and rhythm syllables</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">The syllables your choir already uses</h2>
+        <p>
+          Read it clean, then turn the help on to check. Solfège prints under every part in movable do, fixed do or note
+          names, and switching changes the exercise you're looking at, not a new one.
+        </p>
+        <p>
+          On a single line, rhythm syllables print over the notes: Kodály, counting, or your own set with Pro.
+        </p>
+        <div class="flex flex-wrap gap-2" aria-label="Annotation systems">
+          {annotations.map((a) => (
+            <span class="rounded-full bg-sr-tint text-sr-action-fg px-3.5 py-1.5 text-sm font-bold">
+              {a.name}<span class="font-semibold text-sr-muted"> · {a.note}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <figure class="w-full">
+        <div class="sr-sheet p-4 sm:p-6">
+          <Fragment set:html={rhythmExample} />
+        </div>
+        <figcaption class="mt-3 text-center text-sm font-bold text-sr-muted">
+          A rhythm line counted in Kodály syllables.
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- Drill and tools -->
+    <section class="sr-panel p-6 sm:p-10 grid md:grid-cols-2 gap-8 items-start">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Drill, abcTuner and practice tools</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Practice that keeps going without you</h2>
+        <p>
+          Start a <strong class="text-sr-ink">Drill</strong> and step back: it brings up the next exercise, repeats each
+          one, gives reading time first and raises the tempo as it goes. Keep the first pass clean and show the
+          syllables only on the repeats.
+        </p>
+        <p>
+          Every exercise plays back with a count-in and a cursor that follows the music, and any part can be muted so a
+          section hears itself against the rest. With Pro, a Tools button opens a tuner, metronome, drone and each
+          part's starting pitch, already set to the exercise, and <strong class="text-sr-ink">abcTuner</strong> adds
+          voice analysis and a scale challenge that grades how in tune each note was.
+        </p>
+        <p class="text-sm"><a class="underline text-sr-action-fg font-bold" href="/tuner">Open abcTuner</a></p>
+      </div>
+      <ul class="sr-pastels grid grid-cols-2 gap-2" aria-label="Practice tools">
+        {tools.map((t) => (
+          <li class="sr-panel rounded-[18px] px-4 py-3 text-sm font-extrabold">{t}</li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- Print, share, assign -->
+    <section class="max-w-3xl w-full mx-auto flex flex-col gap-3">
+      <h2 class="text-2xl font-bold text-sr-ink">Print it, share it, assign it</h2>
+      <p>
+        Print a clean copy for the stands, send a link that opens the same exercise, or export MusicXML, MIDI or ABC for
+        your notation software.
+        {EDUCATOR_ON_SALE
+          ? " With Educator, your classes get join codes and student accounts, and you can assign practice and see the minutes each student put in."
+          : " Coming soon with Educator: class join codes, student accounts, and assigned practice with the minutes each student put in."}
+      </p>
+    </section>
+
+    <section class="sr-panel p-8 sm:p-10 text-center flex flex-col items-center gap-4">
+      <h2 class="text-3xl font-bold text-sr-ink text-balance">Hear it in one exercise</h2>
+      <p class="max-w-xl">
+        Choose your voicing and a UIL level, press Generate, and turn solfège on. No account needed.
+      </p>
+      <div class="flex flex-wrap justify-center gap-3">
+        <a class="sr-btn px-7 py-3" href="/choral-sightreading">Try it free</a>
+        <a class="sr-btn-quiet" href="/pricing">See pricing</a>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  /* The examples are drawn in currentColor on white paper, as on the practice pages. */
+  :global(.sr-sheet svg) { width: 100%; height: auto; display: block; }
+</style>

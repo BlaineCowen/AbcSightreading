@@ -10,7 +10,7 @@ export const PUBLIC_PAGES = [
   "/how-to-use",
   "/uil-sight-reading",
   "/pricing",
-  "/sight-reading-factory-alternative",
+  "/why-abc-sight-reading",
   "/tuner",
 ];
 
