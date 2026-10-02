@@ -24,6 +24,14 @@ import {
   type SyllableSystem,
 } from "../resources/rhythm-syllables";
 import type { Cadence, RhythmWithPattern } from "./types";
+import {
+  isAllowedMove,
+  largestSkip,
+  toSkipPolicy,
+  STEP_ONLY,
+  type SkipNote,
+  type SkipPolicy,
+} from "./skip-policy";
 
 // interface AbcObject {
 //   key: string;
@@ -147,7 +155,8 @@ interface Note {
 
 interface GenerateChordParams {
   key: string;
-  maxSkip: number;
+  /** The skip rule (skip-policy.ts). A number from older callers is wrapped in createNewSrOnce. */
+  maxSkip: SkipPolicy;
   noteIndex: number;
   partObject: any;
   randPartIndex: number;
@@ -486,7 +495,7 @@ function generateChordProgression(
   timeSig: any,
   numOfMeasures: any,
   bassRangeNoteList: Note[],
-  maxSkip: number,
+  policy: SkipPolicy,
   randNoteLengths: number[],
   chords: Chord[],
   scaleDegrees: number[],
@@ -658,7 +667,7 @@ function generateChordProgression(
       (n) =>
         isHome(n) &&
         n.pitchValue !== note.pitchValue &&
-        Math.abs(n.pitchValue - note.pitchValue) <= maxSkip
+        isAllowedMove(note, n, randNoteLengths[randNoteLengths.length - 1], policy)
     );
 
   // console.log("=== CHORD PROGRESSION GENERATION START ===");
@@ -673,7 +682,8 @@ function generateChordProgression(
   // });
 
   let bassNoteArray: Note[] = [];
-  let newMaxSkip = maxSkip;
+  /** The rule for the move into the note being chosen: the policy, or a step after an altered note. */
+  let activePolicy: SkipPolicy = policy;
 
 
   // const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
@@ -772,11 +782,30 @@ function generateChordProgression(
 
   let bassDegrees = bassRangeNoteList.filter(
     (note) =>
-      Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip &&
+      isAllowedMove(prevBassNote, note, randNoteLengths[1] ?? 0, policy) &&
       scaleDegrees.includes(note.degree)
   );
 
   var chordProgression: any[] = [];
+  /** A note as the skip rule sees it: altered when this chord makes it so. */
+  const sungNote = (note: Note, chord: Chord | undefined): SkipNote => ({
+    pitchValue: note.pitchValue,
+    degree: note.degree,
+    chromatic: isChromaticIn(chord, note),
+  });
+  /**
+   * May the line move from note i-1 to `note`, sung over `chord` (undefined
+   * while no chord is chosen yet), under the rule in force for this note?
+   * In Max skip mode this is exactly the old check of the distance against
+   * the max skip (1 after an altered note).
+   */
+  const reaches = (note: Note, chord: Chord | undefined, i: number) =>
+    isAllowedMove(
+      sungNote(bassNoteArray[i - 1], chordProgression[i - 1]?.chord),
+      sungNote(note, chord),
+      randNoteLengths[i],
+      activePolicy
+    );
 
   let validProgression = false;
 
@@ -787,7 +816,7 @@ function generateChordProgression(
 
     for (let i = 0; i < numOfChords; i++) {
       // console.log(`📝 Generating chord ${i + 1}/${numOfChords}`);
-      newMaxSkip = maxSkip;
+      activePolicy = policy;
 
       if (
         shouldTieEighthNotes(
@@ -805,9 +834,9 @@ function generateChordProgression(
       if (i !== 0) {
         // todo add eighth note check
         if (randNoteLengths[i] <= 4) {
-          // newMaxSkip = 1;
+          // activePolicy = STEP_ONLY;
         } else {
-          newMaxSkip = maxSkip;
+          activePolicy = policy;
         }
         prevBassNote = bassNoteArray[i - 1];
 
@@ -821,17 +850,14 @@ function generateChordProgression(
             (prevChord.chord.flatScaleDegree !== undefined &&
               prevChord.chord.flatScaleDegree === prevBassNote.degree)
           ) {
-            newMaxSkip = 1;
+            activePolicy = STEP_ONLY;
           } else {
-            newMaxSkip = maxSkip;
+            activePolicy = policy;
           }
         }
 
         // todo add eighth note check
-        bassDegrees = bassRangeNoteList.filter(
-          (note) =>
-            Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
-        );
+        bassDegrees = bassRangeNoteList.filter((note) => reaches(note, undefined, i));
         // A step is not enough: an altered note resolves in the direction it
         // was altered - fi up to so, te down to la. The step rule alone let 91
         // of 1,103 go the other way (fi down to mi), which is the one thing a
@@ -869,7 +895,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              usable(nextChordInfo, bassNote)
+              usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
             );
             if (!isGenerallyReachable) return false;
 
@@ -918,11 +944,7 @@ function generateChordProgression(
           };
           let bassNoteToAdd = bassDegrees
             .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
-            .filter(
-              (note) =>
-                Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
-                newMaxSkip
-            );
+            .filter((note) => reaches(note, chords.find((c) => c.name === nextChordName), i));
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
               pickBass(bassNoteToAdd, nextChord.chord)
@@ -960,7 +982,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              usable(nextChordInfo, bassNote)
+              usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
             );
             if (!isGenerallyReachable) return false;
 
@@ -999,7 +1021,7 @@ function generateChordProgression(
 
               // Is it reachable with the general maxSkip?
               const isGenerallyReachable = bassDegrees.some((bassNote) =>
-                usable(nextChordInfo, bassNote)
+                usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
               );
               if (!isGenerallyReachable) return false;
 
@@ -1048,11 +1070,7 @@ function generateChordProgression(
           };
           let bassNoteToAdd = bassDegrees
             .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
-            .filter(
-              (note) =>
-                Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
-                newMaxSkip
-            );
+            .filter((note) => reaches(note, chords.find((c) => c.name === nextChordName), i));
           // One from which home is in reach, so the line can end there. Only
           // the first of them was taken, so the same note came every time and
           // with the final often a repeat of it.
@@ -1086,10 +1104,7 @@ function generateChordProgression(
         };
         let bassNoteToAdd = bassDegrees
           .filter((note) => usable(chords[0], note))
-          .filter(
-            (note) =>
-              Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
-          );
+          .filter((note) => reaches(note, chords[0], i));
         // End on do, mi or so, whichever are selected and in reach.
         const home = bassNoteToAdd.filter(isHome);
         if (home.length > 0) bassNoteToAdd = home;
@@ -1120,7 +1135,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              usable(nextChordInfo, bassNote)
+              usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
             );
             if (!isGenerallyReachable) return false;
 
@@ -1167,7 +1182,7 @@ function generateChordProgression(
           // so and had nowhere to end but so - three "up to so" lines in four.
           const homeDistance = distanceHome(prevBassNote);
           const homing =
-            numOfChords - 1 - i <= Math.ceil(homeDistance / Math.max(1, newMaxSkip)) + HOME_MARGIN &&
+            numOfChords - 1 - i <= Math.ceil(homeDistance / Math.max(1, largestSkip(activePolicy))) + HOME_MARGIN &&
             homeDistance > 0;
           const towardHome = (note: Note) => distanceHome(note) < homeDistance;
           if (homing) {
@@ -1177,7 +1192,7 @@ function generateChordProgression(
                 (note) =>
                   usable(info, note) &&
                   towardHome(note) &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+                  reaches(note, info, i)
               );
             });
             if (closer.length > 0) nextChordPossibilities = closer;
@@ -1191,7 +1206,7 @@ function generateChordProgression(
                 (note) =>
                   usable(info, note) &&
                   note.pitchValue !== prevBassNote.pitchValue &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+                  reaches(note, info, i)
               );
             const offers = nextChordPossibilities.map((possibleNext) => {
               const notes = reachable(chords.find((c) => c.name === possibleNext.name));
@@ -1208,7 +1223,7 @@ function generateChordProgression(
                 (note) =>
                   usable(info, note) &&
                   note.pitchValue !== prevBassNote.pitchValue &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+                  reaches(note, info, i)
               );
             });
             if (moving.length > 0) nextChordPossibilities = moving;
@@ -1220,7 +1235,7 @@ function generateChordProgression(
                 (note) =>
                   usable(info, note) &&
                   note.pitchValue !== prevBassNote.pitchValue &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip &&
+                  reaches(note, info, i) &&
                   (!homing || towardHome(note))
               );
             });
@@ -1245,11 +1260,7 @@ function generateChordProgression(
             };
             let bassNoteToAdd = bassDegrees
               .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
-              .filter(
-                (note) =>
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
-                  newMaxSkip
-              );
+              .filter((note) => reaches(note, chords.find((c) => c.name === nextChordName), i));
             if (homing) {
               const closer = bassNoteToAdd.filter(towardHome);
               if (closer.length > 0) bassNoteToAdd = closer;
@@ -1542,6 +1553,24 @@ function generateChord(params: GenerateChordParams) {
         // maxSkip = 1;
       }
 
+      // The notes as the skip rule sees them. `degree` counts from the key's
+      // tonic (createNoteList); a note is altered when it carries an
+      // accidental, or will once this chord sharpens or flattens its degree.
+      const prevSung: SkipNote = {
+        pitchValue: prevNote.pitchValue,
+        degree: prevNote.degree,
+        chromatic: !!prevNoteAccidental,
+      };
+      const sung = (note: Note): SkipNote => ({
+        pitchValue: note.pitchValue,
+        degree: note.degree,
+        chromatic:
+          (currentChord.chord.sharpScaleDegree === note.degree &&
+            params.sharpScaleDegrees.has(note.degree)) ||
+          (currentChord.chord.flatScaleDegree === note.degree &&
+            params.flatScaleDegrees.has(note.degree)),
+      });
+
       var rangeNoteListFilter = rangeNoteList.filter((note: Note) => {
         const currentChordObj = params.chords.find(
           (c) => c.name === currentChord.chord.name
@@ -1550,7 +1579,7 @@ function generateChord(params: GenerateChordParams) {
           currentChordObj?.triadNotes.includes(note.degree) &&
           (bannedParFifthDegree === null ||
             note.degree !== bannedParFifthDegree) &&
-          Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+          isAllowedMove(prevSung, sung(note), noteLength, maxSkip)
         );
       });
       if (rangeNoteListFilter.length === 0) {
@@ -1562,7 +1591,7 @@ function generateChord(params: GenerateChordParams) {
               ?.triadNotes.includes(note.degree) &&
             (bannedParFifthDegree === null ||
               note.degree !== bannedParFifthDegree) &&
-            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+            isAllowedMove(prevSung, sung(note), noteLength, maxSkip)
         );
       }
       // if still 0 return
@@ -1574,7 +1603,7 @@ function generateChord(params: GenerateChordParams) {
       } else {
         var notesWithinRange = rangeNoteListFilter.filter(
           (note: Note) =>
-            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip &&
+            isAllowedMove(prevSung, sung(note), noteLength, maxSkip) &&
             isDegreeWithinRange(
               prevNote.degree,
               closestDegreeBelow,
@@ -2683,7 +2712,8 @@ function createNewSrOnce(params: any) {
 
     var clef = params.clef;
     var keyRendered = params.key;
-    var maxSkip = params.maxSkip;
+    // A number (older callers, the scripts) or a policy (the page) - one rule either way.
+    var maxSkip = toSkipPolicy(params.maxSkip);
     var level = params.level;
     var timeSig = params.timeSig;
     var bpm = params.bpm;

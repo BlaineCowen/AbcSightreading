@@ -115,3 +115,56 @@ describe("unison output in Max skip mode, fixed seed", () => {
     expect(out).toMatchSnapshot();
   });
 });
+
+describe("a Max skip policy object", () => {
+  test("writes exactly what its number does", () => {
+    for (const c of CASES.filter((c) => !c.rhythmOnly)) {
+      for (const seed of [1, 2]) {
+        expect(generate(c, seed, { kind: "max", maxSkip: c.maxSkip })).toBe(generate(c, seed));
+      }
+    }
+  });
+});
+
+/** The sung pitches of a unison line, as diatonic steps (C = 0) and letters. */
+function sungPitches(abc: string): { step: number; letter: number }[] {
+  const body = abc.split("End of header, start of tune body:")[1] ?? "";
+  const music = body.split("\n").filter((l) => !l.startsWith("w:")).join(" ").replace(/"[^"]*"/g, "");
+  const letters = "CDEFGAB";
+  const out: { step: number; letter: number }[] = [];
+  for (const m of music.matchAll(/[_^=]*([A-Ga-g])([,']*)\d/g)) {
+    const letter = letters.indexOf(m[1].toUpperCase());
+    let octave = m[1] === m[1].toLowerCase() ? 1 : 0;
+    for (const ch of m[2]) octave += ch === "'" ? 1 : -1;
+    out.push({ step: octave * 7 + letter, letter });
+  }
+  return out;
+}
+
+describe("a custom skip policy names degrees from the key's tonic", () => {
+  test("do-mi up in G skips G to B and never A to C or C to E", () => {
+    const c: Case = {
+      label: "do-mi in G", key: "G", meter: "4/4", maxSkip: 0, degrees: ALL,
+      rhythms: ["quarter", "half"], measures: 8, range: { min: 14, max: 25 },
+    };
+    const policy = { kind: "custom", moves: [{ from: 1, to: 3, dir: "up" }] };
+    const G = 4; // the tonic's letter index in CDEFGAB
+    let skips = 0;
+    let lines = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const abc = generate(c, seed, policy);
+      if (abc.startsWith("ERROR")) continue;
+      lines++;
+      const notes = sungPitches(abc);
+      for (let k = 1; k < notes.length; k++) {
+        const rise = notes[k].step - notes[k - 1].step;
+        if (Math.abs(rise) <= 1) continue;
+        skips++;
+        // Every skip is do up to mi: G up a third to B.
+        expect({ from: notes[k - 1].letter, rise }).toEqual({ from: G, rise: 2 });
+      }
+    }
+    expect(lines).toBeGreaterThan(0);
+    expect(skips).toBeGreaterThan(0);
+  });
+});
