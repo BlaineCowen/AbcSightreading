@@ -1,7 +1,8 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { EDUCATOR_ON_SALE } from "../lib/plan";
+import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 import { ladder } from "../lib/ladder";
+import { planForm, majorKeysFor } from "../lib/form-plan";
 import choralExample from "../assets/srf-choral-annotated.svg?raw";
 import rhythmExample from "../assets/srf-rhythm-kodaly.svg?raw";
 
@@ -13,20 +14,49 @@ import rhythmExample from "../assets/srf-rhythm-kodaly.svg?raw";
  * `checked`; recheck before changing one, and never state something about
  * them we could not confirm. Everything about us is what the app does: the
  * two examples are real exercises drawn by the app (UIL 3 in F major with
- * movable do and chord symbols; a Kodály rhythm line), and the step count
- * comes from the ladder itself.
+ * movable do and chord symbols; a Kodály rhythm line), the step list comes
+ * from the ladder itself, and the form diagram is a real plan from
+ * `planForm` - level 3, whose plan has no "toward V" sections (planned but
+ * not yet honoured by the generator, so not shown here).
  */
 const checked = "September 2026";
 
-const annotations = [
-  { name: "Movable do", note: "do is the tonic, la-based minor" },
-  { name: "Fixed do", note: "C is always do" },
-  { name: "Note names", note: "C, B♭, F♯" },
-  { name: "Chord symbols", note: "Roman numerals with inversions" },
-  { name: "Kodály", note: "ta, ti-ti, ta-a" },
-  { name: "Counting", note: "1 & 2 &" },
-  { name: "Your own", note: "Takadimi, Gordon, or your school's" },
+// The six reasons, each a jump to its section below.
+const reasons = [
+  { href: "#phrasing", title: "A phrasing engine", body: "Phrases, cadences and form, so it sounds like music" },
+  { href: "#writing", title: "Real part-writing", body: "The rules a theory class teaches, in every part" },
+  { href: "#control", title: "Fine-tuned control", body: "Keys, chords, rhythms, ranges and leaps, your call" },
+  { href: "#presets", title: "Built-in presets", body: `UIL levels 1 to 5, ${ladder.length} steps, and your own` },
+  { href: "#syllables", title: "Solfège and syllables", body: "Movable do, fixed do, Kodály, counting or yours" },
+  { href: "#tools", title: "abcTuner and tools", body: "Tuner, metronome, drone and a scale challenge" },
 ];
+
+// A real full-length plan, drawn as a timeline. Level 3 in its first major
+// key, at the shortest length the level allows.
+const formLevel = 3;
+const form = planForm({ level: formLevel, key: majorKeysFor(formLevel)[0] });
+const styleNames: Record<string, string> = {
+  statement: "Statement",
+  departure: "Departure",
+  episode: "Episode",
+  imitative: "Imitative",
+  return: "Return",
+  close: "Close",
+  coda: "Coda",
+};
+// A return wears its statement's colour, so the eye sees the A come back.
+const sectionColour = (label: string, i: number) => {
+  const base = label.replace(/'+$/, "");
+  const first = form.sections.findIndex((s) => s.label.replace(/'+$/, "") === base);
+  // Whole class names, so Tailwind finds them in the source.
+  const tones = [
+    "bg-sr-mint text-sr-mint-ink",
+    "bg-sr-sky text-sr-sky-ink",
+    "bg-sr-peach text-sr-peach-ink",
+    "bg-sr-butter text-sr-butter-ink",
+  ];
+  return tones[(first >= 0 ? first : i) % tones.length];
+};
 
 const writing = [
   "A chord progression that ends each phrase on a cadence, and the exercise on V to I",
@@ -37,20 +67,28 @@ const writing = [
   "Eighth notes that move by step",
   "Accidentals approached and left by step",
   "Each part kept in its own range, living in the middle of it",
+  "Passing tones, neighbors and suspensions, placed where they belong",
 ];
 
-const controls = [
-  "Several keys at once, a new one each time",
-  "SATB, SAB, SSA, TTB, two-part and unison",
-  "Each part's range, note by note",
-  "The largest leap",
-  "Which chords, down to one chromatic chord to drill",
-  "How often chromatic chords appear",
-  "Which rhythms, and how often each one",
-  "How much decoration: passing tones, neighbors, suspensions",
-  "Parts that enter one at a time",
-  "2/4, 3/4 or 4/4, from 2 to 16 bars",
+// What each settings tab holds, on the Choral page.
+const tabs = [
+  { name: "Setup", items: "Voicing, one or several keys, 2/4, 3/4 or 4/4, 2 to 16 bars, parts entering one at a time" },
+  { name: "Rhythm", items: "Which rhythms, how often each one, ties across the barline" },
+  { name: "Harmony", items: "Which chords, how often chromatic ones appear, how much decoration" },
+  { name: "Ranges", items: "Each part's range note by note, and the largest leap" },
 ];
+
+const annotations = [
+  { name: "Movable do", note: "do is the tonic, la-based minor" },
+  { name: "Fixed do", note: "C is always do" },
+  { name: "Note names", note: "C, B♭, F♯" },
+  { name: "Chord symbols", note: "Roman numerals with inversions" },
+  { name: "Kodály", note: "ta, ti-ti, ta-a" },
+  { name: "Counting", note: "1 & 2 &" },
+  { name: "Your own", note: "start from Takadimi, Gordon or Kodály" },
+];
+
+const wheel = ["Tuner", "Metronome", "Drone", "Starting pitches", "Analysis", "Timer"];
 
 // Their side is from sightreadingfactory.com, its help centre and blog, as of
 // `checked`. Where a feature was not found on their site, the row says what
@@ -84,10 +122,14 @@ const rows: [string, string, string][] = [
   ["UIL levels", "Levels 1 to 5, from UIL's choir criteria", "No UIL preset; standards for about 30 other states and groups"],
   [
     "Practice help",
-    "Count-in, cursor, mute any part, practice runs; metronome, drone, starting pitches and tuner with Pro",
+    "Count-in, cursor, mute any part, practice runs; with Pro, a tuner, metronome, drone, starting pitches, voice analysis and the abcTuner scale challenge",
     "Tempo control, cursor, opening pitch and tonic triad, mute any part",
   ],
-  ["Without paying", "10 exercises a month, 50 with a free account", "No free plan"],
+  [
+    "Without paying",
+    `${GENERATION_LIMITS.anonymous} exercises a month, ${GENERATION_LIMITS.free} with a free account`,
+    "No free plan",
+  ],
   ["One teacher or singer", "$19.99 a year (Pro)", "$45 a year"],
   [
     "Students",
@@ -106,27 +148,34 @@ const rows: [string, string, string][] = [
 
 <Layout
   title="A Sight Reading Factory Alternative for Choirs | abc Sight Reading"
-  description="abc Sight Reading writes choir sight-reading the way a musician would: chord progressions, cadences and part-writing rules, with solfège and rhythm syllables you can turn on, UIL levels 1 to 5, and $19.99 a year."
+  description="A Sight Reading Factory alternative written for choirs: a phrasing engine with real cadences, part-writing rules, UIL presets, solfège and rhythm syllables, a tuner and practice tools, from $19.99 a year."
   themable
 >
   <div class="max-w-5xl mx-auto px-2 text-sr-ink-2 flex flex-col gap-16 pb-16">
     <!-- Hero: the claim, and the proof beside it. -->
     <section class="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-10 items-center pt-6">
       <div class="flex flex-col gap-5">
-        <p class="sr-label">A Sight Reading Factory alternative</p>
+        <p class="sr-label">For choir directors comparing tools</p>
         <h1 class="text-4xl sm:text-5xl font-bold text-sr-ink leading-tight text-balance">
-          Sight-reading written for choirs, not adapted for them
+          The Sight Reading Factory alternative written for choirs
         </h1>
         <p class="text-lg">
-          Sight Reading Factory covers every instrument. abc Sight Reading does one thing: it writes sight-reading for
-          singers, the way a choral musician would write it. Real progressions and cadences, voice leading your
-          sections can sing, and solfège and rhythm syllables you can turn on and off.
+          Sight Reading Factory covers every instrument. abc Sight Reading is built for singers, and it writes
+          sight-reading the way a choral musician would: phrases that answer each other, cadences where a choir
+          breathes, and voice leading your sections can actually sing.
+        </p>
+        <p>
+          Then it gets out of your way. Set it as finely as you like, or pick a UIL level and press Generate. Turn on
+          solfège or rhythm syllables when your singers need them, and keep a tuner and metronome right beside the
+          music.
         </p>
         <div class="flex flex-wrap items-center gap-3">
           <a class="sr-btn px-7 py-3" href="/choral-sightreading">Try it free</a>
           <a class="sr-btn-quiet" href="/pricing">See pricing</a>
         </div>
-        <p class="text-sm text-sr-muted">Ten exercises a month with no account, fifty with a free one.</p>
+        <p class="text-sm text-sr-muted">
+          {GENERATION_LIMITS.anonymous} exercises a month with no account, {GENERATION_LIMITS.free} with a free one.
+        </p>
       </div>
       <figure class="w-full">
         <div class="sr-sheet p-4 sm:p-6">
@@ -138,24 +187,119 @@ const rows: [string, string, string][] = [
       </figure>
     </section>
 
-    <!-- 1. How it writes -->
-    <section class="sr-panel p-6 sm:p-10 grid md:grid-cols-2 gap-8 items-start">
-      <div class="flex flex-col gap-4">
-        <p class="sr-label text-sr-action-fg">Phrases, not random notes</p>
-        <h2 class="text-3xl font-bold text-sr-ink text-balance">Written like part-writing, by the same rules</h2>
+    <!-- Six reasons, each a jump to its section. -->
+    <nav aria-label="What makes it different">
+      <ul class="sr-pastels grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+        {reasons.map((r, i) => (
+          <li class="sr-panel">
+            <a class="flex h-full flex-col gap-1 p-5 rounded-[28px] hover:opacity-90" href={r.href}>
+              <span class="text-xs font-extrabold opacity-70">{String(i + 1).padStart(2, "0")}</span>
+              <span class="text-lg font-semibold text-sr-ink" style="font-family: var(--sr-font-display)">{r.title}</span>
+              <span class="text-sm">{r.body}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <!-- 1. Phrasing engine -->
+    <section id="phrasing" class="sr-panel p-6 sm:p-10 flex flex-col gap-8 scroll-mt-24">
+      <div class="max-w-3xl flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">The phrasing engine</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Sight-reading that sounds like music, not a test</h2>
         <p>
-          Every exercise starts from a chord progression, and every phrase ends on a cadence. The bass is written with
-          the progression, then the upper voices are filled in by the rules a theory class teaches. Nothing is
-          generated by guesswork, so nothing comes out that a choir could not sing.
+          Correct notes in a row are not yet music. abc Sight Reading plans the phrase before it writes a note: a
+          cadence to close each four-bar phrase, and a final V to I that sounds like an ending. Often the second phrase answers the
+          first, opening with the same material and changing only at the cadence, the parallel period singers meet in
+          real repertoire. It happens most at the lower levels, where a pattern to recognise helps most.
+        </p>
+      </div>
+
+      <!-- An eight-bar period, drawn. -->
+      <figure class="flex flex-col gap-3">
+        <div class="grid grid-cols-2 gap-2 sm:gap-3" aria-hidden="true">
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-extrabold text-sr-muted">Antecedent · bars 1–4</p>
+            <div class="grid grid-cols-4 gap-1">
+              <span class="rounded-l-[14px] bg-sr-mint text-sr-mint-ink py-3 text-center text-xs font-bold">1</span>
+              <span class="bg-sr-mint text-sr-mint-ink py-3 text-center text-xs font-bold">2</span>
+              <span class="bg-sr-mint text-sr-mint-ink py-3 text-center text-xs font-bold">3</span>
+              <span class="rounded-r-[14px] bg-sr-butter text-sr-butter-ink py-3 text-center text-xs font-bold">4</span>
+            </div>
+            <p class="text-xs text-sr-muted">A cadence: the phrase breathes</p>
+          </div>
+          <div class="flex flex-col gap-2">
+            <p class="text-xs font-extrabold text-sr-muted">Consequent · bars 5–8</p>
+            <div class="grid grid-cols-4 gap-1">
+              <span class="rounded-l-[14px] bg-sr-mint text-sr-mint-ink py-3 text-center text-xs font-bold">5</span>
+              <span class="bg-sr-mint text-sr-mint-ink py-3 text-center text-xs font-bold">6</span>
+              <span class="bg-sr-mint text-sr-mint-ink py-3 text-center text-xs font-bold">7</span>
+              <span class="rounded-r-[14px] bg-sr-peach text-sr-peach-ink py-3 text-center text-xs font-bold">8</span>
+            </div>
+            <p class="text-xs text-sr-muted">Same opening, a new ending on V to I</p>
+          </div>
+        </div>
+        <figcaption class="text-sm">
+          An eight-bar exercise as a parallel period. Matching colours are the same music.
+        </figcaption>
+      </figure>
+
+      <div class="grid md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-6 items-start">
+        <div class="flex flex-col gap-3">
+          <h3 class="text-xl font-semibold text-sr-ink">And whole pieces, with a form</h3>
+          <p>
+            Choose a UIL level and <strong class="text-sr-ink">Full length piece</strong>, and it plans a complete
+            contest-length example: a statement, a departure, a return of the opening, and a close. At the upper levels
+            there is an imitative passage where the parts enter one at a time, kept within the share of polyphony the
+            level allows, and at levels 4 and 5 a full cadence where a lower level may stop.
+          </p>
+        </div>
+        <figure class="flex flex-col gap-2">
+          <p class="text-xs font-extrabold text-sr-muted">
+            A real plan: UIL level {form.level}, {form.key} major, {form.meter}, {form.measures} bars
+          </p>
+          <ol class="flex w-full gap-1 overflow-hidden rounded-[14px]">
+            {form.sections.map((s, i) => (
+              <li
+                class={`${sectionColour(s.label, i)} min-w-0 px-1.5 py-2 text-center`}
+                style={`flex: ${s.measures} 1 0%`}
+              >
+                <span class="block text-sm font-extrabold">{s.label}</span>
+                <span class="block truncate text-[11px] font-bold">{styleNames[s.style] ?? s.style}</span>
+              </li>
+            ))}
+          </ol>
+          <ul class="flex flex-col gap-1 text-sm">
+            {form.sections.map((s) => (
+              <li>
+                <span class="font-bold text-sr-ink">{s.label}</span>, bars {s.startsAtBar}–{s.startsAtBar + s.measures - 1}:
+                {" "}{(styleNames[s.style] ?? s.style).toLowerCase()}{s.restates ? ` of ${s.restates}` : ""}{s.texture === "staggered" ? ", parts entering one at a time" : ""}
+              </li>
+            ))}
+          </ul>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 2. How it writes -->
+    <section id="writing" class="grid md:grid-cols-2 gap-8 items-start scroll-mt-24">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Real choral part-writing</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Written by the rules a theory class teaches</h2>
+        <p>
+          Every exercise starts from a chord progression. The bass is written with it, then the upper voices are filled
+          in chord by chord, each in its own range. Nothing is generated by guesswork, and no AI is involved, so nothing
+          comes out that a choir could not sing.
         </p>
         <p>
           That is what makes it good practice: the patterns your singers read are the ones in real choral music, so
-          what they learn here carries into the octavo.
+          what they learn here carries into the octavo. SATB, SAB, SSA, TTB, two-part and unison, with parts that sing
+          together or enter one at a time.
         </p>
       </div>
       <ul class="flex flex-col gap-2" aria-label="The rules every exercise follows">
         {writing.map((w) => (
-          <li class="flex gap-3 items-start rounded-[14px] bg-sr-track px-4 py-2.5 text-sr-ink">
+          <li class="flex gap-3 items-start rounded-[14px] bg-sr-panel px-4 py-2.5 text-sr-ink shadow-[var(--sr-card-shadow)]">
             <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-sr-action" aria-hidden="true"></span>
             <span>{w}</span>
           </li>
@@ -163,22 +307,90 @@ const rows: [string, string, string][] = [
       </ul>
     </section>
 
-    <!-- 2. Annotations -->
-    <section class="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-10 items-center">
-      <div class="flex flex-col gap-4">
-        <p class="sr-label text-sr-action-fg">Annotations on demand</p>
-        <h2 class="text-3xl font-bold text-sr-ink text-balance">Solfège and counting, on the same exercise</h2>
+    <!-- 3. Fine-tuned control -->
+    <section id="control" class="sr-panel p-6 sm:p-10 flex flex-col gap-6 scroll-mt-24">
+      <div class="max-w-3xl flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Fine-tuned customization</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Exactly what your choir is ready for, and nothing else</h2>
         <p>
-          Read it clean, then turn the help on to check. Solfège goes under every part and chord symbols over the top,
-          and switching between them rewrites the labels on the exercise you are looking at, not a new one. On a
-          single line, rhythm syllables print over the notes in the system your choir uses.
+          Every setting is a tap, sorted into four tabs, and a dot on a tab shows what you have changed since you
+          picked your preset. Drill one chromatic chord. Allow only quarters and ti-ti. Narrow the altos' range by a
+          note. Choose three keys and let each exercise land in one of them.
+        </p>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        {tabs.map((t) => (
+          <div class="rounded-[18px] bg-sr-track p-4 flex flex-col gap-1">
+            <p class="sr-label">{t.name}</p>
+            <p class="text-sm">{t.items}</p>
+          </div>
+        ))}
+      </div>
+      <p>
+        The Unison page has its own: the scale degrees your singers know, the clef, the largest leap, whether eighths
+        move by step, and a rhythm-only mode for counting drills. Sound and display are yours too: piano, organ or
+        choir, playback transposed without changing the page, and solfège, chord symbols and a cursor on or off.
+      </p>
+    </section>
+
+    <!-- 4. Presets -->
+    <section id="presets" class="flex flex-col gap-6 scroll-mt-24">
+      <div class="max-w-3xl flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Built-in presets</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">Or skip the settings: pick a preset and press Generate</h2>
+      </div>
+      <div class="sr-pastels grid md:grid-cols-3 gap-4 sm:gap-6">
+        <div class="sr-panel p-6 flex flex-col gap-3">
+          <p class="sr-label">UIL levels 1 to 5</p>
+          <p>
+            Each level uses the keys, meters, rhythms, chords, voicings and lengths from UIL's choir sight-reading
+            criteria, with voice ranges set for each level. The music is chordal, like the contest's, so the piece on
+            contest day feels familiar.
+          </p>
+          <p class="text-sm"><a class="underline font-bold" href="/uil-sight-reading">What each level uses</a></p>
+        </div>
+        <div class="sr-panel p-6 flex flex-col gap-3">
+          <p class="sr-label">Step by step, {ladder.length} steps</p>
+          <p>
+            A path from rhythm alone to four parts, one new thing at a time: rhythm before pitch, pitch out from do,
+            unison before parts. With an account, mark each step passed for each of your classes.
+          </p>
+        </div>
+        <div class="sr-panel p-6 flex flex-col gap-3">
+          <p class="sr-label">Your own presets</p>
+          <p>
+            Save any combination under a name you will recognise. A preset keeps every setting on the page, display,
+            sound and metronome included, and follows you to any device when you are signed in.
+          </p>
+        </div>
+      </div>
+      <ol class="flex flex-wrap gap-1.5" aria-label="The steps, in order">
+        {ladder.map((s) => (
+          <li class="rounded-full bg-sr-track text-sr-ink-2 px-3 py-1 text-xs font-bold">
+            <span class="text-sr-action-fg">{s.number}</span> {s.title}
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <!-- 5. Solfège and rhythm syllables -->
+    <section id="syllables" class="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-10 items-center scroll-mt-24">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">Solfège lyrics and rhythm syllables</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">The syllables your choir already uses, on demand</h2>
+        <p>
+          Read it clean, then turn the help on to check. Solfège prints under every part as lyrics, in movable do,
+          fixed do or note names, with Roman numerals over the top. Switching rewrites the labels on the exercise you
+          are looking at, not a new one.
         </p>
         <p>
-          A practice run can even keep the first pass clean and show the syllables only on the repeats.
+          On a single line, rhythm syllables print over the notes: Kodály, counting, or your own set with Pro, started
+          from Takadimi, Gordon or Kodály and changed figure by figure. A practice run can keep the first pass clean
+          and show the syllables only on the repeats.
         </p>
         <div class="flex flex-wrap gap-2" aria-label="Annotation systems">
           {annotations.map((a) => (
-            <span class="rounded-full bg-sr-tint text-sr-action-fg px-3.5 py-1.5 text-sm font-bold" title={a.note}>
+            <span class="rounded-full bg-sr-tint text-sr-action-fg px-3.5 py-1.5 text-sm font-bold">
               {a.name}<span class="font-semibold text-sr-muted"> · {a.note}</span>
             </span>
           ))}
@@ -194,61 +406,54 @@ const rows: [string, string, string][] = [
       </figure>
     </section>
 
-    <!-- 3. Control -->
-    <section class="sr-pastels grid md:grid-cols-2 gap-4 sm:gap-6">
-      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
-        <p class="sr-label">Fine-tuned</p>
-        <h2 class="text-2xl font-bold text-sr-ink text-balance">Set exactly what your choir is ready for</h2>
-        <ul class="flex flex-col gap-1.5 list-disc pl-5">
-          {controls.map((c) => <li>{c}</li>)}
+    <!-- 6. abcTuner and practice tools -->
+    <section id="tools" class="sr-panel p-6 sm:p-10 grid md:grid-cols-2 gap-8 items-start scroll-mt-24">
+      <div class="flex flex-col gap-4">
+        <p class="sr-label text-sr-action-fg">abcTuner and the extra tools</p>
+        <h2 class="text-3xl font-bold text-sr-ink text-balance">A practice room around every exercise</h2>
+        <p>
+          With Pro, a Tools button sits in the corner of every practice page. It opens a wheel of six tools, each a
+          card beside the music, already set to the exercise: the drone on do, the metronome at the exercise's tempo
+          and meter, each part's starting pitch a tap away.
+        </p>
+        <p>
+          <strong class="text-sr-ink">abcTuner</strong> gives each tool a full page: a tuner that follows a singing
+          voice, analysis of pitch, harmonics and vowel, a metronome with five click sounds, a drone, a timer, and the
+          scale challenge, where a singer sings a scale note by note and is graded on how in tune each note was and how
+          quickly they found it.
+        </p>
+        <p class="text-sm"><a class="underline text-sr-action-fg font-bold" href="/tuner">Open abcTuner</a></p>
+      </div>
+      <div class="flex flex-col gap-4">
+        <ul class="sr-pastels grid grid-cols-2 gap-2" aria-label="The Tools wheel">
+          {wheel.map((w) => (
+            <li class="sr-panel rounded-[18px] px-4 py-3 text-sm font-extrabold">{w}</li>
+          ))}
         </ul>
-        <p class="text-sm">Save any combination as a preset, with the display and playback settings too.</p>
-      </div>
-      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
-        <p class="sr-label">Or start from a level</p>
-        <h2 class="text-2xl font-bold text-sr-ink text-balance">UIL levels 1 to 5, and {ladder.length} steps to get there</h2>
-        <p>
-          Each UIL level uses the keys, meters, rhythms, chords, voicings and lengths from UIL's choir sight-reading
-          criteria, with voice ranges set for each level. Choose one and press Generate.
-        </p>
-        <p>
-          It also sounds like the contest. UIL's sight-reading music is chordal choral writing, with parts that move
-          together toward clear cadences, and that is what abc writes, so the piece on contest day feels familiar.
-        </p>
-        <p>
-          Step by step takes a choir from ta and ti-ti through a single line, then two, three and four parts, one new
-          thing at a time. Mark each step passed for each class as you go.
-        </p>
-        <p class="text-sm"><a class="underline text-sr-action-fg" href="/uil-sight-reading">What each UIL level uses</a></p>
-      </div>
-      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
-        <p class="sr-label">Practice, not just a page</p>
-        <h2 class="text-2xl font-bold text-sr-ink text-balance">Hear it, loop it, speed it up</h2>
-        <p>
-          Playback with a count-in and a cursor that follows the music. Mute or hide any part so a section can hear
-          itself against the rest. On a single line, practice runs write the next exercise for you, repeat each one,
-          and raise the tempo as they go.
-        </p>
-        <p>
-          With Pro, a metronome, drone, starting pitches and a tuner sit beside every exercise.
-        </p>
-      </div>
-      <div class="sr-panel p-6 sm:p-8 flex flex-col gap-3">
-        <p class="sr-label">Take it with you</p>
-        <h2 class="text-2xl font-bold text-sr-ink text-balance">Print it, share it, open it anywhere</h2>
-        <p>
-          Print a clean copy for the stands, send a link that opens the same exercise, or export MusicXML, MIDI or ABC
-          to open in your notation software.
-        </p>
-        <p>
-          {EDUCATOR_ON_SALE
-            ? "With Educator, classes get join codes and student accounts, and you can assign practice and see the minutes each student put in."
-            : "Coming soon with Educator: class join codes, student accounts, and assigned practice with the minutes each student put in."}
-        </p>
+        <div class="rounded-[18px] bg-sr-track p-4 flex flex-col gap-2">
+          <p class="sr-label">Free for everyone</p>
+          <p class="text-sm">
+            Playback with a count-in and a cursor that follows the music. Mute or hide any part so a section hears
+            itself against the rest. On a single line, practice runs write the next exercise for you, repeat each one,
+            give reading time first and raise the tempo as they go.
+          </p>
+        </div>
       </div>
     </section>
 
-    <!-- 4. Side by side -->
+    <!-- 7. Take it with you -->
+    <section class="max-w-3xl w-full mx-auto flex flex-col gap-3">
+      <h2 class="text-2xl font-bold text-sr-ink">Print it, share it, assign it</h2>
+      <p>
+        Print a clean copy for the stands, send a link that opens the same exercise, or export MusicXML, MIDI or ABC to
+        open in your notation software.
+        {EDUCATOR_ON_SALE
+          ? " With Educator, classes get join codes and student accounts, and you can assign practice and see the minutes each student put in."
+          : " Coming soon with Educator: class join codes, student accounts, and assigned practice with the minutes each student put in."}
+      </p>
+    </section>
+
+    <!-- 8. Side by side -->
     {rows.length > 0 && (
       <section class="flex flex-col gap-4 max-w-3xl w-full mx-auto">
         <h2 class="text-3xl font-bold text-sr-ink">Side by side</h2>
@@ -279,7 +484,7 @@ const rows: [string, string, string][] = [
       </section>
     )}
 
-    <!-- 5. Fair -->
+    <!-- 9. Fair -->
     <section class="max-w-3xl w-full mx-auto flex flex-col gap-3">
       <h2 class="text-2xl font-bold text-sr-ink">When Sight Reading Factory fits better</h2>
       <p>
@@ -306,4 +511,8 @@ const rows: [string, string, string][] = [
 <style>
   /* The examples are drawn in currentColor on white paper, as on the practice pages. */
   :global(.sr-sheet svg) { width: 100%; height: auto; display: block; }
+  :global(html) { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    :global(html) { scroll-behavior: auto; }
+  }
 </style>
