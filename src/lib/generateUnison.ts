@@ -34,6 +34,13 @@ import {
   type SkipPolicy,
 } from "./skip-policy";
 import { figureCap, shortCapsFrom, type ShortCaps } from "./short-note-skips";
+import {
+  drawDynamics,
+  dynamicsSetFrom,
+  phraseStarts,
+  type DynamicMark,
+  type PlacedDynamic,
+} from "./dynamics";
 
 // interface AbcObject {
 //   key: string;
@@ -1892,6 +1899,12 @@ export type UnisonScore = {
   /** Pitched staff only. */
   key?: string;
   clef?: string;
+  /**
+   * Printed dynamics (dynamics.ts), pitched staff only. Kept with the notes so
+   * a re-label, a link or a change of set keeps or redraws them without a new
+   * exercise.
+   */
+  dynamics?: PlacedDynamic[];
 };
 
 export type UnisonDisplay = {
@@ -1919,6 +1932,7 @@ export function assembleUnisonAbc(
     key: score.key,
     showRhythmSyllables,
     syllableSystem: resolveSyllableSystem(display.syllableSystemId, display.customSyllables),
+    dynamics: score.staff === "pitched" ? score.dynamics : undefined,
   });
 
   // Syllables ride as annotations, whose default 12pt is sized for chord
@@ -2000,6 +2014,27 @@ function compoundBeamBreaks(
   return !next || next.rhythm?.rest === true || next.noteLength >= QUARTER;
 }
 
+/**
+ * The score with dynamics drawn from `set` at each phrase start, or with none
+ * when the set is empty (Off) or the staff is the rhythm staff.
+ */
+export function withDynamics(
+  score: UnisonScore,
+  set: DynamicMark[],
+  random: () => number = Math.random
+): UnisonScore {
+  if (score.staff !== "pitched" || set.length === 0) {
+    const plain = { ...score };
+    delete plain.dynamics;
+    return plain;
+  }
+  const notes = Object.values(score.partsObject.parts)[0]?.chordNoteObject ?? [];
+  return {
+    ...score,
+    dynamics: drawDynamics(phraseStarts(notes, score.timeSig.tsPerMeasure), set, random),
+  };
+}
+
 function createConcatString(
   partsObject: PartsObject,
   params: {
@@ -2011,9 +2046,12 @@ function createConcatString(
     key?: string;
     showRhythmSyllables?: boolean;
     syllableSystem?: SyllableSystem;
+    /** Marks to print, by note index (dynamics.ts). */
+    dynamics?: PlacedDynamic[];
   }
 ) {
   var concatString = "";
+  const dynamicAt = new Map((params.dynamics ?? []).map((d) => [d.at, d.mark]));
   const meter = resolveMeter(params.timeSig);
   /** One beat in 32nds, from the meter model: beams and syllables follow it. */
   const beatUnits = meter.beatUnits;
@@ -2099,6 +2137,9 @@ function createConcatString(
           const isFinalSegment = segment === lengthLeft;
 
           if (isAttack && syllable) measureString += `"_${syllable}"`;
+          // A dynamic rides on the attack, as an ABC decoration: !mf!C8.
+          const mark = dynamicAt.get(index);
+          if (isAttack && mark) measureString += `!${mark}!`;
 
           if (note.rhythm?.rest) {
             // Rests are not tied; a split rest is just two rests.
@@ -3238,13 +3279,18 @@ function createNewSrOnce(params: any) {
     // regenerating. Rhythm syllables used to be written only for the one-line
     // rhythm staff, which left nothing for a pitched exercise to switch ON: a
     // practice run asking for them on its repeats got silence.
-    const score: UnisonScore = {
-      staff: "pitched",
-      partsObject: partsObject as PartsObject,
-      timeSig,
-      key: keyRendered,
-      clef,
-    };
+    // Dynamics are drawn last, and only when asked for: with none, nothing is
+    // drawn and the random sequence - and the exercise - is what it always was.
+    const score: UnisonScore = withDynamics(
+      {
+        staff: "pitched",
+        partsObject: partsObject as PartsObject,
+        timeSig,
+        key: keyRendered,
+        clef,
+      },
+      dynamicsSetFrom(params.dynamics)
+    );
     const renderedString = assembleUnisonAbc(score, params);
 
     // Save the concatenated string back to each part

@@ -360,3 +360,26 @@ describe("the meter in a unison link", () => {
     expect(opened(["4/4", 32])).toEqual({ name: "4/4", tsPerMeasure: 32 });
   });
 });
+
+describe("a unison link keeps the dynamics", () => {
+  test("dy round-trips", () => {
+    const [, , score] = quietly(() => createNewSr(unisonParams({ dynamics: ["p", "f"] }) as any)) as any;
+    expect(score.dynamics?.length).toBeGreaterThan(0);
+    const back = fromPayload(JSON.parse(JSON.stringify(toPayload({ kind: "unison", score }))));
+    expect(back.ok).toBe(true);
+    if (back.ok && back.exercise.kind === "unison") {
+      expect(back.exercise.score.dynamics).toEqual(score.dynamics);
+      expect(assembleUnisonAbc(back.exercise.score, { showSolfege: true })).toBe(
+        assembleUnisonAbc(score, { showSolfege: true })
+      );
+    }
+  });
+
+  test("a link without dynamics opens without them, and a bad dy is refused", () => {
+    const [, , score] = quietly(() => createNewSr(unisonParams() as any)) as any;
+    const payload = JSON.parse(JSON.stringify(toPayload({ kind: "unison", score })));
+    expect(payload.dy).toBeUndefined();
+    expect(fromPayload(payload).ok).toBe(true);
+    expect(fromPayload({ ...payload, dy: [[0, "ff"]] }).ok).toBe(false);
+  });
+});

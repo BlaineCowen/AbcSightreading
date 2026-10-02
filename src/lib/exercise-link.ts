@@ -3,6 +3,7 @@ import type { ChoralRenderInput } from "./generateChoral";
 import type { UnisonScore } from "./generateUnison";
 import type { SectionResult } from "./sectional-form";
 import { ClefType, type TimeSignature, type VoiceNote, type VoicePart } from "./types";
+import { readPlacedDynamics } from "./dynamics";
 import { keySignatures } from "../resources/key-signatures";
 import { noteArray } from "../resources/noteArray";
 
@@ -157,7 +158,7 @@ type ChoralInputV1 = {
 type PayloadV1 =
   | { v: 1; t: "c"; x: ChoralInputV1 }
   | { v: 1; t: "c"; s: (ChoralInputV1 | { r: number })[] }
-  | { v: 1; t: "u"; st: "p" | "r"; m: [string, number, number?]; k?: string; c?: string; np?: number; pt: [string, string, unknown[]][] };
+  | { v: 1; t: "u"; st: "p" | "r"; m: [string, number, number?]; k?: string; c?: string; np?: number; pt: [string, string, unknown[]][]; dy?: [number, string][] };
 
 export function toPayload(exercise: LinkedExercise): PayloadV1 {
   if (exercise.kind === "unison") return unisonPayload(exercise.score);
@@ -424,6 +425,7 @@ function unisonPayload(score: UnisonScore): PayloadV1 {
     ...(score.clef === undefined ? {} : { c: score.clef }),
     ...(score.partsObject.numofParts === undefined ? {} : { np: score.partsObject.numofParts }),
     pt,
+    ...(score.dynamics?.length ? { dy: score.dynamics.map((d) => [d.at, d.mark] as [number, string]) } : {}),
   };
 }
 
@@ -452,6 +454,11 @@ function readUnison(raw: Record<string, unknown>): UnisonScore {
     parts[partKey as string] = { order: 0, smallName, chordNoteObject };
   }
 
+  // Dynamics, when the link has them: on the first part's notes, in order.
+  const firstPart = Object.values(parts)[0] as { chordNoteObject: unknown[] } | undefined;
+  const dynamics = raw.dy === undefined ? undefined : readPlacedDynamics(raw.dy, firstPart?.chordNoteObject.length ?? 0);
+  check(dynamics !== null);
+
   return {
     staff,
     partsObject: {
@@ -460,6 +467,7 @@ function readUnison(raw: Record<string, unknown>): UnisonScore {
     } as unknown as UnisonScore["partsObject"],
     timeSig,
     ...(staff === "pitched" ? { key: raw.k as string, clef: raw.c as string } : {}),
+    ...(staff === "pitched" && dynamics?.length ? { dynamics } : {}),
   };
 }
 
