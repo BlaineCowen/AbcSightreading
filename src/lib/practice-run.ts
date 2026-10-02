@@ -216,7 +216,7 @@ export class PracticeRunner {
     else this.hooks.repeatPass();
     if (!this.active) return;
     if (!this.hooks.isPlaying()) {
-      this.hooks.onError?.("Playback could not start, so the practice run stopped.");
+      this.hooks.onError?.("Playback could not start, so the drill stopped.");
       await this.stop();
     }
   }
@@ -260,7 +260,7 @@ export class PracticeRunner {
     await this.hooks.play();
     if (!this.active) return;
     if (!this.hooks.isPlaying()) {
-      this.hooks.onError?.("Playback could not start, so the practice run stopped.");
+      this.hooks.onError?.("Playback could not start, so the drill stopped.");
       await this.stop();
     }
   }
