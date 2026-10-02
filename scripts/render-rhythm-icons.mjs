@@ -48,12 +48,15 @@ const PRELUDE = String.raw`\version "2.26.0"
 
 /**
  * Rhythm name → LilyPond music. Keyed by the names in resources/rhythms.ts,
- * which is what the picker asks for; main() fails if the two ever disagree.
+ * which is what the picker asks for; main() fails if an icon on disk has no
+ * entry here. "eighth" is the one extra (see its comment).
  *
  * Beams are explicit. Automatic beaming works from the time signature, and
  * there is none here.
  */
 const MUSIC = {
+  // Not a rhythm: the "Skips land on" toggle on the Pitches tab.
+  eighth: "c8",
   quarter: "c4",
   half: "c2",
   whole: "c1",
