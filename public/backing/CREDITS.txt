@@ -1,1 +1,3 @@
 Placeholder loops (placeholder-*.wav): synthesized by scripts/make-placeholder-loops.ts for this project. No samples; no licence needed.
+soul-4-4-80.mp3: arranged by scripts/backing/soul-4-4-80.ts from the Splice Sounds pack "Sampled Soul - Vintage Song Starters", licensed royalty-free to the account holder. Only the finished arrangement is distributed, never the samples.
+reggaeton-4-4-108.mp3: arranged by scripts/backing/reggaeton-4-4-108.ts from the Splice Sounds pack "Global Reggaeton", licensed royalty-free to the account holder. Only the finished arrangement is distributed, never the samples.

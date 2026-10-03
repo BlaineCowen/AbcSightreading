@@ -13,7 +13,6 @@ const RATE = 22050;
 const BARS = 4;
 
 const loops = [
-  { id: "placeholder-4-4", meter: "4/4", bpm: 100 },
   { id: "placeholder-3-4", meter: "3/4", bpm: 96 },
   { id: "placeholder-2-4", meter: "2/4", bpm: 100 },
   { id: "placeholder-6-8", meter: "6/8", bpm: 60 },

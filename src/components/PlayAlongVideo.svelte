@@ -147,7 +147,7 @@
     error = "";
     try {
       countInBars = t.introBars ?? countInMeasures(t.meter);
-      const measures = barsForLength({ bpm: t.bpm, meter: t.meter, loopBars: t.bars, countInBars });
+      const measures = t.fullLength ? t.bars : barsForLength({ bpm: t.bpm, meter: t.meter, loopBars: t.bars, countInBars });
       const written = await generate({ measures, bpm: t.bpm, meter: t.meter });
       const [rendered] = await Promise.all([renderBars(written, t.bpm, measures), audio.loadBacking(t)]);
       abc = written;

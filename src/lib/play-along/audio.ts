@@ -121,21 +121,30 @@ export class PlayAlongAudio {
     if (backing) {
       const src = this.ctx.createBufferSource();
       src.buffer = backing;
-      src.loop = true;
-      // The intro, if the loop has one, plays once as the count-in; then the
-      // repeating part loops for as long as the music lasts.
-      src.loopStart = track.downbeatSec + (track.introBars ?? 0) * bar;
-      src.loopEnd = src.loopStart + track.bars * bar;
-      const offset = track.introBars ? track.downbeatSec : track.downbeatSec + loopOffset(countInBars, track.bars) * bar;
-      src.connect(this.backingGain);
-      src.start(t0, offset);
-      src.stop(musicEnd + FADE_SECONDS);
+      if (track.fullLength) {
+        // A whole arrangement, count-in to final hit: played once as written,
+        // its own ending ringing on after the last bar.
+        src.connect(this.backingGain);
+        src.start(t0, track.downbeatSec);
+      } else {
+        src.loop = true;
+        // The intro, if the loop has one, plays once as the count-in; then the
+        // repeating part loops for as long as the music lasts.
+        src.loopStart = track.downbeatSec + (track.introBars ?? 0) * bar;
+        src.loopEnd = src.loopStart + track.bars * bar;
+        const offset = track.introBars ? track.downbeatSec : track.downbeatSec + loopOffset(countInBars, track.bars) * bar;
+        src.connect(this.backingGain);
+        src.start(t0, offset);
+        src.stop(musicEnd + FADE_SECONDS);
+      }
       this.sources.push(src);
     }
     this.backingGain.gain.cancelScheduledValues(0);
     this.backingGain.gain.setValueAtTime(1, t0);
-    this.backingGain.gain.setValueAtTime(1, musicEnd);
-    this.backingGain.gain.linearRampToValueAtTime(0, musicEnd + FADE_SECONDS);
+    if (!track.fullLength) {
+      this.backingGain.gain.setValueAtTime(1, musicEnd);
+      this.backingGain.gain.linearRampToValueAtTime(0, musicEnd + FADE_SECONDS);
+    }
 
     if (this.guideBuffer) {
       const src = this.ctx.createBufferSource();

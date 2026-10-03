@@ -286,10 +286,18 @@ live while it plays and into the export; remembered in this browser. abcjs
 cannot render the guide while audio is suspended (`prime()` never settles), so
 it is rendered once a click lets sound start - at the latest on Play.
 
-Loops are listed in `backing-tracks.ts` (bpm, meter, bars, where beat 1 falls,
-an optional intro) with files in `public/backing/`. The four there now are
-synthesized placeholders (`scripts/make-placeholder-loops.ts`) until real loops
-replace them.
+Tracks are listed in `backing-tracks.ts` (bpm, meter, bars, where beat 1 falls,
+an optional intro) with files in `public/backing/`. A loop repeats for as long
+as the exercise; a `fullLength` track is a whole arrangement played once, and
+the exercise is written to exactly its bars. The real tracks are arranged from
+ONE Splice pack each, so the parts share a session and a key, by
+`scripts/backing/<track>.ts` on the shared `engine.ts` (`bun run
+scripts/backing/soul-4-4-80.ts`): count-in, an intro, parts entering section by
+section, an ending. The samples stay in `~/Splice`; only the finished mix is
+committed, which is what Splice's licence allows. Blaine's ear so far: keep
+risers and impacts sparing, no vocals over the exercise, no congas in the
+reggaeton. 3/4, 2/4 and 6/8 still use synthesized placeholders
+(`scripts/make-placeholder-loops.ts`) until real tracks replace them.
 
 ## abcTuner
 
