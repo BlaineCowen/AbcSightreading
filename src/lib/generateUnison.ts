@@ -319,7 +319,6 @@ export function generateRandomRhythmCombination(
   //   }))
   // );
 
-  let numberResult: number[] = [];
   let rhythmResult: Rhythm[] = [];
   let currentSum = 0;
   let currentCombination: number[] = [];
