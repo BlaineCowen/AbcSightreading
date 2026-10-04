@@ -346,10 +346,14 @@ function finish(g: CanvasRenderingContext2D, s: SceneState) {
   g.textBaseline = "middle";
   g.fillStyle = INK;
   g.font = `700 120px ${FONT}`;
-  g.fillText("Nice work!", 0, -36);
+  g.fillText("Nice work!", 0, -56);
   g.fillStyle = MUTED;
   g.font = `600 40px ${FONT}`;
-  g.fillText(`${s.total} bars at ♩ = ${s.bpm}`, 0, 76);
+  g.fillText(`${s.total} bars at ♩ = ${s.bpm}`, 0, 46);
+  // Where it came from, on the frame a shared video ends on.
+  g.fillStyle = ACTION;
+  g.font = `700 38px ${FONT}`;
+  g.fillText("abcsightreading.com", 0, 116);
   g.restore();
   g.globalAlpha = 1;
 }
