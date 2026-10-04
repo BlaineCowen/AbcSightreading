@@ -48,6 +48,14 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .vw { position: absolute; inset: 0; }
 .vw video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+.opt-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 0 0; display: flex; flex-direction: column; align-items: center; gap: 90px; }
+.opt-top { display: flex; flex-direction: column; align-items: center; gap: 26px; }
+.opt-head { font-size: 84px; max-width: none; white-space: nowrap; }
+.opt-rail { position: relative; width: 1920px; height: 400px; }
+.opt-track { position: absolute; left: 0; top: 0; height: 400px; display: flex; align-items: center; gap: 50px; }
+.opt { flex: none; width: 560px; height: 330px; border-radius: 36px; padding: 40px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; text-align: center; box-shadow: 0 24px 50px rgba(21,33,58,0.14); opacity: 0.45; transform: scale(0.82); }
+.opt-t { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 62px; line-height: 1.05; }
+.opt-s { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
 .pa-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 46px 120px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
 .pa-top { display: flex; align-items: center; gap: 28px; }
 .pa-head { font-size: 60px; max-width: none; white-space: nowrap; }
@@ -93,7 +101,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="unison-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
-      <div class="screen"><div class="vw" id="unison-vw0"><video id="unison-v0" class="clip" data-start="4.784" data-duration="2.692" data-media-start="0.945" data-track-index="10" src="assets/footage/unison-100.mp4" muted playsinline></video></div><div class="vw" id="unison-vw1"><video id="unison-v1" class="clip" data-start="7.176" data-duration="7.475" data-media-start="4.008" data-track-index="11" src="assets/footage/unison-100.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="unison-vw0"><video id="unison-v0" class="clip" data-start="4.784" data-duration="2.692" data-media-start="0.945" data-track-index="10" src="assets/footage/unison-100.mp4" muted playsinline></video></div><div class="vw" id="unison-vw1"><video id="unison-v1" class="clip" data-start="7.176" data-duration="12.259" data-media-start="4.120" data-track-index="11" src="assets/footage/unison-100.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -112,7 +120,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="choral-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/choral-sightreading</span></div>
-      <div class="screen"><div class="vw" id="choral-vw0"><video id="choral-v0" class="clip" data-start="14.351" data-duration="9.868" data-media-start="0.915" data-track-index="14" src="assets/footage/choral-100.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="choral-vw0"><video id="choral-v0" class="clip" data-start="19.135" data-duration="9.867" data-media-start="0.915" data-track-index="14" src="assets/footage/choral-100.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -131,7 +139,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="rhythm-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
-      <div class="screen"><div class="vw" id="rhythm-vw0"><video id="rhythm-v0" class="clip" data-start="23.919" data-duration="2.692" data-media-start="0.500" data-track-index="18" src="assets/footage/rhythm-100.mp4" muted playsinline></video></div><div class="vw" id="rhythm-vw1"><video id="rhythm-v1" class="clip" data-start="26.311" data-duration="5.083" data-media-start="2.304" data-track-index="19" src="assets/footage/rhythm-100.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="rhythm-vw0"><video id="rhythm-v0" class="clip" data-start="28.702" data-duration="2.692" data-media-start="0.500" data-track-index="18" src="assets/footage/rhythm-100.mp4" muted playsinline></video></div><div class="vw" id="rhythm-vw1"><video id="rhythm-v1" class="clip" data-start="31.094" data-duration="7.476" data-media-start="2.304" data-track-index="19" src="assets/footage/rhythm-100.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -147,7 +155,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
       <h2 class="head pa-head" id="playalong-head">Turn any exercise into a play-along video.</h2>
     </div>
     <div class="pa-frame" id="playalong-frame">
-      <div class="vw" id="playalong-vw0"><video id="playalong-v0" class="clip" data-start="31.094" data-duration="9.868" data-media-start="0.000" data-track-index="40" src="assets/footage/playalong-100.mp4" muted playsinline></video></div>
+      <div class="vw" id="playalong-vw0"><video id="playalong-v0" class="clip" data-start="38.270" data-duration="9.867" data-media-start="0.000" data-track-index="40" src="assets/footage/playalong-100.mp4" muted playsinline></video></div>
     </div>
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
   </div>
@@ -167,46 +175,22 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="chromatic-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
-      <div class="screen"><div class="vw" id="chromatic-vw0"><video id="chromatic-v0" class="clip" data-start="40.662" data-duration="7.475" data-media-start="0.500" data-track-index="22" src="assets/footage/chromatic.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="chromatic-vw0"><video id="chromatic-v0" class="clip" data-start="47.837" data-duration="9.868" data-media-start="0.500" data-track-index="22" src="assets/footage/chromatic.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
 
-<div class="scene" id="tuner">
-  <div class="blob" id="tuner-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
-<div class="blob" id="tuner-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
-<div class="blob" id="tuner-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
-<div class="blob" id="tuner-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
-  <div class="scene-content flip">
-    <div class="copy">
-      <span class="kicker" id="tuner-kicker" style="background:#c9e4ff;color:#0e3563">abcTuner · Pro</span>
-      <h2 class="head" id="tuner-head">A tuner that hears singers.</h2>
-      <p class="body" id="tuner-body">Pitch, vowels, drone, metronome and timer, a tab each.</p>
-      
+<div class="scene" id="options">
+  <div class="blob" id="options-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="options-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="options-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="options-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="opt-content">
+    <div class="opt-top">
+      <span class="kicker" id="options-kicker" style="background:#ffefa8;color:#5c4a00">And so much more</span>
+      <h2 class="head opt-head" id="options-head">Set it up your way.</h2>
     </div>
-    <div class="window" id="tuner-window">
-      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/tuner</span></div>
-      <div class="screen"><div class="vw" id="tuner-vw0"><video id="tuner-v0" class="clip" data-start="47.837" data-duration="5.084" data-media-start="1.000" data-track-index="26" src="assets/footage/tuner.mp4" muted playsinline></video></div><div class="vw" id="tuner-vw1"><video id="tuner-v1" class="clip" data-start="52.621" data-duration="2.692" data-media-start="9.800" data-track-index="27" src="assets/footage/tuner.mp4" muted playsinline></video></div></div>
-    </div>
-  </div>
-</div>
-
-<div class="scene" id="teachers">
-  <div class="blob" id="teachers-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
-<div class="blob" id="teachers-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
-<div class="blob" id="teachers-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
-<div class="blob" id="teachers-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
-  <div class="scene-content">
-    <div class="copy">
-      <span class="kicker" id="teachers-kicker" style="background:#bdebd9;color:#0f3b2c">For teachers</span>
-      <h2 class="head" id="teachers-head">Step by step, class by class.</h2>
-      <p class="body" id="teachers-body">23 steps from ta to four parts.</p>
-      <div class="chips" id="teachers-chips"><span class="chip">Assign practice</span><span class="chip">Track minutes</span><span class="chip">Student logins, no email</span></div>
-    </div>
-    <div class="window" id="teachers-window">
-      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
-      <div class="screen"><div class="vw" id="teachers-vw0"><video id="teachers-v0" class="clip" data-start="55.013" data-duration="7.476" data-media-start="0.700" data-track-index="30" src="assets/footage/ladder.mp4" muted playsinline></video></div></div>
-    </div>
+    <div class="opt-rail" data-layout-ignore><div class="opt-track" id="opt-track"><div class="opt" id="opt0" style="background:#c9e4ff"><div class="opt-t" style="color:#0e3563">UIL Levels 1-5</div><div class="opt-s">Texas choir sight-reading</div></div><div class="opt" id="opt1" style="background:#bdebd9"><div class="opt-t" style="color:#0f3b2c">NYSSMA Levels I-V</div><div class="opt-s">New York solo voice</div></div><div class="opt" id="opt2" style="background:#ffd3bf"><div class="opt-t" style="color:#5a2310">SATB, SSA, TTB</div><div class="opt-s">Two, three or four parts</div></div><div class="opt" id="opt3" style="background:#ffefa8"><div class="opt-t" style="color:#5c4a00">2/4, 3/4, 4/4</div><div class="opt-s">Simple meter</div></div><div class="opt" id="opt4" style="background:#c9e4ff"><div class="opt-t" style="color:#0e3563">6/8, 9/8, 12/8</div><div class="opt-s">Compound meter</div></div><div class="opt" id="opt5" style="background:#bdebd9"><div class="opt-t" style="color:#0f3b2c">fi, si, te, le</div><div class="opt-s">Chromatic notes that resolve</div></div><div class="opt" id="opt6" style="background:#ffd3bf"><div class="opt-t" style="color:#5a2310">Exact skips</div><div class="opt-s">Only the intervals you list</div></div><div class="opt" id="opt7" style="background:#ffefa8"><div class="opt-t" style="color:#5c4a00">Movable or fixed do</div><div class="opt-s">Or note names</div></div><div class="opt" id="opt8" style="background:#c9e4ff"><div class="opt-t" style="color:#0e3563">Kodály or counting</div><div class="opt-s">Or your own syllables</div></div><div class="opt" id="opt9" style="background:#bdebd9"><div class="opt-t" style="color:#0f3b2c">Dynamics</div><div class="opt-s">Marked in, level by level</div></div><div class="opt" id="opt10" style="background:#ffd3bf"><div class="opt-t" style="color:#5a2310">Up to 16 bars</div><div class="opt-s">Short drills or full pieces</div></div><div class="opt" id="opt11" style="background:#ffefa8"><div class="opt-t" style="color:#5c4a00">Presets and links</div><div class="opt-s">Save it, share it</div></div><div class="opt" id="opt12" style="background:#c9e4ff"><div class="opt-t" style="color:#0e3563">abcTuner</div><div class="opt-s">Pitch, vowels, drone, timer</div></div><div class="opt" id="opt13" style="background:#bdebd9"><div class="opt-t" style="color:#0f3b2c">Assign practice</div><div class="opt-s">And track the minutes</div></div><div class="opt" id="opt14" style="background:#ffd3bf"><div class="opt-t" style="color:#5a2310">Student logins</div><div class="opt-s">No email needed</div></div><div class="opt" id="opt15" style="background:#ffefa8"><div class="opt-t" style="color:#5c4a00">23 steps</div><div class="opt-s">From ta to four parts</div></div></div></div>
   </div>
 </div>
 
@@ -293,138 +277,163 @@ var tl = gsap.timeline({ paused: true });
   tl.from("#unison-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 5.332);
   tl.from("#unison-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 5.930);
   tl.from("#unison-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 6.528);
-  tl.to("#unison-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 5.684);
+  tl.to("#unison-window", { scale: 1.03, duration: 13.35, ease: "sine.inOut" }, 5.684);
   tl.fromTo("#unison-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 7.116);
 
-  // ---- unison -> choral: covered on the downbeat at 14.351
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 14.101);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 14.101);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 14.101);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.011);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.061);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.111);
-  tl.set("#unison", { opacity: 0 }, 14.351);
-  tl.set("#choral", { opacity: 1 }, 14.351);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.371);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.421);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.471);
-  tl.from("#choral-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 14.351);
-  tl.from("#choral-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 14.899);
-  tl.from("#choral-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 15.497);
-  tl.from("#choral-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 16.095);
-  tl.to("#choral-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 15.251);
+  // ---- unison -> choral: covered on the downbeat at 19.135
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 18.885);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 18.885);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 18.885);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 18.795);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 18.845);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 18.895);
+  tl.set("#unison", { opacity: 0 }, 19.135);
+  tl.set("#choral", { opacity: 1 }, 19.135);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 19.155);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 19.205);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 19.255);
+  tl.from("#choral-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 19.135);
+  tl.from("#choral-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 19.683);
+  tl.from("#choral-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 20.281);
+  tl.from("#choral-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 20.879);
+  tl.to("#choral-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 20.035);
 
-  // ---- choral -> rhythm: covered on the downbeat at 23.919
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 23.669);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 23.669);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 23.669);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 23.579);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 23.629);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 23.679);
-  tl.set("#choral", { opacity: 0 }, 23.919);
-  tl.set("#rhythm", { opacity: 1 }, 23.919);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 23.939);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 23.989);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 24.039);
-  tl.from("#rhythm-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 23.919);
-  tl.from("#rhythm-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 24.467);
-  tl.from("#rhythm-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 25.065);
-  tl.from("#rhythm-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 25.663);
-  tl.to("#rhythm-window", { scale: 1.03, duration: 6.18, ease: "sine.inOut" }, 24.819);
-  tl.fromTo("#rhythm-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 26.251);
+  // ---- choral -> rhythm: covered on the downbeat at 28.702
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 28.452);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 28.452);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 28.452);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.362);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.412);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.462);
+  tl.set("#choral", { opacity: 0 }, 28.702);
+  tl.set("#rhythm", { opacity: 1 }, 28.702);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 28.722);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 28.772);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 28.822);
+  tl.from("#rhythm-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 28.702);
+  tl.from("#rhythm-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 29.251);
+  tl.from("#rhythm-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 29.848);
+  tl.from("#rhythm-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 30.446);
+  tl.to("#rhythm-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 29.602);
+  tl.fromTo("#rhythm-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 31.034);
 
-  // ---- rhythm -> playalong: covered on the downbeat at 31.094
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#c9e4ff" }, 30.844);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#bdebd9" }, 30.844);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffd3bf" }, 30.844);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 30.754);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 30.804);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 30.854);
-  tl.set("#rhythm", { opacity: 0 }, 31.094);
-  tl.set("#playalong", { opacity: 1 }, 31.094);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 31.114);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 31.164);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 31.214);
-  tl.from("#playalong-frame", { y: 120, scale: 0.9, opacity: 0, duration: 0.60, ease: "back.out(1.2)" }, 31.094);
-  tl.from("#playalong-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 31.642);
-  tl.from("#playalong-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 32.240);
-  tl.from("#playalong-sub", { y: 20, opacity: 0, duration: 0.50, ease: "expo.out" }, 33.436);
+  // ---- rhythm -> playalong: covered on the downbeat at 38.270
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#c9e4ff" }, 38.020);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#bdebd9" }, 38.020);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffd3bf" }, 38.020);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 37.930);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 37.980);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 38.030);
+  tl.set("#rhythm", { opacity: 0 }, 38.270);
+  tl.set("#playalong", { opacity: 1 }, 38.270);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 38.290);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 38.340);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 38.390);
+  tl.from("#playalong-frame", { y: 120, scale: 0.9, opacity: 0, duration: 0.60, ease: "back.out(1.2)" }, 38.270);
+  tl.from("#playalong-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 38.818);
+  tl.from("#playalong-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 39.416);
+  tl.from("#playalong-sub", { y: 20, opacity: 0, duration: 0.50, ease: "expo.out" }, 40.612);
 
-  // ---- playalong -> chromatic: covered on the downbeat at 40.662
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 40.412);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 40.412);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 40.412);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 40.322);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 40.372);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 40.422);
-  tl.set("#playalong", { opacity: 0 }, 40.662);
-  tl.set("#chromatic", { opacity: 1 }, 40.662);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 40.682);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 40.732);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 40.782);
-  tl.from("#chromatic-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 40.662);
-  tl.from("#chromatic-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 41.210);
-  tl.from("#chromatic-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 41.808);
-  tl.from("#chromatic-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 42.406);
-  tl.to("#chromatic-window", { scale: 1.03, duration: 6.17, ease: "sine.inOut" }, 41.562);
-
-  // ---- chromatic -> tuner: covered on the downbeat at 47.837
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 47.587);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 47.587);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 47.587);
+  // ---- playalong -> chromatic: covered on the downbeat at 47.837
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 47.587);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 47.587);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 47.587);
   tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 47.497);
   tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 47.547);
   tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 47.597);
-  tl.set("#chromatic", { opacity: 0 }, 47.837);
-  tl.set("#tuner", { opacity: 1 }, 47.837);
+  tl.set("#playalong", { opacity: 0 }, 47.837);
+  tl.set("#chromatic", { opacity: 1 }, 47.837);
   tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 47.857);
   tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 47.907);
   tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 47.957);
-  tl.from("#tuner-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 47.837);
-  tl.from("#tuner-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 48.386);
-  tl.from("#tuner-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 48.984);
-  tl.from("#tuner-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 49.582);
-  tl.to("#tuner-window", { scale: 1.03, duration: 6.18, ease: "sine.inOut" }, 48.737);
-  tl.fromTo("#tuner-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 52.561);
+  tl.from("#chromatic-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 47.837);
+  tl.from("#chromatic-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 48.386);
+  tl.from("#chromatic-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 48.984);
+  tl.from("#chromatic-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 49.582);
+  tl.to("#chromatic-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 48.737);
 
-  // ---- tuner -> teachers: covered on the downbeat at 55.013
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 54.763);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 54.763);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 54.763);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 54.673);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 54.723);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 54.773);
-  tl.set("#tuner", { opacity: 0 }, 55.013);
-  tl.set("#teachers", { opacity: 1 }, 55.013);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 55.033);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 55.083);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 55.133);
-  tl.from("#teachers-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 55.013);
-  tl.from("#teachers-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 55.561);
-  tl.from("#teachers-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 56.159);
-  tl.from("#teachers-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 56.757);
-  tl.to("#teachers-window", { scale: 1.03, duration: 6.18, ease: "sine.inOut" }, 55.913);
-  tl.from("#teachers-chips .chip", { y: 20, opacity: 0, duration: 0.359, stagger: 0.5980, ease: "back.out(2)" }, 57.355);
+  // ---- chromatic -> options: covered on the downbeat at 57.405
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 57.155);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 57.155);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 57.155);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 57.065);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 57.115);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 57.165);
+  tl.set("#chromatic", { opacity: 0 }, 57.405);
+  tl.set("#options", { opacity: 1 }, 57.405);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 57.425);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 57.475);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 57.525);
+  tl.set("#opt-track", { x: 1900 }, 57.405);
+  tl.from("#options-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 57.455);
+  tl.from("#options-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 57.525);
+  tl.to("#opt-track", { x: 680, duration: 0.478, ease: "back.out(1.3)" }, 57.345);
+  tl.to("#opt0", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 57.345);
+  tl.to("#opt-track", { x: 70, duration: 0.478, ease: "back.out(1.3)" }, 57.943);
+  tl.to("#opt1", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 57.943);
+  tl.to("#opt0", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 57.943);
+  tl.to("#opt-track", { x: -540, duration: 0.478, ease: "back.out(1.3)" }, 58.541);
+  tl.to("#opt2", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 58.541);
+  tl.to("#opt1", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 58.541);
+  tl.to("#opt-track", { x: -1150, duration: 0.478, ease: "back.out(1.3)" }, 59.139);
+  tl.to("#opt3", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 59.139);
+  tl.to("#opt2", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 59.139);
+  tl.to("#opt-track", { x: -1760, duration: 0.478, ease: "back.out(1.3)" }, 59.737);
+  tl.to("#opt4", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 59.737);
+  tl.to("#opt3", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 59.737);
+  tl.to("#opt-track", { x: -2370, duration: 0.478, ease: "back.out(1.3)" }, 60.335);
+  tl.to("#opt5", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 60.335);
+  tl.to("#opt4", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 60.335);
+  tl.to("#opt-track", { x: -2980, duration: 0.478, ease: "back.out(1.3)" }, 60.933);
+  tl.to("#opt6", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 60.933);
+  tl.to("#opt5", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 60.933);
+  tl.to("#opt-track", { x: -3590, duration: 0.478, ease: "back.out(1.3)" }, 61.531);
+  tl.to("#opt7", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 61.531);
+  tl.to("#opt6", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 61.531);
+  tl.to("#opt-track", { x: -4200, duration: 0.478, ease: "back.out(1.3)" }, 62.129);
+  tl.to("#opt8", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 62.129);
+  tl.to("#opt7", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 62.129);
+  tl.to("#opt-track", { x: -4810, duration: 0.478, ease: "back.out(1.3)" }, 62.727);
+  tl.to("#opt9", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 62.727);
+  tl.to("#opt8", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 62.727);
+  tl.to("#opt-track", { x: -5420, duration: 0.478, ease: "back.out(1.3)" }, 63.325);
+  tl.to("#opt10", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 63.325);
+  tl.to("#opt9", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 63.325);
+  tl.to("#opt-track", { x: -6030, duration: 0.478, ease: "back.out(1.3)" }, 63.923);
+  tl.to("#opt11", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 63.923);
+  tl.to("#opt10", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 63.923);
+  tl.to("#opt-track", { x: -6640, duration: 0.478, ease: "back.out(1.3)" }, 64.521);
+  tl.to("#opt12", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 64.521);
+  tl.to("#opt11", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 64.521);
+  tl.to("#opt-track", { x: -7250, duration: 0.478, ease: "back.out(1.3)" }, 65.119);
+  tl.to("#opt13", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 65.119);
+  tl.to("#opt12", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 65.119);
+  tl.to("#opt-track", { x: -7860, duration: 0.478, ease: "back.out(1.3)" }, 65.717);
+  tl.to("#opt14", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 65.717);
+  tl.to("#opt13", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 65.717);
+  tl.to("#opt-track", { x: -8470, duration: 0.478, ease: "back.out(1.3)" }, 66.315);
+  tl.to("#opt15", { scale: 1, opacity: 1, duration: 0.359, ease: "back.out(2)" }, 66.315);
+  tl.to("#opt14", { scale: 0.82, opacity: 0.45, duration: 0.359, ease: "power2.out" }, 66.315);
 
-  // ---- teachers -> close: covered on the downbeat at 62.189
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#c9e4ff" }, 61.939);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#bdebd9" }, 61.939);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffd3bf" }, 61.939);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 61.849);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 61.899);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 61.949);
-  tl.set("#teachers", { opacity: 0 }, 62.189);
-  tl.set("#close", { opacity: 1 }, 62.189);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 62.209);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 62.259);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 62.309);
-  tl.from("#close-mark", { scale: 0.6, opacity: 0, duration: 0.72, ease: "back.out(1.8)" }, 62.189);
-  tl.from("#close-line", { y: 30, opacity: 0, duration: 0.60, ease: "power3.out" }, 62.737);
-  tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 63.335);
-  tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 63.634);
-  tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 63.933);
+  // ---- options -> close: covered on the downbeat at 66.972
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 66.722);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 66.722);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 66.722);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 66.632);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 66.682);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 66.732);
+  tl.set("#options", { opacity: 0 }, 66.972);
+  tl.set("#close", { opacity: 1 }, 66.972);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 66.992);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 67.042);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 67.092);
+  tl.from("#close-mark", { scale: 0.6, opacity: 0, duration: 0.72, ease: "back.out(1.8)" }, 66.972);
+  tl.from("#close-line", { y: 30, opacity: 0, duration: 0.60, ease: "power3.out" }, 67.521);
+  tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 68.119);
+  tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 68.418);
+  tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 68.717);
   // The button pulses on each beat until the music ends.
-  tl.to("#close-cta", { scale: 1.07, duration: 0.2990, ease: "sine.inOut", yoyo: true, repeat: 23 }, 64.431);
+  tl.to("#close-cta", { scale: 1.07, duration: 0.2990, ease: "sine.inOut", yoyo: true, repeat: 7 }, 69.215);
   // The final scene fades out with the music.
   tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 72.580);
 window.__timelines["main"] = tl;

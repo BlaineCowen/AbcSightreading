@@ -64,7 +64,7 @@ const scenes: Record<string, () => Promise<void>> = {
       await clickText(page, "Generate", { exact: true });
       await sleep(1600);
       await clickText(page, "Play", { exact: true });
-      await sleep(4 * (60000 / TEMPO) + 9000);
+      await sleep(4 * (60000 / TEMPO) + 13000); // a full four-bar phrase after the count-in, and some
     });
     await browser.close();
   },
@@ -130,7 +130,7 @@ const scenes: Record<string, () => Promise<void>> = {
       await clickText(page, "Generate", { exact: true });
       await sleep(1600);
       await scrollTo(page, ".abcjs-container, [id^=paper]", "start", 380);
-      await sleep(2600);
+      await sleep(7000); // four bars of the ad
     });
     await browser.close();
   },

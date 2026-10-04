@@ -7,8 +7,11 @@ music/analyze.py: tempo, beats, downbeats, sections). The song starts on a
 downbeat chosen so its own ending lands just before the video's end; every
 scene is a whole number of bars and every scene change lands exactly on a
 downbeat (the wipe starts SWAP seconds early so the cover is complete on the
-beat). Text enters on beats; the hook's ball lands on a word each beat; the
-close's button pulses on the beat.
+beat). The scenes change with the song's phrases, every 4 bars (the hook
+is a 2-bar pickup into Unison, whose exercise starts where the band comes
+in, bar 4). Text enters on beats; the hook's ball lands on each syllable;
+the options montage swipes a card a beat; the close's button pulses on the
+beat.
 
 The footage follows the music too. The playing scenes (Unison, Choral,
 rhythm) were recorded at the song's tempo (capture.ts, TEMPO=) with their
@@ -32,13 +35,14 @@ SWAP = 0.24             # how long into a wipe the scenes change over: the wipe 
 
 VERSIONS = {
     # start: a downbeat of the song; end: where its music stops (measured).
-    # The whole song from its first downbeat, so each scene has 3-4 bars
-    # (7-10 s) to be read: about 73 s. (The Kids Song cut, index.html here,
-    # is no longer built: Fun Fun Music was chosen.)
+    # The whole song from its first downbeat, about 73 s. Its phrases are 4
+    # bars (intro 0-3, build 4-7, chorus 8-15, verse 16-23, last chorus
+    # 24-29, the final hit on 30), and every cut after the hook is on one.
+    # (The Kids Song cut, index.html here, is no longer built.)
     "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
-                bars=[2, 4, 4, 3, 4, 3, 3, 3, 4], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+                bars=[2, 6, 4, 4, 4, 4, 4, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
-ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "tuner", "teachers", "close"]
+ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "options", "close"]
 
 COPY = {
     "unison": dict(kicker="Unison", tint="sky", head="A new exercise every click.",
@@ -49,12 +53,28 @@ COPY = {
                    body="Kodály, counting, or your own syllables.", url="abcsightreading.com/sightreading"),
     "chromatic": dict(kicker="Real music", tint="peach", head="Melodies over real chord progressions.",
                       body="Chromatic notes that resolve. Skips only where you want them.", url="abcsightreading.com/sightreading"),
-    "tuner": dict(kicker="abcTuner · Pro", tint="sky", flip=True, head="A tuner that hears singers.",
-                  body="Pitch, vowels, drone, metronome and timer, a tab each.", url="abcsightreading.com/tuner"),
-    "teachers": dict(kicker="For teachers", tint="mint", head="Step by step, class by class.",
-                     body="23 steps from ta to four parts.", chips=["Assign practice", "Track minutes", "Student logins, no email"],
-                     url="abcsightreading.com/sightreading"),
 }
+
+# The options montage: a card a beat. The tuner and the teacher tools live
+# here too, since the song has room for seven scenes.
+OPTIONS = [
+    ("UIL Levels 1-5", "Texas choir sight-reading"),
+    ("NYSSMA Levels I-V", "New York solo voice"),
+    ("SATB, SSA, TTB", "Two, three or four parts"),
+    ("2/4, 3/4, 4/4", "Simple meter"),
+    ("6/8, 9/8, 12/8", "Compound meter"),
+    ("fi, si, te, le", "Chromatic notes that resolve"),
+    ("Exact skips", "Only the intervals you list"),
+    ("Movable or fixed do", "Or note names"),
+    ("Kodály or counting", "Or your own syllables"),
+    ("Dynamics", "Marked in, level by level"),
+    ("Up to 16 bars", "Short drills or full pieces"),
+    ("Presets and links", "Save it, share it"),
+    ("abcTuner", "Pitch, vowels, drone, timer"),
+    ("Assign practice", "And track the minutes"),
+    ("Student logins", "No email needed"),
+    ("23 steps", "From ta to four parts"),
+]
 
 TINTS = {"sky": ("#c9e4ff", "#0e3563"), "mint": ("#bdebd9", "#0f3b2c"),
          "peach": ("#ffd3bf", "#5a2310"), "butter": ("#ffefa8", "#5c4a00")}
@@ -137,11 +157,6 @@ def clips_for(scene, p, tag):
         return [(f"{scene}-{tag}", c["music_start"], at, end - at)]
     if scene == "chromatic":
         return [("chromatic", 0.5, at, end - at)]
-    if scene == "tuner":
-        last = bar if end - at > 1.5 * bar else (end - at) / 2
-        return [("tuner", 1.0, at, end - at - last), ("tuner", 9.8, end - last, last)]
-    if scene == "teachers":
-        return [("ladder", 0.7, at, end - at)]
     raise KeyError(scene)
 
 
@@ -186,7 +201,7 @@ def mix(name, p):
 
 def build(p, tag, audio):
     parts, tracks = {}, 10
-    for scene in COPY:
+    for scene in (s for s in ORDER if s in COPY):
         parts[scene] = feature(scene, p, tag, tracks)
         tracks += 4
     pa_at = p.scene_at["playalong"]
@@ -202,6 +217,21 @@ def build(p, tag, audio):
       <div class="vw" id="playalong-vw0">{video_tag("playalong-v0", f"playalong-{tag}", pa_at, p.end_of("playalong") - pa_at + 0.3, 0, 40)}</div>
     </div>
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
+  </div>
+</div>'''
+    tints = list(TINTS.values())
+    cards = "".join(
+        f'<div class="opt" id="opt{i}" style="background:{tints[i % 4][0]}"><div class="opt-t" style="color:{tints[i % 4][1]}">{esc(t)}</div>'
+        f'<div class="opt-s">{esc(sub)}</div></div>' for i, (t, sub) in enumerate(OPTIONS))
+    parts["options"] = f'''
+<div class="scene" id="options">
+  {blobs("options")}
+  <div class="opt-content">
+    <div class="opt-top">
+      <span class="kicker" id="options-kicker" style="background:#ffefa8;color:#5c4a00">And so much more</span>
+      <h2 class="head opt-head" id="options-head">Set it up your way.</h2>
+    </div>
+    <div class="opt-rail" data-layout-ignore><div class="opt-track" id="opt-track">{cards}</div></div>
   </div>
 </div>'''
     def hook_words():
@@ -324,6 +354,19 @@ def script(p):
   tl.from("#playalong-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {beat_n(1) - 0.05:.3f});
   tl.from("#playalong-head", {{ y: 40, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {beat_n(2) - 0.05:.3f});
   tl.from("#playalong-sub", {{ y: 20, opacity: 0, duration: {min(0.5, b):.2f}, ease: "expo.out" }}, {beat_n(4) - 0.05:.3f});""")
+        elif new == "options":
+            # The rail swipes one card into the middle on every beat.
+            pitch, card = 610, 560
+            x_of = lambda i: W / 2 - card / 2 - i * pitch
+            js.append(f'''  tl.set("#opt-track", {{ x: {x_of(0) + 2 * pitch:.0f} }}, {t:.3f});
+  tl.from("#options-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {t + 0.05:.3f});
+  tl.from("#options-head", {{ y: 40, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {t + 0.12:.3f});''')
+            for i in range(len(OPTIONS)):
+                at = beat_n(i) - 0.06
+                js.append(f'  tl.to("#opt-track", {{ x: {x_of(i):.0f}, duration: {0.8 * b:.3f}, ease: "back.out(1.3)" }}, {at:.3f});')
+                js.append(f'  tl.to("#opt{i}", {{ scale: 1, opacity: 1, duration: {0.6 * b:.3f}, ease: "back.out(2)" }}, {at:.3f});')
+                if i:
+                    js.append(f'  tl.to("#opt{i - 1}", {{ scale: 0.82, opacity: 0.45, duration: {0.6 * b:.3f}, ease: "power2.out" }}, {at:.3f});')
         elif new == "close":
             pulses = max(1, int((p.duration - 1.2 - beat_n(4)) / b))
             js.append(f"""  tl.from("#close-mark", {{ scale: 0.6, opacity: 0, duration: {min(0.8, 1.2 * b):.2f}, ease: "back.out(1.8)" }}, {t:.3f});
@@ -388,6 +431,14 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .vw { position: absolute; inset: 0; }
 .vw video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+.opt-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 0 0; display: flex; flex-direction: column; align-items: center; gap: 90px; }
+.opt-top { display: flex; flex-direction: column; align-items: center; gap: 26px; }
+.opt-head { font-size: 84px; max-width: none; white-space: nowrap; }
+.opt-rail { position: relative; width: 1920px; height: 400px; }
+.opt-track { position: absolute; left: 0; top: 0; height: 400px; display: flex; align-items: center; gap: 50px; }
+.opt { flex: none; width: 560px; height: 330px; border-radius: 36px; padding: 40px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; text-align: center; box-shadow: 0 24px 50px rgba(21,33,58,0.14); opacity: 0.45; transform: scale(0.82); }
+.opt-t { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 62px; line-height: 1.05; }
+.opt-s { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
 .pa-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 46px 120px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
 .pa-top { display: flex; align-items: center; gap: 28px; }
 .pa-head { font-size: 60px; max-width: none; white-space: nowrap; }
