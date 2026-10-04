@@ -197,7 +197,10 @@ rename or reuse one.
 `scripts/check-ladder.ts` generates every step in every voicing, key and meter
 it allows (`STEP=<id>` for one) and, for Unison steps, checks the line stays in
 the step's range and uses at least three pitches - a line stuck on one note
-"succeeds". Run it after touching a step or either generator. Step 15 is F and
+"succeeds". Run it after touching a step or either generator. The whole run
+takes about 80 minutes (4 October 2026: steps 1-17 seconds each, 18-20 one to
+six minutes, the last three about 22 minutes each, all 0% failed) - slow, not
+stuck; give it a long timeout or check one step with STEP=. Step 15 is F and
 G only and 15-17 leave out C, because three close parts in C fail at these
 ranges; see the comments there.
 
