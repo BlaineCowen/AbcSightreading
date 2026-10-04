@@ -41,5 +41,33 @@ for (const { m, names } of meters) {
     console.log(`${m.padEnd(5)} ${String(measures).padStart(3)} bars: ${fail}/${RUNS} failed, ${((performance.now() - t0) / RUNS).toFixed(0)} ms each`);
   }
 }
+// Pitched (the pitched play-along video): every note, Max skip 4, at video
+// lengths for slow to quick page tempos, in a sharp key, a flat key and minor.
+for (const { m, names } of meters) {
+  for (const key of ["G", "Bb", "Dm"]) {
+    for (const measures of [24, 40, 64]) {
+      let fail = 0;
+      for (let i = 0; i < RUNS; i++) {
+        try {
+          const out = createNewSr({
+            bpm: 90, tempo: 90, clef: "treble", selectedClef: "treble",
+            timeSig: timeSignatureFor(m), selectedTimeSignature: m, measures,
+            maxSkip: 4, range: { min: 14, max: 21 }, selectedRhythms: names,
+            rhythms: allRhythms.filter((r) => names.includes(r.name)),
+            scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]), key, chords: ["1", "2", "3", "4", "5", "6", "7"],
+            showSolfege: true, rhythmOnly: false, allowTiesAcrossBarline: false,
+            showRhythmSyllables: true, syllableSystemId: "kodaly",
+            partsObject: { numofParts: 1, parts: { Unison: { chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
+          } as any);
+          if (!Array.isArray(out) || !out[2]) fail++;
+        } catch { fail++; }
+      }
+      failures += fail;
+      if (fail) console.log(`pitched ${m} ${key} ${measures} bars: ${fail}/${RUNS} failed`);
+    }
+  }
+}
+console.log("pitched: every meter in G, Bb and Dm at 24, 40 and 64 bars checked");
+
 console.log(failures ? `${failures} failures` : "0 failures");
 process.exit(failures ? 1 : 0);

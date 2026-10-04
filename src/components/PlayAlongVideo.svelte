@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
-  import { BACKING_TRACKS, barsFor, countInBarsFor, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
-  import { frameAt, tempoChoices } from "../lib/play-along/timeline";
+  import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
+  import { barsForLength, frameAt, tempoChoices } from "../lib/play-along/timeline";
+  import { barChords, bassAbc, harmonyNotes } from "../lib/play-along/bass";
+  import { INSTRUMENTS, isInstrumentProgram, withInstrument } from "../lib/instruments";
   import { renderBars, type BarImage } from "../lib/play-along/bar-images";
   import { FADE_SECONDS, PlayAlongAudio } from "../lib/play-along/audio";
   import { drawScene, H, W } from "../lib/play-along/scene";
   import { startRecording, videoFileName, videoType, type Recording } from "../lib/play-along/recorder";
-  import { beatsOf, meterKindOf } from "../lib/meter";
+  import { beatUnitOf, beatsOf, meterKindOf } from "../lib/meter";
+  import { countInMeasures } from "../lib/count-in";
   import { downloadFile } from "../lib/download";
   import { RHYTHM_SOUNDS, rhythmSoundFor, volumeMultiplierFor, withRhythmSound } from "../lib/rhythm-sounds";
   import { CLICK_SOUNDS, DEFAULT_CLICK_SOUND, isClickSound, type ClickSound } from "../lib/tuner/click-sounds";
@@ -26,6 +29,12 @@
    * the rhythm syllables change here without a new exercise (the page writes
    * the exercise out again in the system asked for).
    *
+   * Pitched mode (the Unison page with pitches): the exercise is the page's,
+   * written about a minute and a half long at the page's tempo; the backing is
+   * a drum style in its meter (the loop nearest that tempo, warped to it); the
+   * melody can play on any of the page's instruments, and a bass line holds
+   * one root a bar under it (bass.ts). The labels are solfège, not syllables.
+   *
    * Everything is drawn on one 1920x1080 canvas (src/lib/play-along/scene.ts),
    * so full screen and the exported video are the same picture; the controls
    * live outside it and never reach the file.
@@ -43,15 +52,46 @@
   export let initialSyllables = "off";
   /** The page's rhythm sound: the guide starts on it unless this browser has chosen another for videos. */
   export let rhythmSoundId = "claves";
+  /** Rhythm (rhythm only, over backing tracks) or pitched (the page's melody, over drums and a bass line). */
+  export let mode: "rhythm" | "pitched" = "rhythm";
+  /** Pitched: the page's tempo, which the video starts at and its length is set by. */
+  export let pageTempo = 90;
+  /** Pitched: the page's instrument (a MIDI program), which the melody starts on. */
+  export let instrumentProgram = 0;
+  /** What the label picker is called: rhythm syllables, or solfège. */
+  export let labelNoun = "Syllables";
   export let onClose: () => void;
 
   /** How long the finish card stays after the last bar. */
   const FINISH_SECONDS = 3.5;
 
+  const pitched = mode === "pitched";
   const kinds = new Set(meters.map((m) => meterKindOf(m)));
-  const tracks: BackingTrack[] = BACKING_TRACKS.filter((t) => kinds.has(meterKindOf(t.meter))).sort(
-    (a, b) => Number(meters.includes(b.meter)) - Number(meters.includes(a.meter)),
-  );
+  /**
+   * Pitched: one drum style per meter, the loop nearest the page's tempo
+   * (warped to the exact tempo when it plays). Rhythm: every backing track.
+   */
+  function drumStyles(): BackingTrack[] {
+    const byStyle = new Map<string, (typeof DRUM_LOOPS)[number][]>();
+    for (const d of DRUM_LOOPS) {
+      if (!meters.includes(d.meter)) continue;
+      const k = `${d.style}|${d.meter}`;
+      byStyle.set(k, [...(byStyle.get(k) ?? []), d]);
+    }
+    return [...byStyle.values()].map((variants) => {
+      const d = variants.reduce((a, b) => (Math.abs(Math.log(b.bpm / pageTempo)) < Math.abs(Math.log(a.bpm / pageTempo)) ? b : a));
+      const t = BACKING_TRACKS.find((x) => x.id === drumLoopId(d))!;
+      return { ...t, name: `Drums: ${d.label} (${d.meter})` };
+    });
+  }
+  const tracks: BackingTrack[] = pitched
+    ? drumStyles()
+    : BACKING_TRACKS.filter((t) => kinds.has(meterKindOf(t.meter))).sort(
+        (a, b) => Number(meters.includes(b.meter)) - Number(meters.includes(a.meter)),
+      );
+  /** Pitched: bars for about a minute and a half at the page's tempo, an even number, in fours. */
+  const pitchedBars = (meter: string) =>
+    barsForLength({ bpm: pageTempo, meter, loopBars: 4, countInBars: countInMeasures(meter) });
 
   let trackId = tracks[0]?.id ?? "";
   $: track = tracks.find((t) => t.id === trackId) ?? null;
@@ -62,9 +102,15 @@
    * this browser (a convenience; private windows start fresh).
    */
   const SOUND_KEY = "abcsr_playalong_sound";
-  type SoundPrefs = { loop: number; guide: number; click: number; guideSound: string; clickSound: ClickSound };
+  type SoundPrefs = {
+    loop: number; guide: number; click: number; bass: number;
+    guideSound: string; clickSound: ClickSound; melodyProgram: number;
+  };
   function savedSound(): SoundPrefs {
-    const fallback: SoundPrefs = { loop: 1, guide: 0, click: 0, guideSound: rhythmSoundId, clickSound: DEFAULT_CLICK_SOUND };
+    const fallback: SoundPrefs = {
+      loop: 1, guide: 0, click: 0, bass: 0.8,
+      guideSound: rhythmSoundId, clickSound: DEFAULT_CLICK_SOUND, melodyProgram: instrumentProgram,
+    };
     try {
       const v = JSON.parse(localStorage.getItem(SOUND_KEY) ?? "null");
       if (!v || typeof v !== "object") return fallback;
@@ -73,8 +119,11 @@
         loop: level(v.loop, 1),
         guide: level(v.guide, 0),
         click: level(v.click, 0),
+        bass: level(v.bass, 0.8),
         guideSound: RHYTHM_SOUNDS.some((r) => r.id === v.guideSound) ? v.guideSound : rhythmSoundId,
         clickSound: isClickSound(v.clickSound) ? v.clickSound : DEFAULT_CLICK_SOUND,
+        // The page's instrument, unless this browser chose another for videos.
+        melodyProgram: isInstrumentProgram(v.melodyProgram) ? Number(v.melodyProgram) : instrumentProgram,
       };
     } catch {
       return fallback;
@@ -100,7 +149,9 @@
 
   /** The tempo the video plays at: the track's own, or half speed to 150% of it (tempoChoices). */
   let tempo = 0;
-  $: choices = track ? tempoChoices(track.bpm) : [];
+  /** The tempo the steps are a share of: the track's own, or (pitched) the page's. */
+  $: baseTempo = pitched ? pageTempo : track?.bpm ?? 0;
+  $: choices = baseTempo ? tempoChoices(baseTempo) : [];
   /** The tempo the backing has been warped to (it lags `tempo` while a change is pending). */
   let tunedTo = 0;
   let retuneTimer: ReturnType<typeof setTimeout> | null = null;
@@ -137,9 +188,22 @@
   /** The count-in's first downbeat and the end of the finish, in audio time, while playing. */
   let run: { t0: number; musicEnd: number; end: number } | null = null;
 
-  $: audio?.setMix(sound);
-  /** What the guide was rendered for: the instrument, the tempo and the exercise as written. */
-  $: guideKey = `${sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}`;
+  $: audio?.setMix({ ...sound, bass: pitched ? sound.bass : 0 });
+  /** Pitched: the bass line for the exercise (one root a bar, bass.ts), as ABC. */
+  $: bassText =
+    pitched && score?.key
+      ? bassAbc(
+          barChords(
+            harmonyNotes((score.partsObject as any).parts.Unison.chordNoteObject),
+            score.timeSig.tsPerMeasure,
+            beatUnitOf(scoreMeter),
+            /m$/.test(score.key),
+          ),
+          { key: score.key, meter: scoreMeter, barUnits: score.timeSig.tsPerMeasure },
+        )
+      : "";
+  /** What the guide (and bass) was rendered for: the instrument, the tempo and the exercise as written. */
+  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}`;
   $: if (abc && audioRunning && status === "ready" && guideKey !== guideFor) void renderGuide();
 
   /**
@@ -155,12 +219,16 @@
     const key = guideKey;
     guideFor = key;
     guideLoading = true;
-    const instrument = rhythmSoundFor(sound.guideSound);
-    const job: Promise<void> = audio
-      .renderGuide(withRhythmSound(abc, instrument), tempo, volumeMultiplierFor(instrument))
-      .then((buffer) => {
+    const a = audio;
+    const melody = pitched
+      ? a.renderGuide(withInstrument(abc, sound.melodyProgram), tempo, 3)
+      : a.renderGuide(withRhythmSound(abc, rhythmSoundFor(sound.guideSound)), tempo, volumeMultiplierFor(rhythmSoundFor(sound.guideSound)));
+    const bassLine = pitched && bassText ? a.renderGuide(bassText, tempo, 3) : Promise.resolve(null);
+    const job: Promise<void> = Promise.all([melody, bassLine])
+      .then(([buffer, bassBuffer]) => {
         if (seq !== guideSeq) return;
-        audio?.setGuide(buffer);
+        a.setGuide(buffer);
+        a.setBass(bassBuffer);
         guideReady = key;
       })
       .catch(() => {
@@ -208,8 +276,8 @@
   /** Writes a new exercise in `meter`, as long as the longest track in it. Counts against the allowance. */
   async function writeExercise(meter: string) {
     if (!track) return;
-    const measures = maxBarsIn(meter);
-    score = await generate({ measures, bpm: track.bpm, meter });
+    const measures = pitched ? pitchedBars(meter) : maxBarsIn(meter);
+    score = await generate({ measures, bpm: pitched ? pageTempo : track.bpm, meter });
     scoreMeter = meter;
     scoreBars = measures;
     await redraw();
@@ -228,7 +296,9 @@
     try {
       if (retuneTimer) clearTimeout(retuneTimer);
       retuneTimer = null;
-      tempo = t.bpm;
+      // Rhythm: each track at its own tempo. Pitched: the tempo is the exercise's,
+      // kept when the drum style changes (the new loop is warped to it).
+      if (!pitched || !tempo) tempo = pitched ? pageTempo : t.bpm;
       tunedTo = t.bpm;
       // The guide held is for the last track's tempo; nothing plays it until the
       // new one is in, and the reactive render above must start again even if
@@ -236,10 +306,16 @@
       guideReady = "";
       guideFor = "";
       audio.setGuide(null);
+      audio.setBass(null);
       if (newExercise || !score || scoreMeter !== t.meter) await writeExercise(t.meter);
       await audio.loadBacking(t);
       countInBars = countInBarsFor(t);
-      bars = barsFor(t);
+      bars = pitched ? scoreBars : barsFor(t);
+      // A loop at another tempo than the video's is warped now, before Play.
+      if (tempo !== t.bpm) {
+        tunedTo = 0;
+        retuneTimer = setTimeout(() => void retune(), 50);
+      }
       status = "ready";
     } catch (err) {
       error = err instanceof Error ? err.message : "The play-along could not be made.";
@@ -443,20 +519,35 @@
     {#if soundOpen}
       <div class="sound-panel sr-panel absolute bottom-full left-1/2 z-10 mb-3 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 p-4 grid gap-3 shadow-xl" role="group" aria-label="Sound">
         <div class="sound-row">
-          <span class="sr-label">Backing loop</span>
+          <span class="sr-label">{pitched ? "Drums" : "Backing loop"}</span>
           <input type="range" min="0" max="1" step="0.05" bind:value={sound.loop} aria-label="Backing loop volume" />
           <span class="level">{Math.round(sound.loop * 100)}%</span>
         </div>
         <div class="sound-row">
-          <span class="sr-label">Guide rhythm</span>
-          <input type="range" min="0" max="1" step="0.05" bind:value={sound.guide} aria-label="Guide rhythm volume" />
+          <span class="sr-label">{pitched ? "Melody" : "Guide rhythm"}</span>
+          <input type="range" min="0" max="1" step="0.05" bind:value={sound.guide} aria-label={pitched ? "Melody volume" : "Guide rhythm volume"} />
           <span class="level">{sound.guide === 0 ? "Off" : `${Math.round(sound.guide * 100)}%`}</span>
-          <select class="sr-tok" bind:value={sound.guideSound} disabled={busy || guideLoading} aria-label="Guide instrument">
-            {#each RHYTHM_SOUNDS as r}
-              <option value={r.id}>{r.label}</option>
-            {/each}
-          </select>
+          {#if pitched}
+            <select class="sr-tok" bind:value={sound.melodyProgram} disabled={busy || guideLoading} aria-label="Melody instrument">
+              {#each INSTRUMENTS as inst}
+                <option value={inst.program}>{inst.label}</option>
+              {/each}
+            </select>
+          {:else}
+            <select class="sr-tok" bind:value={sound.guideSound} disabled={busy || guideLoading} aria-label="Guide instrument">
+              {#each RHYTHM_SOUNDS as r}
+                <option value={r.id}>{r.label}</option>
+              {/each}
+            </select>
+          {/if}
         </div>
+        {#if pitched}
+          <div class="sound-row">
+            <span class="sr-label">Bass</span>
+            <input type="range" min="0" max="1" step="0.05" bind:value={sound.bass} aria-label="Bass volume" />
+            <span class="level">{sound.bass === 0 ? "Off" : `${Math.round(sound.bass * 100)}%`}</span>
+          </div>
+        {/if}
         <div class="sound-row">
           <span class="sr-label">Click</span>
           <input type="range" min="0" max="1" step="0.05" bind:value={sound.click} aria-label="Click volume" />
@@ -467,7 +558,7 @@
             {/each}
           </select>
         </div>
-        <p class="text-xs text-sr-muted">Levels change as it plays and go into the exported video. Turn the guide up to hear the rhythm played over the loop.</p>
+        <p class="text-xs text-sr-muted">Levels change as it plays and go into the exported video. {pitched ? "Turn the melody up to hear the line played; the bass holds one root a bar." : "Turn the guide up to hear the rhythm played over the loop."}</p>
       </div>
     {/if}
 
@@ -486,12 +577,12 @@
         <button class="sr-tok" disabled={busy || !choices.length || tempo <= choices[0]} on:click={() => step(-1)} aria-label="Slower">−</button>
         <button
           class="sr-tok tempo-value"
-          class:sr-on={track && tempo !== track.bpm}
-          disabled={busy || !track || tempo === track.bpm}
-          title={track && tempo !== track.bpm ? `Back to the track's own ${track.bpm}` : "The track's own tempo"}
-          on:click={() => track && setTempo(track.bpm)}
+          class:sr-on={!!baseTempo && tempo !== baseTempo}
+          disabled={busy || !baseTempo || tempo === baseTempo}
+          title={baseTempo && tempo !== baseTempo ? `Back to ${baseTempo}` : pitched ? "The exercise's tempo" : "The track's own tempo"}
+          on:click={() => baseTempo && setTempo(baseTempo)}
         >
-          {#if tuning}Adjusting…{:else}{tempo} BPM <span class="pct">{track ? Math.round((tempo / track.bpm) * 100) : 100}%</span>{/if}
+          {#if tuning}Adjusting…{:else}{tempo} BPM <span class="pct">{baseTempo ? Math.round((tempo / baseTempo) * 100) : 100}%</span>{/if}
         </button>
         <button class="sr-tok" disabled={busy || !choices.length || tempo >= choices[choices.length - 1]} on:click={() => step(1)} aria-label="Faster">+</button>
       </div>
@@ -500,10 +591,10 @@
         bind:value={syllables}
         on:change={redraw}
         disabled={busy || status === "preparing" || drawing}
-        aria-label="Rhythm syllables"
+        aria-label={labelNoun}
       >
         {#each syllableOptions as o}
-          <option value={o.id}>{o.id === "off" ? "Syllables off" : o.label}</option>
+          <option value={o.id}>{o.id === "off" ? `${labelNoun} off` : o.label}</option>
         {/each}
       </select>
       <button class="sr-tok" class:sr-on={soundOpen} aria-expanded={soundOpen} on:click={() => (soundOpen = !soundOpen)}>

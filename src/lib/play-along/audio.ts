@@ -24,6 +24,9 @@ export class PlayAlongAudio {
   private backingGain: GainNode;
   private loopLevel: GainNode;
   private guideGain: GainNode;
+  /** The pitched video's bass line (bass.ts), its own level. */
+  private bassGain: GainNode;
+  private bassBuffer: AudioBuffer | null = null;
   private clickGain: GainNode;
   private backingBuffers = new Map<string, AudioBuffer>();
   /** Backing tracks warped to another tempo, by "id@bpm". */
@@ -48,6 +51,7 @@ export class PlayAlongAudio {
     this.loopLevel = this.gainInto(this.master, 1);
     this.backingGain = this.gainInto(this.loopLevel, 1);
     this.guideGain = this.gainInto(this.master, 0);
+    this.bassGain = this.gainInto(this.master, 0);
     this.clickGain = this.gainInto(this.master, 0);
     void this.bank.load(this.ctx);
   }
@@ -124,16 +128,22 @@ export class PlayAlongAudio {
     this.guideBuffer = buffer;
   }
 
+  /** The bass line to play with the next run (rendered as renderGuide renders, from bass.ts's ABC). */
+  setBass(buffer: AudioBuffer | null) {
+    this.bassBuffer = buffer;
+  }
+
   /**
    * The mix, each 0 to 1: the loop, the guide and the click. 0 is off; the
    * guide and click start off, so the class performs the rhythm itself.
    * Applies at once, mid-play too, and reaches the recording.
    */
-  setMix(m: { loop: number; guide: number; click: number }) {
+  setMix(m: { loop: number; guide: number; click: number; bass?: number }) {
     const at = (g: GainNode, v: number) => g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
     at(this.loopLevel, m.loop);
     at(this.guideGain, m.guide * 0.9);
     at(this.clickGain, m.click);
+    at(this.bassGain, m.bass ?? 0);
   }
 
   /**
@@ -196,6 +206,16 @@ export class PlayAlongAudio {
       // The exercise can be longer than this track (one exercise serves every
       // track in a meter), so the guide stops where the music does.
       src.stop(musicEnd + 0.05);
+      this.sources.push(src);
+    }
+
+    if (this.bassBuffer) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.bassBuffer;
+      src.connect(this.bassGain);
+      src.start(musicStart);
+      // The last root rings into the finish, then fades with the loop.
+      src.stop(musicEnd + FADE_SECONDS);
       this.sources.push(src);
     }
 

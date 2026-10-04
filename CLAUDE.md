@@ -320,6 +320,23 @@ syllables picker (Off, Kodaly, Counting, Mine) starts at the page's choice and
 redraws from the exercise's data through the page's `playAlongAbc`, never a
 new exercise.
 
+Pitched mode: the same Video button on the Unison page with pitches opens the
+video in `mode="pitched"`. The exercise is the page's (key, notes, range,
+skips), written about 1:30 long at the page's tempo (in fours; pitched
+exercises generate at 24-64 bars in every meter, `check-play-along-length.ts`).
+The backing is a drum style in its meter - the loop nearest the page's tempo,
+warped to the tempo shown, which stays put when the style changes. The melody
+plays on any of the page's instruments (off by default, so the class sings
+it), and a bass line (`src/lib/play-along/bass.ts`, tests
+`play-along-bass.test.ts`) holds one root a bar on bass guitar (MIDI 33): the
+generator gives every note its own chord, changing about every note and a
+half, so each bar takes the one chord - the generator's own, slightly
+preferred, or a diatonic triad - that best fits the bar's melody, weighted by
+length and beat (about 73% of the sung time on its tones); the last bar is
+the tonic, the one before it V when the melody allows, and a leading-tone
+chord takes V's root (minor's own VII stays). The labels are solfège (Off,
+Movable do, Fixed do, Note names), written through the page's `playAlongAbc`.
+
 Sound (the overlay's Sound panel): levels for the loop, a guide (the rhythm
 played over the loop, on any rhythm sound) and a click (any metronome sound),
 live while it plays and into the export; remembered in this browser. abcjs

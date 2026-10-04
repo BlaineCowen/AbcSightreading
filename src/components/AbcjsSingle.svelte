@@ -2436,7 +2436,8 @@
       tempo: o.bpm,
       timeSig: timeSignatures[o.meter as keyof typeof timeSignatures],
       measures: o.measures,
-      rhythmOnly: true,
+      // Pitched or rhythm only, as the page is.
+      rhythmOnly,
       allowTiesAcrossBarline: false,
     };
     const response = await fetch("/api/generate", {
@@ -2456,6 +2457,21 @@
    * page's rhythm sound, the video's tempo.
    */
   function playAlongAbc(score: UnisonScore, o: { syllables: string; bpm: number; meter: string }): string {
+    if (score.staff === "pitched") {
+      // Pitched: `syllables` is the solfège - a lyric system, or "off". The
+      // rhythm syllables written in for practice runs are left out.
+      const lyricsOff = o.syllables === "off";
+      let pitchedAbc = assembleUnisonAbc(score, {
+        showSolfege: !lyricsOff,
+        lyricSystem: (lyricsOff ? lyricSystem : o.syllables) as LyricSystem,
+        showRhythmSyllables: false,
+        syllableSystemId,
+        customSyllables: $mySyllables,
+      });
+      pitchedAbc = pitchedAbc.replace(/Q:\d+\/\d+=\d+/g, tempoField(o.meter, o.bpm));
+      if (lyricsOff) pitchedAbc = withoutLyrics(pitchedAbc);
+      return withChosenSound(withoutQuotedText(pitchedAbc));
+    }
     const off = o.syllables === "off";
     let abc = assembleUnisonAbc(score, {
       showSolfege: false,
@@ -3662,8 +3678,12 @@
       meters={[...selectedTimeSignatures]}
       generate={playAlongExercise}
       write={playAlongAbc}
-      syllableChoices={playAlongSyllables}
-      initialSyllables={showRhythmSyllables ? syllableSystemId : "off"}
+      mode={rhythmOnly ? "rhythm" : "pitched"}
+      labelNoun={rhythmOnly ? "Syllables" : "Solfège"}
+      syllableChoices={rhythmOnly ? playAlongSyllables : lyricSystems.map(([id, label]) => ({ id, label }))}
+      initialSyllables={rhythmOnly ? (showRhythmSyllables ? syllableSystemId : "off") : showSolfege ? lyricSystem : "off"}
+      pageTempo={tempo}
+      {instrumentProgram}
       {rhythmSoundId}
       onClose={() => (playAlongOpen = false)}
     />
@@ -3725,24 +3745,22 @@
         {/each}
         </div>
 
-        <!-- Rhythm only: the play-along video (Pro), beside Generate. -->
-        {#if rhythmOnly}
-          <button
-            class="sr-btn sr-btn-video ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
-            on:click={openPlayAlong}
-            title={videoAllowed ? "A full-screen play-along over a backing track, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
-          >
-            <Clapperboard size={16} />
-            <span>Video</span>
-            {#if videoAllowed === false}
-              <span class="sr-pro-tag">Pro</span>
-            {/if}
-          </button>
-        {/if}
+        <!-- The play-along video (Pro), beside Generate: rhythm only or pitched. -->
+        <button
+          class="sr-btn sr-btn-video ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          on:click={openPlayAlong}
+          title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
+        >
+          <Clapperboard size={16} />
+          <span>Video</span>
+          {#if videoAllowed === false}
+            <span class="sr-pro-tag">Pro</span>
+          {/if}
+        </button>
 
         <!-- Generate button always visible in tab bar -->
         <button
-          class="sr-btn {rhythmOnly ? '' : 'ml-auto'} md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          class="sr-btn md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
           on:click={handleClick}
           disabled={isLoading}
         >
