@@ -299,11 +299,20 @@ video writes one exercise per meter, as long as the longest track in it
 (`maxBarsIn`), and each track uses its first `barsFor` bars, so swapping
 between tracks in a meter is instant and free; only a track in another meter
 (marked "new exercise" in the picker) writes and counts a new one. The tempo
-moves ±15% in whole BPM (`tempoChoices`), the backing warped offline with the
-pitch kept (`stretch.ts`, soundtouchjs, LGPL-2.1; types in
-`src/types/soundtouchjs.d.ts`) and lined up with the grid by cross-correlating
-envelopes - about 1 ms on average, a few ms of WSOLA jitter, no drift over 90 s
-(tests `play-along-stretch.test.ts`); a 21 s loop warps in about 60 ms. The
+goes from half speed to 150% in 5% steps (`tempoChoices`), shown as BPM and
+percent in a fixed-width button so "Adjusting…" never moves the controls. The
+backing is warped offline with the pitch kept (`stretch.ts`, soundtouchjs,
+LGPL-2.1; types in `src/types/soundtouchjs.d.ts`), lined up with the grid by
+cross-correlating envelopes. Slowing down far needed two fixes: SoundTouch's
+automatic ~120 ms slices doubled every drum hit at half speed, so below 1x the
+slices are fixed at 25 ms; and the attacks are restored - each onset of the
+original pasted back at exactly its new time with a 25 ms lead-in (which
+also removes the early copies speeding up leaves). Measured on clicks: within
+2.2 ms of the beat from 0.5x to 1.5x, no echoes, no drift over 90 s (tests
+`play-along-stretch.test.ts`); on the real tracks 223 of 225 hits within
+5 ms. A full song at half speed takes up to 3 s to warp, on the main thread,
+under "Adjusting tempo…" (a Web Worker would free the page if that matters).
+The bars stay the same, so half speed makes a 1:30 video three minutes. The
 syllables picker (Off, Kodaly, Counting, Mine) starts at the page's choice and
 redraws from the exercise's data through the page's `playAlongAbc`, never a
 new exercise.

@@ -98,7 +98,7 @@
   /** The exercise as drawn, in the chosen syllables; the guide is rendered from it. */
   let abc = "";
 
-  /** The tempo the video plays at: the track's own, or within ±15% of it. */
+  /** The tempo the video plays at: the track's own, or half speed to 150% of it (tempoChoices). */
   let tempo = 0;
   $: choices = track ? tempoChoices(track.bpm) : [];
   /** The tempo the backing has been warped to (it lags `tempo` while a change is pending). */
@@ -221,6 +221,13 @@
     tempo = bpm;
     if (retuneTimer) clearTimeout(retuneTimer);
     retuneTimer = setTimeout(() => void retune(), 350);
+  }
+
+  /** One step slower or faster: 5% of the track's own tempo. */
+  function step(dir: 1 | -1) {
+    const i = choices.indexOf(tempo);
+    const next = choices[i + dir];
+    if (next !== undefined) setTempo(next);
   }
 
   /** Warps the backing to the chosen tempo (about a second the first time at a tempo; kept after). */
@@ -445,7 +452,7 @@
         {/each}
       </select>
       <div class="tempo flex items-center gap-1" role="group" aria-label="Tempo">
-        <button class="sr-tok" disabled={busy || !choices.length || tempo <= choices[0]} on:click={() => setTempo(tempo - 1)} aria-label="Slower">−</button>
+        <button class="sr-tok" disabled={busy || !choices.length || tempo <= choices[0]} on:click={() => step(-1)} aria-label="Slower">−</button>
         <button
           class="sr-tok tempo-value"
           class:sr-on={track && tempo !== track.bpm}
@@ -453,9 +460,9 @@
           title={track && tempo !== track.bpm ? `Back to the track's own ${track.bpm}` : "The track's own tempo"}
           on:click={() => track && setTempo(track.bpm)}
         >
-          {tuning ? "Adjusting…" : `${tempo} BPM`}
+          {#if tuning}Adjusting…{:else}{tempo} BPM <span class="pct">{track ? Math.round((tempo / track.bpm) * 100) : 100}%</span>{/if}
         </button>
-        <button class="sr-tok" disabled={busy || !choices.length || tempo >= choices[choices.length - 1]} on:click={() => setTempo(tempo + 1)} aria-label="Faster">+</button>
+        <button class="sr-tok" disabled={busy || !choices.length || tempo >= choices[choices.length - 1]} on:click={() => step(1)} aria-label="Faster">+</button>
       </div>
       <select
         class="sr-tok"
@@ -529,9 +536,19 @@
   .controls {
     transition: opacity 0.4s;
   }
+  /* A fixed size, so "Adjusting…" and every tempo take the same room and
+     the buttons either side never move. */
   .tempo-value {
-    min-width: 7.5rem;
+    width: 9.5rem;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
     font-variant-numeric: tabular-nums;
+  }
+  .pct {
+    margin-left: 0.35rem;
+    opacity: 0.65;
+    font-weight: 600;
   }
   .controls.dim {
     opacity: 0.2;

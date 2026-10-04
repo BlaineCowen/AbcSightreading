@@ -7,6 +7,8 @@ declare module "soundtouchjs" {
   export class SoundTouch {
     /** 1 is unchanged; 1.1 is ten percent faster, pitch kept. */
     tempo: number;
+    /** The WSOLA stage: its slice, seek window and overlap lengths, in ms (0 keeps the automatic one). */
+    stretch: { setParameters(sampleRate: number, sequenceMs: number, seekWindowMs: number, overlapMs: number): void };
   }
   /** Something the filter can read stereo frames from, interleaved. */
   export interface FrameSource {

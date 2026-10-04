@@ -32,15 +32,16 @@ export function barsForLength(opts: {
   return Math.max(step, Math.round(wanted / step) * step);
 }
 
-/** How far the tempo control reaches either way: far enough to slow a section for a class, near enough that the warped audio stays clean. */
-export const TEMPO_REACH = 0.15;
+/**
+ * The tempo control's steps, as a share of the track's own tempo: half speed
+ * to half again as fast, in fives. Wide enough to learn a part slowly and to
+ * push it; the warp keeps hits within a few ms across all of it (stretch.ts).
+ */
+export const TEMPO_STEPS = Array.from({ length: 21 }, (_, i) => 50 + i * 5);
 
-/** The tempos the video offers for a track: whole BPM within ±15% of its own, its own included. */
+/** The tempos the video offers for a track: its own at 50%, 55% ... 150%, in whole BPM, with no repeats. */
 export function tempoChoices(bpm: number): number[] {
-  // A hair of tolerance: 100 x 1.15 is 114.99999999999999 in floating point.
-  const lo = Math.ceil(bpm * (1 - TEMPO_REACH) - 1e-9);
-  const hi = Math.floor(bpm * (1 + TEMPO_REACH) + 1e-9);
-  return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+  return [...new Set(TEMPO_STEPS.map((p) => Math.round((bpm * p) / 100)))];
 }
 
 export interface Frame {

@@ -41,14 +41,20 @@ describe("one exercise per meter", () => {
 });
 
 describe("tempo choices", () => {
-  test("whole BPM within 15% either way, the track's own included", () => {
-    expect(tempoChoices(100)).toEqual(Array.from({ length: 31 }, (_, i) => 85 + i));
-    expect(tempoChoices(70)).toContain(70);
-    expect(Math.min(...tempoChoices(70))).toBe(60); // 59.5 rounds up
-    expect(Math.max(...tempoChoices(70))).toBe(80); // 80.5 rounds down
+  test("half speed to 150% in 5% steps, as whole BPM", () => {
+    expect(tempoChoices(100)).toEqual(Array.from({ length: 21 }, (_, i) => 50 + i * 5));
+    expect(tempoChoices(80)[0]).toBe(40);
+    expect(tempoChoices(80).at(-1)).toBe(120);
+    expect(tempoChoices(70)).toContain(35);
+    expect(tempoChoices(70)).toContain(105);
   });
 
-  test("every track's own tempo is a choice", () => {
-    for (const t of BACKING_TRACKS) expect(tempoChoices(t.bpm)).toContain(t.bpm);
+  test("every track's own tempo is a choice, and the choices never repeat", () => {
+    for (const t of BACKING_TRACKS) {
+      const c = tempoChoices(t.bpm);
+      expect(c).toContain(t.bpm);
+      expect(new Set(c).size).toBe(c.length);
+      expect([...c].sort((a, b) => a - b)).toEqual(c);
+    }
   });
 });
