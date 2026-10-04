@@ -6,7 +6,10 @@
  * beams and rhythm syllables come out exactly as abcjs draws them on the
  * page. Then each line becomes its own SVG image by pointing a copy's viewBox
  * at it: an image a bar, vector to the last, so it is sharp at 1080p whatever
- * the screen. One tall raster would be past a browser's canvas limit at 70
+ * the screen. Each copy holds only its own line: every picture is framed as
+ * tall as the tallest line (so the staff sits at one height in all of them),
+ * and a frame that tall around a plain line reached into the line above -
+ * bar 2 showed bar 1's solfège over its staff whenever bar 1 had a dynamic. One tall raster would be past a browser's canvas limit at 70
  * bars.
  */
 import abcjs from "abcjs";
@@ -80,12 +83,11 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
     const above = Math.max(...boxes.map((b, i) => staffYs[i] - b.y)) + PAD;
     const below = Math.max(...boxes.map((b, i) => b.y + b.height - staffYs[i])) + PAD;
 
-    const source = new XMLSerializer().serializeToString(svg);
     const bars = await Promise.all(
       lines.map(async (_, i) => {
         const y = staffYs[i] - above;
         const h = above + below;
-        const img = await svgImage(source, 0, y, svgWidth, h);
+        const img = await svgImage(onlyLine(svg, i), 0, y, svgWidth, h);
         const notes = timings
           .filter((e) => e.type === "event" && e.line === i && e.left != null)
           .map((e) => ({
@@ -109,6 +111,15 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
   } finally {
     host.remove();
   }
+}
+
+/** The drawn tune as SVG source with every line but line `i` taken out. */
+function onlyLine(svg: SVGSVGElement, i: number): string {
+  const copy = svg.cloneNode(true) as SVGSVGElement;
+  copy.querySelectorAll(".abcjs-staff-wrapper").forEach((g, k) => {
+    if (k !== i) g.remove();
+  });
+  return new XMLSerializer().serializeToString(copy);
 }
 
 /** Every line runs the full width, the last one too, so bars line up across panes. */
