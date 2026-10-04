@@ -238,15 +238,35 @@ search over the sung notes, each choice weighted (steps over leaps, a leap
 answered by a step back, the range used, a pitch three times running only
 when the harmony leaves nothing else).
 
+Chromatic notes pair a diatonic phrase with a chromatic one: phrase 1 (and
+3) is the diatonic progression, phrase 2 (and 4) carries an altered note,
+each selected note taking its turn; a four-bar exercise is the chromatic
+phrase. Six notes have a chord of their own, and the line sings the note as a
+chord tone resolving by step into the next chord: fi (V/V: I, IV V/V, V, I),
+si (V/vi), di (V/ii), te (V7/IV, or ♭VII for the rock sound), le (borrowed
+iv) and me (borrowed i). ri, li, se and ra have no clean chord (V/iii brings
+fi along, the Neapolitan in major brings le) so they are chromatic passing or
+neighbour notes over the diatonic chords: on a weak beat, stepped into,
+resolving the way they lean, never against their own natural in the chord.
+`EXTRA_CHORDS` holds the chords chords.ts lacks (borrowed i, ♭VII, the
+Neapolitan for minor). `placeMissingChromatics` stays the safety net, but
+never alters the first phrase. The Unison page is major keys only, so the
+minor chromatic table (the Neapolitan) is not reachable from it yet; the
+generator's own key table there has no minor keys either. Measured: each of
+the ten notes, alone and fi with te, in four meters, six keys and 4, 8 and 16
+bars: over a progression 100% (fi 99%), the altered note written every time,
+no failures.
+
 It replaced the older walk's harmony, which picked a chord for nearly every
 note to justify the line, so nothing built on it sat with the melody (and a
 question-and-answer period scheme built on that walk sounded wrong and was
 taken out). The writer returns the walk's own shape, a chord and a note per
 rhythm slot, so spelling, solfège and the ABC are unchanged, and the score
 carries the progression (`UnisonScore.harmony`), which the play-along bass
-plays (`progressionChords`). With a chromatic note selected, or where no
-progression fits, the older walk writes the exercise; without the option the
-output is byte for byte what it was (the regression snapshots).
+plays (`progressionChords`). Where no progression fits, or no line over six
+rhythms does (`PROGRESSION_RHYTHMS`), the older walk writes the exercise;
+without the option the output is byte for byte what it was (the regression
+snapshots).
 
 Measured: every exercise over a progression across all five NYSSMA levels,
 general settings in four meters, eight keys and do re mi in steps;

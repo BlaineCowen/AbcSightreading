@@ -93,6 +93,8 @@ describe("over a progression", () => {
     expect(bassAbc(bars, { key: "C", meter: "4/4", barUnits: 32 })).toContain("C32 |A,16 F,16 |G,32 |C32 |]");
     // 3/4: two beats and one.
     expect(bassAbc(progressionChords([["4", "5"]]), { key: "G", meter: "3/4", barUnits: 24 })).toContain("C16 D8 |]");
+    // Chromatic chords: the flat seventh chord's root is B flat; V/V's is D.
+    expect(bassAbc(progressionChords([["u_b7"], ["5/5"]]), { key: "C", meter: "4/4", barUnits: 32 })).toContain("_B,32 |D32 |]");
   });
 });
 

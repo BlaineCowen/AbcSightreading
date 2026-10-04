@@ -1109,9 +1109,8 @@
   /**
    * Chord progressions (unison-progressions.ts): the line is written over a
    * repeating progression - I IV V I and the like - with chord notes on the
-   * strong beats and passing notes between. Diatonic exercises only for now;
-   * with a chromatic note selected the older walk writes it. On unless turned
-   * off.
+   * strong beats and passing notes between; with chromatic notes, a diatonic
+   * phrase and then a chromatic one. On unless turned off.
    */
   let progressions: boolean = initialState.progressions ?? true;
   let cursorMode: CursorMode = initialState.cursorMode || "smooth";
@@ -3903,7 +3902,7 @@
                   {#if !progressions}
                     A chord for every note, wherever the line goes.
                   {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
-                    With chromatic notes selected, a chord for every note, as before. Progressions are diatonic for now.
+                    A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
                   {:else}
                     The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
                   {/if}

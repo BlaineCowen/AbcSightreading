@@ -42,15 +42,18 @@ describe("laying a progression over the bars", () => {
 // ------------------------------------------------------------- on exercises
 
 const SIMPLE = ["quarter", "half", "eighthEighth", "dotHalf", "dotQuarterEighth"];
-type N = { noteLength: number; pitchValue: number; degree: number; chord: { name: string; triadNotes: number[] }; rhythm?: { rest?: boolean } };
+type N = {
+  name: string; noteLength: number; pitchValue: number; degree: number; rhythm?: { rest?: boolean };
+  chord: { name: string; triadNotes: number[]; sharpScaleDegree?: number; flatScaleDegree?: number };
+};
 
-function generate(o: { key: string; meter: string; measures: number; degrees: number[]; maxSkip: number; eighth?: number; progressions?: boolean; sharps?: number[] }) {
+function generate(o: { key: string; meter: string; measures: number; degrees: number[]; maxSkip: number; eighth?: number; progressions?: boolean; sharps?: number[]; flats?: number[] }) {
   const names = o.meter.endsWith("/8") ? [...DEFAULT_RHYTHM_NAMES.compound] : SIMPLE;
   return createNewSr({
     bpm: 80, tempo: 80, clef: "treble", selectedClef: "treble", timeSig: timeSignatureFor(o.meter), selectedTimeSignature: o.meter,
     measures: o.measures, maxSkip: o.maxSkip, maxEighthSkip: o.eighth ?? 1, maxSixteenthSkip: o.eighth ?? 1,
     range: { min: 14, max: 21 }, selectedRhythms: names, rhythms: allRhythms.filter((r) => names.includes(r.name)),
-    scaleDegrees: new Set(o.degrees), selectedSharpDegrees: o.sharps ?? [], key: o.key, chords: ["1", "2", "3", "4", "5", "6", "7"],
+    scaleDegrees: new Set(o.degrees), selectedSharpDegrees: o.sharps ?? [], selectedFlatDegrees: o.flats ?? [], key: o.key, chords: ["1", "2", "3", "4", "5", "6", "7"],
     showSolfege: true, rhythmOnly: false, progressions: o.progressions ?? true,
     partsObject: { numofParts: 1, parts: { Unison: { chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
   } as any) as any;
@@ -140,8 +143,76 @@ describe("the line against the progression", () => {
     expect(repeats / moves).toBeLessThan(0.35);
   });
 
-  test("off, or with a chromatic note selected, the older walk writes it", () => {
+  test("off, the older walk writes it", () => {
     expect(generate({ ...CASES[0], measures: 8, progressions: false })[2].harmony).toBeUndefined();
-    expect(generate({ ...CASES[0], measures: 8, sharps: [4] })[2].harmony).toBeUndefined();
+  });
+});
+
+describe("chromatic notes: a diatonic phrase, then a chromatic one", () => {
+  // 1-based, as the page sends them; with the chord each is written over, or none for a passing note.
+  const NOTES = [
+    { label: "fi", sharps: [4], chord: "5/5" },
+    { label: "si", sharps: [5], chord: "5/6" },
+    { label: "di", sharps: [1], chord: "5/2" },
+    { label: "te", flats: [7], chord: ["1-7", "u_b7"] },
+    { label: "le", flats: [6], chord: "m4" },
+    { label: "me", flats: [3], chord: "u_borrowed_i" },
+    { label: "ri (passing)", sharps: [2] },
+    { label: "li (passing)", sharps: [6] },
+    { label: "se (passing)", flats: [5] },
+    { label: "ra (passing, in major)", flats: [2] },
+  ];
+  const altered = (n: N, sharps: Set<number>, flats: Set<number>) =>
+    (n.chord.sharpScaleDegree === n.degree && sharps.has(n.degree)) || (n.chord.flatScaleDegree === n.degree && flats.has(n.degree));
+
+  for (const c of NOTES) {
+    test(c.label, () => {
+      const sharps = new Set((c.sharps ?? []).map((d) => d - 1));
+      const flats = new Set((c.flats ?? []).map((d) => d - 1));
+      for (let run = 0; run < 10; run++) {
+        const [key, meter] = [["C", "4/4"], ["F", "3/4"], ["G", "2/4"], ["Bb", "4/4"], ["D", "6/8"]][run % 5];
+        const score = generate({ key, meter, measures: 8, degrees: [1, 2, 3, 4, 5, 6, 7], maxSkip: 4, sharps: c.sharps, flats: c.flats })[2];
+        const harmony: string[][] = score.harmony;
+        expect(harmony).toBeDefined();
+        // The first phrase is diatonic; the second carries the note's chord, when it has one.
+        expect(harmony.slice(0, 4).flat().every((name) => /^[1-7]$/.test(name))).toBe(true);
+        if (c.chord) {
+          const want = [c.chord].flat();
+          expect(harmony.slice(4).flat().some((name) => want.includes(name))).toBe(true);
+        }
+        const barUnits = score.timeSig.tsPerMeasure;
+        let pos = 0;
+        const placed = (score.partsObject.parts.Unison.chordNoteObject as N[]).map((n) => {
+          const p = { n, bar: Math.floor(pos / barUnits) };
+          pos += n.noteLength;
+          return p;
+        });
+        const sung = placed.filter((p) => !p.n.rhythm?.rest);
+        let count = 0;
+        sung.forEach(({ n, bar }, j) => {
+          if (!altered(n, sharps, flats)) return;
+          count++;
+          expect(bar).toBeGreaterThanOrEqual(4);
+          // Stepped into, and resolved by step the way it leans (after any held repeat).
+          expect(j).toBeGreaterThan(0);
+          expect(Math.abs(n.pitchValue - sung[j - 1].n.pitchValue)).toBeLessThanOrEqual(1);
+          let after = j + 1;
+          while (after < sung.length && sung[after].n.pitchValue === n.pitchValue && altered(sung[after].n, sharps, flats)) after++;
+          const lean = n.chord.sharpScaleDegree === n.degree ? 1 : -1;
+          expect(sung[after].n.pitchValue - n.pitchValue).toBe(lean);
+        });
+        expect(count).toBeGreaterThan(0);
+        expect(sung.at(-1)!.n.degree).toBe(0);
+      }
+    });
+  }
+
+  test("two chromatic notes take turns, phrase by phrase", () => {
+    const score = generate({ key: "C", meter: "4/4", measures: 16, degrees: [1, 2, 3, 4, 5, 6, 7], maxSkip: 4, sharps: [4], flats: [7] })[2];
+    const names = score.harmony.flat();
+    expect(names.includes("5/5")).toBe(true);
+    expect(names.some((n: string) => n === "1-7" || n === "u_b7")).toBe(true);
+    // Phrases 1 and 3 are the diatonic progression.
+    expect(score.harmony.slice(8, 12)).toEqual(score.harmony.slice(0, 4));
   });
 });

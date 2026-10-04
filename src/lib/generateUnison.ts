@@ -2500,6 +2500,8 @@ export function placeMissingChromatics(
     key: string;
     noteList: Note[];
     random?: () => number;
+    /** No note before this index is altered (the diatonic first phrase over a progression). */
+    from?: number;
   }
 ): number {
   const keyObject = keySignatures[opts.key];
@@ -2519,7 +2521,7 @@ export function placeMissingChromatics(
   for (const [kind, degree] of wanted) {
     const dir = kind === "sharp" ? 1 : -1;
     const spots: { index: number; pitch: number }[] = [];
-    for (let i = 1; i + 1 < notes.length; i++) {
+    for (let i = Math.max(1, opts.from ?? 1); i + 1 < notes.length; i++) {
       const [prev, cur, next] = [notes[i - 1], notes[i], notes[i + 1]];
       if (prev.rhythm?.rest || cur.rhythm?.rest || next.rhythm?.rest) continue;
       // Never on top of an alteration already there, and never beside one: the
@@ -2651,6 +2653,9 @@ export function createNewSr(params: any) {
   if (best) return best;
   throw lastError;
 }
+
+/** Rhythms tried for a line over a chord progression before the older walk writes it. */
+const PROGRESSION_RHYTHMS = 6;
 
 /** Tries for an exercise that has every selected chromatic note. See createNewSr. */
 const CHROMATIC_ATTEMPTS = 6;
@@ -2999,16 +3004,15 @@ function createNewSrOnce(params: any) {
       });
     };
     /**
-     * Harmony first (unison-progressions.ts) when asked for and the selection
-     * is diatonic: a progression, repeated, and the line written against it.
+     * Harmony first (unison-progressions.ts) when asked for: a progression,
+     * repeated, and the line written against it; with chromatic notes, a
+     * diatonic phrase and then a chromatic one.
      * Returns the walk's [chords, notes] plus the progression's bars. Where no
      * progression fits, or no line over this rhythm does, the older walk
      * writes it.
      */
-    const useProgressions =
-      params.progressions === true && sharpScaleDegrees.size === 0 && flatScaleDegrees.size === 0;
-    const drawLine = (rhythm: RhythmWithPattern[]): any[] => {
-      if (useProgressions) {
+    const useProgressions = params.progressions === true;
+    const writeLine = (rhythm: RhythmWithPattern[]): any[] | null => {
         const line = writeProgressionLine({
           noteList: unisonNoteList,
           scaleDegrees: Array.from(params.scaleDegrees as Set<number>),
@@ -3020,10 +3024,26 @@ function createNewSrOnce(params: any) {
           minor: String(keyRendered).trim().endsWith("m"),
           policy: maxSkip,
           shortCaps,
+          sharps: [...sharpScaleDegrees],
+          flats: [...flatScaleDegrees],
         });
-        if (line) return [line.chordProgression, line.notes, line.harmony];
+        return line ? [line.chordProgression, line.notes, line.harmony] : null;
+    };
+    /**
+     * A rhythm and a line over it. Over progressions a rhythm that will not
+     * take a line (a chromatic note with nowhere to resolve, say) is drawn
+     * again, PROGRESSION_RHYTHMS times, before the older walk writes it.
+     */
+    const drawBoth = (): { rhythm: RhythmWithPattern[]; line: any[] } => {
+      if (useProgressions) {
+        for (let a = 0; a < PROGRESSION_RHYTHMS; a++) {
+          const rhythm = drawRhythm();
+          const line = writeLine(rhythm);
+          if (line) return { rhythm, line };
+        }
       }
-      return walkLine(rhythm);
+      const rhythm = drawRhythm();
+      return { rhythm, line: walkLine(rhythm) };
     };
     const walkLine = (rhythm: RhythmWithPattern[]) =>
       generateChordProgression(
@@ -3055,8 +3075,7 @@ function createNewSrOnce(params: any) {
       let rhythm: RhythmWithPattern[];
       let line: any[];
       try {
-        rhythm = drawRhythm();
-        line = drawLine(rhythm);
+        ({ rhythm, line } = drawBoth());
       } catch (err) {
         if (!drawn) throw err;
         break;
@@ -3427,12 +3446,21 @@ function createNewSrOnce(params: any) {
     // Any selected chromatic note the chords did not produce goes in as a
     // chromatic passing or neighbour tone. Before the accidental clean-up, so
     // it is spelled like every other altered note.
+    // Over a progression the first phrase stays diatonic: what it lacks goes
+    // after bar 4, among the chromatic phrases.
     for (const part of Object.keys(partsObject.parts)) {
-      placeMissingChromatics(partsObject.parts[part].chordNoteObject, {
+      const notesOfPart = partsObject.parts[part].chordNoteObject;
+      let from = 0;
+      if (harmony && harmony.length > 4) {
+        let pos = 0;
+        while (from < notesOfPart.length && pos < 4 * timeSig.tsPerMeasure) pos += notesOfPart[from++].noteLength;
+      }
+      placeMissingChromatics(notesOfPart, {
         sharps: sharpScaleDegrees,
         flats: flatScaleDegrees,
         key: keyRendered,
         noteList,
+        from,
       });
     }
 

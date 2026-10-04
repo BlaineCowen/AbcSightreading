@@ -24,8 +24,7 @@
  * with two chords splits where the progression splits it.
  */
 import { keySignatures } from "../../resources/key-signatures";
-import { chords as ALL_CHORDS } from "../../resources/chords";
-import { splitAt } from "../unison-progressions";
+import { chordNamed, splitAt } from "../unison-progressions";
 
 /** What the bass needs of a chord: its root and tones as scale degrees (0-6), and any chromatic step. */
 export interface HarmonyChord {
@@ -134,8 +133,8 @@ export type BassBar = BarChord | BarChord[];
 /** The bass for an exercise written over a progression: its chords' roots, bar by bar. */
 export function progressionChords(harmony: string[][]): BassBar[] {
   const toBar = (name: string): BarChord => {
-    const chord = ALL_CHORDS.find((c) => c.name === name);
-    return { root: chord ? chord.root : 0, shift: null, name };
+    const chord = chordNamed(name);
+    return chord ? rootOf(chord) : { root: 0, shift: null, name };
   };
   return harmony.map((bar) => (bar.length > 1 ? bar.map(toBar) : toBar(bar[0])));
 }
