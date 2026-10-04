@@ -382,7 +382,9 @@ The backing is a drum style in its meter - the loop nearest the page's tempo,
 warped to the tempo shown, which stays put when the style changes. The melody
 plays on any of the page's instruments (off by default, so the class sings
 it), and a bass line (`src/lib/play-along/bass.ts`, tests
-`play-along-bass.test.ts`) holds one root a bar on bass guitar (MIDI 33): the
+`play-along-bass.test.ts`) holds one root a bar on bass guitar (MIDI 33,
+E2 to D3; ABC's C is middle C, and it sat an octave higher until heard too
+high under the guitar): the
 generator gives every note its own chord, changing about every note and a
 half, so each bar takes the one chord - the generator's own, slightly
 preferred, or a diatonic triad - that best fits the bar's melody, weighted by
@@ -413,7 +415,8 @@ pickups, so a chord must stay above them; the triplet patterns are 4/4 bars
 of triplets (one is a 12/8 bar; 6/8 takes half) and are silent below 65.
 The video plays each bar's chord from its clip, a split bar half of each,
 the A pattern in phrases 1 and 3 and B/C in 2 and 4, the ending in the last
-bar, warped from the nearer rendered tempo; Guitar level and strum (Pop
+bar, warped from the nearer rendered tempo, and the count-in strums the home
+chord so the key is set before the first note; Guitar level and strum (Pop
 strum, Campfire; 4/4 and 2/4 only) in the Sound panel.
 
 Sound (the overlay's Sound panel): levels for the loop, a guide (the rhythm

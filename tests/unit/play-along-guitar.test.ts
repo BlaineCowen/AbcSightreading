@@ -66,6 +66,18 @@ describe("the part", () => {
     expect(six[0]).toMatchObject({ slot: "irishA", from: 0, to: 0.5 });
   });
 
+  test("the count-in strums the home chord in the A pattern", () => {
+    const part = guitarPart(harmony, { key: "F", meter: "4/4", style: "passenger", splitAt: 0.5, countInBars: 2 });
+    expect(part.slice(0, 2)).toEqual([
+      { at: -2, chord: "F", slot: "passengerA", from: 0, to: 1 },
+      { at: -1, chord: "F", slot: "passengerA", from: 0, to: 1 },
+    ]);
+    expect(part[2]).toMatchObject({ at: 0, chord: "F" });
+    // 2/4: the halves keep alternating through the count-in into the music.
+    const two = guitarPart([["1"], ["5"], ["1"]], { key: "C", meter: "2/4", style: "passenger", splitAt: 0.5, countInBars: 1 });
+    expect(two.slice(0, 2).map((p) => [p.at, p.from])).toEqual([[-1, 0.5], [0, 0]]);
+  });
+
   test("it warps from the nearest rendered tempo", () => {
     expect(nearestGuitarTempo("straight", 60)).toBe(70);
     expect(nearestGuitarTempo("straight", 100)).toBe(110);

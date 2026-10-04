@@ -157,18 +157,20 @@ function tiedLength(letter: string, units: number, compound: boolean): string {
 }
 
 /**
- * The ABC pitch of a root in the bass register, E2 to D3 (where every letter
- * falls once), spelled for `key`: a raised or lowered root gets the accidental
- * it needs against the key signature (raising a flatted note is a natural).
+ * The ABC pitch of a root in the bass register, E2 to D3 (MIDI 40-50, where
+ * every letter falls once), spelled for `key`: a raised or lowered root gets
+ * the accidental it needs against the key signature (raising a flatted note
+ * is a natural). ABC's C is middle C: this sat an octave higher, E3 to D4,
+ * until it was heard to be too high under the guitar.
  */
 export function bassNote(key: string, chord: BarChord): string {
   const info = keySignatures[key];
   if (!info) throw new Error(`Unknown key ${key}`);
   const letterIndex = (info.rootOffset + chord.root) % 7;
-  // E, F, G, A, B, then c d - E2..D3: "E," "F," "G," "A," "B," "C" "D".
+  // E2..D3: "E,," "F,," "G,," "A,," "B,," then "C," "D,".
   const letters = ["C", "D", "E", "F", "G", "A", "B"];
   const name = letters[letterIndex];
-  const pitch = letterIndex >= 2 ? `${name},` : name;
+  const pitch = letterIndex >= 2 ? `${name},,` : `${name},`;
   if (!chord.shift) return pitch;
   const keyRaises = info.sharps.includes(chord.root);
   const keyLowers = info.flats.includes(chord.root);

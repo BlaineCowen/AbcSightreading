@@ -62,39 +62,39 @@ describe("one chord a bar", () => {
 });
 
 describe("spelling the bass", () => {
-  test("roots sit between E2 and D3, in the key", () => {
-    expect(bassNote("C", { root: 0, shift: null, name: "1" })).toBe("C");
-    expect(bassNote("C", { root: 4, shift: null, name: "5" })).toBe("G,");
-    expect(bassNote("F", { root: 3, shift: null, name: "4" })).toBe("B,"); // B flat, from the key signature
-    expect(bassNote("D", { root: 0, shift: null, name: "1" })).toBe("D");
-    expect(bassNote("A", { root: 0, shift: null, name: "1" })).toBe("A,");
+  test("roots sit between E2 and D3 (ABC: E,, to D,), in the key", () => {
+    expect(bassNote("C", { root: 0, shift: null, name: "1" })).toBe("C,");
+    expect(bassNote("C", { root: 4, shift: null, name: "5" })).toBe("G,,");
+    expect(bassNote("F", { root: 3, shift: null, name: "4" })).toBe("B,,"); // B flat, from the key signature
+    expect(bassNote("D", { root: 0, shift: null, name: "1" })).toBe("D,");
+    expect(bassNote("A", { root: 0, shift: null, name: "1" })).toBe("A,,");
   });
 
   test("a chromatic root gets the accidental it needs against the key", () => {
     // vii of V in C: F sharp.
-    expect(bassNote("C", { root: 3, shift: "up", name: "7/5" })).toBe("^F,");
+    expect(bassNote("C", { root: 3, shift: "up", name: "7/5" })).toBe("^F,,");
     // In F major degree 3 is B flat: raised, it is B natural.
-    expect(bassNote("F", { root: 3, shift: "up", name: "7/5" })).toBe("=B,");
+    expect(bassNote("F", { root: 3, shift: "up", name: "7/5" })).toBe("=B,,");
   });
 
   test("one note a bar, tied where a bar has no single note (9/8)", () => {
     const chords = [{ root: 0, shift: null, name: "1" }, { root: 4, shift: null, name: "5" }] as const;
     const abc44 = bassAbc([...chords], { key: "C", meter: "4/4", barUnits: 32 });
     expect(abc44).toContain("K:C clef=bass");
-    expect(abc44).toContain("C32 |G,32 |]");
+    expect(abc44).toContain("C,32 |G,,32 |]");
     const abc98 = bassAbc([...chords], { key: "C", meter: "9/8", barUnits: 36 });
-    expect(abc98).toContain("C24-C12 |G,24-G,12 |]");
+    expect(abc98).toContain("C,24-C,12 |G,,24-G,,12 |]");
   });
 });
 
 describe("over a progression", () => {
   test("the bass plays the progression's roots, splitting a bar where it splits", () => {
     const bars = progressionChords([["1"], ["6", "4"], ["5"], ["1"]]);
-    expect(bassAbc(bars, { key: "C", meter: "4/4", barUnits: 32 })).toContain("C32 |A,16 F,16 |G,32 |C32 |]");
+    expect(bassAbc(bars, { key: "C", meter: "4/4", barUnits: 32 })).toContain("C,32 |A,,16 F,,16 |G,,32 |C,32 |]");
     // 3/4: two beats and one.
-    expect(bassAbc(progressionChords([["4", "5"]]), { key: "G", meter: "3/4", barUnits: 24 })).toContain("C16 D8 |]");
+    expect(bassAbc(progressionChords([["4", "5"]]), { key: "G", meter: "3/4", barUnits: 24 })).toContain("C,16 D,8 |]");
     // Chromatic chords: the flat seventh chord's root is B flat; V/V's is D.
-    expect(bassAbc(progressionChords([["u_b7"], ["5/5"]]), { key: "C", meter: "4/4", barUnits: 32 })).toContain("_B,32 |D32 |]");
+    expect(bassAbc(progressionChords([["u_b7"], ["5/5"]]), { key: "C", meter: "4/4", barUnits: 32 })).toContain("_B,,32 |D,32 |]");
   });
 });
 

@@ -12,7 +12,8 @@
  * the second's from it, so the strum carries on through the change. The
  * pattern changes with the phrases - its A variation in phrase 1, 3...,
  * its B or C in 2, 4 - and the last bar is an ending: one strum, left to
- * ring.
+ * ring. The count-in strums the home chord in the A pattern, so the key is
+ * in the ear before the first note.
  *
  * Meters: the 4/4 patterns serve 4/4 and 2/4 (a 2/4 bar is half a 4/4 bar,
  * the halves taken in turn); 3/4 has its own; the compound meters use a
@@ -131,16 +132,25 @@ export interface GuitarPiece {
  * in `key` and `meter`, the pattern alternating A and B by four-bar phrase,
  * the last bar an ending. Chords the guitar has no clip for are left out.
  */
-export function guitarPart(harmony: string[][], o: { key: string; meter: string; style: GuitarStyle; splitAt: number }): GuitarPiece[] {
+export function guitarPart(
+  harmony: string[][],
+  o: { key: string; meter: string; style: GuitarStyle; splitAt: number; countInBars?: number },
+): GuitarPiece[] {
   const { share } = guitarFeel(o.meter);
   const { a, b } = guitarSlots(o.meter, o.style);
   const pieces: GuitarPiece[] = [];
+  // A bar shorter than the rendered one takes the rendered bar's parts in
+  // turn (2/4: its halves), so the pattern runs on rather than repeating;
+  // counted from the first bar of music, the count-in's bars before it.
+  const parts = Math.round(1 / share);
+  const offsetOf = (i: number) => (parts > 1 ? (((i % parts) + parts) % parts) * share : 0);
+  const home = guitarChord(o.key, "1")?.id;
+  for (let i = -(o.countInBars ?? 0); i < 0 && home; i++) {
+    pieces.push({ at: i, chord: home, slot: a, from: offsetOf(i), to: offsetOf(i) + share });
+  }
   harmony.forEach((bar, i) => {
     const slot = Math.floor(i / 4) % 2 === 0 ? a : b;
-    // A bar shorter than the rendered one takes the rendered bar's parts in
-    // turn (2/4: its halves), so the pattern runs on rather than repeating.
-    const parts = Math.round(1 / share);
-    const offset = parts > 1 ? (i % parts) * share : 0;
+    const offset = offsetOf(i);
     const chords = bar.map((name) => guitarChord(o.key, name)?.id ?? null);
     if (i === harmony.length - 1) {
       if (chords[0]) pieces.push({ at: i, chord: chords[chords.length - 1] ?? chords[0], slot: a, from: 0, to: 1, ending: true });

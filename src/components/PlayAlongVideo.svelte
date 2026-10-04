@@ -206,6 +206,8 @@
           meter: scoreMeter,
           style: sound.guitarStyle,
           splitAt: splitAt(score.timeSig.tsPerMeasure, beatUnitOf(scoreMeter)) / score.timeSig.tsPerMeasure,
+          // The count-in strums the home chord, setting the key.
+          countInBars,
         })
       : [];
   /** Only 4/4 and 2/4 have a choice of strum; 3/4 and the compound meters have one each. */
