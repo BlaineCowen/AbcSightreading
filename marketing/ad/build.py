@@ -24,6 +24,9 @@ index.html here, the others ../ad-<name>/index.html over these assets.
 import html, json, re, subprocess
 
 W, H = 1920, 1080
+# The hook, sung: syllables in a word, and each syllable's length in sixteenths.
+HOOK_WORDS = [["Sight-", "rea-", "ding"], ["prac-", "tice"], ["that"], ["ne-", "ver"], ["runs"], ["out."]]
+HOOK_RHYTHM = [2, 1, 1, 1, 2, 1, 1, 1, 2, 2]
 SWAP = 0.24             # how long into a wipe the scenes change over: the wipe starts this much before the downbeat
 
 VERSIONS = {
@@ -32,7 +35,7 @@ VERSIONS = {
     # (7-10 s) to be read: about 73 s. (The Kids Song cut, index.html here,
     # is no longer built: Fun Fun Music was chosen.)
     "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
-                bars=[3, 4, 4, 3, 4, 3, 3, 3, 3], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+                bars=[2, 4, 4, 3, 4, 3, 3, 3, 4], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "tuner", "teachers", "close"]
 
@@ -200,12 +203,22 @@ def build(p, tag, audio):
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
   </div>
 </div>'''
+    def hook_words():
+        # A span a syllable (the ball lands on each), the words kept whole for wrapping.
+        out, i = [], 0
+        for word in HOOK_WORDS:
+            spans = []
+            for syl in word:
+                spans.append(f'<span class="hw" id="hw{i}">{syl}</span>')
+                i += 1
+            out.append(f'<span class="hword">{"".join(spans)}</span>')
+        return " ".join(out)
     parts["hook"] = f'''
 <div class="scene" id="hook">
   {blobs("hook")}
   <div class="hook-content">
     {wordmark(cls="wordmark hook-mark")}
-    <h1 class="hook-head"><span class="hw" id="hw0">Sight-reading</span> <span class="hw" id="hw1">practice</span><br><span class="hw" id="hw2">that</span> <span class="hw" id="hw3">never</span> <span class="hw" id="hw4">runs</span> <span class="hw" id="hw5">out.</span></h1>
+    <h1 class="hook-head">{hook_words()}</h1>
   </div>
   <div class="ball" id="hook-ball" data-layout-allow-occlusion></div>
 </div>'''
@@ -229,17 +242,22 @@ def build(p, tag, audio):
 
 def script(p):
     b = p.beat
-    # The hook: a word a beat, the ball landing on each. It comes in from off
-    # the left, bounces off the right after line one (a beat out, the next back
-    # in from the left, rather than flying back across the words), and bounces
-    # away off the right at the end.
-    hook = [p.beats[k] for k in (2, 3, 5, 6, 7, 8)]
-    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in hook])}, B = {b:.4f};"]
+    # The hook: the line sung in sixteenths (HOOK_RHYTHM), a syllable at a
+    # time, the ball landing on each. One line, so the ball only ever goes
+    # left to right: in from off the left on beat 1, a pickup into bar 2,
+    # "out." on its downbeat, then away off the right.
+    sixteenth = b / 4
+    onsets, n = [], 0
+    for d in HOOK_RHYTHM:
+        onsets.append(p.beats[1] + n * sixteenth)
+        n += d
+    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in onsets])}, LEN = {json.dumps([round(d * sixteenth, 4) for d in HOOK_RHYTHM])}, B = {b:.4f};"]
     js.append("""
   // ---- Hook
   tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
-  for (var i = 0; i < 6; i++) {
-    tl.from("#hw" + i, { y: 50, scale: 0.85, opacity: 0, duration: 0.5, ease: i % 2 ? "back.out(2.2)" : "power3.out" }, HOOK[i] - 0.06);
+  var N = HOOK.length;
+  for (var i = 0; i < N; i++) {
+    tl.from("#hw" + i, { y: 40, scale: 0.85, opacity: 0, duration: 0.3, ease: "back.out(2.2)" }, HOOK[i] - 0.04);
   }
   var hops = window.__hops || [];
   function hop(x, y, from, d, peak) {
@@ -247,17 +265,13 @@ def script(p):
     tl.to("#hook-ball", { y: y - peak, duration: d / 2, ease: "power2.out" }, from);
     tl.to("#hook-ball", { y: y, duration: d / 2 - 0.001, ease: "power2.in" }, from + d / 2);
   }
-  if (hops.length === 6) {
+  if (hops.length === N) {
     tl.set("#hook-ball", { x: -80, y: hops[0].y, opacity: 1 }, HOOK[0] - B - 0.01);
     hop(hops[0].x, hops[0].y, HOOK[0] - B, B, 170);
-    hop(hops[1].x, hops[1].y, HOOK[0], B, 170);
-    // Off the right edge on the next beat, then in from the left onto line two.
-    hop(1920 + 90, hops[1].y + 40, HOOK[1], B, 150);
-    tl.set("#hook-ball", { x: -90, y: hops[2].y + 40 }, HOOK[2] - B);
-    hop(hops[2].x, hops[2].y, HOOK[2] - B, B, 150);
-    for (var i = 3; i < 6; i++) hop(hops[i].x, hops[i].y, HOOK[i - 1], B, 95); // low, under line one
-    // And away off the right.
-    hop(1920 + 90, hops[5].y + 40, HOOK[5], B, 95);
+    // Each hop lasts its syllable: higher for the longer notes.
+    for (var i = 1; i < N; i++) hop(hops[i].x, hops[i].y, HOOK[i - 1], LEN[i - 1], LEN[i - 1] > 0.2 ? 110 : 65);
+    // "out." held, then away off the right.
+    hop(1920 + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
   }""")
     js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % p.duration)
     for k in range(1, len(ORDER)):
@@ -336,9 +350,10 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .wordmark .abc { font-size: 44px; } .wordmark .rest { font-size: 44px; }
 
 .hook-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
-.hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
+.hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 84px; line-height: 1.22; white-space: nowrap; letter-spacing: -0.01em; color: #15213a; }
 .hook-head .hw { display: inline-block; }
-#hw3 { color: #2f6fe0; }
+.hook-head .hword { display: inline-block; }
+#hw6, #hw7 { color: #2f6fe0; }
 #hook-ball { z-index: 1; } /* behind the words, so a hop never covers line one */
 .ball { position: absolute; left: 0; top: 0; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #8dbaff 0%, #2f6fe0 55%, #1e56c0 100%); box-shadow: 0 10px 24px rgba(30,86,192,0.35); z-index: 5; opacity: 0; }
 
@@ -392,7 +407,7 @@ var tl = gsap.timeline({ paused: true });
 (function () {
   var root = document.getElementById("root").getBoundingClientRect();
   window.__hops = [];
-  for (var i = 0; i < 6; i++) {
+  for (var i = 0; document.getElementById("hw" + i); i++) {
     var r = document.getElementById("hw" + i).getBoundingClientRect();
     window.__hops.push({ x: r.left - root.left + r.width / 2, y: r.top - root.top - 10 });
   }
