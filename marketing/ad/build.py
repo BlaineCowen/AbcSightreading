@@ -28,10 +28,11 @@ SWAP = 0.24             # how long into a wipe the scenes change over: the wipe 
 
 VERSIONS = {
     # start: a downbeat of the song; end: where its music stops (measured).
-    "index": dict(song="kids-song", start=9.383, end=68.67, tag="85",
-                  bars=[2, 3, 2, 2, 4, 2, 2, 2, 2], credit="Kids Song (atlasaudio)", out="index.html"),
-    "fun": dict(song="fun-fun-music", start=14.928, end=73.06, tag="100",
-                bars=[2, 3, 3, 2, 4, 3, 3, 2, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+    # The whole song from its first downbeat, so each scene has 3-4 bars
+    # (7-10 s) to be read: about 73 s. (The Kids Song cut, index.html here,
+    # is no longer built: Fun Fun Music was chosen.)
+    "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
+                bars=[4, 4, 4, 3, 4, 3, 3, 3, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "tuner", "teachers", "close"]
 
@@ -91,7 +92,7 @@ class Plan:
         a = json.load(open(f"music/{v['song']}.json"))
         self.v, self.beat = v, a["beat"]
         self.bar = 4 * a["beat"]
-        self.duration = round(min(60.0, v["end"] - v["start"] + 0.7), 2)
+        self.duration = round(v["end"] - v["start"] + 0.7, 2)
         self.downbeats = [d - v["start"] for d in a["downbeats"] if d >= v["start"] - 0.02]
         first = a["first_beat"]
         self.beats = [first + k * a["beat"] - v["start"] for k in range(int((v["end"] + 2) / a["beat"]))]
@@ -121,6 +122,9 @@ def clips_for(scene, p, tag):
         # Bar 1: the Notes tab and Generate; then the count-in's "1" on a downbeat, the cursor on the next.
         return [(f"unison-{tag}", max(0.3, 2.5 - 0.65 * bar), at, bar),
                 (f"unison-{tag}", c["countin_start"], at + bar, end - at - bar)]
+    if scene == "choral":
+        # Recorded from Play (capture.ts): the count-in's "1" on the scene's first downbeat.
+        return [(f"choral-{tag}", cap("choral")["countin_start"], at, end - at)]
     if scene in ("choral", "rhythm"):
         c = cap(scene)
         if p.scene_bars[scene] >= 3:
@@ -225,25 +229,36 @@ def build(p, tag, audio):
 
 def script(p):
     b = p.beat
-    # The hook: one word a beat from beat 1, the ball landing on each.
-    hook = [p.beats[k] for k in range(1, 7)]
-    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in hook])};"]
-    js.append(f"""
-  // ---- Hook: a word a beat, the play-along video's ball landing on each.
-  tl.from(".hook-mark", {{ y: -30, opacity: 0, duration: {min(0.6, b):.2f}, ease: "back.out(1.7)" }}, 0.05);
-  for (var i = 0; i < 6; i++) {{
-    tl.from("#hw" + i, {{ y: 50, scale: 0.85, opacity: 0, duration: {0.6 * b:.3f}, ease: i % 2 ? "back.out(2.2)" : "power3.out" }}, HOOK[i] - 0.06);
-  }}
+    # The hook: a word every other beat, the ball landing on each. It comes in
+    # from off the left, leaves off the right after line one and comes back
+    # in from the left for line two (rather than flying back across the
+    # words), and bounces away off the right at the end.
+    hook = [p.beats[2 + 2 * k] for k in range(6)]
+    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in hook])}, B = {2 * b:.4f};"]
+    js.append("""
+  // ---- Hook
+  tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
+  for (var i = 0; i < 6; i++) {
+    tl.from("#hw" + i, { y: 50, scale: 0.85, opacity: 0, duration: 0.5, ease: i % 2 ? "back.out(2.2)" : "power3.out" }, HOOK[i] - 0.06);
+  }
   var hops = window.__hops || [];
-  tl.set("#hook-ball", {{ opacity: 1 }}, 0.05);
-  for (var i = 0; i < hops.length; i++) {{
-    var h = hops[i], land = HOOK[i], from = land - {b:.4f}, d = {b:.4f};
-    tl.to("#hook-ball", {{ x: h.x, duration: d, ease: "none" }}, from);
-    tl.to("#hook-ball", {{ y: h.y - 150, duration: d / 2, ease: "power2.out" }}, from);
-    tl.to("#hook-ball", {{ y: h.y, duration: d / 2 - 0.001, ease: "power2.in" }}, from + d / 2);
-  }}
-  // One more bounce on the beat before the first cut.
-  tl.to("#hook-ball", {{ y: hops.length ? hops[hops.length - 1].y - 90 : 0, duration: {b / 2:.4f}, ease: "power2.out", yoyo: true, repeat: 1 }}, HOOK[5]);""")
+  function hop(x, y, from, d, peak) {
+    tl.to("#hook-ball", { x: x, duration: d, ease: "none" }, from);
+    tl.to("#hook-ball", { y: y - peak, duration: d / 2, ease: "power2.out" }, from);
+    tl.to("#hook-ball", { y: y, duration: d / 2 - 0.001, ease: "power2.in" }, from + d / 2);
+  }
+  if (hops.length === 6) {
+    tl.set("#hook-ball", { x: -80, y: hops[0].y, opacity: 1 }, HOOK[0] - B - 0.01);
+    hop(hops[0].x, hops[0].y, HOOK[0] - B, B, 170);
+    hop(hops[1].x, hops[1].y, HOOK[0], B, 170);
+    // Off the right edge on the next beat, then in from the left onto line two.
+    hop(1920 + 90, hops[1].y + 40, HOOK[1], B / 2, 120);
+    tl.set("#hook-ball", { x: -90, y: hops[2].y + 40 }, HOOK[1] + B / 2);
+    hop(hops[2].x, hops[2].y, HOOK[1] + B / 2, B / 2, 120);
+    for (var i = 3; i < 6; i++) hop(hops[i].x, hops[i].y, HOOK[i - 1], B, 170);
+    // And away off the right.
+    hop(1920 + 90, hops[5].y + 40, HOOK[5], B, 170);
+  }""")
     js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % p.duration)
     for k in range(1, len(ORDER)):
         old, new, t = ORDER[k - 1], ORDER[k], p.cuts[k]

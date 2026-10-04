@@ -70,16 +70,37 @@ const scenes: Record<string, () => Promise<void>> = {
   },
 
   async choral() {
-    // UIL Level 3 in F major, at the song's tempo.
-    const { browser, page } = await open(`/choral-sightreading?bpm=${TEMPO}`);
-    await page.evaluate(() => {});
+    // Four parts in D, where the soprano sits lower than in C (the address
+    // with settings opens in C); and drawn again until the soprano stays
+    // inside the staff, its highest note E5 or below. Then recorded from
+    // Play, so the scene opens on the count-in.
+    const { browser, page } = await open(`/choral-sightreading?key=D&bpm=${TEMPO}`);
+    let top = Infinity;
+    for (let tries = 0; tries < 12 && top > -0.5; tries++) {
+      await clickText(page, "Generate", { exact: true });
+      await sleep(1300);
+      top = await page.evaluate(() => {
+        const svg = document.querySelector(".abcjs-container svg, [id^=paper] svg");
+        if (!svg) return Infinity;
+        // Every system's soprano staff: the first of each group of four.
+        const staves = [...svg.querySelectorAll(".abcjs-staff")].map((s) => (s as SVGGraphicsElement).getBBox());
+        const heads = [...svg.querySelectorAll(".abcjs-notehead")].map((n) => (n as SVGGraphicsElement).getBBox());
+        let highest = -Infinity;
+        staves.filter((_, i) => i % 4 === 0).forEach((st) => {
+          const space = st.height / 4;
+          for (const h of heads) {
+            if (h.y > st.y - 4 * space && h.y < st.y + st.height) highest = Math.max(highest, (st.y - (h.y + h.height / 2)) / space);
+          }
+        });
+        return highest;
+      });
+    }
+    console.log(`choral: soprano tops out ${top.toFixed(1)} staff spaces above the top line`);
     await watchCountIn(page);
     await recordExact(page, tagged("choral"), async () => {
-      await sleep(900);
-      await clickText(page, "Generate", { exact: true });
-      await sleep(1800);
+      await sleep(400);
       await clickText(page, "Play", { exact: true });
-      await sleep(4 * (60000 / TEMPO) + 9000);
+      await sleep(4 * (60000 / TEMPO) + 10000);
     });
     await browser.close();
   },
