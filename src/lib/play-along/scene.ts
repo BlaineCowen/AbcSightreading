@@ -242,7 +242,8 @@ function card(g: CanvasRenderingContext2D, which: "top" | "bottom", barIndex: nu
 
   if (ball) {
     const x = dx + ball.x * dw;
-    const ground = staffY - 34;
+    // On top of the notes: the stems point up, so it lands on their tips.
+    const ground = dy + bar.notesTopAt * dh - 26;
     // Higher for a longer note, but never out of the card.
     const arc = Math.min(70 + 150 * Math.min(1, ball.span * 2), ground - (c.y + 40));
     const y = ground - ball.lift * arc;

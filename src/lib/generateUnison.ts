@@ -2045,7 +2045,9 @@ export function assembleUnisonAbc(
       `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
       `%%MIDI beat 127 127 127 1\n` +
       annotationFont +
-      `V:U\n` +
+      // Stems up, as rhythm is written: on the one line abcjs would turn
+      // them down (the note sits on the middle line).
+      `V:U stem=up\n` +
       `K:C clef=perc stafflines=1 \n` +
       `%            End of header, start of tune body: \n` +
       `${tuneBody}`

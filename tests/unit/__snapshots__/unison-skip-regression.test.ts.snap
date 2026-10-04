@@ -261,7 +261,7 @@ L:1/32
 %%percmap B claves normal
 %%MIDI beat 127 127 127 1
 %%annotationfont Helvetica 10
-V:U
+V:U stem=up
 K:C clef=perc stafflines=1 
 %            End of header, start of tune body: 
 "_ti"B4"_ti"B4 "_ta"B8 "_(sh)"z8  "_ti"B4"_ti"B4 |"_ti"B4"_ti"B4 "_ta"B8 "_(sh)"z8  "_ti"B4"_ti"B4 |"_ta"B8 "_ti"B4"_ti"B4 "_ta"B8 "_(sh)"z8  |"_ta"B8 "_ta"B8 "_ta"B8 "_ta"B8 |
@@ -274,7 +274,7 @@ L:1/32
 %%percmap B claves normal
 %%MIDI beat 127 127 127 1
 %%annotationfont Helvetica 10
-V:U
+V:U stem=up
 K:C clef=perc stafflines=1 
 %            End of header, start of tune body: 
 "_ti"B4"_ti"B4 "_ta"B8 "_ta"B8 "_(sh)"z8  |"_ti"B4"_ti"B4 "_ti"B4"_ti"B4 "_(sh)"z8  "_ta"B8 |"_ti"B4"_ti"B4 "_ta"B8 "_ti"B4"_ti"B4 "_ta"B8 |"_ta"B8 "_ti"B4"_ti"B4 "_(sh)"z8  "_ta"B8 |
@@ -287,7 +287,7 @@ L:1/32
 %%percmap B claves normal
 %%MIDI beat 127 127 127 1
 %%annotationfont Helvetica 10
-V:U
+V:U stem=up
 K:C clef=perc stafflines=1 
 %            End of header, start of tune body: 
 "_ti"B4"_ti"B4 "_ta"B8 "_ta"B8 "_ta"B8 |"_ti"B4"_ti"B4 "_(sh)"z8  "_(sh)"z8  "_ta"B8 |"_ta"B8 "_(sh)"z8  "_ta"B8 "_ta"B8 |"_ti"B4"_ti"B4 "_(sh)"z8  "_ti"B4"_ti"B4 "_ta"B8 |

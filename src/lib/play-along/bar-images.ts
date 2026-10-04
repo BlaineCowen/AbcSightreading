@@ -26,15 +26,18 @@ export interface BarImage {
   /** Where the staff runs, as fractions of the picture's width: the cursor sweeps between them. */
   musicStart: number;
   musicEnd: number;
-  /** Where the staff line is, as a fraction of the picture's height: the ball lands on it. */
+  /** Where the staff line is, as a fraction of the picture's height: the notes' glow sits on it. */
   staffAt: number;
+  /** The top of the notes - stems and beams, which point up - as a fraction of the height: the ball lands there. */
+  notesTopAt: number;
 }
 
 export interface RenderedBars {
   bars: BarImage[];
 }
 
-const STAFF_WIDTH = 560;
+/** Narrower draws bigger once the bar is fitted to its card: at 420 the notes fill it. */
+const STAFF_WIDTH = 420;
 /** Room above and below the staff line in each picture, in SVG units. */
 const PAD = 6;
 
@@ -90,6 +93,7 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
             x: (e.left + (e.width ?? 0) / 2) / svgWidth,
           }));
         const staff = staffExtent(lines[i]);
+        const top = notesTop(lines[i]) ?? staffYs[i] - 20;
         return {
           img,
           aspect: svgWidth / h,
@@ -97,6 +101,7 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
           musicStart: (staff?.start ?? 0) / svgWidth,
           musicEnd: (staff?.end ?? svgWidth) / svgWidth,
           staffAt: above / h,
+          notesTopAt: Math.max(0, (top - y) / h),
         };
       }),
     );
@@ -116,6 +121,14 @@ function staffLineY(g: SVGGElement): number | null {
   if (!staff) return null;
   const b = staff.getBBox();
   return b.y + b.height / 2;
+}
+
+/** The highest point of the notes in a line: their stems and beams. */
+function notesTop(g: SVGGElement): number | null {
+  const parts = g.querySelectorAll<SVGGraphicsElement>(".abcjs-note, .abcjs-beam-elem, .abcjs-rest");
+  let top = Infinity;
+  for (const el of parts) top = Math.min(top, el.getBBox().y);
+  return Number.isFinite(top) ? top : null;
 }
 
 function staffExtent(g: SVGGElement): { start: number; end: number } | null {
