@@ -1,66 +1,55 @@
-"""Writes index.html, the ad's composition, from the scene table below.
+"""Writes the ad's compositions, one per song, cut to the song.
 
     python3 build.py && npx --yes hyperframes@0.8.125 check
 
-Footage is recorded by capture/ (bun run capture) into assets/captures and
-copied to assets/footage. Times are seconds on the 60 s timeline; cuts land on
-the music's beat (Maple Leaf Rag at 120 bpm, first note at 0.28 s).
+Each version is planned in BARS of its song (music/<song>.json, from
+music/analyze.py: tempo, beats, downbeats, sections). The song starts on a
+downbeat chosen so its own ending lands just before the video's end; every
+scene is a whole number of bars and every scene change lands exactly on a
+downbeat (the wipe starts SWAP seconds early so the cover is complete on the
+beat). Text enters on beats; the hook's ball lands on a word each beat; the
+close's button pulses on the beat.
+
+The footage follows the music too. The playing scenes (Unison, Choral,
+rhythm) were recorded at the song's tempo (capture.ts, TEMPO=) with their
+count-in logged on the recording's own clock (<name>.json): each is placed so
+its first note - or its count-in's "1" - sits on a downbeat, and the cursor
+then keeps the song's beat. The play-along video is rendered at the song's
+exact tempo with its count-in starting on its scene's first downbeat
+(playalong.ts), so the ball lands on the song's beats.
+
+HyperFrames allows one root composition per project: the first version is
+index.html here, the others ../ad-<name>/index.html over these assets.
 """
-import html, json, subprocess, sys
+import html, json, re, subprocess
 
 W, H = 1920, 1080
+SWAP = 0.24             # how long into a wipe the scenes change over: the wipe starts this much before the downbeat
 
-# The music, one composition each (python3 build.py writes them all). `start`:
-# where in the song the video begins, a downbeat chosen so the song's own
-# ending lands just before 0:60. Beat grid measured from each file: tempo, and
-# where its beats fall (seconds into the file). Cuts snap to these beats.
-MUSIC = {
-    "index": dict(file="kids-song.mp3", bpm=85.05, phase=0.26, start=8.726,
-                  credit="Kids Song (atlasaudio)"),
-    "fun": dict(file="fun-fun-music.mp3", bpm=133.35, phase=0.175, start=13.67,
-                credit="Fun Fun Music (prettyjohn1)"),
+VERSIONS = {
+    # start: a downbeat of the song; end: where its music stops (measured).
+    "index": dict(song="kids-song", start=9.383, end=68.67, tag="85",
+                  bars=[2, 3, 2, 2, 4, 2, 2, 2, 2], credit="Kids Song (atlasaudio)", out="index.html"),
+    "fun": dict(song="fun-fun-music", start=14.928, end=73.06, tag="100",
+                bars=[2, 3, 3, 2, 4, 3, 3, 2, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
-SWAP = 0.24             # how long into a wipe the scenes change over
-
-# Each feature scene: when it starts (the wipe), copy, and the footage shown in
-# its browser window, in order: (file, seconds into the file, seconds shown).
-SCENES = [
-    dict(id="unison", t=4.28, kicker="Unison", tint="sky",
-         head="A new exercise every click.",
-         body="Your key, your notes, your rhythms. Solfège included.",
-         url="abcsightreading.com/sightreading",
-         clips=[("unison", 0.8, 3.4), ("unison", 9.3, 4.4)]),
-    dict(id="choral", t=12.28, kicker="Choral", tint="mint", flip=True,
-         head="Two, three and four parts.",
-         body="SATB, SSA and TTB, from UIL Level 1 to 5.",
-         url="abcsightreading.com/choral-sightreading",
-         clips=[("choral", 0.3, 3.0), ("choral", 9.4, 3.8)]),
-    dict(id="rhythm", t=19.28, kicker="Rhythm", tint="butter",
-         head="Ta, ti-ti, ti-ki-ti-ki.",
-         body="Kodály, counting, or your own syllables.",
-         url="abcsightreading.com/sightreading",
-         clips=[("rhythm", 0.8, 2.3), ("rhythm", 6.0, 3.8)]),
-    dict(id="chromatic", t=35.28, kicker="Real music", tint="peach",
-         head="Melodies over real chord progressions.",
-         body="Chromatic notes that resolve. Skips only where you want them.",
-         url="abcsightreading.com/sightreading",
-         clips=[("chromatic", 0.5, 6.2)]),
-    dict(id="tuner", t=41.28, kicker="abcTuner · Pro", tint="sky", flip=True,
-         head="A tuner that hears singers.",
-         body="Pitch, vowels, drone, metronome and timer, a tab each.",
-         url="abcsightreading.com/tuner",
-         clips=[("tuner", 1.0, 4.3), ("tuner", 9.8, 2.9)]),
-    dict(id="teachers", t=48.28, kicker="For teachers", tint="mint",
-         head="Step by step, class by class.",
-         body="23 steps from ta to four parts.",
-         chips=["Assign practice", "Track minutes", "Student logins, no email"],
-         url="abcsightreading.com/sightreading",
-         clips=[("ladder", 0.7, 6.0)]),
-]
-PLAYALONG = dict(id="playalong", t=25.28, file="playalong", media=0.25)
-CLOSE_T = 54.28
-DURATION = 60.0
 ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "tuner", "teachers", "close"]
+
+COPY = {
+    "unison": dict(kicker="Unison", tint="sky", head="A new exercise every click.",
+                   body="Your key, your notes, your rhythms. Solfège included.", url="abcsightreading.com/sightreading"),
+    "choral": dict(kicker="Choral", tint="mint", flip=True, head="Two, three and four parts.",
+                   body="SATB, SSA and TTB, from UIL Level 1 to 5.", url="abcsightreading.com/choral-sightreading"),
+    "rhythm": dict(kicker="Rhythm", tint="butter", head="Ta, ti-ti, ti-ki-ti-ki.",
+                   body="Kodály, counting, or your own syllables.", url="abcsightreading.com/sightreading"),
+    "chromatic": dict(kicker="Real music", tint="peach", head="Melodies over real chord progressions.",
+                      body="Chromatic notes that resolve. Skips only where you want them.", url="abcsightreading.com/sightreading"),
+    "tuner": dict(kicker="abcTuner · Pro", tint="sky", flip=True, head="A tuner that hears singers.",
+                  body="Pitch, vowels, drone, metronome and timer, a tab each.", url="abcsightreading.com/tuner"),
+    "teachers": dict(kicker="For teachers", tint="mint", head="Step by step, class by class.",
+                     body="23 steps from ta to four parts.", chips=["Assign practice", "Track minutes", "Student logins, no email"],
+                     url="abcsightreading.com/sightreading"),
+}
 
 TINTS = {"sky": ("#c9e4ff", "#0e3563"), "mint": ("#bdebd9", "#0f3b2c"),
          "peach": ("#ffd3bf", "#5a2310"), "butter": ("#ffefa8", "#5c4a00")}
@@ -73,7 +62,6 @@ def esc(s):
 
 def keep_words(s):
     """Escaped text with hyphenated words kept whole: ti-ki-ti-ki never breaks at a hyphen."""
-    import re
     return re.sub(r"(\S*-\S*)", r'<span class="nw">\1</span>', esc(s))
 
 
@@ -81,7 +69,7 @@ def wordmark(rest="sightreading.com", cls="wordmark"):
     return f'<div class="{cls}"><span class="abc">abc</span><span class="rest">{esc(rest)}</span></div>'
 
 
-def blobs(sid, seed):
+def blobs(sid):
     # Soft pastel circles drifting behind each scene: deterministic.
     out = []
     spots = [(0.08, 0.12, 300, "sky"), (0.9, 0.18, 380, "peach"), (0.82, 0.92, 340, "mint"), (0.12, 0.88, 260, "butter")]
@@ -92,29 +80,81 @@ def blobs(sid, seed):
 
 
 def video_tag(vid, file, start, dur, media, track):
-    return (f'<video id="{vid}" class="clip" data-start="{start:.2f}" data-duration="{dur:.2f}" data-media-start="{media:.2f}" '
+    return (f'<video id="{vid}" class="clip" data-start="{start:.3f}" data-duration="{dur:.3f}" data-media-start="{media:.3f}" '
             f'data-track-index="{track}" src="assets/footage/{file}.mp4" muted playsinline></video>')
 
 
-def feature(s, track0):
-    start = s["t"] + SWAP
+class Plan:
+    """One version's musical timeline: beats, bars and scene changes in video seconds."""
+
+    def __init__(self, v):
+        a = json.load(open(f"music/{v['song']}.json"))
+        self.v, self.beat = v, a["beat"]
+        self.bar = 4 * a["beat"]
+        self.duration = round(min(60.0, v["end"] - v["start"] + 0.7), 2)
+        self.downbeats = [d - v["start"] for d in a["downbeats"] if d >= v["start"] - 0.02]
+        first = a["first_beat"]
+        self.beats = [first + k * a["beat"] - v["start"] for k in range(int((v["end"] + 2) / a["beat"]))]
+        self.beats = [b for b in self.beats if -0.01 <= b <= self.duration]
+        cum = [sum(v["bars"][:i]) for i in range(len(v["bars"]) + 1)]
+        # cuts[i]: the downbeat where scene i starts (cuts[0] = 0, the hook).
+        self.cuts = [self.downbeats[c] if c < len(self.downbeats) else self.downbeats[-1] + (c - len(self.downbeats) + 1) * self.bar for c in cum[:-1]]
+        self.scene_bars = dict(zip(ORDER, v["bars"]))
+        self.scene_at = dict(zip(ORDER, self.cuts))
+
+    def end_of(self, scene):
+        i = ORDER.index(scene)
+        return self.cuts[i + 1] if i + 1 < len(self.cuts) else self.duration
+
+    def beat_after(self, t, n=0):
+        """The n-th beat at or after t."""
+        ahead = [b for b in self.beats if b >= t - 0.01]
+        return ahead[min(n, len(ahead) - 1)]
+
+
+def clips_for(scene, p, tag):
+    """The footage in a scene's window: (file, seconds into it, video start, seconds shown)."""
+    at, bar, end = p.scene_at[scene], p.bar, p.end_of(scene)
+    cap = lambda name: json.load(open(f"assets/captures/{name}-{tag}.json"))
+    if scene == "unison":
+        c = cap("unison")
+        # Bar 1: the Notes tab and Generate; then the count-in's "1" on a downbeat, the cursor on the next.
+        return [(f"unison-{tag}", max(0.3, 2.5 - 0.65 * bar), at, bar),
+                (f"unison-{tag}", c["countin_start"], at + bar, end - at - bar)]
+    if scene in ("choral", "rhythm"):
+        c = cap(scene)
+        if p.scene_bars[scene] >= 3:
+            return [(f"{scene}-{tag}", 0.5, at, bar), (f"{scene}-{tag}", c["countin_start"], at + bar, end - at - bar)]
+        # The first note on the scene's first downbeat.
+        return [(f"{scene}-{tag}", c["music_start"], at, end - at)]
+    if scene == "chromatic":
+        return [("chromatic", 0.5, at, end - at)]
+    if scene == "tuner":
+        last = bar if end - at > 1.5 * bar else (end - at) / 2
+        return [("tuner", 1.0, at, end - at - last), ("tuner", 9.8, end - last, last)]
+    if scene == "teachers":
+        return [("ladder", 0.7, at, end - at)]
+    raise KeyError(scene)
+
+
+def feature(scene, p, tag, track0):
+    s = COPY[scene]
     bg, ink = TINTS[s["tint"]]
-    clips, at = [], start
-    for k, (file, media, dur) in enumerate(s["clips"]):
-        clips.append(f'<div class="vw" id="{s["id"]}-vw{k}">{video_tag(s["id"] + "-v" + str(k), file, at, dur + 0.25, media, track0 + k)}</div>')
-        at += dur
+    clips = []
+    for k, (file, media, start, dur) in enumerate(clips_for(scene, p, tag)):
+        clips.append(f'<div class="vw" id="{scene}-vw{k}">{video_tag(f"{scene}-v{k}", file, start, dur + 0.3, media, track0 + k)}</div>')
     chips = "".join(f'<span class="chip">{esc(c)}</span>' for c in s.get("chips", []))
     return f'''
-<div class="scene" id="{s["id"]}">
-  {blobs(s["id"], 1)}
+<div class="scene" id="{scene}">
+  {blobs(scene)}
   <div class="scene-content{' flip' if s.get('flip') else ''}">
     <div class="copy">
-      <span class="kicker" id="{s["id"]}-kicker" style="background:{bg};color:{ink}">{esc(s["kicker"])}</span>
-      <h2 class="head" id="{s["id"]}-head">{keep_words(s["head"])}</h2>
-      <p class="body" id="{s["id"]}-body">{esc(s["body"])}</p>
-      {f'<div class="chips" id="{s["id"]}-chips">{chips}</div>' if chips else ''}
+      <span class="kicker" id="{scene}-kicker" style="background:{bg};color:{ink}">{esc(s["kicker"])}</span>
+      <h2 class="head" id="{scene}-head">{keep_words(s["head"])}</h2>
+      <p class="body" id="{scene}-body">{esc(s["body"])}</p>
+      {f'<div class="chips" id="{scene}-chips">{chips}</div>' if chips else ''}
     </div>
-    <div class="window" id="{s["id"]}-window">
+    <div class="window" id="{scene}-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">{esc(s["url"])}</span></div>
       <div class="screen">{''.join(clips)}</div>
     </div>
@@ -122,74 +162,52 @@ def feature(s, track0):
 </div>'''
 
 
-def beat_grid(m):
-    """The song's beats on the video's timeline."""
-    beat = 60 / m["bpm"]
-    first = m["phase"] + beat * -(-(m["start"] - m["phase"]) // beat)  # first beat at or after the start
-    return [first - m["start"] + k * beat for k in range(int(DURATION / beat) + 2)]
-
-
-def snap(t, beats):
-    return min(beats, key=lambda b: abs(b - t))
-
-
-def retime(m):
-    """Scene cuts and the hook's word entrances, moved onto this song's beats."""
-    beats = beat_grid(m)
-    for s in SCENES:
-        s["t"] = snap(s["base_t"], beats)
-    PLAYALONG["t"] = snap(PLAYALONG["base_t"], beats)
-    global CLOSE_T, HOOK_BEATS
-    CLOSE_T = snap(54.28, beats)
-    HOOK_BEATS = [b for b in beats if b >= 0.15][:6]
-    while HOOK_BEATS[-1] > 3.6 and len(HOOK_BEATS) > 1:  # six words before the first cut, on the beat or half beat
-        half = 30 / m["bpm"]
-        HOOK_BEATS = [HOOK_BEATS[0] + k * half for k in range(6)]
-        break
-
-
-def mix(name, m):
-    """The song from `start`, 60 s, levelled, faded in briefly and out under the close."""
+def mix(name, p):
+    """The song from its start downbeat, levelled, faded in briefly; its own ending closes the video."""
     out = f"assets/music/ad-mix-{name}.mp3"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(m["start"]), "-i", f"assets/music/{m['file']}",
-                    "-t", str(DURATION), "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.08,afade=t=out:st={DURATION - 1.2}:d=1.2",
+    v = p.v
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(v["start"]), "-i", f"assets/music/{v['song']}.mp3",
+                    "-t", str(p.duration), "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.05,afade=t=out:st={p.duration - 0.5}:d=0.5",
                     "-ar", "48000", "-b:a", "192k", out], check=True)
+    # MP3 framing trims the end a little: the video is as long as the audio really is.
+    real = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out],
+                                capture_output=True, text=True, check=True).stdout)
+    p.duration = round(min(p.duration, real), 2)
     return out
 
 
-def build():
-    scenes_html, tracks = [], 10
-    for s in SCENES:
-        scenes_html.append((s["id"], feature(s, tracks)))
+def build(p, tag, audio):
+    parts, tracks = {}, 10
+    for scene in COPY:
+        parts[scene] = feature(scene, p, tag, tracks)
         tracks += 4
-    pa_start = PLAYALONG["t"] + SWAP
-    pa_dur = SCENES[3]["t"] - PLAYALONG["t"] + 0.1
-    playalong = f'''
+    pa_at = p.scene_at["playalong"]
+    parts["playalong"] = f'''
 <div class="scene" id="playalong">
-  {blobs("playalong", 2)}
+  {blobs("playalong")}
   <div class="pa-content">
     <div class="pa-top">
       <span class="kicker" id="playalong-kicker" style="background:#ffd3bf;color:#5a2310">Play-along videos · Pro</span>
       <h2 class="head pa-head" id="playalong-head">Turn any exercise into a play-along video.</h2>
     </div>
     <div class="pa-frame" id="playalong-frame">
-      <div class="vw" id="playalong-vw0">{video_tag("playalong-v0", PLAYALONG["file"], pa_start, pa_dur, PLAYALONG["media"], 40)}</div>
+      <div class="vw" id="playalong-vw0">{video_tag("playalong-v0", f"playalong-{tag}", pa_at, p.end_of("playalong") - pa_at + 0.3, 0, 40)}</div>
     </div>
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
   </div>
 </div>'''
-    hook = f'''
+    parts["hook"] = f'''
 <div class="scene" id="hook">
-  {blobs("hook", 3)}
+  {blobs("hook")}
   <div class="hook-content">
     {wordmark(cls="wordmark hook-mark")}
     <h1 class="hook-head"><span class="hw" id="hw0">Sight-reading</span> <span class="hw" id="hw1">practice</span><br><span class="hw" id="hw2">that</span> <span class="hw" id="hw3">never</span> <span class="hw" id="hw4">runs</span> <span class="hw" id="hw5">out.</span></h1>
   </div>
   <div class="ball" id="hook-ball" data-layout-allow-occlusion></div>
 </div>'''
-    close = f'''
+    parts["close"] = f'''
 <div class="scene" id="close">
-  {blobs("close", 4)}
+  {blobs("close")}
   <div class="close-content">
     <div class="close-mark" id="close-mark"><span class="abc">abc</span><span class="rest">SightReading</span></div>
     <p class="close-line" id="close-line">Sight-reading practice for every choir and classroom.</p>
@@ -200,84 +218,82 @@ def build():
     <p class="close-price" id="close-price">Free to start. Pro is $19.99 a year.</p>
   </div>
 </div>'''
-    parts = {"hook": hook, "playalong": playalong, "close": close, **dict(scenes_html)}
     body = "\n".join(parts[k] for k in ORDER)
-    timeline = script()
-    return TEMPLATE.replace("%%SCENES%%", body).replace("%%SCRIPT%%", timeline).replace("%%DURATION%%", f"{DURATION:g}")
+    return (TEMPLATE.replace("%%SCENES%%", body).replace("%%SCRIPT%%", script(p))
+            .replace("%%DURATION%%", f"{p.duration:g}").replace("%%MUSIC%%", audio))
 
 
-def script():
-    cuts = [(s["id"], s["t"]) for s in SCENES] + [("playalong", PLAYALONG["t"]), ("close", CLOSE_T)]
-    cuts.sort(key=lambda c: c[1])
-    order = ["hook"] + [c[0] for c in cuts]
-    feats = {s["id"]: s for s in SCENES}
-    js = [f"  var HOOK = {json.dumps([round(b, 3) for b in HOOK_BEATS])};"]
-    # Hook: words pop in on the beat while the ball hops across them.
-    js.append("""
-  // ---- Hook
-  tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.15);
-  for (var i = 0; i < 6; i++) {
-    tl.from("#hw" + i, { y: 50, scale: 0.85, opacity: 0, duration: 0.45, ease: i % 2 ? "back.out(2.2)" : "power3.out" }, HOOK[i]);
-  }
-  // The ball (the play-along video's own) lands on each word as it appears.
+def script(p):
+    b = p.beat
+    # The hook: one word a beat from beat 1, the ball landing on each.
+    hook = [p.beats[k] for k in range(1, 7)]
+    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in hook])};"]
+    js.append(f"""
+  // ---- Hook: a word a beat, the play-along video's ball landing on each.
+  tl.from(".hook-mark", {{ y: -30, opacity: 0, duration: {min(0.6, b):.2f}, ease: "back.out(1.7)" }}, 0.05);
+  for (var i = 0; i < 6; i++) {{
+    tl.from("#hw" + i, {{ y: 50, scale: 0.85, opacity: 0, duration: {0.6 * b:.3f}, ease: i % 2 ? "back.out(2.2)" : "power3.out" }}, HOOK[i] - 0.06);
+  }}
   var hops = window.__hops || [];
-  tl.set("#hook-ball", { opacity: 1 }, 0.2);
-  for (var i = 0; i < hops.length; i++) {
-    var h = hops[i], land = HOOK[i], from = i ? HOOK[i - 1] : Math.max(0, land - 0.5), d = land - from;
-    tl.to("#hook-ball", { x: h.x, duration: d, ease: "none" }, from);
-    tl.to("#hook-ball", { y: h.y - 150, duration: d / 2, ease: "power2.out" }, from);
-    tl.to("#hook-ball", { y: h.y, duration: d / 2, ease: "power2.in" }, from + d / 2);
-  }
-""")
-    js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % DURATION)
-    # Wipes and entrances
-    for k in range(1, len(order)):
-        old, new, t = order[k - 1], order[k], cuts[k - 1][1]
-        color_a, color_b, color_c = WIPES[k % 4], WIPES[(k + 1) % 4], WIPES[(k + 2) % 4]
+  tl.set("#hook-ball", {{ opacity: 1 }}, 0.05);
+  for (var i = 0; i < hops.length; i++) {{
+    var h = hops[i], land = HOOK[i], from = land - {b:.4f}, d = {b:.4f};
+    tl.to("#hook-ball", {{ x: h.x, duration: d, ease: "none" }}, from);
+    tl.to("#hook-ball", {{ y: h.y - 150, duration: d / 2, ease: "power2.out" }}, from);
+    tl.to("#hook-ball", {{ y: h.y, duration: d / 2 - 0.001, ease: "power2.in" }}, from + d / 2);
+  }}
+  // One more bounce on the beat before the first cut.
+  tl.to("#hook-ball", {{ y: hops.length ? hops[hops.length - 1].y - 90 : 0, duration: {b / 2:.4f}, ease: "power2.out", yoyo: true, repeat: 1 }}, HOOK[5]);""")
+    js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % p.duration)
+    for k in range(1, len(ORDER)):
+        old, new, t = ORDER[k - 1], ORDER[k], p.cuts[k]
+        w0 = t - SWAP
+        ca, cb, cc = WIPES[k % 4], WIPES[(k + 1) % 4], WIPES[(k + 2) % 4]
         js.append(f"""
-  // ---- {old} -> {new} at {t}
-  tl.set("#wipe-a", {{ x: -{W}, backgroundColor: "{color_a}" }}, {t - 0.01:.2f});
-  tl.set("#wipe-b", {{ x: -{W}, backgroundColor: "{color_b}" }}, {t - 0.01:.2f});
-  tl.set("#wipe-c", {{ x: -{W}, backgroundColor: "{color_c}" }}, {t - 0.01:.2f});
-  tl.to("#wipe-a", {{ x: 0, duration: 0.24, ease: "power3.inOut" }}, {t:.2f});
-  tl.to("#wipe-b", {{ x: 0, duration: 0.24, ease: "power3.inOut" }}, {t + 0.05:.2f});
-  tl.to("#wipe-c", {{ x: 0, duration: 0.24, ease: "power3.inOut" }}, {t + 0.1:.2f});
-  tl.set("#{old}", {{ opacity: 0 }}, {t + SWAP:.2f});
-  tl.set("#{new}", {{ opacity: 1 }}, {t + SWAP:.2f});
-  tl.to("#wipe-a", {{ x: {W}, duration: 0.26, ease: "power3.inOut" }}, {t + 0.36:.2f});
-  tl.to("#wipe-b", {{ x: {W}, duration: 0.26, ease: "power3.inOut" }}, {t + 0.41:.2f});
-  tl.to("#wipe-c", {{ x: {W}, duration: 0.26, ease: "power3.inOut" }}, {t + 0.46:.2f});""")
-        e = t + 0.4
-        if new in feats:
-            s = feats[new]
+  // ---- {old} -> {new}: covered on the downbeat at {t:.3f}
+  tl.set("#wipe-a", {{ x: -{W}, backgroundColor: "{ca}" }}, {w0 - 0.01:.3f});
+  tl.set("#wipe-b", {{ x: -{W}, backgroundColor: "{cb}" }}, {w0 - 0.01:.3f});
+  tl.set("#wipe-c", {{ x: -{W}, backgroundColor: "{cc}" }}, {w0 - 0.01:.3f});
+  tl.to("#wipe-a", {{ x: 0, duration: 0.24, ease: "power3.inOut" }}, {w0 - 0.1:.3f});
+  tl.to("#wipe-b", {{ x: 0, duration: 0.24, ease: "power3.inOut" }}, {w0 - 0.05:.3f});
+  tl.to("#wipe-c", {{ x: 0, duration: 0.24, ease: "power3.inOut" }}, {w0:.3f});
+  tl.set("#{old}", {{ opacity: 0 }}, {t:.3f});
+  tl.set("#{new}", {{ opacity: 1 }}, {t:.3f});
+  tl.to("#wipe-a", {{ x: {W}, duration: 0.26, ease: "power3.inOut" }}, {t + 0.02:.3f});
+  tl.to("#wipe-b", {{ x: {W}, duration: 0.26, ease: "power3.inOut" }}, {t + 0.07:.3f});
+  tl.to("#wipe-c", {{ x: {W}, duration: 0.26, ease: "power3.inOut" }}, {t + 0.12:.3f});""")
+        beat_n = lambda n: p.beat_after(t, n)
+        if new in COPY:
+            s = COPY[new]
             sx = 90 if s.get("flip") else -90
-            js.append(f"""  tl.from("#{new}-kicker", {{ y: 24, opacity: 0, duration: 0.5, ease: "back.out(2)" }}, {e:.2f});
-  tl.from("#{new}-head", {{ y: 46, opacity: 0, duration: 0.65, ease: "power3.out" }}, {e + 0.1:.2f});
-  tl.from("#{new}-body", {{ y: 28, opacity: 0, duration: 0.6, ease: "expo.out" }}, {e + 0.3:.2f});
-  tl.from("#{new}-window", {{ x: {-sx}, scale: 0.94, opacity: 0, duration: 0.8, ease: "power3.out" }}, {e - 0.15:.2f});
-  tl.to("#{new}-window", {{ scale: 1.03, duration: {max(1, (cuts[k][1] if k < len(cuts) else DURATION) - e - 0.7):.2f}, ease: "sine.inOut" }}, {e + 0.7:.2f});""")
+            end = p.end_of(new)
+            js.append(f"""  tl.from("#{new}-window", {{ x: {-sx}, scale: 0.94, opacity: 0, duration: {min(0.8, 1.2 * b):.2f}, ease: "power3.out" }}, {t:.3f});
+  tl.from("#{new}-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {beat_n(1) - 0.05:.3f});
+  tl.from("#{new}-head", {{ y: 46, opacity: 0, duration: {min(0.65, b):.2f}, ease: "power3.out" }}, {beat_n(2) - 0.05:.3f});
+  tl.from("#{new}-body", {{ y: 28, opacity: 0, duration: {min(0.6, b):.2f}, ease: "expo.out" }}, {beat_n(3) - 0.05:.3f});
+  tl.to("#{new}-window", {{ scale: 1.03, duration: {max(1, end - t - 1.0):.2f}, ease: "sine.inOut" }}, {t + 0.9:.3f});""")
             if s.get("chips"):
-                js.append(f'  tl.from("#{new}-chips .chip", {{ y: 20, opacity: 0, duration: 0.45, stagger: 0.18, ease: "back.out(2)" }}, {e + 0.6:.2f});')
-            # A second clip in the window crossfades in over the first.
-            at = t + SWAP
-            for c, (_, _, dur) in enumerate(s["clips"]):
+                js.append(f'  tl.from("#{new}-chips .chip", {{ y: 20, opacity: 0, duration: {0.6 * b:.3f}, stagger: {b:.4f}, ease: "back.out(2)" }}, {beat_n(4) - 0.05:.3f});')
+            # A later clip in the window comes in on its downbeat.
+            for c, (_, _, start, _) in enumerate(clips_for(new, p, CURRENT_TAG)):
                 if c > 0:
-                    js.append(f'  tl.fromTo("#{new}-vw{c}", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.25, ease: "sine.inOut" }}, {at:.2f});')
-                at += dur
+                    js.append(f'  tl.fromTo("#{new}-vw{c}", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.12, ease: "sine.inOut" }}, {start - 0.06:.3f});')
         elif new == "playalong":
-            js.append(f"""  tl.from("#playalong-kicker", {{ y: 24, opacity: 0, duration: 0.5, ease: "back.out(2)" }}, {e:.2f});
-  tl.from("#playalong-head", {{ y: 40, opacity: 0, duration: 0.6, ease: "power3.out" }}, {e + 0.12:.2f});
-  tl.from("#playalong-frame", {{ y: 120, scale: 0.9, opacity: 0, duration: 0.9, ease: "back.out(1.2)" }}, {e - 0.1:.2f});
-  tl.from("#playalong-sub", {{ y: 20, opacity: 0, duration: 0.5, ease: "expo.out" }}, {e + 1.2:.2f});""")
+            js.append(f"""  tl.from("#playalong-frame", {{ y: 120, scale: 0.9, opacity: 0, duration: {min(0.7, b):.2f}, ease: "back.out(1.2)" }}, {t:.3f});
+  tl.from("#playalong-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {beat_n(1) - 0.05:.3f});
+  tl.from("#playalong-head", {{ y: 40, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {beat_n(2) - 0.05:.3f});
+  tl.from("#playalong-sub", {{ y: 20, opacity: 0, duration: {min(0.5, b):.2f}, ease: "expo.out" }}, {beat_n(4) - 0.05:.3f});""")
         elif new == "close":
-            js.append(f"""  tl.from("#close-mark", {{ scale: 0.6, opacity: 0, duration: 0.8, ease: "back.out(1.8)" }}, {e:.2f});
-  tl.from("#close-line", {{ y: 30, opacity: 0, duration: 0.6, ease: "power3.out" }}, {e + 0.4:.2f});
-  tl.from("#close-cta", {{ y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }}, {e + 0.8:.2f});
-  tl.from("#close-url", {{ x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }}, {e + 0.95:.2f});
-  tl.from("#close-price", {{ y: 20, opacity: 0, duration: 0.5, ease: "sine.out" }}, {e + 1.3:.2f});
-  tl.to("#close-cta", {{ scale: 1.06, duration: 0.25, ease: "sine.inOut", yoyo: true, repeat: 5 }}, {e + 2.0:.2f});
+            pulses = max(1, int((p.duration - 1.2 - beat_n(4)) / b))
+            js.append(f"""  tl.from("#close-mark", {{ scale: 0.6, opacity: 0, duration: {min(0.8, 1.2 * b):.2f}, ease: "back.out(1.8)" }}, {t:.3f});
+  tl.from("#close-line", {{ y: 30, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {beat_n(1) - 0.05:.3f});
+  tl.from("#close-cta", {{ y: 30, scale: 0.8, opacity: 0, duration: {min(0.55, b):.2f}, ease: "back.out(2.4)" }}, {beat_n(2) - 0.05:.3f});
+  tl.from("#close-url", {{ x: 40, opacity: 0, duration: {min(0.55, b):.2f}, ease: "expo.out" }}, {beat_n(2) + b / 2 - 0.05:.3f});
+  tl.from("#close-price", {{ y: 20, opacity: 0, duration: {min(0.5, b):.2f}, ease: "sine.out" }}, {beat_n(3) - 0.05:.3f});
+  // The button pulses on each beat until the music ends.
+  tl.to("#close-cta", {{ scale: 1.07, duration: {b / 2:.4f}, ease: "sine.inOut", yoyo: true, repeat: {2 * pulses - 1} }}, {beat_n(4) - b / 4:.3f});
   // The final scene fades out with the music.
-  tl.to("#close", {{ opacity: 0, duration: 1.2, ease: "sine.in" }}, {DURATION - 1.3:.2f});""")
+  tl.to("#close", {{ opacity: 0, duration: 0.6, ease: "sine.in" }}, {p.duration - 0.6:.3f});""")
     return "\n".join(js)
 
 
@@ -375,15 +391,10 @@ window.__timelines["main"] = tl;
 """
 
 if __name__ == "__main__":
-    for s in SCENES:
-        s.setdefault("base_t", s["t"])
-    PLAYALONG.setdefault("base_t", PLAYALONG["t"])
-    for name, m in MUSIC.items():
-        retime(m)
-        audio = mix(name, m)
-        page = build().replace("%%MUSIC%%", audio)
-        # One root composition per HyperFrames project: each song's version
-        # is its own project, the alternatives beside this one sharing assets.
-        open("index.html" if name == "index" else f"../ad-{name}/index.html", "w").write(page)
-        print(f"{'index.html' if name == 'index' else f'../ad-{name}/index.html'}: {m['credit']}, from {m['start']} s; cuts at",
-              ", ".join(f"{t:.2f}" for t in sorted([s['t'] for s in SCENES] + [PLAYALONG['t'], CLOSE_T])))
+    for name, v in VERSIONS.items():
+        plan = Plan(v)
+        CURRENT_TAG = v["tag"]
+        audio = mix(name, plan)
+        open(v["out"], "w").write(build(plan, v["tag"], audio))
+        print(f"{v['out']}: {v['credit']} from {v['start']} s, {plan.duration} s, bar {plan.bar:.3f} s;",
+              "cuts", ", ".join(f"{c:.2f}" for c in plan.cuts[1:]))

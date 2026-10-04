@@ -6,7 +6,7 @@
  *   bun run capture/capture.ts                         # all of them
  */
 import type { Page } from "puppeteer-core";
-import { APP, OUT, launch, clickText, record, sleep, scrollTo } from "./lib";
+import { APP, OUT, launch, clickText, record, recordExact, sleep, scrollTo, watchCountIn } from "./lib";
 import { resolve } from "path";
 
 const light = async (page: Page) => {
@@ -43,46 +43,58 @@ async function open(path: string, extraArgs: string[] = []) {
   return { browser, page };
 }
 
-const UNISON = "/sightreading?clef=treble&range=14-21&key=G&scaleDegrees=1,2,3,4,5,6,7&rhythms=quarter,eighthEighth,half,dotQuarterEighth&timeSignature=4/4&measures=8&maxSkip=4&bpm=84&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth";
+/**
+ * TEMPO=85: the playing scenes (unison, choral, rhythm) are recorded at the
+ * song's tempo, into <scene>-<tempo>.webm, so the cursor keeps the music's
+ * beat; build.py lines their first note up with a downbeat.
+ */
+const TEMPO = Number(process.env.TEMPO ?? 84);
+const tagged = (name: string) => (process.env.TEMPO ? `${name}-${TEMPO}` : name);
+
+const UNISON = `/sightreading?clef=treble&range=14-21&key=G&scaleDegrees=1,2,3,4,5,6,7&rhythms=quarter,eighthEighth,half,dotQuarterEighth&timeSignature=4/4&measures=8&maxSkip=4&bpm=${TEMPO}&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth`;
 
 const scenes: Record<string, () => Promise<void>> = {
   async unison() {
     const { browser, page } = await open(UNISON);
-    await record(page, "unison", async () => {
+    await watchCountIn(page);
+    await recordExact(page, tagged("unison"), async () => {
       await sleep(900);
       await clickText(page, "Notes", { exact: true });
       await sleep(1300);
       await clickText(page, "Generate", { exact: true });
       await sleep(1600);
       await clickText(page, "Play", { exact: true });
-      await sleep(6500);
+      await sleep(4 * (60000 / TEMPO) + 9000);
     });
     await browser.close();
   },
 
   async choral() {
-    // A bare visit opens at UIL Level 3 in F major.
-    const { browser, page } = await open("/choral-sightreading");
-    await record(page, "choral", async () => {
+    // UIL Level 3 in F major, at the song's tempo.
+    const { browser, page } = await open(`/choral-sightreading?bpm=${TEMPO}`);
+    await page.evaluate(() => {});
+    await watchCountIn(page);
+    await recordExact(page, tagged("choral"), async () => {
       await sleep(900);
       await clickText(page, "Generate", { exact: true });
       await sleep(1800);
       await clickText(page, "Play", { exact: true });
-      await sleep(7000);
+      await sleep(4 * (60000 / TEMPO) + 9000);
     });
     await browser.close();
   },
 
   async rhythm() {
     const { browser, page } = await open(
-      "/sightreading?rhythmOnly=true&rhythms=quarter,eighthEighth,half,quarterRest,fourSixteenths&timeSignature=4/4&measures=8&bpm=84&showRhythmSyllables=true&syllableSystem=kodaly",
+      `/sightreading?rhythmOnly=true&rhythms=quarter,eighthEighth,half,quarterRest,fourSixteenths&timeSignature=4/4&measures=8&bpm=${TEMPO}&showRhythmSyllables=true&syllableSystem=kodaly`,
     );
-    await record(page, "rhythm", async () => {
+    await watchCountIn(page);
+    await recordExact(page, tagged("rhythm"), async () => {
       await sleep(700);
       await clickText(page, "Generate", { exact: true });
       await sleep(1500);
       await clickText(page, "Play", { exact: true });
-      await sleep(6000);
+      await sleep(4 * (60000 / TEMPO) + 9000);
     });
     await browser.close();
   },
