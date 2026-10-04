@@ -30,6 +30,12 @@ export class PlayAlongAudio {
   private stretched = new Map<string, AudioBuffer>();
   private guideBuffer: AudioBuffer | null = null;
   private sources: AudioScheduledSourceNode[] = [];
+  /**
+   * This run's clicks. They are all scheduled when it starts, each its own
+   * short-lived node, so stopping cuts this one connection: otherwise they
+   * kept clicking to the end after the video was stopped.
+   */
+  private clickBus: GainNode | null = null;
   private bank = new SampleBank();
 
   constructor() {
@@ -133,6 +139,8 @@ export class PlayAlongAudio {
     o: { track: BackingTrack; bpm: number; bars: number; countInBars: number; meter: string; clickSound: ClickSound },
   ): number {
     this.stop();
+    const clicks = this.gainInto(this.clickGain, 1);
+    this.clickBus = clicks;
     const { track, bars, countInBars, meter } = o;
     const rate = o.bpm / track.bpm;
     const beats = beatsOf(meter);
@@ -186,13 +194,15 @@ export class PlayAlongAudio {
     // made up front so they sit on the same clock as the loop.
     const totalBeats = (countInBars + bars) * beats;
     for (let b = 0; b < totalBeats; b++) {
-      scheduleClick(this.ctx, this.bank, this.clickGain, t0 + b * beat, o.clickSound, b % beats === 0 ? "downbeat" : "beat");
+      scheduleClick(this.ctx, this.bank, clicks, t0 + b * beat, o.clickSound, b % beats === 0 ? "downbeat" : "beat");
     }
 
     return musicEnd + FADE_SECONDS;
   }
 
   stop() {
+    this.clickBus?.disconnect();
+    this.clickBus = null;
     for (const s of this.sources) {
       try {
         s.stop();
