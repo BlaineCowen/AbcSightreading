@@ -310,8 +310,15 @@ scripts/backing/soul-4-4-80.ts`): count-in, an intro, parts entering section by
 section, an ending. The samples stay in `~/Splice`; only the finished mix is
 committed, which is what Splice's licence allows. Blaine's ear so far: keep
 risers and impacts sparing, no vocals over the exercise, no congas in the
-reggaeton. 3/4, 2/4 and 6/8 still use synthesized placeholders
-(`scripts/make-placeholder-loops.ts`) until real tracks replace them.
+reggaeton; the indie pack was too plain (its script is kept, tabled); for
+trap, real rage 808 loops transposed to the song's key, never a programmed 808
+line. The cumbia is one file listed twice, 36 bars of 4/4 and 72 of 2/4.
+Every meter also has simple 8-bar drum loops from one kit (`DRUM_LOOPS` in
+backing-tracks.ts, built by `scripts/backing/drums.ts` with the engine's
+`loop: true` - no count-in, cymbal tails wrapped to the start so the loop has
+no seam). MP3s live in `public/backing/` (served by the CDN; about 16 MB in
+all) - Vercel Blob is not worth it at this size. Chrome decodes them
+sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 
 ## abcTuner
 
