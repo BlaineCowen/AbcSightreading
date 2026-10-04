@@ -1,0 +1,10 @@
+node_modules/
+assets/captures/
+renders/
+snapshots/
+.hyperframes/
+assets/footage/
+assets/music/*.ogg
+assets/music/*.mp3
+capture/__pycache__/
+.thumbnails/
