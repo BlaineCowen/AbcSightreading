@@ -1,33 +1,46 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
-  import { BACKING_TRACKS, type BackingTrack } from "../lib/play-along/backing-tracks";
-  import { barsForLength, frameAt } from "../lib/play-along/timeline";
+  import { onDestroy, onMount, tick } from "svelte";
+  import { BACKING_TRACKS, barsFor, countInBarsFor, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
+  import { frameAt, tempoChoices } from "../lib/play-along/timeline";
   import { renderBars, type BarImage } from "../lib/play-along/bar-images";
   import { FADE_SECONDS, PlayAlongAudio } from "../lib/play-along/audio";
   import { drawScene, H, W } from "../lib/play-along/scene";
   import { startRecording, videoFileName, videoType, type Recording } from "../lib/play-along/recorder";
-  import { countInMeasures } from "../lib/count-in";
   import { beatsOf, meterKindOf } from "../lib/meter";
   import { downloadFile } from "../lib/download";
   import { RHYTHM_SOUNDS, rhythmSoundFor, volumeMultiplierFor, withRhythmSound } from "../lib/rhythm-sounds";
   import { CLICK_SOUNDS, DEFAULT_CLICK_SOUND, isClickSound, type ClickSound } from "../lib/tuner/click-sounds";
+  import type { UnisonScore } from "../lib/generateUnison";
 
   /**
-   * Play-along video (Pro): a backing loop plays while two bars show, one
+   * Play-along video (Pro): a backing track plays while two bars show, one
    * above the other, a ball bouncing through the top bar then the bottom, the
    * top turning over to the next bar as soon as the ball leaves it
    * (src/lib/play-along/timeline.ts). About a minute and a half, then a
    * finish card.
+   *
+   * One exercise per meter, long enough for every track in it (maxBarsIn):
+   * swapping between tracks in a meter is instant and free, each using its
+   * first barsFor bars; only a track in another meter writes a new one. The
+   * tempo can move ±15% with the backing warped, pitch kept (stretch.ts), and
+   * the rhythm syllables change here without a new exercise (the page writes
+   * the exercise out again in the system asked for).
    *
    * Everything is drawn on one 1920x1080 canvas (src/lib/play-along/scene.ts),
    * so full screen and the exported video are the same picture; the controls
    * live outside it and never reach the file.
    */
 
-  /** The meters picked on the page: loops in the same kind of meter are offered, these first. */
+  /** The meters picked on the page: tracks in the same kind of meter are offered, these first. */
   export let meters: string[];
-  /** Writes a rhythm-only exercise and returns its ABC ready to draw (sound and syllables as chosen on the page). */
-  export let generate: (o: { measures: number; bpm: number; meter: string }) => Promise<string>;
+  /** Writes a rhythm-only exercise (counted against the allowance) and returns it as data. */
+  export let generate: (o: { measures: number; bpm: number; meter: string }) => Promise<UnisonScore>;
+  /** Writes an exercise out as ABC to draw: syllables in a system or "off", the page's rhythm sound. */
+  export let write: (score: UnisonScore, o: { syllables: string; bpm: number; meter: string }) => string;
+  /** The syllable systems on offer (the page's, and the teacher's own once loaded). */
+  export let syllableChoices: { id: string; label: string }[] = [];
+  /** The syllables the page shows, which the video starts on. */
+  export let initialSyllables = "off";
   /** The page's rhythm sound: the guide starts on it unless this browser has chosen another for videos. */
   export let rhythmSoundId = "claves";
   export let onClose: () => void;
@@ -74,8 +87,25 @@
   } catch {
     // Storage blocked: the choices last until the overlay closes.
   }
-  /** The exercise's ABC, kept so the guide can be played on another instrument without writing a new one. */
+
+  /** The exercise, the meter it is in and how many bars it has (the most any track in that meter needs). */
+  let score: UnisonScore | null = null;
+  let scoreMeter = "";
+  let scoreBars = 0;
+  /** Rhythm syllables: a system id, or "off". */
+  let syllables = initialSyllables;
+  $: syllableOptions = [{ id: "off", label: "Off" }, ...syllableChoices];
+  /** The exercise as drawn, in the chosen syllables; the guide is rendered from it. */
   let abc = "";
+
+  /** The tempo the video plays at: the track's own, or within ±15% of it. */
+  let tempo = 0;
+  $: choices = track ? tempoChoices(track.bpm) : [];
+  /** The tempo the backing has been warped to (it lags `tempo` while a change is pending). */
+  let tunedTo = 0;
+  let retuneTimer: ReturnType<typeof setTimeout> | null = null;
+  let tuning = false;
+
   let guideFor = "";
   let guideLoading = false;
   let guideJob: Promise<void> | null = null;
@@ -88,6 +118,7 @@
   let status: "preparing" | "ready" | "playing" | "recording" | "error" = "preparing";
   let error = "";
   let progress = 0;
+  let drawing = false;
 
   let container: HTMLDivElement;
   let canvas: HTMLCanvasElement;
@@ -104,18 +135,18 @@
   let run: { t0: number; musicEnd: number; end: number } | null = null;
 
   $: audio?.setMix(sound);
-  $: if (abc && audioRunning && status === "ready" && sound.guideSound !== guideFor) void renderGuide();
+  /** What the guide was rendered for: the instrument, the tempo and the exercise as written. */
+  $: guideKey = `${sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}`;
+  $: if (abc && audioRunning && status === "ready" && guideKey !== guideFor) void renderGuide();
 
-  /** Renders the guide track on the chosen instrument (the first time, and whenever it changes). */
+  /** Renders the guide track: the exercise on the chosen instrument at the video's tempo. */
   function renderGuide(): Promise<void> {
-    if (!audio || !track || !abc) return Promise.resolve();
-    const id = sound.guideSound;
-    const { bpm } = track;
-    guideFor = id;
+    if (!audio || !abc || !tempo) return Promise.resolve();
+    guideFor = guideKey;
     guideLoading = true;
-    const instrument = rhythmSoundFor(id);
+    const instrument = rhythmSoundFor(sound.guideSound);
     guideJob = audio
-      .renderGuide(withRhythmSound(abc, instrument), bpm, volumeMultiplierFor(instrument))
+      .renderGuide(withRhythmSound(abc, instrument), tempo, volumeMultiplierFor(instrument))
       .catch(() => {
         error = "That sound could not be loaded. Try another, or play without the guide.";
       })
@@ -135,29 +166,76 @@
     audioRunning = audio.ctx.state === "running";
     return audioRunning;
   }
-  $: if (track && audio && track.id !== preparedFor && (status === "ready" || status === "error")) void prepare();
 
-  async function prepare() {
-    if (!track || !audio) return;
-    const t = track;
+  /** Draws the exercise's bars as written in the chosen syllables. */
+  async function redraw() {
+    if (!score || !track) return;
+    drawing = true;
+    try {
+      abc = write(score, { syllables, bpm: tempo || track.bpm, meter: scoreMeter });
+      barImages = (await renderBars(abc, tempo || track.bpm, scoreBars)).bars;
+    } finally {
+      drawing = false;
+    }
+  }
+
+  /** Writes a new exercise in `meter`, as long as the longest track in it. Counts against the allowance. */
+  async function writeExercise(meter: string) {
+    if (!track) return;
+    const measures = maxBarsIn(meter);
+    score = await generate({ measures, bpm: track.bpm, meter });
+    scoreMeter = meter;
+    scoreBars = measures;
+    await redraw();
+  }
+
+  $: if (track && audio && track.id !== preparedFor && (status === "ready" || status === "error")) void useTrack(track);
+
+  /** Switches to a track: the exercise stays if the meter does, and the tempo goes back to the track's own. */
+  async function useTrack(t: BackingTrack, newExercise = false) {
+    if (!audio) return;
     // Marked at the start, so a failure is not retried by the reactive line
-    // above: each attempt costs an exercise from the monthly allowance.
+    // above: a new exercise costs one from the monthly allowance.
     preparedFor = t.id;
     status = "preparing";
     error = "";
     try {
-      countInBars = t.introBars ?? countInMeasures(t.meter);
-      const measures = t.fullLength ? t.bars : barsForLength({ bpm: t.bpm, meter: t.meter, loopBars: t.bars, countInBars });
-      const written = await generate({ measures, bpm: t.bpm, meter: t.meter });
-      const [rendered] = await Promise.all([renderBars(written, t.bpm, measures), audio.loadBacking(t)]);
-      abc = written;
-      guideFor = "";
-      barImages = rendered.bars;
-      bars = measures;
+      if (retuneTimer) clearTimeout(retuneTimer);
+      retuneTimer = null;
+      tempo = t.bpm;
+      tunedTo = t.bpm;
+      if (newExercise || !score || scoreMeter !== t.meter) await writeExercise(t.meter);
+      await audio.loadBacking(t);
+      countInBars = countInBarsFor(t);
+      bars = barsFor(t);
       status = "ready";
     } catch (err) {
       error = err instanceof Error ? err.message : "The play-along could not be made.";
       status = "error";
+    }
+  }
+
+  /** Sets the tempo; the backing is warped to it a moment after the last change. */
+  function setTempo(bpm: number) {
+    if (!track || !choices.includes(bpm)) return;
+    tempo = bpm;
+    if (retuneTimer) clearTimeout(retuneTimer);
+    retuneTimer = setTimeout(() => void retune(), 350);
+  }
+
+  /** Warps the backing to the chosen tempo (about a second the first time at a tempo; kept after). */
+  async function retune() {
+    retuneTimer = null;
+    if (!audio || !track || tunedTo === tempo) return;
+    tuning = true;
+    // Let "Adjusting tempo…" paint before the work blocks the page.
+    await tick();
+    await new Promise((r) => setTimeout(r, 30));
+    try {
+      audio.backingAt(track, tempo);
+      tunedTo = tempo;
+    } finally {
+      tuning = false;
     }
   }
 
@@ -167,8 +245,12 @@
       error = "Your browser is blocking sound. Click anywhere on the page, then press Play again.";
       return;
     }
+    if (retuneTimer || tunedTo !== tempo) {
+      if (retuneTimer) clearTimeout(retuneTimer);
+      await retune();
+    }
     if (guideJob) await guideJob;
-    if (guideFor !== sound.guideSound) await renderGuide();
+    if (guideFor !== guideKey) await renderGuide();
     await audio.ready();
     if (record) {
       try {
@@ -180,7 +262,7 @@
     }
     // A moment's lead so the first frame of a recording is the opening screen.
     const t0 = audio.ctx.currentTime + (record ? 0.8 : 0.2);
-    const soundEnd = audio.start(t0, { track, bars, countInBars, meter: track.meter, clickSound: sound.clickSound });
+    const soundEnd = audio.start(t0, { track, bpm: tempo, bars, countInBars, meter: track.meter, clickSound: sound.clickSound });
     const musicEnd = soundEnd - FADE_SECONDS;
     run = { t0, musicEnd, end: musicEnd + FINISH_SECONDS };
     status = record ? "recording" : "playing";
@@ -193,7 +275,7 @@
     recording = null;
     if (rec && track) {
       const file = await rec.stop();
-      downloadFile(file, videoFileName(track.meter, track.bpm, rec.type), file.type);
+      downloadFile(file, videoFileName(track.meter, tempo, rec.type), file.type);
     }
     status = "ready";
     progress = 0;
@@ -213,43 +295,19 @@
     raf = requestAnimationFrame(render);
     if (!ctx2d || !track) return;
     const clock = performance.now() / 1000;
+    const bpm = tempo || track.bpm;
     const beats = beatsOf(track.meter);
-    const timing = { bars, bpm: track.bpm, meter: track.meter, countInBars };
+    const timing = { bars, bpm, meter: track.meter, countInBars };
+    const scene = { bars: barImages, total: bars, meter: track.meter, bpm, beats, beatSec: 60 / bpm, countInBars, clock };
     if (run && audio) {
       const now = audio.ctx.currentTime;
       const t = now - run.t0;
       progress = Math.min(1, Math.max(0, t / (run.end - run.t0)));
-      drawScene(ctx2d, {
-        frame: frameAt(t, timing),
-        bars: barImages,
-        total: bars,
-        meter: track.meter,
-        bpm: track.bpm,
-        beats,
-        t,
-        beatSec: 60 / track.bpm,
-        countInBars,
-        clock,
-        sinceEnd: Math.max(0, now - run.musicEnd),
-        playing: true,
-      });
+      drawScene(ctx2d, { ...scene, frame: frameAt(t, timing), t, sinceEnd: Math.max(0, now - run.musicEnd), playing: true });
       if (now >= run.end) void finish();
       return;
     }
-    drawScene(ctx2d, {
-      frame: { ...frameAt(-1, timing), word: null },
-      bars: barImages,
-      total: bars,
-      meter: track.meter,
-      bpm: track.bpm,
-      beats,
-      t: -1,
-      beatSec: 60 / track.bpm,
-      countInBars,
-      clock,
-      sinceEnd: 0,
-      playing: false,
-    });
+    drawScene(ctx2d, { ...scene, frame: { ...frameAt(-1, timing), word: null }, t: -1, sinceEnd: 0, playing: false });
   }
 
   async function toggleFullscreen() {
@@ -300,7 +358,7 @@
     // Canvas text only uses a web font once it has loaded.
     void document.fonts?.load(`700 40px Fredoka`);
     raf = requestAnimationFrame(render);
-    if (track) void prepare();
+    if (track) void useTrack(track);
     else {
       status = "error";
       error = "There is no backing track for these meters yet.";
@@ -309,12 +367,14 @@
 
   onDestroy(() => {
     cancelAnimationFrame(raf);
+    if (retuneTimer) clearTimeout(retuneTimer);
     document.removeEventListener("fullscreenchange", onFullscreenChange);
     document.removeEventListener("visibilitychange", onVisibility);
     void audio?.close();
   });
 
   $: busy = status === "playing" || status === "recording";
+  $: waiting = status !== "ready" || guideLoading || tuning || drawing;
   const exportable = !!videoType();
 </script>
 
@@ -381,7 +441,31 @@
         aria-label="Backing track"
       >
         {#each tracks as t}
-          <option value={t.id}>{t.name}</option>
+          <option value={t.id}>{t.name}{scoreMeter && t.meter !== scoreMeter ? " · new exercise" : ""}</option>
+        {/each}
+      </select>
+      <div class="tempo flex items-center gap-1" role="group" aria-label="Tempo">
+        <button class="sr-tok" disabled={busy || !choices.length || tempo <= choices[0]} on:click={() => setTempo(tempo - 1)} aria-label="Slower">−</button>
+        <button
+          class="sr-tok tempo-value"
+          class:sr-on={track && tempo !== track.bpm}
+          disabled={busy || !track || tempo === track.bpm}
+          title={track && tempo !== track.bpm ? `Back to the track's own ${track.bpm}` : "The track's own tempo"}
+          on:click={() => track && setTempo(track.bpm)}
+        >
+          {tuning ? "Adjusting…" : `${tempo} BPM`}
+        </button>
+        <button class="sr-tok" disabled={busy || !choices.length || tempo >= choices[choices.length - 1]} on:click={() => setTempo(tempo + 1)} aria-label="Faster">+</button>
+      </div>
+      <select
+        class="sr-tok"
+        bind:value={syllables}
+        on:change={redraw}
+        disabled={busy || status === "preparing" || drawing}
+        aria-label="Rhythm syllables"
+      >
+        {#each syllableOptions as o}
+          <option value={o.id}>{o.id === "off" ? "Syllables off" : o.label}</option>
         {/each}
       </select>
       <button class="sr-tok" class:sr-on={soundOpen} aria-expanded={soundOpen} on:click={() => (soundOpen = !soundOpen)}>
@@ -390,15 +474,15 @@
       {#if busy}
         <button class="sr-btn" on:click={stop}>{status === "recording" ? "Cancel export" : "Stop"}</button>
       {:else}
-        <button class="sr-btn" disabled={status !== "ready" || guideLoading} on:click={() => play()}>
-          {status === "preparing" ? "Writing…" : guideLoading ? "Loading sound…" : "Play"}
+        <button class="sr-btn" disabled={waiting} on:click={() => play()}>
+          {status === "preparing" ? "Writing…" : tuning ? "Adjusting tempo…" : guideLoading ? "Loading sound…" : drawing ? "Drawing…" : "Play"}
         </button>
       {/if}
-      <button class="sr-tok" disabled={busy || status === "preparing" || !track} on:click={prepare}>New exercise</button>
+      <button class="sr-tok" disabled={busy || status === "preparing" || !track} on:click={() => track && useTrack(track, true)}>New exercise</button>
       {#if exportable}
         <button
           class="sr-tok"
-          disabled={busy || status !== "ready" || guideLoading}
+          disabled={busy || waiting}
           title="Records one full play-along to a video file, in real time"
           on:click={() => play(true)}
         >
@@ -444,6 +528,10 @@
   }
   .controls {
     transition: opacity 0.4s;
+  }
+  .tempo-value {
+    min-width: 7.5rem;
+    font-variant-numeric: tabular-nums;
   }
   .controls.dim {
     opacity: 0.2;

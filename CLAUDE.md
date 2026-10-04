@@ -294,6 +294,20 @@ exported video are the same picture. Export records that canvas and the
 mix with MediaRecorder in real time - MP4 where the browser can, else WebM - and
 cancels itself if the tab is hidden, since a hidden tab gets no frames.
 
+Tracks, tempo and syllables, all without a new exercise where possible: the
+video writes one exercise per meter, as long as the longest track in it
+(`maxBarsIn`), and each track uses its first `barsFor` bars, so swapping
+between tracks in a meter is instant and free; only a track in another meter
+(marked "new exercise" in the picker) writes and counts a new one. The tempo
+moves ±15% in whole BPM (`tempoChoices`), the backing warped offline with the
+pitch kept (`stretch.ts`, soundtouchjs, LGPL-2.1; types in
+`src/types/soundtouchjs.d.ts`) and lined up with the grid by cross-correlating
+envelopes - about 1 ms on average, a few ms of WSOLA jitter, no drift over 90 s
+(tests `play-along-stretch.test.ts`); a 21 s loop warps in about 60 ms. The
+syllables picker (Off, Kodaly, Counting, Mine) starts at the page's choice and
+redraws from the exercise's data through the page's `playAlongAbc`, never a
+new exercise.
+
 Sound (the overlay's Sound panel): levels for the loop, a guide (the rhythm
 played over the loop, on any rhythm sound) and a click (any metronome sound),
 live while it plays and into the export; remembered in this browser. abcjs

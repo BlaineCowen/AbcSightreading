@@ -10,6 +10,7 @@ import type { BackingTrack } from "./backing-tracks";
 import { scheduleClick } from "../playback-click";
 import { SampleBank, type ClickSound } from "../tuner/click-sounds";
 import { beatsOf } from "../meter";
+import { stretchBuffer } from "./stretch";
 import { loopOffset } from "./timeline";
 
 /** How long the loop takes to fade once the last bar has been played. */
@@ -25,6 +26,8 @@ export class PlayAlongAudio {
   private guideGain: GainNode;
   private clickGain: GainNode;
   private backingBuffers = new Map<string, AudioBuffer>();
+  /** Backing tracks warped to another tempo, by "id@bpm". */
+  private stretched = new Map<string, AudioBuffer>();
   private guideBuffer: AudioBuffer | null = null;
   private sources: AudioScheduledSourceNode[] = [];
   private bank = new SampleBank();
@@ -66,6 +69,23 @@ export class PlayAlongAudio {
   }
 
   /**
+   * The backing track at `bpm`, warped from its own tempo with the pitch kept
+   * (stretch.ts), made once per tempo and kept. Its own tempo is the file as
+   * it is. Blocks for about a second the first time at a new tempo.
+   */
+  backingAt(track: BackingTrack, bpm: number): AudioBuffer | undefined {
+    const original = this.backingBuffers.get(track.id);
+    if (!original || bpm === track.bpm) return original;
+    const key = `${track.id}@${bpm}`;
+    let buffer = this.stretched.get(key);
+    if (!buffer) {
+      buffer = stretchBuffer(this.ctx, original, bpm / track.bpm);
+      this.stretched.set(key, buffer);
+    }
+    return buffer;
+  }
+
+  /**
    * Renders the rhythm itself, as the Unison page does (AbcjsSingle initAudio),
    * for the guide track: `abc` already names the instrument (withRhythmSound).
    * Drawn off screen because abcjs's synth reads a drawn tune.
@@ -103,21 +123,26 @@ export class PlayAlongAudio {
 
   /**
    * Schedules the whole video from `t0`, the count-in's first downbeat in
-   * context time. Returns when the sound ends (fade included), in context time.
+   * context time, at `bpm` (the track's own, or one the tempo control chose:
+   * the backing is warped to it, and every time in the track's description
+   * scales with it). Returns when the sound ends (fade included), in context
+   * time.
    */
   start(
     t0: number,
-    o: { track: BackingTrack; bars: number; countInBars: number; meter: string; clickSound: ClickSound },
+    o: { track: BackingTrack; bpm: number; bars: number; countInBars: number; meter: string; clickSound: ClickSound },
   ): number {
     this.stop();
     const { track, bars, countInBars, meter } = o;
+    const rate = o.bpm / track.bpm;
     const beats = beatsOf(meter);
-    const beat = 60 / track.bpm;
+    const beat = 60 / o.bpm;
     const bar = beat * beats;
     const musicStart = t0 + countInBars * bar;
     const musicEnd = musicStart + bars * bar;
+    const downbeat = track.downbeatSec / rate;
 
-    const backing = this.backingBuffers.get(track.id);
+    const backing = this.backingAt(track, o.bpm);
     if (backing) {
       const src = this.ctx.createBufferSource();
       src.buffer = backing;
@@ -125,14 +150,14 @@ export class PlayAlongAudio {
         // A whole arrangement, count-in to final hit: played once as written,
         // its own ending ringing on after the last bar.
         src.connect(this.backingGain);
-        src.start(t0, track.downbeatSec);
+        src.start(t0, downbeat);
       } else {
         src.loop = true;
         // The intro, if the loop has one, plays once as the count-in; then the
         // repeating part loops for as long as the music lasts.
-        src.loopStart = track.downbeatSec + (track.introBars ?? 0) * bar;
+        src.loopStart = downbeat + (track.introBars ?? 0) * bar;
         src.loopEnd = src.loopStart + track.bars * bar;
-        const offset = track.introBars ? track.downbeatSec : track.downbeatSec + loopOffset(countInBars, track.bars) * bar;
+        const offset = track.introBars ? downbeat : downbeat + loopOffset(countInBars, track.bars) * bar;
         src.connect(this.backingGain);
         src.start(t0, offset);
         src.stop(musicEnd + FADE_SECONDS);
@@ -151,6 +176,9 @@ export class PlayAlongAudio {
       src.buffer = this.guideBuffer;
       src.connect(this.guideGain);
       src.start(musicStart);
+      // The exercise can be longer than this track (one exercise serves every
+      // track in a meter), so the guide stops where the music does.
+      src.stop(musicEnd + 0.05);
       this.sources.push(src);
     }
 

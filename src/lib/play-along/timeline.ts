@@ -32,6 +32,17 @@ export function barsForLength(opts: {
   return Math.max(step, Math.round(wanted / step) * step);
 }
 
+/** How far the tempo control reaches either way: far enough to slow a section for a class, near enough that the warped audio stays clean. */
+export const TEMPO_REACH = 0.15;
+
+/** The tempos the video offers for a track: whole BPM within ±15% of its own, its own included. */
+export function tempoChoices(bpm: number): number[] {
+  // A hair of tolerance: 100 x 1.15 is 114.99999999999999 in floating point.
+  const lo = Math.ceil(bpm * (1 - TEMPO_REACH) - 1e-9);
+  const hi = Math.floor(bpm * (1 + TEMPO_REACH) + 1e-9);
+  return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+}
+
 export interface Frame {
   phase: "countIn" | "playing" | "done";
   /** Bar index shown in each pane, or null for an empty pane. */

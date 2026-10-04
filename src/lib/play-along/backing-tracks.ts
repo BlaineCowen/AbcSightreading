@@ -1,3 +1,6 @@
+import { countInMeasures } from "../count-in";
+import { barsForLength } from "./timeline";
+
 /**
  * The backing loops a play-along video can run over. Each is an audio file in
  * public/backing/ (credited in public/backing/CREDITS.txt) at a known tempo and
@@ -125,5 +128,26 @@ export const BACKING_TRACKS: BackingTrack[] = [
 ];
 
 export const backingTrackById = (id: string) => BACKING_TRACKS.find((t) => t.id === id);
+
+/** Bars of count-in before the music: a track's own intro, or the meter's count-in. */
+export const countInBarsFor = (t: BackingTrack) => t.introBars ?? countInMeasures(t.meter);
+
+/**
+ * How many bars of music a video over `t` has: a full-length track's own, or
+ * for a loop about a minute and a half at its tempo, in whole repeats.
+ */
+export function barsFor(t: BackingTrack): number {
+  if (t.fullLength) return t.bars;
+  return barsForLength({ bpm: t.bpm, meter: t.meter, loopBars: t.bars, countInBars: countInBarsFor(t) });
+}
+
+/**
+ * The longest any track in `meter` needs: the video writes one exercise this
+ * long and each track uses its first `barsFor` bars, so swapping between
+ * tracks in a meter needs no new exercise.
+ */
+export function maxBarsIn(meter: string): number {
+  return Math.max(0, ...BACKING_TRACKS.filter((t) => t.meter === meter).map(barsFor));
+}
 
 export const backingTracksIn = (meter: string) => BACKING_TRACKS.filter((t) => t.meter === meter);

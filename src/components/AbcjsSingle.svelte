@@ -2424,10 +2424,11 @@
    * A rhythm-only exercise for the play-along video (PlayAlongVideo.svelte),
    * at its backing track's tempo and meter, long enough to fill the video.
    * Ties across the barline are off: each bar is shown alone. Counted against
-   * the monthly allowance like any other exercise. Returns the ABC ready to
-   * draw, with the page's rhythm sound and syllables.
+   * the monthly allowance like any other exercise. Returns the exercise as
+   * data, which `playAlongAbc` writes out in whichever syllables the video
+   * asks for - so changing them there never needs a new exercise.
    */
-  async function playAlongExercise(o: { measures: number; bpm: number; meter: string }): Promise<string> {
+  async function playAlongExercise(o: { measures: number; bpm: number; meter: string }): Promise<UnisonScore> {
     if (!(await mayGenerate())) throw new Error("This month's exercises are used up.");
     const params = {
       ...generationParams(selectedKey, o.meter, selectedRange),
@@ -2446,9 +2447,33 @@
     const result = await response.json().catch(() => null);
     if (!response.ok || !result?.success) throw new Error(result?.error ?? "The exercise could not be written.");
     void countGeneration();
-    const abc = (result.data[0] as string).replace(/Q:\d+\/\d+=\d+/g, tempoField(o.meter, o.bpm));
-    return withChosenSound(withChosenAnnotations(abc));
+    return result.data[2] as UnisonScore;
   }
+
+  /**
+   * A play-along exercise as ABC to draw: rhythm syllables in the system the
+   * video chose ("off" for none, stripped as the page strips them), the
+   * page's rhythm sound, the video's tempo.
+   */
+  function playAlongAbc(score: UnisonScore, o: { syllables: string; bpm: number; meter: string }): string {
+    const off = o.syllables === "off";
+    let abc = assembleUnisonAbc(score, {
+      showSolfege: false,
+      lyricSystem,
+      showRhythmSyllables: !off,
+      syllableSystemId: off ? syllableSystemId : o.syllables,
+      customSyllables: $mySyllables,
+    });
+    abc = abc.replace(/Q:\d+\/\d+=\d+/g, tempoField(o.meter, o.bpm));
+    if (off) abc = withoutQuotedText(abc);
+    return withChosenSound(abc);
+  }
+
+  /** The syllable systems the video offers: the built-in ones, and the teacher's own once loaded. */
+  $: playAlongSyllables = [
+    ...Object.values(syllableSystems).map((sys) => ({ id: sys.id, label: sys.label })),
+    ...($mySyllables ? [{ id: CUSTOM_SYLLABLE_ID, label: "Mine" }] : []),
+  ];
 
   /**
    * The play-along video is Pro: the Video button beside Generate opens it
@@ -3636,6 +3661,9 @@
     <PlayAlongVideo
       meters={[...selectedTimeSignatures]}
       generate={playAlongExercise}
+      write={playAlongAbc}
+      syllableChoices={playAlongSyllables}
+      initialSyllables={showRhythmSyllables ? syllableSystemId : "off"}
       {rhythmSoundId}
       onClose={() => (playAlongOpen = false)}
     />
