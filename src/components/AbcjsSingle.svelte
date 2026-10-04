@@ -103,7 +103,6 @@
   import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Link2, Link2Off, Clapperboard } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
-  import type { FormSection } from "../lib/unison-form";
   import { billingStatus } from "../lib/billing-client";
   import {
     defaultSyllableSystem,
@@ -401,7 +400,7 @@
     if (urlParams.has("allowTiesAcrossBarline"))
       options.allowTiesAcrossBarline =
         getParam("allowTiesAcrossBarline") === "true";
-    if (urlParams.has("phrases")) options.phrases = getParam("phrases") !== "false";
+    if (urlParams.has("progressions")) options.progressions = getParam("progressions") !== "false";
 
     const cursor = getParam("cursor");
     if (isCursorMode(cursor)) {
@@ -548,9 +547,9 @@
         ? options.syllableSystemId
         : defaultSyllableSystem.id,
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
-      // Phrases and periods (unison-form.ts). Unset in presets saved before it
-      // existed, which leaves the page's own setting alone.
-      phrases: typeof options.phrases === "boolean" ? options.phrases : undefined,
+      // Chord progressions (unison-progressions.ts). Unset in presets saved
+      // before they existed, which leaves the page's own setting alone.
+      progressions: typeof options.progressions === "boolean" ? options.progressions : undefined,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
       run: runOptionsFrom(options.run),
       // How it sounds. Undefined when not saved (older presets and options),
@@ -630,7 +629,7 @@
     showRhythmSyllables = next.showRhythmSyllables;
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
-    if (typeof next.phrases === "boolean") phrases = next.phrases;
+    if (typeof next.progressions === "boolean") progressions = next.progressions;
     cursorMode = next.cursorMode;
     // Every preset saved before dynamics existed meant Off - not whatever the
     // page last held (a NYSSMA level's p, mf and f, say).
@@ -1108,12 +1107,13 @@
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
   /**
-   * Phrases and periods (unison-form.ts): at 8 bars and more, 4-bar phrases
-   * that ask and answer - a question ending on V, an answer singing its first
-   * two bars again and ending on do; 16 bars are A A' B A'. On unless turned
-   * off. Off: the one free line it always was.
+   * Chord progressions (unison-progressions.ts): the line is written over a
+   * repeating progression - I IV V I and the like - with chord notes on the
+   * strong beats and passing notes between. Diatonic exercises only for now;
+   * with a chromatic note selected the older walk writes it. On unless turned
+   * off.
    */
-  let phrases: boolean = initialState.phrases ?? true;
+  let progressions: boolean = initialState.progressions ?? true;
   let cursorMode: CursorMode = initialState.cursorMode || "smooth";
   /** Printed dynamics: the marks to draw from, or empty for Off (dynamics.ts). */
   let dynamicsSet: DynamicMark[] = initialState.dynamics ?? [];
@@ -1350,7 +1350,7 @@
       showRhythmSyllables,
       syllableSystemId,
       allowTiesAcrossBarline,
-      phrases,
+      progressions,
       cursorMode,
       dynamics: dynamicsSet,
       rhythmSoundId,
@@ -1422,7 +1422,7 @@
     params.set("transpose", String(transposeSemitones));
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
-    params.set("phrases", phrases.toString());
+    params.set("progressions", progressions.toString());
     params.set("cursor", cursorMode);
     if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
@@ -2418,9 +2418,7 @@
       syllableSystemId,
       customSyllables: $mySyllables,
       allowTiesAcrossBarline,
-      // Phrases need whole 4-bar phrases with every note inside its bar; the
-      // generator writes its usual line where the length does not allow them.
-      phrases: phrases && !allowTiesAcrossBarline,
+      progressions,
       // Max 8th / 16th skip: the moves between the short notes inside a figure.
       maxEighthSkip: max8th,
       maxSixteenthSkip: max16th,
@@ -2446,7 +2444,7 @@
    * data, which `playAlongAbc` writes out in whichever syllables the video
    * asks for - so changing them there never needs a new exercise.
    */
-  async function playAlongExercise(o: { measures: number; bpm: number; meter: string; form?: FormSection[] }): Promise<UnisonScore> {
+  async function playAlongExercise(o: { measures: number; bpm: number; meter: string }): Promise<UnisonScore> {
     if (!(await mayGenerate())) throw new Error("This month's exercises are used up.");
     const params = {
       ...generationParams(selectedKey, o.meter, selectedRange),
@@ -2457,9 +2455,8 @@
       // Pitched or rhythm only, as the page is.
       rhythmOnly,
       allowTiesAcrossBarline: false,
-      // Always in phrases and periods, over a song's form when it has one.
-      phrases: true,
-      form: o.form,
+      // Over a chord progression, which the video's bass then plays.
+      progressions: true,
     };
     const response = await fetch("/api/generate", {
       method: "POST",
@@ -3893,31 +3890,26 @@
               </div>
             </div>
 
-            <div class="space-y-2">
-              <p class="sr-label">Phrases</p>
-              <button
-                class="sr-tok {phrases ? 'sr-on' : ''}"
-                on:click={() => (phrases = !phrases)}
-                aria-label="Phrases"
-                aria-pressed={phrases}
-                disabled={allowTiesAcrossBarline}
-              >{phrases && !allowTiesAcrossBarline ? 'On' : 'Off'}</button>
-              <p class="text-xs text-sr-faint">
-                {#if allowTiesAcrossBarline}
-                  Off while ties cross the barline: a phrase keeps its notes inside its bars.
-                {:else if !phrases}
-                  One line from the first bar to the last.
-                {:else if measures < 8 || measures % 4 !== 0}
-                  Phrases come in at 8 bars and more.
-                {:else if measures === 8}
-                  A question ending on so, ti or re, then an answer that sings its first two bars again and ends on do.
-                {:else if measures === 12}
-                  A question, a contrasting phrase, then the answer.
-                {:else}
-                  A question and its answer, a contrasting part, then the answer again to finish.
-                {/if}
-              </p>
-            </div>
+            {#if !rhythmOnly}
+              <div class="space-y-2">
+                <p class="sr-label">Chord progression</p>
+                <button
+                  class="sr-tok {progressions ? 'sr-on' : ''}"
+                  on:click={() => (progressions = !progressions)}
+                  aria-label="Chord progression"
+                  aria-pressed={progressions}
+                >{progressions ? 'On' : 'Off'}</button>
+                <p class="text-xs text-sr-faint">
+                  {#if !progressions}
+                    A chord for every note, wherever the line goes.
+                  {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
+                    With chromatic notes selected, a chord for every note, as before. Progressions are diatonic for now.
+                  {:else}
+                    The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
+                  {/if}
+                </p>
+              </div>
+            {/if}
           </div>
 
           <!-- How the exercise is shown and played, as opposed to what gets

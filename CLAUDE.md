@@ -220,33 +220,39 @@ any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
-### Phrases and periods (Unison)
+### Chord progressions (Unison)
 
-`src/lib/unison-form.ts` (tests `unison-form.test.ts`): with the page's
-Phrases option (on by default; stored in links and presets, older presets
-leave it alone) an exercise of 8 bars or more is built of 4-bar phrases that
-ask and answer, instead of one line from the first bar to the last. A period
-is a question ending on a half cadence (on V: so, ti or re - the generator's
-`phraseEnding: "half"`, which turns everything that steers home towards V's
-notes) and an answer that sings the question's first two bars again, note for
-note, then turns to do. 8 bars = a period, 12 = a b a', 16 = A A' B A',
-longer = A, contrasting sections, the answer to finish (`periodPlan`). The
-play-along videos lay the phrases over their track's sections instead
-(backing-tracks.ts `form`, `planFromForm`): the questions and answers land on
-the track's changes and the opening returns where the track's does; songs get
-their own exercise, loops in a meter share one in plain periods.
+`src/lib/unison-progressions.ts` (tests `unison-progressions.test.ts`):
+harmony first. With the page's Chord progression option (on by default; in
+links and presets, older presets leave it alone) a diatonic exercise is
+written over a short progression - I IV V I, I IV I V I, I V vi IV I,
+I vi IV V I, I ii V I, I vi ii V I; in minor i iv v i, i VI iv v i,
+i VI VII i, i VII VI VII i (natural minor: the raised leading tone waits for
+chromatic progressions) - one chord a bar or two, repeated every four bars,
+every phrase ending home. The line belongs to it: a chord note on the
+downbeat, the middle of a four-beat bar, wherever the chord changes and on
+anything longer than a beat; elsewhere a passing or neighbour note, by step
+in and by step out. Every move is one the exercise allows (exact skips and
+Max 8th skip too); it starts on do, mi or so and ends on do. A depth-first
+search over the sung notes, each choice weighted (steps over leaps, a leap
+answered by a step back, the range used, a pitch three times running only
+when the harmony leaves nothing else).
 
-It is built on the generator, not inside it: each phrase is an ordinary
-exercise a few bars long, and the composer joins them. Every join must be a
-move the exercise's own rules allow (its skips, exact skip lists too, and Max
-8th skip between two eighths); a phrase is drawn again until it joins, a plan
-that will not join is tried again whole, and the last resort is the usual
-single line - a lost rhyme, never a broken rule (an earlier version kept a
-wide leap at a join and broke 17 NYSSMA cells). Measured: every exercise in
-periods across all five NYSSMA levels and general settings, 0 failures in
-the Unison and NYSSMA sweep cells (`PHRASES=1 ONLY_UNISON=1 bun run sweep`),
-and the NYSSMA chart clean (`PHRASES=1 bun run check:nyssma`). With phrases
-off nothing changes - the pinned regression snapshots are untouched.
+It replaced the older walk's harmony, which picked a chord for nearly every
+note to justify the line, so nothing built on it sat with the melody (and a
+question-and-answer period scheme built on that walk sounded wrong and was
+taken out). The writer returns the walk's own shape, a chord and a note per
+rhythm slot, so spelling, solfège and the ABC are unchanged, and the score
+carries the progression (`UnisonScore.harmony`), which the play-along bass
+plays (`progressionChords`). With a chromatic note selected, or where no
+progression fits, the older walk writes the exercise; without the option the
+output is byte for byte what it was (the regression snapshots).
+
+Measured: every exercise over a progression across all five NYSSMA levels,
+general settings in four meters, eight keys and do re mi in steps;
+0 failures in 5,184 Unison and NYSSMA sweep exercises
+(`PROGRESSIONS=1 ONLY_UNISON=1 bun run sweep`); the NYSSMA chart clean
+(`PROGRESSIONS=1 bun run check:nyssma`).
 
 ### Meters
 

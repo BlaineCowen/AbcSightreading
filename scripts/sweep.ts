@@ -37,11 +37,11 @@ const RUNS = Number(process.env.RUNS ?? 12);
  */
 const STEPWISE = process.env.STEPWISE_EIGHTHS !== "0";
 /**
- * PHRASES=1: Unison and NYSSMA cells in phrases and periods (unison-form.ts),
- * as the Unison page writes them with its Phrases option on (the default).
- * Lengths that are not whole phrases still write the single line.
+ * PROGRESSIONS=1: Unison and NYSSMA cells written over chord progressions
+ * (unison-progressions.ts), as the Unison page writes them by default.
+ * ONLY_UNISON=1 skips the Choral cells.
  */
-const PHRASES = process.env.PHRASES === "1";
+const PROGRESSIONS = process.env.PROGRESSIONS === "1";
 const ONLY_UNISON = process.env.ONLY_UNISON === "1";
 
 /**
@@ -176,7 +176,7 @@ for (const rhythmOnly of [false, true]) {
             rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
             scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]),
             key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],
-            showSolfege: !rhythmOnly, rhythmOnly, phrases: PHRASES,
+            showSolfege: !rhythmOnly, rhythmOnly, progressions: PROGRESSIONS,
             showRhythmSyllables: true, syllableSystemId,
             partsObject: { numofParts: 1, parts: { Unison: {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
@@ -199,7 +199,7 @@ for (const level of nyssmaVoiceLevels) {
           run(`nyssma ${level.short} | ${key} | ${meter} | ${clef} | ${measures}m`, () => {
             createNewSr({
               ...nyssmaGenerationParams(level, { key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures }),
-              phrases: PHRASES,
+              progressions: PROGRESSIONS,
             } as any);
           });
         }

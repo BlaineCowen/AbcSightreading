@@ -100,9 +100,9 @@ for (const level of nyssmaVoiceLevels.filter((l) => !ONLY || l.short === `Level 
     for (let run = 0; run < RUNS; run++) {
       let result: any;
       try {
-        // PHRASES=1: as the Unison page writes them with its Phrases option on (the default).
+        // PROGRESSIONS=1: over chord progressions, as the Unison page writes them by default.
         result = silenced(() =>
-          createNewSr({ ...nyssmaGenerationParams(level, { key, meter, clef, anchor: ANCHOR[clef] }), phrases: process.env.PHRASES === "1" } as any),
+          createNewSr({ ...nyssmaGenerationParams(level, { key, meter, clef, anchor: ANCHOR[clef] }), progressions: process.env.PROGRESSIONS === "1" } as any),
         );
       } catch (e: any) {
         row.failed++;

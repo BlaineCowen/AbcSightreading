@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { barChords, bassAbc, bassNote, harmonyNotes, type HarmonyChord, type HarmonyNote } from "../../src/lib/play-along/bass";
+import { barChords, bassAbc, bassNote, harmonyNotes, progressionChords, type HarmonyChord, type HarmonyNote } from "../../src/lib/play-along/bass";
 import { createNewSr } from "../../src/lib/generateUnison";
 import { rhythms as allRhythms } from "../../src/resources/rhythms";
 import { timeSignatureFor } from "../../src/lib/meter";
@@ -84,6 +84,15 @@ describe("spelling the bass", () => {
     expect(abc44).toContain("C32 |G,32 |]");
     const abc98 = bassAbc([...chords], { key: "C", meter: "9/8", barUnits: 36 });
     expect(abc98).toContain("C24-C12 |G,24-G,12 |]");
+  });
+});
+
+describe("over a progression", () => {
+  test("the bass plays the progression's roots, splitting a bar where it splits", () => {
+    const bars = progressionChords([["1"], ["6", "4"], ["5"], ["1"]]);
+    expect(bassAbc(bars, { key: "C", meter: "4/4", barUnits: 32 })).toContain("C32 |A,16 F,16 |G,32 |C32 |]");
+    // 3/4: two beats and one.
+    expect(bassAbc(progressionChords([["4", "5"]]), { key: "G", meter: "3/4", barUnits: 24 })).toContain("C16 D8 |]");
   });
 });
 

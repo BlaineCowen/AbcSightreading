@@ -17,8 +17,15 @@
  * chord on the leading tone (vii, or minor's raised vii) takes the dominant's
  * root: it is a dominant without its root, and the leading tone held a bar in
  * the bass sounded unsettled; minor's own VII, a whole tone below, stays.
+ *
+ * An exercise written over a progression (unison-progressions.ts) carries
+ * its harmony, and the bass plays that instead (`progressionChords`): the
+ * melody was written against those chords, so nothing need be guessed. A bar
+ * with two chords splits where the progression splits it.
  */
 import { keySignatures } from "../../resources/key-signatures";
+import { chords as ALL_CHORDS } from "../../resources/chords";
+import { splitAt } from "../unison-progressions";
 
 /** What the bass needs of a chord: its root and tones as scale degrees (0-6), and any chromatic step. */
 export interface HarmonyChord {
@@ -121,6 +128,18 @@ export function barChords(notes: HarmonyNote[], barUnits: number, beatUnits: num
   return out;
 }
 
+/** A bar of the bass: one chord, or two splitting the bar (splitAt). */
+export type BassBar = BarChord | BarChord[];
+
+/** The bass for an exercise written over a progression: its chords' roots, bar by bar. */
+export function progressionChords(harmony: string[][]): BassBar[] {
+  const toBar = (name: string): BarChord => {
+    const chord = ALL_CHORDS.find((c) => c.name === name);
+    return { root: chord ? chord.root : 0, shift: null, name };
+  };
+  return harmony.map((bar) => (bar.length > 1 ? bar.map(toBar) : toBar(bar[0])));
+}
+
 /** Note lengths one note can be, longest first (32nds), in simple and in compound meter (dotted beats). */
 const WRITABLE_SIMPLE = [32, 24, 16, 12, 8, 4];
 const WRITABLE_COMPOUND = [48, 24, 12, 4];
@@ -158,10 +177,18 @@ export function bassNote(key: string, chord: BarChord): string {
   return `${keyRaises ? "=" : keyLowers ? "__" : "_"}${pitch}`;
 }
 
-/** The bass as an ABC tune: one note a bar, on bass guitar (MIDI program 33), in the exercise's key and meter. */
-export function bassAbc(chords: BarChord[], o: { key: string; meter: string; barUnits: number; program?: number }): string {
+/**
+ * The bass as an ABC tune: one note a bar (two where a bar has two chords),
+ * on bass guitar (MIDI program 33), in the exercise's key and meter.
+ */
+export function bassAbc(chords: BassBar[], o: { key: string; meter: string; barUnits: number; program?: number }): string {
   const compound = /\/8$/.test(o.meter);
-  const body = chords.map((c) => tiedLength(bassNote(o.key, c), o.barUnits, compound)).join(" |") + " |]";
+  const split = splitAt(o.barUnits, compound ? 12 : 8);
+  const bar = (c: BassBar) =>
+    Array.isArray(c)
+      ? `${tiedLength(bassNote(o.key, c[0]), split, compound)} ${tiedLength(bassNote(o.key, c[1]), o.barUnits - split, compound)}`
+      : tiedLength(bassNote(o.key, c), o.barUnits, compound);
+  const body = chords.map(bar).join(" |") + " |]";
   return `X:1\nM:${o.meter}\nL:1/32\n%%MIDI program ${o.program ?? 33}\nK:${o.key} clef=bass\n${body}\n`;
 }
 
