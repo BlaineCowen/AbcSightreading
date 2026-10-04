@@ -1,5 +1,6 @@
 import { countInMeasures } from "../count-in";
 import { barsForLength } from "./timeline";
+import type { FormSection } from "../unison-form";
 
 /**
  * The backing loops a play-along video can run over. Each is an audio file in
@@ -29,7 +30,17 @@ export interface BackingTrack {
    * ending. Played once, so the exercise is exactly `bars` long.
    */
   fullLength?: boolean;
+  /**
+   * A full-length track's sections, in order (repeated letters are the same
+   * music): the exercise's phrases are laid over them (unison-form.ts
+   * planFromForm), so its questions and answers land on the track's changes
+   * and its opening comes back where the track's does. Their bars add up to
+   * `bars`.
+   */
+  form?: FormSection[];
 }
+
+const section = (letter: string, bars: number): FormSection => ({ letter, bars });
 
 /**
  * Simple 8-bar drum loops, one acoustic kit, every meter the videos offer
@@ -76,6 +87,8 @@ export const BACKING_TRACKS: BackingTrack[] = [
     downbeatSec: 0,
     introBars: 1,
     fullLength: true,
+    // Intro, drums and bass, + acoustic guitar, new groove, breakdown, everything.
+    form: [section("I", 4), section("A", 8), section("A", 8), section("B", 4), section("C", 4), section("A", 4)],
   },
   {
     id: "reggaeton-4-4-108",
@@ -87,6 +100,8 @@ export const BACKING_TRACKS: BackingTrack[] = [
     downbeatSec: 0,
     introBars: 1,
     fullLength: true,
+    // Intro, the beat, + shaker and claps, new groove, breakdown, everything.
+    form: [section("I", 4), section("A", 8), section("A", 8), section("B", 8), section("C", 4), section("A", 8)],
   },
   // Trap is made at 140 and felt in half time: written at 70, the snare on 2 and 4.
   {
@@ -99,6 +114,8 @@ export const BACKING_TRACKS: BackingTrack[] = [
     downbeatSec: 0,
     introBars: 1,
     fullLength: true,
+    // Montreal, lit off the gas, breakdown, montreal again.
+    form: [section("A", 8), section("B", 4), section("C", 4), section("A", 8)],
   },
   // One recording, two meters: cumbia is usually written in 2/4, and the same
   // 36 bars of 4/4 are 72 of 2/4 with the same four-beat count-in.
@@ -112,6 +129,8 @@ export const BACKING_TRACKS: BackingTrack[] = [
     downbeatSec: 0,
     introBars: 1,
     fullLength: true,
+    // Intro, the band, trumpets, the bridge, breakdown, everything.
+    form: [section("I", 4), section("A", 8), section("A", 8), section("B", 8), section("C", 4), section("A", 4)],
   },
   {
     id: "cumbia-2-4-100",
@@ -123,6 +142,8 @@ export const BACKING_TRACKS: BackingTrack[] = [
     downbeatSec: 0,
     introBars: 2,
     fullLength: true,
+    // The same sections as the 4/4 listing, counted in bars of 2/4.
+    form: [section("I", 8), section("A", 16), section("A", 16), section("B", 16), section("C", 8), section("A", 8)],
   },
   ...drumTracks,
 ];
@@ -147,7 +168,14 @@ export function barsFor(t: BackingTrack): number {
  * tracks in a meter needs no new exercise.
  */
 export function maxBarsIn(meter: string): number {
-  return Math.max(0, ...BACKING_TRACKS.filter((t) => t.meter === meter).map(barsFor));
+  return Math.max(0, ...BACKING_TRACKS.filter((t) => t.meter === meter && !t.form).map(barsFor));
 }
+
+/**
+ * Which exercise a track plays over: its own, written to its form, when it
+ * has one; otherwise the one its meter's loops share (plain periods,
+ * maxBarsIn long). Tracks with the same key can swap without a new exercise.
+ */
+export const exerciseKeyFor = (t: BackingTrack) => (t.form ? `${t.meter}|${t.id}` : `${t.meter}|periods`);
 
 export const backingTracksIn = (meter: string) => BACKING_TRACKS.filter((t) => t.meter === meter);

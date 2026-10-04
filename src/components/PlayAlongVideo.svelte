@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
-  import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
+  import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, exerciseKeyFor, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
+  import type { FormSection } from "../lib/unison-form";
   import { barsForLength, frameAt, tempoChoices } from "../lib/play-along/timeline";
   import { barChords, bassAbc, harmonyNotes } from "../lib/play-along/bass";
   import { INSTRUMENTS, isInstrumentProgram, withInstrument } from "../lib/instruments";
@@ -22,9 +23,11 @@
    * (src/lib/play-along/timeline.ts). About a minute and a half, then a
    * finish card.
    *
-   * One exercise per meter, long enough for every track in it (maxBarsIn):
-   * swapping between tracks in a meter is instant and free, each using its
-   * first barsFor bars; only a track in another meter writes a new one. The
+   * The exercise is in phrases and periods (unison-form.ts). A song with a
+   * form gets its own, its phrases laid over the song's sections; the loops in
+   * a meter share one in plain periods, long enough for every loop
+   * (maxBarsIn), so swapping between them is instant and free. The picker
+   * marks the tracks that would write a new exercise. The
    * tempo can move ±15% with the backing warped, pitch kept (stretch.ts), and
    * the rhythm syllables change here without a new exercise (the page writes
    * the exercise out again in the system asked for).
@@ -43,7 +46,7 @@
   /** The meters picked on the page: tracks in the same kind of meter are offered, these first. */
   export let meters: string[];
   /** Writes a rhythm-only exercise (counted against the allowance) and returns it as data. */
-  export let generate: (o: { measures: number; bpm: number; meter: string }) => Promise<UnisonScore>;
+  export let generate: (o: { measures: number; bpm: number; meter: string; form?: FormSection[] }) => Promise<UnisonScore>;
   /** Writes an exercise out as ABC to draw: syllables in a system or "off", the page's rhythm sound. */
   export let write: (score: UnisonScore, o: { syllables: string; bpm: number; meter: string }) => string;
   /** The syllable systems on offer (the page's, and the teacher's own once loaded). */
@@ -139,6 +142,8 @@
 
   /** The exercise, the meter it is in and how many bars it has (the most any track in that meter needs). */
   let score: UnisonScore | null = null;
+  /** Which tracks the exercise serves (exerciseKeyFor): one song's form, or its meter's loops. */
+  let scoreKey = "";
   let scoreMeter = "";
   let scoreBars = 0;
   /** Rhythm syllables: a system id, or "off". */
@@ -273,12 +278,17 @@
     }
   }
 
-  /** Writes a new exercise in `meter`, as long as the longest track in it. Counts against the allowance. */
-  async function writeExercise(meter: string) {
-    if (!track) return;
-    const measures = pitched ? pitchedBars(meter) : maxBarsIn(meter);
-    score = await generate({ measures, bpm: pitched ? pageTempo : track.bpm, meter });
-    scoreMeter = meter;
+  /**
+   * Writes the exercise for `t`, in phrases and periods (unison-form.ts):
+   * over a song, to its form, its own length; over a loop, the plain periods
+   * every loop in its meter shares, as long as the longest. Counts against the
+   * allowance.
+   */
+  async function writeExercise(t: BackingTrack) {
+    const measures = pitched ? pitchedBars(t.meter) : t.form ? t.bars : maxBarsIn(t.meter);
+    score = await generate({ measures, bpm: pitched ? pageTempo : t.bpm, meter: t.meter, form: t.form });
+    scoreKey = exerciseKeyFor(t);
+    scoreMeter = t.meter;
     scoreBars = measures;
     await redraw();
   }
@@ -307,7 +317,7 @@
       guideFor = "";
       audio.setGuide(null);
       audio.setBass(null);
-      if (newExercise || !score || scoreMeter !== t.meter) await writeExercise(t.meter);
+      if (newExercise || !score || scoreKey !== exerciseKeyFor(t)) await writeExercise(t);
       await audio.loadBacking(t);
       countInBars = countInBarsFor(t);
       bars = pitched ? scoreBars : barsFor(t);
@@ -570,7 +580,7 @@
         aria-label="Backing track"
       >
         {#each tracks as t}
-          <option value={t.id}>{t.name}{scoreMeter && t.meter !== scoreMeter ? " · new exercise" : ""}</option>
+          <option value={t.id}>{t.name}{scoreKey && exerciseKeyFor(t) !== scoreKey ? " · new exercise" : ""}</option>
         {/each}
       </select>
       <div class="tempo flex items-center gap-1" role="group" aria-label="Tempo">

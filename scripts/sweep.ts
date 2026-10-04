@@ -36,6 +36,13 @@ const RUNS = Number(process.env.RUNS ?? 12);
  * measuring something nobody uses. `STEPWISE_EIGHTHS=0` sweeps with it off.
  */
 const STEPWISE = process.env.STEPWISE_EIGHTHS !== "0";
+/**
+ * PHRASES=1: Unison and NYSSMA cells in phrases and periods (unison-form.ts),
+ * as the Unison page writes them with its Phrases option on (the default).
+ * Lengths that are not whole phrases still write the single line.
+ */
+const PHRASES = process.env.PHRASES === "1";
+const ONLY_UNISON = process.env.ONLY_UNISON === "1";
 
 /**
  * Not a failure, a quality: how many short notes (an eighth or less) are
@@ -87,6 +94,7 @@ function run(label: string, make: () => void) {
   return cell;
 }
 
+if (!ONLY_UNISON) { // ONLY_UNISON=1 skips the Choral cells, to check Unison alone
 // ----------------------------------------------------------------- choral
 for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
   const rhythms = allRhythms.filter(
@@ -141,6 +149,7 @@ for (const voiceTexture of ["full", "staggered"]) {
   }
 }
 
+} // ONLY_UNISON
 // ----------------------------------------------------------------- unison
 // One loop over every meter Unison offers. Choral offers no compound meter;
 // Unison and rhythm-only do, with the Core set the picker starts on, and
@@ -167,7 +176,7 @@ for (const rhythmOnly of [false, true]) {
             rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
             scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]),
             key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],
-            showSolfege: !rhythmOnly, rhythmOnly,
+            showSolfege: !rhythmOnly, rhythmOnly, phrases: PHRASES,
             showRhythmSyllables: true, syllableSystemId,
             partsObject: { numofParts: 1, parts: { Unison: {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
@@ -188,9 +197,10 @@ for (const level of nyssmaVoiceLevels) {
       for (const clef of ["treble", "bass"]) {
         for (const measures of [4, 8, 16]) {
           run(`nyssma ${level.short} | ${key} | ${meter} | ${clef} | ${measures}m`, () => {
-            createNewSr(nyssmaGenerationParams(level, {
-              key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures,
-            }) as any);
+            createNewSr({
+              ...nyssmaGenerationParams(level, { key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures }),
+              phrases: PHRASES,
+            } as any);
           });
         }
       }

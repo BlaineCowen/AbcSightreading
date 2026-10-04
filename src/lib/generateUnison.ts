@@ -1,3 +1,4 @@
+import { composeUnison, periodPlan, planBars, planFromForm } from "./unison-form";
 import { chords } from "../resources/chords";
 import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
@@ -514,7 +515,14 @@ function generateChordProgression(
   chromatic: { sharps: Set<number>; flats: Set<number> } = {
     sharps: new Set(),
     flats: new Set(),
-  }
+  },
+  /**
+   * How the line ends. "authentic", always until phrases: on I, at do, mi or
+   * so. "half": on V, at so, ti or re - the question a period's first phrase
+   * asks (unison-form.ts). Everything that steers the line home (isHome,
+   * leadsHome, the homing near the end) then steers it to V's notes instead.
+   */
+  ending: "authentic" | "half" = "authentic"
 ) {
   /**
    * Is this the altered note the chord carries, and one the reader asked for?
@@ -656,7 +664,10 @@ function generateChordProgression(
    * steered toward do over its last notes to get there, which with 1 2 3 5 6
    * left so and la a tenth of the line each.
    */
-  const isHome = (note: Note) => [0, 2, 4].includes(note.degree) && scaleDegrees.includes(note.degree);
+  const homeDegrees = ending === "half" ? [4, 6, 1] : [0, 2, 4];
+  const isHome = (note: Note) => homeDegrees.includes(note.degree) && scaleDegrees.includes(note.degree);
+  /** The chord the line ends on: I, or (a half cadence) V when the exercise's chords include it. */
+  const finalChord = (ending === "half" && chords.find((c) => c.name === "5")) || chords[0];
   /**
    * How many notes early a line starts heading home: the notes it needs to
    * walk there, plus this. Measured on "up to so" (by step, do to so) when
@@ -1092,10 +1103,12 @@ function generateChordProgression(
             );
             if (!nextChordInfo) return false;
 
-            // Pre-filter for cadence
+            // Pre-filter for cadence: V before I; before a half cadence's V,
+            // a chord that leads to it (IV, ii, I) - not V again.
             const isCadentialChord =
-              nextChordInfo.type === "dominant" ||
-              nextChordInfo.type === "predominant";
+              ending === "half"
+                ? nextChordInfo.type === "predominant" || nextChordInfo.type === "tonic"
+                : nextChordInfo.type === "dominant" || nextChordInfo.type === "predominant";
             if (!isCadentialChord) return false;
 
             // Is it reachable with the general maxSkip?
@@ -1133,8 +1146,9 @@ function generateChordProgression(
 
               // Pre-filter for cadence
               const isCadentialChord =
-                nextChordInfo.type === "dominant-inversion" ||
-                nextChordInfo.type === "tonic";
+                ending === "half"
+                  ? nextChordInfo.type !== "dominant" && nextChordInfo.type !== "dominant-inversion"
+                  : nextChordInfo.type === "dominant-inversion" || nextChordInfo.type === "tonic";
               if (!isCadentialChord) return false;
 
               // Is it reachable with the general maxSkip?
@@ -1214,16 +1228,16 @@ function generateChordProgression(
       } else if (i === numOfChords - 1) {
         prevChord = chordProgression[chordProgression.length - 1];
 
-        // The last chord must be "1"
+        // The last chord must be "1" - or "5", ending a half cadence.
         const nextChord = {
-          chord: chords[0],
+          chord: finalChord,
           length: randNoteLengths[i],
-          triadDegrees: chords[0].triadNotes,
+          triadDegrees: finalChord.triadNotes,
         };
         let bassNoteToAdd = bassDegrees
-          .filter((note) => usable(chords[0], note))
-          .filter((note) => reaches(note, chords[0], i));
-        // End on do, mi or so, whichever are selected and in reach.
+          .filter((note) => usable(finalChord, note))
+          .filter((note) => reaches(note, finalChord, i));
+        // End on a home note in reach: do, mi or so - or, ending a half cadence, so, ti or re.
         const home = bassNoteToAdd.filter(isHome);
         if (home.length > 0) bassNoteToAdd = home;
         if (bassNoteToAdd.length > 0) {
@@ -2583,7 +2597,19 @@ const BORROWED_MINOR_TONIC: Chord = {
  * degree sets in place, and a second pass over the same object would convert
  * them again.
  */
-export function createNewSr(params: any) {
+export function createNewSr(params: any): any {
+  // Phrases and periods (unison-form.ts): asked for by the page's Phrases
+  // option or a play-along track's form. Each phrase is written by this
+  // function with phrases off, so this only runs at the top.
+  if (params && (params.phrases || params.form) && !params.phraseEnding) {
+    const plan = params.form ? planFromForm(params.form) : periodPlan(Number(params.measures));
+    if (plan && planBars(plan) === Number(params.measures)) {
+      return composeUnison(params, plan, (p) => createNewSr(p), (score) => {
+        const finished = withDynamics(score, dynamicsSetFrom(params.dynamics));
+        return [assembleUnisonAbc(finished, params), [], finished];
+      });
+    }
+  }
   const wantSharps = new Set<number>(
     Array.from(params?.selectedSharpDegrees ?? []).map((d: any) => (Number(d) - 1) % 12)
   );
@@ -3003,7 +3029,8 @@ function createNewSrOnce(params: any) {
         shortCaps,
         rhythm,
         params.accidentalsFollowStep,
-        { sharps: sharpScaleDegrees, flats: flatScaleDegrees }
+        { sharps: sharpScaleDegrees, flats: flatScaleDegrees },
+        params.phraseEnding === "half" ? "half" : "authentic"
       );
 
     // With exact skips listed, a line that sang none of them is drawn again

@@ -100,7 +100,10 @@ for (const level of nyssmaVoiceLevels.filter((l) => !ONLY || l.short === `Level 
     for (let run = 0; run < RUNS; run++) {
       let result: any;
       try {
-        result = silenced(() => createNewSr(nyssmaGenerationParams(level, { key, meter, clef, anchor: ANCHOR[clef] }) as any));
+        // PHRASES=1: as the Unison page writes them with its Phrases option on (the default).
+        result = silenced(() =>
+          createNewSr({ ...nyssmaGenerationParams(level, { key, meter, clef, anchor: ANCHOR[clef] }), phrases: process.env.PHRASES === "1" } as any),
+        );
       } catch (e: any) {
         row.failed++;
         note(`failed: ${String(e?.message ?? e).slice(0, 70)}`);

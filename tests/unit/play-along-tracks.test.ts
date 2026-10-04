@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { BACKING_TRACKS, barsFor, maxBarsIn } from "../../src/lib/play-along/backing-tracks";
+import { planBars, planFromForm } from "../../src/lib/unison-form";
 import { tempoChoices } from "../../src/lib/play-along/timeline";
 import { EXERCISE_METER_NAMES } from "../../src/lib/meter";
 
@@ -13,8 +14,18 @@ describe("one exercise per meter", () => {
     for (const m of EXERCISE_METER_NAMES) expect(BACKING_TRACKS.some((t) => t.meter === m)).toBe(true);
   });
 
-  test("every track fits in its meter's exercise", () => {
-    for (const t of BACKING_TRACKS) expect(barsFor(t)).toBeLessThanOrEqual(maxBarsIn(t.meter));
+  test("every loop fits in its meter's shared exercise; a track with a form has its own", () => {
+    for (const t of BACKING_TRACKS) {
+      if (t.form) continue;
+      expect(barsFor(t)).toBeLessThanOrEqual(maxBarsIn(t.meter));
+    }
+  });
+
+  test("each track's form adds up to its bars and plans to a whole exercise", () => {
+    for (const t of BACKING_TRACKS.filter((x) => x.form)) {
+      expect(t.form!.reduce((sum, s) => sum + s.bars, 0)).toBe(t.bars);
+      expect(planBars(planFromForm(t.form!))).toBe(t.bars);
+    }
   });
 
   test("a full-length track is exactly its own bars; a loop whole repeats of itself", () => {
