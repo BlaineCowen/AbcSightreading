@@ -106,7 +106,10 @@
   let retuneTimer: ReturnType<typeof setTimeout> | null = null;
   let tuning = false;
 
+  /** The guide key the latest render was started for, and the one whose buffer the player holds. */
   let guideFor = "";
+  let guideReady = "";
+  let guideSeq = 0;
   let guideLoading = false;
   let guideJob: Promise<void> | null = null;
   /**
@@ -139,22 +142,45 @@
   $: guideKey = `${sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}`;
   $: if (abc && audioRunning && status === "ready" && guideKey !== guideFor) void renderGuide();
 
-  /** Renders the guide track: the exercise on the chosen instrument at the video's tempo. */
+  /**
+   * Renders the guide track: the exercise on the chosen instrument at the
+   * video's tempo. Renders can overlap - a track changed while the last
+   * guide was still rendering - so each is numbered and only the newest is
+   * kept: the older one finishing last once left the guide at the previous
+   * track's tempo, further behind every bar.
+   */
   function renderGuide(): Promise<void> {
     if (!audio || !abc || !tempo) return Promise.resolve();
-    guideFor = guideKey;
+    const seq = ++guideSeq;
+    const key = guideKey;
+    guideFor = key;
     guideLoading = true;
     const instrument = rhythmSoundFor(sound.guideSound);
-    guideJob = audio
+    const job: Promise<void> = audio
       .renderGuide(withRhythmSound(abc, instrument), tempo, volumeMultiplierFor(instrument))
+      .then((buffer) => {
+        if (seq !== guideSeq) return;
+        audio?.setGuide(buffer);
+        guideReady = key;
+      })
       .catch(() => {
-        error = "That sound could not be loaded. Try another, or play without the guide.";
+        if (seq === guideSeq) error = "That sound could not be loaded. Try another, or play without the guide.";
       })
       .finally(() => {
+        if (seq !== guideSeq) return;
         guideLoading = false;
         guideJob = null;
       });
-    return guideJob;
+    guideJob = job;
+    return job;
+  }
+
+  /** Waits until the guide the player holds is the one for what is about to play. */
+  async function guideUpToDate() {
+    for (let tries = 0; tries < 3 && guideReady !== guideKey; tries++) {
+      if (guideJob && guideFor === guideKey) await guideJob;
+      else await renderGuide();
+    }
   }
 
   /** Lets sound start (Play is a click, so the browser allows it), giving up after a few seconds. */
@@ -204,6 +230,12 @@
       retuneTimer = null;
       tempo = t.bpm;
       tunedTo = t.bpm;
+      // The guide held is for the last track's tempo; nothing plays it until the
+      // new one is in, and the reactive render above must start again even if
+      // the last render was started for the same key.
+      guideReady = "";
+      guideFor = "";
+      audio.setGuide(null);
       if (newExercise || !score || scoreMeter !== t.meter) await writeExercise(t.meter);
       await audio.loadBacking(t);
       countInBars = countInBarsFor(t);
@@ -256,8 +288,7 @@
       if (retuneTimer) clearTimeout(retuneTimer);
       await retune();
     }
-    if (guideJob) await guideJob;
-    if (guideFor !== guideKey) await renderGuide();
+    await guideUpToDate();
     await audio.ready();
     if (record) {
       try {

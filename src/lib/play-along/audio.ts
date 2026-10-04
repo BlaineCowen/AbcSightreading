@@ -94,9 +94,13 @@ export class PlayAlongAudio {
   /**
    * Renders the rhythm itself, as the Unison page does (AbcjsSingle initAudio),
    * for the guide track: `abc` already names the instrument (withRhythmSound).
-   * Drawn off screen because abcjs's synth reads a drawn tune.
+   * Drawn off screen because abcjs's synth reads a drawn tune. Returns the
+   * buffer rather than keeping it: renders can overlap (a new track while the
+   * last one's guide is still rendering), and only the caller knows which is
+   * current - keeping whichever finished last once left a guide at the old
+   * track's tempo, falling further behind every bar. `setGuide` keeps it.
    */
-  async renderGuide(abc: string, bpm: number, volumeMultiplier: number): Promise<void> {
+  async renderGuide(abc: string, bpm: number, volumeMultiplier: number): Promise<AudioBuffer | null> {
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;left:-20000px;top:0;width:800px;visibility:hidden";
     document.body.appendChild(host);
@@ -109,10 +113,15 @@ export class PlayAlongAudio {
         options: { qpm: bpm, soundFontUrl: "/api/soundfont/", soundFontVolumeMultiplier: volumeMultiplier },
       } as any);
       await synth.prime();
-      this.guideBuffer = synth.getAudioBuffer() ?? null;
+      return synth.getAudioBuffer() ?? null;
     } finally {
       host.remove();
     }
+  }
+
+  /** The guide to play with the next run (renderGuide's result, for the current track and tempo). */
+  setGuide(buffer: AudioBuffer | null) {
+    this.guideBuffer = buffer;
   }
 
   /**
