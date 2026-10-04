@@ -6,10 +6,20 @@ Footage is recorded by capture/ (bun run capture) into assets/captures and
 copied to assets/footage. Times are seconds on the 60 s timeline; cuts land on
 the music's beat (Maple Leaf Rag at 120 bpm, first note at 0.28 s).
 """
-import html, json
+import html, json, subprocess, sys
 
 W, H = 1920, 1080
-BEAT0 = 0.28            # the rag's first note
+
+# The music, one composition each (python3 build.py writes them all). `start`:
+# where in the song the video begins, a downbeat chosen so the song's own
+# ending lands just before 0:60. Beat grid measured from each file: tempo, and
+# where its beats fall (seconds into the file). Cuts snap to these beats.
+MUSIC = {
+    "index": dict(file="kids-song.mp3", bpm=85.05, phase=0.26, start=8.726,
+                  credit="Kids Song (atlasaudio)"),
+    "fun": dict(file="fun-fun-music.mp3", bpm=133.35, phase=0.175, start=13.67,
+                credit="Fun Fun Music (prettyjohn1)"),
+}
 SWAP = 0.24             # how long into a wipe the scenes change over
 
 # Each feature scene: when it starts (the wipe), copy, and the footage shown in
@@ -112,6 +122,41 @@ def feature(s, track0):
 </div>'''
 
 
+def beat_grid(m):
+    """The song's beats on the video's timeline."""
+    beat = 60 / m["bpm"]
+    first = m["phase"] + beat * -(-(m["start"] - m["phase"]) // beat)  # first beat at or after the start
+    return [first - m["start"] + k * beat for k in range(int(DURATION / beat) + 2)]
+
+
+def snap(t, beats):
+    return min(beats, key=lambda b: abs(b - t))
+
+
+def retime(m):
+    """Scene cuts and the hook's word entrances, moved onto this song's beats."""
+    beats = beat_grid(m)
+    for s in SCENES:
+        s["t"] = snap(s["base_t"], beats)
+    PLAYALONG["t"] = snap(PLAYALONG["base_t"], beats)
+    global CLOSE_T, HOOK_BEATS
+    CLOSE_T = snap(54.28, beats)
+    HOOK_BEATS = [b for b in beats if b >= 0.15][:6]
+    while HOOK_BEATS[-1] > 3.6 and len(HOOK_BEATS) > 1:  # six words before the first cut, on the beat or half beat
+        half = 30 / m["bpm"]
+        HOOK_BEATS = [HOOK_BEATS[0] + k * half for k in range(6)]
+        break
+
+
+def mix(name, m):
+    """The song from `start`, 60 s, levelled, faded in briefly and out under the close."""
+    out = f"assets/music/ad-mix-{name}.mp3"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(m["start"]), "-i", f"assets/music/{m['file']}",
+                    "-t", str(DURATION), "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.08,afade=t=out:st={DURATION - 1.2}:d=1.2",
+                    "-ar", "48000", "-b:a", "192k", out], check=True)
+    return out
+
+
 def build():
     scenes_html, tracks = [], 10
     for s in SCENES:
@@ -166,24 +211,23 @@ def script():
     cuts.sort(key=lambda c: c[1])
     order = ["hook"] + [c[0] for c in cuts]
     feats = {s["id"]: s for s in SCENES}
-    js = []
+    js = [f"  var HOOK = {json.dumps([round(b, 3) for b in HOOK_BEATS])};"]
     # Hook: words pop in on the beat while the ball hops across them.
     js.append("""
   // ---- Hook
   tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.15);
   for (var i = 0; i < 6; i++) {
-    tl.from("#hw" + i, { y: 50, scale: 0.85, opacity: 0, duration: 0.45, ease: i % 2 ? "back.out(2.2)" : "power3.out" }, 0.28 + i * 0.5);
+    tl.from("#hw" + i, { y: 50, scale: 0.85, opacity: 0, duration: 0.45, ease: i % 2 ? "back.out(2.2)" : "power3.out" }, HOOK[i]);
   }
   // The ball (the play-along video's own) lands on each word as it appears.
   var hops = window.__hops || [];
   tl.set("#hook-ball", { opacity: 1 }, 0.2);
   for (var i = 0; i < hops.length; i++) {
-    var h = hops[i];
-    tl.to("#hook-ball", { x: h.x, duration: 0.5, ease: "none" }, 0.03 + i * 0.5);
-    tl.to("#hook-ball", { y: h.y - 150, duration: 0.25, ease: "power2.out" }, 0.03 + i * 0.5);
-    tl.to("#hook-ball", { y: h.y, duration: 0.25, ease: "power2.in" }, 0.28 + i * 0.5);
+    var h = hops[i], land = HOOK[i], from = i ? HOOK[i - 1] : Math.max(0, land - 0.5), d = land - from;
+    tl.to("#hook-ball", { x: h.x, duration: d, ease: "none" }, from);
+    tl.to("#hook-ball", { y: h.y - 150, duration: d / 2, ease: "power2.out" }, from);
+    tl.to("#hook-ball", { y: h.y, duration: d / 2, ease: "power2.in" }, from + d / 2);
   }
-  tl.to("#hook-ball", { scale: 1.25, duration: 0.2, ease: "sine.inOut", yoyo: true, repeat: 3 }, 3.2);
 """)
     js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % DURATION)
     # Wipes and entrances
@@ -307,7 +351,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 <div class="wipe" id="wipe-a" data-layout-ignore></div>
 <div class="wipe" id="wipe-b" data-layout-ignore></div>
 <div class="wipe" id="wipe-c" data-layout-ignore></div>
-<audio id="music" data-start="0" data-duration="%%DURATION%%" data-track-index="1" src="assets/music/ad-mix.mp3" data-volume="0.9"></audio>
+<audio id="music" data-start="0" data-duration="%%DURATION%%" data-track-index="1" src="%%MUSIC%%" data-volume="0.9"></audio>
 </div>
 <script>
 window.__timelines = window.__timelines || {};
@@ -331,5 +375,15 @@ window.__timelines["main"] = tl;
 """
 
 if __name__ == "__main__":
-    open("index.html", "w").write(build())
-    print("index.html written")
+    for s in SCENES:
+        s.setdefault("base_t", s["t"])
+    PLAYALONG.setdefault("base_t", PLAYALONG["t"])
+    for name, m in MUSIC.items():
+        retime(m)
+        audio = mix(name, m)
+        page = build().replace("%%MUSIC%%", audio)
+        # One root composition per HyperFrames project: each song's version
+        # is its own project, the alternatives beside this one sharing assets.
+        open("index.html" if name == "index" else f"../ad-{name}/index.html", "w").write(page)
+        print(f"{'index.html' if name == 'index' else f'../ad-{name}/index.html'}: {m['credit']}, from {m['start']} s; cuts at",
+              ", ".join(f"{t:.2f}" for t in sorted([s['t'] for s in SCENES] + [PLAYALONG['t'], CLOSE_T])))
