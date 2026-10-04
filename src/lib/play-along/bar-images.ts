@@ -43,6 +43,19 @@ export interface RenderedBars {
 const STAFF_WIDTH = 420;
 /** Room above and below the staff line in each picture, in SVG units. */
 const PAD = 6;
+/**
+ * Room always kept for one row of words below the music (solfège, or rhythm
+ * syllables - the labels the video turns on and off), in SVG units, whether
+ * or not they are showing: the frame is sized from the music and this room,
+ * so turning them on fills it instead of rescaling the bar. Measured, the row
+ * reaches 19-25 below the music; solfège used to take a bar from 1540 to
+ * 1389 px wide on the 1080p canvas. And when the exercise has dynamics, a
+ * row above as well: abcjs puts a dynamic under the staff, but moves it over
+ * the staff when there are words under it, so turning solfège on grew the
+ * top instead (1540 to 1247 px).
+ */
+const WORDS_BELOW = 26;
+const WORDS_ABOVE = 26;
 
 /**
  * Draws `abc` one bar to a line in a hidden element and returns a picture a
@@ -80,8 +93,18 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
     // so the staff sits at the same height in every picture.
     const boxes = lines.map((g) => g.getBBox());
     const staffYs = lines.map((g, i) => staffLineY(g) ?? boxes[i].y + boxes[i].height / 2);
-    const above = Math.max(...boxes.map((b, i) => staffYs[i] - b.y)) + PAD;
-    const below = Math.max(...boxes.map((b, i) => b.y + b.height - staffYs[i])) + PAD;
+    // Below: the music alone (no words) and room for a row of words under it,
+    // never less than everything drawn, should the words need more.
+    const music = lines.map((g, i) => musicBox(g) ?? boxes[i]);
+    const hasDynamics = lines.some((g) => g.querySelector(".abcjs-decoration"));
+    const above = Math.max(
+      ...boxes.map((b, i) => staffYs[i] - b.y),
+      ...(hasDynamics ? music.map((b, i) => staffYs[i] - b.y + WORDS_ABOVE) : []),
+    ) + PAD;
+    const below = Math.max(
+      ...boxes.map((b, i) => b.y + b.height - staffYs[i]),
+      ...music.map((b, i) => b.y + b.height - staffYs[i] + WORDS_BELOW),
+    ) + PAD;
 
     const bars = await Promise.all(
       lines.map(async (_, i) => {
@@ -132,6 +155,22 @@ function staffLineY(g: SVGGElement): number | null {
   if (!staff) return null;
   const b = staff.getBBox();
   return b.y + b.height / 2;
+}
+
+/** What a line draws besides words (lyrics, annotations, dynamics, chord names): its staff, clef, notes and beams. */
+function musicBox(g: SVGGElement): { x: number; y: number; width: number; height: number } | null {
+  const words = ".abcjs-lyric, .abcjs-annotation, .abcjs-decoration, .abcjs-chord";
+  let top = Infinity, bottom = -Infinity, left = Infinity, right = -Infinity;
+  for (const el of g.querySelectorAll<SVGGraphicsElement>("path, text, rect, line, ellipse, circle, polygon")) {
+    if (el.closest(words)) continue;
+    const b = el.getBBox();
+    if (!b.width && !b.height) continue;
+    top = Math.min(top, b.y);
+    bottom = Math.max(bottom, b.y + b.height);
+    left = Math.min(left, b.x);
+    right = Math.max(right, b.x + b.width);
+  }
+  return Number.isFinite(top) ? { x: left, y: top, width: right - left, height: bottom - top } : null;
 }
 
 /** The highest point of the notes in a line: their stems and beams. */

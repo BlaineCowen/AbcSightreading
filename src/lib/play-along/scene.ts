@@ -217,14 +217,17 @@ function card(g: CanvasRenderingContext2D, which: "top" | "bottom", barIndex: nu
     g.fillText("next", c.x + 112, c.y + 66);
   }
 
+  // The picture keeps room for a row of words above and below (bar-images.ts),
+  // blank when there are none, so it may reach nearer the card's edges.
   let dw = c.w - 200;
   let dh = dw / bar.aspect;
-  if (dh > c.h - 90) {
-    dh = c.h - 90;
+  if (dh > c.h - 40) {
+    dh = c.h - 40;
     dw = dh * bar.aspect;
   }
   const dx = c.x + (c.w - dw) / 2 + 30;
-  const dy = c.y + (c.h - dh) / 2 + 20;
+  // Nudged down past the bar badge, never past the card's foot.
+  const dy = c.y + Math.min((c.h - dh) / 2 + 20, c.h - dh - 12);
   const staffY = dy + bar.staffAt * dh;
 
   const ball = active && s.showBall !== false ? ballAt(bar.notes, s.frame.progress, bar.musicEnd) : null;
