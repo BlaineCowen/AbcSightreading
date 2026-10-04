@@ -212,10 +212,22 @@ not always do. Chromatic chords only steer the line when their altered note is
 selected. Before that, a do-re-mi exercise was two-thirds repeated notes; and
 when the line was made to end on do and steered there, 1 2 3 5 6 gave so and la
 a tenth of the line each against do's third (now each 12-29%).
-Max 8th skip and Max 16th skip (`src/lib/short-note-skips.ts`, replacing the old
-"Move 8th Notes" switch) cap the moves between the short notes inside a figure;
-a figure's first note follows Max skip or the exact skips. At 0 (what Move
-eighths off maps to in old presets and links) a ti-ti is sung on one pitch, and only inside the pair:
+Which notes a skip may use is **Skips between** (skip-policy.ts
+`isAllowedMove`, the row under Max skip, in both modes): the note values
+sixteenth, eighth, quarter, dotted quarter and half-or-longer (each note
+counts as the largest that fits it, `skipLengthClass`), and BOTH notes of a
+skip must be chosen ones - leave eighths out and eighth-eighth-quarter only
+steps, where "Skips land on" (exact skips only, the landing note only) still
+let an eighth be left by a leap. It replaced Max 8th / Max 16th skip; what
+those did not fold into is **Eighth pairs on one pitch** (`EighthSettings` in
+`src/lib/short-note-skips.ts`, the generator's caps at 0), which every Unison
+ladder step uses. Old presets and links map across (`eighthsFrom`): Max 8th
+skip 0, or Move 8th Notes off, is one pitch; 1 leaves eighths and sixteenths
+out of Skips between; a list saved with the four old values is all five. The
+NYSSMA levels keep "quarters" (and halves at V), stricter than the chart's
+landing rule but inside it; their skips per exercise fell (Level III 2.19 to
+1.57, V 4.08 to 2.95), every exercise still with one, the chart clean.
+With eighth pairs on one pitch a ti-ti is sung on one pitch, and only inside the pair:
 any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
@@ -303,7 +315,7 @@ means a change reached simple meter.
 I-V (Manual Ed. 33, p. 7-2), the Unison page's built-in presets ("NYSSMA
 Voice" in the picker). Their interval rules are skip lists, not a largest
 skip: `src/lib/skip-policy.ts` decides every move the Unison generator makes
-(Max skip, or exact skips with what a skip may land on), and with exact skips on a
+(Max skip, or exact skips, and Skips between in both), and with exact skips on a
 rest holds the line, so a skip is measured between sung notes.
 `tests/unit/unison-skip-regression.test.ts` pins Max skip output byte for
 byte. `scripts/check-nyssma.ts` checks every level x key x meter x clef (94

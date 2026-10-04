@@ -115,3 +115,18 @@ describe("URL params", () => {
     expect(readShortSkipParams(new URLSearchParams("moveEighthNotes=false"))).toEqual({});
   });
 });
+
+describe("eighth pairs on one pitch (what is left of Max 8th / 16th skip)", () => {
+  const { eighthsFrom, capsFor } = require("../../src/lib/short-note-skips");
+  test("a saved setting wins; an old Max 8th skip of 0 is one pitch, 1 leaves short notes out of Skips between", () => {
+    expect(eighthsFrom({ eighthPairsOnePitch: true, max8th: 4 }, 4)).toEqual({ onePitch: true, dropShortSkips: false });
+    expect(eighthsFrom({ max8th: 0, max16th: 0 }, 4)).toEqual({ onePitch: true, dropShortSkips: false });
+    expect(eighthsFrom({ moveEighthNotes: false }, 4)).toEqual({ onePitch: true, dropShortSkips: false });
+    expect(eighthsFrom({ max8th: 1, max16th: 1 }, 4)).toEqual({ onePitch: false, dropShortSkips: true });
+    expect(eighthsFrom({}, 4)).toEqual({ onePitch: false, dropShortSkips: false });
+  });
+  test("one pitch holds the pair; otherwise no cap (finite, for JSON)", () => {
+    expect(capsFor({ onePitch: true })).toEqual({ maxEighthSkip: 0, maxSixteenthSkip: 0 });
+    expect(capsFor({ onePitch: false }).maxEighthSkip).toBeGreaterThan(8);
+  });
+});

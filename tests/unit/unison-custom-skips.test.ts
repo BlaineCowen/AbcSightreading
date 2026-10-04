@@ -228,12 +228,12 @@ describe("custom skips in the generator", () => {
   test("Tonic triad ↕ landing on halves, quarters only: refused plainly, not 32 × one pitch", () => {
     expect(() =>
       line({ kind: "custom", moves: TONIC_TRIAD_BOTH, landOn: [16] }, { degrees: [1, 3, 5], range: { min: 14, max: 21 }, rhythms: ["quarter"] })
-    ).toThrow(/No selected rhythm has a note a skip may land on/);
+    ).toThrow(/No selected rhythm has a note a skip may be sung between/);
   });
   test("Tonic triad ↕ landing on quarters, eighth pairs only: refused plainly, not 64 × one pitch", () => {
     expect(() =>
       line({ kind: "custom", moves: TONIC_TRIAD_BOTH, landOn: [8] }, { degrees: [1, 3, 5], range: { min: 14, max: 21 }, rhythms: ["eighthEighth"] })
-    ).toThrow(/No selected rhythm has a note a skip may land on/);
+    ).toThrow(/No selected rhythm has a note a skip may be sung between/);
   });
   test("no landing note but the notes join by step: the line steps, with more than one pitch", () => {
     for (let run = 0; run < 10; run++) {
@@ -256,4 +256,35 @@ describe("custom skips in the generator", () => {
     expect(exact).not.toMatch(/Max Skip/);
     expect(exact).toMatch(/adding a skip or more scale degrees/);
   });
+});
+
+describe("Skips between in the generator: both notes of a skip", () => {
+  const { createNewSr } = require("../../src/lib/generateUnison");
+  const { rhythms: all } = require("../../src/resources/rhythms");
+  const { timeSignatureFor } = require("../../src/lib/meter");
+  const names = ["quarter", "half", "eighthEighth", "dotQuarterEighth"];
+  for (const progressions of [true, false]) {
+    test(`Max skip, eighths and sixteenths left out: no skip leaves or lands on a short note (${progressions ? "progressions" : "older walk"})`, () => {
+      let skips = 0;
+      for (let run = 0; run < 12; run++) {
+        const out: any = createNewSr({
+          bpm: 80, tempo: 80, clef: "treble", selectedClef: "treble", timeSig: timeSignatureFor("4/4"), selectedTimeSignature: "4/4",
+          measures: 8, maxSkip: { kind: "max", maxSkip: 4, landOn: [8, 12, 16] }, maxEighthSkip: 99, maxSixteenthSkip: 99,
+          range: { min: 14, max: 21 }, selectedRhythms: names, rhythms: all.filter((r: any) => names.includes(r.name)),
+          scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]), key: ["C", "G", "F"][run % 3], chords: ["1", "2", "3", "4", "5", "6", "7"],
+          showSolfege: true, rhythmOnly: false, progressions,
+          partsObject: { numofParts: 1, parts: { Unison: { chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
+        });
+        const sung = out[2].partsObject.parts.Unison.chordNoteObject.filter((n: any) => !n.rhythm?.rest);
+        for (let k = 1; k < sung.length; k++) {
+          if (Math.abs(sung[k].pitchValue - sung[k - 1].pitchValue) <= 1) continue;
+          skips++;
+          expect(sung[k - 1].noteLength).toBeGreaterThan(4);
+          expect(sung[k].noteLength).toBeGreaterThan(4);
+        }
+      }
+      // And the line still skips between the longer notes.
+      expect(skips).toBeGreaterThan(10);
+    });
+  }
 });

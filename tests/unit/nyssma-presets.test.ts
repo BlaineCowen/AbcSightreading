@@ -88,9 +88,11 @@ describe("NYSSMA Voice levels match the chart (spec table)", () => {
     expect(nyssmaVoiceLevels.map((l) => l.dynamics)).toEqual([
       ["mf"], ["mf"], ["mf"], ["p", "mf", "f"], ["p", "mp", "mf", "f"],
     ]);
-    for (const l of nyssmaVoiceLevels) {
-      expect(l.shortSkipsLinked).toBe(false);
-      expect([l.max8th, l.max16th]).toEqual([1, 1]);
+    // From Level III, with eighth pairs, eighths are left out of Skips between:
+    // a skip neither starts nor lands on one.
+    for (const l of nyssmaVoiceLevels.filter((l) => l.rhythms.includes("eighthEighth"))) {
+      expect(l.skips.landOn).not.toContain(4);
+      expect(l.skips.landOn).not.toContain(2);
     }
   });
 });

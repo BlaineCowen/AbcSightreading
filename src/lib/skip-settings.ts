@@ -14,16 +14,24 @@ export interface SkipSettings {
   patterns: SkipChipId[];
   /** Other skips, in the order they were added. */
   extraSkips: SkipMove[];
-  /** Lengths (32nds) a skip may land on. All four: no limit. */
+  /**
+   * "Skips between": the note values (skipLengthClass) both notes of a skip
+   * must be. All of them: no limit. Applies in both modes - it was "Skips
+   * land on" inside the exact-skips panel, checking only the note landed on,
+   * so an eighth could still be left by a skip.
+   */
   landOn: number[];
 }
 
 export const LAND_ON_CHOICES: readonly { length: number; label: string; icon: string }[] = [
+  { length: 2, label: "sixteenth", icon: "sixteenth" },
   { length: 4, label: "eighth", icon: "eighth" },
   { length: 8, label: "quarter", icon: "quarter" },
   { length: 12, label: "dotted quarter", icon: "dotQuarter" },
-  { length: 16, label: "half", icon: "half" },
+  { length: 16, label: "half or longer", icon: "half" },
 ];
+/** What a saved full list looked like before sixteenths were a choice: it meant no limit. */
+const OLD_FULL_LAND_ON = [4, 8, 12, 16];
 export const ALL_LAND_ON: number[] = LAND_ON_CHOICES.map((c) => c.length);
 
 /** Max skip mode, nothing chosen: what a page, preset or link without the fields gets. */
@@ -122,6 +130,12 @@ export function addExtraSkip(list: SkipMove[], move: SkipMove): SkipMove[] {
   return list.some((m) => moveKey(m) === key) ? list : [...list, { from: move.from, to: move.to, dir: move.dir }];
 }
 
+/** Skips between without its short values (an old Max 8th skip of 1: short notes only step). */
+export function withoutShortSkips(s: SkipSettings): SkipSettings {
+  const landOn = s.landOn.filter((l) => l > 4);
+  return { ...s, landOn: landOn.length ? landOn : [8] };
+}
+
 /** Turn one land-on value on or off, in note-value order. The last one stays on. */
 export function toggleLandOn(list: number[], length: number): number[] {
   if (list.includes(length)) return list.length > 1 ? list.filter((l) => l !== length) : [...list];
@@ -130,13 +144,15 @@ export function toggleLandOn(list: number[], length: number): number[] {
 
 /** The rule these controls describe: Max skip, or the union of the patterns on and the other skips. */
 export function policyFor(maxSkip: number, s: SkipSettings): SkipPolicy {
-  if (!s.exactOn) return { kind: "max", maxSkip };
+  // Skips between applies in both modes; with every value on it limits nothing.
+  const limited = ALL_LAND_ON.some((l) => !s.landOn.includes(l));
+  const landOn = limited ? { landOn: [...s.landOn] } : {};
+  if (!s.exactOn) return { kind: "max", maxSkip, ...landOn };
   const moves = unique([
     ...s.patterns.flatMap((id) => chipMoves(id)),
     ...s.extraSkips.filter(isSkipMove),
   ]);
-  const limited = ALL_LAND_ON.some((l) => !s.landOn.includes(l));
-  return limited ? { kind: "custom", moves, landOn: [...s.landOn] } : { kind: "custom", moves };
+  return { kind: "custom", moves, ...landOn };
 }
 
 /** The settings in a saved options object. Anything missing or malformed falls back to the default (Max skip). */
@@ -145,9 +161,10 @@ export function skipSettingsFrom(options: unknown): SkipSettings {
   const extraSkips = Array.isArray(o.extraSkips)
     ? unique(o.extraSkips.filter(isSkipMove))
     : [];
-  const landOn = Array.isArray(o.landOn)
-    ? ALL_LAND_ON.filter((l) => (o.landOn as unknown[]).includes(l))
-    : [];
+  const saved = Array.isArray(o.landOn) ? (o.landOn as unknown[]) : [];
+  // A list saved with every value of its day had no limit, and still has none.
+  const wasFull = OLD_FULL_LAND_ON.every((l) => saved.includes(l));
+  const landOn = wasFull ? [...ALL_LAND_ON] : ALL_LAND_ON.filter((l) => saved.includes(l));
   return {
     exactOn: o.exactOn === true,
     patterns: Array.isArray(o.patterns) ? cleanPatterns(o.patterns) : [],
@@ -194,7 +211,7 @@ export function readSkipParams(params: URLSearchParams): SkipSettings | null {
  * alone the line cannot get between the selected notes.
  */
 export const NO_LANDING_MESSAGE =
-  'No selected rhythm has a note a skip may land on, so the line could only step, and by step it cannot get between all the selected notes. Turn on more "Skips land on" values, select rhythms with those notes, or select the notes in between.';
+  'No selected rhythm has a note a skip may be sung between, so the line could only step, and by step it cannot get between all the selected notes. Turn on more "Skips between" values, select rhythms with those notes, or select the notes in between.';
 
 /**
  * Can a line with exact skips get from every selected degree to every other,

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
   ALL_LAND_ON, DEFAULT_SKIP_SETTINGS, SKIP_CHIPS, addExtraSkip, chipMoves, degreesConnected, policyFor,
-  readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams,
+  readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, withoutShortSkips, writeSkipParams,
   type SkipSettings,
 } from "../../src/lib/skip-settings";
-import { isAllowedMove, type SkipMove, type SkipPolicy } from "../../src/lib/skip-policy";
+import { isAllowedMove, skipLengthClass, type SkipMove, type SkipPolicy } from "../../src/lib/skip-policy";
 
 const code = (m: SkipMove) => `${m.from}${{ up: "↑", down: "↓", both: "↕" }[m.dir]}${m.to}`;
 const codes = (ms: SkipMove[]) => ms.map(code);
@@ -73,7 +73,8 @@ describe("patterns", () => {
     const on = exact({ patterns: ["do-sol-up"], extraSkips: [{ from: 2, to: 5, dir: "up" }], landOn: [8] });
     const off = setExactOn(on, false);
     expect(off).toEqual({ ...on, exactOn: false });
-    expect(policyFor(4, off)).toEqual({ kind: "max", maxSkip: 4 });
+    // Skips between applies in Max skip mode too.
+    expect(policyFor(4, off)).toEqual({ kind: "max", maxSkip: 4, landOn: [8] });
     expect(setExactOn(off, true)).toEqual(on);
   });
 });
@@ -94,8 +95,10 @@ describe("other skips", () => {
 });
 
 describe("policyFor", () => {
-  test("exact skips off is the Max skip number, whatever is chosen", () => {
+  test("exact skips off is the Max skip number, with Skips between, whatever skips are chosen", () => {
     expect(policyFor(3, { exactOn: false, patterns: ["do-sol-up"], extraSkips: [], landOn: [8] }))
+      .toEqual({ kind: "max", maxSkip: 3, landOn: [8] });
+    expect(policyFor(3, { exactOn: false, patterns: ["do-sol-up"], extraSkips: [], landOn: [...ALL_LAND_ON] }))
       .toEqual({ kind: "max", maxSkip: 3 });
   });
 
@@ -122,11 +125,42 @@ describe("policyFor", () => {
   });
 });
 
-describe("skips land on", () => {
+describe("skips between", () => {
   test("toggles in note-value order and never leaves none", () => {
-    expect(toggleLandOn(ALL_LAND_ON, 4)).toEqual([8, 12, 16]);
+    expect(ALL_LAND_ON).toEqual([2, 4, 8, 12, 16]);
+    expect(toggleLandOn(ALL_LAND_ON, 4)).toEqual([2, 8, 12, 16]);
     expect(toggleLandOn([16], 8)).toEqual([8, 16]);
     expect(toggleLandOn([8], 8)).toEqual([8]);
+  });
+});
+
+describe("skips between: both notes of a skip", () => {
+  const n = (pitchValue: number, degree: number) => ({ pitchValue, degree });
+  const quartersUp: SkipPolicy = { kind: "max", maxSkip: 4, landOn: [8, 12, 16] };
+
+  test("eighth, eighth, quarter only steps: a skip neither leaves nor lands on an eighth", () => {
+    // do up to mi: a skip.
+    expect(isAllowedMove(n(14, 0), n(16, 2), 8, quartersUp, 8)).toBe(true); // quarter to quarter
+    expect(isAllowedMove(n(14, 0), n(16, 2), 8, quartersUp, 4)).toBe(false); // from an eighth
+    expect(isAllowedMove(n(14, 0), n(16, 2), 4, quartersUp, 8)).toBe(false); // onto an eighth
+    expect(isAllowedMove(n(14, 0), n(15, 1), 4, quartersUp, 4)).toBe(true); // a step goes anywhere
+  });
+
+  test("each note counts as the largest value that fits it: a whole note is a half or longer", () => {
+    expect([1, 2, 3, 4, 6, 8, 12, 16, 24, 32].map(skipLengthClass)).toEqual([2, 2, 2, 4, 4, 8, 12, 16, 16, 16]);
+    expect(isAllowedMove(n(14, 0), n(16, 2), 32, quartersUp, 24)).toBe(true);
+  });
+
+  test("an exact skip follows the same rule", () => {
+    const policy = { kind: "custom", moves: [{ from: 1, to: 3, dir: "up" }], landOn: [8] } as SkipPolicy;
+    expect(isAllowedMove(n(14, 0), n(16, 2), 8, policy, 8)).toBe(true);
+    expect(isAllowedMove(n(14, 0), n(16, 2), 8, policy, 4)).toBe(false);
+  });
+
+  test("a preset saved with the four old values has no limit; an old limited list keeps its meaning", () => {
+    expect(skipSettingsFrom({ landOn: [4, 8, 12, 16] }).landOn).toEqual(ALL_LAND_ON);
+    expect(skipSettingsFrom({ landOn: [8, 16] }).landOn).toEqual([8, 16]);
+    expect(withoutShortSkips(skipSettingsFrom({})).landOn).toEqual([8, 12, 16]);
   });
 });
 

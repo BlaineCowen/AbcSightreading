@@ -70,12 +70,12 @@
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { landablePolicy, type SkipDir } from "../lib/skip-policy";
   import {
-    ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected,
+    ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected, withoutShortSkips,
     policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams,
     type SkipSettings,
   } from "../lib/skip-settings";
   import {
-    readShortSkipParams, setShortSkip, shortSkipsFrom, writeShortSkipParams, type SkipStepper,
+    readShortSkipParams, eighthsFrom, capsFor, MAX_SKIP_RANGE,
   } from "../lib/short-note-skips";
   import { nyssmaById, nyssmaVoiceLevels, type NyssmaLevel } from "../lib/nyssma-presets";
   import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
@@ -100,7 +100,7 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Link2, Link2Off, Clapperboard } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
   import { billingStatus } from "../lib/billing-client";
@@ -376,6 +376,7 @@
     if (urlParams.has("moveEighthNotes"))
       options.moveEighthNotes = getParam("moveEighthNotes") === "true";
     Object.assign(options, readShortSkipParams(urlParams));
+    if (urlParams.has("pairsOnePitch")) options.eighthPairsOnePitch = getParam("pairsOnePitch") === "true";
     if (urlParams.has("accidentalsFollowStep"))
       options.accidentalsFollowStep =
         getParam("accidentalsFollowStep") === "true";
@@ -530,12 +531,15 @@
       rangeAnchor: Number.isInteger(options.rangeAnchor) ? (options.rangeAnchor as number) : selectedRange.min,
       measures: options.measures || 8,
       maxSkip: options.maxSkip || 4,
-      // Exact skips; presets and options from before load in Max skip mode.
-      skips: skipSettingsFrom(options),
+      // Exact skips and Skips between; presets and options from before load in
+      // Max skip mode. An old Max 8th skip of 1 (short notes only step) leaves
+      // eighths and sixteenths out of Skips between, which says the same.
+      skips: eighthsFrom(options, options.maxSkip || 4).dropShortSkips
+        ? withoutShortSkips(skipSettingsFrom(options))
+        : skipSettingsFrom(options),
       bpm: options.bpm || 60,
-      // Max 8th / 16th skip. Saved before they existed: Move 8th Notes off is
-      // 0 and 0, unlinked; on, or nothing saved, is linked to Max skip.
-      shortSkips: shortSkipsFrom(options, options.maxSkip || 4),
+      // Eighth pairs on one pitch: an old Max 8th skip of 0, or Move 8th Notes off.
+      eighths: { onePitch: eighthsFrom(options, options.maxSkip || 4).onePitch },
       accidentalsFollowStep:
         typeof options.accidentalsFollowStep === "boolean" ? options.accidentalsFollowStep : true,
       showSolfege: options.showSolfege || false,
@@ -621,7 +625,7 @@
     maxSkip = next.maxSkip;
     skips = next.skips;
     bpm = next.bpm;
-    ({ max8th, max16th, linked: shortSkipsLinked } = next.shortSkips);
+    eighthPairsOnePitch = next.eighths.onePitch;
     accidentalsFollowStep = next.accidentalsFollowStep;
     showSolfege = next.showSolfege;
     lyricSystem = next.lyricSystem;
@@ -703,10 +707,10 @@
     rangeSpan = null;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
     if (u.maxSkip) maxSkip = u.maxSkip;
-    // A step's Move 8th Notes, read the way a saved preset's is.
-    ({ max8th, max16th, linked: shortSkipsLinked } = shortSkipsFrom({ moveEighthNotes: u.moveEighthNotes }, maxSkip));
-    // A step's skip size is a Max skip.
-    skips = setExactOn(skips, false);
+    // A step's Move 8th Notes off sings each pair on one pitch.
+    eighthPairsOnePitch = u.moveEighthNotes === false;
+    // A step's skip size is a Max skip, between any notes.
+    skips = { ...setExactOn(skips, false), landOn: [...ALL_LAND_ON] };
     const range = rangeForStep(u, selectedRange);
     if (range) selectedRange = range;
     selectedSharpDegrees = new Set();
@@ -746,9 +750,7 @@
     selectedSharpDegrees = new Set();
     selectedFlatDegrees = new Set();
     maxSkip = level.maxSkip;
-    max8th = level.max8th;
-    max16th = level.max16th;
-    shortSkipsLinked = level.shortSkipsLinked;
+    eighthPairsOnePitch = false;
     skips = {
       ...level.skips,
       patterns: [...level.skips.patterns],
@@ -815,7 +817,7 @@
       skips: skipSettingsFrom({}),
       bpm: 60,
       // A new reader: the three skips move together.
-      shortSkips: shortSkipsFrom({}, 4),
+      eighths: { onePitch: false },
       accidentalsFollowStep: false,
       showSolfege: false,
       rhythmOnly: false,
@@ -905,31 +907,21 @@
     LAND_ON_CHOICES.map((c) => [c.length, import(`../assets/svgs/${c.icon}.svg?raw`)])
   );
   let bpm = initialState.bpm;
-  /** Max 8th / 16th skip (short-note-skips.ts), and whether the three steppers move together. */
-  let max8th: number = initialState.shortSkips.max8th;
-  let max16th: number = initialState.shortSkips.max16th;
-  let shortSkipsLinked: boolean = initialState.shortSkips.linked;
-  function stepSkip(which: SkipStepper, delta: number) {
-    const current = { maxSkip, max8th, max16th }[which];
-    const next = setShortSkip({ maxSkip, max8th, max16th, linked: shortSkipsLinked }, which, current + delta);
-    ({ max8th, max16th } = next);
-    // With exact skips on, Max skip is dimmed and not in force: a linked 8th or
-    // 16th change leaves it alone, so nothing springs back when they go off.
-    if (!(skips.exactOn && which !== 'maxSkip')) maxSkip = next.maxSkip;
-  }
-  /** Linking sets the 8th and 16th skips to Max skip, so "Linked" always means one value. */
-  function toggleShortSkipsLink() {
-    shortSkipsLinked = !shortSkipsLinked;
-    if (shortSkipsLinked) max8th = max16th = maxSkip;
+  /**
+   * Eighth pairs on one pitch (short-note-skips.ts EighthSettings): the
+   * ladder's early steps sing ti-ti on one note. Which note values a skip
+   * may use is Skips between (skips.landOn), in both modes.
+   */
+  let eighthPairsOnePitch: boolean = initialState.eighths.onePitch;
+  function stepSkip(delta: number) {
+    maxSkip = Math.min(MAX_SKIP_RANGE.max, Math.max(MAX_SKIP_RANGE.min, maxSkip + delta));
   }
   /** The steppers' interval names: 0 the same pitch, 1 a step, then a 3rd and up. */
   const skipName = (n: number) =>
     n === 0 ? 'same pitch' : n === 1 ? 'a step' : skipIntervalNames[n] ?? `${n} steps`;
-  /** The three skip rows, each with its note-value icon (the rhythm picker's own). */
-  const skipRows: { which: SkipStepper; label: string; icon: string; min: number }[] = [
+  /** The skip stepper, with its note-value icon (the rhythm picker's own). */
+  const skipRows: { which: 'maxSkip'; label: string; icon: string; min: number }[] = [
     { which: 'maxSkip', label: 'Max skip', icon: 'quarter', min: 1 },
-    { which: 'max8th', label: 'Max 8th skip', icon: 'eighth', min: 0 },
-    { which: 'max16th', label: 'Max 16th skip', icon: 'sixteenth', min: 0 },
   ];
   /**
    * One scale for the three icons, so their noteheads match: an icon's height
@@ -1309,7 +1301,7 @@
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
     accidentalsFollowStep !== false ||
-    !(shortSkipsLinked && max8th === maxSkip && max16th === maxSkip);
+    skips.landOn.length !== ALL_LAND_ON.length || eighthPairsOnePitch;
   // A range that follows the key is judged by its placement for the pool's
   // first key in picker order, not the key drawn, so Generate cannot flip the dot.
   $: settledRange = (rangeSpan && rangeForSpan(rangeSpan, possibleKeys.find((k) => selectedKeys.has(k)) ?? selectedKey, rangeAnchor)) || selectedRange;
@@ -1339,9 +1331,7 @@
       maxSkip,
       ...skips,
       bpm,
-      max8th,
-      max16th,
-      shortSkipsLinked,
+      eighthPairsOnePitch,
       accidentalsFollowStep,
       showSolfege,
       lyricSystem,
@@ -1412,7 +1402,7 @@
     params.set("maxSkip", maxSkip.toString());
     writeSkipParams(skips, params);
     params.set("bpm", bpm.toString());
-    writeShortSkipParams({ max8th, max16th, linked: shortSkipsLinked }, params);
+    params.set("pairsOnePitch", String(eighthPairsOnePitch));
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
     params.set("showSolfege", showSolfege.toString());
     params.set("lyrics", lyricSystem);
@@ -2418,9 +2408,8 @@
       customSyllables: $mySyllables,
       allowTiesAcrossBarline,
       progressions,
-      // Max 8th / 16th skip: the moves between the short notes inside a figure.
-      maxEighthSkip: max8th,
-      maxSixteenthSkip: max16th,
+      // Eighth pairs on one pitch, or no cap: Skips between rules short notes.
+      ...capsFor({ onePitch: eighthPairsOnePitch }),
       accidentalsFollowStep: accidentalsFollowStep,
       dynamics: rhythmOnly ? [] : dynamicsSet,
       partsObject: {
@@ -4201,24 +4190,12 @@
             <!-- Skips: the largest skip by note value, and the exact-skips panel
                  under them (short-note-skips.ts, skip-settings.ts). -->
             <div class="space-y-2">
-              <div class="flex items-center gap-3">
-                <p class="sr-label">Skips</p>
-                <button type="button"
-                  class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold transition-colors
-                    {shortSkipsLinked ? 'bg-sr-tint text-sr-action-fg' : 'bg-sr-track text-sr-muted'}"
-                  aria-label="Link the three skips"
-                  aria-pressed={shortSkipsLinked}
-                  title={shortSkipsLinked ? 'The three skips move together' : 'Each skip is set on its own'}
-                  on:click={toggleShortSkipsLink}>
-                  {#if shortSkipsLinked}<Link2 size={14} />{:else}<Link2Off size={14} />{/if}
-                  <span aria-hidden="true">{shortSkipsLinked ? 'Linked' : 'Unlinked'}</span>
-                </button>
-              </div>
+              <p class="sr-label">Skips</p>
               <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 sm:grid-cols-[auto_auto_auto_minmax(0,1fr)] sm:gap-x-3"
                 role="group" aria-label="Skips">
                 {#each skipRows as row}
-                  {@const value = row.which === 'maxSkip' ? maxSkip : row.which === 'max8th' ? max8th : max16th}
-                  {@const dimmed = row.which === 'maxSkip' && skips.exactOn}
+                  {@const value = maxSkip}
+                  {@const dimmed = skips.exactOn}
                   <span class="flex h-8 w-7 items-end justify-center pb-0.5 text-sr-ink transition-opacity" class:opacity-40={dimmed} aria-hidden="true">
                     {#await skipRowSvgs[row.which] then svg}
                       <span class="skip-icon flex" style="height: {skipIconHeight(svg.default)}px">{@html svg.default}</span>
@@ -4239,11 +4216,11 @@
                     aria-describedby={dimmed ? 'exact-skips-note' : undefined}>
                     <button type="button" class="sr-btn-quiet !px-2.5 !py-1.5"
                       aria-label="Decrease {row.label.toLowerCase()}" disabled={value <= row.min}
-                      on:click={() => stepSkip(row.which, -1)}><Minus size={14} /></button>
+                      on:click={() => stepSkip(-1)}><Minus size={14} /></button>
                     <span class="text-sm font-bold w-5 text-center tabular-nums">{value}</span>
                     <button type="button" class="sr-btn-quiet !px-2.5 !py-1.5"
                       aria-label="Increase {row.label.toLowerCase()}" disabled={value >= 8}
-                      on:click={() => stepSkip(row.which, 1)}><Plus size={14} /></button>
+                      on:click={() => stepSkip(1)}><Plus size={14} /></button>
                   </div>
                   {#if dimmed}
                     <span id="exact-skips-note" class="hidden text-xs font-bold text-sr-muted sm:block">Using your exact skips</span>
@@ -4252,7 +4229,48 @@
                   {/if}
                 {/each}
               </div>
-              <p class="text-xs text-sr-faint">8th and 16th skips apply between the short notes of a figure. 0 = same pitch, 1 = step.</p>
+
+              <!-- Skips between: which note values a skip may use, both its notes
+                   (skip-policy.ts). In both modes. Steps go anywhere. -->
+              <div class="space-y-2 pt-1">
+                <p class="text-xs font-bold text-sr-muted">Skips between</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Skips between">
+                  {#each LAND_ON_CHOICES as choice}
+                    <button type="button"
+                      class="sr-tok-sq h-12 w-12 p-1.5 flex items-center justify-center {skips.landOn.includes(choice.length) ? 'sr-on' : ''}"
+                      aria-label={choice.label}
+                      title={choice.label}
+                      aria-pressed={skips.landOn.includes(choice.length)}
+                      on:click={() => (skips = { ...skips, landOn: toggleLandOn(skips.landOn, choice.length) })}>
+                      {#await landOnSvgs[choice.length]}
+                        <span class="text-xs">…</span>
+                      {:then svg}
+                        <span class="rhythm-icon">{@html svg.default}</span>
+                      {:catch}
+                        <span class="text-xs">{choice.label}</span>
+                      {/await}
+                    </button>
+                  {/each}
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {skips.landOn.length === ALL_LAND_ON.length
+                    ? 'A skip may be sung between any notes.'
+                    : 'A skip only between the notes chosen, both of them: leave out eighths and an eighth is stepped to and from. Steps go anywhere.'}
+                </p>
+              </div>
+
+              <div class="space-y-1 pt-1">
+                <button type="button"
+                  class="sr-tok {eighthPairsOnePitch ? 'sr-on' : ''}"
+                  aria-pressed={eighthPairsOnePitch}
+                  on:click={() => (eighthPairsOnePitch = !eighthPairsOnePitch)}
+                >Eighth pairs on one pitch: {eighthPairsOnePitch ? 'On' : 'Off'}</button>
+                <p class="text-xs text-sr-faint">
+                  {eighthPairsOnePitch
+                    ? 'Each ti-ti is sung on one note, so the rhythm is all that is new.'
+                    : 'Eighth pairs move like any other notes.'}
+                </p>
+              </div>
 
               <details class="exact-skips group" bind:open={exactPanelOpen}>
                 <summary class="inline-flex items-center gap-1.5 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden rounded-full -ml-1 pl-1 pr-3 py-1 text-[13px] font-bold text-sr-action-fg hover:bg-sr-track">
@@ -4347,33 +4365,6 @@
                   {#if skips.exactOn && skips.patterns.length === 0 && skips.extraSkips.length === 0}
                     <p class="text-xs text-sr-muted">Stepwise only - no skips.</p>
                   {/if}
-
-                  <div class="space-y-2">
-                    <p class="text-xs font-bold text-sr-muted">Skips land on</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Skips land on">
-                      {#each LAND_ON_CHOICES as choice}
-                        <button type="button"
-                          class="sr-tok-sq h-12 w-12 p-1.5 flex items-center justify-center {skips.landOn.includes(choice.length) ? 'sr-on' : ''}"
-                          aria-label={choice.label}
-                          title={choice.label}
-                          aria-pressed={skips.landOn.includes(choice.length)}
-                          on:click={() => (skips = { ...skips, landOn: toggleLandOn(skips.landOn, choice.length) })}>
-                          {#await landOnSvgs[choice.length]}
-                            <span class="text-xs">…</span>
-                          {:then svg}
-                            <span class="rhythm-icon">{@html svg.default}</span>
-                          {:catch}
-                            <span class="text-xs">{choice.label}</span>
-                          {/await}
-                        </button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-sr-faint">
-                      {skips.landOn.length === ALL_LAND_ON.length
-                        ? 'A skip may land on any note.'
-                        : 'A skip may only land on the notes chosen. Steps land anywhere.'}
-                    </p>
-                  </div>
 
                   <p class="text-xs text-sr-faint">Steps are always allowed. Each skip may be sung in any octave.</p>
                 </div>

@@ -19,10 +19,34 @@ export interface SkipMove {
   dir: SkipDir;
 }
 
+/**
+ * `landOn`: the note values a skip may be sung between (skipLengthClass);
+ * unset means any. Both notes of a skip must be one: a skip neither starts
+ * nor lands on an eighth when eighths are left out, so eighth-eighth-quarter
+ * only steps. Kept under its old name, which presets and links carry.
+ */
 export type SkipPolicy =
-  | { kind: "max"; maxSkip: number }
-  /** `landOn`: the note lengths (32nds) a skip may land on; unset means any. */
+  | { kind: "max"; maxSkip: number; landOn?: number[] }
   | { kind: "custom"; moves: SkipMove[]; landOn?: number[] };
+
+/** The note values the "Skips between" row offers, in 32nds: sixteenth, eighth, quarter, dotted quarter, half and longer. */
+export const SKIP_LENGTH_CLASSES = [2, 4, 8, 12, 16] as const;
+
+/**
+ * Which of SKIP_LENGTH_CLASSES a note of `length` 32nds counts as: the
+ * largest that fits in it. A whole note or a dotted half is a "half and
+ * longer", a dotted eighth an eighth, anything shorter than a sixteenth a
+ * sixteenth.
+ */
+export function skipLengthClass(length: number): number {
+  let cls: number = SKIP_LENGTH_CLASSES[0];
+  for (const c of SKIP_LENGTH_CLASSES) if (length >= c) cls = c;
+  return cls;
+}
+
+/** May a skip start or land on a note of `length`? 0 (unknown) passes, as before lengths were checked. */
+const lengthAllows = (landOn: number[] | undefined, length: number | undefined) =>
+  !landOn || !length || landOn.includes(skipLengthClass(length));
 
 /** A note as the rule sees it. `degree` is 0-based, as in the generator. */
 export interface SkipNote {
@@ -40,28 +64,32 @@ const OCTAVE = 7;
 const mod7 = (n: number) => ((n % 7) + 7) % 7;
 
 /**
- * May the line move from `prev` to `next`, a note `nextLength` 32nds long?
+ * May the line move from `prev`, a note `prevLength` 32nds long, to `next`,
+ * one `nextLength` long? (A length of 0 or left out is not checked: a caller
+ * asking whether a pitch can be reached at all.)
  *
  * - A step or a repeat (distance <= 1): always.
+ * - A skip only between notes of the values `landOn` allows, both of them.
  * - max: distance <= maxSkip - exactly the rule the generator always had.
  * - custom: a ↕ row is symmetric (its two degrees in either order, either
  *   direction); ↑ and ↓ rows are directed. Never onto or off a chromatic note; a simple interval (less than
  *   an octave) whose degrees and direction match a listed move, in any
- *   octave; and, when `landOn` is set, onto one of those lengths.
+ *   octave.
  */
 export function isAllowedMove(
   prev: SkipNote,
   next: SkipNote,
   nextLength: number,
-  policy: SkipPolicy
+  policy: SkipPolicy,
+  prevLength?: number
 ): boolean {
   const rise = next.pitchValue - prev.pitchValue;
   const distance = Math.abs(rise);
   if (distance <= 1) return true;
+  if (!lengthAllows(policy.landOn, nextLength) || !lengthAllows(policy.landOn, prevLength)) return false;
   if (policy.kind === "max") return distance <= policy.maxSkip;
   if (prev.chromatic || next.chromatic) return false;
   if (distance >= OCTAVE) return false;
-  if (policy.landOn && !policy.landOn.includes(nextLength)) return false;
   const from = mod7(prev.degree) + 1;
   const to = mod7(next.degree) + 1;
   const dir: SkipDir = rise > 0 ? "up" : "down";
@@ -152,7 +180,7 @@ export function landablePolicy(
 ): SkipPolicy {
   if (policy.kind !== "custom" || !policy.landOn || policy.moves.length === 0) return policy;
   const landOn = policy.landOn;
-  return sungLengths(rhythms).some((l) => landOn.includes(l)) ? policy : { kind: "custom", moves: [] };
+  return sungLengths(rhythms).some((l) => landOn.includes(skipLengthClass(l))) ? policy : { kind: "custom", moves: [] };
 }
 
 const DIRS: readonly SkipDir[] = ["up", "down", "both"];
@@ -176,7 +204,11 @@ export function toSkipPolicy(value: unknown): SkipPolicy {
   }
   if (value && typeof value === "object") {
     const v = value as Record<string, unknown>;
-    if (v.kind === "max") return toSkipPolicy(v.maxSkip);
+    if (v.kind === "max") {
+      const max = toSkipPolicy(v.maxSkip) as { kind: "max"; maxSkip: number };
+      const landOn = Array.isArray(v.landOn) ? v.landOn.filter((l): l is number => Number.isInteger(l) && (l as number) > 0) : [];
+      return landOn.length ? { ...max, landOn } : max;
+    }
     if (v.kind === "custom") {
       const moves = Array.isArray(v.moves)
         ? v.moves.filter(isSkipMove).map((m) => ({ from: m.from, to: m.to, dir: m.dir }))

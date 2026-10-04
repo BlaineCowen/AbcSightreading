@@ -543,7 +543,7 @@ export function writeProgressionLine(input: ProgressionLineInput): ProgressionLi
             if (!c.tone && !c.alter && d !== 1) continue;
             if (!prev.tone && !prev.alter && d !== 1) continue;
             if (d > slot.cap) continue;
-            if (!isAllowedMove(sungNote(prev), sungNote(c), slot.length, policy)) continue;
+            if (!isAllowedMove(sungNote(prev), sungNote(c), slot.length, policy, sung[j - 1].length)) continue;
           }
           options.push({ item: c, w: weight(c, prev, before, count) });
         }

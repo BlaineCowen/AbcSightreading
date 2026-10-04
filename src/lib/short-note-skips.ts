@@ -130,3 +130,38 @@ export function readShortSkipParams(params: URLSearchParams): Record<string, unk
   if (params.has("shortSkipsLinked")) out.shortSkipsLinked = params.get("shortSkipsLinked") === "true";
   return out;
 }
+
+/**
+ * What the Unison page keeps of all this since Max 8th / 16th skip went: the
+ * "Skips between" row (skip-settings.ts) says which note values a skip may be
+ * sung between, both notes of it, so short notes that may only step need no
+ * cap of their own. The one thing it cannot say is the ti-ti sung on one
+ * pitch - the ladder's early steps, rhythm before pitch - so that stays, as
+ * a switch.
+ */
+export interface EighthSettings {
+  /** Eighth (and sixteenth) pairs on one pitch: the old Max 8th skip 0. */
+  onePitch: boolean;
+}
+
+/** No cap on the moves between short notes: Skips between rules them. Finite, since params cross the wire as JSON. */
+export const SHORT_NO_CAP = 99;
+
+/**
+ * The eighth setting in saved options, and whether an old one asked for
+ * short notes to step only (Max 8th skip 1), which Skips between now says by
+ * leaving out eighths and sixteenths. A saved `eighthPairsOnePitch` wins.
+ */
+export function eighthsFrom(options: unknown, maxSkip: number): EighthSettings & { dropShortSkips: boolean } {
+  const o = (options && typeof options === "object" ? options : {}) as Record<string, unknown>;
+  if (typeof o.eighthPairsOnePitch === "boolean") return { onePitch: o.eighthPairsOnePitch, dropShortSkips: false };
+  const old = shortSkipsFrom(options, maxSkip);
+  const onePitch = old.max8th === 0;
+  return { onePitch, dropShortSkips: !onePitch && old.max8th <= 1 && maxSkip > 1 };
+}
+
+/** The generator's caps for the setting: 0 holds the pitch, otherwise none. */
+export function capsFor(e: EighthSettings): { maxEighthSkip: number; maxSixteenthSkip: number } {
+  const cap = e.onePitch ? 0 : SHORT_NO_CAP;
+  return { maxEighthSkip: cap, maxSixteenthSkip: cap };
+}

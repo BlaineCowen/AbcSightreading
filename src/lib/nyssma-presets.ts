@@ -1,3 +1,4 @@
+import { capsFor } from "./short-note-skips";
 import { ALL_LAND_ON, chipMoves, policyFor, type SkipChipId, type SkipSettings } from "./skip-settings";
 import type { SkipMove, SkipPolicy } from "./skip-policy";
 import type { DynamicMark } from "./dynamics";
@@ -42,10 +43,6 @@ export interface NyssmaLevel {
   measures: number;
   /** Max skip: the widest interval (diatonic steps, 1 a 2nd) among the level's own skips; 1 with none. Applies only with exact skips off. */
   maxSkip: number;
-  /** Max 8th / Max 16th skip: steps inside a figure (eighth pairs only step). Not linked, so Max skip can differ. */
-  max8th: number;
-  max16th: number;
-  shortSkipsLinked: boolean;
 }
 
 const QUARTER = 8;
@@ -68,9 +65,8 @@ const RHYTHMS_III = [...RHYTHMS_II, "eighthEighth"];
 const KEYS_IV = ["C", "F", "G", "D", "Eb"];
 const METERS_III = ["4/4", "2/4", "3/4"];
 
-// Eighth pairs (III-V) move by step only: a skip may land only on a quarter
-// (or a half at V), never on an eighth.
-const SHORT = { max8th: 1, max16th: 1, shortSkipsLinked: false };
+// Eighth pairs (III-V) move by step only: Skips between leaves eighths out,
+// so a skip neither starts nor lands on one (skip-policy.ts).
 
 /** Diatonic distance a listed skip travels (a ↕ row: its larger way round). */
 function moveSpan(m: SkipMove): number {
@@ -91,28 +87,28 @@ export const nyssmaVoiceLevels: NyssmaLevel[] = [
     keys: ["C", "F"], meters: ["4/4"], span: [0, 4], scaleDegrees: [1, 2, 3, 4, 5],
     // Stepwise only: exact skips on with nothing chosen. Nothing to limit, so every landing is on.
     skips: exact([], [...ALL_LAND_ON]), maxSkip: widestSkip([]),
-    rhythms: ["quarter", "half"], bpm: TEMPO, dynamics: ["mf"], measures: MEASURES, ...SHORT,
+    rhythms: ["quarter", "half"], bpm: TEMPO, dynamics: ["mf"], measures: MEASURES,
   },
   {
     id: "nyssma-voice-2", label: "NYSSMA Voice Level II", short: "Level II",
     summary: "+ G, 2/4 · do to la · Do-Mi-Sol ↑ on quarters · quarter rest",
     keys: ["C", "F", "G"], meters: ["4/4", "2/4"], span: [0, 5], scaleDegrees: [1, 2, 3, 4, 5, 6],
     skips: exact(II_SKIPS, [QUARTER]), maxSkip: widestSkip(II_SKIPS),
-    rhythms: RHYTHMS_II, bpm: TEMPO, dynamics: ["mf"], measures: MEASURES, ...SHORT,
+    rhythms: RHYTHMS_II, bpm: TEMPO, dynamics: ["mf"], measures: MEASURES,
   },
   {
     id: "nyssma-voice-3", label: "NYSSMA Voice Level III", short: "Level III",
     summary: "+ 3/4 · eighth pairs",
     keys: ["C", "F", "G"], meters: METERS_III, span: [0, 5], scaleDegrees: [1, 2, 3, 4, 5, 6],
     skips: exact(II_SKIPS, [QUARTER]), maxSkip: widestSkip(II_SKIPS),
-    rhythms: RHYTHMS_III, bpm: TEMPO, dynamics: ["mf"], measures: MEASURES, ...SHORT,
+    rhythms: RHYTHMS_III, bpm: TEMPO, dynamics: ["mf"], measures: MEASURES,
   },
   {
     id: "nyssma-voice-4", label: "NYSSMA Voice Level IV", short: "Level IV",
     summary: "+ D, E♭ · do to high do · + Do-Sol ↑ · p, f",
     keys: KEYS_IV, meters: METERS_III, span: [0, 7], scaleDegrees: [1, 2, 3, 4, 5, 6, 7],
     skips: exact(IV_SKIPS, [QUARTER]), maxSkip: widestSkip(IV_SKIPS),
-    rhythms: RHYTHMS_III, bpm: TEMPO, dynamics: ["p", "mf", "f"], measures: MEASURES, ...SHORT,
+    rhythms: RHYTHMS_III, bpm: TEMPO, dynamics: ["p", "mf", "f"], measures: MEASURES,
   },
   {
     id: "nyssma-voice-5", label: "NYSSMA Voice Level V", short: "Level V",
@@ -121,7 +117,7 @@ export const nyssmaVoiceLevels: NyssmaLevel[] = [
     keys: KEYS_IV, meters: METERS_III, span: [-3, 5], scaleDegrees: [1, 2, 3, 4, 5, 6, 7],
     skips: exact(V_SKIPS, [QUARTER, HALF]), maxSkip: widestSkip(V_SKIPS),
     rhythms: [...RHYTHMS_III, "dotQuarterEighth"], bpm: TEMPO, dynamics: ["p", "mp", "mf", "f"],
-    measures: MEASURES, ...SHORT,
+    measures: MEASURES,
   },
 ];
 
@@ -162,7 +158,8 @@ export function nyssmaGenerationParams(
     key: opts.key, showSolfege: true, lyricSystem: "movable", rhythmOnly: false,
     showRhythmSyllables: true, syllableSystemId: "kodaly",
     allowTiesAcrossBarline: false,
-    maxEighthSkip: level.max8th, maxSixteenthSkip: level.max16th,
+    // No cap of their own: Skips between keeps eighths to steps, as the page does.
+    ...capsFor({ onePitch: false }),
     accidentalsFollowStep: true,
     dynamics: level.dynamics,
     partsObject: { numofParts: 1, parts: { Unison: { order: 0, smallName: "U" } } },

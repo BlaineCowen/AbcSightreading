@@ -4,11 +4,12 @@
  * Every level x key x meter, treble and bass, RUNS exercises each (40 by
  * default). Each exercise must generate, and:
  *  - sing only the level's skips, named by solfege in the direction listed,
- *    each landing on an allowed note value - measured between SUNG notes, so
- *    a rest cannot hide a skip;
+ *    each between allowed note values, the note it leaves and the note it
+ *    lands on (Skips between) - measured between SUNG notes, so a rest
+ *    cannot hide a skip;
  *  - stay inside the level's range around do, with no accidentals;
  *  - use only the level's rhythms and rests;
- *  - step (never skip) between any two adjacent eighths (in a figure or across figures), Max 8th/16th being 1;
+ *  - step (never skip) between any two adjacent eighths (in a figure or across figures): eighths are not in Skips between;
  *  - write its rhythms by the beat: an eighth only as half of a ti-ti filling
  *    one beat, or as the ti of ta-(i) ti (Level V only, the one dotted
  *    figure); no lone eighth, no note or rest off the beat or across one (no
@@ -125,6 +126,7 @@ for (const level of nyssmaVoiceLevels.filter((l) => !ONLY || l.short === `Level 
         if (Math.abs(rise) >= 7) note(`skip ${name}, an octave or wider`);
         else if (!want.skips.includes(name)) note(`skip ${name}`);
         else if (!want.landOn.includes(b.noteLength)) note(`skip ${name} onto ${b.noteLength}/32`);
+        else if (!want.landOn.includes(a.noteLength)) note(`skip ${name} from ${a.noteLength}/32`);
       }
       for (let k = 1; k < notes.length; k++) {
         const [a, b] = [notes[k - 1], notes[k]];

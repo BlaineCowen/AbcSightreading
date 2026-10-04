@@ -828,7 +828,7 @@ function generateChordProgression(
 
   let bassDegrees = bassRangeNoteList.filter(
     (note) =>
-      isAllowedMove(prevBassNote, note, randNoteLengths[1] ?? 0, policy) &&
+      isAllowedMove(prevBassNote, note, randNoteLengths[1] ?? 0, policy, randNoteLengths[0]) &&
       scaleDegrees.includes(note.degree)
   );
 
@@ -908,8 +908,18 @@ function generateChordProgression(
       sungNote(bassNoteArray[i - 1], chordProgression[i - 1]?.chord),
       sungNote(note, chord),
       randNoteLengths[i],
-      activePolicy
+      activePolicy,
+      prevSungLength(i)
     );
+  /**
+   * The length of the last sung note before slot `i`: a skip is between sung
+   * notes (a rest holds the line), and Skips between holds both of them to
+   * its note values.
+   */
+  const prevSungLength = (i: number) => {
+    for (let j = i - 1; j >= 0; j--) if (!(randRhythmObjects[j] as any)?.rest) return randNoteLengths[j];
+    return 0;
+  };
 
   let validProgression = false;
 
