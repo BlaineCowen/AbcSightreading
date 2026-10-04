@@ -510,10 +510,10 @@
         Sound
       </button>
       {#if busy}
-        <button class="sr-btn" on:click={stop}>{status === "recording" ? "Cancel export" : "Stop"}</button>
+        <button class="sr-btn main-btn" on:click={stop}>{status === "recording" ? "Cancel export" : "Stop"}</button>
       {:else}
-        <button class="sr-btn" disabled={waiting} on:click={() => play()}>
-          {status === "preparing" ? "Writing…" : tuning ? "Adjusting tempo…" : guideLoading ? "Loading sound…" : drawing ? "Drawing…" : "Play"}
+        <button class="sr-btn main-btn" disabled={waiting} on:click={() => play()}>
+          {status === "preparing" ? "Writing…" : tuning ? "Adjusting…" : guideLoading ? "Loading…" : drawing ? "Drawing…" : "Play"}
         </button>
       {/if}
       <button class="sr-tok" disabled={busy || status === "preparing" || !track} on:click={() => track && useTrack(track, true)}>New exercise</button>
@@ -575,6 +575,14 @@
     white-space: nowrap;
     overflow: hidden;
     font-variant-numeric: tabular-nums;
+  }
+  /* Play / Stop / Cancel export and the waiting labels all take the same
+     room: the row is centred, so a wider label ("Adjusting tempo…") used to
+     shift every control left mid-click, and a second press on + missed. */
+  .main-btn {
+    width: 8.75rem;
+    justify-content: center;
+    white-space: nowrap;
   }
   .pct {
     margin-left: 0.35rem;
