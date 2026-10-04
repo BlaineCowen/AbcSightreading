@@ -5,7 +5,7 @@
   import { barChords, bassAbc, harmonyNotes, progressionChords } from "../lib/play-along/bass";
   import { INSTRUMENTS, isInstrumentProgram, withInstrument } from "../lib/instruments";
   import { renderBars, type BarImage } from "../lib/play-along/bar-images";
-  import { FADE_SECONDS, PlayAlongAudio } from "../lib/play-along/audio";
+  import { PlayAlongAudio } from "../lib/play-along/audio";
   import { drawScene, H, W } from "../lib/play-along/scene";
   import { startRecording, videoFileName, videoType, type Recording } from "../lib/play-along/recorder";
   import { beatUnitOf, beatsOf, meterKindOf } from "../lib/meter";
@@ -105,11 +105,13 @@
   type SoundPrefs = {
     loop: number; guide: number; click: number; bass: number;
     guideSound: string; clickSound: ClickSound; melodyProgram: number;
+    /** The bouncing ball (and the glow under the note it lands on); off, the reader keeps their own place. */
+    ball: boolean;
   };
   function savedSound(): SoundPrefs {
     const fallback: SoundPrefs = {
       loop: 1, guide: 0, click: 0, bass: 0.8,
-      guideSound: rhythmSoundId, clickSound: DEFAULT_CLICK_SOUND, melodyProgram: instrumentProgram,
+      guideSound: rhythmSoundId, clickSound: DEFAULT_CLICK_SOUND, melodyProgram: instrumentProgram, ball: true,
     };
     try {
       const v = JSON.parse(localStorage.getItem(SOUND_KEY) ?? "null");
@@ -124,6 +126,7 @@
         clickSound: isClickSound(v.clickSound) ? v.clickSound : DEFAULT_CLICK_SOUND,
         // The page's instrument, unless this browser chose another for videos.
         melodyProgram: isInstrumentProgram(v.melodyProgram) ? Number(v.melodyProgram) : instrumentProgram,
+        ball: v.ball !== false,
       };
     } catch {
       return fallback;
@@ -382,9 +385,9 @@
     }
     // A moment's lead so the first frame of a recording is the opening screen.
     const t0 = audio.ctx.currentTime + (record ? 0.8 : 0.2);
-    const soundEnd = audio.start(t0, { track, bpm: tempo, bars, countInBars, meter: track.meter, clickSound: sound.clickSound });
-    const musicEnd = soundEnd - FADE_SECONDS;
-    run = { t0, musicEnd, end: musicEnd + FINISH_SECONDS };
+    const { musicEnd, soundEnd } = audio.start(t0, { track, bpm: tempo, bars, countInBars, meter: track.meter, clickSound: sound.clickSound });
+    // The finish card stays at least until the last hit has rung out.
+    run = { t0, musicEnd, end: Math.max(musicEnd + FINISH_SECONDS, soundEnd) };
     status = record ? "recording" : "playing";
   }
 
@@ -418,7 +421,7 @@
     const bpm = tempo || track.bpm;
     const beats = beatsOf(track.meter);
     const timing = { bars, bpm, meter: track.meter, countInBars };
-    const scene = { bars: barImages, total: bars, meter: track.meter, bpm, beats, beatSec: 60 / bpm, countInBars, clock };
+    const scene = { bars: barImages, total: bars, meter: track.meter, bpm, beats, beatSec: 60 / bpm, countInBars, clock, showBall: sound.ball };
     if (run && audio) {
       const now = audio.ctx.currentTime;
       const t = now - run.t0;
@@ -603,6 +606,13 @@
           <option value={o.id}>{o.id === "off" ? `${labelNoun} off` : o.label}</option>
         {/each}
       </select>
+      <button
+        class="sr-tok"
+        class:sr-on={sound.ball}
+        aria-pressed={sound.ball}
+        title={sound.ball ? "Hide the bouncing ball" : "Show the bouncing ball"}
+        on:click={() => (sound = { ...sound, ball: !sound.ball })}
+      >Ball {sound.ball ? "on" : "off"}</button>
       <button class="sr-tok" class:sr-on={soundOpen} aria-expanded={soundOpen} on:click={() => (soundOpen = !soundOpen)}>
         Sound
       </button>

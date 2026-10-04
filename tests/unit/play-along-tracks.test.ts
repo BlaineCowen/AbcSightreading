@@ -57,4 +57,14 @@ describe("tempo choices", () => {
       expect([...c].sort((a, b) => a - b)).toEqual(c);
     }
   });
+
+  test("every drum loop has its ending on disk (drums.ts renders them)", () => {
+    const { existsSync } = require("fs");
+    const loops = BACKING_TRACKS.filter((t) => t.id.startsWith("drums-"));
+    expect(loops.length).toBeGreaterThan(0);
+    for (const t of loops) {
+      expect(t.ending).toBe(`/backing/${t.id}-end.mp3`);
+      expect(existsSync(`public${t.ending}`)).toBe(true);
+    }
+  });
 });

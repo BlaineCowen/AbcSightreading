@@ -410,6 +410,16 @@ risers and impacts sparing, no vocals over the exercise, no congas in the
 reggaeton; the indie pack was too plain (its script is kept, tabled); for
 trap, real rage 808 loops transposed to the song's key, never a programmed 808
 line. The cumbia is one file listed twice, 36 bars of 4/4 and 72 of 2/4.
+Every drum loop ends like a band ending (`ending` on the track,
+`<id>-end.mp3`, also built by drums.ts): an empty bar, the groove into its
+fill, then crash, kick and snare on the last bar's downbeat, ringing 2.5 s
+(`ENDING_TAIL`). audio.ts hands the loop over to it two bars from the end
+(a 30 ms crossfade), so the fill leads into the last bar and the final note
+lands on the crash; it is warped with the loop, and the bass fades with it.
+Full-length songs keep their own endings. The video shows the site's address
+(abcsightreading.com) as its wordmark, so a shared video says where it came
+from, and the Ball button hides the bouncing ball and its glow (remembered
+with the sound settings).
 Every meter also has simple 8-bar drum loops from one kit (`DRUM_LOOPS` in
 backing-tracks.ts, built by `scripts/backing/drums.ts` with the engine's
 `loop: true` - no count-in, cymbal tails wrapped to the start so the loop has

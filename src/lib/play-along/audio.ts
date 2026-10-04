@@ -6,7 +6,7 @@
  * recorder takes, so the exported video sounds exactly like the live one.
  */
 import abcjs from "abcjs";
-import type { BackingTrack } from "./backing-tracks";
+import { ENDING_TAIL, type BackingTrack } from "./backing-tracks";
 import { scheduleClick } from "../playback-click";
 import { SampleBank, type ClickSound } from "../tuner/click-sounds";
 import { beatsOf } from "../meter";
@@ -15,6 +15,8 @@ import { loopOffset } from "./timeline";
 
 /** How long the loop takes to fade once the last bar has been played. */
 export const FADE_SECONDS = 1.5;
+/** How quickly the loop gives way to its ending: short enough not to hear, long enough not to click. */
+const HANDOVER_SECONDS = 0.03;
 
 export class PlayAlongAudio {
   readonly ctx: AudioContext;
@@ -29,6 +31,8 @@ export class PlayAlongAudio {
   private bassBuffer: AudioBuffer | null = null;
   private clickGain: GainNode;
   private backingBuffers = new Map<string, AudioBuffer>();
+  /** Loops' endings (BackingTrack `ending`), by track id. */
+  private endingBuffers = new Map<string, AudioBuffer>();
   /** Backing tracks warped to another tempo, by "id@bpm". */
   private stretched = new Map<string, AudioBuffer>();
   private guideBuffer: AudioBuffer | null = null;
@@ -40,6 +44,8 @@ export class PlayAlongAudio {
    */
   private clickBus: GainNode | null = null;
   private bank = new SampleBank();
+  /** This run's own gains (the ending's, the bass fade), let go on stop. */
+  private endings: GainNode[] = [];
 
   constructor() {
     this.ctx = new AudioContext();
@@ -69,12 +75,25 @@ export class PlayAlongAudio {
   }
 
   async loadBacking(track: BackingTrack): Promise<AudioBuffer> {
-    const have = this.backingBuffers.get(track.id);
+    const [buffer] = await Promise.all([this.load(track.file, track.id, this.backingBuffers, track.name), this.loadEnding(track)]);
+    return buffer;
+  }
+
+  /** The loop's ending, when it has one. A missing ending is not an error: the loop fades instead. */
+  private async loadEnding(track: BackingTrack) {
+    if (!track.ending) return;
+    try {
+      await this.load(track.ending, track.id, this.endingBuffers, track.name);
+    } catch {}
+  }
+
+  private async load(file: string, id: string, into: Map<string, AudioBuffer>, name: string): Promise<AudioBuffer> {
+    const have = into.get(id);
     if (have) return have;
-    const res = await fetch(track.file);
-    if (!res.ok) throw new Error(`The backing track "${track.name}" could not be loaded.`);
+    const res = await fetch(file);
+    if (!res.ok) throw new Error(`The backing track "${name}" could not be loaded.`);
     const buffer = await this.ctx.decodeAudioData(await res.arrayBuffer());
-    this.backingBuffers.set(track.id, buffer);
+    into.set(id, buffer);
     return buffer;
   }
 
@@ -84,12 +103,21 @@ export class PlayAlongAudio {
    * it is. Blocks for about a second the first time at a new tempo.
    */
   backingAt(track: BackingTrack, bpm: number): AudioBuffer | undefined {
-    const original = this.backingBuffers.get(track.id);
-    if (!original || bpm === track.bpm) return original;
-    const key = `${track.id}@${bpm}`;
+    // The ending is warped with it, so Play does not stall on it later.
+    this.endingAt(track, bpm);
+    return this.warped(this.backingBuffers.get(track.id), `${track.id}@${bpm}`, bpm / track.bpm);
+  }
+
+  /** The loop's ending at `bpm`, warped like the loop (none when the track has no ending). */
+  endingAt(track: BackingTrack, bpm: number): AudioBuffer | undefined {
+    return this.warped(this.endingBuffers.get(track.id), `${track.id}:end@${bpm}`, bpm / track.bpm);
+  }
+
+  private warped(original: AudioBuffer | undefined, key: string, rate: number): AudioBuffer | undefined {
+    if (!original || rate === 1) return original;
     let buffer = this.stretched.get(key);
     if (!buffer) {
-      buffer = stretchBuffer(this.ctx, original, bpm / track.bpm);
+      buffer = stretchBuffer(this.ctx, original, rate);
       this.stretched.set(key, buffer);
     }
     return buffer;
@@ -150,13 +178,13 @@ export class PlayAlongAudio {
    * Schedules the whole video from `t0`, the count-in's first downbeat in
    * context time, at `bpm` (the track's own, or one the tempo control chose:
    * the backing is warped to it, and every time in the track's description
-   * scales with it). Returns when the sound ends (fade included), in context
-   * time.
+   * scales with it). Returns when the music ends (the end of the last bar)
+   * and when the sound does (an ending's ring or the fade), in context time.
    */
   start(
     t0: number,
     o: { track: BackingTrack; bpm: number; bars: number; countInBars: number; meter: string; clickSound: ClickSound },
-  ): number {
+  ): { musicEnd: number; soundEnd: number } {
     this.stop();
     const clicks = this.gainInto(this.clickGain, 1);
     this.clickBus = clicks;
@@ -170,6 +198,11 @@ export class PlayAlongAudio {
     const downbeat = track.downbeatSec / rate;
 
     const backing = this.backingAt(track, o.bpm);
+    // A loop with an ending hands over to it two bars from the end: the
+    // groove into its fill, and the final hit where the last note lands.
+    const ending = !track.fullLength && bars >= 2 ? this.endingAt(track, o.bpm) : undefined;
+    const handover = musicEnd - 2 * bar;
+    const tail = ending ? ENDING_TAIL / rate : FADE_SECONDS;
     if (backing) {
       const src = this.ctx.createBufferSource();
       src.buffer = backing;
@@ -187,13 +220,24 @@ export class PlayAlongAudio {
         const offset = track.introBars ? downbeat : downbeat + loopOffset(countInBars, track.bars) * bar;
         src.connect(this.backingGain);
         src.start(t0, offset);
-        src.stop(musicEnd + FADE_SECONDS);
+        src.stop(ending ? handover + HANDOVER_SECONDS : musicEnd + FADE_SECONDS);
       }
       this.sources.push(src);
     }
     this.backingGain.gain.cancelScheduledValues(0);
     this.backingGain.gain.setValueAtTime(1, t0);
-    if (!track.fullLength) {
+    if (ending) {
+      this.backingGain.gain.setValueAtTime(1, handover);
+      this.backingGain.gain.linearRampToValueAtTime(0, handover + HANDOVER_SECONDS);
+      // Its first bar is empty (the engine's count-in slot): start one bar in.
+      const src = this.ctx.createBufferSource();
+      src.buffer = ending;
+      const level = this.gainInto(this.loopLevel, 1);
+      src.connect(level);
+      src.start(handover, bar);
+      this.sources.push(src);
+      this.endings.push(level);
+    } else if (!track.fullLength) {
       this.backingGain.gain.setValueAtTime(1, musicEnd);
       this.backingGain.gain.linearRampToValueAtTime(0, musicEnd + FADE_SECONDS);
     }
@@ -212,11 +256,15 @@ export class PlayAlongAudio {
     if (this.bassBuffer) {
       const src = this.ctx.createBufferSource();
       src.buffer = this.bassBuffer;
-      src.connect(this.bassGain);
+      // The last root rings into the finish, fading with the drums.
+      const fade = this.gainInto(this.bassGain, 1);
+      fade.gain.setValueAtTime(1, musicEnd);
+      fade.gain.linearRampToValueAtTime(0, musicEnd + tail);
+      src.connect(fade);
       src.start(musicStart);
-      // The last root rings into the finish, then fades with the loop.
-      src.stop(musicEnd + FADE_SECONDS);
+      src.stop(musicEnd + tail);
       this.sources.push(src);
+      this.endings.push(fade);
     }
 
     // Every beat from the count-in to the last bar: about 150 nodes in 90 s,
@@ -226,12 +274,14 @@ export class PlayAlongAudio {
       scheduleClick(this.ctx, this.bank, clicks, t0 + b * beat, o.clickSound, b % beats === 0 ? "downbeat" : "beat");
     }
 
-    return musicEnd + FADE_SECONDS;
+    return { musicEnd, soundEnd: musicEnd + tail };
   }
 
   stop() {
     this.clickBus?.disconnect();
     this.clickBus = null;
+    for (const g of this.endings) g.disconnect();
+    this.endings = [];
     for (const s of this.sources) {
       try {
         s.stop();

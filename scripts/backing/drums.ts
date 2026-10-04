@@ -17,7 +17,14 @@
  * Compound meters count dotted-quarter beats (three eighths each), as the
  * app does (src/lib/meter.ts): 6/8 at 50 is fifty dotted quarters a minute.
  *
- *   bun run scripts/backing/drums.ts            # every loop
+ * Each loop also gets an ending, `<id>-end.mp3`, from the same kit: an
+ * empty bar (the engine's count-in slot, so beat 1 of the ending's first bar
+ * is one bar in), the groove with its fill, then a crash, kick and snare on
+ * the downbeat of the last bar, left to ring. The video hands the loop over
+ * to it two bars from the end, so the last note lands on the crash
+ * (audio.ts).
+ *
+ *   bun run scripts/backing/drums.ts            # every loop and ending
  *   ONLY=drums-rock-4-4-90 bun run scripts/backing/drums.ts
  *
  * The loops built are DRUM_LOOPS in src/lib/play-along/backing-tracks.ts.
@@ -89,6 +96,8 @@ const STYLES: Record<string, Style> = {
 };
 
 const BARS = 8;
+/** How long the ending's last hit rings after its bar, in seconds. */
+const ENDING_TAIL = 2.5;
 
 if (import.meta.main) {
   // The list of loops lives in the app's catalogue, so the two cannot drift apart.
@@ -98,7 +107,10 @@ if (import.meta.main) {
     if (process.env.ONLY && process.env.ONLY !== id) continue;
     const st = STYLES[style];
     if (st.meter !== loop.meter) throw new Error(`${id}: the ${style} pattern is in ${st.meter}`);
-    const s = song({ pack: "Indie Rocker", bpm, beats: st.beats, bars: BARS, tailSec: 0, out: `public/backing/${id}`, loop: true });
+    for (const ending of [false, true]) {
+    const s = ending
+      ? song({ pack: "Indie Rocker", bpm, beats: st.beats, bars: 2, tailSec: ENDING_TAIL, out: `public/backing/${id}-end` })
+      : song({ pack: "Indie Rocker", bpm, beats: st.beats, bars: BARS, tailSec: 0, out: `public/backing/${id}`, loop: true });
     const kit: Record<Sound, ReturnType<typeof s.load>> = {
       kick: s.load("TS_IR_kick_straight_up_dry.wav", { trim: true }),
       kickSoft: s.load("TS_IR_kick_straight_up_soft.wav", { trim: true }),
@@ -120,6 +132,16 @@ if (import.meta.main) {
     const wobble = () => 0.94 + ((seed = (seed * 16807) % 2147483647) / 2147483647) * 0.12;
     const play = (b: number, [sound, beat, v = 1]: Hit) => s.hit(kit[sound], b, beat, lv[sound] * v * wobble());
 
+    if (ending) {
+      // The groove into its fill, then the final hit.
+      for (const h of st.bar(BARS - 1)) if (h[1] < st.fill.from) play(0, h);
+      for (const h of st.fill.hits) play(0, h);
+      play(1, ["crash", 0, 1.15]);
+      play(1, ["kick", 0, 1.1]);
+      play(1, ["snare", 0, 0.8]);
+      s.write();
+      continue;
+    }
     for (let b = 0; b < BARS; b++) {
       const last = b === BARS - 1;
       for (const h of st.bar(b)) if (!last || h[1] < st.fill.from) play(b, h);
@@ -127,5 +149,6 @@ if (import.meta.main) {
     }
     play(0, ["crash", 0, 1]);
     s.write();
+    }
   }
 }

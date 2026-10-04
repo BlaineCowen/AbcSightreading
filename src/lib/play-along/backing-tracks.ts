@@ -29,7 +29,17 @@ export interface BackingTrack {
    * ending. Played once, so the exercise is exactly `bars` long.
    */
   fullLength?: boolean;
+  /**
+   * A loop's ending (scripts/backing/drums.ts): an empty bar, the groove into
+   * its fill, then a final hit on the last bar's downbeat, ringing
+   * ENDING_TAIL seconds past it. The video plays it over the last two bars
+   * instead of the loop (audio.ts).
+   */
+  ending?: string;
 }
+
+/** How long an ending's last hit rings after the music, at the track's own tempo (drums.ts). */
+export const ENDING_TAIL = 2.5;
 
 /**
  * Simple 8-bar drum loops, one acoustic kit, every meter the videos offer
@@ -59,6 +69,7 @@ const drumTracks: BackingTrack[] = DRUM_LOOPS.map((d) => ({
   id: drumLoopId(d),
   name: `Drums: ${d.label} (${d.meter}, ${d.bpm})`,
   file: `/backing/${drumLoopId(d)}.mp3`,
+  ending: `/backing/${drumLoopId(d)}-end.mp3`,
   bpm: d.bpm,
   meter: d.meter,
   bars: 8,

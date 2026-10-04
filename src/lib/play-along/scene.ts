@@ -55,6 +55,8 @@ export interface SceneState {
   /** Seconds since the music ended, while the finish shows. */
   sinceEnd: number;
   playing: boolean;
+  /** The bouncing ball and the glow under its note. On unless false. */
+  showBall?: boolean;
 }
 
 /** Fixed decoration: where each circle floats, its pastel and size. */
@@ -116,11 +118,13 @@ function header(g: CanvasRenderingContext2D, s: SceneState, beatIndex: number, p
   const h = 72;
   g.textBaseline = "middle";
 
-  // The wordmark, as in the navbar: an italic "abc" before "SightReading".
+  // The site's address, styled like the navbar's wordmark (an italic "abc"),
+  // so a shared video says where it came from.
+  const REST = "sightreading.com";
   g.font = `italic 600 40px Georgia, serif`;
   const abcW = g.measureText("abc").width;
   g.font = `700 40px ${FONT}`;
-  const restW = g.measureText("SightReading").width;
+  const restW = g.measureText(REST).width;
   pill(g, 90, y, abcW + restW + 56, h, PAPER);
   g.textAlign = "left";
   g.fillStyle = ACTION;
@@ -128,7 +132,7 @@ function header(g: CanvasRenderingContext2D, s: SceneState, beatIndex: number, p
   g.fillText("abc", 118, y + h / 2 + 2);
   g.fillStyle = INK;
   g.font = `700 40px ${FONT}`;
-  g.fillText("SightReading", 118 + abcW + 2, y + h / 2 + 2);
+  g.fillText(REST, 118 + abcW + 2, y + h / 2 + 2);
 
   // One dot a beat; the beat sounding fills with this bar's colour and pops.
   const gap = 56;
@@ -223,7 +227,7 @@ function card(g: CanvasRenderingContext2D, which: "top" | "bottom", barIndex: nu
   const dy = c.y + (c.h - dh) / 2 + 20;
   const staffY = dy + bar.staffAt * dh;
 
-  const ball = active ? ballAt(bar.notes, s.frame.progress, bar.musicEnd) : null;
+  const ball = active && s.showBall !== false ? ballAt(bar.notes, s.frame.progress, bar.musicEnd) : null;
 
   // A glow behind the note just landed on, fading through its length.
   if (ball && ball.note >= 0) {
