@@ -32,7 +32,7 @@ VERSIONS = {
     # (7-10 s) to be read: about 73 s. (The Kids Song cut, index.html here,
     # is no longer built: Fun Fun Music was chosen.)
     "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
-                bars=[4, 4, 4, 3, 4, 3, 3, 3, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+                bars=[3, 4, 4, 3, 4, 3, 3, 3, 3], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "tuner", "teachers", "close"]
 
@@ -229,12 +229,12 @@ def build(p, tag, audio):
 
 def script(p):
     b = p.beat
-    # The hook: a word every other beat, the ball landing on each. It comes in
-    # from off the left, leaves off the right after line one and comes back
-    # in from the left for line two (rather than flying back across the
-    # words), and bounces away off the right at the end.
-    hook = [p.beats[2 + 2 * k] for k in range(6)]
-    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in hook])}, B = {2 * b:.4f};"]
+    # The hook: a word a beat, the ball landing on each. It comes in from off
+    # the left, bounces off the right after line one (a beat out, the next back
+    # in from the left, rather than flying back across the words), and bounces
+    # away off the right at the end.
+    hook = [p.beats[k] for k in (2, 3, 5, 6, 7, 8)]
+    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in hook])}, B = {b:.4f};"]
     js.append("""
   // ---- Hook
   tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
@@ -252,12 +252,12 @@ def script(p):
     hop(hops[0].x, hops[0].y, HOOK[0] - B, B, 170);
     hop(hops[1].x, hops[1].y, HOOK[0], B, 170);
     // Off the right edge on the next beat, then in from the left onto line two.
-    hop(1920 + 90, hops[1].y + 40, HOOK[1], B / 2, 120);
-    tl.set("#hook-ball", { x: -90, y: hops[2].y + 40 }, HOOK[1] + B / 2);
-    hop(hops[2].x, hops[2].y, HOOK[1] + B / 2, B / 2, 120);
-    for (var i = 3; i < 6; i++) hop(hops[i].x, hops[i].y, HOOK[i - 1], B, 170);
+    hop(1920 + 90, hops[1].y + 40, HOOK[1], B, 150);
+    tl.set("#hook-ball", { x: -90, y: hops[2].y + 40 }, HOOK[2] - B);
+    hop(hops[2].x, hops[2].y, HOOK[2] - B, B, 150);
+    for (var i = 3; i < 6; i++) hop(hops[i].x, hops[i].y, HOOK[i - 1], B, 95); // low, under line one
     // And away off the right.
-    hop(1920 + 90, hops[5].y + 40, HOOK[5], B, 170);
+    hop(1920 + 90, hops[5].y + 40, HOOK[5], B, 95);
   }""")
     js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % p.duration)
     for k in range(1, len(ORDER)):
@@ -336,9 +336,10 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .wordmark .abc { font-size: 44px; } .wordmark .rest { font-size: 44px; }
 
 .hook-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
-.hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.08; letter-spacing: -0.01em; color: #15213a; }
+.hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
 .hook-head .hw { display: inline-block; }
 #hw3 { color: #2f6fe0; }
+#hook-ball { z-index: 1; } /* behind the words, so a hop never covers line one */
 .ball { position: absolute; left: 0; top: 0; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #8dbaff 0%, #2f6fe0 55%, #1e56c0 100%); box-shadow: 0 10px 24px rgba(30,86,192,0.35); z-index: 5; opacity: 0; }
 
 .scene-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 90px 96px; display: flex; flex-direction: row; align-items: center; gap: 72px; }
