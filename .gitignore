@@ -49,3 +49,7 @@ package-lock.json
 
 # generated Prisma client (prisma generate, run on install)
 src/generated/
+
+# REAPER's own backups of the guitar template
+scripts/guitar/Backups/
+scripts/guitar/.render/

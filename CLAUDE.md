@@ -391,6 +391,31 @@ the tonic, the one before it V when the melody allows, and a leading-tone
 chord takes V's root (minor's own VII stays). The labels are solfège (Off,
 Movable do, Fixed do, Note names), written through the page's `playAlongAbc`.
 
+The pitched video also strums an acoustic guitar under the exercise
+(`src/lib/play-along/guitar.ts`, tests `play-along-guitar.test.ts`): Native
+Instruments' Session Guitarist (Strummed Acoustic, in Kontakt 8), rendered
+by REAPER from the command line. `scripts/guitar/template.RPP` is Blaine's
+saved project: Kontakt with eight patterns in its slots (C1 Passenger A, C#1
+Passenger C, D1 Campfire A, D#1 Campfire B, E1 3/4 Pattern A, F1 3/4
+Pattern B, F#1 Irish Folk C, G1 Irish Folk A; never a muted "Mtd" one).
+Kontakt's state is encrypted, so the patterns can only be changed in its
+window: load the template in REAPER, change a slot, save (Cmd-S). `rpp.ts`
+writes projects around that state (REAPER's format is text) and
+`build.ts` renders every chord the progressions use in the page's nine keys
+(33) in each slot at two tempos, one steady bar a chord (the second of a
+two-bar hold), plus each style's ending (A#1) on the nine home chords, into
+`public/guitar/` (22 MB; a video loads two pattern files and an ending,
+2-3 MB) and `guitar-manifest.json`: `bun run scripts/guitar/build.ts`,
+about 4 minutes. What the instrument wants, found by probing and its manual:
+chords from E2 (MIDI 52) up, root lowest, notes arriving low to high (G B D
+sent out of order strummed once and stopped); G#1-C2 are endings and C#2-D#2
+pickups, so a chord must stay above them; the triplet patterns are 4/4 bars
+of triplets (one is a 12/8 bar; 6/8 takes half) and are silent below 65.
+The video plays each bar's chord from its clip, a split bar half of each,
+the A pattern in phrases 1 and 3 and B/C in 2 and 4, the ending in the last
+bar, warped from the nearer rendered tempo; Guitar level and strum (Pop
+strum, Campfire; 4/4 and 2/4 only) in the Sound panel.
+
 Sound (the overlay's Sound panel): levels for the loop, a guide (the rhythm
 played over the loop, on any rhythm sound) and a click (any metronome sound),
 live while it plays and into the export; remembered in this browser. abcjs

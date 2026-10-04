@@ -11,6 +11,20 @@ import { scheduleClick } from "../playback-click";
 import { SampleBank, type ClickSound } from "../tuner/click-sounds";
 import { beatsOf } from "../meter";
 import { stretchBuffer } from "./stretch";
+import { guitarFeel, nearestGuitarTempo, type GuitarPiece } from "./guitar";
+import GUITAR from "./guitar-manifest.json";
+
+type GuitarFile = { file: string; clipSec: number; barSec: number; chords: string[] };
+/** A piece of the guitar part ready to play: a warped chord clip, where to start it (bars from the music's start), what part. */
+export interface PreparedGuitarPiece {
+  at: number;
+  buffer: AudioBuffer;
+  offset: number;
+  /** Seconds to play; null plays the clip out (the ending's ring). */
+  dur: number | null;
+}
+/** How long one guitar piece crossfades into the next. */
+const GUITAR_XFADE = 0.025;
 import { loopOffset } from "./timeline";
 
 /** How long the loop takes to fade once the last bar has been played. */
@@ -29,6 +43,12 @@ export class PlayAlongAudio {
   /** The pitched video's bass line (bass.ts), its own level. */
   private bassGain: GainNode;
   private bassBuffer: AudioBuffer | null = null;
+  /** The strummed guitar (guitar.ts), its own level, and the part for the next run. */
+  private guitarGain: GainNode;
+  private guitarPart: PreparedGuitarPiece[] | null = null;
+  /** Decoded guitar files by path, and warped chord clips by file|chord|rate. */
+  private guitarFiles = new Map<string, Promise<AudioBuffer>>();
+  private guitarClips = new Map<string, AudioBuffer>();
   private clickGain: GainNode;
   private backingBuffers = new Map<string, AudioBuffer>();
   /** Loops' endings (BackingTrack `ending`), by track id. */
@@ -58,6 +78,7 @@ export class PlayAlongAudio {
     this.backingGain = this.gainInto(this.loopLevel, 1);
     this.guideGain = this.gainInto(this.master, 0);
     this.bassGain = this.gainInto(this.master, 0);
+    this.guitarGain = this.gainInto(this.master, 0);
     this.clickGain = this.gainInto(this.master, 0);
     void this.bank.load(this.ctx);
   }
@@ -156,6 +177,61 @@ export class PlayAlongAudio {
     this.guideBuffer = buffer;
   }
 
+  /**
+   * The guitar part for `pieces` (guitar.ts guitarPart) at `bpm` in `meter`:
+   * each chord's clip cut from the file rendered nearest that tempo and
+   * warped to it, pitch kept (stretch.ts), each made once and kept. Null
+   * when a file is missing a chord (nothing half-strummed plays).
+   */
+  async prepareGuitar(pieces: GuitarPiece[], o: { meter: string; bpm: number }): Promise<PreparedGuitarPiece[] | null> {
+    const { feel } = guitarFeel(o.meter);
+    const rendered = nearestGuitarTempo(feel, o.bpm);
+    const rate = o.bpm / rendered;
+    const out: PreparedGuitarPiece[] = [];
+    for (const p of pieces) {
+      const set = (p.ending ? GUITAR.endings : GUITAR.patterns) as Record<string, GuitarFile>;
+      const f = set[`${p.slot}@${rendered}`];
+      const index = f?.chords.indexOf(p.chord) ?? -1;
+      if (!f || index < 0) return null;
+      const key = `${f.file}|${p.chord}|${rate}`;
+      let clip = this.guitarClips.get(key);
+      if (!clip) {
+        const whole = await this.guitarFile(f.file);
+        const n = Math.round(f.clipSec * whole.sampleRate);
+        const raw = this.ctx.createBuffer(whole.numberOfChannels, n, whole.sampleRate);
+        const from = Math.round(index * f.clipSec * whole.sampleRate);
+        for (let ch = 0; ch < whole.numberOfChannels; ch++) raw.copyToChannel(whole.getChannelData(ch).subarray(from, from + n), ch);
+        clip = rate === 1 ? raw : stretchBuffer(this.ctx, raw, rate);
+        this.guitarClips.set(key, clip);
+      }
+      out.push({
+        at: p.at,
+        buffer: clip,
+        offset: (p.from * f.barSec) / rate,
+        dur: p.ending ? null : ((p.to - p.from) * f.barSec) / rate,
+      });
+    }
+    return out;
+  }
+
+  private guitarFile(path: string): Promise<AudioBuffer> {
+    let job = this.guitarFiles.get(path);
+    if (!job) {
+      job = fetch(path).then(async (res) => {
+        if (!res.ok) throw new Error("The guitar could not be loaded.");
+        return this.ctx.decodeAudioData(await res.arrayBuffer());
+      });
+      job.catch(() => this.guitarFiles.delete(path));
+      this.guitarFiles.set(path, job);
+    }
+    return job;
+  }
+
+  /** The guitar part to play with the next run (prepareGuitar's result), or none. */
+  setGuitar(part: PreparedGuitarPiece[] | null) {
+    this.guitarPart = part;
+  }
+
   /** The bass line to play with the next run (rendered as renderGuide renders, from bass.ts's ABC). */
   setBass(buffer: AudioBuffer | null) {
     this.bassBuffer = buffer;
@@ -166,12 +242,13 @@ export class PlayAlongAudio {
    * guide and click start off, so the class performs the rhythm itself.
    * Applies at once, mid-play too, and reaches the recording.
    */
-  setMix(m: { loop: number; guide: number; click: number; bass?: number }) {
+  setMix(m: { loop: number; guide: number; click: number; bass?: number; guitar?: number }) {
     const at = (g: GainNode, v: number) => g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
     at(this.loopLevel, m.loop);
     at(this.guideGain, m.guide * 0.9);
     at(this.clickGain, m.click);
     at(this.bassGain, m.bass ?? 0);
+    at(this.guitarGain, m.guitar ?? 0);
   }
 
   /**
@@ -267,6 +344,29 @@ export class PlayAlongAudio {
       this.endings.push(fade);
     }
 
+    // The guitar: each piece its chord's clip from its place in the bar,
+    // faded in over a few ms and crossfaded into the next; the ending rings out.
+    let guitarEnd = 0;
+    for (const p of this.guitarPart ?? []) {
+      const when = musicStart + p.at * bar;
+      const src = this.ctx.createBufferSource();
+      src.buffer = p.buffer;
+      const g = this.gainInto(this.guitarGain, 0);
+      g.gain.setValueAtTime(0, when);
+      g.gain.linearRampToValueAtTime(1, when + 0.004);
+      if (p.dur !== null) {
+        g.gain.setValueAtTime(1, when + p.dur);
+        g.gain.linearRampToValueAtTime(0, when + p.dur + GUITAR_XFADE);
+        src.start(when, p.offset, p.dur + GUITAR_XFADE);
+      } else {
+        src.start(when, p.offset);
+        guitarEnd = Math.max(guitarEnd, when + p.buffer.duration - p.offset);
+      }
+      src.connect(g);
+      this.sources.push(src);
+      this.endings.push(g);
+    }
+
     // Every beat from the count-in to the last bar: about 150 nodes in 90 s,
     // made up front so they sit on the same clock as the loop.
     const totalBeats = (countInBars + bars) * beats;
@@ -274,7 +374,7 @@ export class PlayAlongAudio {
       scheduleClick(this.ctx, this.bank, clicks, t0 + b * beat, o.clickSound, b % beats === 0 ? "downbeat" : "beat");
     }
 
-    return { musicEnd, soundEnd: musicEnd + tail };
+    return { musicEnd, soundEnd: Math.max(musicEnd + tail, guitarEnd) };
   }
 
   stop() {

@@ -3,6 +3,8 @@
   import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
   import { barsForLength, frameAt, tempoChoices } from "../lib/play-along/timeline";
   import { barChords, bassAbc, harmonyNotes, progressionChords } from "../lib/play-along/bass";
+  import { GUITAR_STYLES, guitarFeel, guitarPart, type GuitarStyle } from "../lib/play-along/guitar";
+  import { splitAt } from "../lib/unison-progressions";
   import { INSTRUMENTS, isInstrumentProgram, withInstrument } from "../lib/instruments";
   import { renderBars, type BarImage } from "../lib/play-along/bar-images";
   import { PlayAlongAudio } from "../lib/play-along/audio";
@@ -104,13 +106,15 @@
   const SOUND_KEY = "abcsr_playalong_sound";
   type SoundPrefs = {
     loop: number; guide: number; click: number; bass: number;
+    /** The strummed guitar (guitar.ts): its level, and its style in 4/4 and 2/4. */
+    guitar: number; guitarStyle: GuitarStyle;
     guideSound: string; clickSound: ClickSound; melodyProgram: number;
     /** The bouncing ball (and the glow under the note it lands on); off, the reader keeps their own place. */
     ball: boolean;
   };
   function savedSound(): SoundPrefs {
     const fallback: SoundPrefs = {
-      loop: 1, guide: 0, click: 0, bass: 0.8,
+      loop: 1, guide: 0, click: 0, bass: 0.8, guitar: 0.7, guitarStyle: "passenger",
       guideSound: rhythmSoundId, clickSound: DEFAULT_CLICK_SOUND, melodyProgram: instrumentProgram, ball: true,
     };
     try {
@@ -122,6 +126,8 @@
         guide: level(v.guide, 0),
         click: level(v.click, 0),
         bass: level(v.bass, 0.8),
+        guitar: level(v.guitar, 0.7),
+        guitarStyle: GUITAR_STYLES.some((g) => g.id === v.guitarStyle) ? v.guitarStyle : "passenger",
         guideSound: RHYTHM_SOUNDS.some((r) => r.id === v.guideSound) ? v.guideSound : rhythmSoundId,
         clickSound: isClickSound(v.clickSound) ? v.clickSound : DEFAULT_CLICK_SOUND,
         // The page's instrument, unless this browser chose another for videos.
@@ -191,7 +197,19 @@
   /** The count-in's first downbeat and the end of the finish, in audio time, while playing. */
   let run: { t0: number; musicEnd: number; end: number } | null = null;
 
-  $: audio?.setMix({ ...sound, bass: pitched ? sound.bass : 0 });
+  $: audio?.setMix({ ...sound, bass: pitched ? sound.bass : 0, guitar: pitched ? sound.guitar : 0 });
+  /** Pitched, over a progression: the guitar part (guitar.ts), bar by bar. */
+  $: guitarPieces =
+    pitched && score?.key && score.harmony
+      ? guitarPart(score.harmony, {
+          key: score.key,
+          meter: scoreMeter,
+          style: sound.guitarStyle,
+          splitAt: splitAt(score.timeSig.tsPerMeasure, beatUnitOf(scoreMeter)) / score.timeSig.tsPerMeasure,
+        })
+      : [];
+  /** Only 4/4 and 2/4 have a choice of strum; 3/4 and the compound meters have one each. */
+  $: guitarHasStyles = !!scoreMeter && guitarFeel(scoreMeter).feel === "straight";
   /**
    * Pitched: the bass line for the exercise, as ABC (bass.ts): the progression
    * it was written over, or one root a bar read from the melody where the
@@ -212,7 +230,7 @@
         )
       : "";
   /** What the guide (and bass) was rendered for: the instrument, the tempo and the exercise as written. */
-  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}`;
+  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}|${JSON.stringify(guitarPieces)}`;
   $: if (abc && audioRunning && status === "ready" && guideKey !== guideFor) void renderGuide();
 
   /**
@@ -233,11 +251,14 @@
       ? a.renderGuide(withInstrument(abc, sound.melodyProgram), tempo, 3)
       : a.renderGuide(withRhythmSound(abc, rhythmSoundFor(sound.guideSound)), tempo, volumeMultiplierFor(rhythmSoundFor(sound.guideSound)));
     const bassLine = pitched && bassText ? a.renderGuide(bassText, tempo, 3) : Promise.resolve(null);
-    const job: Promise<void> = Promise.all([melody, bassLine])
-      .then(([buffer, bassBuffer]) => {
+    // A guitar that cannot load leaves the video playing without it.
+    const guitar = guitarPieces.length ? a.prepareGuitar(guitarPieces, { meter: scoreMeter, bpm: tempo }).catch(() => null) : Promise.resolve(null);
+    const job: Promise<void> = Promise.all([melody, bassLine, guitar])
+      .then(([buffer, bassBuffer, guitarPart]) => {
         if (seq !== guideSeq) return;
         a.setGuide(buffer);
         a.setBass(bassBuffer);
+        a.setGuitar(guitarPart);
         guideReady = key;
       })
       .catch(() => {
@@ -316,6 +337,7 @@
       guideFor = "";
       audio.setGuide(null);
       audio.setBass(null);
+      audio.setGuitar(null);
       if (newExercise || !score || scoreMeter !== t.meter) await writeExercise(t.meter);
       await audio.loadBacking(t);
       countInBars = countInBarsFor(t);
@@ -556,6 +578,18 @@
             <input type="range" min="0" max="1" step="0.05" bind:value={sound.bass} aria-label="Bass volume" />
             <span class="level">{sound.bass === 0 ? "Off" : `${Math.round(sound.bass * 100)}%`}</span>
           </div>
+          <div class="sound-row">
+            <span class="sr-label">Guitar</span>
+            <input type="range" min="0" max="1" step="0.05" bind:value={sound.guitar} aria-label="Guitar volume" />
+            <span class="level">{sound.guitar === 0 ? "Off" : `${Math.round(sound.guitar * 100)}%`}</span>
+            {#if guitarHasStyles}
+              <select class="sr-tok" bind:value={sound.guitarStyle} disabled={busy || guideLoading} aria-label="Guitar strum">
+                {#each GUITAR_STYLES as g}
+                  <option value={g.id}>{g.label}</option>
+                {/each}
+              </select>
+            {/if}
+          </div>
         {/if}
         <div class="sound-row">
           <span class="sr-label">Click</span>
@@ -567,7 +601,7 @@
             {/each}
           </select>
         </div>
-        <p class="text-xs text-sr-muted">Levels change as it plays and go into the exported video. {pitched ? "Turn the melody up to hear the line played; the bass holds one root a bar." : "Turn the guide up to hear the rhythm played over the loop."}</p>
+        <p class="text-xs text-sr-muted">Levels change as it plays and go into the exported video. {pitched ? "Turn the melody up to hear the line played. The bass and guitar play the chords the melody was written over." : "Turn the guide up to hear the rhythm played over the loop."}</p>
       </div>
     {/if}
 

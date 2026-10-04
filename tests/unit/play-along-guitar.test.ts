@@ -1,0 +1,106 @@
+import { describe, expect, test } from "bun:test";
+import { existsSync } from "fs";
+import {
+  GUITAR_KEYS,
+  GUITAR_SLOTS,
+  GUITAR_TEMPOS,
+  guitarChord,
+  guitarFeel,
+  guitarPart,
+  nearestGuitarTempo,
+  type GuitarSlot,
+} from "../../src/lib/play-along/guitar";
+import { PROGRESSIONS, EXTRA_CHORDS } from "../../src/lib/unison-progressions";
+import manifest from "../../src/lib/play-along/guitar-manifest.json";
+
+/**
+ * The pitched play-along's guitar: the progression's chords as the guitar
+ * plays them, a clip a bar, A and B patterns by phrase, an ending to finish.
+ */
+
+describe("chords in a key", () => {
+  test("the progression's names become chords", () => {
+    const inC = (name: string) => guitarChord("C", name)?.id;
+    expect(inC("1")).toBe("C");
+    expect(inC("6")).toBe("Am");
+    expect(inC("2")).toBe("Dm");
+    expect(inC("5/5")).toBe("D");
+    expect(inC("5/6")).toBe("E");
+    expect(inC("1-7")).toBe("C7");
+    expect(inC("u_b7")).toBe("Bb");
+    expect(inC("m4")).toBe("Fm");
+    expect(inC("u_borrowed_i")).toBe("Cm");
+    expect(guitarChord("Eb", "5")?.id).toBe("Bb");
+    expect(guitarChord("E", "5/5")?.id).toBe("Gb"); // F sharp, named by its pitch class
+  });
+});
+
+describe("the part", () => {
+  const harmony = [["1"], ["4"], ["5"], ["1"], ["1"], ["4", "5/5"], ["5"], ["1"]];
+
+  test("A for the first phrase, B for the second, an ending last", () => {
+    const part = guitarPart(harmony, { key: "C", meter: "4/4", style: "passenger", splitAt: 0.5 });
+    expect(part.slice(0, 4).map((p) => p.slot)).toEqual(["passengerA", "passengerA", "passengerA", "passengerA"]);
+    expect(part.filter((p) => p.at >= 4 && !p.ending).every((p) => p.slot === "passengerC")).toBe(true);
+    const last = part.at(-1)!;
+    expect(last).toMatchObject({ at: 7, chord: "C", ending: true });
+  });
+
+  test("a split bar plays the first chord to the split and the second from it", () => {
+    const part = guitarPart(harmony, { key: "C", meter: "4/4", style: "campfire", splitAt: 0.5 });
+    const bar6 = part.filter((p) => p.at >= 5 && p.at < 6);
+    expect(bar6).toEqual([
+      { at: 5, chord: "F", slot: "campfireB", from: 0, to: 0.5 },
+      { at: 5.5, chord: "D", slot: "campfireB", from: 0.5, to: 1 },
+    ]);
+  });
+
+  test("2/4 takes the 4/4 bar's halves in turn; 6/8 half a triplet bar, 9/8 three quarters", () => {
+    const two = guitarPart([["1"], ["4"], ["5"], ["1"]], { key: "G", meter: "2/4", style: "passenger", splitAt: 0.5 });
+    expect(two.slice(0, 3).map((p) => [p.from, p.to])).toEqual([[0, 0.5], [0.5, 1], [0, 0.5]]);
+    expect(guitarFeel("6/8")).toEqual({ feel: "triplet", share: 0.5 });
+    expect(guitarFeel("9/8")).toEqual({ feel: "triplet", share: 0.75 });
+    expect(guitarFeel("12/8")).toEqual({ feel: "triplet", share: 1 });
+    expect(guitarFeel("3/4")).toEqual({ feel: "waltz", share: 1 });
+    const six = guitarPart([["1"], ["1"]], { key: "D", meter: "6/8", style: "passenger", splitAt: 0.5 });
+    expect(six[0]).toMatchObject({ slot: "irishA", from: 0, to: 0.5 });
+  });
+
+  test("it warps from the nearest rendered tempo", () => {
+    expect(nearestGuitarTempo("straight", 60)).toBe(70);
+    expect(nearestGuitarTempo("straight", 100)).toBe(110);
+    expect(nearestGuitarTempo("triplet", 40)).toBe(65);
+  });
+});
+
+describe("the rendered files", () => {
+  const names = new Set<string>(PROGRESSIONS.filter((p) => p.mode === "major").flatMap((p) => p.bars.flat()));
+  for (const n of ["5/5", "5/6", "5/2", "1-7", "u_b7", "m4", "u_borrowed_i"]) names.add(n);
+  const feelOf = (slot: string) => (slot.startsWith("waltz") ? "waltz" : slot.startsWith("irish") ? "triplet" : "straight");
+
+  test("every chord any progression uses, in every key, is in every pattern file", () => {
+    for (const slot of Object.keys(GUITAR_SLOTS) as GuitarSlot[]) {
+      for (const bpm of GUITAR_TEMPOS[feelOf(slot)]) {
+        const f = (manifest.patterns as Record<string, { file: string; chords: string[] }>)[`${slot}@${bpm}`];
+        expect(f).toBeDefined();
+        expect(existsSync(`public${f.file}`)).toBe(true);
+        for (const key of GUITAR_KEYS) for (const n of names) expect(f.chords).toContain(guitarChord(key, n)!.id);
+      }
+    }
+  });
+
+  test("every key's home chord has an ending in each style", () => {
+    for (const slot of ["passengerA", "campfireA", "waltzA", "irishA"]) {
+      for (const bpm of GUITAR_TEMPOS[feelOf(slot)]) {
+        const f = (manifest.endings as Record<string, { file: string; chords: string[] }>)[`${slot}@${bpm}`];
+        expect(existsSync(`public${f.file}`)).toBe(true);
+        for (const key of GUITAR_KEYS) expect(f.chords).toContain(guitarChord(key, "1")!.id);
+      }
+    }
+  });
+
+  test("the chords chromatic progressions add in major are all known to the guitar", () => {
+    // The Neapolitan is minor's (its le is the key's own there); the page has no minor keys.
+    for (const c of EXTRA_CHORDS.filter((c) => c.name !== "u_N")) expect(guitarChord("C", c.name)).not.toBeNull();
+  });
+});
