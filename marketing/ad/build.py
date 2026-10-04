@@ -36,7 +36,7 @@ VERSIONS = {
     # (7-10 s) to be read: about 73 s. (The Kids Song cut, index.html here,
     # is no longer built: Fun Fun Music was chosen.)
     "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
-                bars=[3, 4, 4, 3, 4, 3, 3, 3, 3], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+                bars=[2, 4, 4, 3, 4, 3, 3, 3, 4], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "tuner", "teachers", "close"]
 
@@ -244,14 +244,14 @@ def build(p, tag, audio):
 def script(p):
     b = p.beat
     # The hook: the line sung in sixteenths (HOOK_RHYTHM), the ball landing
-    # on each syllable. In from off the left on beat 4 of bar 1, "Sight" on
-    # bar 2's downbeat; between the lines it wraps (off the right edge, in
+    # on each syllable. In from off the left on beat 1, "Sight" landing on
+    # beat 2 (so "out." lands on bar 2's downbeat); between the lines it wraps (off the right edge, in
     # from the left) rather than flying back across the words; away off the
     # right after "out.".
     sixteenth = b / 4
     onsets, n = [], 0
     for d in HOOK_RHYTHM:
-        onsets.append(p.downbeats[1] + n * sixteenth)
+        onsets.append(p.beats[1] + n * sixteenth)
         n += d
     line2 = sum(len(w) for w in HOOK_WORDS[:HOOK_BREAK])
     js = [f"  var HOOK = {json.dumps([round(t, 3) for t in onsets])}, LEN = {json.dumps([round(d * sixteenth, 4) for d in HOOK_RHYTHM])}, B = {b:.4f}, LINE2 = {line2};"]
