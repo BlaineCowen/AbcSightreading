@@ -99,13 +99,69 @@ export function guitarSlots(meter: string, style: GuitarStyle): { a: GuitarSlot;
 
 /** The tempos each feel is rendered at (quarter notes, or dotted quarters for triplets); a video warps from the nearest. */
 export const GUITAR_TEMPOS: Record<"straight" | "waltz" | "triplet", number[]> = {
-  // A quarter apart, so no video warps a clip more than about 11% (stretched
-  // much further, a held chord smears; 60 itself is played as rendered).
-  straight: [60, 75, 90, 110],
-  waltz: [60, 75, 90, 110],
+  // About a fifth apart, so no video warps a clip more than about 11%
+  // (stretched much further, a held chord smears). Nothing slower is needed:
+  // below GUITAR_DOUBLE_BELOW the guitar plays at twice the tempo, up to 130.
+  straight: [75, 90, 110, 130],
+  waltz: [75, 90, 110, 130],
   // Session Guitarist plays its triplet patterns from 65 up; slower is silence.
-  triplet: [65, 80, 95],
+  triplet: [65, 80, 95, 115],
 };
+
+/**
+ * Slow, a strummed bar has too few strums to carry the music: below these
+ * tempos the guitar plays in double time, the pattern at twice the tempo,
+ * two of its bars to each bar of music.
+ */
+export const GUITAR_DOUBLE_BELOW: Record<"straight" | "waltz" | "triplet", number> = { straight: 67, waltz: 67, triplet: 59 };
+
+/** Whether the guitar plays in double time at `bpm` in `meter`. */
+export function guitarDouble(meter: string, bpm: number): boolean {
+  return bpm < GUITAR_DOUBLE_BELOW[guitarFeel(meter).feel];
+}
+
+/**
+ * The guitar part in double time: each bar of music spans twice its share of
+ * rendered bars, taken in order (a 4/4 bar is two rendered bars, the second
+ * from its downbeat), and a split bar's two chords fall where they fall. The
+ * count-in and the ending as in `guitarPart`.
+ */
+function doubleTimePart(
+  harmony: string[][],
+  o: { key: string; meter: string; style: GuitarStyle; splitAt: number; countInBars?: number },
+): GuitarPiece[] {
+  const share = guitarFeel(o.meter).share * 2;
+  const { a, b } = guitarSlots(o.meter, o.style);
+  const pieces: GuitarPiece[] = [];
+  // From `start` to `end` of bar i (fractions of it), in rendered bars, cut at each rendered barline.
+  const span = (i: number, start: number, end: number, chord: string, slot: GuitarSlot) => {
+    let x = (i + start) * share;
+    const stop = (i + end) * share;
+    while (x < stop - 1e-9) {
+      const bar = Math.floor(x + 1e-9);
+      const y = Math.min(stop, bar + 1);
+      pieces.push({ at: x / share, chord, slot, from: x - bar, to: y - bar });
+      x = y;
+    }
+  };
+  const home = guitarChord(o.key, "1")?.id;
+  for (let i = -(o.countInBars ?? 0); i < 0 && home; i++) span(i, 0, 1, home, a);
+  harmony.forEach((bar, i) => {
+    const slot = Math.floor(i / 4) % 2 === 0 ? a : b;
+    const chords = bar.map((name) => guitarChord(o.key, name)?.id ?? null);
+    if (i === harmony.length - 1) {
+      if (chords[0]) pieces.push({ at: i, chord: chords[chords.length - 1] ?? chords[0], slot: a, from: 0, to: 1, ending: true });
+      return;
+    }
+    if (chords.length > 1) {
+      if (chords[0]) span(i, 0, o.splitAt, chords[0], slot);
+      if (chords[1]) span(i, o.splitAt, 1, chords[1], slot);
+      return;
+    }
+    if (chords[0]) span(i, 0, 1, chords[0], slot);
+  });
+  return pieces;
+}
 
 /** The rendered tempo to warp from for `bpm`: the nearest by ratio. */
 export function nearestGuitarTempo(feel: "straight" | "waltz" | "triplet", bpm: number): number {
@@ -148,10 +204,11 @@ export interface GuitarPiece {
  */
 export function guitarPart(
   harmony: string[][],
-  o: { key: string; meter: string; style: GuitarStyle; splitAt: number; countInBars?: number; transpose?: number },
+  o: { key: string; meter: string; style: GuitarStyle; splitAt: number; countInBars?: number; transpose?: number; double?: boolean },
 ): GuitarPiece[] {
   // The page's playback transpose moves the whole band, the guitar with it.
   const key = transposeKey(o.key, o.transpose ?? 0);
+  if (o.double) return doubleTimePart(harmony, { ...o, key });
   const { share } = guitarFeel(o.meter);
   const { a, b } = guitarSlots(o.meter, o.style);
   const pieces: GuitarPiece[] = [];

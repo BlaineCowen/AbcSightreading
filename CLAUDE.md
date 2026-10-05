@@ -421,9 +421,9 @@ window: load the template in REAPER, change a slot, save (Cmd-S). `rpp.ts`
 writes projects around that state (REAPER's format is text) and
 `build.ts` renders every chord the progressions use in all twelve keys
 (36; the page has nine, but its playback transpose reaches the rest) in each
-slot at three or four tempos (60, 75, 90, 110; triplets 65, 80, 95), one steady bar a chord (the second of a two-bar hold),
+slot at four tempos (75, 90, 110, 130; triplets 65, 80, 95, 115), one steady bar a chord (the second of a two-bar hold),
 plus each style's ending (A#1) on the twelve home chords, into
-`public/guitar/` (51 MB; a video loads two pattern files and an ending,
+`public/guitar/` (47 MB; a video loads two pattern files and an ending,
 3-5 MB) and `guitar-manifest.json`: `bun run scripts/guitar/build.ts`,
 about 10 minutes. What the instrument wants, found by probing and its manual:
 chords from E2 (MIDI 52) up, root lowest, notes arriving low to high (G B D
@@ -434,7 +434,10 @@ The video plays each bar's chord from its clip, a split bar half of each,
 the A pattern in phrases 1 and 3 and B/C in 2 and 4, the ending in the last
 bar, warped from the nearest rendered tempo (never more than about 11%,
 with longer slices than the drums': `stretchBuffer`'s `tonal`, since 25 ms
-slices turned a held chord into a buzz at 60 from 70), and the count-in strums the home
+slices turned a held chord into a buzz at 60 from 70). Slow, the guitar
+plays in double time (`guitarDouble`: below 67, triplets 59): the pattern
+at twice the tempo, two of its bars to each bar of music, since a strum a
+bar at 60 has too few strums to carry it. The count-in strums the home
 chord so the key is set before the first note; Guitar level and strum (Pop
 strum, Campfire; 4/4 and 2/4 only) in the Sound panel. The page's Playback
 transpose moves the whole band: the melody and bass through abcjs's

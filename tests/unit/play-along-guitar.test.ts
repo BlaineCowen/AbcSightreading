@@ -5,6 +5,7 @@ import {
   GUITAR_SLOTS,
   GUITAR_TEMPOS,
   guitarChord,
+  guitarDouble,
   guitarFeel,
   guitarPart,
   nearestGuitarTempo,
@@ -94,12 +95,42 @@ describe("the part", () => {
   });
 
   test("it warps from the nearest rendered tempo", () => {
-    expect(nearestGuitarTempo("straight", 60)).toBe(60);
-    expect(nearestGuitarTempo("straight", 66)).toBe(60);
     expect(nearestGuitarTempo("straight", 68)).toBe(75);
     expect(nearestGuitarTempo("straight", 98)).toBe(90); // by ratio: 100 is nearer 110
     expect(nearestGuitarTempo("straight", 105)).toBe(110);
+    expect(nearestGuitarTempo("straight", 128)).toBe(130);
     expect(nearestGuitarTempo("triplet", 74)).toBe(80);
+  });
+
+  test("no tempo warps a clip more than about 11%, double time included", () => {
+    for (const meter of ["4/4", "3/4", "2/4", "6/8", "9/8", "12/8"]) {
+      // Dotted-quarter beats past 125 are outside anything a choir reads.
+      for (let bpm = 40; bpm <= (meter.endsWith("/8") ? 125 : 140); bpm++) {
+        const played = guitarDouble(meter, bpm) ? 2 * bpm : bpm;
+        const feel = meter.endsWith("/8") ? "triplet" : meter === "3/4" ? "waltz" : "straight";
+        const ratio = played / nearestGuitarTempo(feel, played);
+        expect(Math.abs(Math.log(ratio))).toBeLessThan(Math.log(1.12));
+      }
+    }
+  });
+
+  test("slow, the guitar plays in double time: two rendered bars to a bar of music", () => {
+    expect(guitarDouble("4/4", 60)).toBe(true);
+    expect(guitarDouble("4/4", 72)).toBe(false);
+    expect(guitarDouble("6/8", 55)).toBe(true);
+    const part = guitarPart(harmony, { key: "C", meter: "4/4", style: "passenger", splitAt: 0.5, countInBars: 1, double: true });
+    // The count-in bar: two rendered bars of the home chord.
+    expect(part.slice(0, 2)).toEqual([
+      { at: -1, chord: "C", slot: "passengerA", from: 0, to: 1 },
+      { at: -0.5, chord: "C", slot: "passengerA", from: 0, to: 1 },
+    ]);
+    expect(part.filter((p) => p.at >= 0 && p.at < 1).map((p) => [p.at, p.chord, p.from, p.to])).toEqual([[0, "C", 0, 1], [0.5, "C", 0, 1]]);
+    // A split bar: each chord its own rendered bar.
+    expect(part.filter((p) => p.at >= 5 && p.at < 6).map((p) => [p.at, p.chord])).toEqual([[5, "F"], [5.5, "D"]]);
+    expect(part.at(-1)).toMatchObject({ at: 7, chord: "C", ending: true });
+    // 2/4 in double time: one whole rendered bar a bar.
+    const two = guitarPart([["1"], ["5"], ["1"]], { key: "C", meter: "2/4", style: "passenger", splitAt: 0.5, double: true });
+    expect(two.slice(0, 2).map((p) => [p.at, p.from, p.to])).toEqual([[0, 0, 1], [1, 0, 1]]);
     expect(nearestGuitarTempo("triplet", 40)).toBe(65);
   });
 });

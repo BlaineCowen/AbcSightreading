@@ -1,48 +1,5 @@
 {
   "patterns": {
-    "passengerA@60": {
-      "file": "/guitar/passengerA@60.mp3",
-      "clipSec": 4.35,
-      "barSec": 4,
-      "chords": [
-        "A",
-        "A7",
-        "Ab",
-        "Ab7",
-        "Abm",
-        "Am",
-        "B",
-        "B7",
-        "Bb",
-        "Bb7",
-        "Bbm",
-        "Bm",
-        "C",
-        "C7",
-        "Cm",
-        "D",
-        "D7",
-        "Db",
-        "Db7",
-        "Dbm",
-        "Dm",
-        "E",
-        "E7",
-        "Eb",
-        "Eb7",
-        "Ebm",
-        "Em",
-        "F",
-        "F7",
-        "Fm",
-        "G",
-        "G7",
-        "Gb",
-        "Gb7",
-        "Gbm",
-        "Gm"
-      ]
-    },
     "passengerA@75": {
       "file": "/guitar/passengerA@75.mp3",
       "clipSec": 3.5500000000000003,
@@ -172,10 +129,10 @@
         "Gm"
       ]
     },
-    "passengerC@60": {
-      "file": "/guitar/passengerC@60.mp3",
-      "clipSec": 4.35,
-      "barSec": 4,
+    "passengerA@130": {
+      "file": "/guitar/passengerA@130.mp3",
+      "clipSec": 2.1961538461538463,
+      "barSec": 1.8461538461538463,
       "chords": [
         "A",
         "A7",
@@ -344,10 +301,10 @@
         "Gm"
       ]
     },
-    "campfireA@60": {
-      "file": "/guitar/campfireA@60.mp3",
-      "clipSec": 4.35,
-      "barSec": 4,
+    "passengerC@130": {
+      "file": "/guitar/passengerC@130.mp3",
+      "clipSec": 2.1961538461538463,
+      "barSec": 1.8461538461538463,
       "chords": [
         "A",
         "A7",
@@ -516,10 +473,10 @@
         "Gm"
       ]
     },
-    "campfireB@60": {
-      "file": "/guitar/campfireB@60.mp3",
-      "clipSec": 4.35,
-      "barSec": 4,
+    "campfireA@130": {
+      "file": "/guitar/campfireA@130.mp3",
+      "clipSec": 2.1961538461538463,
+      "barSec": 1.8461538461538463,
       "chords": [
         "A",
         "A7",
@@ -688,10 +645,10 @@
         "Gm"
       ]
     },
-    "waltzA@60": {
-      "file": "/guitar/waltzA@60.mp3",
-      "clipSec": 3.35,
-      "barSec": 3,
+    "campfireB@130": {
+      "file": "/guitar/campfireB@130.mp3",
+      "clipSec": 2.1961538461538463,
+      "barSec": 1.8461538461538463,
       "chords": [
         "A",
         "A7",
@@ -860,10 +817,10 @@
         "Gm"
       ]
     },
-    "waltzB@60": {
-      "file": "/guitar/waltzB@60.mp3",
-      "clipSec": 3.35,
-      "barSec": 3,
+    "waltzA@130": {
+      "file": "/guitar/waltzA@130.mp3",
+      "clipSec": 1.7346153846153847,
+      "barSec": 1.3846153846153846,
       "chords": [
         "A",
         "A7",
@@ -1032,6 +989,49 @@
         "Gm"
       ]
     },
+    "waltzB@130": {
+      "file": "/guitar/waltzB@130.mp3",
+      "clipSec": 1.7346153846153847,
+      "barSec": 1.3846153846153846,
+      "chords": [
+        "A",
+        "A7",
+        "Ab",
+        "Ab7",
+        "Abm",
+        "Am",
+        "B",
+        "B7",
+        "Bb",
+        "Bb7",
+        "Bbm",
+        "Bm",
+        "C",
+        "C7",
+        "Cm",
+        "D",
+        "D7",
+        "Db",
+        "Db7",
+        "Dbm",
+        "Dm",
+        "E",
+        "E7",
+        "Eb",
+        "Eb7",
+        "Ebm",
+        "Em",
+        "F",
+        "F7",
+        "Fm",
+        "G",
+        "G7",
+        "Gb",
+        "Gb7",
+        "Gbm",
+        "Gm"
+      ]
+    },
     "irishC@65": {
       "file": "/guitar/irishC@65.mp3",
       "clipSec": 4.042307692307692,
@@ -1122,6 +1122,49 @@
       "file": "/guitar/irishC@95.mp3",
       "clipSec": 2.876315789473684,
       "barSec": 2.526315789473684,
+      "chords": [
+        "A",
+        "A7",
+        "Ab",
+        "Ab7",
+        "Abm",
+        "Am",
+        "B",
+        "B7",
+        "Bb",
+        "Bb7",
+        "Bbm",
+        "Bm",
+        "C",
+        "C7",
+        "Cm",
+        "D",
+        "D7",
+        "Db",
+        "Db7",
+        "Dbm",
+        "Dm",
+        "E",
+        "E7",
+        "Eb",
+        "Eb7",
+        "Ebm",
+        "Em",
+        "F",
+        "F7",
+        "Fm",
+        "G",
+        "G7",
+        "Gb",
+        "Gb7",
+        "Gbm",
+        "Gm"
+      ]
+    },
+    "irishC@115": {
+      "file": "/guitar/irishC@115.mp3",
+      "clipSec": 2.4369565217391305,
+      "barSec": 2.0869565217391304,
       "chords": [
         "A",
         "A7",
@@ -1289,28 +1332,52 @@
         "Gbm",
         "Gm"
       ]
+    },
+    "irishA@115": {
+      "file": "/guitar/irishA@115.mp3",
+      "clipSec": 2.4369565217391305,
+      "barSec": 2.0869565217391304,
+      "chords": [
+        "A",
+        "A7",
+        "Ab",
+        "Ab7",
+        "Abm",
+        "Am",
+        "B",
+        "B7",
+        "Bb",
+        "Bb7",
+        "Bbm",
+        "Bm",
+        "C",
+        "C7",
+        "Cm",
+        "D",
+        "D7",
+        "Db",
+        "Db7",
+        "Dbm",
+        "Dm",
+        "E",
+        "E7",
+        "Eb",
+        "Eb7",
+        "Ebm",
+        "Em",
+        "F",
+        "F7",
+        "Fm",
+        "G",
+        "G7",
+        "Gb",
+        "Gb7",
+        "Gbm",
+        "Gm"
+      ]
     }
   },
   "endings": {
-    "passengerA@60": {
-      "file": "/guitar/end-passengerA@60.mp3",
-      "clipSec": 4.5,
-      "barSec": 4,
-      "chords": [
-        "C",
-        "Db",
-        "D",
-        "Eb",
-        "E",
-        "F",
-        "Gb",
-        "G",
-        "Ab",
-        "A",
-        "Bb",
-        "B"
-      ]
-    },
     "passengerA@75": {
       "file": "/guitar/end-passengerA@75.mp3",
       "clipSec": 4.5,
@@ -1368,10 +1435,10 @@
         "B"
       ]
     },
-    "campfireA@60": {
-      "file": "/guitar/end-campfireA@60.mp3",
-      "clipSec": 4.5,
-      "barSec": 4,
+    "passengerA@130": {
+      "file": "/guitar/end-passengerA@130.mp3",
+      "clipSec": 3.6923076923076925,
+      "barSec": 1.8461538461538463,
       "chords": [
         "C",
         "Db",
@@ -1444,10 +1511,10 @@
         "B"
       ]
     },
-    "waltzA@60": {
-      "file": "/guitar/end-waltzA@60.mp3",
-      "clipSec": 4.5,
-      "barSec": 3,
+    "campfireA@130": {
+      "file": "/guitar/end-campfireA@130.mp3",
+      "clipSec": 3.6923076923076925,
+      "barSec": 1.8461538461538463,
       "chords": [
         "C",
         "Db",
@@ -1520,6 +1587,25 @@
         "B"
       ]
     },
+    "waltzA@130": {
+      "file": "/guitar/end-waltzA@130.mp3",
+      "clipSec": 2.769230769230769,
+      "barSec": 1.3846153846153846,
+      "chords": [
+        "C",
+        "Db",
+        "D",
+        "Eb",
+        "E",
+        "F",
+        "Gb",
+        "G",
+        "Ab",
+        "A",
+        "Bb",
+        "B"
+      ]
+    },
     "irishA@65": {
       "file": "/guitar/end-irishA@65.mp3",
       "clipSec": 4.5,
@@ -1562,6 +1648,25 @@
       "file": "/guitar/end-irishA@95.mp3",
       "clipSec": 4.5,
       "barSec": 2.526315789473684,
+      "chords": [
+        "C",
+        "Db",
+        "D",
+        "Eb",
+        "E",
+        "F",
+        "Gb",
+        "G",
+        "Ab",
+        "A",
+        "Bb",
+        "B"
+      ]
+    },
+    "irishA@115": {
+      "file": "/guitar/end-irishA@115.mp3",
+      "clipSec": 4.173913043478261,
+      "barSec": 2.0869565217391304,
       "chords": [
         "C",
         "Db",

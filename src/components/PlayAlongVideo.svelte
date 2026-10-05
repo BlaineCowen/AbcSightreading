@@ -3,7 +3,7 @@
   import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
   import { barsForLength, frameAt, tempoChoices } from "../lib/play-along/timeline";
   import { barChords, bassAbc, harmonyNotes, progressionChords } from "../lib/play-along/bass";
-  import { GUITAR_STYLES, guitarFeel, guitarPart, type GuitarStyle } from "../lib/play-along/guitar";
+  import { GUITAR_STYLES, guitarDouble, guitarFeel, guitarPart, type GuitarStyle } from "../lib/play-along/guitar";
   import { splitAt } from "../lib/unison-progressions";
   import { INSTRUMENTS, isInstrumentProgram, withInstrument } from "../lib/instruments";
   import { renderBars, type BarImage } from "../lib/play-along/bar-images";
@@ -211,6 +211,8 @@
           // The count-in strums the home chord, setting the key.
           countInBars,
           transpose,
+          // Slow, the strum runs in double time (two of its bars to one of the music's).
+          double: guitarDouble(scoreMeter, tempo),
         })
       : [];
   /** Only 4/4 and 2/4 have a choice of strum; 3/4 and the compound meters have one each. */
@@ -257,7 +259,7 @@
       : a.renderGuide(withRhythmSound(abc, rhythmSoundFor(sound.guideSound)), tempo, volumeMultiplierFor(rhythmSoundFor(sound.guideSound)));
     const bassLine = pitched && bassText ? a.renderGuide(bassText, tempo, 3, transpose) : Promise.resolve(null);
     // A guitar that cannot load leaves the video playing without it.
-    const guitar = guitarPieces.length ? a.prepareGuitar(guitarPieces, { meter: scoreMeter, bpm: tempo }).catch(() => null) : Promise.resolve(null);
+    const guitar = guitarPieces.length ? a.prepareGuitar(guitarPieces, { meter: scoreMeter, bpm: guitarDouble(scoreMeter, tempo) ? 2 * tempo : tempo }).catch(() => null) : Promise.resolve(null);
     const job: Promise<void> = Promise.all([melody, bassLine, guitar])
       .then(([buffer, bassBuffer, guitarPart]) => {
         if (seq !== guideSeq) return;
