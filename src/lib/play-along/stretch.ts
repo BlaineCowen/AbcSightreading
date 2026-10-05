@@ -113,13 +113,17 @@ const SAMPLE_RATE_FOR_ALIGNMENT = 44100;
  * `rate` above 1 is faster (shorter), below 1 slower; pitch is unchanged.
  * The result is the input's length divided by `rate`.
  */
-export function stretchChannels(ch: Channels, rate: number, sampleRate = SAMPLE_RATE_FOR_ALIGNMENT): Channels {
+export function stretchChannels(ch: Channels, rate: number, sampleRate = SAMPLE_RATE_FOR_ALIGNMENT, tonal = false): Channels {
   if (Math.abs(rate - 1) < 1e-6) return [ch[0].slice(), ch[1].slice()];
   const st = new SoundTouch();
   st.tempo = rate;
   // Slower than 1x, fixed short slices: the automatic ones (about 120 ms) are
   // played twice at half speed and doubled every hit.
   if (rate < 1) st.stretch.setParameters(sampleRate, 25, 10, 6);
+  // Held, pitched sound (the guitar): slices that long cut a chord into a
+  // buzz. Longer ones keep it whole; the strums' attacks are restored below,
+  // and a guitar clip is never stretched far (it is rendered near the tempo).
+  if (tonal) st.stretch.setParameters(sampleRate, 82, 28, 12);
   const filter = new SimpleFilter(new ArraySource(ch), st);
   const want = Math.round(ch[0].length / rate);
   // Read past the end a little: the latency means the tail arrives late.
@@ -189,10 +193,10 @@ function restoreTransients(src: Channels, out: Channels, rate: number, sampleRat
 }
 
 /** The same on an AudioBuffer, for the player. */
-export function stretchBuffer(ctx: BaseAudioContext, buffer: AudioBuffer, rate: number): AudioBuffer {
+export function stretchBuffer(ctx: BaseAudioContext, buffer: AudioBuffer, rate: number, tonal = false): AudioBuffer {
   const left = buffer.getChannelData(0);
   const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
-  const [l, r] = stretchChannels([left, right], rate, buffer.sampleRate);
+  const [l, r] = stretchChannels([left, right], rate, buffer.sampleRate, tonal);
   const out = ctx.createBuffer(2, l.length, buffer.sampleRate);
   out.copyToChannel(l, 0);
   out.copyToChannel(r, 1);

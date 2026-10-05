@@ -202,7 +202,7 @@ export class PlayAlongAudio {
         const raw = this.ctx.createBuffer(whole.numberOfChannels, n, whole.sampleRate);
         const from = Math.round(index * f.clipSec * whole.sampleRate);
         for (let ch = 0; ch < whole.numberOfChannels; ch++) raw.copyToChannel(whole.getChannelData(ch).subarray(from, from + n), ch);
-        clip = rate === 1 ? raw : stretchBuffer(this.ctx, raw, rate);
+        clip = rate === 1 ? raw : stretchBuffer(this.ctx, raw, rate, true);
         this.guitarClips.set(key, clip);
       }
       out.push({

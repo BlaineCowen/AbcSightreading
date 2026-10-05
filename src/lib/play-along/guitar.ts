@@ -99,10 +99,12 @@ export function guitarSlots(meter: string, style: GuitarStyle): { a: GuitarSlot;
 
 /** The tempos each feel is rendered at (quarter notes, or dotted quarters for triplets); a video warps from the nearest. */
 export const GUITAR_TEMPOS: Record<"straight" | "waltz" | "triplet", number[]> = {
-  straight: [70, 110],
-  waltz: [70, 110],
+  // A quarter apart, so no video warps a clip more than about 11% (stretched
+  // much further, a held chord smears; 60 itself is played as rendered).
+  straight: [60, 75, 90, 110],
+  waltz: [60, 75, 90, 110],
   // Session Guitarist plays its triplet patterns from 65 up; slower is silence.
-  triplet: [65, 95],
+  triplet: [65, 80, 95],
 };
 
 /** The rendered tempo to warp from for `bpm`: the nearest by ratio. */

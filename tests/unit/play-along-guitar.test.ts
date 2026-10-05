@@ -94,8 +94,12 @@ describe("the part", () => {
   });
 
   test("it warps from the nearest rendered tempo", () => {
-    expect(nearestGuitarTempo("straight", 60)).toBe(70);
-    expect(nearestGuitarTempo("straight", 100)).toBe(110);
+    expect(nearestGuitarTempo("straight", 60)).toBe(60);
+    expect(nearestGuitarTempo("straight", 66)).toBe(60);
+    expect(nearestGuitarTempo("straight", 68)).toBe(75);
+    expect(nearestGuitarTempo("straight", 98)).toBe(90); // by ratio: 100 is nearer 110
+    expect(nearestGuitarTempo("straight", 105)).toBe(110);
+    expect(nearestGuitarTempo("triplet", 74)).toBe(80);
     expect(nearestGuitarTempo("triplet", 40)).toBe(65);
   });
 });
