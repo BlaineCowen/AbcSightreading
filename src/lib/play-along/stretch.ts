@@ -124,7 +124,15 @@ export function stretchChannels(ch: Channels, rate: number, sampleRate = SAMPLE_
   // buzz. Longer ones keep it whole; the strums' attacks are restored below,
   // and a guitar clip is never stretched far (it is rendered near the tempo).
   if (tonal) st.stretch.setParameters(sampleRate, 82, 28, 12);
-  const filter = new SimpleFilter(new ArraySource(ch), st);
+  // Silence after the input, so SoundTouch lets go of its last few hundred
+  // milliseconds: without it a short clip (a guitar bar) came out with its
+  // end missing, a gap just before the next barline.
+  const padded = ch.map((c) => {
+    const p = new Float32Array(c.length + Math.round(0.5 * sampleRate));
+    p.set(c);
+    return p;
+  }) as Channels;
+  const filter = new SimpleFilter(new ArraySource(padded), st);
   const want = Math.round(ch[0].length / rate);
   // Read past the end a little: the latency means the tail arrives late.
   const l = new Float32Array(want + 8192), r = new Float32Array(want + 8192);

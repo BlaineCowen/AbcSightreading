@@ -75,3 +75,27 @@ describe("stretching keeps the beat", () => {
     expect(l).not.toBe(x);
   });
 });
+
+describe("a short clip (a guitar bar)", () => {
+  // A held chord: three sines, two seconds, sounding to the very end.
+  const chord = () => {
+    const n = 2 * RATE;
+    const c = new Float32Array(n);
+    for (let i = 0; i < n; i++) c[i] = 0.2 * (Math.sin((2 * Math.PI * 196 * i) / RATE) + Math.sin((2 * Math.PI * 247 * i) / RATE) + Math.sin((2 * Math.PI * 294 * i) / RATE));
+    return [c, c.slice()] as [Float32Array, Float32Array];
+  };
+  const rms = (x: Float32Array, a: number, b: number) => {
+    let s = 0;
+    for (let i = a; i < b; i++) s += x[i] * x[i];
+    return Math.sqrt(s / (b - a));
+  };
+
+  for (const rate of [0.9, 1.1]) {
+    test(`stretched ${rate}x, it sounds to its end (SoundTouch's tail is flushed)`, () => {
+      const [l] = stretchChannels(chord(), rate, RATE, true);
+      const n = l.length;
+      // Its last tenth of a second as loud as its middle: no gap before the next barline.
+      expect(rms(l, n - Math.round(0.1 * RATE), n)).toBeGreaterThan(0.5 * rms(l, Math.round(n / 2), Math.round(n / 2 + 0.1 * RATE)));
+    });
+  }
+});

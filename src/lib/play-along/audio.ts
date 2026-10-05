@@ -23,8 +23,16 @@ export interface PreparedGuitarPiece {
   /** Seconds to play; null plays the clip out (the ending's ring). */
   dur: number | null;
 }
-/** How long one guitar piece crossfades into the next. */
-const GUITAR_XFADE = 0.025;
+/**
+ * How one guitar piece hands over to the next at a barline. The rendered
+ * strum lands 10-25 ms after the beat (the strum's spread), so a piece cut
+ * at the barline left a gap: the old chord gone, the new one's quiet ring,
+ * then its strum. Now the old chord rings on a little and fades under the
+ * new strum, and the new piece fades in over the strum's first moments.
+ */
+const GUITAR_RING_ON = 0.03;
+const GUITAR_FADE_OUT = 0.07;
+const GUITAR_FADE_IN = 0.02;
 import { loopOffset } from "./timeline";
 
 /** How long the loop takes to fade once the last bar has been played. */
@@ -354,11 +362,12 @@ export class PlayAlongAudio {
       src.buffer = p.buffer;
       const g = this.gainInto(this.guitarGain, 0);
       g.gain.setValueAtTime(0, when);
-      g.gain.linearRampToValueAtTime(1, when + 0.004);
+      g.gain.linearRampToValueAtTime(1, when + GUITAR_FADE_IN);
       if (p.dur !== null) {
-        g.gain.setValueAtTime(1, when + p.dur);
-        g.gain.linearRampToValueAtTime(0, when + p.dur + GUITAR_XFADE);
-        src.start(when, p.offset, p.dur + GUITAR_XFADE);
+        const out = when + p.dur + GUITAR_RING_ON;
+        g.gain.setValueAtTime(1, out);
+        g.gain.linearRampToValueAtTime(0, out + GUITAR_FADE_OUT);
+        src.start(when, p.offset, p.dur + GUITAR_RING_ON + GUITAR_FADE_OUT);
       } else {
         src.start(when, p.offset);
         guitarEnd = Math.max(guitarEnd, when + p.buffer.duration - p.offset);

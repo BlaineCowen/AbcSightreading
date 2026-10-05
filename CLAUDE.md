@@ -437,7 +437,11 @@ with longer slices than the drums': `stretchBuffer`'s `tonal`, since 25 ms
 slices turned a held chord into a buzz at 60 from 70). Slow, the guitar
 plays in double time (`guitarDouble`: below 67, triplets 59): the pattern
 at twice the tempo, two of its bars to each bar of music, since a strum a
-bar at 60 has too few strums to carry it. The count-in strums the home
+bar at 60 has too few strums to carry it. At each barline the old chord
+rings on 30 ms and fades under the new strum, which lands 10-25 ms late in
+the render (the strum's spread); and a stretched clip is padded with
+silence so SoundTouch gives back its end (it kept the last few hundred ms,
+a gap before every barline). The count-in strums the home
 chord so the key is set before the first note; Guitar level and strum (Pop
 strum, Campfire; 4/4 and 2/4 only) in the Sound panel. The page's Playback
 transpose moves the whole band: the melody and bass through abcjs's
