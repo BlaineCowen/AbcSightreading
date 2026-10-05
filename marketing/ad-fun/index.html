@@ -68,6 +68,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .cta { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 46px; color: #ffffff; background: #2f6fe0; padding: 20px 54px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47,111,224,0.35); }
 .url-pill { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 44px; color: #15213a; background: #ffffff; padding: 18px 44px; border-radius: 999px; border: 2px solid #d8e2f1; }
 .close-price { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 34px; color: #1e56c0; }
+
 </style>
 </head>
 <body>
@@ -243,7 +244,7 @@ var tl = gsap.timeline({ paused: true });
   var first = window.__hops[0];
   gsap.set("#hook-ball", { x: first.x - 260, y: first.y });
 })();
-  var HOOK = [0.627, 1.225, 1.823, 2.421, 3.019, 3.617], LEN = [0.598, 0.598, 0.598, 0.598, 0.598, 0.598], B = 0.5980, LINE2 = 2;
+  var HOOK = [0.627, 1.225, 1.823, 2.421, 3.019, 3.617], LEN = [0.598, 0.598, 0.598, 0.598, 0.598, 0.598], B = 0.5980, W = 1920;
 
   // ---- Hook
   tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
@@ -264,16 +265,16 @@ var tl = gsap.timeline({ paused: true });
     // Each hop lasts its syllable: higher for the longer notes.
     for (var i = 1; i < N; i++) {
       var d = LEN[i - 1], peak = d > 0.5 ? 150 : d > 0.2 ? 110 : 65;
-      if (i === LINE2) {
+      if (hops[i].y > hops[i - 1].y + 30) {   // a new line
         // Wrap: off the right edge on the way up, in from the left on the way down.
-        var off = 1920 + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
-        tl.to("#hook-ball", { x: 1920 + 60, y: hops[i - 1].y - peak, duration: up, ease: "power1.out" }, HOOK[i - 1]);
+        var off = W + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
+        tl.to("#hook-ball", { x: W + 60, y: hops[i - 1].y - peak, duration: up, ease: "power1.out" }, HOOK[i - 1]);
         tl.set("#hook-ball", { x: -60, y: hops[i].y - peak }, HOOK[i - 1] + up);
         tl.to("#hook-ball", { x: hops[i].x, y: hops[i].y, duration: d - up - 0.001, ease: "power1.in" }, HOOK[i - 1] + up);
       } else hop(hops[i].x, hops[i].y, HOOK[i - 1], d, peak);
     }
     // "out." held, then away off the right.
-    hop(1920 + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
+    hop(W + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
   }
   tl.to('.blob', { y: '+=40', x: '-=20', duration: 62.54, ease: 'sine.inOut' }, 0);
 
