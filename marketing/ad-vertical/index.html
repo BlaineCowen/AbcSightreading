@@ -116,7 +116,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     <div class="copy">
       <span class="kicker" id="unison-kicker" style="background:#c9e4ff;color:#0e3563">Unison</span>
       <h2 class="head" id="unison-head">A new exercise every click.</h2>
-      <p class="body" id="unison-body">Your key, your notes, your rhythms, over real chord progressions.</p>
+      <p class="body" id="unison-body">Your key, your notes, your rhythms. Solfège included.</p>
       
     </div>
     <div class="window" id="unison-window">
@@ -134,8 +134,8 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
   <div class="scene-content flip">
     <div class="copy">
       <span class="kicker" id="bass-kicker" style="background:#ffd3bf;color:#5a2310">Unison</span>
-      <h2 class="head" id="bass-head">Treble, bass, alto or tenor.</h2>
-      <p class="body" id="bass-body">Any key, sung in time. Solfège, fixed do or note names.</p>
+      <h2 class="head" id="bass-head">Sounds like real music.</h2>
+      <p class="body" id="bass-body">Melodies over real chord progressions, not random notes. Any clef, any key.</p>
       
     </div>
     <div class="window" id="bass-window">
@@ -238,7 +238,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 <div class="blob" id="close-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
   <div class="close-content">
     <div class="close-mark" id="close-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">SightReading</span></div>
-    <p class="close-line" id="close-line">Sight-reading practice for every choir and classroom.</p>
+    <p class="close-line" id="close-line">Sight-reading that sounds like real music.</p>
     <div class="close-row">
       <span class="cta" id="close-cta">Try it free</span>
       <span class="url-pill" id="close-url">abcsightreading.com</span>
@@ -483,7 +483,7 @@ var tl = gsap.timeline({ paused: true });
   tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 56.487);
   tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 56.786);
   // Over the stop it waits; on the ending's last hit, the logo and the button pop.
-  tl.to(["#close-mark", "#close-cta"], { scale: 1.1, duration: 0.09, ease: "power2.out", yoyo: true, repeat: 1 }, 57.770);
+  tl.to(["#close-mark", "#close-cta"], { scale: 1.1, duration: 0.09, ease: "power2.out", yoyo: true, repeat: 1 }, 57.490);
   // The final scene fades out with the music.
   tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 61.940);
 window.__timelines["main"] = tl;

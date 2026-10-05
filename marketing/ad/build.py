@@ -43,12 +43,12 @@ VERSIONS = {
     # every other cut is on a phrase.
     # final_hit: the ending's last hit (Blaine's fix of the 60 s cut ends
     # on the full version's last riff), where the close's logo and button pop.
-    "fun": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100", final_hit=57.80,
+    "fun": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100", final_hit=57.52,
                 bars=[2, 2, 4, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
     # The same ad as a 1080x1920 Reel: the app recorded in its phone layout
     # (capture.ts with PHONE=1, <name>-100-phone), text over a phone-shaped
     # window; the play-along stays the landscape video it really is.
-    "vertical": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100-phone", final_hit=57.80,
+    "vertical": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100-phone", final_hit=57.52,
                      bars=[2, 2, 4, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-vertical/index.html",
                      portrait=True, tuner="tuner-phone", playalong="playalong-100", hook_breaks=[1, 2, 4]),
 }
@@ -61,9 +61,9 @@ ORDER = ["hook", "unison", "bass", "choral", "rhythm", "tuner", "playalong", "op
 
 COPY = {
     "unison": dict(kicker="Unison", tint="sky", head="A new exercise every click.",
-                   body="Your key, your notes, your rhythms, over real chord progressions.", url="abcsightreading.com/sightreading"),
-    "bass": dict(kicker="Unison", tint="peach", flip=True, head="Treble, bass, alto or tenor.",
-                 body="Any key, sung in time. Solfège, fixed do or note names.", url="abcsightreading.com/sightreading"),
+                   body="Your key, your notes, your rhythms. Solfège included.", url="abcsightreading.com/sightreading"),
+    "bass": dict(kicker="Unison", tint="peach", flip=True, head="Sounds like real music.",
+                 body="Melodies over real chord progressions, not random notes. Any clef, any key.", url="abcsightreading.com/sightreading"),
     "choral": dict(kicker="Choral", tint="mint", flip=True, head="Two, three and four parts.",
                    body="SATB, SSA and TTB, from UIL Level 1 to 5.", url="abcsightreading.com/choral-sightreading"),
     "rhythm": dict(kicker="Rhythm", tint="butter", head="Ta, ti-ti, ti-ki-ti-ki.",
@@ -299,7 +299,7 @@ def build(p, tag, audio):
   {blobs("close")}
   <div class="close-content">
     <div class="close-mark" id="close-mark">{ABC_SVG}<span class="rest">SightReading</span></div>
-    <p class="close-line" id="close-line">Sight-reading practice for every choir and classroom.</p>
+    <p class="close-line" id="close-line">Sight-reading that sounds like real music.</p>
     <div class="close-row">
       <span class="cta" id="close-cta">Try it free</span>
       <span class="url-pill" id="close-url">abcsightreading.com</span>
