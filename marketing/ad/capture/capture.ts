@@ -6,7 +6,7 @@
  *   bun run capture/capture.ts                         # all of them
  */
 import type { Page } from "puppeteer-core";
-import { APP, OUT, launch, clickText, record, recordExact, sleep, scrollTo, watchCountIn } from "./lib";
+import { APP, OUT, PHONE, launch, clickText, record, recordExact, sleep, scrollTo, watchCountIn } from "./lib";
 import { resolve } from "path";
 
 const light = async (page: Page) => {
@@ -30,6 +30,10 @@ async function tidy(page: Page) {
       if (says(el) && ![...el.children].some(says)) hide(el);
     }
     for (const b of document.querySelectorAll("button, a")) if ((b.textContent ?? "").trim() === "Feedback") hide(b);
+    // The floating Tools button (over the music on a phone) and the
+    // signed-out "exercises left" count on Generate.
+    hide(document.querySelector(".tools-fab"));
+    for (const el of document.querySelectorAll('[title$="exercises left this month"]')) hide(el);
   });
 }
 
@@ -49,7 +53,25 @@ async function open(path: string, extraArgs: string[] = []) {
  * beat; build.py lines their first note up with a downbeat.
  */
 const TEMPO = Number(process.env.TEMPO ?? 84);
-const tagged = (name: string) => (process.env.TEMPO ? `${name}-${TEMPO}` : name);
+const tagged = (name: string) => (process.env.TEMPO ? `${name}-${TEMPO}` : name) + (PHONE ? "-phone" : "");
+
+/** The playback bar's buttons, by label: on a phone they are icons only. */
+const gen = (page: Page) => page.click('[aria-label="Generate a new exercise"]');
+const play = (page: Page) => page.click('[aria-label="Play"]');
+/** On a phone the score sits below the settings: bring it up first. */
+const toScore = async (page: Page) => {
+  if (!PHONE) return;
+  // The settings above the score are hidden (their last row otherwise peeks
+  // out over the navbar), and the score sits just under the navbar.
+  await page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>(".tab-panel");
+    if (panel) panel.style.visibility = "hidden";
+    document.querySelector(".abcjs-container, [id^=paper]")?.scrollIntoView({ block: "start" });
+    const nav = document.querySelector("nav")?.getBoundingClientRect().height ?? 64;
+    window.scrollBy(0, -nav - 10);
+  });
+  await sleep(700);
+};
 
 const UNISON = `/sightreading?clef=treble&range=14-21&key=G&scaleDegrees=1,2,3,4,5,6,7&rhythms=quarter,eighthEighth,half,dotQuarterEighth&timeSignature=4/4&measures=8&maxSkip=4&bpm=${TEMPO}&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth`;
 
@@ -74,19 +96,14 @@ const scenes: Record<string, () => Promise<void>> = {
     // click is logged ("click") on the recording's clock, so build.py can
     // put them on the song's beats.
     const { browser, page } = await open(UNISON);
-    await clickText(page, "Generate", { exact: true });
+    await gen(page);
     await sleep(1200);
-    await scrollTo(page, ".abcjs-container, [id^=paper]", "start", -40);
+    if (PHONE) await toScore(page);
+    else await scrollTo(page, ".abcjs-container, [id^=paper]", "start", -40);
     await sleep(900);
     await watchCountIn(page);
     // The playback bar's Generate, which is always on screen: the page stays put.
-    const generate = () =>
-      page.evaluate(() => {
-        const b = [...document.querySelectorAll<HTMLElement>("button")].filter(
-          (e) => /^Generate/.test((e.textContent ?? "").trim()) && e.getBoundingClientRect().height > 0,
-        );
-        b[b.length - 1]?.click();
-      });
+    const generate = () => gen(page);
     await recordExact(page, tagged("unison-clicks"), async () => {
       await sleep(800);
       for (let k = 0; k < 5; k++) {
@@ -104,12 +121,13 @@ const scenes: Record<string, () => Promise<void>> = {
     const { browser, page } = await open(
       `/sightreading?clef=bass&range=4-14&key=F&scaleDegrees=1,2,3,4,5,6,7&rhythms=quarter,eighthEighth,half,dotQuarterEighth&timeSignature=4/4&measures=8&maxSkip=4&bpm=${TEMPO}&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth`,
     );
-    await clickText(page, "Generate", { exact: true });
+    await gen(page);
     await sleep(1200);
+    await toScore(page);
     await watchCountIn(page);
     await recordExact(page, tagged("unison-bass"), async () => {
       await sleep(400);
-      await clickText(page, "Play", { exact: true });
+      await play(page);
       await sleep(4 * (60000 / TEMPO) + 11000);
     });
     await browser.close();
@@ -123,7 +141,7 @@ const scenes: Record<string, () => Promise<void>> = {
     const { browser, page } = await open(`/choral-sightreading?key=D&bpm=${TEMPO}`);
     let top = Infinity;
     for (let tries = 0; tries < 12 && top > -0.5; tries++) {
-      await clickText(page, "Generate", { exact: true });
+      await gen(page);
       await sleep(1300);
       top = await page.evaluate(() => {
         const svg = document.querySelector(".abcjs-container svg, [id^=paper] svg");
@@ -142,10 +160,11 @@ const scenes: Record<string, () => Promise<void>> = {
       });
     }
     console.log(`choral: soprano tops out ${top.toFixed(1)} staff spaces above the top line`);
+    await toScore(page);
     await watchCountIn(page);
     await recordExact(page, tagged("choral"), async () => {
       await sleep(400);
-      await clickText(page, "Play", { exact: true });
+      await play(page);
       await sleep(4 * (60000 / TEMPO) + 10000);
     });
     await browser.close();
@@ -155,12 +174,15 @@ const scenes: Record<string, () => Promise<void>> = {
     const { browser, page } = await open(
       `/sightreading?rhythmOnly=true&rhythms=quarter,eighthEighth,half,quarterRest,fourSixteenths&timeSignature=4/4&measures=8&bpm=${TEMPO}&showRhythmSyllables=true&syllableSystem=kodaly`,
     );
+    if (PHONE) { await gen(page); await sleep(1200); await toScore(page); }
     await watchCountIn(page);
     await recordExact(page, tagged("rhythm"), async () => {
       await sleep(700);
-      await clickText(page, "Generate", { exact: true });
-      await sleep(1500);
-      await clickText(page, "Play", { exact: true });
+      if (!PHONE) {
+        await clickText(page, "Generate", { exact: true });
+        await sleep(1500);
+      }
+      await play(page);
       await sleep(4 * (60000 / TEMPO) + 9000);
     });
     await browser.close();
@@ -217,9 +239,9 @@ const scenes: Record<string, () => Promise<void>> = {
     });
     await sleep(900);
     await clickText(page, "Solfège", { exact: true });
-    await page.evaluate(() => window.scrollTo(0, 150));
+    await page.evaluate((y) => window.scrollTo(0, y), PHONE ? 230 : 150);
     await sleep(300);
-    await record(page, "tuner", async () => {
+    await record(page, PHONE ? "tuner-phone" : "tuner", async () => {
       await sleep(500);
       await clickText(page, "Start microphone");
       await sleep(5500);

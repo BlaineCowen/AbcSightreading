@@ -29,7 +29,7 @@ import html, json, re, subprocess
 W, H = 1920, 1080
 # The hook: the ball lands on a word a beat (each length in sixteenths).
 HOOK_WORDS = [["Sight-reading"], ["practice"], ["that"], ["never"], ["runs"], ["out."]]
-HOOK_BREAK = 2   # line two starts at this word
+HOOK_BREAKS = [2]   # the words that start a new line (landscape; a version may set hook_breaks)
 HOOK_RHYTHM = [4, 4, 4, 4, 4, 4]
 SWAP = 0.24             # how long into a wipe the scenes change over: the wipe starts this much before the downbeat
 
@@ -45,6 +45,17 @@ VERSIONS = {
     # on the full version's last riff), where the close's logo and button pop.
     "fun": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100", final_hit=57.80,
                 bars=[2, 2, 4, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
+    # The same ad as a 1080x1920 Reel: the app recorded in its phone layout
+    # (capture.ts with PHONE=1, <name>-100-phone), text over a phone-shaped
+    # window; the play-along stays the landscape video it really is.
+    "vertical": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100-phone", final_hit=57.80,
+                     bars=[2, 2, 4, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-vertical/index.html",
+                     portrait=True, tuner="tuner-phone", playalong="playalong-100", hook_breaks=[1, 2, 4]),
+}
+# The frame and the montage's geometry for each orientation.
+LAYOUTS = {
+    False: dict(W=1920, H=1080, PANEL_BOX=(1560, 640, 960, 655), WALL=(4, 3, 70, 300, 1850, 1050)),
+    True: dict(W=1080, H=1920, PANEL_BOX=(980, 1000, 540, 1000), WALL=(2, 6, 40, 440, 1040, 1700)),
 }
 ORDER = ["hook", "unison", "bass", "choral", "rhythm", "tuner", "playalong", "options", "close"]
 
@@ -185,7 +196,8 @@ def clips_for(scene, p, tag):
         return [(f"{scene}-{tag}", c["music_start"], at, end - at)]
     if scene == "tuner":
         last = bar if end - at > 1.5 * bar else (end - at) / 2
-        return [("tuner", 1.0, at, end - at - last), ("tuner", 9.8, end - last, last)]
+        name = p.v.get("tuner", "tuner")
+        return [(name, 1.0, at, end - at - last), (name, 9.8, end - last, last)]
     raise KeyError(scene)
 
 
@@ -244,7 +256,7 @@ def build(p, tag, audio):
       <h2 class="head pa-head" id="playalong-head">Turn any exercise into a play-along video.</h2>
     </div>
     <div class="pa-frame" id="playalong-frame">
-      <div class="vw" id="playalong-vw0">{video_tag("playalong-v0", f"playalong-{tag}", pa_at, p.end_of("playalong") - pa_at + 0.3, 0, 40)}</div>
+      <div class="vw" id="playalong-vw0">{video_tag("playalong-v0", p.v.get("playalong", f"playalong-{tag}"), pa_at, p.end_of("playalong") - pa_at + 0.3, 0, 40)}</div>
     </div>
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
   </div>
@@ -271,7 +283,8 @@ def build(p, tag, audio):
                 spans.append(f'<span class="hw" id="hw{i}">{syl}</span>')
                 i += 1
             out.append(f'<span class="hword">{"".join(spans)}</span>')
-        return " ".join(out[:HOOK_BREAK]) + "<br>" + " ".join(out[HOOK_BREAK:])
+        breaks = p.v.get("hook_breaks", HOOK_BREAKS)
+        return "".join(("<br>" if i in breaks else " " if i else "") + w for i, w in enumerate(out))
     parts["hook"] = f'''
 <div class="scene" id="hook">
   {blobs("hook")}
@@ -295,7 +308,9 @@ def build(p, tag, audio):
   </div>
 </div>'''
     body = "\n".join(parts[k] for k in ORDER)
-    return (TEMPLATE.replace("%%SCENES%%", body).replace("%%SCRIPT%%", script(p))
+    extra = PORTRAIT_CSS if p.v.get("portrait") else ""
+    return (TEMPLATE.replace("%%SCENES%%", body).replace("%%EXTRA_CSS%%", extra)
+            .replace("%%W%%", str(W)).replace("%%H%%", str(H)).replace("%%RES%%", "portrait" if p.v.get("portrait") else "landscape").replace("%%SCRIPT%%", script(p))
             .replace("%%DURATION%%", f"{p.duration:g}").replace("%%MUSIC%%", audio))
 
 
@@ -311,8 +326,7 @@ def script(p):
     for d in HOOK_RHYTHM:
         onsets.append(p.beats[1] + n * sixteenth)
         n += d
-    line2 = sum(len(w) for w in HOOK_WORDS[:HOOK_BREAK])
-    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in onsets])}, LEN = {json.dumps([round(d * sixteenth, 4) for d in HOOK_RHYTHM])}, B = {b:.4f}, LINE2 = {line2};"]
+    js = [f"  var HOOK = {json.dumps([round(t, 3) for t in onsets])}, LEN = {json.dumps([round(d * sixteenth, 4) for d in HOOK_RHYTHM])}, B = {b:.4f}, W = {W};"]
     js.append("""
   // ---- Hook
   tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
@@ -333,16 +347,16 @@ def script(p):
     // Each hop lasts its syllable: higher for the longer notes.
     for (var i = 1; i < N; i++) {
       var d = LEN[i - 1], peak = d > 0.5 ? 150 : d > 0.2 ? 110 : 65;
-      if (i === LINE2) {
+      if (hops[i].y > hops[i - 1].y + 30) {   // a new line
         // Wrap: off the right edge on the way up, in from the left on the way down.
-        var off = 1920 + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
-        tl.to("#hook-ball", { x: 1920 + 60, y: hops[i - 1].y - peak, duration: up, ease: "power1.out" }, HOOK[i - 1]);
+        var off = W + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
+        tl.to("#hook-ball", { x: W + 60, y: hops[i - 1].y - peak, duration: up, ease: "power1.out" }, HOOK[i - 1]);
         tl.set("#hook-ball", { x: -60, y: hops[i].y - peak }, HOOK[i - 1] + up);
         tl.to("#hook-ball", { x: hops[i].x, y: hops[i].y, duration: d - up - 0.001, ease: "power1.in" }, HOOK[i - 1] + up);
       } else hop(hops[i].x, hops[i].y, HOOK[i - 1], d, peak);
     }
     // "out." held, then away off the right.
-    hop(1920 + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
+    hop(W + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
   }""")
     js.append("  tl.to('.blob', { y: '+=40', x: '-=20', duration: %g, ease: 'sine.inOut' }, 0);" % p.duration)
     for k in range(1, len(ORDER)):
@@ -418,23 +432,47 @@ def script(p):
     return "\n".join(js)
 
 
+# The Reel: everything in one column, the app in a phone-shaped window.
+PORTRAIT_CSS = """
+.hook-content { padding: 150px 60px; gap: 90px; }
+.hook-head { font-size: 128px; line-height: 1.2; }
+.scene-content, .scene-content.flip { flex-direction: column; justify-content: flex-start; padding: 190px 60px 0; gap: 40px; }
+.copy { flex: none; width: 960px; align-items: center; text-align: center; gap: 22px; }
+.head { font-size: 76px; max-width: 980px; }
+.body { font-size: 38px; max-width: 900px; }
+.window { flex: none; width: 516px; border-radius: 40px; }
+.window .bar { height: 46px; }
+.url { margin-left: 8px; font-size: 16px; }
+.screen { height: 1116px; }
+.pa-content { padding: 240px 40px 60px; gap: 56px; justify-content: flex-start; }
+.pa-top { flex-direction: column; gap: 26px; }
+.pa-head { font-size: 80px; white-space: normal; text-align: center; max-width: 960px; }
+.pa-frame { width: 1000px; height: 563px; }
+.pa-sub { font-size: 40px; text-align: center; max-width: 900px; }
+.opt-top { top: 200px; }
+.close-content { padding: 80px 60px; gap: 52px; }
+.close-mark, .close-mark .rest { font-size: 116px; }
+.close-line { font-size: 46px; max-width: 900px; }
+.close-row { flex-direction: column; gap: 26px; }
+"""
+
 TEMPLATE = r"""<!doctype html>
-<html lang="en" data-resolution="landscape">
+<html lang="en" data-resolution="%%RES%%">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=1920, height=1080" />
+<meta name="viewport" content="width=%%W%%, height=%%H%%" />
 <!-- Written by build.py: edit the scene table there, not this file. -->
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
 <style>
 @font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 1920px; height: 1080px; overflow: hidden; background: #eaf0f9; }
+html, body { width: %%W%%px; height: %%H%%px; overflow: hidden; background: #eaf0f9; }
 body { font-family: "Nunito", sans-serif; color: #15213a; }
-#root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #eaf0f9; }
-.scene { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; background: #eaf0f9; opacity: 0; }
+#root { position: relative; width: %%W%%px; height: %%H%%px; overflow: hidden; background: #eaf0f9; }
+.scene { position: absolute; inset: 0; width: %%W%%px; height: %%H%%px; overflow: hidden; background: #eaf0f9; opacity: 0; }
 #hook { opacity: 1; z-index: 1; }
 .blob { position: absolute; border-radius: 50%; opacity: 0.55; }
-.wipe { position: absolute; inset: 0; width: 1920px; height: 1080px; z-index: 1000; transform: translateX(-1920px); }
+.wipe { position: absolute; inset: 0; width: %%W%%px; height: %%H%%px; z-index: 1000; transform: translateX(-%%W%%px); }
 
 .wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
 .wordmark .abc, .close-mark .abc { height: 0.75em; width: auto; color: #1e56c0; }
@@ -488,10 +526,11 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .cta { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 46px; color: #ffffff; background: #2f6fe0; padding: 20px 54px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47,111,224,0.35); }
 .url-pill { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 44px; color: #15213a; background: #ffffff; padding: 18px 44px; border-radius: 999px; border: 2px solid #d8e2f1; }
 .close-price { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 34px; color: #1e56c0; }
+%%EXTRA_CSS%%
 </style>
 </head>
 <body>
-<div id="root" data-composition-id="main" data-start="0" data-duration="%%DURATION%%" data-width="1920" data-height="1080">
+<div id="root" data-composition-id="main" data-start="0" data-duration="%%DURATION%%" data-width="%%W%%" data-height="%%H%%">
 %%SCENES%%
 <div class="wipe" id="wipe-a" data-layout-ignore></div>
 <div class="wipe" id="wipe-b" data-layout-ignore></div>
@@ -521,6 +560,8 @@ window.__timelines["main"] = tl;
 
 if __name__ == "__main__":
     for name, v in VERSIONS.items():
+        L = LAYOUTS[bool(v.get("portrait"))]
+        W, H, PANEL_BOX, WALL = L["W"], L["H"], L["PANEL_BOX"], L["WALL"]
         plan = Plan(v)
         CURRENT_TAG = v["tag"]
         audio = mix(name, plan)

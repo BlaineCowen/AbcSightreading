@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1920" />
+<!-- Written by build.py: edit the scene table there, not this file. -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+body { font-family: "Nunito", sans-serif; color: #15213a; }
+#root { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+.scene { position: absolute; inset: 0; width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; opacity: 0; }
+#hook { opacity: 1; z-index: 1; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+.wipe { position: absolute; inset: 0; width: 1080px; height: 1920px; z-index: 1000; transform: translateX(-1080px); }
+
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
+.wordmark .abc, .close-mark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest, .close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 600; letter-spacing: -0.005em; line-height: 1; color: #15213a; }
+.wordmark { font-size: 44px; } .wordmark .rest { font-size: 44px; }
+
+.hook-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
+.hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
+.hook-head .hw { display: inline-block; }
+.hook-head .hword { display: inline-block; }
+#hw3 { color: #2f6fe0; }
+#hook-ball { z-index: 1; } /* behind the words, so a hop never covers line one */
+.ball { position: absolute; left: 0; top: 0; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #8dbaff 0%, #2f6fe0 55%, #1e56c0 100%); box-shadow: 0 10px 24px rgba(30,86,192,0.35); z-index: 5; opacity: 0; }
+
+.scene-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 90px 96px; display: flex; flex-direction: row; align-items: center; gap: 72px; }
+.scene-content.flip { flex-direction: row-reverse; }
+.copy { flex: 0 0 560px; display: flex; flex-direction: column; align-items: flex-start; gap: 30px; }
+.kicker { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 30px; padding: 10px 26px; border-radius: 999px; }
+.nw { white-space: nowrap; }
+.head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 80px; line-height: 1.04; color: #15213a; max-width: 560px; }
+.body { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 36px; line-height: 1.3; color: #34405e; max-width: 540px; }
+.chips { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.chip { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 28px; color: #0f3b2c; background: #bdebd9; padding: 10px 24px; border-radius: 999px; }
+
+.window { flex: 0 0 1152px; width: 1152px; border-radius: 30px; overflow: hidden; background: #ffffff; border: 2px solid #d8e2f1; box-shadow: 0 30px 70px rgba(21,33,58,0.18); }
+.window .bar { height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: #f0f5fc; border-bottom: 2px solid #e6edf8; }
+.dot { width: 14px; height: 14px; border-radius: 50%; }
+.dot.r { background: #ffb4a8; } .dot.y { background: #ffe08a; } .dot.g { background: #9fe0c5; }
+.url { margin-left: 18px; font-family: "Nunito", sans-serif; font-weight: 700; font-size: 18px; color: #56637f; background: #ffffff; border-radius: 999px; padding: 5px 18px; }
+.screen { position: relative; width: 100%; height: 648px; background: #eaf0f9; }
+.vw { position: absolute; inset: 0; }
+.vw video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.opt-top { position: absolute; z-index: 3; left: 0; right: 0; top: 54px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.opt-head { font-size: 76px; max-width: none; white-space: nowrap; }
+.pdeck { position: absolute; inset: 0; z-index: 2; }
+.pcard { position: absolute; border-radius: 26px; background: #fff; box-shadow: 0 30px 70px rgba(21,33,58,0.22); border: 2px solid #d8e2f1; opacity: 0; }
+.pcard img { display: block; width: 100%; height: 100%; border-radius: 24px; }
+.plabel { position: absolute; left: 22px; top: -26px; font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 30px; color: #0e3563; background: #c9e4ff; padding: 6px 22px; border-radius: 999px; white-space: nowrap; }
+.pa-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 46px 120px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.pa-top { display: flex; align-items: center; gap: 28px; }
+.pa-head { font-size: 60px; max-width: none; white-space: nowrap; }
+.pa-frame { position: relative; width: 1376px; height: 774px; border-radius: 30px; overflow: hidden; box-shadow: 0 30px 70px rgba(21,33,58,0.22); border: 2px solid #d8e2f1; }
+.pa-sub { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
+
+.close-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; text-align: center; }
+.close-mark { display: inline-flex; align-items: baseline; gap: 0.1em; font-size: 150px; }
+.close-mark .rest { font-size: 150px; }
+.close-line { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 40px; color: #34405e; max-width: 1300px; }
+.close-row { display: flex; align-items: center; gap: 28px; }
+.cta { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 46px; color: #ffffff; background: #2f6fe0; padding: 20px 54px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47,111,224,0.35); }
+.url-pill { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 44px; color: #15213a; background: #ffffff; padding: 18px 44px; border-radius: 999px; border: 2px solid #d8e2f1; }
+.close-price { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 34px; color: #1e56c0; }
+
+.hook-content { padding: 150px 60px; gap: 90px; }
+.hook-head { font-size: 128px; line-height: 1.2; }
+.scene-content, .scene-content.flip { flex-direction: column; justify-content: flex-start; padding: 190px 60px 0; gap: 40px; }
+.copy { flex: none; width: 960px; align-items: center; text-align: center; gap: 22px; }
+.head { font-size: 76px; max-width: 980px; }
+.body { font-size: 38px; max-width: 900px; }
+.window { flex: none; width: 516px; border-radius: 40px; }
+.window .bar { height: 46px; }
+.url { margin-left: 8px; font-size: 16px; }
+.screen { height: 1116px; }
+.pa-content { padding: 240px 40px 60px; gap: 56px; justify-content: flex-start; }
+.pa-top { flex-direction: column; gap: 26px; }
+.pa-head { font-size: 80px; white-space: normal; text-align: center; max-width: 960px; }
+.pa-frame { width: 1000px; height: 563px; }
+.pa-sub { font-size: 40px; text-align: center; max-width: 900px; }
+.opt-top { top: 200px; }
+.close-content { padding: 80px 60px; gap: 52px; }
+.close-mark, .close-mark .rest { font-size: 116px; }
+.close-line { font-size: 46px; max-width: 900px; }
+.close-row { flex-direction: column; gap: 26px; }
+
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="62.54" data-width="1080" data-height="1920">
+
+<div class="scene" id="hook">
+  <div class="blob" id="hook-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="hook-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="hook-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="hook-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="hook-content">
+    <div class="wordmark hook-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">sightreading.com</span></div>
+    <h1 class="hook-head"><span class="hword"><span class="hw" id="hw0">Sight-reading</span></span><br><span class="hword"><span class="hw" id="hw1">practice</span></span><br><span class="hword"><span class="hw" id="hw2">that</span></span> <span class="hword"><span class="hw" id="hw3">never</span></span><br><span class="hword"><span class="hw" id="hw4">runs</span></span> <span class="hword"><span class="hw" id="hw5">out.</span></span></h1>
+  </div>
+  <div class="ball" id="hook-ball" data-layout-allow-occlusion></div>
+</div>
+
+<div class="scene" id="unison">
+  <div class="blob" id="unison-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="unison-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="unison-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="unison-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content">
+    <div class="copy">
+      <span class="kicker" id="unison-kicker" style="background:#c9e4ff;color:#0e3563">Unison</span>
+      <h2 class="head" id="unison-head">A new exercise every click.</h2>
+      <p class="body" id="unison-body">Your key, your notes, your rhythms, over real chord progressions.</p>
+      
+    </div>
+    <div class="window" id="unison-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
+      <div class="screen"><div class="vw" id="unison-vw0"><video id="unison-v0" class="clip" data-start="4.813" data-duration="5.084" data-media-start="0.192" data-track-index="10" src="assets/footage/unison-clicks-100-phone.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="bass">
+  <div class="blob" id="bass-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="bass-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="bass-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="bass-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content flip">
+    <div class="copy">
+      <span class="kicker" id="bass-kicker" style="background:#ffd3bf;color:#5a2310">Unison</span>
+      <h2 class="head" id="bass-head">Treble, bass, alto or tenor.</h2>
+      <p class="body" id="bass-body">Any key, sung in time. Solfège, fixed do or note names.</p>
+      
+    </div>
+    <div class="window" id="bass-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
+      <div class="screen"><div class="vw" id="bass-vw0"><video id="bass-v0" class="clip" data-start="9.597" data-duration="9.867" data-media-start="3.017" data-track-index="14" src="assets/footage/unison-bass-100-phone.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="choral">
+  <div class="blob" id="choral-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="choral-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="choral-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="choral-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content flip">
+    <div class="copy">
+      <span class="kicker" id="choral-kicker" style="background:#bdebd9;color:#0f3b2c">Choral</span>
+      <h2 class="head" id="choral-head">Two, three and four parts.</h2>
+      <p class="body" id="choral-body">SATB, SSA and TTB, from UIL Level 1 to 5.</p>
+      
+    </div>
+    <div class="window" id="choral-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/choral-sightreading</span></div>
+      <div class="screen"><div class="vw" id="choral-vw0"><video id="choral-v0" class="clip" data-start="19.164" data-duration="9.867" data-media-start="0.940" data-track-index="18" src="assets/footage/choral-100-phone.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="rhythm">
+  <div class="blob" id="rhythm-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="rhythm-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="rhythm-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="rhythm-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content">
+    <div class="copy">
+      <span class="kicker" id="rhythm-kicker" style="background:#ffefa8;color:#5c4a00">Rhythm</span>
+      <h2 class="head" id="rhythm-head">Ta, <span class="nw">ti-ti,</span> <span class="nw">ti-ki-ti-ki.</span></h2>
+      <p class="body" id="rhythm-body">Ta and ti-ti, 1 &amp; 2 &amp;, or your own syllables.</p>
+      
+    </div>
+    <div class="window" id="rhythm-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
+      <div class="screen"><div class="vw" id="rhythm-vw0"><video id="rhythm-v0" class="clip" data-start="28.731" data-duration="5.084" data-media-start="3.250" data-track-index="22" src="assets/footage/rhythm-100-phone.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="tuner">
+  <div class="blob" id="tuner-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="tuner-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="tuner-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="tuner-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content flip">
+    <div class="copy">
+      <span class="kicker" id="tuner-kicker" style="background:#c9e4ff;color:#0e3563">abcTuner · Pro</span>
+      <h2 class="head" id="tuner-head">A tuner that hears singers.</h2>
+      <p class="body" id="tuner-body">Pitch, vowels, drone, metronome and timer, a tab each.</p>
+      
+    </div>
+    <div class="window" id="tuner-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/tuner</span></div>
+      <div class="screen"><div class="vw" id="tuner-vw0"><video id="tuner-v0" class="clip" data-start="33.515" data-duration="2.692" data-media-start="1.000" data-track-index="26" src="assets/footage/tuner-phone.mp4" muted playsinline></video></div><div class="vw" id="tuner-vw1"><video id="tuner-v1" class="clip" data-start="35.907" data-duration="2.692" data-media-start="9.800" data-track-index="27" src="assets/footage/tuner-phone.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="playalong">
+  <div class="blob" id="playalong-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="playalong-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="playalong-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="playalong-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="pa-content">
+    <div class="pa-top">
+      <span class="kicker" id="playalong-kicker" style="background:#ffd3bf;color:#5a2310">Play-along videos · Pro</span>
+      <h2 class="head pa-head" id="playalong-head">Turn any exercise into a play-along video.</h2>
+    </div>
+    <div class="pa-frame" id="playalong-frame">
+      <div class="vw" id="playalong-vw0"><video id="playalong-v0" class="clip" data-start="38.299" data-duration="9.867" data-media-start="0.000" data-track-index="40" src="assets/footage/playalong-100.mp4" muted playsinline></video></div>
+    </div>
+    <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
+  </div>
+</div>
+
+<div class="scene" id="options">
+  <div class="blob" id="options-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="options-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="options-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="options-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="opt-top">
+    <span class="kicker" id="options-kicker" style="background:#ffefa8;color:#5c4a00">And so much more</span>
+    <h2 class="head opt-head" id="options-head">Set it up your way.</h2>
+  </div>
+  <div class="pdeck" data-layout-ignore><div class="pcard" id="pc0" style="left:50px;top:725px;width:980px;height:550px"><span class="plabel" id="pl0">Unison · Setup</span><img src="assets/footage/panels/u-setup.png" alt=""></div><div class="pcard" id="pc1" style="left:50px;top:694px;width:980px;height:612px"><span class="plabel" id="pl1">Unison · Notes and skips</span><img src="assets/footage/panels/u-notes.png" alt=""></div><div class="pcard" id="pc2" style="left:50px;top:778px;width:980px;height:444px"><span class="plabel" id="pl2">Unison · Rhythms</span><img src="assets/footage/panels/u-rhythm.png" alt=""></div><div class="pcard" id="pc3" style="left:50px;top:769px;width:980px;height:463px"><span class="plabel" id="pl3">Sound, solfège, dynamics</span><img src="assets/footage/panels/u-score.png" alt=""></div><div class="pcard" id="pc4" style="left:50px;top:520px;width:980px;height:960px"><span class="plabel" id="pl4">NYSSMA Levels I-V</span><img src="assets/footage/panels/nyssma.png" alt=""></div><div class="pcard" id="pc5" style="left:50px;top:763px;width:980px;height:474px"><span class="plabel" id="pl5">Choral · Setup</span><img src="assets/footage/panels/c-setup.png" alt=""></div><div class="pcard" id="pc6" style="left:50px;top:634px;width:980px;height:732px"><span class="plabel" id="pl6">Choral · Harmony</span><img src="assets/footage/panels/c-harmony.png" alt=""></div><div class="pcard" id="pc7" style="left:50px;top:763px;width:980px;height:473px"><span class="plabel" id="pl7">Choral · Voice ranges</span><img src="assets/footage/panels/c-ranges.png" alt=""></div><div class="pcard" id="pc8" style="left:50px;top:741px;width:980px;height:518px"><span class="plabel" id="pl8">Choral · Rhythms</span><img src="assets/footage/panels/c-rhythm.png" alt=""></div><div class="pcard" id="pc9" style="left:50px;top:831px;width:980px;height:337px"><span class="plabel" id="pl9">Choral · Score options</span><img src="assets/footage/panels/c-score.png" alt=""></div><div class="pcard" id="pc10" style="left:50px;top:587px;width:980px;height:827px"><span class="plabel" id="pl10">UIL Levels 1-5</span><img src="assets/footage/panels/uil.png" alt=""></div><div class="pcard" id="pc11" style="left:50px;top:561px;width:980px;height:877px"><span class="plabel" id="pl11">abcStepByStep · 23 steps</span><img src="assets/footage/panels/steps.png" alt=""></div></div>
+</div>
+
+<div class="scene" id="close">
+  <div class="blob" id="close-blob0" data-layout-ignore style="left:-64px;top:80px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="close-blob1" data-layout-ignore style="left:782px;top:156px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="close-blob2" data-layout-ignore style="left:716px;top:1596px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="close-blob3" data-layout-ignore style="left:-0px;top:1560px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="close-content">
+    <div class="close-mark" id="close-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">SightReading</span></div>
+    <p class="close-line" id="close-line">Sight-reading practice for every choir and classroom.</p>
+    <div class="close-row">
+      <span class="cta" id="close-cta">Try it free</span>
+      <span class="url-pill" id="close-url">abcsightreading.com</span>
+    </div>
+    <p class="close-price" id="close-price">Free to start. Pro is $19.99 a year.</p>
+  </div>
+</div>
+<div class="wipe" id="wipe-a" data-layout-ignore></div>
+<div class="wipe" id="wipe-b" data-layout-ignore></div>
+<div class="wipe" id="wipe-c" data-layout-ignore></div>
+<audio id="music" data-start="0" data-duration="62.54" data-track-index="1" src="assets/music/ad-mix-vertical.mp3" data-volume="0.9"></audio>
+</div>
+<script>
+window.__timelines = window.__timelines || {};
+var tl = gsap.timeline({ paused: true });
+// Where the hook's ball lands: on top of each word, measured from the layout.
+(function () {
+  var root = document.getElementById("root").getBoundingClientRect();
+  window.__hops = [];
+  for (var i = 0; document.getElementById("hw" + i); i++) {
+    var r = document.getElementById("hw" + i).getBoundingClientRect();
+    window.__hops.push({ x: r.left - root.left + r.width / 2, y: r.top - root.top - 10 });
+  }
+  var first = window.__hops[0];
+  gsap.set("#hook-ball", { x: first.x - 260, y: first.y });
+})();
+  var HOOK = [0.627, 1.225, 1.823, 2.421, 3.019, 3.617], LEN = [0.598, 0.598, 0.598, 0.598, 0.598, 0.598], B = 0.5980, W = 1080;
+
+  // ---- Hook
+  tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
+  var N = HOOK.length;
+  for (var i = 0; i < N; i++) {
+    tl.from("#hw" + i, { y: 40, scale: 0.85, opacity: 0, duration: 0.3, ease: "back.out(2.2)" }, HOOK[i] - 0.04);
+  }
+  var hops = window.__hops || [];
+  function hop(x, y, from, d, peak) {
+    tl.to("#hook-ball", { x: x, duration: d, ease: "none" }, from);
+    tl.to("#hook-ball", { y: y - peak, duration: d / 2, ease: "power2.out" }, from);
+    tl.to("#hook-ball", { y: y, duration: d / 2 - 0.001, ease: "power2.in" }, from + d / 2);
+  }
+  if (hops.length === N) {
+    var in0 = Math.max(0, HOOK[0] - B);   // the song may start on the downbeat itself
+    tl.set("#hook-ball", { x: -80, y: hops[0].y, opacity: 1 }, in0);
+    hop(hops[0].x, hops[0].y, in0, HOOK[0] - in0, 170);
+    // Each hop lasts its syllable: higher for the longer notes.
+    for (var i = 1; i < N; i++) {
+      var d = LEN[i - 1], peak = d > 0.5 ? 150 : d > 0.2 ? 110 : 65;
+      if (hops[i].y > hops[i - 1].y + 30) {   // a new line
+        // Wrap: off the right edge on the way up, in from the left on the way down.
+        var off = W + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
+        tl.to("#hook-ball", { x: W + 60, y: hops[i - 1].y - peak, duration: up, ease: "power1.out" }, HOOK[i - 1]);
+        tl.set("#hook-ball", { x: -60, y: hops[i].y - peak }, HOOK[i - 1] + up);
+        tl.to("#hook-ball", { x: hops[i].x, y: hops[i].y, duration: d - up - 0.001, ease: "power1.in" }, HOOK[i - 1] + up);
+      } else hop(hops[i].x, hops[i].y, HOOK[i - 1], d, peak);
+    }
+    // "out." held, then away off the right.
+    hop(W + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
+  }
+  tl.to('.blob', { y: '+=40', x: '-=20', duration: 62.54, ease: 'sine.inOut' }, 0);
+
+  // ---- hook -> unison: covered on the downbeat at 4.813
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#bdebd9" }, 4.563);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#ffd3bf" }, 4.563);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#ffefa8" }, 4.563);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.473);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.523);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.573);
+  tl.set("#hook", { opacity: 0 }, 4.813);
+  tl.set("#unison", { opacity: 1 }, 4.813);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 4.833);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 4.883);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 4.933);
+  tl.from("#unison-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 4.813);
+  tl.from("#unison-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 5.361);
+  tl.from("#unison-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 5.959);
+  tl.from("#unison-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 6.557);
+  tl.to("#unison-window", { scale: 1.03, duration: 3.78, ease: "sine.inOut" }, 5.713);
+
+  // ---- unison -> bass: covered on the downbeat at 9.597
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#ffd3bf" }, 9.347);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#ffefa8" }, 9.347);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#c9e4ff" }, 9.347);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 9.257);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 9.307);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 9.357);
+  tl.set("#unison", { opacity: 0 }, 9.597);
+  tl.set("#bass", { opacity: 1 }, 9.597);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 9.617);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 9.667);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 9.717);
+  tl.from("#bass-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 9.597);
+  tl.from("#bass-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 10.144);
+  tl.from("#bass-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 10.742);
+  tl.from("#bass-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 11.340);
+  tl.to("#bass-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 10.497);
+
+  // ---- bass -> choral: covered on the downbeat at 19.164
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#ffefa8" }, 18.914);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#c9e4ff" }, 18.914);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#bdebd9" }, 18.914);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 18.824);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 18.874);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 18.924);
+  tl.set("#bass", { opacity: 0 }, 19.164);
+  tl.set("#choral", { opacity: 1 }, 19.164);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 19.184);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 19.234);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 19.284);
+  tl.from("#choral-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 19.164);
+  tl.from("#choral-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 19.712);
+  tl.from("#choral-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 20.310);
+  tl.from("#choral-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 20.908);
+  tl.to("#choral-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 20.064);
+
+  // ---- choral -> rhythm: covered on the downbeat at 28.731
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#c9e4ff" }, 28.481);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#bdebd9" }, 28.481);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#ffd3bf" }, 28.481);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.391);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.441);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.491);
+  tl.set("#choral", { opacity: 0 }, 28.731);
+  tl.set("#rhythm", { opacity: 1 }, 28.731);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 28.751);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 28.801);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 28.851);
+  tl.from("#rhythm-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 28.731);
+  tl.from("#rhythm-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 29.280);
+  tl.from("#rhythm-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 29.877);
+  tl.from("#rhythm-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 30.475);
+  tl.to("#rhythm-window", { scale: 1.03, duration: 3.78, ease: "sine.inOut" }, 29.631);
+
+  // ---- rhythm -> tuner: covered on the downbeat at 33.515
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#bdebd9" }, 33.265);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#ffd3bf" }, 33.265);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#ffefa8" }, 33.265);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 33.175);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 33.225);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 33.275);
+  tl.set("#rhythm", { opacity: 0 }, 33.515);
+  tl.set("#tuner", { opacity: 1 }, 33.515);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 33.535);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 33.585);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 33.635);
+  tl.from("#tuner-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 33.515);
+  tl.from("#tuner-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 34.063);
+  tl.from("#tuner-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 34.661);
+  tl.from("#tuner-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 35.259);
+  tl.to("#tuner-window", { scale: 1.03, duration: 3.78, ease: "sine.inOut" }, 34.415);
+  tl.fromTo("#tuner-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 35.847);
+
+  // ---- tuner -> playalong: covered on the downbeat at 38.299
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#ffd3bf" }, 38.049);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#ffefa8" }, 38.049);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#c9e4ff" }, 38.049);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 37.959);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 38.009);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 38.059);
+  tl.set("#tuner", { opacity: 0 }, 38.299);
+  tl.set("#playalong", { opacity: 1 }, 38.299);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 38.319);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 38.369);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 38.419);
+  tl.from("#playalong-frame", { y: 120, scale: 0.9, opacity: 0, duration: 0.60, ease: "back.out(1.2)" }, 38.299);
+  tl.from("#playalong-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 38.847);
+  tl.from("#playalong-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 39.445);
+  tl.from("#playalong-sub", { y: 20, opacity: 0, duration: 0.50, ease: "expo.out" }, 40.641);
+
+  // ---- playalong -> options: covered on the downbeat at 47.866
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#ffefa8" }, 47.616);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#c9e4ff" }, 47.616);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#bdebd9" }, 47.616);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 47.526);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 47.576);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 47.626);
+  tl.set("#playalong", { opacity: 0 }, 47.866);
+  tl.set("#options", { opacity: 1 }, 47.866);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 47.886);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 47.936);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 47.986);
+  tl.from("#options-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 47.916);
+  tl.from("#options-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 47.986);
+  tl.fromTo("#pc0", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 47.727);
+  tl.fromTo("#pc1", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 48.325);
+  tl.to("#pc0", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 48.325);
+  tl.fromTo("#pc2", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 48.923);
+  tl.to("#pc1", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 48.923);
+  tl.fromTo("#pc3", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 49.521);
+  tl.to("#pc2", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 49.521);
+  tl.fromTo("#pc4", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 50.118);
+  tl.to("#pc3", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 50.118);
+  tl.fromTo("#pc5", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 50.716);
+  tl.to("#pc4", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 50.716);
+  tl.fromTo("#pc6", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 51.314);
+  tl.to("#pc5", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 51.314);
+  tl.fromTo("#pc7", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 51.912);
+  tl.to("#pc6", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 51.912);
+  tl.to("#pl0", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc0", { x: -250, y: -455, scale: 0.338, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.450);
+  tl.to("#pl1", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc1", { x: 250, y: -455, scale: 0.304, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.480);
+  tl.to("#pl2", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc2", { x: -250, y: -245, scale: 0.419, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.510);
+  tl.to("#pl3", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc3", { x: 250, y: -245, scale: 0.402, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.540);
+  tl.to("#pl4", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc4", { x: -250, y: -35, scale: 0.194, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.570);
+  tl.to("#pl5", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc5", { x: 250, y: -35, scale: 0.392, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.600);
+  tl.to("#pl6", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc6", { x: -250, y: 175, scale: 0.254, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.630);
+  tl.to("#pl7", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc7", { x: 250, y: 175, scale: 0.393, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.660);
+  tl.set("#pc8", { x: 0, scale: 0.6 }, 52.440);
+  tl.to("#pl8", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc8", { x: -250, y: 385, scale: 0.359, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.690);
+  tl.set("#pc9", { x: 0, scale: 0.6 }, 52.440);
+  tl.to("#pl9", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc9", { x: 250, y: 385, scale: 0.486, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.720);
+  tl.set("#pc10", { x: 0, scale: 0.6 }, 52.440);
+  tl.to("#pl10", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc10", { x: -250, y: 595, scale: 0.225, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.750);
+  tl.set("#pc11", { x: 0, scale: 0.6 }, 52.440);
+  tl.to("#pl11", { opacity: 0, duration: 0.15 }, 52.450);
+  tl.to("#pc11", { x: 250, y: 595, scale: 0.212, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 52.780);
+
+  // ---- options -> close: covered on the downbeat at 55.042
+  tl.set("#wipe-a", { x: -1080, backgroundColor: "#c9e4ff" }, 54.792);
+  tl.set("#wipe-b", { x: -1080, backgroundColor: "#bdebd9" }, 54.792);
+  tl.set("#wipe-c", { x: -1080, backgroundColor: "#ffd3bf" }, 54.792);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 54.702);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 54.752);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 54.802);
+  tl.set("#options", { opacity: 0 }, 55.042);
+  tl.set("#close", { opacity: 1 }, 55.042);
+  tl.to("#wipe-a", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 55.062);
+  tl.to("#wipe-b", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 55.112);
+  tl.to("#wipe-c", { x: 1080, duration: 0.26, ease: "power3.inOut" }, 55.162);
+  tl.from("#close-mark", { scale: 0.6, opacity: 0, duration: 0.72, ease: "back.out(1.8)" }, 55.042);
+  tl.from("#close-line", { y: 30, opacity: 0, duration: 0.60, ease: "power3.out" }, 55.590);
+  tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 56.188);
+  tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 56.487);
+  tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 56.786);
+  // Over the stop it waits; on the ending's last hit, the logo and the button pop.
+  tl.to(["#close-mark", "#close-cta"], { scale: 1.1, duration: 0.09, ease: "power2.out", yoyo: true, repeat: 1 }, 57.770);
+  // The final scene fades out with the music.
+  tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 61.940);
+window.__timelines["main"] = tl;
+</script>
+</body>
+</html>

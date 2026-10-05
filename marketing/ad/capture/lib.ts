@@ -10,8 +10,16 @@ export const APP = process.env.APP ?? "http://localhost:4321";
 export const OUT = resolve(import.meta.dir, "../assets/captures");
 mkdirSync(OUT, { recursive: true });
 
-/** A laptop-sized page drawn at 1920x1080 device pixels, so the UI reads large on video. */
-export const VIEW = { width: 1440, height: 810, deviceScaleFactor: 4 / 3 };
+/**
+ * A laptop-sized page drawn at 1920x1080 device pixels, so the UI reads large
+ * on video; or, with PHONE=1 (the vertical ad), a phone's 390x844 at 2x,
+ * 780x1688, the app in its phone layout.
+ */
+export const PHONE = process.env.PHONE === "1";
+export const VIEW = PHONE
+  ? { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+  : { width: 1440, height: 810, deviceScaleFactor: 4 / 3 };
+const PX = { w: Math.round(VIEW.width * VIEW.deviceScaleFactor), h: Math.round(VIEW.height * VIEW.deviceScaleFactor) };
 
 export async function launch(extraArgs: string[] = []): Promise<Browser> {
   return puppeteer.launch({
@@ -100,7 +108,7 @@ export async function recordExact(page: Page, name: string, act: () => Promise<v
     frames.push({ file, ts: f.metadata.timestamp });
     await cdp.send("Page.screencastFrameAck", { sessionId: f.sessionId }).catch(() => {});
   });
-  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: PX.w, maxHeight: PX.h, everyNthFrame: 1 });
   const startedMs = Date.now();
   try {
     await act();
@@ -113,7 +121,7 @@ export async function recordExact(page: Page, name: string, act: () => Promise<v
   // Each frame shown until the next; the last until the recording stopped.
   const list = frames.map((f, i) => `file '${f.file}'\nduration ${((frames[i + 1]?.ts ?? endTs) - f.ts).toFixed(4)}`).join("\n");
   writeFileSync(`${dir}/list.txt`, list + `\nfile '${frames[frames.length - 1].file}'\n`);
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", `${dir}/list.txt`, "-vf", "fps=30,scale=1920:1080:flags=lanczos", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-g", "15", "-pix_fmt", "yuv420p", `${OUT}/${name}.mp4`]);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", `${dir}/list.txt`, "-vf", `fps=30,scale=${PX.w}:${PX.h}:flags=lanczos`, "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-g", "15", "-pix_fmt", "yuv420p", `${OUT}/${name}.mp4`]);
   rmSync(dir, { recursive: true, force: true });
   const words = marks.map((m) => ({ word: m.word, at: +(m.at / 1000 - t0).toFixed(3) }));
   const go = words.find((w) => w.word === "Go");
