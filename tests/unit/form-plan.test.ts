@@ -267,3 +267,8 @@ describe("describeForm", () => {
     expect(lines.join("\n")).toMatch(/may stop at bar/);
   });
 });
+
+test("12/8 is four beats a bar, so a level wants as many bars as in 4/4", () => {
+  // Read by its top number it was twelve beats, a third of the bars.
+  expect(requiredMeasures(3, "12/8")).toEqual(requiredMeasures(3, "4/4"));
+});

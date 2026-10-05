@@ -22,7 +22,7 @@
 {#if email !== null}
   <div class="fixed z-40 left-3 right-3 top-20 sm:left-auto sm:right-6 sm:w-[380px] rounded-[20px] bg-sr-mint text-sr-mint-ink shadow-xl p-4 flex gap-3 items-start" role="status">
     <div class="flex-1 text-sm flex flex-col gap-1.5">
-      <p class="font-extrabold">Welcome to abc Sight Reading.</p>
+      <p class="font-extrabold">Welcome to abcSightReading.</p>
       <p>Your account gives you {GENERATION_LIMITS.free} exercises a month, and your presets now follow you to any device.</p>
       {#if email}
         <p>We sent a link to <strong class="break-all">{email}</strong> to confirm your address. Everything works in the meantime.</p>

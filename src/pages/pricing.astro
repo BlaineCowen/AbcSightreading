@@ -11,9 +11,9 @@ import { PLAN_OFFERS } from "../lib/seo";
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "Product",
-  name: "abc Sight Reading",
-  description: "Choir sight-reading and sight-singing exercise generator for directors and students.",
-  brand: { "@type": "Brand", name: "abc Sight Reading" },
+  name: "abcSightReading",
+  description: "Sight-reading and sight-singing exercise generator for choir and ensemble directors and their students.",
+  brand: { "@type": "Brand", name: "abcSightReading" },
   offers: PLAN_OFFERS.map((o) => ({
     "@type": "Offer",
     name: o.name,
@@ -68,7 +68,7 @@ import ReferralNote from "../components/ReferralNote.svelte";
 ---
 
 <Layout
-  title="Pricing: Free, Pro and Educator | abc Sight Reading"
+  title="Pricing: Free, Pro and Educator | abcSightReading"
   description={`Free: ${GENERATION_LIMITS.anonymous} sight-reading exercises a month, ${GENERATION_LIMITS.free} with a free account. Pro: unlimited for $19.99 a year.${EDUCATOR_ON_SALE ? " Educator: $99 a year with 100 student accounts. Schools can pay by purchase order." : " Educator, with student accounts, is coming soon."}`}
   themable
   jsonLd={jsonLd}

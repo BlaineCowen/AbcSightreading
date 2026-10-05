@@ -15,7 +15,7 @@ import type { SavedPreset } from "./preset-storage";
  */
 export type ActivePresetRecord = {
   label: string;
-  /** "UIL 3", for a UIL level. */
+  /** "UIL 3" for a UIL level (Choral), or a NYSSMA level id (Unison, nyssma-presets.ts). */
   level?: string | null;
   stepId?: string | null;
   /** A saved preset, whole, so Revert works without loading the list. */
@@ -43,4 +43,28 @@ export function activePresetToRestore(page: string): ActivePresetRecord | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The "edited" signature to compare against after a reload. A record saved
+ * before the page gained a setting (exact skips, say) lacks that field, so
+ * compared as it was the preset would read "edited" once for nothing. The
+ * missing fields take the page's values, in the page's order, and fields the
+ * page no longer has are dropped; a field the record does have keeps its
+ * value, so a real edit still shows. Unreadable: the page's own settings.
+ */
+export function restoredSignature(sig: unknown, current: Record<string, unknown>): string {
+  const fresh = JSON.stringify(current);
+  if (typeof sig !== "string") return fresh;
+  let stored: unknown;
+  try {
+    stored = JSON.parse(sig);
+  } catch {
+    return fresh;
+  }
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return fresh;
+  const s = stored as Record<string, unknown>;
+  const keys = Object.keys(current);
+  if (keys.length === Object.keys(s).length && keys.every((k) => k in s)) return sig;
+  return JSON.stringify(Object.fromEntries(keys.map((k) => [k, k in s ? s[k] : current[k]])));
 }

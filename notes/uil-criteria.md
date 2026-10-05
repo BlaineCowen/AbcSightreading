@@ -141,7 +141,9 @@ Other general considerations for composers are:
 ## Level 4 - Conference 4A Varsity; 5A/6A Non-Varsity
 
 ### Meter
-- 3/4, 4/4, 6/8
+> UIL choir sight-reading does not use compound meter. This page once listed 6/8 here and "all simple and compound meters" at level 5, which was wrong for choir.
+
+- 3/4, 4/4
 - Simple meter changes
 
 ### Key
@@ -172,7 +174,7 @@ Other general considerations for composers are:
 ## Level 5 - Conference 5A/6A Varsity
 
 ### Meter
-- All simple and compound meters
+- All simple meters
 - Frequent meter changes
 
 ### Key

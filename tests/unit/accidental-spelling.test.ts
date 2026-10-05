@@ -47,7 +47,7 @@ function voiceLine(notes: VoiceNote[], key: string, tsPerMeasure = 32): string {
     [{ ...PARTS.parts.Soprano, name: "Soprano", possibleNotes: [], chordNotes: [] }] as any,
     [],
     key,
-    { name: "4/4", tsPerMeasure, beamGroupSize: 8 } as any,
+    { name: "4/4", tsPerMeasure, beatUnits: 8 } as any,
     { title: "t", composer: "", bpm: 72, midiProgram: 0 } as any,
     {}
   );

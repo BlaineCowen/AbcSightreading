@@ -6,7 +6,7 @@ import {
   syllableTemplates,
 } from "../../src/resources/rhythm-syllables";
 import { syllablesForFigure } from "../../src/lib/generateUnison";
-import { selectableRhythms } from "../../src/lib/selectable-rhythms";
+import { selectableCompoundRhythms, selectableRhythms } from "../../src/lib/selectable-rhythms";
 
 /**
  * A teacher's own syllables are the Kodály shape with their words. The first
@@ -19,7 +19,7 @@ const template = (id: string) => syllableTemplates.find((t) => t.id === id)!.syl
 describe("custom syllables", () => {
   test("the Kodály template reads every figure exactly as built-in Kodály does", () => {
     const mine = customSyllableSystem(template("kodaly"));
-    for (const r of selectableRhythms) {
+    for (const r of [...selectableRhythms, ...selectableCompoundRhythms]) {
       expect(syllablesForFigure(r, mine)).toEqual(syllablesForFigure(r, kodaly));
     }
   });

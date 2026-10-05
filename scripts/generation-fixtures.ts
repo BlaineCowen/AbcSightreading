@@ -4,12 +4,10 @@
  */
 import { ClefType } from "../src/lib/types";
 import { isSelectableRhythm, containsRest } from "../src/lib/selectable-rhythms";
+import { timeSignaturesFor } from "../src/lib/meter";
 
-export const TIME_SIGS: Record<string, any> = {
-  "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-  "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-  "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-};
+/** Simple meters: the sweep's Choral cells and the ladder. Compound is Unison's - see UNISON_METERS in scripts/sweep.ts. */
+export const TIME_SIGS: Record<string, any> = timeSignaturesFor(["4/4", "3/4", "2/4"]);
 
 /** The component's voicing table, verbatim - this is what a user can pick. */
 export const VOICINGS: Record<string, any> = {

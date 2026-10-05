@@ -28,7 +28,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 /** Who the mail is from. A verified Resend sending domain. */
-const DEFAULT_FROM = "ABC Sight Reading <feedback@send.abc-sightreading.com>";
+const DEFAULT_FROM = "abcSightReading <feedback@send.abc-sightreading.com>";
 
 /**
  * A rate limit that holds within one server instance.

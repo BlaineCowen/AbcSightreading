@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ladder, ladderById, ladderStages, rangeForStep, stepHref } from "../../src/lib/ladder";
+import { ladder, ladderById, ladderStages, rangeForSpan, rangeForStep, stepHref } from "../../src/lib/ladder";
 import { uilPresets } from "../../src/lib/uil-presets";
 import { rhythms } from "../../src/resources/rhythms";
 import { chords } from "../../src/resources/chords";
@@ -84,6 +84,26 @@ describe("ladder", () => {
     const belowDo = ladderById["pitch-below-do"].unison!; // F: low so to so
     expect(rangeForStep(belowDo, { min: 14, max: 21 })).toEqual({ min: 14, max: 21 });
     expect(rangeForStep(ladderById["rhythm-ta-titi"].unison!, { min: 14, max: 21 })).toBeNull();
+  });
+
+  test("rangeForSpan places a span on the do at or above the anchor, the same for every draw", () => {
+    const fifth: [number, number] = [0, 4];
+    expect(rangeForSpan(fifth, "C", 14)).toEqual({ min: 14, max: 18 }); // C4-G4
+    expect(rangeForSpan(fifth, "F", 14)).toEqual({ min: 17, max: 21 }); // F4-C5
+    expect(rangeForSpan(fifth, "G", 14)).toEqual({ min: 18, max: 22 }); // G4-D5
+    const ninth: [number, number] = [-3, 5]; // low sol to la
+    expect(rangeForSpan(ninth, "C", 14)).toEqual({ min: 11, max: 19 }); // G3-A4
+    expect(rangeForSpan(ninth, "Eb", 14)).toEqual({ min: 13, max: 21 });
+    expect(rangeForSpan(ninth, "C", 7)).toEqual({ min: 4, max: 12 }); // bass clef
+    // Draw after draw from the same anchor: each key lands in the same place
+    // every time, never an octave higher than the last.
+    const expected: Record<string, { min: number; max: number }> = {
+      C: { min: 14, max: 18 }, F: { min: 17, max: 21 }, G: { min: 18, max: 22 },
+    };
+    for (const key of ["C", "F", "G", "C", "G", "F", "C"]) {
+      expect(rangeForSpan(fifth, key, 14)).toEqual(expected[key]);
+    }
+    expect(rangeForSpan(fifth, "H", 14)).toBeNull();
   });
 
   test("choral steps name real rhythms, chords, keys and voicings", () => {

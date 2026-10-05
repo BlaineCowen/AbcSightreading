@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { serverEnv } from "./env";
 
 /** A verified Resend sending domain - the one feedback mail already uses. */
-const DEFAULT_FROM = "ABC Sight Reading <accounts@send.abc-sightreading.com>";
+const DEFAULT_FROM = "abcSightReading <accounts@send.abc-sightreading.com>";
 
 /**
  * Send one account email: a password reset or an address check.
@@ -45,9 +45,9 @@ export async function sendAccountEmail(
 
 export function resetPasswordEmail(url: string) {
   return {
-    subject: "Reset your ABC Sight Reading password",
+    subject: "Reset your abcSightReading password",
     text: [
-      "Someone asked to reset the password for this ABC Sight Reading account.",
+      "Someone asked to reset the password for this abcSightReading account.",
       "",
       `To choose a new password, open this link within the hour:`,
       url,
@@ -59,9 +59,9 @@ export function resetPasswordEmail(url: string) {
 
 export function verifyEmailEmail(url: string) {
   return {
-    subject: "Confirm your email for ABC Sight Reading",
+    subject: "Confirm your email for abcSightReading",
     text: [
-      "Welcome to ABC Sight Reading.",
+      "Welcome to abcSightReading.",
       "",
       "Confirm this is your address by opening this link:",
       url,

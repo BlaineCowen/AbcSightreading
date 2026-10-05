@@ -87,7 +87,7 @@ const choral = () =>
         kind: "exercise",
         params: {
           key: "D",
-          timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+          timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
           partsObject: SATB,
           measures: 4,
           maxSkip: 4,
@@ -131,7 +131,7 @@ describe("the MIDI file", () => {
     const [, , score] = quietly(() =>
       createNewSr({
         bpm: 60, clef: "treble", selectedClef: "treble",
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }, selectedTimeSignature: "4/4",
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }, selectedTimeSignature: "4/4",
         measures: 4, maxSkip: 4, tempo: 60, range: { min: 14, max: 23 },
         selectedRhythms: ["quarter", "half"], rhythms: rhythms.filter((r) => ["quarter", "half"].includes(r.name)),
         scaleDegrees: new Set([1, 3, 5]), key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],
@@ -146,12 +146,28 @@ describe("the MIDI file", () => {
   });
 });
 
+describe("the MIDI file in compound meter", () => {
+  test("a 6/8 file with no Q: line plays the dotted quarter at the tempo asked for", () => {
+    // abcjs's MIDI writer reads */8 tempos from the Q: line and ignores qpm;
+    // without one it wrote 180 a quarter. MIDI counts quarters: dotted-quarter 60 is quarter 90.
+    const midi = readMidi(midiFileFor("X:1\nM:6/8\nL:1/32\nK:C\nB12 B12|B24|\n", { bpm: 60 }));
+    expect(midi.tempos).toContain(Math.round(60_000_000 / 90));
+  });
+});
+
 describe("withTempo", () => {
   test("replaces the tempo there is", () => {
     expect(withTempo("X:1\nL:1/32\nQ:1/4=72\nK:C\nc8|", 96)).toBe("X:1\nL:1/32\nQ:1/4=96\nK:C\nc8|");
   });
   test("adds one to the header when there is none", () => {
     expect(withTempo("X:1 \nM:4/4\nL:1/32\nK:C\nc8|", 60)).toBe("X:1 \nM:4/4\nL:1/32\nQ:1/4=60\nK:C\nc8|");
+  });
+});
+
+describe("withTempo in compound meter", () => {
+  test("compound meter counts dotted quarters", () => {
+    expect(withTempo("X:1\nM:6/8\nL:1/32\nK:C\nB12|", 60)).toBe("X:1\nM:6/8\nL:1/32\nQ:3/8=60\nK:C\nB12|");
+    expect(withTempo("X:1\nM:9/8\nL:1/32\nQ:1/4=90\nK:C\nB12|", 60)).toBe("X:1\nM:9/8\nL:1/32\nQ:3/8=60\nK:C\nB12|");
   });
 });
 

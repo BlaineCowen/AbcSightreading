@@ -11,7 +11,7 @@ const allowed = import.meta.env.DEV || isAdmin(await currentUser(Astro.request).
 if (!allowed) Astro.response.status = 404;
 ---
 
-<Layout noindex title={allowed ? "Range Calibration | abc Sight Reading" : "Page not found | abc Sight Reading"} themable={!allowed}>
+<Layout noindex title={allowed ? "Range Calibration | abcSightReading" : "Page not found | abcSightReading"} themable={!allowed}>
   {!allowed ? <NotFound /> : (
   <div class="flex flex-col w-full h-full items-center justify-center">
     <h1 class="text-4xl font-bold mb-8">Voice Range Calibration</h1>

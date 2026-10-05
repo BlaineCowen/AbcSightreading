@@ -49,6 +49,14 @@ describe("rhythm labels", () => {
     expect(rhythmLabel("fourSixteenths")).toBe("four sixteenths");
   });
 
+  test("the compound figures", () => {
+    expect(rhythmLabel("threeEighths")).toBe("three eighths");
+    expect(rhythmLabel("sixSixteenths")).toBe("six sixteenths");
+    expect(rhythmLabel("quarterEighthRest")).toBe("quarter, eighth rest");
+    expect(rhythmLabel("eighthRestTwoEighths")).toBe("eighth rest, two eighths");
+    expect(rhythmLabel("dotHalfCompound")).toBe("dotted half");
+  });
+
   test("an unknown name comes back unchanged rather than mangled", () => {
     expect(rhythmLabel("quintuplet")).toBe("quintuplet");
   });
@@ -60,7 +68,7 @@ describe("rhythm labels", () => {
     const WORDS = new Set([
       "thirty-second", "sixteenth", "sixteenths", "eighth", "eighths",
       "quarter", "quarters", "half", "halves", "whole", "wholes",
-      "dotted", "rest", "two", "three", "four",
+      "dotted", "rest", "two", "three", "four", "six",
     ]);
     for (const r of rhythms) {
       for (const word of rhythmLabel(r.name).split(/[\s,]+/).filter(Boolean)) {

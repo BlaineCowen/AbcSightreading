@@ -41,6 +41,18 @@ export const METERS: Meter[] = [
   { id: "7/8", beats: 7, beatNote: "eighth", subdivisions: [1, 2], defaultSubdivision: 1, groupStarts: [2, 4], kind: "uneven", grouping: "2+2+3" },
 ];
 
+/**
+ * The subdivision to carry from one meter to the next. Across simple and
+ * compound it moves by meaning, not number: eighths are 2 per quarter but 3
+ * per dotted quarter, sixteenths 4 and 6. Otherwise it is unchanged.
+ */
+export function carrySubdivision(from: Meter, to: Meter, subdivision: number): number {
+  const pairs: [number, number][] = [[2, 3], [4, 6]]; // [simple, compound]
+  if (from.kind === "simple" && to.kind === "compound") return pairs.find(([a]) => a === subdivision)?.[1] ?? subdivision;
+  if (from.kind === "compound" && to.kind === "simple") return pairs.find(([, b]) => b === subdivision)?.[0] ?? subdivision;
+  return subdivision;
+}
+
 export const meterById = (id: string): Meter => METERS.find((m) => m.id === id) ?? METERS[2];
 
 export const BEAT_SYMBOL: Record<BeatNote, string> = {

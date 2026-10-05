@@ -1,4 +1,5 @@
 import { uilPresets } from "./uil-presets";
+import { meterByName } from "./meter";
 import type { VoiceTexture } from "./voice-texture";
 
 /**
@@ -108,8 +109,10 @@ export const POLYPHONY_CEILING: Record<number, number> = {
   5: 0.5,
 };
 
-/** Beats in a bar, from a meter name. */
+/** Beats in a bar, from the meter model; any other meter by its top number. */
 function beatsPerMeasure(meter: string): number {
+  const known = meterByName(meter);
+  if (known) return known.beatsPerMeasure;
   const top = parseInt(meter.split("/")[0], 10);
   if (!Number.isFinite(top) || top <= 0) {
     throw new Error(`Unrecognised meter "${meter}".`);
@@ -335,7 +338,7 @@ export function planForm(opts: FormPlanOptions): FormPlan {
       keyArea: s.keyArea ?? "tonic",
       // The fugue-like texture we do not have; staggered entrances are what
       // stand in for it, and they are genuinely imitative in effect - each part
-      // enters on its own, lowest first.
+      // enters on its own, in a random order.
       texture: imitative ? "staggered" : "full",
       ...(s.restates ? { restates: s.restates } : {}),
     });

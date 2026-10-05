@@ -188,6 +188,13 @@ export function buildChordNotes(
    */
   const skipInto = (rhythm: Rhythm, previous: VoiceNote | undefined, maxSkip: number) =>
     stepwiseEighths && (isShortSung(rhythm) || isShortSung(previous)) ? 1 : maxSkip;
+  /**
+   * The bass is held to the step only arriving on an eighth. It may leave one
+   * by leap, G G c2 or G3 G C2, the way a bass leaps to the next root; what
+   * it may not do is arrive on one by leap, G c G2 or G3 C G2.
+   */
+  const bassSkipInto = (rhythm: Rhythm, maxSkip: number) =>
+    stepwiseEighths && isShortSung(rhythm) ? 1 : maxSkip;
   const keyInfo = keySignatures[key];
   if (!keyInfo) throw new Error(`Key signature not found for key: ${key}`);
 
@@ -1083,7 +1090,7 @@ export function buildChordNotes(
               bassPartInfo.chordNotes[bassPartInfo.chordNotes.length - 1];
             // chord-generation already stepped the bass off its eighths; a
             // re-pick here has to keep to that or it undoes it.
-            const bassSkip = skipInto(rhythm, prevBassNote, maxSkip);
+            const bassSkip = bassSkipInto(rhythm, maxSkip);
             const unreachableFromPrev =
               prevBassNote !== undefined &&
               !prevBassNote.rest &&

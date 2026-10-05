@@ -3,7 +3,9 @@
  *
  * Not a unit test: it walks the configuration space a user can actually reach -
  * every UIL level, with that level's own voicings, keys, chords, rhythms,
- * ranges and max skip, across every meter, texture and a spread of lengths -
+ * ranges and max skip, across every meter, texture and a spread of lengths,
+ * and Unison's compound meters (6/8, 9/8, 12/8), and the NYSSMA Voice levels
+ * (Unison presets) in every key and meter each draws from -
  * and reports the failure rate per cell.
  *
  * It exists because narrow checks lie. Every earlier "0% failures" in this
@@ -14,9 +16,12 @@
 import { generateChoralExercise } from "../src/lib/generateChoral";
 import { createNewSr } from "../src/lib/generateUnison";
 import { uilPresets } from "../src/lib/uil-presets";
+import { nyssmaGenerationParams, nyssmaVoiceLevels } from "../src/lib/nyssma-presets";
 import { chords as fullChordSet } from "../src/resources/chords";
 import { rhythms as allRhythms } from "../src/resources/rhythms";
 import { canFillExercise } from "../src/lib/rhythm-feasibility";
+import { COMPOUND_METER_NAMES, timeSignatureFor } from "../src/lib/meter";
+import { DEFAULT_RHYTHM_NAMES } from "../src/lib/selectable-rhythms";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "./generation-fixtures";
 
 const RUNS = Number(process.env.RUNS ?? 12);
@@ -31,23 +36,32 @@ const RUNS = Number(process.env.RUNS ?? 12);
  * measuring something nobody uses. `STEPWISE_EIGHTHS=0` sweeps with it off.
  */
 const STEPWISE = process.env.STEPWISE_EIGHTHS !== "0";
+/**
+ * PROGRESSIONS=1: Unison and NYSSMA cells written over chord progressions
+ * (unison-progressions.ts), as the Unison page writes them by default.
+ * ONLY_UNISON=1 skips the Choral cells.
+ */
+const PROGRESSIONS = process.env.PROGRESSIONS === "1";
+const ONLY_UNISON = process.env.ONLY_UNISON === "1";
 
 /**
  * Not a failure, a quality: how many short notes (an eighth or less) are
  * approached or left by skip, across the choral exercises that generated. With
  * the stepwise rule on it is about 1%; with STEPWISE_EIGHTHS=0 it is the
  * baseline, around 37%. A rest breaks the line, so the note beside one is not
- * counted against.
+ * counted against. In the bass only the approach counts: a bass may leave an
+ * eighth by leap (G G c2), just not arrive on one by leap (G c G2).
  */
 const shortTally = { notes: 0, skipped: 0 };
 function tallyShortNotes(voices: any[][]) {
   for (const voice of voices) {
+    const isBass = voice.find((n: any) => n.order !== undefined)?.order === 0;
     for (let k = 0; k < voice.length; k++) {
       const n = voice[k];
       if (n.rest || n.length > 4) continue;
       shortTally.notes++;
       const skips = (m: any) => m && !m.rest && Math.abs(m.pitchValue - n.pitchValue) > 1;
-      if (skips(voice[k - 1]) || skips(voice[k + 1])) shortTally.skipped++;
+      if (skips(voice[k - 1]) || (!isBass && skips(voice[k + 1]))) shortTally.skipped++;
     }
   }
 }
@@ -80,6 +94,7 @@ function run(label: string, make: () => void) {
   return cell;
 }
 
+if (!ONLY_UNISON) { // ONLY_UNISON=1 skips the Choral cells, to check Unison alone
 // ----------------------------------------------------------------- choral
 for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
   const rhythms = allRhythms.filter(
@@ -134,28 +149,60 @@ for (const voiceTexture of ["full", "staggered"]) {
   }
 }
 
+} // ONLY_UNISON
 // ----------------------------------------------------------------- unison
-const UNISON_RHYTHMS = ["quarter", "half", "eighthEighth", "dotHalf"];
+// One loop over every meter Unison offers. Choral offers no compound meter;
+// Unison and rhythm-only do, with the Core set the picker starts on, and
+// Counting (Eastman: 1 la li), the system that spells compound beats.
+const UNISON_METERS = [
+  { tsName: "4/4", rhythmNames: ["quarter", "half", "eighthEighth", "dotHalf"], syllableSystemId: "kodaly" },
+  { tsName: "3/4", rhythmNames: ["quarter", "half", "eighthEighth", "dotHalf"], syllableSystemId: "kodaly" },
+  { tsName: "2/4", rhythmNames: ["quarter", "half", "eighthEighth", "dotHalf"], syllableSystemId: "kodaly" },
+  ...COMPOUND_METER_NAMES.map((tsName) => ({
+    tsName, rhythmNames: DEFAULT_RHYTHM_NAMES.compound, syllableSystemId: "counting",
+  })),
+];
 for (const rhythmOnly of [false, true]) {
-  for (const tsName of Object.keys(TIME_SIGS)) {
+  for (const { tsName, rhythmNames, syllableSystemId } of UNISON_METERS) {
     for (const clef of ["treble", "bass", "alto", "tenor"]) {
       for (const measures of [1, 2, 4, 8, 16]) {
         if (rhythmOnly && clef !== "treble") continue; // one staff, one clef
         run(`unison ${rhythmOnly ? "rhythm" : "pitched"} | ${clef} | ${tsName} | ${measures}m`, () => {
           createNewSr({
             bpm: 60, clef, selectedClef: clef,
-            timeSig: TIME_SIGS[tsName], selectedTimeSignature: tsName,
+            timeSig: timeSignatureFor(tsName), selectedTimeSignature: tsName,
             measures, maxSkip: 4, tempo: 60, range: { min: 14, max: 21 },
-            selectedRhythms: UNISON_RHYTHMS,
-            rhythms: allRhythms.filter((r) => UNISON_RHYTHMS.includes(r.name)),
+            selectedRhythms: rhythmNames,
+            rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
             scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]),
             key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],
-            showSolfege: !rhythmOnly, rhythmOnly,
-            showRhythmSyllables: true, syllableSystemId: "kodaly",
+            showSolfege: !rhythmOnly, rhythmOnly, progressions: PROGRESSIONS,
+            showRhythmSyllables: true, syllableSystemId,
             partsObject: { numofParts: 1, parts: { Unison: {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
           } as any);
         });
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------- NYSSMA
+// Each NYSSMA Voice level (Unison page) in every key and meter it draws from,
+// both clefs, at the lengths the measure picker offers around its 8. What the
+// exercises contain is scripts/check-nyssma.ts; this is whether they generate.
+for (const level of nyssmaVoiceLevels) {
+  for (const key of level.keys) {
+    for (const meter of level.meters) {
+      for (const clef of ["treble", "bass"]) {
+        for (const measures of [4, 8, 16]) {
+          run(`nyssma ${level.short} | ${key} | ${meter} | ${clef} | ${measures}m`, () => {
+            createNewSr({
+              ...nyssmaGenerationParams(level, { key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures }),
+              progressions: PROGRESSIONS,
+            } as any);
+          });
+        }
       }
     }
   }

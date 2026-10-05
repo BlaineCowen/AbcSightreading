@@ -571,6 +571,25 @@ export function ladderStages(): { stage: string; steps: LadderStep[] }[] {
 }
 
 /**
+ * A span of scale steps around do, placed on the first do at or above
+ * `anchorMin` - so the clef and octave stay the class's. Used for a ladder
+ * step, and for a NYSSMA level each time a key is drawn: always from the same
+ * anchor, never from the last placement, or the range would creep.
+ */
+export function rangeForSpan(
+  span: [below: number, above: number],
+  key: string,
+  anchorMin: number
+): { min: number; max: number } | null {
+  const letter = keySignatures[key]?.rootOffset;
+  if (letter === undefined) return null;
+  let doIndex = anchorMin;
+  while (((doIndex % 7) + 7) % 7 !== letter) doIndex++;
+  const [below, above] = span;
+  return { min: Math.max(0, doIndex + below), max: doIndex + above };
+}
+
+/**
  * The range a pitched unison step reads in: its span around do, with do the
  * lowest tonic at or above the bottom of the class's current range. Indices
  * are noteArray's, which count scale steps (C=0, D=1 ... seven to the octave),
@@ -581,12 +600,7 @@ export function rangeForStep(
   current: { min: number; max: number }
 ): { min: number; max: number } | null {
   if (!u.span || !u.selectedKey) return null;
-  const letter = keySignatures[u.selectedKey]?.rootOffset;
-  if (letter === undefined) return null;
-  let doIndex = current.min;
-  while (((doIndex % 7) + 7) % 7 !== letter) doIndex++;
-  const [below, above] = u.span;
-  return { min: Math.max(0, doIndex + below), max: doIndex + above };
+  return rangeForSpan(u.span, u.selectedKey, current.min);
 }
 
 /** The query parameter a page reads to open on a step: /sightreading?step=<id>. */

@@ -19,8 +19,36 @@ export function canFillExercise(
   rhythms: Rhythm[],
   tsPerMeasure: number,
   totalUnits: number,
-  allowTies: boolean
+  allowTies: boolean,
+  /** One beat in 32nds, from the meter model (beatUnitOf): 8 in simple meter. */
+  beatUnits = 8
 ): boolean {
+  // Compound meter: every figure is whole beats, so walk beat positions. A
+  // plain note may cross the barline when ties are on; split at a beat it is
+  // two dotted values, which compound meter writes plainly - so no dotted-split
+  // rule here. Kept in step with compound-rhythm.ts's fill, but written out
+  // separately on purpose: this is the reference that fill is checked against.
+  if (beatUnits === 12) {
+    // Only compound figures: a simple one (a dotted half is 24, two beats) can
+    // never stand in, because the two vocabularies never mix.
+    const usable = rhythms.filter(
+      (r) => r.meterKind === "compound" && r.totalValue > 0 && r.totalValue % beatUnits === 0
+    );
+    const seenAt = new Set<number>();
+    const walkBeats = (pos: number): boolean => {
+      if (pos === totalUnits) return true;
+      if (pos > totalUnits || seenAt.has(pos)) return false;
+      seenAt.add(pos);
+      const room = tsPerMeasure - (pos % tsPerMeasure);
+      for (const r of usable) {
+        if (r.totalValue > room && !(allowTies && !r.pattern && !r.rest)) continue;
+        if (walkBeats(pos + r.totalValue)) return true;
+      }
+      return false;
+    };
+    return walkBeats(0);
+  }
+
   const DOTTED = new Set([6, 12, 24]);
   const seen = new Set<number>();
 
@@ -35,10 +63,10 @@ export function canFillExercise(
     ) {
       return false;
     }
-    const p = (pos % tsPerMeasure) % 8;
-    if (tsPerMeasure >= 8) {
-      if ((p === 2 || p === 6) && r.totalValue >= 8) return false;
-      if (p === 4 && r.totalValue >= 16) return false;
+    const p = (pos % tsPerMeasure) % beatUnits;
+    if (tsPerMeasure >= beatUnits) {
+      if ((p === beatUnits / 4 || p === (3 * beatUnits) / 4) && r.totalValue >= 8) return false;
+      if (p === beatUnits / 2 && r.totalValue >= 16) return false;
     }
     if (lastShort && r.totalValue >= 16) return false;
     return true;

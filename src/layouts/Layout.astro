@@ -22,7 +22,7 @@ interface Props {
 
 const {
   title,
-  description = "Unlimited choir sight-reading and sight-singing exercises in SATB, SSA, TTB and unison, UIL levels 1 to 5, with solfège and playback.",
+  description = "Unlimited sight-reading and sight-singing exercises for choirs and other ensembles: SATB, SSA, TTB and unison, UIL levels 1 to 5, with solfège and playback.",
   themable = false,
   noindex = false,
   jsonLd,
@@ -37,7 +37,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
 const production = serverEnv("VERCEL_ENV") === "production";
 const robots = noindex || !production ? "noindex, nofollow" : "index, follow";
 // The version makes link previews that cached the old picture fetch this one.
-const ogImage = new URL("/og.png?v=blue", Astro.site).href;
+const ogImage = new URL("/og.png?v=abcsr", Astro.site).href;
 
 /**
  * A student account may belong to a child under 13. Nothing that watches or
@@ -104,7 +104,7 @@ const feedbackConfigured = !!readFeedbackEmail(
       href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@600&text=%5B%5Di%C9%9B%C9%91ou&display=swap"
     />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="abc Sight Reading" />
+    <meta property="og:site_name" content="abcSightReading" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
@@ -149,7 +149,7 @@ const feedbackConfigured = !!readFeedbackEmail(
         <a class="hover:text-sr-action-fg" href="/uil-sight-reading">UIL sight-reading practice</a>
         <a class="hover:text-sr-action-fg" href="/pricing">Pricing</a>
         <a class="hover:text-sr-action-fg" href="/tuner">abcTuner</a>
-        <a class="hover:text-sr-action-fg" href="/sight-reading-factory-alternative">Compared with Sight Reading Factory</a>
+        <a class="hover:text-sr-action-fg" href="/why-abc-sight-reading">Why abcSightReading</a>
       </nav>
     </footer>
     {

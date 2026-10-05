@@ -460,18 +460,23 @@ function figureIsSingable(
  * `prev` is the note actually written before the figure and `next` the one
  * after it, rests included - a rest breaks the line, so the note beside it is
  * free. A mirrored decoration passes through here too, so its exit is checked.
+ *
+ * In the bass only the arrival counts (`approachOnly`): a bass may leave an
+ * eighth by leap, G G c2 or G3 G C2, the way a bass line leaps to the next
+ * root, but not arrive on one by leap, G c G2 or G3 C G2.
  */
 function leapsAroundShortNote(
   figure: VoiceNote[],
   prev: VoiceNote | null,
-  next: VoiceNote | null
+  next: VoiceNote | null,
+  approachOnly = false
 ): boolean {
   const chain = [prev, ...figure, next];
   for (let k = 1; k < chain.length; k++) {
     const a = chain[k - 1];
     const b = chain[k];
     if (!a || !b || a.rest || b.rest) continue;
-    if (!isShortSung(a) && !isShortSung(b)) continue;
+    if (approachOnly ? !isShortSung(b) : !isShortSung(a) && !isShortSung(b)) continue;
     if (Math.abs(a.pitchValue - b.pitchValue) > 1) return true;
   }
   return false;
@@ -567,14 +572,14 @@ function figureRejection(
   prevNote: VoiceNote | null,
   nextNote: VoiceNote | null,
   /** The notes either side, when eighths must move by step; null otherwise. */
-  around: { prev: VoiceNote | null; next: VoiceNote | null } | null = null,
+  around: { prev: VoiceNote | null; next: VoiceNote | null; approachOnly?: boolean } | null = null,
   /** The last note actually written before this figure, decoration and all. */
   before: VoiceNote | null = null,
   /** The chord tone the figure replaces. */
   original: VoiceNote | null = null
 ): string | null {
   if (!figure || figure.length === 0) return "empty figure";
-  if (around && leapsAroundShortNote(figure, around.prev, around.next)) {
+  if (around && leapsAroundShortNote(figure, around.prev, around.next, around.approachOnly)) {
     return "eighth note approached or left by skip";
   }
   if (breaksChromaticStep(figure, before, nextNote, original)) {
@@ -717,7 +722,7 @@ export function generateNonChordTones(
     // appoggiatura here starts a step off its chord tone, and it is that pitch
     // the eighth before it has to step to.
     const around = stepwiseEighths
-      ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote }
+      ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote, approachOnly: isBassLine }
       : null;
 
     // Skip:
@@ -749,7 +754,7 @@ export function generateNonChordTones(
         const repeated = tryRearticulation(
           originalNote, nextNote, prevNote, patternNctRhythms, probability, key,
           i, allNotes, currentPartIndex, voiceRange,
-          stepwiseEighths ? { prev: outputNotes.at(-1) ?? null, next: nextChordNote } : null,
+          around,
           outputNotes.at(-1) ?? null
         );
         if (repeated) {
@@ -1367,7 +1372,7 @@ function tryRearticulation(
   allNotes: VoiceNote[][],
   currentPartIndex: number,
   voiceRange: [number, number] | undefined,
-  around: { prev: VoiceNote | null; next: VoiceNote | null } | null,
+  around: { prev: VoiceNote | null; next: VoiceNote | null; approachOnly?: boolean } | null,
   /** The last note actually written before this one. */
   before: VoiceNote | null = null
 ): VoiceNote[] | null {

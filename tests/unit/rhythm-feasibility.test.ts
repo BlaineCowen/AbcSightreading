@@ -55,3 +55,34 @@ describe("whether a selection can fill a bar", () => {
     expect(canFillExercise([by("whole")], THREE_FOUR, 8 * THREE_FOUR, false)).toBe(false);
   });
 });
+
+describe("compound meter fills by dotted-quarter beats", () => {
+  test("a dotted half alone fills 6/8, but not 9/8 without ties", () => {
+    expect(canFillExercise([by("dotHalfCompound")], 24, 4 * 24, false, 12)).toBe(true);
+    expect(canFillExercise([by("dotHalfCompound")], 36, 4 * 36, false, 12)).toBe(false);
+  });
+
+  test("with ties a dotted half crosses the 9/8 barline; a rest never does", () => {
+    // Split dotted quarter + dotted quarter: plainly written in compound meter.
+    expect(canFillExercise([by("dotHalfCompound")], 36, 4 * 36, true, 12)).toBe(true);
+    expect(canFillExercise([by("dotHalfRest"), by("threeEighths")], 36, 36, true, 12)).toBe(true);
+    expect(canFillExercise([by("dotHalfRest")], 36, 4 * 36, true, 12)).toBe(false);
+  });
+
+  test("one bar of 9/8 is three beats: two-beat notes cannot make it", () => {
+    expect(canFillExercise([by("dotHalfCompound")], 36, 36, true, 12)).toBe(false);
+  });
+
+  test("a simple figure never fills a compound bar, even one a multiple of a beat", () => {
+    // dotHalf is 24 units - two dotted-quarter beats - but it is simple meter's
+    // figure; the two vocabularies never mix.
+    expect(canFillExercise([by("dotHalf")], 24, 4 * 24, false, 12)).toBe(false);
+    expect(canFillExercise([by("dotHalf"), by("threeEighths")], 24, 4 * 24, false, 12)).toBe(true);
+  });
+
+  test("any one-beat figure fills every compound meter", () => {
+    for (const ts of [24, 36, 48]) {
+      expect(canFillExercise([by("threeEighths")], ts, 8 * ts, false, 12)).toBe(true);
+    }
+  });
+});

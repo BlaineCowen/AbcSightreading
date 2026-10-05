@@ -1,4 +1,6 @@
 import { rhythms as rhythmCatalogue } from "../resources/rhythms";
+import { generateCompoundRhythm } from "./compound-rhythm";
+import { beatUnitOf, resolveMeter } from "./meter";
 import type {
   Rhythm,
   RhythmWithPattern,
@@ -87,7 +89,16 @@ export function generateRandomRhythm(
   allowTiesAcrossBarline: boolean = false,
   options: RhythmOptions = {}
 ): RhythmWithPattern[] {
-  let rhythms = [...availableRhythms]; // Start with all available rhythms
+  // Compound meter fills beat by beat with its own vocabulary. Branch before
+  // anything else - above all before any Math.random draw - so simple meter's
+  // sequence of draws, and so its output, cannot move.
+  const meter = resolveMeter(timeSig);
+  if (meter.kind === "compound") {
+    return generateCompoundRhythm(meter, measures, availableRhythms, selectedCadences, allowTiesAcrossBarline);
+  }
+
+  // The vocabularies never mix: simple meter never writes a compound figure.
+  let rhythms = availableRhythms.filter((r) => (r.meterKind ?? "simple") === "simple");
 
   if (!disableRhythmFilter) {
     // Filter rhythms:
@@ -95,7 +106,7 @@ export function generateRandomRhythm(
     // - Exclude notes with totalValue > timeSig.tsPerMeasure (longer than a measure)
     // - Exclude patterns containing any note with value < 8
     // TODO: Add filter for dotted notes if needed
-    rhythms = availableRhythms.filter((r) => {
+    rhythms = rhythms.filter((r) => {
       // Exclude if the total value is less than a quarter note
       if (r.totalValue < 8) {
         return false;
@@ -185,7 +196,7 @@ export function generateRandomRhythm(
   const totalBeats = measures * timeSig.tsPerMeasure;
   let currentBeat = 0;
   let cadenceIndex = 0; // Track which cadence we are working towards
-  const BEAT_UNIT = 8; // a quarter, in 32nd-note units
+  const BEAT_UNIT = beatUnitOf(timeSig); // one beat in 32nds - a quarter in simple meter
 
   // --- Find Longest Single Rhythm (Needed for cadence points) ---
   // Rests are excluded: a cadence is an arrival, and a phrase cannot end on
@@ -471,16 +482,16 @@ export function generateRandomRhythm(
         if (!crossesCleanly(r, measureRemaining)) return false;
 
         // --- Placement Rules ---
-        // In L:1/32: quarter-note beat positions are multiples of 8.
-        // The "and" of each beat falls at positions where % 8 === 4.
-        // Allow notes up to dotted-quarter (12) at "and" positions but block half-note+ to
-        // keep rhythms from starting on off-beats with excessively long values.
-        if (timeSig.tsPerMeasure >= 8) {
-          const pos = currentMeasurePosition % 8;
-          if (pos === 2 || pos === 6) {
+        // In L:1/32 a beat starts at every multiple of BEAT_UNIT; the "and"
+        // falls half a beat in, the sixteenth off-beats a quarter and three
+        // quarters in. Allow up to a dotted quarter on an "and", nothing a beat
+        // long or longer on a sixteenth.
+        if (timeSig.tsPerMeasure >= BEAT_UNIT) {
+          const pos = currentMeasurePosition % BEAT_UNIT;
+          if (pos === BEAT_UNIT / 4 || pos === (3 * BEAT_UNIT) / 4) {
             // 16th-note off-beats: block quarter-note or longer
             if (r.totalValue >= 8) return false;
-          } else if (pos === 4) {
+          } else if (pos === BEAT_UNIT / 2) {
             // "and" of each beat: block half-note or longer (allow quarter/dotted-quarter)
             if (r.totalValue >= 16) return false;
           }

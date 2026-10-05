@@ -43,7 +43,7 @@ function choral(key: string, meter: "4/4" | "3/4" = "4/4") {
       kind: "exercise",
       params: {
         key,
-        timeSig: { name: meter, tsPerMeasure: meter === "4/4" ? 32 : 24, beamGroupSize: 8 },
+        timeSig: { name: meter, tsPerMeasure: meter === "4/4" ? 32 : 24, beatUnits: 8 },
         partsObject: SATB,
         measures: 8,
         maxSkip: 4,
@@ -222,7 +222,7 @@ describe("unison", () => {
     quietly(() =>
       createNewSr({
         bpm: 60, clef: "bass", selectedClef: "bass",
-        timeSig: { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 }, selectedTimeSignature: "3/4",
+        timeSig: { name: "3/4", tsPerMeasure: 24, beatUnits: 8 }, selectedTimeSignature: "3/4",
         measures: 8, maxSkip: 4, tempo: 60, range: { min: 2, max: 12 },
         selectedRhythms: ["quarter", "half", "dotHalf", "eighthEighth"],
         rhythms: rhythms.filter((r) => ["quarter", "half", "dotHalf", "eighthEighth"].includes(r.name)),
@@ -255,5 +255,21 @@ describe("unison", () => {
     expect(xml).toContain("<midi-channel>10</midi-channel>");
     expect(xml).toContain('<direction placement="below">');
     wellFormed(xml);
+  });
+});
+
+describe("tempo in compound meter", () => {
+  test("a dotted-quarter metronome mark, and the sound in quarters", () => {
+    const xml = abcToMusicXml("X:1\nM:6/8\nL:1/32\nQ:3/8=60\nK:C\nB12 B12|\n");
+    expect(xml).toContain("<beat-unit>quarter</beat-unit>");
+    expect(xml).toContain("<beat-unit-dot/>");
+    expect(xml).toContain("<per-minute>60</per-minute>");
+    expect(xml).toContain('<sound tempo="90"/>');
+  });
+
+  test("simple meter is unchanged", () => {
+    const xml = abcToMusicXml("X:1\nM:4/4\nL:1/32\nQ:1/4=72\nK:C\nB8 B8 B8 B8|\n");
+    expect(xml).not.toContain("<beat-unit-dot/>");
+    expect(xml).toContain('<sound tempo="72"/>');
   });
 });

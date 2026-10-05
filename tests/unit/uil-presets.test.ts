@@ -27,9 +27,8 @@ describe("every level declares what it allows", () => {
   });
 
   test("the meters are the ones the criteria state", () => {
-    // notes/uil-criteria.md: level 1 is 2/4, 3/4, 4/4; levels 2 and 3 are 3/4
-    // and 4/4; level 4 adds 6/8, which the page does not offer; level 5 is all
-    // simple and compound meters.
+    // notes/uil-criteria.md: level 1 is 2/4, 3/4, 4/4; levels 2 to 4 are 3/4
+    // and 4/4; level 5 is all simple meters. UIL choir does not use compound meter.
     expect(new Set(uilPresets["UIL 1"].allowedMeters)).toEqual(new Set(["4/4", "3/4", "2/4"]));
     expect(new Set(uilPresets["UIL 2"].allowedMeters)).toEqual(new Set(["4/4", "3/4"]));
     expect(new Set(uilPresets["UIL 3"].allowedMeters)).toEqual(new Set(["4/4", "3/4"]));

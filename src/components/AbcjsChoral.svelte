@@ -28,6 +28,7 @@
   import { chords as fullChordSet } from "../resources/chords";
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
+  import { beatsOf, timeSignaturesFor } from "../lib/meter";
   import { failureHint, type PartSpan } from "../lib/failure-hint";
   import {
     planForm,
@@ -201,11 +202,24 @@
     },
   };
 
-  let timeSignatures: Record<string, TimeSignature> = {
-    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-  };
+  /**
+   * Each part's range as the page ships it, before a preset, a link or the
+   * Ranges tab touches anything - those all mutate possibleVoicing in place, so
+   * without this copy there is nothing to reset a part to.
+   */
+  const DEFAULT_RANGES: Record<string, Record<string, [number, number]>> = structuredClone(
+    Object.fromEntries(
+      Object.entries(possibleVoicing).map(([voicing, def]) => [
+        voicing,
+        Object.fromEntries(
+          Object.entries(def.parts).map(([part, p]) => [part, p.currentRange as [number, number]])
+        ),
+      ])
+    )
+  );
+
+  /** Choral is simple meter only: compound meter is Unison's for now. */
+  let timeSignatures: Record<string, TimeSignature> = timeSignaturesFor(["4/4", "3/4", "2/4"]);
 
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   /**
@@ -607,8 +621,45 @@
   $: harmonyDirty = fromPreset ? _tabSigs.harmony !== fromPreset.harmony : maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
     stepwiseEighths !== DEFAULTS.stepwiseEighths || focusChord !== null ||
     userAllowedChords.size !== currentModeChordNames.length;
-  $: rangesDirty = fromPreset ? _tabSigs.ranges !== fromPreset.ranges : Object.values(possibleVoicing[selectedVoicing]?.parts ?? {})
-    .some(p => p.currentRange[0] !== p.range[0] || p.currentRange[1] !== p.range[1]);
+  /**
+   * The range a part goes back to: the preset's, while one is on, else the
+   * page's default. Without a preset this used to be measured against the
+   * part's full range, which nobody starts at, so the Ranges dot was lit
+   * almost always.
+   *
+   * Takes its inputs as arguments so the reactive statements below re-run when
+   * any of them changes.
+   */
+  function rangeTarget(
+    voicing: string,
+    partName: string,
+    presetOn: boolean,
+    level: UILPreset | null,
+    saved: SavedPreset | null
+  ): [number, number] | undefined {
+    if (presetOn) {
+      // A saved preset sets the ranges of its own voicing only.
+      const fromSaved = saved && saved.params.voicing === voicing ? saved.params.voiceRanges?.[partName] : undefined;
+      if (fromSaved) return fromSaved;
+      // A UIL level or ladder step names every part, in every voicing.
+      const fromLevel = !saved ? level?.voiceRanges?.[partName] : undefined;
+      if (fromLevel) return fromLevel as [number, number];
+    }
+    return DEFAULT_RANGES[voicing]?.[partName];
+  }
+
+  $: rangeTargets = Object.fromEntries(
+    Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {}).map((name) => [
+      name,
+      rangeTarget(selectedVoicing, name, !!fromPreset, activeLevel, activeSavedId ? activeSavedPreset : null),
+    ])
+  ) as Record<string, [number, number] | undefined>;
+
+  const rangeDiffers = (current: number[], target: [number, number] | undefined) =>
+    !!target && (current[0] !== target[0] || current[1] !== target[1]);
+
+  $: rangesDirty = Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {})
+    .some(([name, p]) => rangeDiffers(p.currentRange, rangeTargets[name]));
 
   /**
    * What the controls are set to, for telling "still the preset" from "edited".
@@ -679,7 +730,7 @@
    */
   const drumFor = (timeSignature: string) =>
     drumPatternFor({
-      beats: parseInt(timeSignature, 10) || 4,
+      beats: beatsOf(timeSignature),
       subdivision: $tuner.subdivision,
       accent: $tuner.accent,
       sound: $tuner.clickSound,
@@ -1560,6 +1611,12 @@
     }
   }
 
+  /** One part back to its preset's range, or the default without a preset. */
+  function resetRange(partName: string) {
+    const target = rangeTargets[partName];
+    if (target) handleRangeChange(partName, { min: target[0], max: target[1] });
+  }
+
   // ── Playback controls ──────────────────────────────────────────────────────
   /** Shown under the transport when the browser is holding audio back. */
   let audioNotice = "";
@@ -1607,16 +1664,38 @@
     }
   }
 
+  /**
+   * True from a Play press until the sound starts. The first play fetches the
+   * instrument samples, and a rebuild (muting, a new sound) fetches again; on a
+   * slow connection that is seconds of a Play button that seems to do nothing.
+   */
+  let isPreparing = false;
+
   async function handlePlay() {
-    if (!synthControl) return;
-    if (!(await ensureAudioRunning())) return;
-    // A metronome ticking on its own becomes this playback's click, from beat 1
-    // of the count-in (metronome-link). If the synth was built without the
-    // click, it is built again with it first.
-    const click = exercisePlays(true);
-    if (renderedTune && builtClick.split("|")[0] !== String(click)) await initSynth(renderedTune);
-    await synthControl.play();
-    isPlaying = true;
+    if (!synthControl || isPreparing) return;
+    isPreparing = true;
+    try {
+      if (!(await ensureAudioRunning())) return;
+      // A rebuild started by muting or the mix slider is not awaited where it
+      // starts; playing before it finishes would start a half-built synth.
+      // Capped, so a build that never settles cannot hold Play forever.
+      if (synthBuild) {
+        await Promise.race([
+          synthBuild.catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 15000)),
+        ]);
+      }
+      // A metronome ticking on its own becomes this playback's click, from beat 1
+      // of the count-in (metronome-link). If the synth was built without the
+      // click, it is built again with it first.
+      const click = exercisePlays(true);
+      if (renderedTune && builtClick.split("|")[0] !== String(click)) await initSynth(renderedTune);
+      if (!synthControl) return;
+      await synthControl.play();
+      isPlaying = true;
+    } finally {
+      isPreparing = false;
+    }
   }
 
   /**
@@ -1897,7 +1976,20 @@
   ];
 
   // ── Synth init ─────────────────────────────────────────────────────────────
-  async function initSynth(tune: any) {
+  /** The synth build in flight, if any - handlePlay waits for it. */
+  let synthBuild: Promise<void> | null = null;
+
+  function initSynth(tune: any): Promise<void> {
+    const build = buildSynth(tune);
+    synthBuild = build;
+    const settle = () => {
+      if (synthBuild === build) synthBuild = null;
+    };
+    build.then(settle, settle);
+    return build;
+  }
+
+  async function buildSynth(tune: any) {
     playedMeter = meterOf(tune, selectedTimeSignature);
     const voicesOff = barVoices
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
@@ -3006,7 +3098,20 @@
             <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
                 <div class="space-y-1.5">
-                  <p class="sr-label">{partName}</p>
+                  <!-- A text button, so showing it does not make this row taller
+                       than the next card's and knock the grid out of line. -->
+                  <div class="flex items-baseline gap-3">
+                    <p class="sr-label">{partName}</p>
+                    {#if rangeDiffers(part.currentRange, rangeTargets[partName])}
+                      <button
+                        type="button"
+                        class="text-xs font-semibold text-sr-brass hover:underline underline-offset-2"
+                        on:click={() => resetRange(partName)}
+                        title={fromPreset ? `Back to ${activePresetLabel}'s ${partName} range` : `Back to the default ${partName} range`}
+                        aria-label="Reset {partName} range"
+                      >Reset</button>
+                    {/if}
+                  </div>
                   <RangeSelector
                     range={{ min: part.currentRange[0], max: part.currentRange[1] }}
                     clef={part.clef}
@@ -3121,6 +3226,7 @@
     onStop={handleStop}
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
+    {isPreparing}
     onGenerate={handleClick}
     onToggleLoop={handleToggleLoop}
     onToggleMute={handleToggleMute}

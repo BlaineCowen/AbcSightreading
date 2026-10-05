@@ -6,6 +6,7 @@
   import SkipBack from "lucide-svelte/icons/skip-back";
   import Play from "lucide-svelte/icons/play";
   import Pause from "lucide-svelte/icons/pause";
+  import LoaderCircle from "lucide-svelte/icons/loader-circle";
   import Square from "lucide-svelte/icons/square";
   import Repeat from "lucide-svelte/icons/repeat";
   import Minus from "lucide-svelte/icons/minus";
@@ -24,6 +25,13 @@
 
   export let isPlaying: boolean = false;
   export let bpm: number = 60;
+  /**
+   * The note the tempo counts, "♩" or "♩.", shown as "♩. = 60". Omit it and
+   * the bar says BPM, as Choral's does.
+   */
+  export let beatSymbol: string | null = null;
+  $: tempoLabel = beatSymbol ? `${beatSymbol} =` : "BPM";
+  $: tempoAria = beatSymbol === "♩." ? "Tempo in dotted-quarter beats per minute" : "Tempo in beats per minute";
   export let looping: boolean = false;
   export let voiceNames: string[] = [];
   export let mutedVoices: Set<string> = new Set();
@@ -66,6 +74,12 @@
   export let onGenerate: (() => void) | null = null;
   export let isGenerating: boolean = false;
   /**
+   * True from a Play press until the sound starts: the first Play fetches the
+   * instrument samples, which can take a few seconds on a slow connection, and
+   * a button that does nothing for that long gets pressed again.
+   */
+  export let isPreparing: boolean = false;
+  /**
    * A line of state that belongs on screen wherever the reader is looking.
    *
    * A practice run reports its position here rather than in the settings panel:
@@ -80,6 +94,34 @@
 
   function handleBpmCommit(e: Event) {
     (onBpmCommit ?? onBpmChange)(+(e.target as HTMLInputElement).value);
+  }
+
+  /**
+   * The typed tempo. Committed on change (Enter or leaving the field), never per
+   * keystroke: Unison re-renders on a commit, and "1" on the way to "120" is
+   * not a tempo. Out of range clamps; empty or junk puts the current tempo back.
+   */
+  function handleBpmTyped(e: Event) {
+    const field = e.target as HTMLInputElement;
+    const typed = parseInt(field.value, 10);
+    if (Number.isNaN(typed)) {
+      field.value = String(bpm);
+      return;
+    }
+    const next = Math.min(200, Math.max(40, typed));
+    // Svelte will not rewrite the field when bpm is unchanged (200 typed as 500).
+    field.value = String(next);
+    if (next !== bpm) (onBpmCommit ?? onBpmChange)(next);
+  }
+
+  function handleBpmKey(e: KeyboardEvent) {
+    const field = e.target as HTMLInputElement;
+    if (e.key === "Enter") {
+      field.blur();
+    } else if (e.key === "Escape") {
+      field.value = String(bpm);
+      field.blur();
+    }
   }
 
   /**
@@ -260,11 +302,14 @@
         ><Pause size={18} /><span class="hidden sm:inline">Pause</span></button>
       {:else}
         <button
-          class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
-          disabled={!hasExercise}
+          class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold
+                 disabled:opacity-40 {isPreparing ? 'disabled:opacity-80 cursor-progress' : ''}"
+          disabled={!hasExercise || isPreparing}
           on:click={onPlay}
-          aria-label="Play"
-        ><Play size={18} /><span class="hidden sm:inline">Play</span></button>
+          aria-label={isPreparing ? "Loading sounds…" : "Play"}
+          aria-busy={isPreparing}
+          title={isPreparing ? "Loading sounds…" : undefined}
+        >{#if isPreparing}<LoaderCircle size={18} class="animate-spin" />{:else}<Play size={18} />{/if}<span class="hidden sm:inline">Play</span></button>
       {/if}
 
       <button
@@ -291,7 +336,7 @@
     <!-- BPM -->
     <div class="flex items-center gap-1 sm:gap-2">
       <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
-      <span class="text-xs text-sr-bar-muted uppercase tracking-wide hidden sm:inline xl:hidden 2xl:inline">BPM</span>
+      <span class="text-xs text-sr-bar-muted tracking-wide hidden sm:inline xl:hidden 2xl:inline {beatSymbol ? '' : 'uppercase'}">{tempoLabel}</span>
       <button
         class={stepBtn}
         on:click={() => (onBpmCommit ?? onBpmChange)(Math.max(40, bpm - 5))}
@@ -312,7 +357,21 @@
         on:click={() => (onBpmCommit ?? onBpmChange)(Math.min(200, bpm + 5))}
         aria-label="Increase tempo"
       ><Plus size={14} /></button>
-      <span class="font-bold text-sm w-8 text-center">{bpm}</span>
+      <input
+        type="number"
+        min="40"
+        max="200"
+        step="1"
+        inputmode="numeric"
+        value={bpm}
+        on:change={handleBpmTyped}
+        on:keydown={handleBpmKey}
+        on:focus={(e) => e.currentTarget.select()}
+        class="bpm-field font-bold text-sm w-8 text-center bg-transparent text-sr-bar-ink rounded p-0
+               border-0 focus:outline-none focus:ring-2 focus:ring-sr-bar-on hover:bg-sr-bar-btn"
+        aria-label={tempoAria}
+        title="Type a tempo, 40 to 200"
+      />
     </div>
 
       <button
@@ -334,7 +393,7 @@
              max-h-[50dvh] overflow-y-auto overscroll-contain"
     >
       <div class="flex xl:hidden items-center gap-2 w-full">
-        <span class="text-xs text-sr-bar-muted uppercase tracking-wide">BPM</span>
+        <span class="text-xs text-sr-bar-muted tracking-wide {beatSymbol ? '' : 'uppercase'}">{tempoLabel}</span>
         <input
           type="range"
           min="40"
@@ -480,3 +539,16 @@
       {/if}
     </div>
 </div>
+
+<style>
+  /* The typed tempo reads as the plain number it replaced: no spinner arrows. */
+  .bpm-field {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .bpm-field::-webkit-outer-spin-button,
+  .bpm-field::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+</style>

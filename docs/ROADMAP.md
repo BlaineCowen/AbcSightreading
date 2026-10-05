@@ -10,7 +10,7 @@ Freemium — 10 generations/day free, unlimited for $10/year (premium).
 These make the free product worth using and are relatively low-to-medium effort.
 
 - [ ] **Minor keys** — `key-signatures.ts` already has definitions; just needs UI exposure. UIL level 3+ requires minor keys.
-- [ ] **Compound time (6/8, 12/8)** — Tested at UIL, completely absent right now.
+- [x] **Compound time (6/8, 9/8, 12/8)** — Unison and rhythm-only (October 2026); Choral to follow. Not a UIL choir requirement: UIL choir sight-reading is simple meter only.
 - [ ] **Better NCTs** — Current generation is purely probabilistic. Add:
   - *Suspensions* (4-3, 7-6, 9-8): hold a chord tone over the barline while harmony changes, resolve down by step
   - *Escape tones*: step up, then leap away

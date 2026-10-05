@@ -29,6 +29,24 @@ function skipsBesideShortNotes(voice: VoiceNote[]): number {
   return n;
 }
 
+/**
+ * The bass's half of the rule: leaps that arrive on a short note (G c G2,
+ * G3 C G2), and apart from them the leaps that leave one (G G c2, G3 G C2),
+ * which a bass may take.
+ */
+function bassLeapsAtShortNotes(voice: VoiceNote[]): { into: number; outOf: number } {
+  let into = 0, outOf = 0;
+  for (let k = 1; k < voice.length; k++) {
+    const a = voice[k - 1];
+    const b = voice[k];
+    if (a.rest || b.rest) continue;
+    if (Math.abs(a.pitchValue - b.pitchValue) <= 1) continue;
+    if (b.length <= 4) into++;
+    else if (a.length <= 4) outOf++;
+  }
+  return { into, outOf };
+}
+
 describe("stepwise eighths in a whole exercise", () => {
   const p = uilPresets["UIL 5"];
   const range = (name: string, fallback: [number, number]) =>
@@ -52,7 +70,7 @@ describe("stepwise eighths in a whole exercise", () => {
     try {
       return generateChoralExercise({
         key: "C",
-        timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+        timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
         partsObject,
         measures: 8,
         maxSkip: p.maxSkip,
@@ -77,6 +95,7 @@ describe("stepwise eighths in a whole exercise", () => {
       let shortNotes = 0;
       let upperSkips = 0;
       let bassSkips = 0;
+      let bassLeapsOut = 0;
       let failed = 0;
       for (let i = 0; i < 20; i++) {
         // An exercise that cannot be written is the sweep's business, not this
@@ -94,7 +113,11 @@ describe("stepwise eighths in a whole exercise", () => {
         const { voiceNotes, voiceNames } = result;
         voiceNotes.forEach((voice, v) => {
           shortNotes += voice.filter((n) => !n.rest && n.length <= 4).length;
-          if (voiceNames[v] === "Bass") bassSkips += skipsBesideShortNotes(voice);
+          if (voiceNames[v] === "Bass") {
+            const { into, outOf } = bassLeapsAtShortNotes(voice);
+            bassSkips += into;
+            bassLeapsOut += outOf;
+          }
           else upperSkips += skipsBesideShortNotes(voice);
         });
       }
@@ -130,7 +153,12 @@ describe("stepwise eighths in a whole exercise", () => {
       // rather than zero because the escape is still allowed to fire when no
       // fifth is within a step either, and because 20 exercises is a small
       // sample; it was 0.08.
+      //
+      // Only the arrival counts in the bass. Leaving an eighth by leap, G G c2
+      // or G3 G C2, is ordinary bass writing, and refusing it cost the bass its
+      // leaps to the next root; the second bound shows it is allowed again.
       expect(bassSkips / shortNotes).toBeLessThan(0.015);
+      expect(bassLeapsOut).toBeGreaterThan(0);
     },
     30000
   );

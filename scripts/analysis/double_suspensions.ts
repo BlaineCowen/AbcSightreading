@@ -92,7 +92,7 @@ for (let i = 0; i < RUNS; i++) {
   let out: any = null;
   try {
     out = generateChoralExercise({
-      key: "C", timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+      key: "C", timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
       partsObject: SATB, measures: 16, maxSkip: p.maxSkip, bpm: 72,
       selectedRhythms: rhythms, chords: fullChordSet, accidentalsByStep: true,
       nctProbability: 0.25, chromaticFrequency: 1,

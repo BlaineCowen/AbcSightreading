@@ -1,4 +1,5 @@
 import { rhythms, type Rhythm } from "../resources/rhythms";
+import type { MeterKind } from "./meter";
 
 /**
  * The rhythms a user can actually pick, and the single source of truth for it.
@@ -29,13 +30,27 @@ export function containsRest(rhythm: Rhythm): boolean {
 }
 
 export function isSelectableRhythm(rhythm: Rhythm): boolean {
+  // Simple meter's picker. Compound figures (the dotted quarter among them)
+  // have their own: selectableCompoundRhythms.
+  if ((rhythm.meterKind ?? "simple") !== "simple") return false;
   if (rhythm.name.includes("thirtySecond")) return false;
-  if (rhythm.name === "dotQuarter") return false;
   if (rhythm.rest) return SELECTABLE_RESTS.has(rhythm.name);
   return true;
 }
 
 export const selectableRhythms: Rhythm[] = rhythms.filter(isSelectableRhythm);
+
+/** Compound meter's picker: every compound figure that has a picker group. */
+export function isSelectableCompoundRhythm(rhythm: Rhythm): boolean {
+  return rhythm.meterKind === "compound" && rhythm.pickerGroup !== undefined;
+}
+
+export const selectableCompoundRhythms: Rhythm[] = rhythms.filter(isSelectableCompoundRhythm);
+
+/** The figures a meter of this kind offers - and the only ones it generates. */
+export function selectableRhythmsFor(kind: MeterKind): Rhythm[] {
+  return kind === "compound" ? selectableCompoundRhythms : selectableRhythms;
+}
 
 /**
  * Whether a selected rhythm can actually appear in a choral exercise.
@@ -61,6 +76,10 @@ export function canAppearInChoral(
   return true;
 }
 
+export type PickerGroupLabel = "Notes" | "Rests" | "Core" | "Sixteenths";
+
+const COMPOUND_GROUPS = ["Core", "Rests", "Sixteenths"] as const;
+
 /**
  * The picker's order: notes, then rests, each shortest first.
  *
@@ -72,7 +91,7 @@ export function canAppearInChoral(
  */
 export function rhythmPickerGroups<R extends Rhythm>(
   list: R[]
-): { label: "Notes" | "Rests"; rhythms: R[] }[] {
+): { label: PickerGroupLabel; rhythms: R[] }[] {
   const ordered = (rs: R[]) =>
     rs
       .map((r, i) => ({ r, i }))
@@ -83,8 +102,59 @@ export function rhythmPickerGroups<R extends Rhythm>(
           a.i - b.i
       )
       .map(({ r }) => r);
+  // Compound meter groups as the spec does: the core figures, the ones with
+  // rests, the ones with sixteenths.
+  if (list.length > 0 && list.every((r) => r.meterKind === "compound")) {
+    return COMPOUND_GROUPS.map((label) => ({
+      label,
+      rhythms: ordered(list.filter((r) => r.pickerGroup === label)),
+    })).filter((g) => g.rhythms.length > 0);
+  }
   return [
     { label: "Notes" as const, rhythms: ordered(list.filter((r) => !containsRest(r))) },
     { label: "Rests" as const, rhythms: ordered(list.filter((r) => containsRest(r))) },
   ].filter((g) => g.rhythms.length > 0);
+}
+
+/** What a fresh selection is, per kind: eighths and quarters, or compound's Core set. */
+export const DEFAULT_RHYTHM_NAMES: Record<MeterKind, string[]> = {
+  simple: ["eighthEighth", "quarter"],
+  compound: selectableCompoundRhythms.filter((r) => r.pickerGroup === "Core").map((r) => r.name),
+};
+
+/**
+ * Saved rhythm names, resolved against the figures this kind of meter offers.
+ * A preset, link or old save can name the other kind's figures - or nothing
+ * real - and a selection must never come back empty, so that falls back to the
+ * kind's defaults.
+ */
+export function resolveRhythmSelection(names: unknown, kind: MeterKind): Rhythm[] {
+  const pool = selectableRhythmsFor(kind);
+  const wanted = Array.isArray(names) ? names : [];
+  const resolved = wanted
+    .map((name) => pool.find((r) => r.name === name))
+    .filter((r): r is Rhythm => r !== undefined);
+  if (resolved.length > 0) return resolved;
+  return DEFAULT_RHYTHM_NAMES[kind]
+    .map((name) => pool.find((r) => r.name === name))
+    .filter((r): r is Rhythm => r !== undefined);
+}
+
+/** Each kind's last selection, kept while the reader moves between them. */
+export type RhythmMemory = Partial<Record<MeterKind, string[]>>;
+
+/**
+ * Moving between a simple and a compound meter puts away one kind's selection
+ * and brings back the other's - Core, the first time. 4/4 -> 6/8 -> 4/4
+ * restores what the teacher had ticked in 4/4.
+ */
+export function switchRhythmKind(
+  memory: RhythmMemory,
+  from: MeterKind,
+  to: MeterKind,
+  current: string[]
+): { memory: RhythmMemory; selection: Rhythm[] } {
+  if (from === to) return { memory, selection: resolveRhythmSelection(current, to) };
+  const next: RhythmMemory = { ...memory, [from]: [...current] };
+  return { memory: next, selection: resolveRhythmSelection(next[to] ?? [], to) };
 }

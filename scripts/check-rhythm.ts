@@ -7,7 +7,8 @@
  * of these was a real bug found by eye. So the properties are asserted directly
  * against the generator, with no dev server involved.
  *
- *   1. Well-formedness  - every emitted measure sums to exactly one measure.
+ *   1. Well-formedness  - every emitted measure sums to exactly one measure,
+ *                         and in compound meter no figure crosses a beat.
  *   2. Completeness     - the generator succeeds on exactly the selections that
  *                         are solvable under its own rules. This is the one that
  *                         catches a dead end: a greedy walk that fails on a
@@ -21,17 +22,16 @@
  */
 import { createNewSr } from "../src/lib/generateUnison";
 import { canFillExercise } from "../src/lib/rhythm-feasibility";
-import { selectableRhythms } from "../src/lib/selectable-rhythms";
+import { selectableRhythms, selectableRhythmsFor } from "../src/lib/selectable-rhythms";
 import { syllableSystems } from "../src/resources/rhythm-syllables";
 import type { Rhythm } from "../src/resources/rhythms";
+import { meterKindOf, timeSignaturesFor, type ExerciseTimeSignature } from "../src/lib/meter";
 
-const TIME_SIGS = {
-  "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-  "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-  "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-} as const;
+const TIME_SIGS = timeSignaturesFor(["4/4", "3/4", "2/4"]);
+const COMPOUND_TIME_SIGS = timeSignaturesFor(["6/8", "9/8", "12/8"]);
+const EVERY_TIME_SIG = [...Object.values(TIME_SIGS), ...Object.values(COMPOUND_TIME_SIGS)];
 
-type TimeSig = (typeof TIME_SIGS)[keyof typeof TIME_SIGS];
+type TimeSig = ExerciseTimeSignature;
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);
@@ -99,6 +99,22 @@ const durationsIn = (measure: string) =>
     Number(m[1] ?? m[2])
   );
 
+/**
+ * Compound only: a figure that starts inside a beat ends inside it, and a note
+ * that starts on a beat lasts whole beats. Every compound figure fills whole
+ * beats, so a failure here is a figure placed off the beat.
+ */
+function crossesABeat(measure: string, beatUnits: number): boolean {
+  let at = 0;
+  for (const d of durationsIn(measure)) {
+    const into = at % beatUnits;
+    if (into !== 0 && into + d > beatUnits) return true;
+    if (into === 0 && d > beatUnits && d % beatUnits !== 0) return true;
+    at += d;
+  }
+  return false;
+}
+
 // ── The reference solver ─────────────────────────────────────────────────────
 // Now lives in src/lib so the UI can warn before Generate is ever pressed. It is
 // still a separate implementation from the *generator*, which is what this check
@@ -113,7 +129,7 @@ const durationsIn = (measure: string) =>
 // ── Every one- and two-rhythm selection ──────────────────────────────────────
 
 function selections(timeSig: TimeSig): Rhythm[][] {
-  const usable = selectableRhythms.filter(
+  const usable = selectableRhythmsFor(meterKindOf(timeSig)).filter(
     (r) => r.totalValue <= timeSig.tsPerMeasure
   );
   const out: Rhythm[][] = [];
@@ -127,36 +143,44 @@ function selections(timeSig: TimeSig): Rhythm[][] {
 
 function checkMeasuresAndCompleteness() {
   let checked = 0;
-  for (const timeSig of Object.values(TIME_SIGS)) {
-    for (const ties of [false, true]) {
-      for (const set of selections(timeSig)) {
-        const label = `${timeSig.name} [${set.map((r) => r.name).join(" + ")}] ties=${ties}`;
-        const total = 4 * timeSig.tsPerMeasure;
+  for (const timeSig of EVERY_TIME_SIG) {
+    // Compound also gets eight bars: its search fills beat by beat, and a
+    // phrase block of four does not reach the two-phrase case.
+    for (const measures of meterKindOf(timeSig) === "compound" ? [4, 8] : [4]) {
+      for (const ties of [false, true]) {
+        for (const set of selections(timeSig)) {
+          const label = `${timeSig.name} [${set.map((r) => r.name).join(" + ")}] ties=${ties} ${measures}m`;
+          const total = measures * timeSig.tsPerMeasure;
 
-        // The generator picks randomly, so give it a few tries before believing
-        // a refusal.
-        let body: string | null = null;
-        for (let i = 0; i < 4 && !body; i++) {
-          body = generate({ rhythms: set, timeSig, ties, measures: 4 });
-        }
-        checked++;
+          // The generator picks randomly, so give it a few tries before believing
+          // a refusal.
+          let body: string | null = null;
+          for (let i = 0; i < 4 && !body; i++) {
+            body = generate({ rhythms: set, timeSig, ties, measures });
+          }
+          checked++;
 
-        const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties);
-        if (!!body !== canSolve) {
-          fail(
-            `completeness: ${label} generator=${body ? "ok" : "refused"} solver=${canSolve ? "solvable" : "impossible"}`
-          );
-          continue;
-        }
-        if (!body) continue;
-
-        for (const measure of measuresOf(body)) {
-          const sum = durationsIn(measure).reduce((a, b) => a + b, 0);
-          if (sum !== timeSig.tsPerMeasure) {
+          const canSolve = canFillExercise(set, timeSig.tsPerMeasure, total, ties, timeSig.beatUnits);
+          if (!!body !== canSolve) {
             fail(
-              `well-formed: ${label} measure sums to ${sum}, want ${timeSig.tsPerMeasure}  (${measure})`
+              `completeness: ${label} generator=${body ? "ok" : "refused"} solver=${canSolve ? "solvable" : "impossible"}`
             );
-            break;
+            continue;
+          }
+          if (!body) continue;
+
+          for (const measure of measuresOf(body)) {
+            const sum = durationsIn(measure).reduce((a, b) => a + b, 0);
+            if (sum !== timeSig.tsPerMeasure) {
+              fail(
+                `well-formed: ${label} measure sums to ${sum}, want ${timeSig.tsPerMeasure}  (${measure})`
+              );
+              break;
+            }
+            if (meterKindOf(timeSig) === "compound" && crossesABeat(measure, timeSig.beatUnits)) {
+              fail(`beats: ${label} a figure crosses a dotted-quarter beat  (${measure})`);
+              break;
+            }
           }
         }
       }
@@ -188,32 +212,47 @@ function checkTieShapes() {
   return ties;
 }
 
+/** Compound meter: a tie - over a barline or inside a 9/8 bar - joins whole beats. */
+function checkCompoundTieShapes() {
+  let ties = 0;
+  for (const timeSig of Object.values(COMPOUND_TIME_SIGS)) {
+    const set = selectableRhythmsFor("compound").filter((r) => !r.rest);
+    for (let i = 0; i < 40; i++) {
+      const body = generate({ rhythms: set, timeSig, ties: true, measures: 8 });
+      if (!body) continue;
+      for (const m of body.matchAll(/[A-Ga-g][,']*(\d+)-\s*\|?\s*[A-Ga-g][,']*(\d+)/g)) {
+        ties++;
+        const [a, b] = [Number(m[1]), Number(m[2])];
+        if (a % timeSig.beatUnits !== 0 || b % timeSig.beatUnits !== 0) {
+          fail(`tie shape: ${timeSig.name} produced ${a} tied to ${b} (not whole beats)`);
+        }
+      }
+    }
+  }
+  return ties;
+}
+
 function checkLyricAlignment() {
-  const timeSig = TIME_SIGS["4/4"];
-  const set = selectableRhythms.filter((r) => !r.rest && !r.pattern);
+  const cases = [
+    { timeSig: TIME_SIGS["4/4"], set: selectableRhythms.filter((r) => !r.rest && !r.pattern) },
+    // 9/8's last bar is a dotted half tied to a dotted quarter inside the bar.
+    { timeSig: COMPOUND_TIME_SIGS["9/8"], set: selectableRhythmsFor("compound").filter((r) => !r.rest && !r.pattern) },
+  ];
   let checked = 0;
-  for (let i = 0; i < 40; i++) {
-    const body = generate({
-      rhythms: set,
-      timeSig,
-      ties: true,
-      measures: 4,
-      solfege: true,
-    });
-    if (!body) continue;
-    checked++;
-    const lines = body.split("\n");
-    const music = lines.filter((l) => !l.startsWith("w:")).join(" ");
-    const lyric = lines.find((l) => l.startsWith("w:")) ?? "";
-    const noteEls = (music.match(/[A-Ga-g][,']*\d+/g) || []).length;
-    const slots = lyric
-      .replace(/^w:\s*/, "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean).length;
-    if (noteEls !== slots) {
-      fail(`lyric alignment: ${noteEls} note elements but ${slots} lyric slots`);
-      break;
+  for (const { timeSig, set } of cases) {
+    for (let i = 0; i < 40; i++) {
+      const body = generate({ rhythms: set, timeSig, ties: true, measures: 4, solfege: true });
+      if (!body) continue;
+      checked++;
+      const lines = body.split("\n");
+      const music = lines.filter((l) => !l.startsWith("w:")).join(" ");
+      const lyric = lines.find((l) => l.startsWith("w:")) ?? "";
+      const noteEls = (music.match(/[A-Ga-g][,']*\d+/g) || []).length;
+      const slots = lyric.replace(/^w:\s*/, "").trim().split(/\s+/).filter(Boolean).length;
+      if (noteEls !== slots) {
+        fail(`lyric alignment: ${timeSig.name} ${noteEls} note elements but ${slots} lyric slots`);
+        break;
+      }
     }
   }
   return checked;
@@ -258,45 +297,60 @@ const SYLLABLE_TABLE: Record<string, Record<string, string[]>> = {
   },
 };
 
+/** Compound figures, read from a 6/8 downbeat. */
+const COMPOUND_SYLLABLE_TABLE: Record<string, Record<string, string[]>> = {
+  kodaly: {
+    dotQuarter: ["ta"],
+    dotHalfCompound: ["tu-u"],
+    threeEighths: ["ti", "ti", "ti"],
+    quarterEighth: ["ti", "ti"],
+    sixSixteenths: ["ti", "ri", "ti", "ri", "ti", "ri"],
+    twoSixteenthsTwoEighths: ["ti", "ri", "ti", "ti"],
+  },
+  counting: {
+    dotQuarter: ["1"],
+    dotHalfCompound: ["1_2"],
+    threeEighths: ["1", "la", "li"],
+    quarterEighth: ["1", "li"],
+    eighthQuarter: ["1", "la"],
+    sixSixteenths: ["1", "ta", "la", "ta", "li", "ta"],
+    eighthTwoSixteenthsEighth: ["1", "la", "ta", "li"],
+    quarterTwoSixteenths: ["1", "li", "ta"],
+  },
+};
+
 function checkSyllables() {
-  const timeSig = TIME_SIGS["4/4"];
+  const cases = [
+    { tables: SYLLABLE_TABLE, timeSig: TIME_SIGS["4/4"], pool: selectableRhythms },
+    { tables: COMPOUND_SYLLABLE_TABLE, timeSig: COMPOUND_TIME_SIGS["6/8"], pool: selectableRhythmsFor("compound") },
+  ];
   let checked = 0;
-  for (const systemId of Object.keys(syllableSystems)) {
-    const table = SYLLABLE_TABLE[systemId];
-    if (!table) {
-      fail(`syllables: no expected mapping recorded for system "${systemId}"`);
-      continue;
-    }
-    for (const [rhythmName, expected] of Object.entries(table)) {
-      const rhythm = selectableRhythms.find((r) => r.name === rhythmName);
-      if (!rhythm) {
-        fail(`syllables: "${rhythmName}" is not a selectable rhythm`);
+  for (const { tables, timeSig, pool } of cases) {
+    for (const systemId of Object.keys(syllableSystems)) {
+      const table = tables[systemId];
+      if (!table) {
+        fail(`syllables: no expected ${timeSig.name} mapping recorded for system "${systemId}"`);
         continue;
       }
-      // Every figure in the table tiles a 4/4 measure on its own, so it always
-      // starts on beat 1 and the expected reading is exact rather than likely.
-      const set = [rhythm];
-
-      let seenExpected = false;
-      for (let i = 0; i < 12 && !seenExpected; i++) {
-        const body = generate({
-          rhythms: set,
-          timeSig,
-          measures: 2,
-          syllables: systemId,
-        });
-        if (!body) continue;
-        const syllables = [...body.matchAll(/"_([^"]*)"/g)].map((m) => m[1]);
-        // The figure starting on beat 1 must read exactly as the table says.
-        if (syllables.slice(0, expected.length).join(" ") === expected.join(" ")) {
-          seenExpected = true;
+      for (const [rhythmName, expected] of Object.entries(table)) {
+        const rhythm = pool.find((r) => r.name === rhythmName);
+        if (!rhythm) {
+          fail(`syllables: "${rhythmName}" is not a selectable ${timeSig.name} rhythm`);
+          continue;
         }
-      }
-      checked++;
-      if (!seenExpected) {
-        fail(
-          `syllables: ${systemId}/${rhythmName} never produced "${expected.join(" ")}" on beat 1`
-        );
+        // Every figure in the tables fills its meter's bar on its own, so it
+        // always starts on beat 1 and the expected reading is exact.
+        let seenExpected = false;
+        for (let i = 0; i < 12 && !seenExpected; i++) {
+          const body = generate({ rhythms: [rhythm], timeSig, measures: 2, syllables: systemId });
+          if (!body) continue;
+          const syllables = [...body.matchAll(/"_([^"]*)"/g)].map((m) => m[1]);
+          if (syllables.slice(0, expected.length).join(" ") === expected.join(" ")) seenExpected = true;
+        }
+        checked++;
+        if (!seenExpected) {
+          fail(`syllables: ${systemId}/${rhythmName} never produced "${expected.join(" ")}" on beat 1 of ${timeSig.name}`);
+        }
       }
     }
   }
@@ -315,6 +369,7 @@ const report = (...args: unknown[]) => process.stdout.write(args.join(" ") + "\n
 const started = Date.now();
 const selectionCount = checkMeasuresAndCompleteness();
 const tieCount = checkTieShapes();
+const compoundTieCount = checkCompoundTieShapes();
 const lyricCount = checkLyricAlignment();
 const syllableCount = checkSyllables();
 const elapsed = ((Date.now() - started) / 1000).toFixed(1);
@@ -323,6 +378,7 @@ report(`rhythm checks (${elapsed}s)`);
 report(`  ${selectionCount} selections: well-formed measures, and generation`);
 report(`     succeeds on exactly the solvable ones`);
 report(`  ${tieCount} barline ties, none landing on a dotted note`);
+report(`  ${compoundTieCount} compound ties, each joining whole dotted-quarter beats`);
 report(`  ${lyricCount} exercises with solfege aligned across ties`);
 report(`  ${syllableCount} syllable mappings across ${Object.keys(syllableSystems).length} systems`);
 

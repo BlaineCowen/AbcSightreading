@@ -9,7 +9,7 @@
     type NamedFigure,
   } from "../resources/rhythm-syllables";
   import { syllablesForFigure } from "../lib/generateUnison";
-  import { selectableRhythms } from "../lib/selectable-rhythms";
+  import { selectableCompoundRhythms, selectableRhythms } from "../lib/selectable-rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import { mySyllables, syllablesAvailable, loadMySyllables, saveMySyllables } from "../lib/syllable-prefs";
 
@@ -30,7 +30,16 @@
     return checked.ok ? JSON.stringify(checked.value) : JSON.stringify(c);
   };
 
-  let draft: CustomSyllables = clone(syllableTemplates[0].syllables);
+  type CompoundRow = [string, string, string, string, string, string];
+  type Draft = Omit<CustomSyllables, "compoundSlots"> & { compoundSlots: CompoundRow };
+  /** Counting's compound words, shown in the empty fields. */
+  const COUNTING_COMPOUND = ["1", "ta", "la", "ta", "li", "ta"];
+  const withCompoundRow = (c: CustomSyllables): Draft => ({
+    ...c,
+    compoundSlots: c.compoundSlots ? ([...c.compoundSlots] as CompoundRow) : ["", "", "", "", "", ""],
+  });
+
+  let draft: Draft = withCompoundRow(clone(syllableTemplates[0].syllables));
   let savedJson = "";
   let loaded = false;
   let problem = "";
@@ -48,7 +57,7 @@
   onMount(async () => {
     try {
       await loadMySyllables();
-      if ($mySyllables) draft = clone($mySyllables);
+      if ($mySyllables) draft = withCompoundRow(clone($mySyllables));
       savedJson = $mySyllables ? canonical($mySyllables) : "";
     } catch (e) {
       problem = "Could not load your syllables: " + (e instanceof Error ? e.message : "unknown error");
@@ -61,6 +70,9 @@
   $: preview = system
     ? selectableRhythms.map((r) => ({ name: r.name, label: rhythmLabel(r.name), syllables: syllablesForFigure(r, system!) }))
     : [];
+  $: compoundPreview = system
+    ? selectableCompoundRhythms.map((r) => ({ name: r.name, label: rhythmLabel(r.name), syllables: syllablesForFigure(r, system!) }))
+    : [];
   $: dirty = canonical(draft) !== (savedJson || canonical(syllableTemplates[0].syllables));
   $: hasSaved = !!$mySyllables;
 
@@ -70,7 +82,7 @@
     const t = syllableTemplates.find((t) => t.id === id);
     if (!t) return;
     if (dirty && !confirm(`Replace what you have with ${t.label}?`)) return;
-    draft = clone(t.syllables);
+    draft = withCompoundRow(clone(t.syllables));
     notice = "";
   }
 
@@ -95,7 +107,7 @@
     try {
       await saveMySyllables(null);
       savedJson = "";
-      draft = clone(syllableTemplates[0].syllables);
+      draft = withCompoundRow(clone(syllableTemplates[0].syllables));
       notice = "Removed.";
     } catch (e) {
       problem = "Could not remove them: " + (e instanceof Error ? e.message : "unknown error");
@@ -111,7 +123,7 @@
   <div class="flex flex-col gap-1">
     <h2 class="text-lg font-semibold text-sr-ink">Rhythm syllables</h2>
     <p class="text-sm text-sr-muted">
-      Use the words your choirs already say. Your set appears as <strong>Mine</strong>
+      Use the words your groups already say. Your set appears as <strong>Mine</strong>
       beside Kodály and Counting on the Unison page.
     </p>
   </div>
@@ -155,6 +167,24 @@
         </fieldset>
 
         <fieldset class="flex flex-col gap-1">
+          <legend class="sr-label mb-1">Compound meter (6/8, 9/8, 12/8)</legend>
+          <div class="flex flex-wrap items-center gap-1">
+            {#each [0, 1, 2, 3, 4, 5] as i}
+              <input
+                class={input}
+                bind:value={draft.compoundSlots[i]}
+                placeholder={COUNTING_COMPOUND[i]}
+                aria-label="Sixteenth {i + 1} of a dotted-quarter beat"
+              />
+            {/each}
+          </div>
+          <p class="text-xs text-sr-muted">
+            The six sixteenths of a dotted-quarter beat; eighths take the first, third and fifth. Leave all six empty
+            to read compound meter in Counting (1 la li).
+          </p>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-1">
           <legend class="sr-label mb-1">Held notes</legend>
           <div class="flex flex-wrap items-center gap-1 text-sm text-sr-ink-2">
             <input class={input} bind:value={draft.holdStart} aria-label="Start of a held note" />
@@ -162,7 +192,7 @@
             <input class={input} bind:value={draft.holdEach} aria-label="Each further beat of a held note" placeholder="(nothing)" />
             for each beat it is held
           </div>
-          <p class="text-xs text-sr-muted">Leave the second empty if your choirs do not voice the held beats.</p>
+          <p class="text-xs text-sr-muted">Leave the second empty if your groups do not voice the held beats.</p>
         </fieldset>
 
         <fieldset class="flex flex-col gap-1">
@@ -201,6 +231,15 @@
             {/each}
           </ul>
           <p class="text-xs text-sr-muted">From the downbeat of a 4/4 bar. Held notes spell the beats they run through.</p>
+          <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2">
+            {#each compoundPreview as row (row.name)}
+              <li class="flex items-center gap-2 bg-sr-raise border border-sr-hairline rounded px-2 py-1">
+                <span class="rhythm-icon !w-12 !h-8 shrink-0 text-sr-ink" title={row.label}>{@html svgFor(row.name)}</span>
+                <span class="text-sm text-sr-ink font-medium">{row.syllables.join(" ")}</span>
+              </li>
+            {/each}
+          </ul>
+          <p class="text-xs text-sr-muted">Compound figures from the downbeat of a 6/8 bar.</p>
         {/if}
       </div>
     </div>

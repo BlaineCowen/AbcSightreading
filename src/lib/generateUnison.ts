@@ -1,4 +1,5 @@
 import { chords } from "../resources/chords";
+import { writeProgressionLine } from "./unison-progressions";
 import type { Chord } from "../types/ChordSet";
 import { type Rhythm } from "../resources/rhythms";
 import { noteArray } from "../resources/noteArray";
@@ -9,9 +10,11 @@ import {
   type LyricSystem,
 } from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
+import { beatUnitOf, resolveMeter } from "./meter";
 import {
   CUSTOM_SYLLABLE_ID,
   checkCustomSyllables,
+  counting,
   customSyllableSystem,
   defaultSyllableSystem,
   isSyllableSystemId,
@@ -22,6 +25,34 @@ import {
   type SyllableSystem,
 } from "../resources/rhythm-syllables";
 import type { Cadence, RhythmWithPattern } from "./types";
+import {
+  isAllowedMove,
+  landablePolicy,
+  largestSkip,
+  livePitches,
+  toSkipPolicy,
+  STEP_ONLY,
+  type SkipNote,
+  type SkipPolicy,
+} from "./skip-policy";
+import { figureCap, shortCapsFrom, type ShortCaps } from "./short-note-skips";
+import {
+  canSkipFrom,
+  restsToBreaths,
+  shapeFactor,
+  skipCount,
+  skipReachable,
+  skipsWantedFor,
+  SKIP_DRAWS,
+} from "./unison-phrasing";
+import { degreesConnected, NO_LANDING_MESSAGE } from "./skip-settings";
+import {
+  drawDynamics,
+  dynamicsSetFrom,
+  phraseStarts,
+  type DynamicMark,
+  type PlacedDynamic,
+} from "./dynamics";
 
 // interface AbcObject {
 //   key: string;
@@ -145,7 +176,8 @@ interface Note {
 
 interface GenerateChordParams {
   key: string;
-  maxSkip: number;
+  /** The skip rule (skip-policy.ts). A number from older callers is wrapped in createNewSrOnce. */
+  maxSkip: SkipPolicy;
   noteIndex: number;
   partObject: any;
   randPartIndex: number;
@@ -172,6 +204,14 @@ interface ChordNoteObject {
   isPatternStart: boolean;
   isPatternEnd: boolean;
   patternIndex: number | null;
+}
+
+/**
+ * A rhythm failure, with the ties hint where ties could help. "No rhythms of
+ * this kind are selected" is not one: no tie fills a bar from nothing.
+ */
+function withTiesHint(message: string, tiesOn: boolean): string {
+  return tiesOn || /rhythms are selected/.test(message) ? message : `${message} Or turn on "Ties across barline".`;
 }
 
 function checkForIllegalVoiceLeading(arr: number[]) {
@@ -280,7 +320,6 @@ export function generateRandomRhythmCombination(
   //   }))
   // );
 
-  let numberResult: number[] = [];
   let rhythmResult: Rhythm[] = [];
   let currentSum = 0;
   let currentCombination: number[] = [];
@@ -434,47 +473,38 @@ export function generateRandomRhythmCombination(
 }
 
 /**
- * Determines if two consecutive eighth notes should be tied based on user settings and position in the piece.
- * @param index - The current note index.
- * @param moveOnEighthNotes - The flag from user settings.
- * @param rhythms - The array of rhythm objects, which may have cadence info.
- * @returns True if the notes should be tied.
+ * Is note `index` sung on the pitch before it? Yes when it is a short note
+ * inside a figure (short-note-skips.ts) and its cap is 0 - ti-ti on one
+ * pitch, what "Move 8th Notes" off always did. Draws no random number.
  */
 function shouldTieEighthNotes(
   index: number,
-  moveOnEighthNotes: boolean,
+  caps: ShortCaps,
   rhythms: RhythmWithPattern[]
 ): boolean {
-  // If user wants notes to move, don't tie.
-  if (moveOnEighthNotes) {
-    return false;
-  }
+  return figureCap(index, rhythms as any, caps) === 0;
+}
 
-  // Not applicable for the first note.
-  if (index === 0) {
-    return false;
-  }
-
-  // Cadence Protection: Don't tie if it's a cadence point.
-  if (rhythms[index]?.isCadenceEnd) {
-    return false;
-  }
-
-  const isCurrentEighth = rhythms[index]?.totalValue <= 4;
-  const isPreviousEighth = rhythms[index - 1]?.totalValue <= 4;
-
-  return isCurrentEighth && isPreviousEighth;
+/**
+ * The message when 100 walks all failed. Max skip is not in force with exact
+ * skips on (the control is dimmed), so that hint names a skip instead.
+ */
+export function generationFailedMessage(policy: SkipPolicy): string {
+  return policy.kind === "max"
+    ? "Could not generate a melody with the selected options. Please adjust the settings, such as increasing the Max Skip or adding more scale degrees."
+    : "Could not generate a melody with the selected options. Please adjust the settings, such as adding a skip or more scale degrees.";
 }
 
 function generateChordProgression(
   timeSig: any,
   numOfMeasures: any,
   bassRangeNoteList: Note[],
-  maxSkip: number,
+  policy: SkipPolicy,
   randNoteLengths: number[],
   chords: Chord[],
   scaleDegrees: number[],
-  moveOnEighthNotes: boolean,
+  /** Max 8th / 16th skip: the moves between the short notes inside a figure. */
+  shortCaps: ShortCaps,
   randRhythmObjects: RhythmWithPattern[],
   accidentalsFollowStep: boolean,
   /**
@@ -569,14 +599,23 @@ function generateChordProgression(
     // do-re-mi exercise, which is meant to teach the steps. Moving is preferred
     // now; a repeat still comes when it is all the chord offers, or by chance.
     const moving = pool.filter((n) => n.pitchValue !== prevBassNote?.pitchValue);
-    const from = moving.length > 0 && Math.random() < MOVE_PREFERENCE ? moving : pool;
+    const from =
+      moving.length > 0 && (justRepeated() || Math.random() < MOVE_PREFERENCE) ? moving : pool;
     // Favour the pitches the line has sung least, so it travels the range it
     // was given. Chosen evenly, the line sat where the tonic and dominant
     // chords keep it - do and so a sixth of the notes each, la and ti half
     // that, the outer notes of a wide range 4% - and a reader practised the
     // middle of their voice only.
-    const uses = (n: Note) => bassNoteArray.filter((b) => b.pitchValue === n.pitchValue).length;
-    const weights = from.map((n) => 1 / Math.pow(1 + uses(n), RANGE_SPREAD));
+    // By degree as well as by pitch: counted by pitch alone, a range with
+    // two dos in it offered do twice as often as la, and a 1 2 3 5 6 line
+    // was a third do and a tenth la.
+    // Exact skips only: reach for the listed skips, and away from see-sawing
+    // (unison-phrasing.ts). Max skip mode draws exactly what it always did.
+    const weights = from.map(
+      (n) =>
+        (shaping ? shapeOf(n, chord, bassNoteArray.length) : 1) /
+        (Math.pow(1 + uses(n), RANGE_SPREAD) * Math.pow(1 + degreeUses(n), DEGREE_SPREAD))
+    );
     let r = Math.random() * weights.reduce((a, w) => a + w, 0);
     for (let k = 0; k < from.length; k++) {
       r -= weights[k];
@@ -586,6 +625,18 @@ function generateChordProgression(
   };
   const MOVE_PREFERENCE = 0.8;
   /**
+   * Whether the last two notes were one pitch - a ti-ti on one note, most
+   * often, with Move eighths off. The next note then moves whenever anything
+   * lets it: a third note on the same pitch came once or twice an exercise.
+   */
+  const justRepeated = () => {
+    const n = bassNoteArray.length;
+    if (n >= 2 && bassNoteArray[n - 1].pitchValue === bassNoteArray[n - 2].pitchValue) return true;
+    // Likewise a note that opens a ti-ti sung on one pitch: it is about to be
+    // sung twice, so it should not repeat the note before it as well.
+    return shouldTieEighthNotes(n + 1, shortCaps, randRhythmObjects as RhythmWithPattern[]);
+  };
+  /**
    * How hard the line reaches for pitches it has sung least: a candidate's
    * weight is 1 / (1 + times sung)^RANGE_SPREAD, and CHORD_SPREAD is how often
    * the chord is chosen to offer one. Measured over 8-bar lines (200 each):
@@ -594,26 +645,52 @@ function generateChordProgression(
    * held (87-100%), repeats did not rise, and nothing failed.
    */
   const RANGE_SPREAD = 2;
+  const DEGREE_SPREAD = 1;
   const CHORD_SPREAD = 0.5;
+  const uses = (n: Note) => bassNoteArray.filter((b) => b.pitchValue === n.pitchValue).length;
+  const degreeUses = (n: Note) => bassNoteArray.filter((b) => b.degree === n.degree).length;
+  /** Least sung first: a pitch's own count, then its degree's as the tiebreak. */
+  const sungScore = (n: Note) => uses(n) * 1000 + degreeUses(n);
   /**
-   * How many notes early a line starts heading back to do: the notes it needs
-   * to walk there, plus this. Measured on "up to so" (by step, do to so): 2
-   * ended on do 62% of the time, 4 at 80%, 6 at 89%, with no loss of variety.
+   * A line starts and ends on a note of the tonic triad - do, mi or so,
+   * whichever of them are selected. It used to be made to end on do, and it
+   * steered toward do over its last notes to get there, which with 1 2 3 5 6
+   * left so and la a tenth of the line each.
+   */
+  const isHome = (note: Note) => [0, 2, 4].includes(note.degree) && scaleDegrees.includes(note.degree);
+  /**
+   * How many notes early a line starts heading home: the notes it needs to
+   * walk there, plus this. Measured on "up to so" (by step, do to so) when
+   * home was do alone: 2 ended there 62% of the time, 4 at 80%, 6 at 89%.
    */
   const HOME_MARGIN = 6;
-  /** How far a note is from the nearest do in range, in scale steps. */
-  const distanceToDo = (note: Note) =>
+  /**
+   * The same, with exact skips. Six notes early, a line at ti one step under
+   * high do was held to notes nearer home for its last bar and more - only
+   * do' - and sang do' ti do' ti on the way out (Level IV: a quarter of its
+   * A-B-A-Bs). Three keeps it free longer; the n-2 note still has to lead
+   * home. Measured over the NYSSMA levels: no failures, top-2 pitches' share
+   * and phrases stuck inside a 3rd both down (scripts/measure-nyssma-music.ts).
+   */
+  const SHAPED_HOME_MARGIN = 3;
+  /** How far a note is from the nearest home note in range, in scale steps. */
+  const distanceHome = (note: Note) =>
     Math.min(
       Infinity,
-      ...bassRangeNoteList.filter((n) => n.degree === 0).map((n) => Math.abs(n.pitchValue - note.pitchValue))
+      ...bassRangeNoteList.filter(isHome).map((n) => Math.abs(n.pitchValue - note.pitchValue))
     );
-  /** Whether a do other than this note is within a skip of it. */
-  const leadsToDo = (note: Note) =>
+  /** Whether a home note other than this one is within a skip of it. */
+  const leadsHome = (note: Note, chord: Chord | undefined) =>
     bassRangeNoteList.some(
       (n) =>
-        n.degree === 0 &&
+        isHome(n) &&
         n.pitchValue !== note.pitchValue &&
-        Math.abs(n.pitchValue - note.pitchValue) <= maxSkip
+        isAllowedMove(
+          sungNote(note, chord),
+          sungNote(n, undefined),
+          randNoteLengths[randNoteLengths.length - 1],
+          policy
+        )
     );
 
   // console.log("=== CHORD PROGRESSION GENERATION START ===");
@@ -628,7 +705,8 @@ function generateChordProgression(
   // });
 
   let bassNoteArray: Note[] = [];
-  let newMaxSkip = maxSkip;
+  /** The rule for the move into the note being chosen: the policy, or a step after an altered note. */
+  let activePolicy: SkipPolicy = policy;
 
 
   // const tonicNotes = bassRangeNoteList.filter((note) => note.degree === 0);
@@ -692,6 +770,29 @@ function generateChordProgression(
     );
   }
 
+  // Exact skips: leave out any pitch the line could start on or move to but
+  // never leave, or never get home from - low sol, say, when the only skip
+  // from sol is down to a do below the range and no neighbour is selected.
+  // The line used to sit on it for the whole exercise. A note whose degree is
+  // only selected altered is sung altered, so left by step. (Max skip mode
+  // keeps every pitch: livePitches returns them all.) With no home note in
+  // range at all, the tonic check below says so instead.
+  if (policy.kind === "custom" && bassRangeNoteList.some(isHome)) {
+    const live = new Set(
+      livePitches(
+        bassRangeNoteList.map((n) => ({ ...n, chromatic: !scaleDegrees.includes(n.degree) })),
+        policy,
+        isHome
+      ).map((n) => n.pitchValue)
+    );
+    if (live.size === 0) {
+      throw new Error(
+        "With these skips the line would get stuck on a note it cannot leave in this range. Add a skip, select the notes in between, or widen the range."
+      );
+    }
+    bassRangeNoteList = bassRangeNoteList.filter((n) => live.has(n.pitchValue));
+  }
+
   // pick a random note from bassRangeNoteList degree 0,2,4
   let tonicNotes = bassRangeNoteList.filter((note) =>
     [0, 2, 4].includes(note.degree) && scaleDegrees.includes(note.degree)
@@ -708,7 +809,15 @@ function generateChordProgression(
     );
   }
 
-  bassNoteArray.push(tonicNotes[Math.floor(Math.random() * tonicNotes.length)]);
+  // Degree first, then which octave: drawn by pitch, a range holding two dos
+  // started on do half the time.
+  const pickStart = () => {
+    const degrees = [...new Set(tonicNotes.map((n) => n.degree))];
+    const degree = degrees[Math.floor(Math.random() * degrees.length)];
+    const at = tonicNotes.filter((n) => n.degree === degree);
+    return at[Math.floor(Math.random() * at.length)];
+  };
+  bassNoteArray.push(pickStart());
 
   let prevBassNote = bassNoteArray[0];
   let prevChord = {
@@ -719,27 +828,114 @@ function generateChordProgression(
 
   let bassDegrees = bassRangeNoteList.filter(
     (note) =>
-      Math.abs(note.pitchValue - prevBassNote.pitchValue) <= maxSkip &&
+      isAllowedMove(prevBassNote, note, randNoteLengths[1] ?? 0, policy, randNoteLengths[0]) &&
       scaleDegrees.includes(note.degree)
   );
 
   var chordProgression: any[] = [];
+  /** A note as the skip rule sees it: altered when this chord makes it so. */
+  const sungNote = (note: Note, chord: Chord | undefined): SkipNote => ({
+    pitchValue: note.pitchValue,
+    degree: note.degree,
+    chromatic: isChromaticIn(chord, note),
+  });
+  /**
+   * Exact skips mode shapes the line (unison-phrasing.ts): a listed skip is
+   * reached for - hard until the line has sung one - and going straight back
+   * to the note two before (A-B-A) is avoided. Max skip mode never looks.
+   */
+  const shaping = policy.kind === "custom";
+  const skipsWanted = skipsWantedFor(Number(numOfMeasures) || 8);
+  const isRestAt = (k: number) => (randRhythmObjects[k] as any)?.rest === true;
+  /** The pitches sung so far: a rest holds the line but is not sung. */
+  const sungSoFar = () => bassNoteArray.filter((_, k) => !isRestAt(k)).map((n) => n.pitchValue);
+  /** The natural notes a skip may land on. */
+  const skipTargets = () =>
+    bassRangeNoteList.filter((n) => scaleDegrees.includes(n.degree)).map((n) => sungNote(n, undefined));
+  /** Could a listed skip leave `note` (at index i) for the next note sung? */
+  const startsSkip = (note: Note, chord: Chord | undefined, i: number) => {
+    let j = i + 1;
+    while (j < numOfChords && isRestAt(j)) j++;
+    if (j >= numOfChords) return false;
+    return canSkipFrom(
+      sungNote(note, chord),
+      skipTargets(),
+      randNoteLengths[j],
+      figureCap(j, randRhythmObjects as any, shortCaps),
+      policy
+    );
+  };
+  /** How far a pitch is from the nearest one a listed skip can start from (any length). */
+  let startPitches: number[] | null = null;
+  const startDistance = (pitch: number) => {
+    if (!startPitches) {
+      const targets = skipTargets();
+      startPitches = targets.filter((a) => canSkipFrom(a, targets, 0, Infinity, anyLength)).map((a) => a.pitchValue);
+    }
+    return startPitches.length ? Math.min(...startPitches.map((p) => Math.abs(p - pitch))) : 0;
+  };
+  const anyLength: SkipPolicy = policy.kind === "custom" ? { kind: "custom", moves: policy.moves } : policy;
+  const shapeOf = (note: Note, chord: Chord | undefined, i: number) => {
+    const sung = sungSoFar();
+    const last = sung[sung.length - 1];
+    const toward = last !== undefined && startDistance(note.pitchValue) < startDistance(last);
+    return shapeFactor(sung, note.pitchValue, startsSkip(note, chord, i), skipsWanted, toward);
+  };
+  /**
+   * The chord decides which notes are on offer, so the shape has to reach the
+   * chord choice too: each chord is weighted by the best-shaped note it offers.
+   */
+  const shapeChords = (possibilities: { name: string; weight: number }[], i: number) => {
+    if (!shaping) return possibilities;
+    return possibilities.map((p) => {
+      const info = chords.find((c) => c.name === p.name);
+      const offered = bassDegrees.filter((note) => usable(info, note) && reaches(note, info, i));
+      if (offered.length === 0) return p;
+      return { ...p, weight: p.weight * Math.max(...offered.map((n) => shapeOf(n, info, i))) };
+    });
+  };
+  /**
+   * May the line move from note i-1 to `note`, sung over `chord` (undefined
+   * while no chord is chosen yet), under the rule in force for this note?
+   * In Max skip mode this is exactly the old check of the distance against
+   * the max skip (1 after an altered note). Inside a figure, Max 8th / 16th
+   * skip must allow it too.
+   */
+  const reaches = (note: Note, chord: Chord | undefined, i: number) =>
+    Math.abs(note.pitchValue - bassNoteArray[i - 1].pitchValue) <=
+      figureCap(i, randRhythmObjects as any, shortCaps) &&
+    isAllowedMove(
+      sungNote(bassNoteArray[i - 1], chordProgression[i - 1]?.chord),
+      sungNote(note, chord),
+      randNoteLengths[i],
+      activePolicy,
+      prevSungLength(i)
+    );
+  /**
+   * The length of the last sung note before slot `i`: a skip is between sung
+   * notes (a rest holds the line), and Skips between holds both of them to
+   * its note values.
+   */
+  const prevSungLength = (i: number) => {
+    for (let j = i - 1; j >= 0; j--) if (!(randRhythmObjects[j] as any)?.rest) return randNoteLengths[j];
+    return 0;
+  };
 
   let validProgression = false;
 
   while (!validProgression && chordGenFails < 100) {
     // console.log(`🔄 Chord progression attempt ${chordGenFails + 1}/100`);
     chordProgression = [];
-    bassNoteArray = [tonicNotes[Math.floor(Math.random() * tonicNotes.length)]];
+    bassNoteArray = [pickStart()];
 
     for (let i = 0; i < numOfChords; i++) {
       // console.log(`📝 Generating chord ${i + 1}/${numOfChords}`);
-      newMaxSkip = maxSkip;
+      activePolicy = policy;
 
       if (
         shouldTieEighthNotes(
           i,
-          moveOnEighthNotes,
+          shortCaps,
           randRhythmObjects as RhythmWithPattern[]
         )
       ) {
@@ -749,12 +945,27 @@ function generateChordProgression(
         continue;
       }
 
+      // A rest is not sung. With exact skips on it holds the line where it was, so
+      // the next note's skip is measured from the note actually sung before
+      // the rest, and a rest cannot hide a skip the list forbids: do, rest,
+      // sol is do to sol. (Max skip mode is unchanged: there the snapshot in
+      // unison-skip-regression.test.ts holds the walk to what it always did.)
+      // It holds the pitch and chord only, never the length: the rest is as long
+      // as its own rhythm. Pushing the entry before it as it was wrote a
+      // quarter rest after a half as a half, one after an eighth as an eighth
+      // rest, and slid every later note off the beat by the difference.
+      if (policy.kind === "custom" && i > 0 && (randRhythmObjects[i] as any)?.rest === true) {
+        chordProgression.push({ ...chordProgression[i - 1], length: randNoteLengths[i] });
+        bassNoteArray.push(bassNoteArray[i - 1]);
+        continue;
+      }
+
       if (i !== 0) {
         // todo add eighth note check
         if (randNoteLengths[i] <= 4) {
-          // newMaxSkip = 1;
+          // activePolicy = STEP_ONLY;
         } else {
-          newMaxSkip = maxSkip;
+          activePolicy = policy;
         }
         prevBassNote = bassNoteArray[i - 1];
 
@@ -768,17 +979,14 @@ function generateChordProgression(
             (prevChord.chord.flatScaleDegree !== undefined &&
               prevChord.chord.flatScaleDegree === prevBassNote.degree)
           ) {
-            newMaxSkip = 1;
+            activePolicy = STEP_ONLY;
           } else {
-            newMaxSkip = maxSkip;
+            activePolicy = policy;
           }
         }
 
         // todo add eighth note check
-        bassDegrees = bassRangeNoteList.filter(
-          (note) =>
-            Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
-        );
+        bassDegrees = bassRangeNoteList.filter((note) => reaches(note, undefined, i));
         // A step is not enough: an altered note resolves in the direction it
         // was altered - fi up to so, te down to la. The step rule alone let 91
         // of 1,103 go the other way (fi down to mi), which is the one thing a
@@ -816,7 +1024,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              usable(nextChordInfo, bassNote)
+              usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
             );
             if (!isGenerallyReachable) return false;
 
@@ -854,7 +1062,7 @@ function generateChordProgression(
           break;
         }
 
-        let nextChordInner = getRandomByWeight(nextChordPossibilities, chords);
+        let nextChordInner = getRandomByWeight(shapeChords(nextChordPossibilities, i), chords);
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
           let nextChord = {
@@ -865,11 +1073,7 @@ function generateChordProgression(
           };
           let bassNoteToAdd = bassDegrees
             .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
-            .filter(
-              (note) =>
-                Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
-                newMaxSkip
-            );
+            .filter((note) => reaches(note, chords.find((c) => c.name === nextChordName), i));
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
               pickBass(bassNoteToAdd, nextChord.chord)
@@ -907,7 +1111,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              usable(nextChordInfo, bassNote)
+              usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
             );
             if (!isGenerallyReachable) return false;
 
@@ -946,7 +1150,7 @@ function generateChordProgression(
 
               // Is it reachable with the general maxSkip?
               const isGenerallyReachable = bassDegrees.some((bassNote) =>
-                usable(nextChordInfo, bassNote)
+                usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
               );
               if (!isGenerallyReachable) return false;
 
@@ -984,7 +1188,7 @@ function generateChordProgression(
           break;
         }
 
-        let nextChordInner = getRandomByWeight(nextChordPossibilities, chords);
+        let nextChordInner = getRandomByWeight(shapeChords(nextChordPossibilities, i), chords);
         if (nextChordInner !== null) {
           let nextChordName = nextChordInner.name;
           let nextChord = {
@@ -995,14 +1199,12 @@ function generateChordProgression(
           };
           let bassNoteToAdd = bassDegrees
             .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
-            .filter(
-              (note) =>
-                Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
-                newMaxSkip
-            )
-            // One from which do is in reach first, so the line can end there.
-            .sort((a, b) => Number(leadsToDo(b)) - Number(leadsToDo(a)))
-            .slice(0, 1); // Take only the first note
+            .filter((note) => reaches(note, chords.find((c) => c.name === nextChordName), i));
+          // One from which home is in reach, so the line can end there. Only
+          // the first of them was taken, so the same note came every time and
+          // with the final often a repeat of it.
+          const leading = bassNoteToAdd.filter((n) => leadsHome(n, nextChord.chord));
+          if (leading.length > 0) bassNoteToAdd = leading;
           if (bassNoteToAdd.length > 0) {
             bassNoteArray.push(
               pickBass(bassNoteToAdd, nextChord.chord)
@@ -1031,15 +1233,10 @@ function generateChordProgression(
         };
         let bassNoteToAdd = bassDegrees
           .filter((note) => usable(chords[0], note))
-          .filter(
-            (note) =>
-              Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
-          );
-        // End on do when it is in reach. Any tone of the final I used to do,
-        // so a line could stop on so or mi and sound unfinished - and a reader
-        // learning to hear the tonic was left without one.
-        const onDo = bassNoteToAdd.filter((note) => note.degree === 0);
-        if (onDo.length > 0) bassNoteToAdd = onDo;
+          .filter((note) => reaches(note, chords[0], i));
+        // End on do, mi or so, whichever are selected and in reach.
+        const home = bassNoteToAdd.filter(isHome);
+        if (home.length > 0) bassNoteToAdd = home;
         if (bassNoteToAdd.length > 0) {
           bassNoteArray.push(
             pickBass(bassNoteToAdd, nextChord.chord)
@@ -1067,7 +1264,7 @@ function generateChordProgression(
 
             // Is it reachable with the general maxSkip?
             const isGenerallyReachable = bassDegrees.some((bassNote) =>
-              usable(nextChordInfo, bassNote)
+              usable(nextChordInfo, bassNote) && reaches(bassNote, nextChordInfo, i)
             );
             if (!isGenerallyReachable) return false;
 
@@ -1112,19 +1309,19 @@ function generateChordProgression(
           // Heading home: when the notes left are only just enough to walk
           // back to do, go toward it. A stepwise line otherwise wandered up to
           // so and had nowhere to end but so - three "up to so" lines in four.
-          const homeDistance = distanceToDo(prevBassNote);
+          const homeDistance = distanceHome(prevBassNote);
           const homing =
-            numOfChords - 1 - i <= Math.ceil(homeDistance / Math.max(1, newMaxSkip)) + HOME_MARGIN &&
+            numOfChords - 1 - i <= Math.ceil(homeDistance / Math.max(1, largestSkip(activePolicy))) + (shaping ? SHAPED_HOME_MARGIN : HOME_MARGIN) &&
             homeDistance > 0;
-          const towardDo = (note: Note) => distanceToDo(note) < homeDistance;
+          const towardHome = (note: Note) => distanceHome(note) < homeDistance;
           if (homing) {
             const closer = nextChordPossibilities.filter((possibleNext) => {
               const info = chords.find((c) => c.name === possibleNext.name);
               return bassDegrees.some(
                 (note) =>
                   usable(info, note) &&
-                  towardDo(note) &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+                  towardHome(note) &&
+                  reaches(note, info, i)
               );
             });
             if (closer.length > 0) nextChordPossibilities = closer;
@@ -1138,12 +1335,11 @@ function generateChordProgression(
                 (note) =>
                   usable(info, note) &&
                   note.pitchValue !== prevBassNote.pitchValue &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+                  reaches(note, info, i)
               );
-            const uses = (n: Note) => bassNoteArray.filter((b) => b.pitchValue === n.pitchValue).length;
             const offers = nextChordPossibilities.map((possibleNext) => {
               const notes = reachable(chords.find((c) => c.name === possibleNext.name));
-              return { possibleNext, least: notes.length ? Math.min(...notes.map(uses)) : Infinity };
+              return { possibleNext, least: notes.length ? Math.min(...notes.map(sungScore)) : Infinity };
             });
             const fewest = Math.min(...offers.map((o) => o.least));
             if (Number.isFinite(fewest)) {
@@ -1156,13 +1352,26 @@ function generateChordProgression(
                 (note) =>
                   usable(info, note) &&
                   note.pitchValue !== prevBassNote.pitchValue &&
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <= newMaxSkip
+                  reaches(note, info, i)
+              );
+            });
+            if (moving.length > 0) nextChordPossibilities = moving;
+          }
+          if (justRepeated()) {
+            const moving = nextChordPossibilities.filter((possibleNext) => {
+              const info = chords.find((c) => c.name === possibleNext.name);
+              return bassDegrees.some(
+                (note) =>
+                  usable(info, note) &&
+                  note.pitchValue !== prevBassNote.pitchValue &&
+                  reaches(note, info, i) &&
+                  (!homing || towardHome(note))
               );
             });
             if (moving.length > 0) nextChordPossibilities = moving;
           }
           let nextChordInner = getRandomByWeight(
-            nextChordPossibilities,
+            shapeChords(nextChordPossibilities, i),
             chords
           );
           if (nextChordInner === null) {
@@ -1180,13 +1389,9 @@ function generateChordProgression(
             };
             let bassNoteToAdd = bassDegrees
               .filter((note) => usable(chords.find((c) => c.name === nextChordName), note))
-              .filter(
-                (note) =>
-                  Math.abs(note.pitchValue - prevBassNote.pitchValue) <=
-                  newMaxSkip
-              );
+              .filter((note) => reaches(note, chords.find((c) => c.name === nextChordName), i));
             if (homing) {
-              const closer = bassNoteToAdd.filter(towardDo);
+              const closer = bassNoteToAdd.filter(towardHome);
               if (closer.length > 0) bassNoteToAdd = closer;
             }
             if (bassNoteToAdd.length > 0) {
@@ -1216,9 +1421,7 @@ function generateChordProgression(
   }
 
   if (chordGenFails >= 100) {
-    throw new Error(
-      "Could not generate a melody with the selected options. Please adjust the settings, such as increasing the Max Skip or adding more scale degrees."
-    );
+    throw new Error(generationFailedMessage(policy));
   }
   // console.log(
   //   "✅ Chord progression generated:",
@@ -1477,6 +1680,24 @@ function generateChord(params: GenerateChordParams) {
         // maxSkip = 1;
       }
 
+      // The notes as the skip rule sees them. `degree` counts from the key's
+      // tonic (createNoteList); a note is altered when it carries an
+      // accidental, or will once this chord sharpens or flattens its degree.
+      const prevSung: SkipNote = {
+        pitchValue: prevNote.pitchValue,
+        degree: prevNote.degree,
+        chromatic: !!prevNoteAccidental,
+      };
+      const sung = (note: Note): SkipNote => ({
+        pitchValue: note.pitchValue,
+        degree: note.degree,
+        chromatic:
+          (currentChord.chord.sharpScaleDegree === note.degree &&
+            params.sharpScaleDegrees.has(note.degree)) ||
+          (currentChord.chord.flatScaleDegree === note.degree &&
+            params.flatScaleDegrees.has(note.degree)),
+      });
+
       var rangeNoteListFilter = rangeNoteList.filter((note: Note) => {
         const currentChordObj = params.chords.find(
           (c) => c.name === currentChord.chord.name
@@ -1485,7 +1706,7 @@ function generateChord(params: GenerateChordParams) {
           currentChordObj?.triadNotes.includes(note.degree) &&
           (bannedParFifthDegree === null ||
             note.degree !== bannedParFifthDegree) &&
-          Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+          isAllowedMove(prevSung, sung(note), noteLength, maxSkip)
         );
       });
       if (rangeNoteListFilter.length === 0) {
@@ -1497,7 +1718,7 @@ function generateChord(params: GenerateChordParams) {
               ?.triadNotes.includes(note.degree) &&
             (bannedParFifthDegree === null ||
               note.degree !== bannedParFifthDegree) &&
-            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip
+            isAllowedMove(prevSung, sung(note), noteLength, maxSkip)
         );
       }
       // if still 0 return
@@ -1509,7 +1730,7 @@ function generateChord(params: GenerateChordParams) {
       } else {
         var notesWithinRange = rangeNoteListFilter.filter(
           (note: Note) =>
-            Math.abs(note.pitchValue - prevNote.pitchValue) <= maxSkip &&
+            isAllowedMove(prevSung, sung(note), noteLength, maxSkip) &&
             isDegreeWithinRange(
               prevNote.degree,
               closestDegreeBelow,
@@ -1653,13 +1874,21 @@ const flatSolfegeMap = { 1: "ra", 2: "me", 4: "se", 5: "le", 6: "te" };
  * duration is what keeps a beat-long note that straddles the beat - the quarter
  * inside the syncopation figure - from claiming the downbeat's name.
  */
+/** What the resolver needs of the meter: its beat, its bar, and eighths to a beat. */
+type SyllableMeter = { beatUnits: number; tsPerMeasure: number; subdivision: number };
+
 function rhythmSyllableFor(
   note: ChordNoteObject,
   offsetInMeasure: number,
-  beatUnits: number,
-  tsPerMeasure: number,
+  meter: SyllableMeter,
   system: SyllableSystem
 ): string {
+  const { beatUnits, tsPerMeasure } = meter;
+  // Compound meter divides the beat in three. A set with no words for that is
+  // read in Counting, whole - not its beat word with Counting's slots.
+  const compound = meter.subdivision === 3;
+  const active = compound && !system.compoundSlots ? counting : system;
+  const slots = compound ? active.compoundSlots! : active.slots;
   const beatsPerMeasure = Math.max(1, Math.round(tsPerMeasure / beatUnits));
   const beatNumberAt = (beatIndex: number) =>
     (((beatIndex % beatsPerMeasure) + beatsPerMeasure) % beatsPerMeasure) + 1;
@@ -1687,23 +1916,25 @@ function rhythmSyllableFor(
   };
 
   const onBeat = offsetInMeasure % beatUnits === 0;
-  const slotWidth = beatUnits / system.slots.length;
+  // Each division of the beat is two sixteenth slots: four to a quarter beat,
+  // six to a dotted-quarter one. From the subdivision, not the slot count.
+  const slotWidth = beatUnits / (meter.subdivision * 2);
   const slot = Math.floor((offsetInMeasure % beatUnits) / slotWidth);
   const startLabel =
     onBeat && note.noteLength >= beatUnits
-      ? resolveSyllable(system.beat, position)
-      : resolveSyllable(system.slots[slot % system.slots.length], position);
+      ? resolveSyllable(active.beat, position)
+      : resolveSyllable(slots[slot % slots.length], position);
 
   const ctx: SyllableContext = { ...position, startLabel };
 
-  const named = note.rhythm?.name ? system.byName[note.rhythm.name] : undefined;
+  const named = note.rhythm?.name ? active.byName[note.rhythm.name] : undefined;
   const fromName = named?.[note.patternIndex ?? 0];
   if (fromName !== undefined) return resolveSyllable(fromName, ctx);
 
-  if (note.rhythm?.rest) return resolveSyllable(system.rest, ctx);
+  if (note.rhythm?.rest) return resolveSyllable(active.rest, ctx);
 
   return crossedBeats.length
-    ? resolveSyllable(system.sustain, ctx)
+    ? resolveSyllable(active.sustain, ctx)
     : startLabel;
 }
 
@@ -1713,6 +1944,8 @@ function rhythmSyllableFor(
  * exercises use, so the preview cannot say one thing and the page another.
  */
 export function syllablesForFigure(rhythm: Rhythm, system: SyllableSystem): string[] {
+  // From the downbeat of a 4/4 bar, or of a 6/8 bar for a compound figure.
+  const meter = resolveMeter(rhythm.meterKind === "compound" ? "6/8" : "4/4");
   let offset = 0;
   return rhythm.meterValue.map((value, patternIndex) => {
     const noteLength = Math.round(value * 32);
@@ -1723,7 +1956,7 @@ export function syllablesForFigure(rhythm: Rhythm, system: SyllableSystem): stri
       // "z4" is the eighth rest of eighthRestEighth.
       rhythm: { name: rhythm.name, rest: rhythm.rest || String(rhythm.abcValue[patternIndex]).startsWith("z") },
     } as unknown as ChordNoteObject;
-    const syllable = rhythmSyllableFor(note, offset, 8, 32, system);
+    const syllable = rhythmSyllableFor(note, offset, meter, system);
     offset += noteLength;
     return syllable;
   });
@@ -1763,10 +1996,22 @@ function resolveSyllableSystem(id: unknown, custom?: unknown): SyllableSystem {
 export type UnisonScore = {
   staff: "pitched" | "rhythm";
   partsObject: PartsObject;
-  timeSig: { name: string; tsPerMeasure: number; beamGroupSize?: number };
+  timeSig: { name: string; tsPerMeasure: number; beatUnits?: number };
   /** Pitched staff only. */
   key?: string;
   clef?: string;
+  /**
+   * Printed dynamics (dynamics.ts), pitched staff only. Kept with the notes so
+   * a re-label, a link or a change of set keeps or redraws them without a new
+   * exercise.
+   */
+  dynamics?: PlacedDynamic[];
+  /**
+   * The chord progression the line was written over (unison-progressions.ts),
+   * bar by bar, one or two chord names a bar. Unset when the older walk wrote
+   * it. What a play-along's bass plays.
+   */
+  harmony?: string[][];
 };
 
 export type UnisonDisplay = {
@@ -1794,6 +2039,7 @@ export function assembleUnisonAbc(
     key: score.key,
     showRhythmSyllables,
     syllableSystem: resolveSyllableSystem(display.syllableSystemId, display.customSyllables),
+    dynamics: score.staff === "pitched" ? score.dynamics : undefined,
   });
 
   // Syllables ride as annotations, whose default 12pt is sized for chord
@@ -1816,7 +2062,9 @@ export function assembleUnisonAbc(
       `%%percmap ${RHYTHM_STAFF_NOTE} ${RHYTHM_STAFF_DRUM} normal\n` +
       `%%MIDI beat 127 127 127 1\n` +
       annotationFont +
-      `V:U\n` +
+      // Stems up, as rhythm is written: on the one line abcjs would turn
+      // them down (the note sits on the middle line).
+      `V:U stem=up\n` +
       `K:C clef=perc stafflines=1 \n` +
       `%            End of header, start of tune body: \n` +
       `${tuneBody}`
@@ -1846,10 +2094,60 @@ export function assembleUnisonAbc(
   );
 }
 
+const QUARTER = 8;
+
+/**
+ * Lengths one compound-meter note can be written at, longest first: dotted
+ * whole, dotted half, half, dotted quarter, quarter, eighth, sixteenth. 36 -
+ * 9/8's whole bar, or 12/8's held cadence - is none of them, so it is written
+ * as a dotted half tied to a dotted quarter: split at the beat.
+ */
+const COMPOUND_WRITABLE = [48, 24, 16, 12, 8, 4, 2];
+const writableCompoundLength = (units: number) => COMPOUND_WRITABLE.find((w) => w <= units) ?? units;
+
+/**
+ * Whether the beam stops after this note in compound meter. A beam shows the
+ * dotted-quarter beat, so it stops at each one; only eighths and shorter carry
+ * a beam, so it stops either side of a quarter or longer; and a rest ends it.
+ * Simple meter keeps its own rule, unchanged byte for byte.
+ */
+function compoundBeamBreaks(
+  note: ChordNoteObject,
+  segment: number,
+  next: ChordNoteObject | undefined,
+  tsCount: number,
+  beatUnits: number
+): boolean {
+  if (tsCount % beatUnits === 0) return true;
+  if (!note.rhythm?.pattern || note.rhythm?.rest || segment >= QUARTER) return true;
+  return !next || next.rhythm?.rest === true || next.noteLength >= QUARTER;
+}
+
+/**
+ * The score with dynamics drawn from `set` at each phrase start, or with none
+ * when the set is empty (Off) or the staff is the rhythm staff.
+ */
+export function withDynamics(
+  score: UnisonScore,
+  set: DynamicMark[],
+  random: () => number = Math.random
+): UnisonScore {
+  if (score.staff !== "pitched" || set.length === 0) {
+    const plain = { ...score };
+    delete plain.dynamics;
+    return plain;
+  }
+  const notes = Object.values(score.partsObject.parts)[0]?.chordNoteObject ?? [];
+  return {
+    ...score,
+    dynamics: drawDynamics(phraseStarts(notes, score.timeSig.tsPerMeasure), set, random),
+  };
+}
+
 function createConcatString(
   partsObject: PartsObject,
   params: {
-    timeSig: { tsPerMeasure: number; beamGroupSize?: number };
+    timeSig: { name: string; tsPerMeasure: number; beatUnits?: number };
     showSolfege: boolean;
     /** Which lyric the `w:` line carries. Movable do when unset. */
     lyricSystem?: LyricSystem;
@@ -1857,9 +2155,16 @@ function createConcatString(
     key?: string;
     showRhythmSyllables?: boolean;
     syllableSystem?: SyllableSystem;
+    /** Marks to print, by note index (dynamics.ts). */
+    dynamics?: PlacedDynamic[];
   }
 ) {
   var concatString = "";
+  const dynamicAt = new Map((params.dynamics ?? []).map((d) => [d.at, d.mark]));
+  const meter = resolveMeter(params.timeSig);
+  /** One beat in 32nds, from the meter model: beams and syllables follow it. */
+  const beatUnits = meter.beatUnits;
+  const compound = meter.kind === "compound";
 
   Object.keys(partsObject.parts).forEach((part: string) => {
     var singlePartObject = partsObject.parts[part];
@@ -1917,27 +2222,33 @@ function createConcatString(
           ? rhythmSyllableFor(
               note,
               tsCount,
-              params.timeSig.beamGroupSize ?? 8,
-              params.timeSig.tsPerMeasure,
+              { beatUnits, tsPerMeasure: params.timeSig.tsPerMeasure, subdivision: meter.subdivision },
               params.syllableSystem ?? defaultSyllableSystem
             )
           : "";
 
         // A note longer than the room left in the measure is written as tied
         // notes either side of the barline. The generator only produces one
-        // when ties are enabled, so ordinarily this runs a single pass.
-        const beamGroupSize = params.timeSig.beamGroupSize ?? 8;
+        // when ties are enabled, so ordinarily this runs a single pass. In
+        // compound meter a length no single note can show (36) is also split,
+        // at the beat, inside the bar.
         let lengthLeft = note.noteLength;
         let isAttack = true;
         let segments = 0;
+        const next = singlePartObject.chordNoteObject[index + 1];
 
         while (lengthLeft > 0) {
           segments++;
           const roomInMeasure = params.timeSig.tsPerMeasure - tsCount;
-          const segment = Math.min(lengthLeft, roomInMeasure);
+          const segment = compound
+            ? writableCompoundLength(Math.min(lengthLeft, roomInMeasure))
+            : Math.min(lengthLeft, roomInMeasure);
           const isFinalSegment = segment === lengthLeft;
 
           if (isAttack && syllable) measureString += `"_${syllable}"`;
+          // A dynamic rides on the attack, as an ABC decoration: !mf!C8.
+          const mark = dynamicAt.get(index);
+          if (isAttack && mark) measureString += `!${mark}!`;
 
           if (note.rhythm?.rest) {
             // Rests are not tied; a split rest is just two rests.
@@ -1952,11 +2263,15 @@ function createConcatString(
           isAttack = false;
 
           // Insert a space at every beam-group boundary so abcjs beams notes
-          // correctly within each beat. beamGroupSize drives this: 8 for simple
-          // time (quarter-note beat), 12 for compound time (dotted-quarter beat).
-          // Non-pattern notes (quarter, half, whole) always get a space.
-          // The barline "|" already breaks beams at measure boundaries.
-          if (tsCount % beamGroupSize === 0 || !note.rhythm?.pattern) {
+          // correctly within each beat. Simple time breaks at each quarter-note
+          // beat and after every non-pattern note (quarter, half, whole);
+          // compound time follows compoundBeamBreaks. The barline "|" already
+          // breaks beams at measure boundaries.
+          if (
+            compound
+              ? compoundBeamBreaks(note, segment, isFinalSegment ? next : undefined, tsCount, beatUnits)
+              : tsCount % beatUnits === 0 || !note.rhythm?.pattern
+          ) {
             measureString += " ";
           }
 
@@ -2087,11 +2402,7 @@ function createRhythmOnlySr(params: any) {
     );
   } catch (err) {
     const base = err instanceof Error ? err.message : "Rhythm generation failed.";
-    throw new Error(
-      params.allowTiesAcrossBarline === true
-        ? base
-        : `${base} Or turn on "Ties across barline".`
-    );
+    throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
   }
 
   if (!randRhythmObjects || randRhythmObjects.length === 0) {
@@ -2199,6 +2510,8 @@ export function placeMissingChromatics(
     key: string;
     noteList: Note[];
     random?: () => number;
+    /** No note before this index is altered (the diatonic first phrase over a progression). */
+    from?: number;
   }
 ): number {
   const keyObject = keySignatures[opts.key];
@@ -2218,7 +2531,7 @@ export function placeMissingChromatics(
   for (const [kind, degree] of wanted) {
     const dir = kind === "sharp" ? 1 : -1;
     const spots: { index: number; pitch: number }[] = [];
-    for (let i = 1; i + 1 < notes.length; i++) {
+    for (let i = Math.max(1, opts.from ?? 1); i + 1 < notes.length; i++) {
       const [prev, cur, next] = [notes[i - 1], notes[i], notes[i + 1]];
       if (prev.rhythm?.rest || cur.rhythm?.rest || next.rhythm?.rest) continue;
       // Never on top of an alteration already there, and never beside one: the
@@ -2350,6 +2663,9 @@ export function createNewSr(params: any) {
   if (best) return best;
   throw lastError;
 }
+
+/** Rhythms tried for a line over a chord progression before the older walk writes it. */
+const PROGRESSION_RHYTHMS = 6;
 
 /** Tries for an exercise that has every selected chromatic note. See createNewSr. */
 const CHROMATIC_ATTEMPTS = 6;
@@ -2570,7 +2886,18 @@ function createNewSrOnce(params: any) {
 
     var clef = params.clef;
     var keyRendered = params.key;
-    var maxSkip = params.maxSkip;
+    // A number (older callers, the scripts) or a policy (the page) - one rule either way.
+    // Exact skips that no selected rhythm can land: the line is stepwise, and
+    // is refused if steps cannot join the notes - it used to sing one pitch.
+    const askedSkips = toSkipPolicy(params.maxSkip);
+    var maxSkip = landablePolicy(askedSkips, params.rhythms ?? []);
+    if (
+      maxSkip !== askedSkips &&
+      !degreesConnected([...(params.scaleDegrees as Set<number>)].map((d) => d + 1), maxSkip)
+    ) {
+      throw new Error(NO_LANDING_MESSAGE);
+    }
+    const shortCaps = shortCapsFrom(params);
     var level = params.level;
     var timeSig = params.timeSig;
     var bpm = params.bpm;
@@ -2659,50 +2986,123 @@ function createNewSrOnce(params: any) {
       type: "V-I",
     });
 
-    let randRhythmObjects;
-    try {
-      randRhythmObjects = generateRandomRhythm(
-        params.timeSig,
-        params.measures,
-        params.rhythms,
-        selectedCadences,
-        true, // <-- This is the new flag to disable the filter
-        params.allowTiesAcrossBarline === true
+    /**
+     * One rhythm and one line over it. Exact skips mode puts its rests only
+     * at breaths (unison-phrasing.ts restsToBreaths); Max skip mode draws
+     * exactly what it always did.
+     */
+    const drawRhythm = (): RhythmWithPattern[] => {
+      let rhythm: RhythmWithPattern[];
+      try {
+        rhythm = generateRandomRhythm(
+          params.timeSig,
+          params.measures,
+          params.rhythms,
+          selectedCadences,
+          true, // <-- This is the new flag to disable the filter
+          params.allowTiesAcrossBarline === true
+        );
+      } catch (err) {
+        const base = err instanceof Error ? err.message : "Rhythm generation failed.";
+        throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
+      }
+      if (maxSkip.kind !== "custom") return rhythm;
+      return restsToBreaths(rhythm, {
+        tsPerMeasure: timeSig.tsPerMeasure,
+        measures: params.measures,
+        selected: params.rhythms ?? [],
+      });
+    };
+    /**
+     * Harmony first (unison-progressions.ts) when asked for: a progression,
+     * repeated, and the line written against it; with chromatic notes, a
+     * diatonic phrase and then a chromatic one.
+     * Returns the walk's [chords, notes] plus the progression's bars. Where no
+     * progression fits, or no line over this rhythm does, the older walk
+     * writes it.
+     */
+    const useProgressions = params.progressions === true;
+    const writeLine = (rhythm: RhythmWithPattern[]): any[] | null => {
+        const line = writeProgressionLine({
+          noteList: unisonNoteList,
+          scaleDegrees: Array.from(params.scaleDegrees as Set<number>),
+          chords: filteredChords,
+          rhythm,
+          barUnits: timeSig.tsPerMeasure,
+          beatUnits: beatUnitOf(params.selectedTimeSignature ?? timeSig.name),
+          measures: Number(measures),
+          minor: String(keyRendered).trim().endsWith("m"),
+          policy: maxSkip,
+          shortCaps,
+          sharps: [...sharpScaleDegrees],
+          flats: [...flatScaleDegrees],
+        });
+        return line ? [line.chordProgression, line.notes, line.harmony] : null;
+    };
+    /**
+     * A rhythm and a line over it. Over progressions a rhythm that will not
+     * take a line (a chromatic note with nowhere to resolve, say) is drawn
+     * again, PROGRESSION_RHYTHMS times, before the older walk writes it.
+     */
+    const drawBoth = (): { rhythm: RhythmWithPattern[]; line: any[] } => {
+      if (useProgressions) {
+        for (let a = 0; a < PROGRESSION_RHYTHMS; a++) {
+          const rhythm = drawRhythm();
+          const line = writeLine(rhythm);
+          if (line) return { rhythm, line };
+        }
+      }
+      const rhythm = drawRhythm();
+      return { rhythm, line: walkLine(rhythm) };
+    };
+    const walkLine = (rhythm: RhythmWithPattern[]) =>
+      generateChordProgression(
+        timeSig,
+        measures,
+        unisonNoteList,
+        maxSkip,
+        rhythm.map((r) => r.totalValue),
+        filteredChords,
+        Array.from(params.scaleDegrees),
+        shortCaps,
+        rhythm,
+        params.accidentalsFollowStep,
+        { sharps: sharpScaleDegrees, flats: flatScaleDegrees }
       );
-    } catch (err) {
-      const base = err instanceof Error ? err.message : "Rhythm generation failed.";
-      throw new Error(
-        params.allowTiesAcrossBarline === true
-          ? base
-          : `${base} Or turn on "Ties across barline".`
-      );
+
+    // With exact skips listed, a line that sang none of them is drawn again
+    // (rhythm and all), up to SKIP_DRAWS times, while the range and rhythm
+    // allow one: a Do-Mi-Sol exercise without a do-mi or a mi-sol in it
+    // drills nothing the level adds. The first line is kept if none does, and
+    // a draw that fails after a good one is not an error - this never fails an
+    // exercise the single draw would have written.
+    const guaranteeSkip = maxSkip.kind === "custom" && maxSkip.moves.length > 0;
+    const skipNotes = unisonNoteList
+      .filter((n) => (params.scaleDegrees as Set<number>).has(n.degree))
+      .map((n) => ({ pitchValue: n.pitchValue, degree: n.degree }));
+    let drawn: { rhythm: RhythmWithPattern[]; line: any[] } | null = null;
+    for (let draw = 0; draw < (guaranteeSkip ? SKIP_DRAWS : 1); draw++) {
+      let rhythm: RhythmWithPattern[];
+      let line: any[];
+      try {
+        ({ rhythm, line } = drawBoth());
+      } catch (err) {
+        if (!drawn) throw err;
+        break;
+      }
+      if (!drawn) drawn = { rhythm, line };
+      if (!guaranteeSkip) break;
+      const sung = (line[1] as Note[]).filter((_, k) => !rhythm[k]?.rest).map((n) => n.pitchValue);
+      if (skipCount(sung) > 0) {
+        drawn = { rhythm, line };
+        break;
+      }
+      if (!skipReachable(skipNotes, rhythm, (k) => figureCap(k, rhythm as any, shortCaps), maxSkip)) break;
     }
+    const randRhythmObjects = drawn!.rhythm;
     const randNoteLengths = randRhythmObjects.map((r) => r.totalValue);
 
-    // console.log("🔍 Generating chord progression...");
-    // console.log("📊 Chord progression params:", {
-    //   timeSig,
-    //   measures,
-    //   unisonNoteListLength: unisonNoteList.length,
-    //   maxSkip,
-    //   randNoteLengthsLength: randNoteLengths.length,
-    //   filteredChordsLength: filteredChords.length,
-    //   scaleDegrees: Array.from(params.scaleDegrees),
-    // });
-
-    let [renderedChordProgression, bassGenNoteArray] = generateChordProgression(
-      timeSig,
-      measures,
-      unisonNoteList,
-      maxSkip,
-      randNoteLengths,
-      filteredChords,
-      Array.from(params.scaleDegrees),
-      params.moveOnEighthNotes,
-      randRhythmObjects,
-      params.accidentalsFollowStep,
-      { sharps: sharpScaleDegrees, flats: flatScaleDegrees }
-    );
+    let [renderedChordProgression, bassGenNoteArray, harmony] = drawn!.line;
 
     // console.log("✅ Chord progression generated:", {
     //   progressionLength: renderedChordProgression?.length || 0,
@@ -2758,7 +3158,7 @@ function createNewSrOnce(params: any) {
         if (
           shouldTieEighthNotes(
             noteIndex,
-            params.moveOnEighthNotes,
+            shortCaps,
             randRhythmObjects
           )
         ) {
@@ -3056,12 +3456,21 @@ function createNewSrOnce(params: any) {
     // Any selected chromatic note the chords did not produce goes in as a
     // chromatic passing or neighbour tone. Before the accidental clean-up, so
     // it is spelled like every other altered note.
+    // Over a progression the first phrase stays diatonic: what it lacks goes
+    // after bar 4, among the chromatic phrases.
     for (const part of Object.keys(partsObject.parts)) {
-      placeMissingChromatics(partsObject.parts[part].chordNoteObject, {
+      const notesOfPart = partsObject.parts[part].chordNoteObject;
+      let from = 0;
+      if (harmony && harmony.length > 4) {
+        let pos = 0;
+        while (from < notesOfPart.length && pos < 4 * timeSig.tsPerMeasure) pos += notesOfPart[from++].noteLength;
+      }
+      placeMissingChromatics(notesOfPart, {
         sharps: sharpScaleDegrees,
         flats: flatScaleDegrees,
         key: keyRendered,
         noteList,
+        from,
       });
     }
 
@@ -3079,13 +3488,19 @@ function createNewSrOnce(params: any) {
     // regenerating. Rhythm syllables used to be written only for the one-line
     // rhythm staff, which left nothing for a pitched exercise to switch ON: a
     // practice run asking for them on its repeats got silence.
-    const score: UnisonScore = {
-      staff: "pitched",
-      partsObject: partsObject as PartsObject,
-      timeSig,
-      key: keyRendered,
-      clef,
-    };
+    // Dynamics are drawn last, and only when asked for: with none, nothing is
+    // drawn and the random sequence - and the exercise - is what it always was.
+    const score: UnisonScore = withDynamics(
+      {
+        staff: "pitched",
+        partsObject: partsObject as PartsObject,
+        timeSig,
+        key: keyRendered,
+        clef,
+        ...(harmony ? { harmony } : {}),
+      },
+      dynamicsSetFrom(params.dynamics)
+    );
     const renderedString = assembleUnisonAbc(score, params);
 
     // Save the concatenated string back to each part

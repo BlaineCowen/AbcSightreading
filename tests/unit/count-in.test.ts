@@ -81,3 +81,16 @@ describe("where the word goes: top-left of the music, clear of the staff", () =>
     expect(countInBadge({ paperTop: 8, paperLeft: 0, staffTop: 20, obstacles: [] })).toBe(null);
   });
 });
+
+describe("compound meter counts dotted-quarter beats", () => {
+  test("6/8 is two beats, so it is counted in over two bars like 2/4", () => {
+    expect(countInMeasures("6/8")).toBe(2);
+    expect(countInWords("6/8")).toEqual(["1", "2", "Ready", "Go"]);
+  });
+
+  test("9/8 is three beats and 12/8 four, one bar each", () => {
+    expect(countInWords("9/8")).toEqual(["1", "Ready", "Go"]);
+    expect(countInMeasures("12/8")).toBe(1);
+    expect(countInWords("12/8")).toEqual(["1", "2", "Ready", "Go"]);
+  });
+});

@@ -1,0 +1,4 @@
+<!-- GENERATED - do not edit; run `bun run icons:rhythm`.
+     dotHalfRest, engraved by LilyPond 2.26.0 (svg backend, -dcrop).
+     Units are LilyPond staff-spaces; colour follows currentColor. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.9000 0.0000 6.5500 0.9050" width="58.9" height="8.1" fill="currentColor" role="img" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><g transform="translate(2.0000, 0.7250)"><path transform="scale(0.0040, -0.0040)" d="M365 0h-355c-6 0 -10 4 -10 10v136c0 6 4 10 10 10h355c6 0 10 -4 10 -10v-136c0 -6 -4 -10 -10 -10z"/></g><g transform="translate(3.9500, 0.2250)"><path transform="scale(0.0040, -0.0040)" d="M0 0c0 31 25 56 56 56s56 -25 56 -56s-25 -56 -56 -56s-56 25 -56 56z"/></g><rect x="0.9000" y="0.6650" width="6.5500" height="0.2400"/></svg>

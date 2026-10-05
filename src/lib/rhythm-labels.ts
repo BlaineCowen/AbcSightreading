@@ -33,12 +33,13 @@ const TOKENS: [string, string][] = [
 ];
 
 /** Words that modify the value that follows, or the one just before. */
-const COUNTS: Record<string, string> = { two: "two", three: "three", four: "four" };
+const COUNTS: Record<string, string> = { two: "two", three: "three", four: "four", six: "six" };
 
 type Part = { count?: string; dotted?: boolean; value: string; rest?: boolean };
 
 export function rhythmLabel(name: string): string {
-  const lower = name.toLowerCase();
+  // dotHalfCompound is compound meter's dotted half: the same note to a reader.
+  const lower = name.replace(/Compound$/, "").toLowerCase();
   const parts: Part[] = [];
   let dotted = false;
   let count: string | undefined;
@@ -57,13 +58,15 @@ export function rhythmLabel(name: string): string {
       i += 4;
       continue;
     }
-    const word = Object.keys(COUNTS).find((c) => lower.startsWith(c, i));
+    // Note values first: the count `six` would otherwise eat the start of
+    // every `sixteenth`.
+    const token = TOKENS.find(([t]) => lower.startsWith(t, i));
+    const word = token ? undefined : Object.keys(COUNTS).find((c) => lower.startsWith(c, i));
     if (word) {
       count = COUNTS[word];
       i += word.length;
       continue;
     }
-    const token = TOKENS.find(([t]) => lower.startsWith(t, i));
     if (!token) {
       // An unknown name is better shown raw than silently mangled.
       return name;

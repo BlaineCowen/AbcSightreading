@@ -29,7 +29,7 @@ const PARTS = {
 
 const params = {
   key: "C",
-  timeSig: { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
+  timeSig: { name: "4/4", tsPerMeasure: 32, beatUnits: 8 },
   partsObject: PARTS,
   measures: 8,
   maxSkip: 4,

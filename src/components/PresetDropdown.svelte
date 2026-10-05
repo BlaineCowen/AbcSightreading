@@ -13,6 +13,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { ladder, ladderStages, type LadderStep, type LadderPage } from '../lib/ladder';
   import { presetHref, storeFor } from '../lib/preset-link';
+  import { levelSections, sectionToOpen, type LevelSectionId } from '../lib/preset-sections';
 
   /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
@@ -43,6 +44,14 @@
   export let showBuiltins: boolean = true;
   /** Which list of saved presets this page reads and writes. Choral's by default. */
   export let store: string | undefined = undefined;
+  /**
+   * Built-in levels for this page beside the ladder - the Unison page's NYSSMA
+   * Voice levels. Empty, the tab is not shown.
+   */
+  export let nyssmaLevels: { id: string; label: string; short: string; summary: string }[] = [];
+  /** The NYSSMA level the settings came from, if any. */
+  export let activeNyssmaId: string | null = null;
+  export let onSelectNyssma: (id: string) => void = () => {};
 
   let savedPresets: SavedPreset<any>[] = [];
   let showSaveInput = false;
@@ -236,18 +245,28 @@
   }
 
   // ── The picker panel ─────────────────────────────────────────────────────
-  type Tab = 'steps' | 'uil' | 'mine';
+  // Two tabs: the built-in presets (Levels), in collapsible sections, and the
+  // teacher's own (My presets).
+  type Tab = 'levels' | 'mine';
   let open = false;
-  let tab: Tab = 'steps';
+  let tab: Tab = 'levels';
   let root: HTMLElement;
   let panel: HTMLElement;
 
   $: uilOffered = showBuiltins && !hideUILLevels;
+  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0 });
+  /** The Levels sections showing their presets; the rest show only a header. */
+  let expanded: Set<LevelSectionId> = new Set();
+  function toggleSection(id: LevelSectionId) {
+    const next = new Set(expanded);
+    if (!next.delete(id)) next.add(id);
+    expanded = next;
+  }
   $: tabs = [
-    { id: 'steps', label: 'Step by step' },
-    ...(uilOffered ? [{ id: 'uil', label: 'UIL levels' }] : []),
+    { id: 'levels', label: 'Levels' },
     { id: 'mine', label: `My presets${savedPresets.length + otherPresets.length ? ` (${savedPresets.length + otherPresets.length})` : ''}` },
   ] as { id: Tab; label: string }[];
+  $: activeUILLevel = uilOffered && !activeStepId && !activeIsSaved && Object.values(uilPresets).some(p => p.label === activeLabel);
 
   const UIL_NOTES: Record<string, string> = {
     'UIL 1': 'I, IV, V · C, F and G major · whole, half and quarter notes',
@@ -257,11 +276,18 @@
     'UIL 5': '+ minor keys, sixteenths, up to 4 sharps or flats',
   };
 
-  /** Opens on the tab the active preset is in, and scrolls it into view. */
+  /**
+   * Opens on the tab the active preset is in, with its Levels section open
+   * and the others shut (all shut when no built-in preset is active), and
+   * scrolls it into view.
+   */
   async function openPanel() {
-    tab = activeStepId ? 'steps' : activeIsSaved ? 'mine'
-      : uilOffered && Object.values(uilPresets).some(p => p.label === activeLabel) ? 'uil'
+    const active = { step: !!activeStepId, nyssma: !!activeNyssmaId, uil: activeUILLevel };
+    tab = activeStepId ? 'levels' : activeIsSaved ? 'mine'
+      : activeNyssmaId || activeUILLevel ? 'levels'
       : tab;
+    const toOpen = sectionToOpen(sections, active);
+    expanded = new Set(toOpen ? [toOpen] : []);
     open = true;
     await tick();
     // Scroll the list, not the page: scrollIntoView moves every scrolling
@@ -447,74 +473,120 @@
       </div>
 
       <div class="overflow-y-auto p-2" id="preset-list-{tab}" role="tabpanel" aria-labelledby="preset-tab-{tab}">
-        {#if tab === 'steps'}
-          <p class="text-xs text-sr-muted px-2 pb-2">
-            One new thing at a time, from a first rhythm to four parts and past UIL 5.
-            {#if selectedClass}
-              Showing what <strong>{selectedClass.name}</strong> has passed.
-            {/if}
-          </p>
-          <p class="px-2 pb-1">
-            <SignupHint id="ladder-classes" dismissible={false}>Track which of your classes have passed each step.</SignupHint>
-          </p>
-          {#each ladderStages() as { stage, steps }}
-            <h3 class="text-[11px] uppercase tracking-wide text-sr-faint px-2 pt-3 pb-1">{stage}</h3>
-            <ul>
-              {#each steps as step}
-                <li>
-                  <button
-                    type="button"
-                    class="w-full text-left flex gap-3 items-start rounded-md px-2 py-1.5 hover:bg-sr-track {step.id === activeStepId ? 'bg-sr-tint' : ''}"
-                    aria-current={step.id === activeStepId ? 'true' : undefined}
-                    on:click={() => choose(() => onSelectStep(step))}
-                  >
-                    {#if selectedClass && passed(presetKeyOf.step(step.id))}
-                      <span class="shrink-0 w-6 h-6 rounded-full bg-sr-action text-sr-action-ink flex items-center justify-center" title="Passed by {selectedClass.name}"><Check size={14} /><span class="sr-only">Passed, step {step.number}</span></span>
-                    {:else}
-                      <span class="shrink-0 w-6 h-6 rounded-full border border-sr-hairline text-xs flex items-center justify-center text-sr-muted tabular-nums">{step.number}</span>
+        {#if tab === 'levels'}
+          {#each sections as section, i (section.id)}
+            <!-- The whole header row opens and shuts its section. It sticks to
+                 the top while its section scrolls, so it can be shut from
+                 anywhere in a long list. -->
+            <h3 class="sticky -top-2 z-10 bg-sr-raise {i > 0 ? 'mt-1 pt-1 border-t border-sr-hairline-2' : ''}">
+              <button
+                type="button"
+                id="preset-section-head-{section.id}"
+                class="w-full flex items-baseline gap-2 rounded-md px-2 py-2 text-left hover:bg-sr-track focus:outline-none focus-visible:ring-2 focus-visible:ring-sr-action"
+                aria-expanded={expanded.has(section.id)}
+                aria-controls="preset-section-{section.id}"
+                on:click={() => toggleSection(section.id)}
+              >
+                <span class="text-sm font-extrabold text-sr-ink">{section.label}</span>
+                <span class="text-xs text-sr-muted truncate">{section.note}</span>
+                <ChevronDown size={16} class="ml-auto shrink-0 self-center text-sr-muted transition-transform {expanded.has(section.id) ? 'rotate-180' : ''}" />
+              </button>
+            </h3>
+            {#if expanded.has(section.id)}
+              <div id="preset-section-{section.id}" role="region" aria-labelledby="preset-section-head-{section.id}" class="pb-2">
+                {#if section.id === 'steps'}
+                  <p class="text-xs text-sr-muted px-2 pb-2">
+                    One new thing at a time, from a first rhythm to four parts and past UIL 5.
+                    {#if selectedClass}
+                      Showing what <strong>{selectedClass.name}</strong> has passed.
                     {/if}
-                    <span class="flex-1 min-w-0">
-                      <span class="block text-sm text-sr-ink font-medium">
-                        {step.title}
-                        {#if step.page !== page}
-                          <span class="ml-1 text-[11px] font-normal text-sr-muted border border-sr-hairline rounded px-1">{step.page === 'unison' ? 'Unison page' : 'Choral page'}</span>
-                        {/if}
-                        {#if step.uil}
-                          <span class="ml-1 text-[11px] font-normal text-sr-brass">≈ UIL {step.uil}</span>
-                        {/if}
-                        {#if step.id === nextStepId}
-                          <span class="ml-1 text-[11px] font-medium text-sr-action-fg border border-sr-action rounded px-1">Next up</span>
-                        {/if}
-                      </span>
-                      <span class="block text-xs text-sr-muted">{step.newThing}</span>
-                    </span>
-                  </button>
-                </li>
-              {/each}
-            </ul>
+                  </p>
+                  <p class="px-2 pb-1">
+                    <SignupHint id="ladder-classes" dismissible={false}>Track which of your classes have passed each step.</SignupHint>
+                  </p>
+                  {#each ladderStages() as { stage, steps }}
+                    <h4 class="text-[11px] uppercase tracking-wide text-sr-faint px-2 pt-3 pb-1">{stage}</h4>
+                    <ul>
+                      {#each steps as step}
+                        <li>
+                          <button
+                            type="button"
+                            class="w-full text-left flex gap-3 items-start rounded-md px-2 py-1.5 hover:bg-sr-track {step.id === activeStepId ? 'bg-sr-tint' : ''}"
+                            aria-current={step.id === activeStepId ? 'true' : undefined}
+                            on:click={() => choose(() => onSelectStep(step))}
+                          >
+                            {#if selectedClass && passed(presetKeyOf.step(step.id))}
+                              <span class="shrink-0 w-6 h-6 rounded-full bg-sr-action text-sr-action-ink flex items-center justify-center" title="Passed by {selectedClass.name}"><Check size={14} /><span class="sr-only">Passed, step {step.number}</span></span>
+                            {:else}
+                              <span class="shrink-0 w-6 h-6 rounded-full border border-sr-hairline text-xs flex items-center justify-center text-sr-muted tabular-nums">{step.number}</span>
+                            {/if}
+                            <span class="flex-1 min-w-0">
+                              <span class="block text-sm text-sr-ink font-medium">
+                                {step.title}
+                                {#if step.page !== page}
+                                  <span class="ml-1 text-[11px] font-normal text-sr-muted border border-sr-hairline rounded px-1">{step.page === 'unison' ? 'Unison page' : 'Choral page'}</span>
+                                {/if}
+                                {#if step.uil}
+                                  <span class="ml-1 text-[11px] font-normal text-sr-brass">≈ UIL {step.uil}</span>
+                                {/if}
+                                {#if step.id === nextStepId}
+                                  <span class="ml-1 text-[11px] font-medium text-sr-action-fg border border-sr-action rounded px-1">Next up</span>
+                                {/if}
+                              </span>
+                              <span class="block text-xs text-sr-muted">{step.newThing}</span>
+                            </span>
+                          </button>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/each}
+                {:else if section.id === 'uil'}
+                  <ul>
+                    {#each Object.entries(uilPresets) as [key, level]}
+                      <li>
+                        <button
+                          type="button"
+                          class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-track {activeLabel === level.label && !activeStepId && !activeIsSaved ? 'bg-sr-tint' : ''}"
+                          aria-current={activeLabel === level.label && !activeStepId && !activeIsSaved ? 'true' : undefined}
+                          on:click={() => choose(() => onSelectBuiltin(key))}
+                        >
+                          <span class="block text-sm text-sr-ink font-medium">
+                            {level.label}
+                            {#if selectedClass && passed(presetKeyOf.uil(key))}<Check size={13} class="inline text-sr-action-fg ml-1" /><span class="sr-only">passed</span>{/if}
+                          </span>
+                          <span class="block text-xs text-sr-muted">{UIL_NOTES[key] ?? ''}</span>
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                  <p class="text-xs text-sr-muted px-2 pt-2">
+                    What each Texas UIL level asks for. For building up to one, use abcStepByStep.
+                  </p>
+                {:else}
+                  <ul>
+                    {#each nyssmaLevels as level}
+                      <li>
+                        <button
+                          type="button"
+                          class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-track {level.id === activeNyssmaId ? 'bg-sr-tint' : ''}"
+                          aria-current={level.id === activeNyssmaId ? 'true' : undefined}
+                          on:click={() => choose(() => onSelectNyssma(level.id))}
+                        >
+                          <span class="block text-sm text-sr-ink font-medium">{level.short}</span>
+                          <span class="block text-xs text-sr-muted">{level.summary}</span>
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
+                  <p class="text-xs text-sr-muted px-2 pt-2">
+                    NYSSMA solo voice sight-reading criteria (Manual, Edition 33). Each level sets keys,
+                    meters, skips, rhythms, tempo and dynamics. Your clef stays, and the level's range
+                    is placed from your low note. Level VI comes later.
+                  </p>
+                {/if}
+              </div>
+            {/if}
           {/each}
-        {:else if tab === 'uil'}
-          <ul>
-            {#each Object.entries(uilPresets) as [key, level]}
-              <li>
-                <button
-                  type="button"
-                  class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-track {activeLabel === level.label && !activeStepId && !activeIsSaved ? 'bg-sr-tint' : ''}"
-                  aria-current={activeLabel === level.label && !activeStepId && !activeIsSaved ? 'true' : undefined}
-                  on:click={() => choose(() => onSelectBuiltin(key))}
-                >
-                  <span class="block text-sm text-sr-ink font-medium">
-                    {level.label}
-                    {#if selectedClass && passed(presetKeyOf.uil(key))}<Check size={13} class="inline text-sr-action-fg ml-1" /><span class="sr-only">passed</span>{/if}
-                  </span>
-                  <span class="block text-xs text-sr-muted">{UIL_NOTES[key] ?? ''}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-          <p class="text-xs text-sr-muted px-2 pt-2">
-            What each Texas UIL level asks for. For building up to one, use Step by step.
-          </p>
         {:else}
           {#if savedPresets.length === 0 && otherPresets.length === 0}
             <p class="text-sm text-sr-muted px-2 py-4">

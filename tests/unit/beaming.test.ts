@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { assembleAbcString } from "../../src/lib/abc-assembly";
+import { timeSignatureFor } from "../../src/lib/meter";
 import { generateChoralExercise } from "../../src/lib/generateChoral";
 import { chords as fullChordSet } from "../../src/resources/chords";
 import { rhythms as allRhythms } from "../../src/resources/rhythms";
@@ -27,7 +29,7 @@ const PARTS = {
 
 const BEAT = 8; // one quarter, in 32nd-note units
 
-function generate(rhythmNames: string[], timeSig = { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 }) {
+function generate(rhythmNames: string[], timeSig = { name: "4/4", tsPerMeasure: 32, beatUnits: 8 }) {
   const selectedRhythms = allRhythms.filter((r) => rhythmNames.includes(r.name));
   for (let attempt = 0; attempt < 40; attempt++) {
     try {
@@ -129,7 +131,7 @@ describe("choral beaming", () => {
   test("holds in 3/4 as well", () => {
     const abc = generate(
       ["quarter", "half", "eighthEighth", "fourSixteenths"],
-      { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 } as any
+      { name: "3/4", tsPerMeasure: 24, beatUnits: 8 } as any
     );
     for (const g of beamGroups(abc, 24).filter(beamed)) {
       const total = g.durations.reduce((a, b) => a + b, 0);
@@ -138,5 +140,29 @@ describe("choral beaming", () => {
       );
       for (const d of g.durations) expect(d).toBeLessThan(BEAT);
     }
+  });
+});
+
+describe("the shared assembler in a dotted-quarter beat", () => {
+  // Choral never writes compound meter yet; this pins the rule for when it does.
+  const note = (length: number) => ({ name: "c", degree: 0, pitchValue: 21, length, rest: false }) as any;
+  const part = { name: "Soprano", smallName: "S", clef: "treble", order: 0, range: [0, 40], possibleNotes: [], chordNotes: [] } as any;
+  const abc = assembleAbcString(
+    [[note(8), note(4), note(4), note(4), note(4)]],
+    [part],
+    [],
+    "C",
+    timeSignatureFor("6/8"),
+    { title: "t", composer: "c", tempo: 60 }
+  );
+  const body = abc.split("start of tune body:\n")[1];
+
+  test("a quarter never beams inside a 12-unit group", () => {
+    expect(body).toContain("c8 c4 ");
+    expect(body).toContain("c4c4c4");
+  });
+
+  test("the tempo counts dotted quarters", () => {
+    expect(abc).toContain("Q:3/8=60\n");
   });
 });

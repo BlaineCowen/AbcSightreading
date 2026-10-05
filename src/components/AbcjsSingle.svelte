@@ -18,7 +18,8 @@
     systemOf,
     targetMoved,
   } from "../lib/scroll-to-system";
-  import { assembleUnisonAbc, type UnisonScore } from "../lib/generateUnison";
+  import { assembleUnisonAbc, withDynamics, type UnisonScore } from "../lib/generateUnison";
+  import { DYNAMIC_MARKS, dynamicsSetFrom, toggleDynamic, type DynamicMark } from "../lib/dynamics";
   import { mySyllables, syllablesAvailable, loadMySyllables } from "../lib/syllable-prefs";
   import {
     packExercise,
@@ -38,6 +39,16 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
+  import {
+    beatsOf,
+    beatSymbolOf,
+    COMPOUND_METER_NAMES,
+    EXERCISE_METER_NAMES,
+    meterKindOf,
+    SIMPLE_METER_NAMES,
+    tempoField,
+    timeSignaturesFor,
+  } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -52,7 +63,7 @@
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
-  import { activePresetToRestore, rememberActivePreset, type ActivePresetRecord } from "../lib/active-preset";
+  import { activePresetToRestore, rememberActivePreset, restoredSignature, type ActivePresetRecord } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import GradePanel from "./GradePanel.svelte";
   import { GradeRunner } from "../lib/grade-runner";
@@ -65,8 +76,31 @@
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
-  import { ladderById, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
-  import { selectableRhythms, rhythmPickerGroups } from "../lib/selectable-rhythms";
+  import { landablePolicy, type SkipDir } from "../lib/skip-policy";
+  import {
+    ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected, withoutShortSkips,
+    policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams,
+    type SkipSettings,
+  } from "../lib/skip-settings";
+  import {
+    readShortSkipParams, eighthsFrom, capsFor, MAX_SKIP_RANGE,
+  } from "../lib/short-note-skips";
+  import { nyssmaById, nyssmaVoiceLevels, type NyssmaLevel } from "../lib/nyssma-presets";
+  import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
+  import {
+    drawFromPool, meterPoolClick, parsePool, parseSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
+    type Span,
+  } from "../lib/unison-pools";
+  import {
+    DEFAULT_RHYTHM_NAMES,
+    resolveRhythmSelection,
+    rhythmPickerGroups,
+    selectableCompoundRhythms,
+    selectableRhythms,
+    selectableRhythmsFor,
+    switchRhythmKind,
+    type RhythmMemory,
+  } from "../lib/selectable-rhythms";
   import {
     crossedWholeBeat,
     metronomeClickFor,
@@ -74,8 +108,10 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
+  import PlayAlongVideo from "./PlayAlongVideo.svelte";
+  import { billingStatus } from "../lib/billing-client";
   import {
     defaultSyllableSystem,
     isSyllableSystemId,
@@ -109,11 +145,12 @@
 
   // --- Static Options ---
   const possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
-  const timeSignatures = {
-    "4/4": { name: "4/4", tsPerMeasure: 32, beamGroupSize: 8 },
-    "3/4": { name: "3/4", tsPerMeasure: 24, beamGroupSize: 8 },
-    "2/4": { name: "2/4", tsPerMeasure: 16, beamGroupSize: 8 },
-  };
+  const timeSignatures = timeSignaturesFor(EXERCISE_METER_NAMES);
+  /** The meter picker: simple meters, then compound. */
+  const meterGroups = [
+    { label: "Simple", names: SIMPLE_METER_NAMES },
+    { label: "Compound", names: COMPOUND_METER_NAMES },
+  ];
   const clefOptions = ["treble", "bass", "alto", "tenor"];
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   const cursorModes = ["off", "smooth", "beat", "note"] as const;
@@ -288,9 +325,11 @@
       }
     }
 
-    const key = getParam("key");
-    if (key && possibleKeys.includes(key)) {
-      options.selectedKey = key;
+    // One key, or several to draw from ("C,F"). An old link names one.
+    const keys = parsePool(getParam("key"), possibleKeys);
+    if (keys.length > 0) {
+      options.selectedKeys = keys;
+      options.selectedKey = keys[0];
     }
 
     const rhythmNames = getParam("rhythms")?.split(",");
@@ -303,9 +342,19 @@
       }
     }
 
-    const ts = getParam("timeSignature");
-    if (ts && Object.keys(timeSignatures).includes(ts)) {
-      options.selectedTimeSignature = ts;
+    // One meter, or several of one kind to draw from ("4/4,2/4").
+    const meters = sameKindPool(parsePool(getParam("timeSignature"), Object.keys(timeSignatures)));
+    if (meters.length > 0) {
+      options.selectedTimeSignatures = meters;
+      options.selectedTimeSignature = meters[0];
+    }
+    // A range that follows the key (a NYSSMA level): scale steps around do,
+    // placed on the do at or above `anchor` for each key drawn.
+    const span = parseSpan(getParam("span"));
+    const anchor = parseInt(getParam("anchor") || "", 10);
+    if (span && !isNaN(anchor)) {
+      options.rangeSpan = span;
+      options.rangeAnchor = anchor;
     }
 
     const m = parseInt(getParam("measures") || "", 10);
@@ -318,6 +367,10 @@
       options.maxSkip = s;
     }
 
+    // Exact skips (skip-settings.ts). A link without them is in Max skip mode.
+    const skips = readSkipParams(urlParams);
+    if (skips) Object.assign(options, skips);
+
     // The tempo slider's range. 30-120 turned a link made at 132 into one at 60.
     const b = parseInt(getParam("bpm") || "", 10);
     if (!isNaN(b) && b >= 40 && b <= 200) {
@@ -327,8 +380,11 @@
 
     if (urlParams.has("accidentals"))
       options.accidentals = getParam("accidentals") === "true";
+    // Old links carry moveEighthNotes; new ones Max 8th / 16th skip (short-note-skips.ts).
     if (urlParams.has("moveEighthNotes"))
       options.moveEighthNotes = getParam("moveEighthNotes") === "true";
+    Object.assign(options, readShortSkipParams(urlParams));
+    if (urlParams.has("pairsOnePitch")) options.eighthPairsOnePitch = getParam("pairsOnePitch") === "true";
     if (urlParams.has("accidentalsFollowStep"))
       options.accidentalsFollowStep =
         getParam("accidentalsFollowStep") === "true";
@@ -353,6 +409,7 @@
     if (urlParams.has("allowTiesAcrossBarline"))
       options.allowTiesAcrossBarline =
         getParam("allowTiesAcrossBarline") === "true";
+    if (urlParams.has("progressions")) options.progressions = getParam("progressions") !== "false";
 
     const cursor = getParam("cursor");
     if (isCursorMode(cursor)) {
@@ -363,6 +420,8 @@
     if (isChosenSyllableSystem(syllableSystem)) {
       options.syllableSystemId = syllableSystem;
     }
+
+    if (urlParams.has("dynamics")) options.dynamics = dynamicsSetFrom(getParam("dynamics"));
 
     return Object.keys(options).length > 0 ? options : null;
   }
@@ -422,40 +481,20 @@
     toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n");
   };
 
-  // The selectable set is shared with scripts/check-rhythm.ts, so the checks
-  // there exercise exactly what the UI offers.
-  let filterRhythms = selectableRhythms;
-
-  const DEFAULT_RHYTHM_NAMES = ["eighthEighth", "quarter"];
-
   /**
-   * Resolve saved rhythm names against the *selectable* set, not the full list.
-   * A stale link or an old save can name something the UI never offers - a
-   * sixteenth rest, whose 2-unit length is shorter than a beat - and letting one
-   * through puts notes off the beat grid that the barlines, the rhythm syllables
-   * and the fill's measure arithmetic all assume.
-   *
-   * Falls back to the defaults when nothing resolves: the previous `|| [...]`
-   * could never fire, because .filter() always returns an array, so a bad
-   * ?rhythms= left the selection empty and generation refused outright.
+   * Resolve saved rhythm names against what the meter's kind offers - see
+   * resolveRhythmSelection. Never empty: a bad ?rhythms= falls back to the
+   * kind's defaults.
    */
-  function resolveSelectedRhythms(names: unknown): Rhythm[] {
-    const wanted = Array.isArray(names) ? names : [];
-    const resolved = wanted
-      .map((name) => filterRhythms.find((r) => r.name === name))
-      .filter(Boolean) as Rhythm[];
-    if (resolved.length > 0) return resolved;
-    return DEFAULT_RHYTHM_NAMES.map((name) =>
-      filterRhythms.find((r) => r.name === name)
-    ).filter(Boolean) as Rhythm[];
+  function resolveSelectedRhythms(names: unknown, meter: string = "4/4"): Rhythm[] {
+    return resolveRhythmSelection(names, meterKindOf(meter));
   }
 
   const rhythmSvgs = Object.fromEntries(
-    selectableRhythms
-      .map((rhythm) => [
-        rhythm.name,
-        import(`../assets/svgs/${rhythm.name}.svg?raw`),
-      ])
+    [...selectableRhythms, ...selectableCompoundRhythms].map((rhythm) => [
+      rhythm.name,
+      import(`../assets/svgs/${rhythm.name}.svg?raw`),
+    ])
   );
 
   /**
@@ -480,19 +519,35 @@
           ? options.selectedTimeSignature.name || "4/4"
           : options.selectedTimeSignature;
     }
+    // Pools of keys and meters; options from before pools hold one of each.
+    // A meter pool is one kind, and the rhythms are resolved for its first meter.
+    const keys = poolFrom(options.selectedKeys, options.selectedKey, possibleKeys, "F");
+    const meters = sameKindPool(poolFrom(options.selectedTimeSignatures, ts, Object.keys(timeSignatures), "4/4"));
+    const selectedRange = options.selectedRange || { ...DEFAULT_TREBLE_RANGE };
     return {
       selectedClef: options.selectedClef || "treble",
-      selectedRange: options.selectedRange || { ...DEFAULT_TREBLE_RANGE },
+      selectedRange,
       selectedScaleDegrees: new Set<number>(options.selectedScaleDegrees || [1, 3, 5]),
       selectedSharpDegrees: new Set<number>(options.selectedSharpDegrees || []),
       selectedFlatDegrees: new Set<number>(options.selectedFlatDegrees || []),
-      selectedKey: options.selectedKey || "F",
-      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms),
-      selectedTimeSignature: ts,
+      selectedKeys: keys,
+      selectedKey: keys[0],
+      selectedRhythms: resolveSelectedRhythms(options.selectedRhythms, meters[0]),
+      selectedTimeSignatures: meters,
+      selectedTimeSignature: meters[0],
+      rangeSpan: spanFrom(options.rangeSpan),
+      rangeAnchor: Number.isInteger(options.rangeAnchor) ? (options.rangeAnchor as number) : selectedRange.min,
       measures: options.measures || 8,
       maxSkip: options.maxSkip || 4,
+      // Exact skips and Skips between; presets and options from before load in
+      // Max skip mode. An old Max 8th skip of 1 (short notes only step) leaves
+      // eighths and sixteenths out of Skips between, which says the same.
+      skips: eighthsFrom(options, options.maxSkip || 4).dropShortSkips
+        ? withoutShortSkips(skipSettingsFrom(options))
+        : skipSettingsFrom(options),
       bpm: options.bpm || 60,
-      moveEighthNotes: options.moveEighthNotes || false,
+      // Eighth pairs on one pitch: an old Max 8th skip of 0, or Move 8th Notes off.
+      eighths: { onePitch: eighthsFrom(options, options.maxSkip || 4).onePitch },
       accidentalsFollowStep:
         typeof options.accidentalsFollowStep === "boolean" ? options.accidentalsFollowStep : true,
       showSolfege: options.showSolfege || false,
@@ -504,6 +559,9 @@
         ? options.syllableSystemId
         : defaultSyllableSystem.id,
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
+      // Chord progressions (unison-progressions.ts). Unset in presets saved
+      // before they existed, which leaves the page's own setting alone.
+      progressions: typeof options.progressions === "boolean" ? options.progressions : undefined,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
       run: runOptionsFrom(options.run),
       // How it sounds. Undefined when not saved (older presets and options),
@@ -516,6 +574,8 @@
       masterVolume: options.masterVolume === undefined ? undefined : numberIn(options.masterVolume, 0, 1, 0.5),
       metronomeVolume: options.metronomeVolume === undefined ? undefined : numberIn(options.metronomeVolume, 0, 1, 0.5),
       click: clickFrom(options.click),
+      // Undefined when not saved (older presets and options): Off.
+      dynamics: options.dynamics === undefined ? undefined : dynamicsSetFrom(options.dynamics),
     };
   }
 
@@ -534,10 +594,18 @@
   let activeSavedId: string | null = null;
   /** The ladder step the settings came from, when they came from one. */
   let activeStepId: string | null = null;
+  /** The NYSSMA level the settings came from, when they came from one. */
+  let activeNyssmaId: string | null = null;
   /** Loads the active preset or step again, for Revert. */
   let revertPreset: (() => void) | undefined = undefined;
+  /**
+   * What "edited" compares: the options with each pool in picker order, so a
+   * key removed and added back is no edit (presetSignature, unison-pools.ts).
+   */
+  const signatureOf = (options: Record<string, unknown>) =>
+    presetSignature(options, possibleKeys, Object.keys(timeSignatures));
   $: presetEdited =
-    activePresetLabel !== "" && JSON.stringify(currentOptions) !== activePresetSignature;
+    activePresetLabel !== "" && signatureOf(currentOptions) !== activePresetSignature;
 
   /**
    * Put a saved preset's settings on the page. Like choral, it sets the
@@ -555,12 +623,17 @@
     selectedSharpDegrees = next.selectedSharpDegrees;
     selectedFlatDegrees = next.selectedFlatDegrees;
     selectedKey = next.selectedKey;
+    selectedKeys = new Set(next.selectedKeys);
     selectedRhythms = next.selectedRhythms;
     selectedTimeSignature = next.selectedTimeSignature;
+    selectedTimeSignatures = new Set(next.selectedTimeSignatures);
+    rangeSpan = next.rangeSpan;
+    rangeAnchor = next.rangeAnchor;
     measures = next.measures;
     maxSkip = next.maxSkip;
+    skips = next.skips;
     bpm = next.bpm;
-    moveEighthNotes = next.moveEighthNotes;
+    eighthPairsOnePitch = next.eighths.onePitch;
     accidentalsFollowStep = next.accidentalsFollowStep;
     showSolfege = next.showSolfege;
     lyricSystem = next.lyricSystem;
@@ -568,7 +641,11 @@
     showRhythmSyllables = next.showRhythmSyllables;
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
+    if (typeof next.progressions === "boolean") progressions = next.progressions;
     cursorMode = next.cursorMode;
+    // Every preset saved before dynamics existed meant Off - not whatever the
+    // page last held (a NYSSMA level's p, mf and f, say).
+    dynamicsSet = next.dynamics ?? [];
     if (next.run) setRunOptions(next.run);
     if (next.click) applyClick(next.click);
     // Presets from before the metronome was one kept these on their own.
@@ -596,9 +673,10 @@
     activeSavedId = preset.id;
     activeSavedPreset = preset;
     activeStepId = null;
+    activeNyssmaId = null;
     revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
-    setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
   /**
@@ -626,22 +704,81 @@
       return;
     }
     rhythmOnly = u.rhythmOnly;
-    selectedRhythms = resolveSelectedRhythms(u.selectedRhythms);
+    selectedRhythms = resolveSelectedRhythms(u.selectedRhythms, u.selectedTimeSignature);
     selectedTimeSignature = u.selectedTimeSignature;
+    selectedTimeSignatures = new Set([u.selectedTimeSignature]);
     measures = u.measures;
-    moveEighthNotes = u.moveEighthNotes;
-    if (u.selectedKey) selectedKey = u.selectedKey;
+    if (u.selectedKey) {
+      selectedKey = u.selectedKey;
+      selectedKeys = new Set([u.selectedKey]);
+    }
+    rangeSpan = null;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
     if (u.maxSkip) maxSkip = u.maxSkip;
+    // A step's Move 8th Notes off sings each pair on one pitch.
+    eighthPairsOnePitch = u.moveEighthNotes === false;
+    // A step's skip size is a Max skip, between any notes.
+    skips = { ...setExactOn(skips, false), landOn: [...ALL_LAND_ON] };
     const range = rangeForStep(u, selectedRange);
     if (range) selectedRange = range;
     selectedSharpDegrees = new Set();
     selectedFlatDegrees = new Set();
+    // No step prints dynamics; a level's marks would otherwise stay on.
+    dynamicsSet = [];
     activePresetLabel = stepLabel(step);
     activeSavedId = null;
     activeStepId = step.id;
+    activeNyssmaId = null;
     revertPreset = () => applyLadderStep(step);
-    setTimeout(() => (activePresetSignature = JSON.stringify(currentOptions)), 0);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
+  }
+
+  /**
+   * A NYSSMA Voice level (nyssma-presets.ts): the keys and meters to draw
+   * from, its exact skips and what they land on, the Max / 8th / 16th skips,
+   * rhythms, tempo, dynamics, length. The clef stays the teacher's; the range
+   * becomes the level's span around do, placed on the do at or above the
+   * teacher's low note (Level V reaches below it, to low sol), and again for
+   * each key drawn. Like a ladder step it sets the controls and leaves the
+   * exercise.
+   */
+  function applyNyssmaLevel(level: NyssmaLevel) {
+    rhythmOnly = false;
+    // The meter first: from a compound meter it puts that selection away
+    // (chooseMeter), then the level's rhythms replace the simple one.
+    chooseMeter(level.meters[0]);
+    selectedRhythms = resolveSelectedRhythms(level.rhythms, level.meters[0]);
+    selectedTimeSignatures = new Set(level.meters);
+    selectedKeys = new Set(level.keys);
+    selectedKey = level.keys[0];
+    measures = level.measures;
+    handleBpmChange(level.bpm);
+    allowTiesAcrossBarline = false;
+    selectedScaleDegrees = new Set(level.scaleDegrees);
+    selectedSharpDegrees = new Set();
+    selectedFlatDegrees = new Set();
+    maxSkip = level.maxSkip;
+    eighthPairsOnePitch = false;
+    skips = {
+      ...level.skips,
+      patterns: [...level.skips.patterns],
+      extraSkips: level.skips.extraSkips.map((m) => ({ ...m })),
+      landOn: [...level.skips.landOn],
+    };
+    dynamicsSet = [...level.dynamics];
+    // Span and anchor go together. The anchor is the teacher's range - but not
+    // a range a level (or a preset with a span) already placed, or choosing a
+    // level twice would walk it. A range set by hand cleared the span
+    // (handleRangeChange), so it is read afresh.
+    if (!rangeSpan) rangeAnchor = selectedRange.min;
+    rangeSpan = [...level.span] as Span;
+    selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+    activePresetLabel = level.label;
+    activeNyssmaId = level.id;
+    activeSavedId = null;
+    activeStepId = null;
+    revertPreset = () => applyNyssmaLevel(level);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
   function getInitialState() {
@@ -677,12 +814,18 @@
       selectedSharpDegrees: new Set(),
       selectedFlatDegrees: new Set(),
       selectedKey: "F",
+      selectedKeys: ["F"],
       selectedRhythms: resolveSelectedRhythms([]),
       selectedTimeSignature: "4/4",
+      selectedTimeSignatures: ["4/4"],
+      rangeSpan: null as Span | null,
+      rangeAnchor: DEFAULT_TREBLE_RANGE.min,
       measures: 8,
       maxSkip: 4,
+      skips: skipSettingsFrom({}),
       bpm: 60,
-      moveEighthNotes: false,
+      // A new reader: the three skips move together.
+      eighths: { onePitch: false },
       accidentalsFollowStep: false,
       showSolfege: false,
       rhythmOnly: false,
@@ -690,6 +833,7 @@
       syllableSystemId: defaultSyllableSystem.id,
       allowTiesAcrossBarline: false,
       cursorMode: "smooth",
+      dynamics: [] as DynamicMark[],
     };
   }
 
@@ -705,12 +849,98 @@
   let selectedSharpDegrees = initialState.selectedSharpDegrees;
   let selectedFlatDegrees = initialState.selectedFlatDegrees;
   let selectedKey = initialState.selectedKey;
+  /** Keys to draw from; `selectedKey` is the key of the exercise on screen. */
+  let selectedKeys: Set<string> = new Set(initialState.selectedKeys);
   let selectedRhythms = initialState.selectedRhythms;
   let selectedTimeSignature = initialState.selectedTimeSignature;
+  /** Meters to draw from, all of one kind; `selectedTimeSignature` is the exercise's own. */
+  let selectedTimeSignatures: Set<string> = new Set(initialState.selectedTimeSignatures);
+  /** A NYSSMA level's range: scale steps around do, placed from `rangeAnchor` for each key drawn. */
+  let rangeSpan: Span | null = initialState.rangeSpan ?? null;
+  let rangeAnchor: number = initialState.rangeAnchor ?? initialState.selectedRange.min;
+  /** The picker follows the meter's kind: compound figures in 6/8, 9/8, 12/8. */
+  $: filterRhythms = selectableRhythmsFor(meterKindOf(selectedTimeSignature));
+  /** Each kind's selection while the reader is in the other (switchRhythmKind). */
+  let rhythmMemory: RhythmMemory = {};
+
+  /** Choose a meter; crossing between simple and compound swaps the rhythm selection. */
+  function chooseMeter(ts: string) {
+    const from = meterKindOf(selectedTimeSignature);
+    const to = meterKindOf(ts);
+    if (from !== to) {
+      const switched = switchRhythmKind(rhythmMemory, from, to, selectedRhythms.map((r: Rhythm) => r.name));
+      rhythmMemory = switched.memory;
+      selectedRhythms = switched.selection;
+    }
+    selectedTimeSignature = ts;
+  }
   let measures = initialState.measures;
   let maxSkip = initialState.maxSkip;
+  /** The "Choose exact skips" panel: on/off, patterns, other skips, what a skip lands on (skip-settings.ts). */
+  let skips: SkipSettings = initialState.skips;
+  $: skipPolicy = policyFor(maxSkip, skips);
+
+  /**
+   * The panel starts open only when exact skips are on, and opens whenever
+   * they come on from elsewhere (a preset, a link). Turning them off leaves
+   * it as it is, so the switch does not snap shut under the finger.
+   */
+  let exactPanelOpen = skips.exactOn;
+  $: if (skips.exactOn) exactPanelOpen = true;
+
+  /** The "+ Add" picker for an other skip: open, and what is chosen so far. */
+  let skipPickerOpen = false;
+  let pickFrom: number | null = null;
+  let pickDir: SkipDir = "up";
+  let pickTo: number | null = null;
+  $: pickReady = pickFrom !== null && pickTo !== null && pickFrom !== pickTo;
+  function openSkipPicker() {
+    pickFrom = null;
+    pickDir = "up";
+    pickTo = null;
+    skipPickerOpen = true;
+  }
+  function addPickedSkip() {
+    if (pickFrom === null || pickTo === null || pickFrom === pickTo) return;
+    skips = { ...skips, extraSkips: addExtraSkip(skips.extraSkips, { from: pickFrom, to: pickTo, dir: pickDir }) };
+    skipPickerOpen = false;
+  }
+  const skipDirChoices: { dir: SkipDir; label: string }[] = [
+    { dir: "up", label: "up" },
+    { dir: "down", label: "down" },
+    { dir: "both", label: "up or down" },
+  ];
+  /** Land-on icons, the rhythm picker's own (eighth is drawn for this alone). */
+  const landOnSvgs = Object.fromEntries(
+    LAND_ON_CHOICES.map((c) => [c.length, import(`../assets/svgs/${c.icon}.svg?raw`)])
+  );
   let bpm = initialState.bpm;
-  let moveEighthNotes = initialState.moveEighthNotes;
+  /**
+   * Eighth pairs on one pitch (short-note-skips.ts EighthSettings): the
+   * ladder's early steps sing ti-ti on one note. Which note values a skip
+   * may use is Skips between (skips.landOn), in both modes.
+   */
+  let eighthPairsOnePitch: boolean = initialState.eighths.onePitch;
+  function stepSkip(delta: number) {
+    maxSkip = Math.min(MAX_SKIP_RANGE.max, Math.max(MAX_SKIP_RANGE.min, maxSkip + delta));
+  }
+  /** The steppers' interval names: 0 the same pitch, 1 a step, then a 3rd and up. */
+  const skipName = (n: number) =>
+    n === 0 ? 'same pitch' : n === 1 ? 'a step' : skipIntervalNames[n] ?? `${n} steps`;
+  /** The skip stepper, with its note-value icon (the rhythm picker's own). */
+  const skipRows: { which: 'maxSkip'; label: string; icon: string; min: number }[] = [
+    { which: 'maxSkip', label: 'Max skip', icon: 'quarter', min: 1 },
+  ];
+  /**
+   * One scale for the three icons, so their noteheads match: an icon's height
+   * follows its own viewBox (LilyPond staff-spaces). Shrunk to fit the cell,
+   * the sixteenth's longer stem made its notehead smaller than the quarter's.
+   */
+  const skipIconHeight = (raw: string) =>
+    Math.round(Number(/viewBox="[\d.\s-]*?\s([\d.]+)"/.exec(raw)?.[1] ?? 4) * 5.4);
+  const skipRowSvgs = Object.fromEntries(
+    skipRows.map((r) => [r.which, import(`../assets/svgs/${r.icon}.svg?raw`)])
+  );
   let accidentalsFollowStep = initialState.accidentalsFollowStep;
   let tempo = initialState.bpm;
   let rhythmOnly = initialState.rhythmOnly || false;
@@ -876,7 +1106,16 @@
   let syllableSystemId: string =
     initialState.syllableSystemId || defaultSyllableSystem.id;
   let allowTiesAcrossBarline = initialState.allowTiesAcrossBarline || false;
+  /**
+   * Chord progressions (unison-progressions.ts): the line is written over a
+   * repeating progression - I IV V I and the like - with chord notes on the
+   * strong beats and passing notes between; with chromatic notes, a diatonic
+   * phrase and then a chromatic one. On unless turned off.
+   */
+  let progressions: boolean = initialState.progressions ?? true;
   let cursorMode: CursorMode = initialState.cursorMode || "smooth";
+  /** Printed dynamics: the marks to draw from, or empty for Off (dynamics.ts). */
+  let dynamicsSet: DynamicMark[] = initialState.dynamics ?? [];
   // Turning the cursor off should clear it at once, not leave the last
   // position frozen on the staff until playback next moves it.
   $: if ((passCursorOverride ?? cursorMode) === "off" && playbackCursor) hidePlaybackCursor();
@@ -965,6 +1204,29 @@
     writtenLyricSystem = lyric;
     return true;
   }
+
+  /**
+   * Dynamics are a score option: changing them redraws the marks on the
+   * exercise on screen rather than writing a new one. The audio was built
+   * with the old velocities, so it goes.
+   */
+  async function handleDynamicsChange(next: DynamicMark[]) {
+    dynamicsSet = next;
+    if (!currentScore || currentScore.staff !== "pitched") return;
+    currentScore = withDynamics(currentScore, next);
+    originalTuneString = assembleUnisonAbc(currentScore, {
+      showSolfege: !rhythmOnly,
+      lyricSystem: writtenLyricSystem,
+      showRhythmSyllables: true,
+      syllableSystemId: writtenSyllableSystem,
+      customSyllables: $mySyllables,
+    });
+    renderedString = [originalTuneString, [], currentScore];
+    useExerciseScore(currentScore);
+    audioBuffer = null;
+    createSynth = null;
+    if (currentTune) await rerenderTune();
+  }
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
   let playbackCursor: SVGLineElement | null = null; // Follows playback
@@ -1038,17 +1300,20 @@
   const DEFAULTS = {
     key: 'F', clef: 'treble', timeSig: '4/4', measures: 8,
     maxSkip: 4, scaleDegrees: [1, 3, 5], range: DEFAULT_TREBLE_RANGE,
-    rhythmNames: ['eighthEighth', 'quarter'],
   };
-  $: setupDirty = selectedKey !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
-    selectedTimeSignature !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
+  $: setupDirty = [...selectedKeys].join(",") !== DEFAULTS.key || selectedClef !== DEFAULTS.clef ||
+    [...selectedTimeSignatures].join(",") !== DEFAULTS.timeSig || measures !== DEFAULTS.measures;
   $: rhythmDirty = JSON.stringify(selectedRhythms.map((r: Rhythm) => r.name).sort()) !==
-    JSON.stringify([...DEFAULTS.rhythmNames].sort());
-  $: notesDirty = maxSkip !== DEFAULTS.maxSkip ||
+    JSON.stringify([...DEFAULT_RHYTHM_NAMES[meterKindOf(selectedTimeSignature)]].sort());
+  $: notesDirty = maxSkip !== DEFAULTS.maxSkip || skips.exactOn ||
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
-    accidentalsFollowStep !== false || moveEighthNotes !== false;
-  $: rangeDirty = selectedRange.min !== DEFAULTS.range.min || selectedRange.max !== DEFAULTS.range.max;
+    accidentalsFollowStep !== false ||
+    skips.landOn.length !== ALL_LAND_ON.length || eighthPairsOnePitch;
+  // A range that follows the key is judged by its placement for the pool's
+  // first key in picker order, not the key drawn, so Generate cannot flip the dot.
+  $: settledRange = (rangeSpan && rangeForSpan(rangeSpan, possibleKeys.find((k) => selectedKeys.has(k)) ?? selectedKey, rangeAnchor)) || selectedRange;
+  $: rangeDirty = settledRange.min !== DEFAULTS.range.min || settledRange.max !== DEFAULTS.range.max;
 
   // Notes and Range only mean something when there are pitches to control.
   $: visibleTabs = (rhythmOnly ? ['setup', 'rhythm'] : ['setup', 'rhythm', 'notes', 'range']) as Tab[];
@@ -1060,17 +1325,21 @@
   // stores, and what "edited" is measured against.
   $: currentOptions = {
       selectedClef,
-      selectedRange: { ...selectedRange },
+      // The pools and the range they imply - never the key and meter last
+      // drawn, or every Generate would mark a preset edited (unison-pools.ts).
+      ...setupSnapshot({
+        keys: [...selectedKeys], meters: [...selectedTimeSignatures],
+        span: rangeSpan, anchor: rangeAnchor, range: selectedRange,
+      }),
       selectedScaleDegrees: Array.from(selectedScaleDegrees),
       selectedSharpDegrees: Array.from(selectedSharpDegrees),
       selectedFlatDegrees: Array.from(selectedFlatDegrees),
-      selectedKey,
       selectedRhythms: selectedRhythms.map((r: Rhythm) => r.name),
-      selectedTimeSignature,
       measures,
       maxSkip,
+      ...skips,
       bpm,
-      moveEighthNotes,
+      eighthPairsOnePitch,
       accidentalsFollowStep,
       showSolfege,
       lyricSystem,
@@ -1078,7 +1347,9 @@
       showRhythmSyllables,
       syllableSystemId,
       allowTiesAcrossBarline,
+      progressions,
       cursorMode,
+      dynamics: dynamicsSet,
       rhythmSoundId,
       instrumentProgram,
       transposeSemitones,
@@ -1117,6 +1388,10 @@
     const params = new URLSearchParams();
     params.set("clef", selectedClef);
     params.set("range", `${selectedRange.min}-${selectedRange.max}`);
+    if (rangeSpan) {
+      params.set("span", rangeSpan.join(","));
+      params.set("anchor", String(rangeAnchor));
+    }
     params.set("scaleDegrees", Array.from(selectedScaleDegrees).join(","));
     params.set(
       "selectedSharpDegrees",
@@ -1126,15 +1401,16 @@
       "selectedFlatDegrees",
       Array.from(selectedFlatDegrees).join(",")
     );
-    params.set("key", selectedKey);
+    params.set("key", [...selectedKeys].join(","));
     params.set("rhythmSound", rhythmSoundId);
     params.set("sound", String(instrumentProgram));
     params.set("rhythms", selectedRhythms.map((r: Rhythm) => r.name).join(","));
-    params.set("timeSignature", selectedTimeSignature);
+    params.set("timeSignature", [...selectedTimeSignatures].join(","));
     params.set("measures", measures.toString());
     params.set("maxSkip", maxSkip.toString());
+    writeSkipParams(skips, params);
     params.set("bpm", bpm.toString());
-    params.set("moveEighthNotes", moveEighthNotes.toString());
+    params.set("pairsOnePitch", String(eighthPairsOnePitch));
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());
     params.set("showSolfege", showSolfege.toString());
     params.set("lyrics", lyricSystem);
@@ -1143,7 +1419,9 @@
     params.set("transpose", String(transposeSemitones));
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
+    params.set("progressions", progressions.toString());
     params.set("cursor", cursorMode);
+    if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
     if (assignmentId) params.set(ASSIGNMENT_PARAM, assignmentId);
 
@@ -1200,6 +1478,8 @@
       audioContext: audioContext, // Pass our context to abcjs
       visualObj: currentTune,
       options: {
+        // abcjs counts qpm in the meter's beat - the dotted quarter in 6/8 -
+        // so the page's BPM goes in unchanged (tests/unit/compound-playback.test.ts).
         qpm: tempo,
         // Serve the samples from our own origin. abcjs defaults to
         // paulrosen.github.io, which locked-down networks block - and a blocked
@@ -1252,8 +1532,8 @@
    * @returns {string} The ABC string with updated tempo
    */
   function updateTempoInAbcString(abcString: string, newTempo: number): string {
-    // Replace the Q: (tempo) line in the ABC string
-    return abcString.replace(/Q:1\/4=\d+/g, `Q:1/4=${newTempo}`);
+    // Replace the Q: (tempo) line, counted in the meter's beat.
+    return abcString.replace(/Q:\d+\/\d+=\d+/g, tempoField(selectedTimeSignature, newTempo));
   }
 
   /**
@@ -1564,7 +1844,9 @@
       timingCallbacks = null;
     }
 
-    const beatsPerMeasure = parseInt(selectedTimeSignature[0]);
+    // From the meter model: 6/8 is two beats and 12/8 four. The first digit
+    // read 12/8 as one beat a bar.
+    const beatsPerMeasure = beatsOf(playedMeter());
     // Reset per attach: beatCallback now fires many times per beat, so the
     // metronome tracks which whole beat it last sounded rather than firing on
     // every call.
@@ -1656,6 +1938,8 @@
           behavior: "smooth",
         });
       },
+      // abcjs counts qpm in the meter's beat - the dotted quarter in 6/8 -
+      // so the page's BPM goes in unchanged (tests/unit/compound-playback.test.ts).
       qpm: tempo,
       extraMeasuresAtBeginning: countInMeasures(playedMeter()), // the count-in, where the metronome plays
       lineEndAnticipation: 500, // Scroll 500ms before the line ends for smoother reading
@@ -2096,9 +2380,167 @@
     await generateExercise();
   }
 
+  /**
+   * What /api/generate is asked for: the page's settings with the key, meter
+   * and range drawn for this exercise. Shared by Generate and the play-along
+   * video, which writes a longer rhythm at its backing track's tempo.
+   */
+  function generationParams(drawnKey: string, drawnMeter: string, drawnRange: typeof selectedRange) {
+    return {
+      bpm,
+      clef: selectedClef,
+      timeSig:
+        timeSignatures[drawnMeter as keyof typeof timeSignatures],
+      measures: measures,
+      // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
+      maxSkip: skipPolicy,
+      tempo: tempo,
+      range: drawnRange,
+      rhythms: selectedRhythms,
+      scaleDegrees: Array.from(selectedScaleDegrees),
+      selectedSharpDegrees: Array.from(selectedSharpDegrees),
+      selectedFlatDegrees: Array.from(selectedFlatDegrees),
+
+      selectedClef: selectedClef,
+      selectedTimeSignature: drawnMeter,
+      key: drawnKey,
+      // Always written in, whatever the buttons say - they strip at render,
+      // so either can come back without regenerating the exercise.
+      showSolfege: !rhythmOnly,
+      lyricSystem,
+      rhythmOnly: rhythmOnly,
+      // Written into a pitched exercise too, not just the rhythm staff, so a
+      // practice run can show them on its repeats. Stripped at render like
+      // the solfège, so nothing appears until something asks for it.
+      showRhythmSyllables: true,
+      syllableSystemId,
+      customSyllables: $mySyllables,
+      allowTiesAcrossBarline,
+      progressions,
+      // Eighth pairs on one pitch, or no cap: Skips between rules short notes.
+      ...capsFor({ onePitch: eighthPairsOnePitch }),
+      accidentalsFollowStep: accidentalsFollowStep,
+      dynamics: rhythmOnly ? [] : dynamicsSet,
+      partsObject: {
+        numofParts: 1,
+        parts: {
+          Unison: {
+            order: 0,
+            smallName: "U",
+          },
+        },
+      },
+    };
+  }
+
+  /**
+   * A rhythm-only exercise for the play-along video (PlayAlongVideo.svelte),
+   * at its backing track's tempo and meter, long enough to fill the video.
+   * Ties across the barline are off: each bar is shown alone. Counted against
+   * the monthly allowance like any other exercise. Returns the exercise as
+   * data, which `playAlongAbc` writes out in whichever syllables the video
+   * asks for - so changing them there never needs a new exercise.
+   */
+  async function playAlongExercise(o: { measures: number; bpm: number; meter: string }): Promise<UnisonScore> {
+    if (!(await mayGenerate())) throw new Error("This month's exercises are used up.");
+    const params = {
+      ...generationParams(selectedKey, o.meter, selectedRange),
+      bpm: o.bpm,
+      tempo: o.bpm,
+      timeSig: timeSignatures[o.meter as keyof typeof timeSignatures],
+      measures: o.measures,
+      // Pitched or rhythm only, as the page is.
+      rhythmOnly,
+      allowTiesAcrossBarline: false,
+      // Over a chord progression, which the video's bass then plays.
+      progressions: true,
+    };
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success) throw new Error(result?.error ?? "The exercise could not be written.");
+    void countGeneration();
+    return result.data[2] as UnisonScore;
+  }
+
+  /**
+   * A play-along exercise as ABC to draw: rhythm syllables in the system the
+   * video chose ("off" for none, stripped as the page strips them), the
+   * page's rhythm sound, the video's tempo.
+   */
+  function playAlongAbc(score: UnisonScore, o: { syllables: string; bpm: number; meter: string }): string {
+    if (score.staff === "pitched") {
+      // Pitched: `syllables` is the solfège - a lyric system, or "off". The
+      // rhythm syllables written in for practice runs are left out.
+      const lyricsOff = o.syllables === "off";
+      let pitchedAbc = assembleUnisonAbc(score, {
+        showSolfege: !lyricsOff,
+        lyricSystem: (lyricsOff ? lyricSystem : o.syllables) as LyricSystem,
+        showRhythmSyllables: false,
+        syllableSystemId,
+        customSyllables: $mySyllables,
+      });
+      pitchedAbc = pitchedAbc.replace(/Q:\d+\/\d+=\d+/g, tempoField(o.meter, o.bpm));
+      if (lyricsOff) pitchedAbc = withoutLyrics(pitchedAbc);
+      return withChosenSound(withoutQuotedText(pitchedAbc));
+    }
+    const off = o.syllables === "off";
+    let abc = assembleUnisonAbc(score, {
+      showSolfege: false,
+      lyricSystem,
+      showRhythmSyllables: !off,
+      syllableSystemId: off ? syllableSystemId : o.syllables,
+      customSyllables: $mySyllables,
+    });
+    abc = abc.replace(/Q:\d+\/\d+=\d+/g, tempoField(o.meter, o.bpm));
+    if (off) abc = withoutQuotedText(abc);
+    return withChosenSound(abc);
+  }
+
+  /** The syllable systems the video offers: the built-in ones, and the teacher's own once loaded. */
+  $: playAlongSyllables = [
+    ...Object.values(syllableSystems).map((sys) => ({ id: sys.id, label: sys.label })),
+    ...($mySyllables ? [{ id: CUSTOM_SYLLABLE_ID, label: "Mine" }] : []),
+  ];
+
+  /**
+   * The play-along video is Pro: the Video button beside Generate opens it
+   * for Pro and Educator, and takes anyone else to the pricing page. Null
+   * until the plan is known.
+   */
+  let videoAllowed: boolean | null = null;
+  onMount(async () => {
+    const status = await billingStatus();
+    videoAllowed = !!status && status.plan !== "free";
+  });
+
+  let playAlongOpen = false;
+  function openPlayAlong() {
+    if (!videoAllowed) {
+      window.location.href = "/pricing";
+      return;
+    }
+    stopMusic();
+    playAlongOpen = true;
+  }
+
   async function generateExercise() {
     // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
-    if (!rhythmOnly && !validateSettings(selectedScaleDegrees, maxSkip)) {
+    // Skips that no selected rhythm can land are no skips: the line steps.
+    if (
+      !rhythmOnly && skips.exactOn &&
+      !degreesConnected(Array.from(selectedScaleDegrees), landablePolicy(skipPolicy, selectedRhythms))
+    ) {
+      error = degreesConnected(Array.from(selectedScaleDegrees), skipPolicy)
+        ? NO_LANDING_MESSAGE
+        : "With these skips the line cannot get between all the selected notes. Add a skip, or select the notes in between.";
+      isLoading = false;
+      return;
+    }
+    if (!rhythmOnly && !skips.exactOn && !validateSettings(selectedScaleDegrees, maxSkip)) {
       error =
         "The gap between selected scale degrees is larger than the Max Skip. Please increase Max Skip or select more notes to fill the gap.";
       isLoading = false;
@@ -2117,6 +2559,15 @@
     error = null;
 
     try {
+      // One key and one meter per exercise, drawn from the pools; a range that
+      // follows the key is placed for the key drawn, from the same anchor.
+      // The meter pool is one kind, so the rhythm selection still fits.
+      // Drawn into locals, and put on the page only once the exercise is: a
+      // failed Generate leaves the key, meter and range of the one on screen.
+      const drawnKey = drawFromPool([...selectedKeys]);
+      const drawnMeter = drawFromPool([...selectedTimeSignatures]);
+      const drawnRange = (rangeSpan && rangeForSpan(rangeSpan, drawnKey, rangeAnchor)) || selectedRange;
+
       // Validate rhythms first
       if (!validateSelectedRhythms(selectedRhythms)) {
         throw new Error("Please select at least one valid rhythm");
@@ -2128,47 +2579,7 @@
       createSynth = null;
       currentTune = null;
 
-      const params = {
-        bpm,
-        clef: selectedClef,
-        timeSig:
-          timeSignatures[selectedTimeSignature as keyof typeof timeSignatures],
-        measures: measures,
-        maxSkip: maxSkip,
-        tempo: tempo,
-        range: selectedRange,
-        rhythms: selectedRhythms,
-        scaleDegrees: Array.from(selectedScaleDegrees),
-        selectedSharpDegrees: Array.from(selectedSharpDegrees),
-        selectedFlatDegrees: Array.from(selectedFlatDegrees),
-
-        selectedClef: selectedClef,
-        selectedTimeSignature: selectedTimeSignature,
-        key: selectedKey,
-        // Always written in, whatever the buttons say - they strip at render,
-        // so either can come back without regenerating the exercise.
-        showSolfege: !rhythmOnly,
-        lyricSystem,
-        rhythmOnly: rhythmOnly,
-        // Written into a pitched exercise too, not just the rhythm staff, so a
-        // practice run can show them on its repeats. Stripped at render like
-        // the solfège, so nothing appears until something asks for it.
-        showRhythmSyllables: true,
-        syllableSystemId,
-        customSyllables: $mySyllables,
-        allowTiesAcrossBarline,
-        moveOnEighthNotes: moveEighthNotes,
-        accidentalsFollowStep: accidentalsFollowStep,
-        partsObject: {
-          numofParts: 1,
-          parts: {
-            Unison: {
-              order: 0,
-              smallName: "U",
-            },
-          },
-        },
-      };
+      const params = generationParams(drawnKey, drawnMeter, drawnRange);
 
       // Validate parameters before sending
       if (!params.rhythms || params.rhythms.length === 0) {
@@ -2221,6 +2632,9 @@
 
 
       if (result.success) {
+        selectedKey = drawnKey;
+        selectedTimeSignature = drawnMeter;
+        selectedRange = drawnRange;
         renderedString = result.data;
         originalTuneString = result.data[0]; // Store the original tune string
         currentScore = (result.data[2] as UnisonScore) ?? null;
@@ -2447,7 +2861,7 @@
    * run the reader is watching the score, not the panel.
    */
   $: drillStatusLine = drillRunning
-    ? `Practice run · exercise ${drillIndex + 1} of ${runCap ?? drillExercises}, pass ${drillRepeat + 1} of ${drillRepeats}` +
+    ? `Drill · exercise ${drillIndex + 1} of ${runCap ?? drillExercises}, pass ${drillRepeat + 1} of ${drillRepeats}` +
       (runCap !== null ? ` · ${runCap} left this month` : "") +
       (drillCountdown > 0 ? ` · starts in ${drillCountdown}s` : "") +
       (drillRampBpm > 0 ? ` · ${bpm} BPM` : "")
@@ -2690,6 +3104,8 @@
    * @param {Object} newRange - The new range object with min and max values
    */
   function handleRangeChange(newRange: { min: number; max: number }) {
+    // Set by hand, the range is the teacher's own and no longer follows the key.
+    rangeSpan = null;
     selectedRange = newRange;
   }
 
@@ -2753,6 +3169,9 @@
         selectedRange = { min: 10, max: 17 };
         break;
     }
+    // A range that follows the key moves to the new clef's octave.
+    rangeAnchor = selectedRange.min;
+    if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
   }
 
   // Add state variables
@@ -3089,8 +3508,18 @@
       currentTune = null;
 
       rhythmOnly = score.staff === "rhythm";
-      if (score.timeSig.name in timeSignatures) selectedTimeSignature = score.timeSig.name;
-      if (score.key && possibleKeys.includes(score.key)) selectedKey = score.key;
+      if (score.timeSig.name in timeSignatures) {
+        const ts = score.timeSig.name;
+        const sameKind = meterKindOf(ts) === meterKindOf([...selectedTimeSignatures][0] ?? ts);
+        chooseMeter(ts);
+        // A pool of one follows the exercise, as the single setting always did;
+        // a pool of the other kind is replaced, since a pool holds one kind.
+        if (selectedTimeSignatures.size <= 1 || !sameKind) selectedTimeSignatures = new Set([ts]);
+      }
+      if (score.key && possibleKeys.includes(score.key)) {
+        selectedKey = score.key;
+        if (selectedKeys.size <= 1) selectedKeys = new Set([score.key]);
+      }
       if (score.clef && clefOptions.includes(score.clef)) selectedClef = score.clef;
 
       currentScore = score;
@@ -3292,7 +3721,7 @@
     rememberActivePreset(
       "unison",
       activePresetLabel
-        ? { label: activePresetLabel, stepId: activeStepId, saved: activeSavedId ? activeSavedPreset : null, sig: activePresetSignature }
+        ? { label: activePresetLabel, stepId: activeStepId, level: activeNyssmaId, saved: activeSavedId ? activeSavedPreset : null, sig: activePresetSignature }
         : null
     );
   }
@@ -3310,11 +3739,18 @@
       activeSavedPreset = saved;
       activeStepId = null;
       revertPreset = () => applySavedPreset(saved);
+    } else if (rec.level && Object.hasOwn(nyssmaById, rec.level)) {
+      const level = nyssmaById[rec.level];
+      activeNyssmaId = level.id;
+      activeSavedId = null;
+      activeStepId = null;
+      revertPreset = () => applyNyssmaLevel(level);
     } else {
       return;
     }
     activePresetLabel = rec.label;
-    activePresetSignature = typeof rec.sig === "string" ? rec.sig : JSON.stringify(currentOptions);
+    // A record from before a setting existed gets it from the page (active-preset.ts).
+    activePresetSignature = signatureOf(JSON.parse(restoredSignature(rec.sig, currentOptions)));
   }
 
   onDestroy(() => {
@@ -3382,8 +3818,8 @@
 
 <div class="w-full" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + {gradeOpen ? '6rem' : '1rem'})">
   <!-- Preset bar: the same one as choral, over unison's own saved list. The
-       built-in UIL and difficulty presets are choral settings, so they are not
-       offered here. -->
+       UIL levels are Choral's built-ins, so they are not offered here; the
+       NYSSMA Voice levels are this page's (nyssma-presets.ts). -->
   <!-- The practice tools: a wheel in the bottom-right corner. -->
   <ToolsWheel />
   {#if gradeOpen}
@@ -3396,6 +3832,22 @@
       onClose={closeGrade}
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
+    />
+  {/if}
+  {#if playAlongOpen}
+    <PlayAlongVideo
+      meters={[...selectedTimeSignatures]}
+      generate={playAlongExercise}
+      write={playAlongAbc}
+      mode={rhythmOnly ? "rhythm" : "pitched"}
+      labelNoun={rhythmOnly ? "Syllables" : "Solfège"}
+      syllableChoices={rhythmOnly ? playAlongSyllables : lyricSystems.map(([id, label]) => ({ id, label }))}
+      initialSyllables={rhythmOnly ? (showRhythmSyllables ? syllableSystemId : "off") : showSolfege ? lyricSystem : "off"}
+      pageTempo={tempo}
+      transpose={rhythmOnly ? 0 : transposeSemitones}
+      {instrumentProgram}
+      {rhythmSoundId}
+      onClose={() => (playAlongOpen = false)}
     />
   {/if}
 
@@ -3413,6 +3865,9 @@
       page="unison"
       onSelectStep={applyLadderStep}
       {activeStepId}
+      nyssmaLevels={nyssmaVoiceLevels}
+      {activeNyssmaId}
+      onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
       currentParams={() => currentOptions}
       onSelectSaved={applySavedPreset}
       onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
@@ -3452,9 +3907,22 @@
         {/each}
         </div>
 
+        <!-- The play-along video (Pro), beside Generate: rhythm only or pitched. -->
+        <button
+          class="sr-btn sr-btn-video ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          on:click={openPlayAlong}
+          title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
+        >
+          <Clapperboard size={16} />
+          <span>Video</span>
+          {#if videoAllowed === false}
+            <span class="sr-pro-tag">Pro</span>
+          {/if}
+        </button>
+
         <!-- Generate button always visible in tab bar -->
         <button
-          class="sr-btn ml-auto md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          class="sr-btn md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
           on:click={handleClick}
           disabled={isLoading}
         >
@@ -3489,11 +3957,24 @@
                 <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
                   {#each possibleKeys as key}
                     <button
-                      class="sr-tok {selectedKey === key ? 'sr-on' : ''}"
-                      on:click={() => (selectedKey = key)}
+                      class="sr-tok {selectedKeys.has(key) ? 'sr-on' : ''}"
+                      aria-pressed={selectedKeys.has(key)}
+                      on:click={() => {
+                        const next = togglePoolMember([...selectedKeys], key);
+                        selectedKeys = new Set(next);
+                        // The key shown follows the click, and stays inside the pool.
+                        selectedKey = next.includes(key) ? key : next[0];
+                        if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+                      }}
                     >{key}</button>
                   {/each}
                 </div>
+                {#if selectedKeys.size > 1}
+                  <p class="text-xs text-sr-faint">
+                    {selectedKeys.size} keys selected. One is drawn at random each time you generate.
+                    Click a key to remove it.
+                  </p>
+                {/if}
               </div>
 
               <div class="space-y-2">
@@ -3511,14 +3992,34 @@
 
             <div class="space-y-2">
               <p class="sr-label">Time Signature</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
-                {#each Object.keys(timeSignatures) as ts}
-                  <button
-                    class="sr-tok {selectedTimeSignature === ts ? 'sr-on' : ''}"
-                    on:click={() => { selectedTimeSignature = ts; }}
-                  >{ts}</button>
-                {/each}
-              </div>
+              {#each meterGroups as group}
+                <p class="text-xs text-sr-faint">{group.label}</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature: {group.label}">
+                  {#each group.names as ts}
+                    <button
+                      class="sr-tok {selectedTimeSignatures.has(ts) ? 'sr-on' : ''}"
+                      aria-pressed={selectedTimeSignatures.has(ts)}
+                      on:click={() => {
+                        // Same kind: in or out of the pool. The other kind
+                        // replaces the pool and swaps the rhythms (chooseMeter).
+                        const next = meterPoolClick([...selectedTimeSignatures], ts);
+                        chooseMeter(next.includes(ts) ? ts : next[0]);
+                        selectedTimeSignatures = new Set(next);
+                      }}
+                    >{ts}</button>
+                  {/each}
+                </div>
+              {/each}
+              {#if selectedTimeSignatures.size > 1}
+                <p class="text-xs text-sr-faint">
+                  {selectedTimeSignatures.size} meters selected. One is drawn each time you generate.
+                </p>
+              {/if}
+              {#if meterKindOf(selectedTimeSignature) === "compound"}
+                <p class="text-xs text-sr-faint">
+                  Felt in dotted-quarter beats: the tempo counts ♩., and the rhythms are compound figures.
+                </p>
+              {/if}
             </div>
 
             <div class="space-y-2">
@@ -3532,6 +4033,27 @@
                 {/each}
               </div>
             </div>
+
+            {#if !rhythmOnly}
+              <div class="space-y-2">
+                <p class="sr-label">Chord progression</p>
+                <button
+                  class="sr-tok {progressions ? 'sr-on' : ''}"
+                  on:click={() => (progressions = !progressions)}
+                  aria-label="Chord progression"
+                  aria-pressed={progressions}
+                >{progressions ? 'On' : 'Off'}</button>
+                <p class="text-xs text-sr-faint">
+                  {#if !progressions}
+                    A chord for every note, wherever the line goes.
+                  {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
+                    A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
+                  {:else}
+                    The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
+                  {/if}
+                </p>
+              </div>
+            {/if}
           </div>
 
           <!-- How the exercise is shown and played, as opposed to what gets
@@ -3630,6 +4152,33 @@
             </div>
             {/if}
 
+            {#if !rhythmOnly}
+            <div class="space-y-2">
+              <p class="sr-label">Dynamics</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Dynamics">
+                <button
+                  class="sr-tok {dynamicsSet.length === 0 ? 'sr-on' : ''}"
+                  aria-pressed={dynamicsSet.length === 0}
+                  on:click={() => handleDynamicsChange([])}
+                >Off</button>
+                {#each DYNAMIC_MARKS as mark}
+                  <button
+                    class="sr-tok italic {dynamicsSet.includes(mark) ? 'sr-on' : ''}"
+                    aria-pressed={dynamicsSet.includes(mark)}
+                    on:click={() => handleDynamicsChange(toggleDynamic(dynamicsSet, mark))}
+                  >{mark}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {dynamicsSet.length === 0
+                  ? "No dynamics printed."
+                  : dynamicsSet.length === 1
+                    ? `${dynamicsSet[0]} under the first note. Playback follows it.`
+                    : "One under the first note, and each 4-bar phrase may change it. Playback follows them."}
+              </p>
+            </div>
+            {/if}
+
             <div class="space-y-2">
               <p class="sr-label">Cursor</p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
@@ -3654,22 +4203,381 @@
             </div>
           </section>
 
-          <!-- Practice run. Its own box after Score options, since the repeat
-               settings below refer to the cursor "above". -->
-          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4 space-y-4" aria-labelledby="practice-run-heading">
-            <div class="flex items-center justify-between gap-3 flex-wrap">
+        <!-- Rhythm Tab -->
+        {:else if selectedTab === 'rhythm'}
+          <div class="space-y-3">
+            <p class="sr-label">Select Allowed Rhythms</p>
+            {#each rhythmPickerGroups(filterRhythms) as group}
+            <p class="text-xs text-sr-faint">{group.label}</p>
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
+              {#each group.rhythms as rhythm}
+                <button
+                  class="sr-tok-sq px-2 py-1 h-12 min-w-12 flex items-center justify-center
+                    {selectedRhythms.some((r) => r?.name === rhythm.name)
+                      ? 'sr-on'
+                      : ''}"
+                  aria-label={rhythmLabel(rhythm.name)}
+                  aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
+                  on:click={() => {
+                    if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
+                      selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
+                    } else {
+                      selectedRhythms = [...selectedRhythms, rhythm];
+                    }
+                  }}
+                >
+                  {#await rhythmSvgs[rhythm.name]}
+                    <span class="text-xs">…</span>
+                  {:then svg}
+                    <span class="rhythm-icon w-full h-full flex items-center justify-center">
+                      {@html svg.default}
+                    </span>
+                  {:catch}
+                    <span class="text-xs">{rhythm.name}</span>
+                  {/await}
+                </button>
+              {/each}
+            </div>
+            {/each}
+
+            <!-- Applies in both modes: without it, a selection that cannot
+                 tile the measure (half notes alone in 3/4) has no valid
+                 output at all. -->
+            <div class="space-y-2 pt-1">
+              <p class="sr-label">
+                Ties Across Barline
+              </p>
+              <button
+                class="sr-tok {allowTiesAcrossBarline ? 'sr-on' : ''}"
+                on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
+                aria-label="Ties across barline"
+                aria-pressed={allowTiesAcrossBarline}
+              >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
+              <p class="text-xs text-sr-faint">
+                {allowTiesAcrossBarline
+                  ? 'A long note may run past the barline, written as tied notes.'
+                  : 'Every note stays inside its measure.'}
+              </p>
+            </div>
+
+            {#if rhythmOnly}
+              <!-- The one place rhythm syllables are set. Only meaningful on
+                   the one-line staff, where there are no scale degrees and
+                   solfege is unavailable. -->
+              <div class="space-y-2 pt-1">
+                <p class="sr-label">
+                  Rhythm Syllables
+                </p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
+                  <button
+                    class="sr-tok {!showRhythmSyllables ? 'sr-on' : ''}"
+                    on:click={() => setRhythmSyllables('off')}
+                    aria-pressed={!showRhythmSyllables}
+                  >Off</button>
+                  <!-- Driven by the registry, so a new system is a data change
+                       here as well as in the generator. -->
+                  {#each Object.values(syllableSystems) as system}
+                    <button
+                      class="sr-tok {showRhythmSyllables && syllableSystemId === system.id ? 'sr-on' : ''}"
+                      on:click={() => setRhythmSyllables(system.id)}
+                      aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
+                    >{system.label}</button>
+                  {/each}
+                  {#if $mySyllables}
+                    <button
+                      class="sr-tok {showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'sr-on' : ''}"
+                      on:click={() => setRhythmSyllables(CUSTOM_SYLLABLE_ID)}
+                      aria-pressed={showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID}
+                      title="Your own syllables, from your account"
+                    >Mine</button>
+                  {/if}
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {showRhythmSyllables
+                    ? syllableHint
+                    : 'No syllables. The exercise is unchanged, and turning them back on costs nothing.'}
+                  {#if $mySyllables}
+                    <a class="underline ml-1" href="/account#syllables">Edit mine</a>
+                  {:else if $syllablesAvailable}
+                    <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
+                  {/if}
+                </p>
+                <SignupHint id="own-syllables">Want the words your group uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
+              </div>
+            {/if}
+          </div>
+
+        <!-- Notes Tab -->
+        {:else if selectedTab === 'notes'}
+          <div class="space-y-5">
+            <!-- Scale Degrees -->
+            <div class="space-y-2">
+              <p class="sr-label">Scale Degrees</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
+                {#each sharpScaleDegrees as degree}
+                  <button
+                    class="sr-tok px-2
+                      {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}
+                      {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
+                    on:click={() => toggleSharpDegree(degree.value)}
+                  >{degree.display}</button>
+                {/each}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {#each scaleDegrees as degree}
+                  <button
+                    class="sr-tok {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
+                    on:click={() => toggleScaleDegree(degree)}
+                  >{degree}</button>
+                {/each}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {#each flatScaleDegrees as degree}
+                  <button
+                    class="sr-tok px-2
+                      {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}
+                      {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
+                    on:click={() => toggleFlatDegree(degree.value)}
+                  >{degree.display}</button>
+                {/each}
+              </div>
+            </div>
+
+            <!-- Skips: the largest skip by note value, and the exact-skips panel
+                 under them (short-note-skips.ts, skip-settings.ts). -->
+            <div class="space-y-2">
+              <p class="sr-label">Skips</p>
+              <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 sm:grid-cols-[auto_auto_auto_minmax(0,1fr)] sm:gap-x-3"
+                role="group" aria-label="Skips">
+                {#each skipRows as row}
+                  {@const value = maxSkip}
+                  {@const dimmed = skips.exactOn}
+                  <span class="flex h-8 w-7 items-end justify-center pb-0.5 text-sr-ink transition-opacity" class:opacity-40={dimmed} aria-hidden="true">
+                    {#await skipRowSvgs[row.which] then svg}
+                      <span class="skip-icon flex" style="height: {skipIconHeight(svg.default)}px">{@html svg.default}</span>
+                    {/await}
+                  </span>
+                  <!-- On a phone the interval name sits under the label, so nothing wraps. -->
+                  <span class="min-w-0 leading-tight">
+                    <span class="block text-[13px] font-bold text-sr-ink whitespace-nowrap transition-opacity" class:opacity-40={dimmed}
+                      id="skip-row-{row.which}">{row.label}</span>
+                    {#if dimmed}
+                      <span class="block text-[11px] font-bold text-sr-muted sm:hidden">Using your exact skips</span>
+                    {:else}
+                      <span class="block text-[11px] text-sr-faint sm:hidden">{skipName(value)}</span>
+                    {/if}
+                  </span>
+                  <div class="flex items-center gap-1.5 transition-opacity" class:opacity-40={dimmed}
+                    role="group" aria-labelledby="skip-row-{row.which}"
+                    aria-describedby={dimmed ? 'exact-skips-note' : undefined}>
+                    <button type="button" class="sr-btn-quiet !px-2.5 !py-1.5"
+                      aria-label="Decrease {row.label.toLowerCase()}" disabled={value <= row.min}
+                      on:click={() => stepSkip(-1)}><Minus size={14} /></button>
+                    <span class="text-sm font-bold w-5 text-center tabular-nums">{value}</span>
+                    <button type="button" class="sr-btn-quiet !px-2.5 !py-1.5"
+                      aria-label="Increase {row.label.toLowerCase()}" disabled={value >= 8}
+                      on:click={() => stepSkip(1)}><Plus size={14} /></button>
+                  </div>
+                  {#if dimmed}
+                    <span id="exact-skips-note" class="hidden text-xs font-bold text-sr-muted sm:block">Using your exact skips</span>
+                  {:else}
+                    <span class="hidden text-xs text-sr-faint sm:block">{skipName(value)}</span>
+                  {/if}
+                {/each}
+              </div>
+
+              <!-- Skips between: which note values a skip may use, both its notes
+                   (skip-policy.ts). In both modes. Steps go anywhere. -->
+              <div class="space-y-2 pt-1">
+                <p class="text-xs font-bold text-sr-muted">Skips between</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Skips between">
+                  {#each LAND_ON_CHOICES as choice}
+                    <button type="button"
+                      class="sr-tok-sq h-12 w-12 p-1.5 flex items-center justify-center {skips.landOn.includes(choice.length) ? 'sr-on' : ''}"
+                      aria-label={choice.label}
+                      title={choice.label}
+                      aria-pressed={skips.landOn.includes(choice.length)}
+                      on:click={() => (skips = { ...skips, landOn: toggleLandOn(skips.landOn, choice.length) })}>
+                      {#await landOnSvgs[choice.length]}
+                        <span class="text-xs">…</span>
+                      {:then svg}
+                        <span class="rhythm-icon">{@html svg.default}</span>
+                      {:catch}
+                        <span class="text-xs">{choice.label}</span>
+                      {/await}
+                    </button>
+                  {/each}
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {skips.landOn.length === ALL_LAND_ON.length
+                    ? 'A skip may be sung between any notes.'
+                    : 'A skip only between the notes chosen, both of them: leave out eighths and an eighth is stepped to and from. Steps go anywhere.'}
+                </p>
+              </div>
+
+              <div class="space-y-1 pt-1">
+                <button type="button"
+                  class="sr-tok {eighthPairsOnePitch ? 'sr-on' : ''}"
+                  aria-pressed={eighthPairsOnePitch}
+                  on:click={() => (eighthPairsOnePitch = !eighthPairsOnePitch)}
+                >Eighth pairs on one pitch: {eighthPairsOnePitch ? 'On' : 'Off'}</button>
+                <p class="text-xs text-sr-faint">
+                  {eighthPairsOnePitch
+                    ? 'Each ti-ti is sung on one note, so the rhythm is all that is new.'
+                    : 'Eighth pairs move like any other notes.'}
+                </p>
+              </div>
+
+              <details class="exact-skips group" bind:open={exactPanelOpen}>
+                <summary class="inline-flex items-center gap-1.5 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden rounded-full -ml-1 pl-1 pr-3 py-1 text-[13px] font-bold text-sr-action-fg hover:bg-sr-track">
+                  <ChevronRight size={16} class="shrink-0 transition-transform group-open:rotate-90" />
+                  <span>Choose exact skips</span>
+                  {#if skips.exactOn}
+                    <span class="rounded-full bg-sr-action text-sr-action-ink px-2 py-0.5 text-[11px] font-extrabold">On</span>
+                  {/if}
+                </summary>
+
+                <div class="mt-2 ml-1 space-y-4 border-l-2 border-sr-track pl-3 pb-1 sm:ml-2 sm:pl-4">
+                  <button type="button" class="flex items-center gap-3 text-left"
+                    aria-pressed={skips.exactOn}
+                    on:click={() => (skips = setExactOn(skips, !skips.exactOn))}>
+                    <span class="relative inline-block h-6 w-10 shrink-0 rounded-full transition-colors
+                      {skips.exactOn ? 'bg-sr-action' : 'bg-sr-hairline'}" aria-hidden="true">
+                      <span class="absolute top-1 left-1 h-4 w-4 rounded-full bg-sr-panel shadow transition-transform
+                        {skips.exactOn ? 'translate-x-4' : ''}"></span>
+                    </span>
+                    <span class="text-sm font-bold text-sr-ink">Only allow these skips</span>
+                  </button>
+
+                  <div class="space-y-2">
+                    <p class="text-xs font-bold text-sr-muted">Patterns</p>
+                    <div class="flex flex-wrap gap-2" role="group" aria-label="Patterns">
+                      {#each SKIP_CHIPS as chip}
+                        <button type="button"
+                          class="sr-tok px-3 py-1.5 text-[13px] {skips.patterns.includes(chip.id) ? 'sr-on' : ''}"
+                          aria-pressed={skips.patterns.includes(chip.id)}
+                          on:click={() => (skips = togglePattern(skips, chip.id))}>{chip.label}</button>
+                      {/each}
+                    </div>
+
+                    <!-- Other skips: hidden until there are some. Most teachers only need the patterns. -->
+                    {#if skips.extraSkips.length}
+                      <p class="pt-1 text-xs font-bold text-sr-muted">Other skips</p>
+                      <div class="flex flex-wrap items-center gap-2">
+                        {#each skips.extraSkips as move, k}
+                          <span class="inline-flex items-center gap-1 rounded-full bg-sr-sky text-sr-sky-ink pl-3 pr-1 py-1 text-[13px] font-bold">
+                            {DEGREE_NAMES[move.from - 1]} {DIR_ARROWS[move.dir]} {DEGREE_NAMES[move.to - 1]}
+                            <button type="button" class="rounded-full p-1 hover:bg-sr-panel"
+                              aria-label="Remove {DEGREE_NAMES[move.from - 1]} {skipDirChoices.find((c) => c.dir === move.dir)?.label} to {DEGREE_NAMES[move.to - 1]}"
+                              on:click={() => (skips = { ...skips, extraSkips: skips.extraSkips.filter((_, j) => j !== k) })}><X size={13} /></button>
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+                    {#if !skipPickerOpen}
+                      <button type="button" class="sr-link -ml-1.5" on:click={openSkipPicker}>+ Add another skip</button>
+                    {:else}
+                      <div class="flex w-fit max-w-full flex-wrap items-end gap-x-4 gap-y-3 rounded-2xl border-2 border-sr-track p-3"
+                        role="group" aria-label="Add a skip">
+                        <div class="space-y-1">
+                          <p class="text-[11px] font-bold text-sr-muted">From</p>
+                          <div class="grid grid-cols-[repeat(7,minmax(0,2.25rem))] gap-1" role="group" aria-label="From">
+                            {#each DEGREE_NAMES as name, k}
+                              <button type="button" class="sr-tok min-w-0 w-full px-0 py-1.5 text-[13px] {pickFrom === k + 1 ? 'sr-on' : ''}"
+                                aria-pressed={pickFrom === k + 1}
+                                on:click={() => (pickFrom = k + 1)}>{name}</button>
+                            {/each}
+                          </div>
+                        </div>
+                        <div class="space-y-1">
+                          <p class="text-[11px] font-bold text-sr-muted">Direction</p>
+                          <div class="flex gap-1" role="group" aria-label="Direction">
+                            {#each skipDirChoices as choice}
+                              <button type="button" class="sr-tok px-0 py-1.5 w-9 text-[15px] leading-5 {pickDir === choice.dir ? 'sr-on' : ''}"
+                                aria-label={choice.label} aria-pressed={pickDir === choice.dir}
+                                on:click={() => (pickDir = choice.dir)}>{DIR_ARROWS[choice.dir]}</button>
+                            {/each}
+                          </div>
+                        </div>
+                        <div class="space-y-1">
+                          <p class="text-[11px] font-bold text-sr-muted">To</p>
+                          <div class="grid grid-cols-[repeat(7,minmax(0,2.25rem))] gap-1" role="group" aria-label="To">
+                            {#each DEGREE_NAMES as name, k}
+                              <button type="button" class="sr-tok min-w-0 w-full px-0 py-1.5 text-[13px] {pickTo === k + 1 ? 'sr-on' : ''}"
+                                aria-pressed={pickTo === k + 1} disabled={pickFrom === k + 1}
+                                on:click={() => (pickTo = k + 1)}>{name}</button>
+                            {/each}
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <button type="button" class="sr-btn px-4 py-1.5 text-[13px]" disabled={!pickReady}
+                            on:click={addPickedSkip}>Add</button>
+                          <button type="button" class="sr-link" on:click={() => (skipPickerOpen = false)}>Cancel</button>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+
+                  {#if skips.exactOn && skips.patterns.length === 0 && skips.extraSkips.length === 0}
+                    <p class="text-xs text-sr-muted">Stepwise only - no skips.</p>
+                  {/if}
+
+                  <p class="text-xs text-sr-faint">Steps are always allowed. Each skip may be sung in any octave.</p>
+                </div>
+              </details>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Stepwise accidentals</p>
+              <button
+                class="sr-tok {accidentalsFollowStep ? 'sr-on' : ''}"
+                on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
+                aria-label="Stepwise accidentals"
+                aria-pressed={accidentalsFollowStep}
+              >{accidentalsFollowStep ? 'On' : 'Off'}</button>
+            </div>
+
+            <!-- The second solfège switch that used to sit here set the flag
+                 and never redrew the score, so it looked broken until something
+                 else did. One control, in Setup > Annotations, beside the other
+                 things that change what is printed. -->
+          </div>
+
+        <!-- Range Tab -->
+        {:else if selectedTab === 'range'}
+          <div class="space-y-3">
+            <p class="sr-label">Note Range</p>
+            <RangeSelector
+              range={selectedRange}
+              clef={selectedClef}
+              onRangeChange={handleRangeChange}
+            />
+            {#if rangeSpan}
+              <p class="text-xs text-sr-faint">
+                This range follows the key: it is placed around do for each key drawn. Change it
+                here and it becomes your own.
+              </p>
+            {/if}
+          </div>
+        {/if}
+
+          <!-- Drill. Below every settings tab, so it is there whichever one is open. -->
+          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4 space-y-4" aria-labelledby="drill-heading">
+            <!-- The whole header is the toggle: the button's ::after stretches
+                 over the bar, and Start / Stop sit above it. -->
+            <div class="relative flex items-center justify-between gap-3 flex-wrap cursor-pointer">
               <button
                 type="button"
-                class="flex items-start gap-2 text-left"
+                class="flex items-start gap-2 text-left after:absolute after:inset-0 after:content-['']"
                 aria-expanded={drillPanelOpen}
-                aria-controls="practice-run-settings"
+                aria-controls="drill-settings"
                 on:click={() => (drillPanelOpen = !drillPanelOpen)}
               >
                 <span class="text-sr-muted mt-0.5">
                   {#if drillPanelOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
                 </span>
                 <span>
-                  <span id="practice-run-heading" class="block text-sm font-semibold text-sr-ink">Practice Run</span>
+                  <span id="drill-heading" class="block text-sm font-semibold text-sr-ink">Drill</span>
                   <span class="block text-xs text-sr-faint mt-0.5">
                     Generates and plays a whole session, hands free.
                   </span>
@@ -3677,19 +4585,19 @@
               </button>
               {#if drillRunning}
                 <button
-                  class="sr-btn-quiet font-semibold text-sr-danger border-sr-danger"
+                  class="sr-btn-quiet relative z-10 font-semibold text-sr-danger border-sr-danger"
                   on:click={() => stopDrill()}
-                >Stop run</button>
+                >Stop drill</button>
               {:else}
                 <!-- Peach, with a play mark: not the blue of Generate, which it
                      was easy to take it for. -->
                 <button
-                  class="inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+                  class="relative z-10 inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
                   on:click={startDrill}
                   disabled={isLoading}
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1.2v9.6L10.4 6z" /></svg>
-                  Start practice run
+                  Start drill
                 </button>
               {/if}
             </div>
@@ -3700,11 +4608,11 @@
               </p>
             {/if}
 
-            <div id="practice-run-settings" class:hidden={!drillPanelOpen} class="space-y-4">
+            <div id="drill-settings" class:hidden={!drillPanelOpen} class="space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div class="space-y-2">
                 <p class="sr-label">New Exercises</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a run">
+                <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a drill">
                   {#each [1, 2, 4, 6, 8, 12] as n}
                     <button
                       class="sr-tok {drillExercises === n ? 'sr-on' : ''}"
@@ -3746,7 +4654,7 @@
                   {#if drillRampBpm === 0}
                     Every exercise at {bpm} BPM.
                   {:else}
-                    Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the run ends.
+                    Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the drill ends.
                   {/if}
                 </p>
               </div>
@@ -3820,7 +4728,7 @@
                       {:else}
                         {drillRepeatAnnotation === 'kodaly' ? 'Kodály' : 'Counting'} syllables on the repeats,
                         whatever the first pass is read in. Your own system comes back on the
-                        next exercise and when the run ends.
+                        next exercise and when the drill ends.
                       {/if}
                     </p>
                   </div>
@@ -3934,200 +4842,6 @@
             </div>
           </section>
 
-        <!-- Rhythm Tab -->
-        {:else if selectedTab === 'rhythm'}
-          <div class="space-y-3">
-            <p class="sr-label">Select Allowed Rhythms</p>
-            {#each rhythmPickerGroups(filterRhythms) as group}
-            <p class="text-xs text-sr-faint">{group.label}</p>
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
-              {#each group.rhythms as rhythm}
-                <button
-                  class="sr-tok-sq px-2 py-1 h-12 min-w-12 flex items-center justify-center
-                    {selectedRhythms.some((r) => r?.name === rhythm.name)
-                      ? 'sr-on'
-                      : ''}"
-                  aria-label={rhythmLabel(rhythm.name)}
-                  aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
-                  on:click={() => {
-                    if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
-                      selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
-                    } else {
-                      selectedRhythms = [...selectedRhythms, rhythm];
-                    }
-                  }}
-                >
-                  {#await rhythmSvgs[rhythm.name]}
-                    <span class="text-xs">…</span>
-                  {:then svg}
-                    <span class="rhythm-icon w-full h-full flex items-center justify-center">
-                      {@html svg.default}
-                    </span>
-                  {:catch}
-                    <span class="text-xs">{rhythm.name}</span>
-                  {/await}
-                </button>
-              {/each}
-            </div>
-            {/each}
-
-            <!-- Applies in both modes: without it, a selection that cannot
-                 tile the measure (half notes alone in 3/4) has no valid
-                 output at all. -->
-            <div class="space-y-2 pt-1">
-              <p class="sr-label">
-                Ties Across Barline
-              </p>
-              <button
-                class="sr-tok {allowTiesAcrossBarline ? 'sr-on' : ''}"
-                on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
-                aria-label="Ties across barline"
-                aria-pressed={allowTiesAcrossBarline}
-              >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
-              <p class="text-xs text-sr-faint">
-                {allowTiesAcrossBarline
-                  ? 'A long note may run past the barline, written as tied notes.'
-                  : 'Every note stays inside its measure.'}
-              </p>
-            </div>
-
-            {#if rhythmOnly}
-              <!-- The one place rhythm syllables are set. Only meaningful on
-                   the one-line staff, where there are no scale degrees and
-                   solfege is unavailable. -->
-              <div class="space-y-2 pt-1">
-                <p class="sr-label">
-                  Rhythm Syllables
-                </p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
-                  <button
-                    class="sr-tok {!showRhythmSyllables ? 'sr-on' : ''}"
-                    on:click={() => setRhythmSyllables('off')}
-                    aria-pressed={!showRhythmSyllables}
-                  >Off</button>
-                  <!-- Driven by the registry, so a new system is a data change
-                       here as well as in the generator. -->
-                  {#each Object.values(syllableSystems) as system}
-                    <button
-                      class="sr-tok {showRhythmSyllables && syllableSystemId === system.id ? 'sr-on' : ''}"
-                      on:click={() => setRhythmSyllables(system.id)}
-                      aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
-                    >{system.label}</button>
-                  {/each}
-                  {#if $mySyllables}
-                    <button
-                      class="sr-tok {showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'sr-on' : ''}"
-                      on:click={() => setRhythmSyllables(CUSTOM_SYLLABLE_ID)}
-                      aria-pressed={showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID}
-                      title="Your own syllables, from your account"
-                    >Mine</button>
-                  {/if}
-                </div>
-                <p class="text-xs text-sr-faint">
-                  {showRhythmSyllables
-                    ? syllableHint
-                    : 'No syllables. The exercise is unchanged, and turning them back on costs nothing.'}
-                  {#if $mySyllables}
-                    <a class="underline ml-1" href="/account#syllables">Edit mine</a>
-                  {:else if $syllablesAvailable}
-                    <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
-                  {/if}
-                </p>
-                <SignupHint id="own-syllables">Want the words your choir uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
-              </div>
-            {/if}
-          </div>
-
-        <!-- Notes Tab -->
-        {:else if selectedTab === 'notes'}
-          <div class="space-y-5">
-            <!-- Scale Degrees -->
-            <div class="space-y-2">
-              <p class="sr-label">Scale Degrees</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
-                {#each sharpScaleDegrees as degree}
-                  <button
-                    class="sr-tok px-2
-                      {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
-                    on:click={() => toggleSharpDegree(degree.value)}
-                  >{degree.display}</button>
-                {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                {#each scaleDegrees as degree}
-                  <button
-                    class="sr-tok {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
-                    on:click={() => toggleScaleDegree(degree)}
-                  >{degree}</button>
-                {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                {#each flatScaleDegrees as degree}
-                  <button
-                    class="sr-tok px-2
-                      {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
-                    on:click={() => toggleFlatDegree(degree.value)}
-                  >{degree.display}</button>
-                {/each}
-              </div>
-            </div>
-
-            <!-- Max Skip -->
-            <div class="space-y-2">
-              <p class="sr-label">Max Melodic Skip</p>
-              <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
-                <button type="button" class="sr-btn-quiet"
-                  aria-label="Decrease max skip"
-                  on:click={() => { if (maxSkip > 1) maxSkip -= 1; }}><Minus size={16} /></button>
-                <span class="text-sm font-bold w-6 text-center">{maxSkip}</span>
-                <button type="button" class="sr-btn-quiet"
-                  aria-label="Increase max skip"
-                  on:click={() => { if (maxSkip < 8) maxSkip += 1; }}><Plus size={16} /></button>
-                <span class="text-xs text-sr-faint">{skipIntervalNames[maxSkip] ?? `${maxSkip} steps`}</span>
-              </div>
-            </div>
-
-            <!-- Toggles -->
-            <div class="space-y-2">
-              <p class="sr-label">Accidentals Follow Step</p>
-              <button
-                class="sr-tok {accidentalsFollowStep ? 'sr-on' : ''}"
-                on:click={() => (accidentalsFollowStep = !accidentalsFollowStep)}
-                aria-label="Accidentals follow step"
-                aria-pressed={accidentalsFollowStep}
-              >{accidentalsFollowStep ? 'On' : 'Off'}</button>
-            </div>
-
-            <div class="space-y-2">
-              <p class="sr-label">Move 8th Notes</p>
-              <button
-                class="sr-tok {moveEighthNotes ? 'sr-on' : ''}"
-                on:click={() => (moveEighthNotes = !moveEighthNotes)}
-                aria-label="Move 8th notes"
-                aria-pressed={moveEighthNotes}
-              >{moveEighthNotes ? 'On' : 'Off'}</button>
-            </div>
-
-            <!-- The second solfège switch that used to sit here set the flag
-                 and never redrew the score, so it looked broken until something
-                 else did. One control, in Setup > Annotations, beside the other
-                 things that change what is printed. -->
-          </div>
-
-        <!-- Range Tab -->
-        {:else if selectedTab === 'range'}
-          <div class="space-y-3">
-            <p class="sr-label">Note Range</p>
-            <RangeSelector
-              range={selectedRange}
-              clef={selectedClef}
-              onRangeChange={handleRangeChange}
-            />
-          </div>
-        {/if}
-
       </div>
     </div>
 
@@ -4161,7 +4875,7 @@
       <div
         id="paper"
         class="sr-sheet w-full my-2"
-        style={!originalTuneString && !isLoading ? "height:0;margin:0;box-shadow:none" : undefined}
+        class:hidden={!originalTuneString && !isLoading}
       >
         {#if isLoading}
           <div class="flex items-center justify-center h-48">
@@ -4188,6 +4902,7 @@
   <PlaybackBar
     {isPlaying}
     bpm={tempo}
+    beatSymbol={beatSymbolOf(meterOf(currentTune, selectedTimeSignature))}
     {looping}
     voiceNames={[]}
     mutedVoices={new Set()}
@@ -4198,6 +4913,7 @@
     onRestart={handleRestart}
     onBpmChange={handleBpmChange}
     onBpmCommit={handleBpmCommit}
+    isPreparing={isStartingPlayback}
     onGenerate={handleClick}
     isGenerating={isLoading}
     status={drillStatusLine}
@@ -4348,7 +5064,30 @@
   .tab-scroll {
     scrollbar-width: none;
   }
+  .skip-icon :global(svg) {
+    height: 100%;
+    width: auto;
+  }
   .tab-scroll::-webkit-scrollbar {
     display: none;
+  }
+  /* The play-along video button: peach, so it reads as its own thing beside
+     Generate's blue. */
+  .sr-btn-video {
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+  }
+  .sr-btn-video:hover:not(:disabled) {
+    background: var(--sr-peach);
+    filter: brightness(0.96);
+  }
+  .sr-pro-tag {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: var(--sr-peach-ink);
+    color: var(--sr-peach);
   }
 </style>

@@ -16,6 +16,7 @@ bun run build      # Build for production
 bun run preview    # Preview production build
 bunx astro check   # TypeScript type checking - clean, keep it that way
 bun run check:rhythm  # Rhythm generation property checks (see below)
+bun run check:nyssma  # Do the NYSSMA Voice levels write what the chart asks? (see below)
 bun run sweep      # Does every kind of exercise generate? (see below)
 bun run scripts/check-ladder.ts  # Does every ladder step generate? (see below)
 bun run test       # Unit tests in tests/unit/ (see the timeout note below)
@@ -61,6 +62,11 @@ when one fails:
 `generateUnison.test.ts` whose assertion compares semitone offsets to
 scale-degree indices.
 
+On bun 1.3.0 six tests in `tests/unit/exercise-link.test.ts` fail (four choral
+byte-for-byte, the full-length piece, unison "a link is short"): the runtime has
+no `CompressionStream`, so `packExercise` falls back to codec 0. That is the
+environment, not a regression; any other failure is real.
+
 The UI itself is still validated manually via the browser. Rhythm generation
 additionally has property checks, where a wrong answer is quiet:
 a malformed measure still renders, a misaligned lyric still prints, a note tied
@@ -68,11 +74,12 @@ across a barline still plays. `scripts/check-rhythm.ts` asserts those properties
 directly against the generator (no dev server needed), over every one- and
 two-rhythm selection in each time signature with ties on and off:
 
-- every emitted measure sums to exactly one measure
+- every emitted measure sums to exactly one measure (2/4, 3/4, 4/4, 6/8, 9/8, 12/8), and in compound meter no figure crosses a beat (compound meters run at 4 and 8 bars, simple at 4)
 - generation succeeds on **exactly** the selections a reference solver proves
   solvable — this is what catches a dead end, where the search fails on
   something a different route would have filled
 - a note split across a barline never lands on a dotted note
+- a compound tie joins whole dotted-quarter beats
 - the `w:` lyric line keeps one slot per ABC note element, so ties do not shift
   solfège
 - each rhythm-syllable system spells the standard figures correctly
@@ -85,9 +92,12 @@ in the generator and the corresponding check should fail.
 
 `scripts/sweep.ts` walks the configuration space a user can actually reach -
 every UIL level with its own voicings, keys, chords, rhythms, ranges and max
-skip, across all three meters, every measure count the picker offers, all three
-voice textures, and both unison modes - and reports the failure rate per cell.
-About 1,800 cells; `RUNS` (default 12) exercises each.
+skip, across all three simple meters, every measure count the picker offers, all
+three voice textures, and both unison modes - which also cover Unison's compound
+meters (6/8, 9/8, 12/8, Core rhythms, Counting syllables), and the NYSSMA Voice
+levels in every key and meter each draws from (94 combinations x 4, 8 and 16
+bars = 282 cells) - and reports the
+failure rate per cell. 2,192 cells; `RUNS` (default 12) exercises each.
 
 Run it after touching generation. It exists because narrow checks lie: every
 earlier "0% failures" in this project was measured at 4/4, eight bars, with
@@ -97,8 +107,13 @@ exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
-`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **1 failure in
-22,020 exercises** as shipped, measured 29 September 2026 once a failed draw
+`STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **0 failures in
+26,304 exercises** as shipped (2,192 cells, 282 of them NYSSMA Voice, all at 0),
+measured 2 October 2026 after the NYSSMA levels. The run before that, 0 failures
+in 22,920 exercises (1,910 cells, 75 of them the compound Unison
+cells, all at 0), 1 October 2026 after compound meter. The run before
+that, 0 failures in 22,020 exercises on 30 September 2026 after the bass was
+allowed to leave an eighth by leap (below). 1 failure on 29 September once a failed draw
 is drawn again (generateChoral `FAILED_DRAW_RETRIES`): the rhythm is drawn once
 per attempt and all ten progressions are fitted to it, so a rhythm that cannot
 be harmonised failed them all together, and a new draw brings a new rhythm.
@@ -143,7 +158,12 @@ rather than on note-building - there is not room for the cadence the level
 requires. 25-42% in those cells, and unrelated to everything above.
 
 It also reports a quality figure: the share of short notes (an eighth or less)
-approached or left by skip: 0.8% as shipped (0.7% before the yield, 1.0% before the voice-rhythm pass), against 37.1% with
+approached or left by skip, and in the bass approached only. The bass may leave
+an eighth by leap, G G c2 or G3 G C2, the way it leaps to the next root, but
+not arrive on one by leap, G c G2 or G3 C G2 (chord-generation
+`besideEighthAt`, build-chord-notes `bassSkipInto`, non-chord-tone-gen
+`approachOnly`). Those leaps out are about 4.6% of short notes. 0.7% as shipped on
+30 September, 0.8% before the bass change (0.7% before the yield, 1.0% before the voice-rhythm pass), against 37.1% with
 `STEPWISE_EIGHTHS=0`.
 
 **The option is ON by default**, so that failure rate is live. Before the
@@ -166,7 +186,7 @@ nearly got it thrown away. That difference was noise; the sweep is the gate.
 
 ### The ladder
 
-`src/lib/ladder.ts` is "Step by step": 23 presets from rhythm alone (ta, ti-ti)
+`src/lib/ladder.ts` is abcStepByStep: 23 presets from rhythm alone (ta, ti-ti)
 through a single line on the Unison page, then two, three and four parts on the
 Choral page, to UIL 5 and past it. It follows sight-singing pedagogy - one new
 thing per step, the new thing on familiar material, rhythm before pitch, pitch
@@ -177,17 +197,292 @@ rename or reuse one.
 `scripts/check-ladder.ts` generates every step in every voicing, key and meter
 it allows (`STEP=<id>` for one) and, for Unison steps, checks the line stays in
 the step's range and uses at least three pitches - a line stuck on one note
-"succeeds". Run it after touching a step or either generator. Step 15 is F and
+"succeeds". Run it after touching a step or either generator. The whole run
+takes about 80 minutes (4 October 2026: steps 1-17 seconds each, 18-20 one to
+six minutes, the last three about 22 minutes each, all 0% failed) - slow, not
+stuck; give it a long timeout or check one step with STEP=. Step 15 is F and
 G only and 15-17 leave out C, because three close parts in C fail at these
 ranges; see the comments there.
 
 The Unison generator writes a line that prefers moving to repeating a note,
-spreads across the range it was given (favouring the pitches it has sung least,
-in both the chord it picks and the note), and ends on do (heading back toward it
-over its last notes); chromatic chords only steer the line when their altered
-note is selected. Before that, a do-re-mi
-exercise was two-thirds repeated notes and a stepwise line ended on do 17% of
-the time. `tests/unit/unison-line-shape.test.ts` holds those rates.
+spreads across the range it was given (favouring the pitches and the scale
+degrees it has sung least, in both the chord it picks and the note), and starts
+and ends on a note of the tonic triad: do, mi or so, whichever are selected,
+not always do. Chromatic chords only steer the line when their altered note is
+selected. Before that, a do-re-mi exercise was two-thirds repeated notes; and
+when the line was made to end on do and steered there, 1 2 3 5 6 gave so and la
+a tenth of the line each against do's third (now each 12-29%).
+Which notes a skip may use is **Skips between** (skip-policy.ts
+`isAllowedMove`, the row under Max skip, in both modes): the note values
+sixteenth, eighth, quarter, dotted quarter and half-or-longer (each note
+counts as the largest that fits it, `skipLengthClass`), and BOTH notes of a
+skip must be chosen ones - leave eighths out and eighth-eighth-quarter only
+steps, where "Skips land on" (exact skips only, the landing note only) still
+let an eighth be left by a leap. It replaced Max 8th / Max 16th skip; what
+those did not fold into is **Eighth pairs on one pitch** (`EighthSettings` in
+`src/lib/short-note-skips.ts`, the generator's caps at 0), which every Unison
+ladder step uses. Old presets and links map across (`eighthsFrom`): Max 8th
+skip 0, or Move 8th Notes off, is one pitch; 1 leaves eighths and sixteenths
+out of Skips between; a list saved with the four old values is all five. The
+NYSSMA levels keep "quarters" (and halves at V), stricter than the chart's
+landing rule but inside it; their skips per exercise fell (Level III 2.19 to
+1.57, V 4.08 to 2.95), every exercise still with one, the chart clean.
+With eighth pairs on one pitch a ti-ti is sung on one pitch, and only inside the pair:
+any two eighths in a row used to count, so pairs back to back chained into one
+held pitch (up to 18 notes). A note that opens a pair or follows one now moves
+when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
+
+### Chord progressions (Unison)
+
+`src/lib/unison-progressions.ts` (tests `unison-progressions.test.ts`):
+harmony first. With the page's Chord progression option (on by default; in
+links and presets, older presets leave it alone) a diatonic exercise is
+written over a short progression - I IV V I, I IV I V I, I V vi IV I,
+I vi IV V I, I ii V I, I vi ii V I; in minor i iv v i, i VI iv v i,
+i VI VII i, i VII VI VII i (natural minor: the raised leading tone waits for
+chromatic progressions) - one chord a bar or two, repeated every four bars,
+every phrase ending home. The line belongs to it: a chord note on the
+downbeat, the middle of a four-beat bar, wherever the chord changes and on
+anything longer than a beat; elsewhere a passing or neighbour note, by step
+in and by step out. Every move is one the exercise allows (exact skips and
+Max 8th skip too); it starts on do, mi or so and ends on do. A depth-first
+search over the sung notes, each choice weighted (steps over leaps, a leap
+answered by a step back, the range used, a pitch three times running only
+when the harmony leaves nothing else).
+
+Chromatic notes pair a diatonic phrase with a chromatic one: phrase 1 (and
+3) is the diatonic progression, phrase 2 (and 4) carries an altered note,
+each selected note taking its turn; a four-bar exercise is the chromatic
+phrase. Six notes have a chord of their own, and the line sings the note as a
+chord tone resolving by step into the next chord: fi (V/V: I, IV V/V, V, I),
+si (V/vi), di (V/ii), te (V7/IV, or ♭VII for the rock sound), le (borrowed
+iv) and me (borrowed i). ri, li, se and ra have no clean chord (V/iii brings
+fi along, the Neapolitan in major brings le) so they are chromatic passing or
+neighbour notes over the diatonic chords: on a weak beat, stepped into,
+resolving the way they lean, never against their own natural in the chord.
+`EXTRA_CHORDS` holds the chords chords.ts lacks (borrowed i, ♭VII, the
+Neapolitan for minor). `placeMissingChromatics` stays the safety net, but
+never alters the first phrase. The Unison page is major keys only, so the
+minor chromatic table (the Neapolitan) is not reachable from it yet; the
+generator's own key table there has no minor keys either. Measured: each of
+the ten notes, alone and fi with te, in four meters, six keys and 4, 8 and 16
+bars: over a progression 100% (fi 99%), the altered note written every time,
+no failures.
+
+It replaced the older walk's harmony, which picked a chord for nearly every
+note to justify the line, so nothing built on it sat with the melody (and a
+question-and-answer period scheme built on that walk sounded wrong and was
+taken out). The writer returns the walk's own shape, a chord and a note per
+rhythm slot, so spelling, solfège and the ABC are unchanged, and the score
+carries the progression (`UnisonScore.harmony`), which the play-along bass
+plays (`progressionChords`). Where no progression fits, or no line over six
+rhythms does (`PROGRESSION_RHYTHMS`), the older walk writes the exercise;
+without the option the output is byte for byte what it was (the regression
+snapshots).
+
+Measured: every exercise over a progression across all five NYSSMA levels,
+general settings in four meters, eight keys and do re mi in steps;
+0 failures in 5,184 Unison and NYSSMA sweep exercises
+(`PROGRESSIONS=1 ONLY_UNISON=1 bun run sweep`); the NYSSMA chart clean
+(`PROGRESSIONS=1 bun run check:nyssma`).
+
+### Meters
+
+`src/lib/meter.ts` is the one meter model: 2/4, 3/4, 4/4 and the compound 6/8,
+9/8, 12/8, whose beat is the dotted quarter (`beatUnits` 12, three eighths a
+beat). It is derived from the metronome's table (`src/lib/tuner/meters.ts`).
+Beats, beat length, subdivision and the tempo mark (`Q:3/8=` in compound) all
+come from it - never from the top number (12/8 is four beats) and never from
+bar length (3/4 and 6/8 are both 24 units). A `TimeSignature` carries
+`beatUnits` (it was `beamGroupSize`; old links still open).
+
+Compound meter is Unison and rhythm-only; Choral offers simple meters only.
+Compound figures (`meterKind: "compound"` in rhythms.ts) fill whole beats, and
+`src/lib/compound-rhythm.ts` fills bars beat by beat with an exact search, so
+it fails exactly where `rhythm-feasibility`'s compound branch finds no tiling.
+abcjs counts `qpm` in the meter's own beat, so playback passes the page's BPM
+unchanged; a MIDI file needs the Q: line, which `midiFileFor` writes.
+UIL choir sight-reading is simple meter only, so no UIL preset lists a compound
+meter.
+
+`tests/unit/meter-regression.test.ts` freezes simple-meter Unison and Choral
+output for fixed seeds. Never update its snapshot to make it pass: a failure
+means a change reached simple meter.
+
+### NYSSMA Voice levels
+
+`src/lib/nyssma-presets.ts` holds NYSSMA's solo voice sight-reading Levels
+I-V (Manual Ed. 33, p. 7-2), the Unison page's built-in presets ("NYSSMA
+Voice" in the picker). Their interval rules are skip lists, not a largest
+skip: `src/lib/skip-policy.ts` decides every move the Unison generator makes
+(Max skip, or exact skips, and Skips between in both), and with exact skips on a
+rest holds the line, so a skip is measured between sung notes.
+`tests/unit/unison-skip-regression.test.ts` pins Max skip output byte for
+byte. `scripts/check-nyssma.ts` checks every level x key x meter x clef (94
+cells, 40 runs each) against the chart's table, copied into the script: only
+listed skips, landing on allowed lengths, inside the range, only the level's
+rhythms, eighths by step, dynamics from the level's set, and no line frozen on
+one pitch. It is mutation-tested (loosen `isAllowedMove`, drop its landing
+check, or disable the rest-holds-line block and it fails). Last run 2 October
+2026: every cell clean. Level VI waits only for triplet eighths and hairpins (compound meter has shipped).
+
+With exact skips (and only then) the line is shaped (`src/lib/unison-phrasing.ts`,
+tests `unison-phrasing.test.ts`): a listed skip is weighted hard until the line
+has sung one, then until about 3 per 8 bars; notes a skip can start from (do,
+mi) are reached for; going back to the note two before (A-B-A) is penalised,
+A-B-A-B far more, and a step run carries on; a line with no skip is drawn again
+(`SKIP_DRAWS`). Rests end only at breaths - the end of bar 2, 4 or 6 of 8 -
+any other rest is sung as the note of its length, and a level with rests gets
+one at bar 4 most of the time. `scripts/measure-nyssma-music.ts` measures it
+(treble, 200 runs a cell): a listed skip in 49/40/35/95% of Level II-V
+exercises before, 100% at every level now; skips per exercise 2.5/2.2/2.0/4.2;
+A-B-A 33-41% of moves -> 11-16%, A-B-A-B 11-25% -> 1-4%; top-2 pitches' share
+58/53/52/41% -> 52/48/40/38%; rests inside a phrase 80-88% -> 0, 0.8-0.9 rests
+per 8 bars. Max skip mode is untouched (its snapshots pin it).
+
+### Play-along videos
+
+Pro, rhythm only: the peach Video button beside Generate on the Unison page
+(`PlayAlongVideo.svelte`, `src/lib/play-along/`; anyone else is sent to
+/pricing). A backing loop plays while two bars show, one above the other; a
+ball bounces from note to note through the top bar, then the bottom, and the
+top turns over to the next bar the moment the ball leaves it, so the reader can
+always look a bar ahead. How it looks is `scene.ts` (Recess pastels, a colour
+a bar, beat dots, a popping count-in, a finish card with confetti). About 1:30: `barsForLength` picks whole loop repeats and an
+even number of bars (36 at 4/4, 100). `frameAt` says what is on screen at any
+audio time and `ballAt` where the ball is (tests `play-along-timeline.test.ts`);
+both are driven by the AudioContext clock, not abcjs's timer, so it stays on the loop for 90 seconds.
+
+The exercise takes its tempo and meter from the loop (never stretched: that
+would change its pitch), is written with ties across the barline off (each bar
+is shown alone) and counts as one exercise. Long rhythms generate cleanly:
+`bun run scripts/check-play-along-length.ts` (24-72 bars, every meter).
+The bars are one abcjs render at a bar a line, each line cut out as its own SVG
+image (`bar-images.ts`), drawn on one 1920x1080 canvas, so full screen and the
+exported video are the same picture. Each picture holds only its own line,
+and is framed from the music with a row always kept below it for solfège or
+syllables (and one above when the exercise has dynamics, which abcjs moves
+over the staff once there are words under it), so turning labels on or off
+in the video never rescales the music. Export records that canvas and the
+mix with MediaRecorder in real time - MP4 where the browser can, else WebM - and
+cancels itself if the tab is hidden, since a hidden tab gets no frames.
+
+Tracks, tempo and syllables, all without a new exercise where possible: the
+video writes one exercise per meter, as long as the longest track in it
+(`maxBarsIn`), and each track uses its first `barsFor` bars, so swapping
+between tracks in a meter is instant and free; only a track in another meter
+(marked "new exercise" in the picker) writes and counts a new one. The tempo
+goes from half speed to 150% in 5% steps (`tempoChoices`), shown as BPM and
+percent in a fixed-width button so "Adjusting…" never moves the controls. The
+backing is warped offline with the pitch kept (`stretch.ts`, soundtouchjs,
+LGPL-2.1; types in `src/types/soundtouchjs.d.ts`), lined up with the grid by
+cross-correlating envelopes. Slowing down far needed two fixes: SoundTouch's
+automatic ~120 ms slices doubled every drum hit at half speed, so below 1x the
+slices are fixed at 25 ms; and the attacks are restored - each onset of the
+original pasted back at exactly its new time with a 25 ms lead-in (which
+also removes the early copies speeding up leaves). Measured on clicks: within
+2.2 ms of the beat from 0.5x to 1.5x, no echoes, no drift over 90 s (tests
+`play-along-stretch.test.ts`); on the real tracks 223 of 225 hits within
+5 ms. A full song at half speed takes up to 3 s to warp, on the main thread,
+under "Adjusting tempo…" (a Web Worker would free the page if that matters).
+The bars stay the same, so half speed makes a 1:30 video three minutes. The
+syllables picker (Off, Kodaly, Counting, Mine) starts at the page's choice and
+redraws from the exercise's data through the page's `playAlongAbc`, never a
+new exercise.
+
+Pitched mode: the same Video button on the Unison page with pitches opens the
+video in `mode="pitched"`. The exercise is the page's (key, notes, range,
+skips), written about 1:30 long at the page's tempo (in fours; pitched
+exercises generate at 24-64 bars in every meter, `check-play-along-length.ts`).
+The backing is a drum style in its meter - the loop nearest the page's tempo,
+warped to the tempo shown, which stays put when the style changes. The melody
+plays on any of the page's instruments (off by default, so the class sings
+it), and a bass line (`src/lib/play-along/bass.ts`, tests
+`play-along-bass.test.ts`) holds one root a bar on bass guitar (MIDI 33,
+E2 to D3; ABC's C is middle C, and it sat an octave higher until heard too
+high under the guitar): the
+generator gives every note its own chord, changing about every note and a
+half, so each bar takes the one chord - the generator's own, slightly
+preferred, or a diatonic triad - that best fits the bar's melody, weighted by
+length and beat (about 73% of the sung time on its tones); the last bar is
+the tonic, the one before it V when the melody allows, and a leading-tone
+chord takes V's root (minor's own VII stays). The labels are solfège (Off,
+Movable do, Fixed do, Note names), written through the page's `playAlongAbc`.
+
+The pitched video also strums an acoustic guitar under the exercise
+(`src/lib/play-along/guitar.ts`, tests `play-along-guitar.test.ts`): Native
+Instruments' Session Guitarist (Strummed Acoustic, in Kontakt 8), rendered
+by REAPER from the command line. `scripts/guitar/template.RPP` is Blaine's
+saved project: Kontakt with eight patterns in its slots (C1 Passenger A, C#1
+Passenger C, D1 Campfire A, D#1 Campfire B, E1 3/4 Pattern A, F1 3/4
+Pattern B, F#1 Irish Folk C, G1 Irish Folk A; never a muted "Mtd" one).
+Kontakt's state is encrypted, so the patterns can only be changed in its
+window: load the template in REAPER, change a slot, save (Cmd-S). `rpp.ts`
+writes projects around that state (REAPER's format is text) and
+`build.ts` renders every chord the progressions use in all twelve keys
+(36; the page has nine, but its playback transpose reaches the rest) in each
+slot at four tempos (75, 90, 110, 130; triplets 65, 80, 95, 115), one steady bar a chord (the second of a two-bar hold),
+plus each style's ending (A#1) on the twelve home chords, into
+`public/guitar/` (47 MB; a video loads two pattern files and an ending,
+3-5 MB) and `guitar-manifest.json`: `bun run scripts/guitar/build.ts`,
+about 10 minutes. What the instrument wants, found by probing and its manual:
+chords from E2 (MIDI 52) up, root lowest, notes arriving low to high (G B D
+sent out of order strummed once and stopped); G#1-C2 are endings and C#2-D#2
+pickups, so a chord must stay above them; the triplet patterns are 4/4 bars
+of triplets (one is a 12/8 bar; 6/8 takes half) and are silent below 65.
+The video plays each bar's chord from its clip, a split bar half of each,
+the A pattern in phrases 1 and 3 and B/C in 2 and 4, the ending in the last
+bar, warped from the nearest rendered tempo (never more than about 11%,
+with longer slices than the drums': `stretchBuffer`'s `tonal`, since 25 ms
+slices turned a held chord into a buzz at 60 from 70). Slow, the guitar
+plays in double time (`guitarDouble`: below 67, triplets 59): the pattern
+at twice the tempo, two of its bars to each bar of music, since a strum a
+bar at 60 has too few strums to carry it. At each barline the old chord
+rings on 30 ms and fades under the new strum, which lands 10-25 ms late in
+the render (the strum's spread); and a stretched clip is padded with
+silence so SoundTouch gives back its end (it kept the last few hundred ms,
+a gap before every barline). The count-in strums the home
+chord so the key is set before the first note; Guitar level and strum (Pop
+strum, Campfire; 4/4 and 2/4 only) in the Sound panel. The page's Playback
+transpose moves the whole band: the melody and bass through abcjs's
+`midiTranspose` (as the page's own Play), the guitar by playing each chord
+in the transposed key (`guitarPart`'s `transpose`, `transposeKey`).
+
+Sound (the overlay's Sound panel): levels for the loop, a guide (the rhythm
+played over the loop, on any rhythm sound) and a click (any metronome sound),
+live while it plays and into the export; remembered in this browser. abcjs
+cannot render the guide while audio is suspended (`prime()` never settles), so
+it is rendered once a click lets sound start - at the latest on Play.
+
+Tracks are listed in `backing-tracks.ts` (bpm, meter, bars, where beat 1 falls,
+an optional intro) with files in `public/backing/`. A loop repeats for as long
+as the exercise; a `fullLength` track is a whole arrangement played once, and
+the exercise is written to exactly its bars. The real tracks are arranged from
+ONE Splice pack each, so the parts share a session and a key, by
+`scripts/backing/<track>.ts` on the shared `engine.ts` (`bun run
+scripts/backing/soul-4-4-80.ts`): count-in, an intro, parts entering section by
+section, an ending. The samples stay in `~/Splice`; only the finished mix is
+committed, which is what Splice's licence allows. Blaine's ear so far: keep
+risers and impacts sparing, no vocals over the exercise, no congas in the
+reggaeton; the indie pack was too plain (its script is kept, tabled); for
+trap, real rage 808 loops transposed to the song's key, never a programmed 808
+line. The cumbia is one file listed twice, 36 bars of 4/4 and 72 of 2/4.
+Every drum loop ends like a band ending (`ending` on the track,
+`<id>-end.mp3`, also built by drums.ts): an empty bar, the groove into its
+fill, then crash, kick and snare on the last bar's downbeat, ringing 2.5 s
+(`ENDING_TAIL`). audio.ts hands the loop over to it two bars from the end
+(a 30 ms crossfade), so the fill leads into the last bar and the final note
+lands on the crash; it is warped with the loop, and the bass fades with it.
+Full-length songs keep their own endings. The video shows the site's address
+(abcsightreading.com) as its wordmark, so a shared video says where it came
+from, and the Ball button hides the bouncing ball and its glow (remembered
+with the sound settings).
+Every meter also has simple 8-bar drum loops from one kit (`DRUM_LOOPS` in
+backing-tracks.ts, built by `scripts/backing/drums.ts` with the engine's
+`loop: true` - no count-in, cymbal tails wrapped to the start so the loop has
+no seam). MP3s live in `public/backing/` (served by the CDN; about 16 MB in
+all) - Vercel Blob is not worth it at this size. Chrome decodes them
+sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 
 ## abcTuner
 

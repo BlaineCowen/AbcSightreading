@@ -44,6 +44,8 @@ export type VoiceTextureOptions = {
   tsPerMeasure: number;
   /** Fewest voices that may be sounding at once. Two is a duet. */
   minSounding?: number;
+  /** Where the entrance order comes from. Math.random unless a test seeds it. */
+  rng?: () => number;
 };
 
 /** A staggered entrance needs room to be heard as one. */
@@ -61,21 +63,17 @@ function startTimes(voice: VoiceNote[]): number[] {
 }
 
 /**
- * Voice indices lowest first. `order` comes from the part definition (bass is
- * 0); mean pitch is the fallback if a caller ever omits it.
+ * Voice indices in a random order (Fisher-Yates), for who leads an entrance and
+ * who follows. Any part may lead - the owner asked for it, so the exercise does
+ * not always train the basses to come in first and everyone else to wait.
  */
-function lowestFirst(voiceNotes: VoiceNote[][]): number[] {
-  const indices = voiceNotes.map((_, i) => i);
-  const hasOrder = voiceNotes.every((v) => typeof v[0]?.order === "number");
-  if (hasOrder) {
-    return indices.sort((a, b) => voiceNotes[a][0].order! - voiceNotes[b][0].order!);
+function shuffledVoices(count: number, rng: () => number): number[] {
+  const indices = Array.from({ length: count }, (_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
   }
-  const meanPitch = (v: VoiceNote[]) => {
-    const pitched = v.filter((n) => !n.rest);
-    if (pitched.length === 0) return 0;
-    return pitched.reduce((sum, n) => sum + n.pitchValue, 0) / pitched.length;
-  };
-  return indices.sort((a, b) => meanPitch(voiceNotes[a]) - meanPitch(voiceNotes[b]));
+  return indices;
 }
 
 /** How many voices are sounding at a position, optionally ignoring one. */
@@ -172,10 +170,11 @@ export function applyVoiceTexture(
   const out = voiceNotes.map((v) => v.map((n) => ({ ...n })));
   const starts = startTimes(out[0]);
   const lastMeasureFrom = (measures - 1) * tsPerMeasure;
-  const order = lowestFirst(out);
+  const order = shuffledVoices(out.length, opts.rng ?? Math.random);
 
   // --- Staggered entrance: the choir states bar 1, then parts re-enter one at
-  // a time, lowest first. ---
+  // a time, in a random order. order[0] leads and never drops out; any part
+  // may be that one. (It used to be the bass every time.) ---
   //
   // The entrance used to begin at bar 1, so the piece opened on a single voice.
   // That is what a staggered entrance IS, and it is also the thing that got the
@@ -186,8 +185,8 @@ export function applyVoiceTexture(
   // this one, which is enough to say the pure version is not what is wanted.
   //
   // So the window starts a bar later. Everyone sings the downbeat - the full
-  // tonic chord, which is what tells the choir where home is - and then the
-  // upper parts drop away and come back in turn. The imitative effect is intact
+  // tonic chord, which is what tells the choir where home is - and then all
+  // but the leading part drop away and come back in turn. The imitative effect is intact
   // and there is nothing ambiguous to read. "full" remains the default for
   // anyone who wants no thinning at all.
   if (measures >= MIN_MEASURES_FOR_ENTRANCES) {
