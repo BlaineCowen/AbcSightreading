@@ -223,6 +223,15 @@ describe("grading in time (Pitch & rhythm)", () => {
     expect(r.rhythm).toBeLessThan(run(withRest, asWritten(withRest.notes)).rhythm);
   });
 
+  test("a note let ring a moment into a rest is not singing through it", () => {
+    const withRest = gradeSchedule(abc("C8 D8 z16 E8 |"));
+    const spans = asWritten(withRest.notes);
+    spans[1] = { ...spans[1], to: spans[1].to + 200 }; // a fifth of a beat into a half rest
+    expect(run(withRest, spans).rests[0].sung).toBe(false);
+    spans[1] = { ...spans[1], to: spans[1].to + 1200 }; // well into it
+    expect(run(withRest, spans).rests[0].sung).toBe(true);
+  });
+
   test("intonation: a little flat costs nothing at Easy, something at Strict", () => {
     const flat = asWritten(sched.notes).map((s) => ({ ...s, midi: s.midi - 0.22 }));
     expect(run(sched, flat, "easy").pitch).toBe(100);

@@ -584,6 +584,19 @@ run in `src/lib/grade-runner.ts`, the strip in `GradePanel.svelte`. While it
 listens the tuner store's `micHeld` keeps a Tools card from switching the
 microphone off; `pitchHistory` keeps 3 minutes, enough for a long exercise.
 
+Runs can be saved for review: on the dev server, or with `?gradeDebug=1`,
+the microphone is recorded over each run (a second stream with the tuner's
+own settings, `grade-recording.ts`, so the detection code is untouched) and
+the results have "Save this run": the recording, and a JSON of everything
+the grading used (the ABC, tempo, meter, settings, the pitch frames with
+their times, t0, every note's result). Nothing may await between the tuner
+starting and the run starting in `startGrade`: the page switches off a
+microphone held with no run, and the recording's await once did exactly that.
+In Pitch only, a note after a rest has its clock start when the rest ends;
+in Pitch & rhythm, a rest counts as sung through only past the onset window
+and for a good part of it, and an onset must carry on (a voiced blip is not
+an entry).
+
 `bun run scripts/check-grade.ts` checks it end to end on the dev server
 (`MODE=pitch`, `STRICT=`, `CURSOR=`, `CLICK=`, `SHOTS=<png>`): Pro answered,
 the microphone replaced by a synthesized voice singing the exercise in time

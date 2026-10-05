@@ -223,8 +223,13 @@ export const DETECT_LATENCY_MS = 110;
 export const CUT_SHORT_SHARE = 0.6;
 /** which costs this many rhythm points. */
 export const CUT_SHORT_COST = 25;
-/** Voiced this long inside a rest is singing through it. */
+/**
+ * Singing through a rest: voiced for this long, and this share, of the rest
+ * after the strictness's onset window (a note let ring a moment into the rest
+ * is not singing through it).
+ */
 export const REST_SUNG_MS = 150;
+export const REST_SUNG_SHARE = 0.3;
 
 export type PerfNote = {
   midi: number;
@@ -283,7 +288,10 @@ export function gradePerformance(
     const newPitch = q.sung !== null && Math.abs(p.sung - q.sung) > 0.7 && (pts[i + 1]?.sung == null || Math.abs(pts[i + 1].sung! - p.sung) < 0.5);
     const lookback = pts.slice(Math.max(0, i - 4), i).map((x) => x.db);
     const attack = lookback.length > 0 && p.db - Math.min(...lookback) >= 6;
-    if (fromSilence || newPitch || attack) {
+    // Only a sound that carries on: a voiced blip in a rest (a breath, the
+    // last note dying away) is not someone coming in.
+    const sustained = [1, 2, 3].every((k) => pts[i + k]?.sung != null && pts[i + k].t - p.t < 8 * spacing);
+    if ((fromSilence || newPitch || attack) && sustained) {
       if (!onsets.length || p.t - onsets[onsets.length - 1] > 60) onsets.push(p.t);
     }
   }
@@ -341,9 +349,10 @@ export function gradePerformance(
   const rests = schedule.rests.map((r): PerfRest => {
     const on = o.t0 + r.startUnits * unitMs;
     const off = on + r.lengthUnits * unitMs;
-    const inside = within(on + 80, off - 80);
+    const from = on + Math.max(80, tol.onsetBeats * beatMs);
+    const inside = within(from, off - 80);
     const voicedMs = inside.filter((p) => p.sung !== null).length * spacing;
-    return { ...r, sung: voicedMs > REST_SUNG_MS };
+    return { ...r, sung: voicedMs > REST_SUNG_MS && voicedMs > REST_SUNG_SHARE * Math.max(0, off - 80 - from) };
   });
   return summarizePerformance(notes, rests);
 }

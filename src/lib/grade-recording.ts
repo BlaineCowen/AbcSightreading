@@ -1,0 +1,59 @@
+import { downloadFile } from "./download";
+
+/**
+ * A Grade run, saved for review: the microphone recorded over the run, and
+ * everything the grading used (the exercise, its tempo and settings, the pitch
+ * track with its times, every note's result), so a run someone thinks deserved
+ * more can be replayed offline against what they really sang.
+ *
+ * The recording is a second stream on the same microphone, asked for with the
+ * tuner's own settings (tuner-engine.ts: echo cancellation on, noise
+ * suppression and automatic gain off), so the detection code - kept identical
+ * to the standalone tuner's - is not touched. Its first moment is stamped on
+ * the page's clock (performance.now), the clock the pitch track and the
+ * exercise's timeline use.
+ */
+
+export type GradeRecording = { stop: () => Promise<{ blob: Blob; startedAt: number; mime: string } | null> };
+
+export async function startGradeRecording(): Promise<GradeRecording | null> {
+  if (typeof MediaRecorder === "undefined") return null;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+    });
+    const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    const chunks: Blob[] = [];
+    let startedAt = 0;
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    const started = new Promise<void>((resolve) => (rec.onstart = () => ((startedAt = performance.now()), resolve())));
+    rec.start(250);
+    await started;
+    return {
+      stop: () =>
+        new Promise((resolve) => {
+          if (rec.state === "inactive") return resolve(null);
+          rec.onstop = () => {
+            stream.getTracks().forEach((t) => t.stop());
+            resolve({ blob: new Blob(chunks, { type: rec.mimeType || mime }), startedAt, mime: rec.mimeType || mime });
+          };
+          rec.stop();
+        }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Both files, named for the moment: grade-<date>.json and grade-<date>.webm (or .m4a). */
+export function saveGradeRun(run: Record<string, unknown>, audio: { blob: Blob; startedAt: number; mime: string } | null) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const ext = audio?.mime.includes("mp4") ? "m4a" : "webm";
+  downloadFile(
+    JSON.stringify({ ...run, audio: audio ? { file: `grade-${stamp}.${ext}`, startedAt: audio.startedAt, mime: audio.mime } : null }, null, 1),
+    `grade-${stamp}.json`,
+    "application/json",
+  );
+  if (audio) setTimeout(() => downloadFile(audio.blob, `grade-${stamp}.${ext}`, audio.mime), 400);
+}

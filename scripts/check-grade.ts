@@ -4,6 +4,11 @@
  *   bun run scripts/check-grade.ts                 # Pitch & rhythm, Standard
  *   MODE=pitch STRICT=easy bun run scripts/check-grade.ts
  *   CURSOR=note CLICK=sub bun run scripts/check-grade.ts
+ *   RHYTHMS=quarter,half,quarterRest,halfRest bun run scripts/check-grade.ts
+ *
+ * Also: SHOTS=<png> a screenshot of the result; SAVE=<dir> press "Save this
+ * run" and keep its files; LAYOUT=1 print the notes and rests; PROBE=1 what
+ * the tuner hears during the run; NO_RECORD=1 run without the review recording.
  *
  * Needs the dev server (bun run dev). Chrome is driven by puppeteer-core
  * (marketing/ad's copy); the account is answered as Pro; the microphone is
@@ -34,6 +39,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 page.on("pageerror", (e) => console.error("page error:", e.message));
+page.on("console", (m) => { if (m.type() === "error" || m.type() === "warn") console.error("console:", m.text().slice(0, 300)); });
 
 // Pro, signed in.
 await page.setRequestInterception(true);
@@ -49,12 +55,19 @@ page.on("request", (req) => {
   return req.continue();
 });
 
+if (process.env.NO_RECORD) await page.evaluateOnNewDocument(() => { (window as any).MediaRecorder = undefined; });
 // The singer: the microphone is a MediaStream we play notes into.
 await page.evaluateOnNewDocument(() => {
   const ctx = new AudioContext();
-  const dest = ctx.createMediaStreamDestination();
+  // The voice, into which every note plays; each microphone stream is a new
+  // destination fed from it.
+  const voice = ctx.createGain();
+  // Each call its own stream, as a real microphone gives (Grade records a
+  // second one on the dev server; stopping it must not stop the tuner's).
   navigator.mediaDevices.getUserMedia = async () => {
     await ctx.resume();
+    const dest = ctx.createMediaStreamDestination();
+    voice.connect(dest);
     return dest.stream;
   };
   (window as any).__sing = (notes: { midi: number; at: number; ms: number }[]) => {
@@ -78,7 +91,7 @@ await page.evaluateOnNewDocument(() => {
       g.gain.linearRampToValueAtTime(0.25, t + 0.02);
       g.gain.setValueAtTime(0.25, t + n.ms / 1000 - 0.04);
       g.gain.linearRampToValueAtTime(0, t + n.ms / 1000 - 0.01);
-      osc.connect(lp).connect(g).connect(dest);
+      osc.connect(lp).connect(g).connect(voice);
       osc.start(t);
       vib.start(t);
       osc.stop(t + n.ms / 1000);
@@ -101,7 +114,7 @@ await page.evaluateOnNewDocument(() => {
 });
 
 const params = new URLSearchParams({
-  clef: "treble", range: "14-21", key: "G", scaleDegrees: "1,2,3,4,5", rhythms: "quarter,half",
+  clef: "treble", range: "14-21", key: "G", scaleDegrees: "1,2,3,4,5", rhythms: process.env.RHYTHMS ?? "quarter,half",
   timeSignature: "4/4", measures: "4", maxSkip: "2", bpm: "90", showSolfege: "true", rhythmOnly: "false",
 });
 await page.evaluateOnNewDocument(
@@ -126,6 +139,10 @@ const info = await page.evaluate(() => {
 const sched = gradeSchedule(info.abc, info.transpose);
 const beatMs = 60_000 / info.tempo;
 console.log(`${sched.notes.length} notes at ${info.tempo} BPM, mode ${MODE}, ${STRICT}, cursor ${CURSOR}, click ${CLICK}`);
+if (process.env.LAYOUT) {
+  console.log("notes (beat, length):", sched.notes.map((n, i) => `${i + 1}:${n.startUnits / 8}+${n.lengthUnits / 8}`).join(" "));
+  console.log("rests (beat, length):", sched.rests.map((r) => `${r.startUnits / 8}+${r.lengthUnits / 8}`).join(" "));
+}
 
 // The planted faults: well inside the exercise, apart from each other.
 const n = sched.notes.length;
@@ -158,11 +175,27 @@ const plan = sched.notes
   })
   .filter(Boolean);
 await page.evaluate((p) => (window as any).__sing(p), plan);
+if (process.env.PROBE) {
+  for (let k = 0; k < 6; k++) {
+    await new Promise((r) => setTimeout(r, 700));
+    console.log("probe:", JSON.stringify(await page.evaluate(() => { const d = (window as any).__gradeDebug; const v = d.view(); return { phase: v.phase, sung: v.sung, i: v.index, mic: d.mic(), now: performance.now() }; })), "t0", t0.toFixed(0), "first note at", (plan[0] as any)?.at?.toFixed(0));
+  }
+}
 
 const end = t0 + (sched.totalUnits * unitMs) + 3000;
 const waitMs = end - (await page.evaluate(() => performance.now()));
 await new Promise((r) => setTimeout(r, Math.max(0, waitMs) + (MODE === "pitch" ? 6000 : 1500)));
 if (SHOTS) await page.screenshot({ path: SHOTS, fullPage: false });
+// SAVE=<dir>: press "Save this run" and keep the two files there.
+if (process.env.SAVE) {
+  const cdp = await page.createCDPSession();
+  await cdp.send("Page.setDownloadBehavior", { behavior: "allow", downloadPath: process.env.SAVE });
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll(".grade-dock button")].find((x) => (x.textContent ?? "").trim() === "Save this run");
+    (b as HTMLButtonElement | undefined)?.click();
+  });
+  await new Promise((r) => setTimeout(r, 2500));
+}
 
 const out = await page.evaluate(() => {
   const dock = document.querySelector(".grade-dock")?.textContent?.replace(/\s+/g, " ").trim();
@@ -194,7 +227,7 @@ if (MODE === "performance") {
   const r = v.result;
   if (!r) throw new Error("no result: " + JSON.stringify(v).slice(0, 300));
   console.log(`pitch ${r.score}% ${r.letter}`);
-  r.notes.forEach((x: any, i: number) => console.log(`  ${String(i + 1).padStart(2)} score ${x.score}${x.missed ? " missed" : x.skipped ? " skipped" : ""}`));
+  r.notes.forEach((x: any, i: number) => console.log(`  ${String(i + 1).padStart(2)} midi ${x.midi} score ${x.score} find ${x.findBeats?.toFixed(2) ?? "-"} cents ${x.cents ?? "-"}${x.missed ? " missed" : x.skipped ? " skipped" : ""}`));
 }
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 await browser.close();

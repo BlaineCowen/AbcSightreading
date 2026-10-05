@@ -77,6 +77,8 @@ export type GradeTrace = {
   /** Pitch & rhythm: each note's sung onset, in performance.now ms, when one was found. */
   onsets: (number | null)[];
   tolerance: number;
+  /** Pitch & rhythm: the first downbeat (performance.now ms). */
+  t0?: number;
 };
 
 export type GradeHooks = {
@@ -276,6 +278,7 @@ export class GradeRunner {
     this.hooks.marked?.(perf.notes.map((n) => n.pitch));
     this.hooks.traced?.({
       mode: "performance",
+      t0,
       frames,
       spans: this.notes.map((n) => ({ from: t0 + n.startUnits * unitMs, to: t0 + (n.startUnits + n.lengthUnits) * unitMs })),
       onsets: perf.notes.map((n) => (n.onsetBeats === null ? null : t0 + n.startUnits * unitMs + n.onsetBeats * beatMs)),
@@ -301,6 +304,11 @@ export class GradeRunner {
     this.advanceAt = 0;
     this.help = { heardNote: false, heardKey: false };
     this.presentedAt = this.lastTickAt = performance.now();
+    // After a rest, the note's time starts when the rest is over: resting
+    // through it is right, and used to count as time spent finding the note.
+    const prev = this.notes[i - 1];
+    const gapUnits = this.notes[i].startUnits - (prev ? prev.startUnits + prev.lengthUnits : 0);
+    if (gapUnits > 0) this.presentedAt += (gapUnits * 60_000) / Math.max(1, this.bpm) / this.beatUnits;
     // Sung ahead of the cursor, it started being sung before it was shown.
     this.spans[i] = { from: this.holdMs > 0 ? this.holdStartedAt : this.presentedAt, to: this.presentedAt };
     this.hooks.moveTo(i);

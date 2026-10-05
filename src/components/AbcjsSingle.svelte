@@ -71,6 +71,8 @@
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
+  import { saveGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
+  import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
   import { solfegeOf } from "../lib/grade";
   import { billingStatus } from "../lib/billing-client";
@@ -3619,6 +3621,7 @@
     (window as any).__gradeDebug = {
       abc: () => originalTuneString, transpose: () => transposeSemitones, tempo: () => tempo, meter: () => playedMeter(),
       view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
+      mic: () => { const t = tuner.get(); return { status: t.engineStatus, dbfs: t.dbfs, pitch: t.pitch }; },
     };
   }
   /** A Grade run in time is using the page's timeline (cursor and click, no melody). */
@@ -3629,6 +3632,46 @@
   let gradeTrace: GradeTrace | null = null;
   /** The note tapped on the score after a run, for its details. */
   let gradeDetailIndex: number | null = null;
+  /**
+   * Saving runs for review: on the dev server, or with ?gradeDebug=1. The
+   * microphone is recorded over each run (grade-recording.ts).
+   */
+  const gradeDebugOn =
+    import.meta.env.DEV || (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("gradeDebug"));
+  let gradeRecording: GradeRecording | null = null;
+  let gradeAudio: { blob: Blob; startedAt: number; mime: string } | null = null;
+  async function stopGradeRecording(keep: boolean) {
+    const rec = gradeRecording;
+    gradeRecording = null;
+    const out = rec ? await rec.stop() : null;
+    if (keep) gradeAudio = out;
+  }
+  function saveGradeRunNow() {
+    const t = tuner.get();
+    const v = $gradeRunner;
+    saveGradeRun(
+      {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        abc: originalTuneString,
+        transpose: transposeSemitones,
+        tempo,
+        meter: playedMeter(),
+        beatUnits: resolveMeter(playedMeter()).beatUnits,
+        settings: { mode: t.gradeMode, strictness: t.gradeStrictness, cursor: t.gradeCursor, click: t.gradeClick, reference: t.gradeReference, a4: t.a4 },
+        detectLatencyMs: DETECT_LATENCY_MS,
+        notes: gradeList,
+        rests: gradeRestList,
+        t0: gradeTrace?.t0 ?? null,
+        spans: gradeTrace?.spans ?? [],
+        frames: gradeTrace?.frames ?? [],
+        perf: v.perf,
+        result: v.result,
+        userAgent: navigator.userAgent,
+      },
+      gradeAudio,
+    );
+  }
 
   /**
    * Pitch & rhythm: the exercise in time from its count-in, on the same
@@ -3665,6 +3708,8 @@
   /** What was sung, drawn on the score (grade-feedback.ts). */
   function drawGradeTrace(trace: GradeTrace) {
     gradeTrace = trace;
+    // The run is over: keep its recording for "Save this run".
+    if (gradeRecording) void stopGradeRecording(true);
     const svg = document.querySelector("#paper svg") as SVGSVGElement | null;
     if (!svg) return;
     const drawn = drawnNotes();
@@ -3758,6 +3803,7 @@
   }
 
   function closeGrade() {
+    void stopGradeRecording(false);
     gradeRunner.stop();
     clearGradeMarks();
     gradeOpen = false;
@@ -3800,6 +3846,14 @@
     gradeList = schedule.notes;
     gradeRestList = schedule.rests;
     if (!gradeList.length) return;
+    // Saving runs for review: the recording starts first. Nothing may await
+    // between the tuner starting and the run starting, or the page sees a
+    // microphone held with no run and switches it off.
+    gradeAudio = null;
+    if (gradeDebugOn) {
+      await stopGradeRecording(false);
+      gradeRecording = await startGradeRecording();
+    }
     // The button press is the gesture the microphone needs.
     initTuner();
     await startTuner();
@@ -3954,6 +4008,7 @@
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
       detail={gradeDetail}
+      onSave={gradeDebugOn ? saveGradeRunNow : null}
     />
   {/if}
   {#if playAlongOpen}

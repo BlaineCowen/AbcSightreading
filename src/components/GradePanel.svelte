@@ -24,6 +24,8 @@
   export let doPc = 0;
   /** After a run: what the tapped note on the score did. */
   export let detail: string | null = null;
+  /** Saving a run for review (the recording and the grading's data); null hides it. */
+  export let onSave: (() => void) | null = null;
 
   const STRICT_LEVELS = Object.entries(STRICTNESS) as [Strictness, (typeof STRICTNESS)[Strictness]][];
   const CURSORS = [["off", "Off"], ["smooth", "Smooth"], ["beat", "Beat"], ["note", "Note"]] as const;
@@ -200,6 +202,7 @@
       </button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
       <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
+      {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
     {:else if v.phase === "results" && v.result}
       <div class="flex items-baseline gap-2 shrink-0">
         <span class="flex flex-col items-center leading-none"><span class="text-2xl font-extrabold tabular-nums">{v.result.score}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Pitch</span></span>
@@ -211,6 +214,7 @@
       </button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
       <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
+      {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
     {/if}
     <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">
       <X size={16} />
