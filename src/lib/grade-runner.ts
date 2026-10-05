@@ -5,13 +5,15 @@ import { NOTES } from "./tuner/pitch";
 import type { HistoryPoint } from "./tuner/pitch-history";
 import { playArpeggio, playNotes } from "./tools/tone";
 import {
+  ATTEMPT_MS,
+  CONFIRM_MS,
+  CREDIT_MS,
   HOLD_GRACE_MS,
+  SETTLE_MS,
   STRICTNESS,
   centsOffAnyOctave,
   gradePerformance,
   holdCents,
-  creditMsFor,
-  noteMsFor,
   noteScore,
   summarize,
   type GradeMode,
@@ -26,8 +28,9 @@ import {
 
 /**
  * Runs one graded attempt at a Unison exercise (rules in grade.ts), in either
- * mode. Pitch only: a reference, a count-in, then each note waited on until it
- * is sung and held for its written length. Pitch & rhythm: a reference, then
+ * mode. Pitch only: a reference, then each note waited on, untimed, until it
+ * is sung and held on pitch a moment; it scores by how it was found (right
+ * first time, corrected, after hearing it, or skipped). Pitch & rhythm: a reference, then
  * the page runs the exercise in time (its count-in, cursor and click, no
  * melody) and the recording is graded at the end, pitch and rhythm apart. The scale challenge's runner is the model (a 50 ms
  * poll rather than a subscription or rAF, a run token so stale ticks bail, the
@@ -119,22 +122,12 @@ export class GradeRunner {
   private offSince: number | null = null;
   private lastTickAt = 0;
   private helpUntil = 0;
-  /** Credit given: when the cursor moves on, in time with the music. */
-  private advanceAt = 0;
-  /**
-   * The next note already being sung while the cursor waits out this one. The
-   * detector hears a note a moment after it starts, so a singer in time is
-   * always a little ahead of it; this keeps what they sang ahead of the cursor.
-   */
-  private ahead = { ms: 0, since: 0, off: null as number | null };
-  /**
-   * The next note being sung while this one is still waited on. A sight-reader
-   * who misses a note carries on in time; the cursor used to stay on the missed
-   * note while they sang on, and nothing after it matched. Once this note's
-   * time is up and the next is clearly being sung, this one counts as missed
-   * and the cursor goes with them.
-   */
-  private passing = { ms: 0, since: 0, off: null as number | null };
+  /** Credited: when the next note comes up. */
+  private creditedAt = 0;
+  /** The pitch being held now, and since when: a held pitch is an attempt. */
+  private steady: { midi: number; since: number } | null = null;
+  /** The first attempt at this note: its pitch, and whether it was the note. */
+  private firstTry: { midi: number; right: boolean } | null = null;
   private help: Help = { heardNote: false, heardKey: false };
   private tonicTriad: number[] = [];
   private mode: GradeMode = "pitch";
@@ -219,19 +212,9 @@ export class GradeRunner {
       this.later(refMs, () => this.perform(o.cursor ?? "smooth", o.click ?? "beat"));
       return;
     }
-    this.later(refMs, () => {
-      this.set({ phase: "countIn" });
-      for (let b = 0; b < o.countInBeats; b++) {
-        this.later(b * beatMs, () => {
-          this.hooks.countIn(b, o.countInBeats);
-          this.hooks.click(b % o.beatsPerBar === 0);
-        });
-      }
-      this.later(o.countInBeats * beatMs, () => {
-        this.hooks.countIn(-1, o.countInBeats);
-        this.sing();
-      });
-    });
+    // Pitch only is untimed: no count-in, the first note straight away.
+    void beatMs;
+    this.later(refMs, () => this.sing());
   }
 
   /**
@@ -295,22 +278,15 @@ export class GradeRunner {
 
   private present(i: number) {
     this.index = i;
-    // What was sung of this note while the cursor waited on the last one counts.
-    this.holdMs = this.ahead.ms;
-    this.holdStartedAt = this.ahead.ms > 0 ? this.ahead.since : 0;
-    this.ahead = { ms: 0, since: 0, off: null };
-    this.passing = { ms: 0, since: 0, off: null };
+    this.holdMs = 0;
+    this.holdStartedAt = 0;
     this.offSince = null;
-    this.advanceAt = 0;
+    this.creditedAt = 0;
+    this.steady = null;
+    this.firstTry = null;
     this.help = { heardNote: false, heardKey: false };
     this.presentedAt = this.lastTickAt = performance.now();
-    // After a rest, the note's time starts when the rest is over: resting
-    // through it is right, and used to count as time spent finding the note.
-    const prev = this.notes[i - 1];
-    const gapUnits = this.notes[i].startUnits - (prev ? prev.startUnits + prev.lengthUnits : 0);
-    if (gapUnits > 0) this.presentedAt += (gapUnits * 60_000) / Math.max(1, this.bpm) / this.beatUnits;
-    // Sung ahead of the cursor, it started being sung before it was shown.
-    this.spans[i] = { from: this.holdMs > 0 ? this.holdStartedAt : this.presentedAt, to: this.presentedAt };
+    this.spans[i] = { from: this.presentedAt + SETTLE_MS, to: this.presentedAt + SETTLE_MS };
     this.hooks.moveTo(i);
     this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false, credited: false });
   }
@@ -319,28 +295,14 @@ export class GradeRunner {
     const now = performance.now();
     const dt = Math.min(now - this.lastTickAt, 200);
     this.lastTickAt = now;
-    if (this.advanceAt) {
-      // Credited: the cursor moves on when the written note is over, so it
-      // keeps the music's time rather than jumping ahead of the beat.
-      const upcoming = this.notes[this.index + 1];
-      if (upcoming) {
-        const s = tuner.get();
-        const heard = s.pitch !== null ? centsOffAnyOctave(midiOfHz(s.pitch, s.a4), upcoming.midi) : null;
-        if (heard !== null && Math.abs(heard) <= this.tolerance) {
-          if (this.ahead.ms === 0) this.ahead.since = now;
-          this.ahead.ms += dt;
-          this.ahead.off = null;
-        } else if (this.ahead.ms > 0) {
-          this.ahead.off ??= now;
-          if (now - this.ahead.off > HOLD_GRACE_MS) this.ahead = { ms: 0, since: 0, off: null };
-        }
-      }
-      if (now >= this.advanceAt) this.next();
+    if (this.creditedAt) {
+      // Credited: a moment of green, then the next note.
+      if (now - this.creditedAt >= CONFIRM_MS) this.next();
       return;
     }
     if (now < this.helpUntil) {
-      // Listening to help: the clock stands still and nothing is heard.
-      this.presentedAt += dt;
+      // Listening to help: nothing is heard, and it is not an attempt.
+      this.steady = null;
       return;
     }
     if (this.helpUntil) {
@@ -349,9 +311,19 @@ export class GradeRunner {
     }
     const note = this.notes[this.index];
     const s = tuner.get();
-    const sung = s.pitch !== null ? midiOfHz(s.pitch, s.a4) : null;
+    // The first moment after a note is shown is the last note dying away.
+    const sung = s.pitch !== null && now - this.presentedAt >= SETTLE_MS ? midiOfHz(s.pitch, s.a4) : null;
     const cents = sung !== null ? centsOffAnyOctave(sung, note.midi) : null;
     const onTarget = cents !== null && Math.abs(cents) <= this.tolerance;
+
+    // An attempt: any pitch held for a moment. The first decides "right first time".
+    if (sung === null) this.steady = null;
+    else if (!this.steady || Math.abs(sung - this.steady.midi) > 0.5) this.steady = { midi: sung, since: now };
+    else if (!this.firstTry && now - this.steady.since >= ATTEMPT_MS) {
+      const off = centsOffAnyOctave(this.steady.midi, note.midi);
+      this.firstTry = { midi: note.midi + off / 100, right: Math.abs(off) <= this.tolerance };
+    }
+
     if (onTarget) {
       if (this.holdMs === 0) this.holdStartedAt = now;
       this.holdMs += dt;
@@ -363,42 +335,22 @@ export class GradeRunner {
         this.offSince = null;
       }
     }
-    const need = creditMsFor(note.beats, this.bpm);
-    // Catching up: the next note, sung while this one never was.
-    const following = this.notes[this.index + 1];
-    if (following && following.midi % 12 !== note.midi % 12 && sung !== null && !onTarget) {
-      const toNext = centsOffAnyOctave(sung, following.midi);
-      if (Math.abs(toNext) <= this.tolerance) {
-        if (this.passing.ms === 0) this.passing.since = now;
-        this.passing.ms += dt;
-        this.passing.off = null;
-      } else if (this.passing.ms > 0) {
-        this.passing.off ??= now;
-        if (now - this.passing.off > HOLD_GRACE_MS) this.passing = { ms: 0, since: 0, off: null };
-      }
-      const timeUp = now - this.presentedAt >= noteMsFor(note.beats, this.bpm);
-      if (timeUp && this.passing.ms >= creditMsFor(following.beats, this.bpm)) {
-        this.record({ midi: note.midi, findBeats: null, cents: null, help: this.help, skipped: true, missed: true });
-        this.ahead = { ...this.passing };
-        this.next();
-        return;
-      }
-    }
-    if (this.holdMs >= need) {
-      const median = holdCents(pitchHistory.recent(need + HOLD_GRACE_MS + 500), note.midi, this.holdStartedAt, now);
-      const findBeats = Math.max(0, this.holdStartedAt - this.presentedAt) / (60_000 / this.bpm);
-      this.record({ midi: note.midi, findBeats, cents: median ?? cents, help: this.help, skipped: false });
-      // No chime: the singer is mid-phrase. The cursor moves on once the note
-      // has lasted its written length from when the cursor reached it (the
-      // first note from when it was sung, which starts the clock). Counting
-      // from when the detector heard each note lagged it behind a singer in
-      // time, a little more every note. A late note waits for its credit.
-      const from = this.index === 0 ? this.holdStartedAt : this.presentedAt;
-      this.advanceAt = Math.max(now, from + noteMsFor(note.beats, this.bpm));
+    if (this.holdMs >= CREDIT_MS) {
+      const median = holdCents(pitchHistory.recent(CREDIT_MS + HOLD_GRACE_MS + 500), note.midi, this.holdStartedAt, now);
+      const outcome = this.help.heardNote ? "helped" : this.firstTry && !this.firstTry.right ? "corrected" : "first";
+      this.record({
+        midi: note.midi,
+        outcome,
+        cents: median ?? cents,
+        firstTry: this.firstTry && !this.firstTry.right ? this.firstTry.midi : null,
+        findSec: Math.max(0, this.holdStartedAt - this.presentedAt) / 1000,
+        help: this.help,
+      });
+      this.creditedAt = now;
       this.set({ hold: 1, onTarget: true, cents, sung, credited: true });
       return;
     }
-    this.set({ hold: Math.min(1, this.holdMs / need), onTarget, cents, sung });
+    this.set({ hold: Math.min(1, this.holdMs / CREDIT_MS), onTarget, cents, sung });
   }
 
   private record(r: Omit<NoteResult, "score">) {
@@ -414,7 +366,8 @@ export class GradeRunner {
   private finish() {
     this.clear();
     this.hooks.moveTo(-1);
-    this.hooks.marked?.(this.results.map((r) => r.score));
+    // Coloured by how each was found: green right first time, amber corrected or helped, red skipped.
+    this.hooks.marked?.(this.results.map((r) => (r.outcome === "first" ? 100 : r.outcome === "skipped" ? 0 : 75)));
     this.hooks.traced?.({
       mode: "pitch",
       frames: pitchHistory.recent(performance.now() - this.startedAt + 1000),
@@ -428,7 +381,7 @@ export class GradeRunner {
   /** Stuck: hear the note, the tonic, or the tonic chord. The clock stops while it sounds. */
   helpWith(kind: HelpKind) {
     // Nothing to help with once the note has its credit.
-    if (this.timer === null || this.advanceAt) return;
+    if (this.timer === null || this.creditedAt) return;
     const a4 = tuner.get().a4;
     const now = performance.now();
     if (kind === "note") {
@@ -449,14 +402,15 @@ export class GradeRunner {
       this.help = { ...this.help, heardKey: true };
     }
     this.holdMs = 0;
+    this.steady = null;
     this.set({ helping: true, hold: 0 });
   }
 
-  /** Give up on this note: it scores the least a note can. */
+  /** Give up on this note: it scores nothing, and the next note comes up. */
   skip() {
-    if (this.timer === null || this.advanceAt) return;
+    if (this.timer === null || this.creditedAt) return;
     const note = this.notes[this.index];
-    this.record({ midi: note.midi, findBeats: null, cents: null, help: this.help, skipped: true });
+    this.record({ midi: note.midi, outcome: "skipped", cents: null, firstTry: this.firstTry && !this.firstTry.right ? this.firstTry.midi : null, findSec: null, help: this.help });
     this.next();
   }
 

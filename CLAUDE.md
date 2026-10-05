@@ -545,15 +545,19 @@ opens a strip docked above the playback bar (the page leaves room below the
 score for it). Its setup (remembered in the tuner store: `gradeMode`,
 `gradeStrictness`, `gradeCursor`, `gradeClick`, `gradeReference`) chooses:
 
-- **Pitch only**: a reference (the first note or the tonic chord), a count-in,
-  then each note waited on: it earns its credit after a moment on pitch (250
-  ms, less for a short note) in any octave, and the cursor moves on when the
-  note's written length is over, counted from when the cursor reached it.
-  Pitch sung ahead of the cursor counts toward the next note, and a singer who
-  misses a note and sings on is caught up with. Stuck? plays the note (the
-  note then scores at most 50), the tonic or the tonic chord (10 off), or
-  skips. Each note loses points for time to find (a free beat, then 25 a beat,
-  up to 50) and intonation (up to 25), never more than 60 in all.
+- **Pitch only**: untimed, note by note. A reference (the first note or the
+  tonic chord), then the cursor waits on each note - no tempo, no click,
+  nothing moves on by itself - until it is sung and held on pitch (any
+  octave) for 300 ms; it shows green a moment, then the next note. Singing
+  in the first 150 ms after a note is shown is the last one dying away, and
+  never counts for it. Each note scores by how it was found: right first
+  time (the first pitch held 250 ms was the note) 100, corrected 75 (the
+  first try is kept and named: "you first sang re"), after hearing it played
+  at most 50, the tonic or chord 10 off, skipped 0; intonation past the free
+  cents costs up to 25. It used to be a hybrid - waiting on a note, then
+  moving on in time and counting pitch sung ahead toward the next note -
+  and a singer following the cursor in time had short notes marked missed
+  and attempts counted against the wrong notes (Blaine's saved run).
 - **Pitch & rhythm** (`gradeMode: "performance"`): a reference, then the
   exercise runs in time on the page's own TimingCallbacks with no synth (the
   melody never sounds): its count-in, the chosen cursor (off, smooth, beat,

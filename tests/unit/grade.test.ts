@@ -1,14 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
   CENTS_MAX,
-  FIND_MAX,
+  CORRECTED_SCORE,
   HELP_KEY_COST,
   HELP_NOTE_CAP,
-  MAX_LOSS,
-  CREDIT_MS,
-  MIN_CREDIT_MS,
-  creditMsFor,
-  noteMsFor,
   guidance,
   solfegeOf,
   centsOffAnyOctave,
@@ -60,42 +55,34 @@ describe("any octave counts", () => {
   });
 });
 
-describe("a note's score", () => {
-  test("found at once and in tune is 100", () => {
-    expect(noteScore({ findBeats: 0.5, cents: 10, help: none })).toBe(100);
+describe("a note's score (Pitch only, by how it was found)", () => {
+  test("right first time and in tune is 100", () => {
+    expect(noteScore({ outcome: "first", cents: 10, help: none })).toBe(100);
   });
-  test("time to find: free for a beat, then points per beat, capped", () => {
-    expect(noteScore({ findBeats: 2, cents: 0, help: none })).toBe(75);
-    expect(noteScore({ findBeats: 30, cents: 0, help: none })).toBe(100 - FIND_MAX);
+  test("corrected: the first pitch held was off, then it was found", () => {
+    expect(noteScore({ outcome: "corrected", cents: 0, help: none })).toBe(CORRECTED_SCORE);
   });
   test("intonation: free near the target, then a point a cent, capped", () => {
-    expect(noteScore({ findBeats: 0, cents: -30, help: none })).toBe(90);
-    expect(noteScore({ findBeats: 0, cents: 200, help: none })).toBe(100 - CENTS_MAX);
+    expect(noteScore({ outcome: "first", cents: -30, help: none })).toBe(90);
+    expect(noteScore({ outcome: "first", cents: 200, help: none })).toBe(100 - CENTS_MAX);
   });
   test("help: hearing the note caps it; the key costs a little", () => {
-    expect(noteScore({ findBeats: 0, cents: 0, help: { heardNote: true, heardKey: false } })).toBe(HELP_NOTE_CAP);
-    expect(noteScore({ findBeats: 0, cents: 0, help: { heardNote: false, heardKey: true } })).toBe(100 - HELP_KEY_COST);
+    expect(noteScore({ outcome: "helped", cents: 0, help: { heardNote: true, heardKey: false } })).toBe(HELP_NOTE_CAP);
+    expect(noteScore({ outcome: "first", cents: 0, help: { heardNote: false, heardKey: true } })).toBe(100 - HELP_KEY_COST);
   });
-  test("no note loses more than the limit, and a skip loses exactly that", () => {
-    expect(noteScore({ findBeats: 30, cents: 200, help: { heardNote: true, heardKey: true } })).toBe(100 - MAX_LOSS);
-    expect(noteScore({ findBeats: null, cents: null, help: none, skipped: true })).toBe(100 - MAX_LOSS);
+  test("a skip scores nothing", () => {
+    expect(noteScore({ outcome: "skipped", cents: null, help: none })).toBe(0);
   });
 });
 
 describe("the exercise's score", () => {
-  const r = (score: number): NoteResult => ({ midi: 60, findBeats: 0, cents: 0, help: none, skipped: false, score });
+  const r = (score: number): NoteResult => ({ midi: 60, outcome: "first", cents: 0, firstTry: null, findSec: 0, help: none, score });
   test("the average of its notes, with a letter", () => {
     expect(summarize([r(100), r(80)])).toMatchObject({ score: 90, letter: "A" });
     expect(summarize([r(100), r(100), r(40)]).score).toBe(80);
   });
   test("letter boundaries", () => {
     expect([95, 90, 89, 80, 70, 60, 59].map(letterFor)).toEqual(["A", "A", "B", "B", "C", "D", "F"]);
-  });
-  test("credit comes quickly; the cursor waits out the written length", () => {
-    expect(noteMsFor(1, 60)).toBe(1000);
-    expect(creditMsFor(1, 60)).toBe(CREDIT_MS);
-    expect(creditMsFor(4, 60)).toBe(CREDIT_MS);
-    expect(creditMsFor(0.5, 200)).toBe(Math.max(MIN_CREDIT_MS, 150 * 0.8));
   });
 });
 

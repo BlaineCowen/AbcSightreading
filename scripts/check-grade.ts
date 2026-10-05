@@ -159,6 +159,40 @@ await page.evaluate(() => {
   (b as HTMLButtonElement | undefined)?.click();
 });
 
+// Pitch only is untimed: the singer answers each note as it comes up.
+if (MODE === "pitch") {
+  await page.waitForFunction(() => (window as any).__gradeDebug.view().phase === "sing", { timeout: 15000 });
+  for (let i = 0; i < sched.notes.length; i++) {
+    await page.waitForFunction((k) => { const v = (window as any).__gradeDebug.view(); return v.index === k || v.phase === "results"; }, { timeout: 15000 }, i);
+    const now = await page.evaluate(() => performance.now());
+    const midi = sched.notes[i].midi;
+    if (i === SKIP) {
+      await new Promise((r) => setTimeout(r, 700));
+      await page.evaluate(() => (window as any).__gradeDebugSkip?.());
+      continue;
+    }
+    // A wrong first try: a step high for half a second, then the note.
+    const plan = i === WRONG
+      ? [{ midi: midi + 2, at: now + 250, ms: 550 }, { midi, at: now + 900, ms: 700 }]
+      : [{ midi, at: now + 250, ms: 700 }];
+    await page.evaluate((p) => (window as any).__sing(p), plan);
+    await page.waitForFunction((k) => { const v = (window as any).__gradeDebug.view(); return v.index !== k || v.phase === "results"; }, { timeout: 15000 }, i);
+  }
+  await page.waitForFunction(() => (window as any).__gradeDebug.view().phase === "results", { timeout: 15000 });
+  const r = (await page.evaluate(() => (window as any).__gradeDebug.view())).result;
+  let failures = 0;
+  r.notes.forEach((x: any, i: number) => {
+    const want = i === WRONG ? "corrected" : i === SKIP ? "skipped" : "first";
+    const ok = x.outcome === want && (i !== WRONG || Math.abs(x.firstTry - (sched.notes[i].midi + 2)) < 0.5);
+    console.log(`  ${String(i + 1).padStart(2)} ${x.outcome.padEnd(9)} score ${x.score}${x.firstTry !== null ? ` first try ${x.firstTry.toFixed(2)}` : ""}${ok ? "" : `  FAIL (wanted ${want})`}`);
+    if (!ok) failures++;
+  });
+  console.log(`pitch ${r.score}% ${r.letter}`);
+  console.log(failures ? `${failures} check(s) failed` : "all checks passed");
+  await browser.close();
+  process.exit(0);
+}
+
 // The count-in's "1": the first downbeat is four beats later (4/4).
 const one = await page.waitForFunction(() => (window as any).__countIn.find((w: any) => w.word === "1")?.at, { timeout: 15000 });
 const t1 = (await one.jsonValue()) as number;

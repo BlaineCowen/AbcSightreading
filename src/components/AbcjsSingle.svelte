@@ -3623,6 +3623,7 @@
       view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
       mic: () => { const t = tuner.get(); return { status: t.engineStatus, dbfs: t.dbfs, pitch: t.pitch }; },
     };
+    (window as any).__gradeDebugSkip = () => gradeRunner.skip();
   }
   /** A Grade run in time is using the page's timeline (cursor and click, no melody). */
   let gradeTimeline = false;
@@ -3754,9 +3755,11 @@
     }
     const r = v.result?.notes[i];
     if (!r) return null;
-    if (r.missed) return `Note ${i + 1} (${want}): missed`;
-    if (r.skipped) return `Note ${i + 1} (${want}): skipped`;
-    return `Note ${i + 1} (${want}): ${r.score}%, found in ${(r.findBeats ?? 0).toFixed(1)} beats${r.cents !== null ? `, ${Math.abs(r.cents)} cents ${r.cents > 0 ? "sharp" : r.cents < 0 ? "flat" : ""}` : ""}${r.help.heardNote ? ", heard the note" : r.help.heardKey ? ", heard the key" : ""}`;
+    const first = r.firstTry !== null ? `, you first sang ${solfegeOf(r.firstTry, gradeDoPc)}` : "";
+    if (r.outcome === "skipped") return `Note ${i + 1} (${want}): skipped${first}`;
+    const how = r.outcome === "first" ? "right first time" : r.outcome === "corrected" ? `corrected${first}` : "after hearing it";
+    const tune = r.cents !== null && Math.abs(r.cents) >= 10 ? ` · ${Math.abs(r.cents)} cents ${r.cents > 0 ? "sharp" : "flat"}` : "";
+    return `Note ${i + 1} (${want}): ${how}${tune}${r.help.heardKey ? " · heard the key" : ""}`;
   })();
   /** Do's pitch class for naming notes in solfege, with the playback transposition. */
   $: gradeDoPc = (() => {

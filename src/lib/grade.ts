@@ -16,37 +16,31 @@ import type { HistoryPoint } from "./tuner/pitch-history";
  * Tests: tests/unit/grade.test.ts.
  */
 
-/** Within this of the target, in any octave, counts as the note: half a semitone. */
+/** Within this of the target, in any octave, counts as the note: half a semitone. (The strictness sets its own.) */
 export const TOLERANCE_CENTS = 50;
 /**
- * How long a note must be on pitch to earn its credit: a moment, whatever its
- * length. Holding the whole written length felt too long (the detector takes a
- * moment to lock on), and half of it moved the cursor on ahead of the beat.
- * Now the credit comes quickly and the cursor keeps time: see noteMsFor.
+ * Pitch only is untimed, note by note: the cursor waits on a note until it is
+ * sung and held on pitch this long, whatever its written length.
  */
-export const CREDIT_MS = 250;
-/** Never more than this share of a short note, so a quick eighth can still be caught. */
-export const CREDIT_SHARE = 0.8;
-/** Shortest credit asked for: detection needs about this long to be sure. */
-export const MIN_CREDIT_MS = 150;
+export const CREDIT_MS = 300;
 /** A hold survives a lapse this long (a consonant, a vibrato swing). */
 export const HOLD_GRACE_MS = 250;
-/** Finding a note within this many beats of it being shown costs nothing. */
-export const FREE_FIND_BEATS = 1;
-/** Each further beat of hunting costs this many points, */
-export const FIND_POINTS_PER_BEAT = 25;
-/** up to this many. */
-export const FIND_MAX = 50;
+/** Any pitch held this long is an attempt: the first one decides "right first time". */
+export const ATTEMPT_MS = 250;
+/** Singing in the first moment after a note is shown is the last note's tail, not this one. */
+export const SETTLE_MS = 150;
+/** Credited: the green shows this long before the next note. */
+export const CONFIRM_MS = 350;
 /** Held this close to the target, intonation costs nothing; */
 export const FREE_CENTS = 20;
 /** each cent further costs a point, up to this many. */
 export const CENTS_MAX = 25;
+/** Found, after a first attempt that was off. */
+export const CORRECTED_SCORE = 75;
 /** Hearing the note itself: the most the note can then score. */
 export const HELP_NOTE_CAP = 50;
 /** Hearing the tonic or the tonic chord: points off, once per note. */
 export const HELP_KEY_COST = 10;
-/** No note loses more than this, however stuck; a skipped note loses exactly this. */
-export const MAX_LOSS = 60;
 
 /**
  * One note to sing. `cursor` is its place among the score's notes and rests;
@@ -112,13 +106,6 @@ export function centsOffAnyOctave(sungMidi: number, targetMidi: number): number 
   return c > 600 ? c - 1200 : c;
 }
 
-/** A note's written length at this tempo (quarter notes a minute), in ms. */
-export const noteMsFor = (beats: number, bpm: number) => (beats * 60_000) / Math.max(1, bpm);
-
-/** How long a note must be on pitch to earn its credit. The cursor still waits out its written length. */
-export const creditMsFor = (beats: number, bpm: number) =>
-  Math.max(MIN_CREDIT_MS, Math.min(CREDIT_MS, noteMsFor(beats, bpm) * CREDIT_SHARE));
-
 const SYLLABLES = ["do", "di", "re", "ri", "mi", "fa", "fi", "so", "si", "la", "li", "ti"];
 /** Movable do for a pitch, given do's pitch class (the exercise's key). */
 export const solfegeOf = (midi: number, doPc: number) => SYLLABLES[(((Math.round(midi) - doPc) % 12) + 12) % 12];
@@ -143,27 +130,33 @@ export function guidance(o: { sung: number | null; target: number; doPc: number;
 
 export type Help = { heardNote: boolean; heardKey: boolean };
 
+/**
+ * How a note went in Pitch only: sung right first time, corrected (the first
+ * pitch held was off, then it was found), found after hearing it played, or
+ * skipped.
+ */
+export type Outcome = "first" | "corrected" | "helped" | "skipped";
+
 export type NoteResult = {
   midi: number;
-  /** Beats from the note being shown to the hold starting; null when skipped. */
-  findBeats: number | null;
-  /** Median signed cents over the hold, in any octave; null when skipped or unheard. */
+  outcome: Outcome;
+  /** Median signed cents over the hold, in any octave; null when skipped. */
   cents: number | null;
+  /** The first pitch held, when it was not the note (in the note's octave). */
+  firstTry: number | null;
+  /** Seconds from the note being shown to it being sung. */
+  findSec: number | null;
   help: Help;
-  skipped: boolean;
-  /** Passed by: the singer went on to the next note without singing this one. */
-  missed?: boolean;
   score: number;
 };
 
-/** One note's score, 100 down to 100 - MAX_LOSS. `freeCents` from the strictness. */
-export function noteScore(o: { findBeats: number | null; cents: number | null; help: Help; skipped?: boolean }, freeCents = FREE_CENTS): number {
-  if (o.skipped || o.findBeats === null) return 100 - MAX_LOSS;
-  const find = Math.min(FIND_MAX, Math.max(0, o.findBeats - FREE_FIND_BEATS) * FIND_POINTS_PER_BEAT);
+/** One note's score in Pitch only: by how it was found, less intonation and help. */
+export function noteScore(o: { outcome: Outcome; cents: number | null; help: Help }, freeCents = FREE_CENTS): number {
+  if (o.outcome === "skipped") return 0;
   const tune = Math.min(CENTS_MAX, Math.max(0, Math.abs(o.cents ?? 0) - freeCents));
-  let score = 100 - find - tune - (o.help.heardKey ? HELP_KEY_COST : 0);
+  let score = (o.outcome === "corrected" ? CORRECTED_SCORE : 100) - tune - (o.help.heardKey ? HELP_KEY_COST : 0);
   if (o.help.heardNote) score = Math.min(score, HELP_NOTE_CAP);
-  return Math.round(Math.max(100 - MAX_LOSS, score));
+  return Math.round(Math.max(0, score));
 }
 
 /** Median cents over a completed hold, from the pitch history, in any octave. */

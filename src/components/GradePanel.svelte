@@ -34,7 +34,9 @@
 
   $: v = $runner;
   $: sung = v.result?.notes ?? [];
-  $: toWork = sung.filter((n) => n.score < 90).length;
+  $: toWork = sung.filter((n) => n.outcome !== "first").length;
+  $: firstTimes = sung.filter((n) => n.outcome === "first").length;
+  const OUTCOME = { first: "right first time", corrected: "corrected", helped: "heard it first", skipped: "skipped" } as const;
   $: perfNotes = v.perf?.notes ?? [];
   $: pitchToWork = perfNotes.filter((n) => n.pitch < 90).length;
   $: rhythmToWork = perfNotes.filter((n) => n.rhythm < 90).length + (v.perf?.rests.filter((r) => r.sung).length ?? 0);
@@ -79,7 +81,7 @@
         <button class="sr-tok text-xs px-2.5 py-1 {performance ? 'sr-on' : ''}" aria-pressed={performance} on:click={() => tuner.setGrade({ gradeMode: "performance" })}>Pitch & rhythm</button>
       </div>
       <p class="text-xs text-sr-muted -mt-1 ml-[5.4rem]">
-        {performance ? "The music runs in time with a click; a note missed stays missed. Pitch and rhythm are scored apart." : "The cursor waits on each note until you sing it. Stuck? Hear help, or skip."}
+        {performance ? "The music runs in time with a click; a note missed stays missed. Pitch and rhythm are scored apart." : "No tempo: the cursor waits on each note until you sing it and hold it a moment. Right first time scores best. Stuck? Hear help, or skip."}
       </p>
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Strictness">
         <span class="text-xs text-sr-muted w-20">Strictness</span>
@@ -145,14 +147,13 @@
         {#each sung as n, i}
           <span
             class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.score)}"
-            title="Note {i + 1}: {n.score}%{n.missed ? ', missed' : n.skipped ? ', skipped' : n.findBeats !== null ? `, found in ${n.findBeats.toFixed(1)} beats` : ''}{n.help.heardNote ? ', heard the note' : n.help.heardKey ? ', heard the key' : ''}"
+            title="Note {i + 1}: {OUTCOME[n.outcome]}, {n.score}%{n.help.heardKey ? ', heard the key' : ''}"
           >{i + 1}</span>
         {/each}
       </div>
       <p class="text-xs text-sr-muted">
-        The notes on the score are coloured the same way. Green: found quickly and in tune. Amber: slow to find, or
-        heard help. Red: stuck or skipped. The line through them is the pitch you sang: blue on the note, red off it.
-        Tap a note for details.
+        {firstTimes} of {sung.length} right first time. On the score, green is right first time, amber corrected or
+        helped, red skipped; the line is the pitch you sang, blue on the note, red off it. Tap a note for details.
       </p>
     </div>
   {/if}
@@ -164,7 +165,7 @@
     {:else if v.phase === "idle"}
       <div class="flex-1 min-w-0 flex flex-col gap-1">
         <p class="text-sm font-bold text-sr-ink">
-          {performance ? "Sing it in time. The music keeps going." : "Sing it. The cursor waits for each note."}
+          {performance ? "Sing it in time. The music keeps going." : "Sing each note. The cursor waits for you."}
         </p>
         {#if blocked}
           <p class="text-xs text-sr-muted">{blocked}</p>
@@ -214,7 +215,7 @@
         <span class="text-xl font-extrabold text-sr-action-fg">{v.result.letter}</span>
       </div>
       <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
-        {detail ?? (toWork === 0 ? "Every note found quickly" : `${toWork} note${toWork === 1 ? "" : "s"} to work on`)}
+        {detail ?? (toWork === 0 ? "Every note right first time" : `${firstTimes} of ${sung.length} right first time`)}
         <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
       </button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
