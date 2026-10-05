@@ -164,6 +164,10 @@
       <a class="sr-btn text-sm px-4 py-2 shrink-0" href={signedIn ? "/account#plan" : `/login?mode=signup&next=${encodeURIComponent("/account#plan")}`}>Get Pro</a>
     {:else if v.phase === "idle"}
       <div class="flex-1 min-w-0 flex flex-col gap-1">
+        <p class="text-[11px] text-sr-muted leading-snug">
+          <span class="rounded-full bg-sr-butter text-sr-butter-ink px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide mr-1">Beta</span>
+          Grading is new and still being tuned, so a score can be off. If one seems wrong, tell us with Feedback.
+        </p>
         <p class="text-sm font-bold text-sr-ink">
           {performance ? "Sing it in time. The music keeps going." : "Sing each note. The cursor waits for you."}
         </p>

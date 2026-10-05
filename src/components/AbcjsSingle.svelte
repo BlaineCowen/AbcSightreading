@@ -5046,6 +5046,7 @@
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
             Listen and grade
+            <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
           </button>
         </div>
       {/if}
