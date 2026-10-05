@@ -338,7 +338,12 @@ one at bar 4 most of the time. `scripts/measure-nyssma-music.ts` measures it
 exercises before, 100% at every level now; skips per exercise 2.5/2.2/2.0/4.2;
 A-B-A 33-41% of moves -> 11-16%, A-B-A-B 11-25% -> 1-4%; top-2 pitches' share
 58/53/52/41% -> 52/48/40/38%; rests inside a phrase 80-88% -> 0, 0.8-0.9 rests
-per 8 bars. Max skip mode is untouched (its snapshots pin it).
+per 8 bars. No more than four eighths are sung in a row (`capEighthRuns`,
+`MAX_EIGHTH_RUN`): a figure that would make a longer run becomes a selected
+figure of its length with no eighths (ti-ti -> ta, ta-(i) ti -> a half), so
+nothing moves off the beat. Before, Levels III-V ran past four in 36-48% of
+exercises, up to fourteen in a row; now never. Max skip mode is untouched
+(its snapshots pin it).
 
 ### Play-along videos
 

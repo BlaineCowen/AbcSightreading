@@ -149,6 +149,90 @@ export function restsToBreaths(
 }
 
 // ---------------------------------------------------------------------------
+// No long runs of eighths
+// ---------------------------------------------------------------------------
+
+/**
+ * The most eighth notes sung in a row: two ti-tis. Measured before (every key
+ * x meter, 40 runs each), more than four came in 36% of Level III exercises,
+ * 38% of IV and 48% of V, up to fourteen in a row - a bar and a half of
+ * eighths, which a sight-reading line does not do.
+ */
+export const MAX_EIGHTH_RUN = 4;
+
+/** Is this entry a sung eighth (or anything shorter)? */
+const sungShort = (r: RhythmWithPattern) => r.rest !== true && r.totalValue <= 4;
+
+/** The rhythm as figures: a pattern's notes together, anything else alone. */
+function figuresOf(rhythms: readonly RhythmWithPattern[]): RhythmWithPattern[][] {
+  const out: RhythmWithPattern[][] = [];
+  for (const r of rhythms) {
+    const last = out[out.length - 1];
+    const continues =
+      r.isPatternNote && (r.patternIndex ?? 0) > 0 && last && last[0].isPatternNote && last[0].name === r.name;
+    if (continues) last.push(r);
+    else out.push([r]);
+  }
+  return out;
+}
+
+/**
+ * A figure that ends a run of eighths: a selected figure of the same length
+ * and meter with no eighth in it and no rest (ti-ti -> ta, ta-(i) ti -> a
+ * half), preferring a single note. Null when the selection has none.
+ */
+function figureWithoutEighths(length: number, meterKind: string, selected: readonly Rhythm[]): Rhythm | null {
+  const fits = selected.filter(
+    (r) =>
+      !r.rest &&
+      r.totalValue === length &&
+      (r.meterKind ?? "simple") === meterKind &&
+      r.abcValue.every((v) => !String(v).startsWith("z") && parseInt(String(v), 10) > 4)
+  );
+  return fits.find((r) => !r.pattern) ?? fits[0] ?? null;
+}
+
+/**
+ * At most MAX_EIGHTH_RUN eighths sung in a row. Walking the figures, one that
+ * would carry a run past the limit becomes a figure of the same length with
+ * no eighths, so every later note keeps its place on the beat. A figure is
+ * left alone when the selection offers nothing to put there, or when it
+ * closes a cadence. Returns a new array.
+ */
+export function capEighthRuns(
+  rhythms: readonly RhythmWithPattern[],
+  opts: { selected: readonly Rhythm[]; maxRun?: number }
+): RhythmWithPattern[] {
+  const maxRun = opts.maxRun ?? MAX_EIGHTH_RUN;
+  const out: RhythmWithPattern[] = [];
+  let run = 0;
+  for (const figure of figuresOf(rhythms)) {
+    let after = run;
+    let tooLong = false;
+    for (const n of figure) {
+      after = sungShort(n) ? after + 1 : 0;
+      if (after > maxRun) tooLong = true;
+    }
+    const length = figure.reduce((a, n) => a + n.totalValue, 0);
+    const swap =
+      tooLong && !figure.some((n) => n.isCadenceEnd)
+        ? figureWithoutEighths(length, figure[0].meterKind ?? "simple", opts.selected)
+        : null;
+    if (swap) {
+      const notes = laidOut(swap);
+      const last = figure[figure.length - 1];
+      notes[notes.length - 1] = { ...notes[notes.length - 1], isPhraseBreath: last.isPhraseBreath };
+      out.push(...notes);
+      run = 0;
+    } else {
+      out.push(...figure);
+      run = after;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Skips and line shape
 // ---------------------------------------------------------------------------
 

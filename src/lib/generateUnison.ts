@@ -38,6 +38,7 @@ import {
 import { figureCap, shortCapsFrom, type ShortCaps } from "./short-note-skips";
 import {
   canSkipFrom,
+  capEighthRuns,
   restsToBreaths,
   shapeFactor,
   skipCount,
@@ -2988,7 +2989,8 @@ function createNewSrOnce(params: any) {
 
     /**
      * One rhythm and one line over it. Exact skips mode puts its rests only
-     * at breaths (unison-phrasing.ts restsToBreaths); Max skip mode draws
+     * at breaths and sings no more than four eighths in a row
+     * (unison-phrasing.ts restsToBreaths, capEighthRuns); Max skip mode draws
      * exactly what it always did.
      */
     const drawRhythm = (): RhythmWithPattern[] => {
@@ -3007,11 +3009,12 @@ function createNewSrOnce(params: any) {
         throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
       }
       if (maxSkip.kind !== "custom") return rhythm;
-      return restsToBreaths(rhythm, {
+      const breathed = restsToBreaths(rhythm, {
         tsPerMeasure: timeSig.tsPerMeasure,
         measures: params.measures,
         selected: params.rhythms ?? [],
       });
+      return capEighthRuns(breathed, { selected: params.rhythms ?? [] });
     };
     /**
      * Harmony first (unison-progressions.ts) when asked for: a progression,

@@ -5,7 +5,9 @@ import type { SkipPolicy } from "../../src/lib/skip-policy";
 import {
   breathEnds,
   canSkipFrom,
+  capEighthRuns,
   FIRST_SKIP_PREFERENCE,
+  MAX_EIGHTH_RUN,
   MOMENTUM,
   restsToBreaths,
   SEESAW_PENALTY,
@@ -170,6 +172,49 @@ describe("skips and line shape", () => {
   });
 });
 
+describe("capEighthRuns", () => {
+  const E = "eighthEighth", DQE = "dotQuarterEighth";
+  const longestRun = (rs: readonly RhythmWithPattern[]) => {
+    let run = 0, best = 0;
+    for (const r of rs) best = Math.max(best, (run = !r.rest && r.totalValue <= 4 ? run + 1 : 0));
+    return best;
+  };
+  const selected = [fig(Q), fig(H), fig(E), fig(DQE)];
+
+  test("no more than four eighths in a row: the third ti-ti in a row becomes a ta", () => {
+    const out = capEighthRuns(lay(E, E, E, Q, E, E, E, E), { selected });
+    expect(MAX_EIGHTH_RUN).toBe(4);
+    expect(longestRun(out)).toBe(4);
+    expect(out.map((r) => r.name)).toEqual([E, E, E, E, Q, Q, E, E, E, E, Q, E, E]);
+  });
+
+  test("every note keeps its place: the total and each beat start are unchanged", () => {
+    const before = lay(E, E, E, E, Q, E, E, E);
+    const out = capEighthRuns(before, { selected });
+    expect(out.reduce((a, r) => a + r.totalValue, 0)).toBe(before.reduce((a, r) => a + r.totalValue, 0));
+    const beatStarts = (rs: readonly RhythmWithPattern[]) => starts(rs).filter((t) => t % 8 === 0);
+    expect(beatStarts(out)).toEqual(beatStarts(before));
+  });
+
+  test("ta-(i) ti then two ti-tis is five in a row: the last ti-ti becomes a ta", () => {
+    const out = capEighthRuns(lay(DQE, E, E, Q), { selected });
+    expect(longestRun(out)).toBeLessThanOrEqual(4);
+    expect(out.map((r) => r.name)).toEqual([DQE, DQE, E, E, Q, Q]);
+  });
+
+  test("a figure is left alone when nothing eighth-free of its length is selected", () => {
+    const out = capEighthRuns(lay(E, E, E), { selected: [fig(E)] });
+    expect(out.map((r) => r.name)).toEqual([E, E, E, E, E, E]);
+  });
+
+  test("never the figure that closes a cadence", () => {
+    const rs = lay(E, E, E);
+    rs[5] = { ...rs[5], isCadenceEnd: true };
+    const out = capEighthRuns(rs, { selected });
+    expect(out.filter((r) => r.isCadenceEnd).length).toBe(1);
+  });
+});
+
 describe("generated NYSSMA lines (exact skips)", () => {
   const quiet = () => {};
   function generate(levelShort: string, key: string, meter: string): any[] {
@@ -198,6 +243,18 @@ describe("generated NYSSMA lines (exact skips)", () => {
             if (x.rhythm?.rest) expect(ends.has(at + x.noteLength)).toBe(true);
             at += x.noteLength;
           }
+        }
+      }
+    }
+  }, 30000);
+
+  test("Levels III-V: never more than four eighths in a row (it was over four in 36-48% of exercises)", () => {
+    for (const lv of ["Level III", "Level IV", "Level V"]) {
+      for (const meter of ["4/4", "3/4", "2/4"]) {
+        for (let run = 0; run < 12; run++) {
+          let row = 0, best = 0;
+          for (const x of generate(lv, "C", meter)) best = Math.max(best, (row = !x.rhythm?.rest && x.noteLength <= 4 ? row + 1 : 0));
+          expect({ lv, meter, best: Math.min(best, 5) }).toEqual({ lv, meter, best: Math.min(best, 4) });
         }
       }
     }
