@@ -153,7 +153,7 @@ export class PlayAlongAudio {
    * current - keeping whichever finished last once left a guide at the old
    * track's tempo, falling further behind every bar. `setGuide` keeps it.
    */
-  async renderGuide(abc: string, bpm: number, volumeMultiplier: number): Promise<AudioBuffer | null> {
+  async renderGuide(abc: string, bpm: number, volumeMultiplier: number, transpose = 0): Promise<AudioBuffer | null> {
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;left:-20000px;top:0;width:800px;visibility:hidden";
     document.body.appendChild(host);
@@ -163,7 +163,8 @@ export class PlayAlongAudio {
       await synth.init({
         audioContext: this.ctx,
         visualObj: tune,
-        options: { qpm: bpm, soundFontUrl: "/api/soundfont/", soundFontVolumeMultiplier: volumeMultiplier },
+        // transpose: the page's playback transpose, as its own playback applies it.
+        options: { qpm: bpm, soundFontUrl: "/api/soundfont/", soundFontVolumeMultiplier: volumeMultiplier, midiTranspose: transpose },
       } as any);
       await synth.prime();
       return synth.getAudioBuffer() ?? null;

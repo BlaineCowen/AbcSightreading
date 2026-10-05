@@ -62,6 +62,8 @@
   export let instrumentProgram = 0;
   /** What the label picker is called: rhythm syllables, or solfège. */
   export let labelNoun = "Syllables";
+  /** Pitched: the page's playback transpose, in semitones; the melody, bass and guitar all follow it. */
+  export let transpose = 0;
   export let onClose: () => void;
 
   /** How long the finish card stays after the last bar. */
@@ -208,6 +210,7 @@
           splitAt: splitAt(score.timeSig.tsPerMeasure, beatUnitOf(scoreMeter)) / score.timeSig.tsPerMeasure,
           // The count-in strums the home chord, setting the key.
           countInBars,
+          transpose,
         })
       : [];
   /** Only 4/4 and 2/4 have a choice of strum; 3/4 and the compound meters have one each. */
@@ -232,7 +235,7 @@
         )
       : "";
   /** What the guide (and bass) was rendered for: the instrument, the tempo and the exercise as written. */
-  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}|${JSON.stringify(guitarPieces)}`;
+  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${pitched ? transpose : 0}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}|${JSON.stringify(guitarPieces)}`;
   $: if (abc && audioRunning && status === "ready" && guideKey !== guideFor) void renderGuide();
 
   /**
@@ -250,9 +253,9 @@
     guideLoading = true;
     const a = audio;
     const melody = pitched
-      ? a.renderGuide(withInstrument(abc, sound.melodyProgram), tempo, 3)
+      ? a.renderGuide(withInstrument(abc, sound.melodyProgram), tempo, 3, transpose)
       : a.renderGuide(withRhythmSound(abc, rhythmSoundFor(sound.guideSound)), tempo, volumeMultiplierFor(rhythmSoundFor(sound.guideSound)));
-    const bassLine = pitched && bassText ? a.renderGuide(bassText, tempo, 3) : Promise.resolve(null);
+    const bassLine = pitched && bassText ? a.renderGuide(bassText, tempo, 3, transpose) : Promise.resolve(null);
     // A guitar that cannot load leaves the video playing without it.
     const guitar = guitarPieces.length ? a.prepareGuitar(guitarPieces, { meter: scoreMeter, bpm: tempo }).catch(() => null) : Promise.resolve(null);
     const job: Promise<void> = Promise.all([melody, bassLine, guitar])

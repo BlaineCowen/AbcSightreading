@@ -110,8 +110,20 @@ export function nearestGuitarTempo(feel: "straight" | "waltz" | "triplet", bpm: 
   return GUITAR_TEMPOS[feel].reduce((best, t) => (Math.abs(Math.log(t / bpm)) < Math.abs(Math.log(best / bpm)) ? t : best));
 }
 
-/** The keys the Unison page offers, whose chords are rendered. */
+/** The keys the Unison page offers. */
 export const GUITAR_KEYS = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+/**
+ * The keys whose chords are rendered: all twelve, since the page's playback
+ * transpose can move any of its keys to any other.
+ */
+export const GUITAR_RENDER_KEYS = [...NAMES];
+
+/** The key `semitones` above (or below) `key`, named by pitch class: the guitar's chords are. */
+export function transposeKey(key: string, semitones: number): string {
+  const tonic = TONIC_PC[key.trim()];
+  if (tonic === undefined || !semitones) return key;
+  return NAMES[(((tonic + semitones) % 12) + 12) % 12];
+}
 
 /**
  * One piece of the guitar part: play `chord` from the clip's `from` to its
@@ -134,8 +146,10 @@ export interface GuitarPiece {
  */
 export function guitarPart(
   harmony: string[][],
-  o: { key: string; meter: string; style: GuitarStyle; splitAt: number; countInBars?: number },
+  o: { key: string; meter: string; style: GuitarStyle; splitAt: number; countInBars?: number; transpose?: number },
 ): GuitarPiece[] {
+  // The page's playback transpose moves the whole band, the guitar with it.
+  const key = transposeKey(o.key, o.transpose ?? 0);
   const { share } = guitarFeel(o.meter);
   const { a, b } = guitarSlots(o.meter, o.style);
   const pieces: GuitarPiece[] = [];
@@ -144,14 +158,14 @@ export function guitarPart(
   // counted from the first bar of music, the count-in's bars before it.
   const parts = Math.round(1 / share);
   const offsetOf = (i: number) => (parts > 1 ? (((i % parts) + parts) % parts) * share : 0);
-  const home = guitarChord(o.key, "1")?.id;
+  const home = guitarChord(key, "1")?.id;
   for (let i = -(o.countInBars ?? 0); i < 0 && home; i++) {
     pieces.push({ at: i, chord: home, slot: a, from: offsetOf(i), to: offsetOf(i) + share });
   }
   harmony.forEach((bar, i) => {
     const slot = Math.floor(i / 4) % 2 === 0 ? a : b;
     const offset = offsetOf(i);
-    const chords = bar.map((name) => guitarChord(o.key, name)?.id ?? null);
+    const chords = bar.map((name) => guitarChord(key, name)?.id ?? null);
     if (i === harmony.length - 1) {
       if (chords[0]) pieces.push({ at: i, chord: chords[chords.length - 1] ?? chords[0], slot: a, from: 0, to: 1, ending: true });
       return;

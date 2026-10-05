@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "fs";
 import {
-  GUITAR_KEYS,
+  GUITAR_RENDER_KEYS,
   GUITAR_SLOTS,
   GUITAR_TEMPOS,
   guitarChord,
   guitarFeel,
   guitarPart,
   nearestGuitarTempo,
+  transposeKey,
   type GuitarSlot,
 } from "../../src/lib/play-along/guitar";
 import { PROGRESSIONS, EXTRA_CHORDS } from "../../src/lib/unison-progressions";
@@ -78,6 +79,20 @@ describe("the part", () => {
     expect(two.slice(0, 2).map((p) => [p.at, p.from])).toEqual([[-1, 0.5], [0, 0]]);
   });
 
+  test("the page's playback transpose moves the guitar with the rest of the band", () => {
+    expect(transposeKey("G", -2)).toBe("F");
+    expect(transposeKey("C", 1)).toBe("Db");
+    expect(transposeKey("E", 7)).toBe("B");
+    expect(transposeKey("F", -12)).toBe("F");
+    const up = guitarPart(harmony, { key: "C", meter: "4/4", style: "passenger", splitAt: 0.5, countInBars: 1, transpose: 2 });
+    expect(up.map((p) => p.chord).slice(0, 5)).toEqual(["D", "D", "G", "A", "D"]);
+    expect(up.at(-1)).toMatchObject({ chord: "D", ending: true });
+    // A transpose of 0 changes nothing.
+    expect(guitarPart(harmony, { key: "C", meter: "4/4", style: "passenger", splitAt: 0.5, transpose: 0 })).toEqual(
+      guitarPart(harmony, { key: "C", meter: "4/4", style: "passenger", splitAt: 0.5 }),
+    );
+  });
+
   test("it warps from the nearest rendered tempo", () => {
     expect(nearestGuitarTempo("straight", 60)).toBe(70);
     expect(nearestGuitarTempo("straight", 100)).toBe(110);
@@ -90,13 +105,13 @@ describe("the rendered files", () => {
   for (const n of ["5/5", "5/6", "5/2", "1-7", "u_b7", "m4", "u_borrowed_i"]) names.add(n);
   const feelOf = (slot: string) => (slot.startsWith("waltz") ? "waltz" : slot.startsWith("irish") ? "triplet" : "straight");
 
-  test("every chord any progression uses, in every key, is in every pattern file", () => {
+  test("every chord any progression uses, in all twelve keys (any transpose), is in every pattern file", () => {
     for (const slot of Object.keys(GUITAR_SLOTS) as GuitarSlot[]) {
       for (const bpm of GUITAR_TEMPOS[feelOf(slot)]) {
         const f = (manifest.patterns as Record<string, { file: string; chords: string[] }>)[`${slot}@${bpm}`];
         expect(f).toBeDefined();
         expect(existsSync(`public${f.file}`)).toBe(true);
-        for (const key of GUITAR_KEYS) for (const n of names) expect(f.chords).toContain(guitarChord(key, n)!.id);
+        for (const key of GUITAR_RENDER_KEYS) for (const n of names) expect(f.chords).toContain(guitarChord(key, n)!.id);
       }
     }
   });
@@ -106,7 +121,7 @@ describe("the rendered files", () => {
       for (const bpm of GUITAR_TEMPOS[feelOf(slot)]) {
         const f = (manifest.endings as Record<string, { file: string; chords: string[] }>)[`${slot}@${bpm}`];
         expect(existsSync(`public${f.file}`)).toBe(true);
-        for (const key of GUITAR_KEYS) expect(f.chords).toContain(guitarChord(key, "1")!.id);
+        for (const key of GUITAR_RENDER_KEYS) expect(f.chords).toContain(guitarChord(key, "1")!.id);
       }
     }
   });

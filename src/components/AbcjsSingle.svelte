@@ -3689,6 +3689,7 @@
       syllableChoices={rhythmOnly ? playAlongSyllables : lyricSystems.map(([id, label]) => ({ id, label }))}
       initialSyllables={rhythmOnly ? (showRhythmSyllables ? syllableSystemId : "off") : showSolfege ? lyricSystem : "off"}
       pageTempo={tempo}
+      transpose={rhythmOnly ? 0 : transposeSemitones}
       {instrumentProgram}
       {rhythmSoundId}
       onClose={() => (playAlongOpen = false)}
