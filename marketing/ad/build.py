@@ -35,15 +35,12 @@ SWAP = 0.24             # how long into a wipe the scenes change over: the wipe 
 
 VERSIONS = {
     # start: a downbeat of the song; end: where its music stops (measured).
-    # The whole song from its first downbeat, about 73 s. Its phrases are 4
-    # bars (intro 0-3, build 4-7, chorus 8-15, verse 16-23, last chorus
-    # 24-29, the final hit on 30), and every cut after the hook is on one.
-    # (The Kids Song cut, index.html here, is no longer built.)
-    # keep: the bars of the song used, in its own bar numbers, spliced on
-    # downbeats: the intro from bar 2, through the first half of the verse,
-    # then the last chorus to the end (about 60 s).
-    "fun": dict(song="fun-fun-music", keep=[(2, 20), (24, None)], end=73.06, tag="100",
-                bars=[2, 4, 4, 2, 2, 4, 4, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+    # The 60 s cut of the song, played straight through from its bar 1 (the
+    # intro's last two bars carry the hook). Its phrases, in its own bars:
+    # the bass comes in at 3, then 7-14 and 15-22, the ending from 23; every
+    # cut after the hook is on a phrase or half-phrase.
+    "fun": dict(song="fun-fun-60", start=4.037, end=61.2, tag="105",
+                bars=[2, 4, 4, 2, 2, 4, 4, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "tuner", "playalong", "options", "close"]
 
@@ -53,7 +50,7 @@ COPY = {
     "choral": dict(kicker="Choral", tint="mint", flip=True, head="Two, three and four parts.",
                    body="SATB, SSA and TTB, from UIL Level 1 to 5.", url="abcsightreading.com/choral-sightreading"),
     "rhythm": dict(kicker="Rhythm", tint="butter", head="Ta, ti-ti, ti-ki-ti-ki.",
-                   body="Kodály, counting, or your own syllables.", url="abcsightreading.com/sightreading"),
+                   body="Ta and ti-ti, 1 & 2 &, or your own syllables.", url="abcsightreading.com/sightreading"),
     "tuner": dict(kicker="abcTuner · Pro", tint="sky", flip=True, head="A tuner that hears singers.",
                   body="Pitch, vowels, drone, metronome and timer, a tab each.", url="abcsightreading.com/tuner"),
 }
@@ -108,8 +105,13 @@ def keep_words(s):
     return re.sub(r"(\S*-\S*)", r'<span class="nw">\1</span>', esc(s))
 
 
+# The site's logo "abc": the favicon's Edwin Bold Italic as outlines, as the navbar draws it.
+ABC_PATH = "M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"
+ABC_SVG = f'<svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="{ABC_PATH}"/></svg>'
+
+
 def wordmark(rest="sightreading.com", cls="wordmark"):
-    return f'<div class="{cls}"><span class="abc">abc</span><span class="rest">{esc(rest)}</span></div>'
+    return f'<div class="{cls}">{ABC_SVG}<span class="rest">{esc(rest)}</span></div>'
 
 
 def blobs(sid):
@@ -204,32 +206,6 @@ def feature(scene, p, tag, track0):
 </div>'''
 
 
-def edit_song(v):
-    """The song cut to v["keep"] (bar ranges, spliced on downbeats with 10 ms fades),
-    with its analysis remapped: the version then plays the edit from 0."""
-    a = json.load(open(f"music/{v['song']}.json"))
-    d = a["downbeats"]
-    segs = [(d[i], d[j] if j is not None else v["end"] + 1.2) for i, j in v["keep"]]
-    name = f"{v['song']}-edit"
-    parts, labels = [], []
-    for k, (s0, s1) in enumerate(segs):
-        fade = "" if k == len(segs) - 1 else f",afade=t=out:st={s1 - s0 - 0.01:.4f}:d=0.01"
-        parts.append(f"[0:a]atrim={s0:.4f}:{s1:.4f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.01{fade}[s{k}]")
-        labels.append(f"[s{k}]")
-    graph = ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(segs)}:v=0:a=1[out]"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", f"assets/music/{v['song']}.mp3", "-filter_complex", graph,
-                    "-map", "[out]", "-b:a", "256k", f"assets/music/{name}.mp3"], check=True)
-    downbeats, at = [], 0.0
-    for (i, j), (s0, s1) in zip(v["keep"], segs):
-        downbeats += [at + x - s0 for x in d[i:j]]
-        at += s1 - s0
-    end_seg = segs[-1][0]
-    end = at - (segs[-1][1] - end_seg) + (v["end"] - end_seg)
-    json.dump(dict(a, file=f"assets/music/{name}.mp3", first_beat=0.0, downbeats=[round(x, 3) for x in downbeats]),
-              open(f"music/{name}.json", "w"), indent=1)
-    return dict(v, song=name, start=0.0, end=round(end, 3))
-
-
 def mix(name, p):
     """The song from its start downbeat, levelled, faded in briefly; its own ending closes the video."""
     out = f"assets/music/ad-mix-{name}.mp3"
@@ -300,7 +276,7 @@ def build(p, tag, audio):
 <div class="scene" id="close">
   {blobs("close")}
   <div class="close-content">
-    <div class="close-mark" id="close-mark"><span class="abc">abc</span><span class="rest">SightReading</span></div>
+    <div class="close-mark" id="close-mark">{ABC_SVG}<span class="rest">SightReading</span></div>
     <p class="close-line" id="close-line">Sight-reading practice for every choir and classroom.</p>
     <div class="close-row">
       <span class="cta" id="close-cta">Try it free</span>
@@ -444,10 +420,10 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .blob { position: absolute; border-radius: 50%; opacity: 0.55; }
 .wipe { position: absolute; inset: 0; width: 1920px; height: 1080px; z-index: 1000; transform: translateX(-1920px); }
 
-.wordmark { display: inline-flex; align-items: baseline; gap: 2px; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
-.wordmark .abc, .close-mark .abc { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 600; color: #2f6fe0; }
-.wordmark .rest, .close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 700; color: #15213a; }
-.wordmark .abc { font-size: 44px; } .wordmark .rest { font-size: 44px; }
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
+.wordmark .abc, .close-mark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest, .close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 600; letter-spacing: -0.005em; line-height: 1; color: #15213a; }
+.wordmark { font-size: 44px; } .wordmark .rest { font-size: 44px; }
 
 .hook-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
 .hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
@@ -489,8 +465,8 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .pa-sub { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
 
 .close-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; text-align: center; }
-.close-mark { display: inline-flex; align-items: baseline; gap: 4px; }
-.close-mark .abc { font-size: 150px; } .close-mark .rest { font-size: 150px; }
+.close-mark { display: inline-flex; align-items: baseline; gap: 0.1em; font-size: 150px; }
+.close-mark .rest { font-size: 150px; }
 .close-line { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 40px; color: #34405e; max-width: 1300px; }
 .close-row { display: flex; align-items: center; gap: 28px; }
 .cta { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 46px; color: #ffffff; background: #2f6fe0; padding: 20px 54px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47,111,224,0.35); }
@@ -529,8 +505,6 @@ window.__timelines["main"] = tl;
 
 if __name__ == "__main__":
     for name, v in VERSIONS.items():
-        if v.get("keep"):
-            v = edit_song(v)
         plan = Plan(v)
         CURRENT_TAG = v["tag"]
         audio = mix(name, plan)

@@ -16,10 +16,10 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .blob { position: absolute; border-radius: 50%; opacity: 0.55; }
 .wipe { position: absolute; inset: 0; width: 1920px; height: 1080px; z-index: 1000; transform: translateX(-1920px); }
 
-.wordmark { display: inline-flex; align-items: baseline; gap: 2px; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
-.wordmark .abc, .close-mark .abc { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 600; color: #2f6fe0; }
-.wordmark .rest, .close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 700; color: #15213a; }
-.wordmark .abc { font-size: 44px; } .wordmark .rest { font-size: 44px; }
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
+.wordmark .abc, .close-mark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest, .close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 600; letter-spacing: -0.005em; line-height: 1; color: #15213a; }
+.wordmark { font-size: 44px; } .wordmark .rest { font-size: 44px; }
 
 .hook-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
 .hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
@@ -61,8 +61,8 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .pa-sub { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
 
 .close-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; text-align: center; }
-.close-mark { display: inline-flex; align-items: baseline; gap: 4px; }
-.close-mark .abc { font-size: 150px; } .close-mark .rest { font-size: 150px; }
+.close-mark { display: inline-flex; align-items: baseline; gap: 0.1em; font-size: 150px; }
+.close-mark .rest { font-size: 150px; }
 .close-line { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 40px; color: #34405e; max-width: 1300px; }
 .close-row { display: flex; align-items: center; gap: 28px; }
 .cta { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 46px; color: #ffffff; background: #2f6fe0; padding: 20px 54px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47,111,224,0.35); }
@@ -71,7 +71,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 </style>
 </head>
 <body>
-<div id="root" data-composition-id="main" data-start="0" data-duration="58.76" data-width="1920" data-height="1080">
+<div id="root" data-composition-id="main" data-start="0" data-duration="57.81" data-width="1920" data-height="1080">
 
 <div class="scene" id="hook">
   <div class="blob" id="hook-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
@@ -79,7 +79,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 <div class="blob" id="hook-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
 <div class="blob" id="hook-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
   <div class="hook-content">
-    <div class="wordmark hook-mark"><span class="abc">abc</span><span class="rest">sightreading.com</span></div>
+    <div class="wordmark hook-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">sightreading.com</span></div>
     <h1 class="hook-head"><span class="hword"><span class="hw" id="hw0">Sight-reading</span></span> <span class="hword"><span class="hw" id="hw1">practice</span></span><br><span class="hword"><span class="hw" id="hw2">that</span></span> <span class="hword"><span class="hw" id="hw3">never</span></span> <span class="hword"><span class="hw" id="hw4">runs</span></span> <span class="hword"><span class="hw" id="hw5">out.</span></span></h1>
   </div>
   <div class="ball" id="hook-ball" data-layout-allow-occlusion></div>
@@ -99,7 +99,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="unison-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
-      <div class="screen"><div class="vw" id="unison-vw0"><video id="unison-v0" class="clip" data-start="4.783" data-duration="2.692" data-media-start="0.945" data-track-index="10" src="assets/footage/unison-100.mp4" muted playsinline></video></div><div class="vw" id="unison-vw1"><video id="unison-v1" class="clip" data-start="7.175" data-duration="7.476" data-media-start="4.120" data-track-index="11" src="assets/footage/unison-100.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="unison-vw0"><video id="unison-v0" class="clip" data-start="4.551" data-duration="2.576" data-media-start="1.021" data-track-index="10" src="assets/footage/unison-105.mp4" muted playsinline></video></div><div class="vw" id="unison-vw1"><video id="unison-v1" class="clip" data-start="6.827" data-duration="7.127" data-media-start="4.122" data-track-index="11" src="assets/footage/unison-105.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -118,7 +118,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="choral-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/choral-sightreading</span></div>
-      <div class="screen"><div class="vw" id="choral-vw0"><video id="choral-v0" class="clip" data-start="14.351" data-duration="9.867" data-media-start="0.915" data-track-index="14" src="assets/footage/choral-100.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="choral-vw0"><video id="choral-v0" class="clip" data-start="13.654" data-duration="9.403" data-media-start="0.815" data-track-index="14" src="assets/footage/choral-105.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -132,12 +132,12 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     <div class="copy">
       <span class="kicker" id="rhythm-kicker" style="background:#ffefa8;color:#5c4a00">Rhythm</span>
       <h2 class="head" id="rhythm-head">Ta, <span class="nw">ti-ti,</span> <span class="nw">ti-ki-ti-ki.</span></h2>
-      <p class="body" id="rhythm-body">Kodály, counting, or your own syllables.</p>
+      <p class="body" id="rhythm-body">Ta and ti-ti, 1 &amp; 2 &amp;, or your own syllables.</p>
       
     </div>
     <div class="window" id="rhythm-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/sightreading</span></div>
-      <div class="screen"><div class="vw" id="rhythm-vw0"><video id="rhythm-v0" class="clip" data-start="23.918" data-duration="5.084" data-media-start="4.704" data-track-index="18" src="assets/footage/rhythm-100.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="rhythm-vw0"><video id="rhythm-v0" class="clip" data-start="22.757" data-duration="4.851" data-media-start="4.616" data-track-index="18" src="assets/footage/rhythm-105.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -156,7 +156,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
     </div>
     <div class="window" id="tuner-window">
       <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/tuner</span></div>
-      <div class="screen"><div class="vw" id="tuner-vw0"><video id="tuner-v0" class="clip" data-start="28.702" data-duration="2.692" data-media-start="1.000" data-track-index="22" src="assets/footage/tuner.mp4" muted playsinline></video></div><div class="vw" id="tuner-vw1"><video id="tuner-v1" class="clip" data-start="31.094" data-duration="2.692" data-media-start="9.800" data-track-index="23" src="assets/footage/tuner.mp4" muted playsinline></video></div></div>
+      <div class="screen"><div class="vw" id="tuner-vw0"><video id="tuner-v0" class="clip" data-start="27.308" data-duration="2.576" data-media-start="1.000" data-track-index="22" src="assets/footage/tuner.mp4" muted playsinline></video></div><div class="vw" id="tuner-vw1"><video id="tuner-v1" class="clip" data-start="29.584" data-duration="2.576" data-media-start="9.800" data-track-index="23" src="assets/footage/tuner.mp4" muted playsinline></video></div></div>
     </div>
   </div>
 </div>
@@ -172,7 +172,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
       <h2 class="head pa-head" id="playalong-head">Turn any exercise into a play-along video.</h2>
     </div>
     <div class="pa-frame" id="playalong-frame">
-      <div class="vw" id="playalong-vw0"><video id="playalong-v0" class="clip" data-start="33.486" data-duration="9.867" data-media-start="0.000" data-track-index="40" src="assets/footage/playalong-100.mp4" muted playsinline></video></div>
+      <div class="vw" id="playalong-vw0"><video id="playalong-v0" class="clip" data-start="31.860" data-duration="9.403" data-media-start="0.000" data-track-index="40" src="assets/footage/playalong-105.mp4" muted playsinline></video></div>
     </div>
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
   </div>
@@ -196,7 +196,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 <div class="blob" id="close-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
 <div class="blob" id="close-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
   <div class="close-content">
-    <div class="close-mark" id="close-mark"><span class="abc">abc</span><span class="rest">SightReading</span></div>
+    <div class="close-mark" id="close-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">SightReading</span></div>
     <p class="close-line" id="close-line">Sight-reading practice for every choir and classroom.</p>
     <div class="close-row">
       <span class="cta" id="close-cta">Try it free</span>
@@ -208,7 +208,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 <div class="wipe" id="wipe-a" data-layout-ignore></div>
 <div class="wipe" id="wipe-b" data-layout-ignore></div>
 <div class="wipe" id="wipe-c" data-layout-ignore></div>
-<audio id="music" data-start="0" data-duration="58.76" data-track-index="1" src="assets/music/ad-mix-fun.mp3" data-volume="0.9"></audio>
+<audio id="music" data-start="0" data-duration="57.81" data-track-index="1" src="assets/music/ad-mix-fun.mp3" data-volume="0.9"></audio>
 </div>
 <script>
 window.__timelines = window.__timelines || {};
@@ -224,7 +224,7 @@ var tl = gsap.timeline({ paused: true });
   var first = window.__hops[0];
   gsap.set("#hook-ball", { x: first.x - 260, y: first.y });
 })();
-  var HOOK = [0.598, 1.196, 1.794, 2.392, 2.99, 3.588], LEN = [0.598, 0.598, 0.598, 0.598, 0.598, 0.598], B = 0.5980, LINE2 = 2;
+  var HOOK = [0.569, 1.137, 1.706, 2.275, 2.844, 3.413], LEN = [0.5689, 0.5689, 0.5689, 0.5689, 0.5689, 0.5689], B = 0.5689, LINE2 = 2;
 
   // ---- Hook
   tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
@@ -255,182 +255,182 @@ var tl = gsap.timeline({ paused: true });
     // "out." held, then away off the right.
     hop(1920 + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
   }
-  tl.to('.blob', { y: '+=40', x: '-=20', duration: 58.76, ease: 'sine.inOut' }, 0);
+  tl.to('.blob', { y: '+=40', x: '-=20', duration: 57.81, ease: 'sine.inOut' }, 0);
 
-  // ---- hook -> unison: covered on the downbeat at 4.783
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 4.533);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 4.533);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 4.533);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.443);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.493);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.543);
-  tl.set("#hook", { opacity: 0 }, 4.783);
-  tl.set("#unison", { opacity: 1 }, 4.783);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.803);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.853);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.903);
-  tl.from("#unison-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 4.783);
-  tl.from("#unison-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 5.332);
-  tl.from("#unison-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 5.930);
-  tl.from("#unison-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 6.528);
-  tl.to("#unison-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 5.683);
-  tl.fromTo("#unison-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 7.115);
+  // ---- hook -> unison: covered on the downbeat at 4.551
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 4.301);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 4.301);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 4.301);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.211);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.261);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.311);
+  tl.set("#hook", { opacity: 0 }, 4.551);
+  tl.set("#unison", { opacity: 1 }, 4.551);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.571);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.621);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.671);
+  tl.from("#unison-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.68, ease: "power3.out" }, 4.551);
+  tl.from("#unison-kicker", { y: 24, opacity: 0, duration: 0.398, ease: "back.out(2)" }, 5.070);
+  tl.from("#unison-head", { y: 46, opacity: 0, duration: 0.57, ease: "power3.out" }, 5.639);
+  tl.from("#unison-body", { y: 28, opacity: 0, duration: 0.57, ease: "expo.out" }, 6.208);
+  tl.to("#unison-window", { scale: 1.03, duration: 8.10, ease: "sine.inOut" }, 5.451);
+  tl.fromTo("#unison-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 6.767);
 
-  // ---- unison -> choral: covered on the downbeat at 14.351
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 14.101);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 14.101);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 14.101);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.011);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.061);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.111);
-  tl.set("#unison", { opacity: 0 }, 14.351);
-  tl.set("#choral", { opacity: 1 }, 14.351);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.371);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.421);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.471);
-  tl.from("#choral-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 14.351);
-  tl.from("#choral-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 14.899);
-  tl.from("#choral-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 15.497);
-  tl.from("#choral-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 16.095);
-  tl.to("#choral-window", { scale: 1.03, duration: 8.57, ease: "sine.inOut" }, 15.251);
+  // ---- unison -> choral: covered on the downbeat at 13.654
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 13.404);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 13.404);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 13.404);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 13.314);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 13.364);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 13.414);
+  tl.set("#unison", { opacity: 0 }, 13.654);
+  tl.set("#choral", { opacity: 1 }, 13.654);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 13.674);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 13.724);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 13.774);
+  tl.from("#choral-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.68, ease: "power3.out" }, 13.654);
+  tl.from("#choral-kicker", { y: 24, opacity: 0, duration: 0.398, ease: "back.out(2)" }, 14.173);
+  tl.from("#choral-head", { y: 46, opacity: 0, duration: 0.57, ease: "power3.out" }, 14.742);
+  tl.from("#choral-body", { y: 28, opacity: 0, duration: 0.57, ease: "expo.out" }, 15.311);
+  tl.to("#choral-window", { scale: 1.03, duration: 8.10, ease: "sine.inOut" }, 14.554);
 
-  // ---- choral -> rhythm: covered on the downbeat at 23.918
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 23.668);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 23.668);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 23.668);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 23.578);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 23.628);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 23.678);
-  tl.set("#choral", { opacity: 0 }, 23.918);
-  tl.set("#rhythm", { opacity: 1 }, 23.918);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 23.938);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 23.988);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 24.038);
-  tl.from("#rhythm-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 23.918);
-  tl.from("#rhythm-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 24.467);
-  tl.from("#rhythm-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 25.065);
-  tl.from("#rhythm-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 25.663);
-  tl.to("#rhythm-window", { scale: 1.03, duration: 3.78, ease: "sine.inOut" }, 24.818);
+  // ---- choral -> rhythm: covered on the downbeat at 22.757
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 22.507);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 22.507);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 22.507);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 22.417);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 22.467);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 22.517);
+  tl.set("#choral", { opacity: 0 }, 22.757);
+  tl.set("#rhythm", { opacity: 1 }, 22.757);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 22.777);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 22.827);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 22.877);
+  tl.from("#rhythm-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.68, ease: "power3.out" }, 22.757);
+  tl.from("#rhythm-kicker", { y: 24, opacity: 0, duration: 0.398, ease: "back.out(2)" }, 23.276);
+  tl.from("#rhythm-head", { y: 46, opacity: 0, duration: 0.57, ease: "power3.out" }, 23.845);
+  tl.from("#rhythm-body", { y: 28, opacity: 0, duration: 0.57, ease: "expo.out" }, 24.414);
+  tl.to("#rhythm-window", { scale: 1.03, duration: 3.55, ease: "sine.inOut" }, 23.657);
 
-  // ---- rhythm -> tuner: covered on the downbeat at 28.702
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#c9e4ff" }, 28.452);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#bdebd9" }, 28.452);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffd3bf" }, 28.452);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.362);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.412);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 28.462);
-  tl.set("#rhythm", { opacity: 0 }, 28.702);
-  tl.set("#tuner", { opacity: 1 }, 28.702);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 28.722);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 28.772);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 28.822);
-  tl.from("#tuner-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 28.702);
-  tl.from("#tuner-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 29.251);
-  tl.from("#tuner-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 29.848);
-  tl.from("#tuner-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 30.446);
-  tl.to("#tuner-window", { scale: 1.03, duration: 3.78, ease: "sine.inOut" }, 29.602);
-  tl.fromTo("#tuner-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 31.034);
+  // ---- rhythm -> tuner: covered on the downbeat at 27.308
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#c9e4ff" }, 27.058);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#bdebd9" }, 27.058);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffd3bf" }, 27.058);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 26.968);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 27.018);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 27.068);
+  tl.set("#rhythm", { opacity: 0 }, 27.308);
+  tl.set("#tuner", { opacity: 1 }, 27.308);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 27.328);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 27.378);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 27.428);
+  tl.from("#tuner-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.68, ease: "power3.out" }, 27.308);
+  tl.from("#tuner-kicker", { y: 24, opacity: 0, duration: 0.398, ease: "back.out(2)" }, 27.828);
+  tl.from("#tuner-head", { y: 46, opacity: 0, duration: 0.57, ease: "power3.out" }, 28.397);
+  tl.from("#tuner-body", { y: 28, opacity: 0, duration: 0.57, ease: "expo.out" }, 28.966);
+  tl.to("#tuner-window", { scale: 1.03, duration: 3.55, ease: "sine.inOut" }, 28.208);
+  tl.fromTo("#tuner-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 29.524);
 
-  // ---- tuner -> playalong: covered on the downbeat at 33.486
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 33.236);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 33.236);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 33.236);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 33.146);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 33.196);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 33.246);
-  tl.set("#tuner", { opacity: 0 }, 33.486);
-  tl.set("#playalong", { opacity: 1 }, 33.486);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 33.506);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 33.556);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 33.606);
-  tl.from("#playalong-frame", { y: 120, scale: 0.9, opacity: 0, duration: 0.60, ease: "back.out(1.2)" }, 33.486);
-  tl.from("#playalong-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 34.034);
-  tl.from("#playalong-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 34.632);
-  tl.from("#playalong-sub", { y: 20, opacity: 0, duration: 0.50, ease: "expo.out" }, 35.828);
+  // ---- tuner -> playalong: covered on the downbeat at 31.860
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 31.610);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 31.610);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 31.610);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 31.520);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 31.570);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 31.620);
+  tl.set("#tuner", { opacity: 0 }, 31.860);
+  tl.set("#playalong", { opacity: 1 }, 31.860);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 31.880);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 31.930);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 31.980);
+  tl.from("#playalong-frame", { y: 120, scale: 0.9, opacity: 0, duration: 0.57, ease: "back.out(1.2)" }, 31.860);
+  tl.from("#playalong-kicker", { y: 24, opacity: 0, duration: 0.398, ease: "back.out(2)" }, 32.379);
+  tl.from("#playalong-head", { y: 40, opacity: 0, duration: 0.57, ease: "power3.out" }, 32.948);
+  tl.from("#playalong-sub", { y: 20, opacity: 0, duration: 0.50, ease: "expo.out" }, 34.086);
 
-  // ---- playalong -> options: covered on the downbeat at 43.053
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 42.803);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 42.803);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 42.803);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 42.713);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 42.763);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 42.813);
-  tl.set("#playalong", { opacity: 0 }, 43.053);
-  tl.set("#options", { opacity: 1 }, 43.053);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 43.073);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 43.123);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 43.173);
-  tl.from("#options-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 43.103);
-  tl.from("#options-head", { y: 40, opacity: 0, duration: 0.60, ease: "power3.out" }, 43.173);
-  tl.fromTo("#pc0", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 42.914);
-  tl.fromTo("#pc1", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 43.512);
-  tl.to("#pc0", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 43.512);
-  tl.fromTo("#pc2", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 44.110);
-  tl.to("#pc1", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 44.110);
-  tl.fromTo("#pc3", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 44.708);
-  tl.to("#pc2", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 44.708);
-  tl.fromTo("#pc4", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 45.306);
-  tl.to("#pc3", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 45.306);
-  tl.fromTo("#pc5", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 45.904);
-  tl.to("#pc4", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 45.904);
-  tl.fromTo("#pc6", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 46.502);
-  tl.to("#pc5", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 46.502);
-  tl.fromTo("#pc7", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 47.100);
-  tl.to("#pc6", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 47.100);
-  tl.fromTo("#pc8", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 47.698);
-  tl.to("#pc7", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 47.698);
-  tl.fromTo("#pc9", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 48.296);
-  tl.to("#pc8", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 48.296);
-  tl.fromTo("#pc10", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 48.894);
-  tl.to("#pc9", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 48.894);
-  tl.fromTo("#pc11", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 49.492);
-  tl.to("#pc10", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 49.492);
-  tl.to("#pl0", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc0", { x: -668, y: -230, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.029);
-  tl.to("#pl1", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc1", { x: -222, y: -230, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.059);
-  tl.to("#pl2", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc2", { x: 222, y: -230, scale: 0.298, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.089);
-  tl.to("#pl3", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc3", { x: 668, y: -230, scale: 0.311, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.119);
-  tl.to("#pl4", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc4", { x: -668, y: 20, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.149);
-  tl.to("#pl5", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc5", { x: -222, y: 20, scale: 0.318, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.179);
-  tl.to("#pl6", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc6", { x: 222, y: 20, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.209);
-  tl.to("#pl7", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc7", { x: 668, y: 20, scale: 0.318, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.239);
-  tl.to("#pl8", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc8", { x: -668, y: 270, scale: 0.348, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.269);
-  tl.to("#pl9", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc9", { x: -222, y: 270, scale: 0.270, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.299);
-  tl.to("#pl10", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc10", { x: 222, y: 270, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.329);
-  tl.to("#pl11", { opacity: 0, duration: 0.15 }, 50.029);
-  tl.to("#pc11", { x: 668, y: 270, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 50.359);
+  // ---- playalong -> options: covered on the downbeat at 40.963
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 40.713);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 40.713);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 40.713);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 40.623);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 40.673);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 40.723);
+  tl.set("#playalong", { opacity: 0 }, 40.963);
+  tl.set("#options", { opacity: 1 }, 40.963);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 40.983);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 41.033);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 41.083);
+  tl.from("#options-kicker", { y: 24, opacity: 0, duration: 0.398, ease: "back.out(2)" }, 41.013);
+  tl.from("#options-head", { y: 40, opacity: 0, duration: 0.57, ease: "power3.out" }, 41.083);
+  tl.fromTo("#pc0", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 40.823);
+  tl.fromTo("#pc1", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 41.392);
+  tl.to("#pc0", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 41.392);
+  tl.fromTo("#pc2", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 41.961);
+  tl.to("#pc1", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 41.961);
+  tl.fromTo("#pc3", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 42.530);
+  tl.to("#pc2", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 42.530);
+  tl.fromTo("#pc4", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 43.099);
+  tl.to("#pc3", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 43.099);
+  tl.fromTo("#pc5", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 43.668);
+  tl.to("#pc4", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 43.668);
+  tl.fromTo("#pc6", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 44.237);
+  tl.to("#pc5", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 44.237);
+  tl.fromTo("#pc7", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 44.806);
+  tl.to("#pc6", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 44.806);
+  tl.fromTo("#pc8", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 45.375);
+  tl.to("#pc7", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 45.375);
+  tl.fromTo("#pc9", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 45.944);
+  tl.to("#pc8", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 45.944);
+  tl.fromTo("#pc10", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 46.513);
+  tl.to("#pc9", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 46.513);
+  tl.fromTo("#pc11", { x: 2100, rotation: 5, opacity: 1 }, { x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }, 47.082);
+  tl.to("#pc10", { x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }, 47.082);
+  tl.to("#pl0", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc0", { x: -668, y: -230, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.591);
+  tl.to("#pl1", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc1", { x: -222, y: -230, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.621);
+  tl.to("#pl2", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc2", { x: 222, y: -230, scale: 0.298, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.651);
+  tl.to("#pl3", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc3", { x: 668, y: -230, scale: 0.311, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.681);
+  tl.to("#pl4", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc4", { x: -668, y: 20, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.711);
+  tl.to("#pl5", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc5", { x: -222, y: 20, scale: 0.318, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.741);
+  tl.to("#pl6", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc6", { x: 222, y: 20, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.771);
+  tl.to("#pl7", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc7", { x: 668, y: 20, scale: 0.318, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.801);
+  tl.to("#pl8", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc8", { x: -668, y: 270, scale: 0.348, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.831);
+  tl.to("#pl9", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc9", { x: -222, y: 270, scale: 0.270, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.861);
+  tl.to("#pl10", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc10", { x: 222, y: 270, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.891);
+  tl.to("#pl11", { opacity: 0, duration: 0.15 }, 47.591);
+  tl.to("#pc11", { x: 668, y: 270, scale: 0.353, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }, 47.921);
 
-  // ---- options -> close: covered on the downbeat at 52.620
-  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 52.370);
-  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 52.370);
-  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 52.370);
-  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 52.280);
-  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 52.330);
-  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 52.380);
-  tl.set("#options", { opacity: 0 }, 52.620);
-  tl.set("#close", { opacity: 1 }, 52.620);
-  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 52.640);
-  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 52.690);
-  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 52.740);
-  tl.from("#close-mark", { scale: 0.6, opacity: 0, duration: 0.72, ease: "back.out(1.8)" }, 52.620);
-  tl.from("#close-line", { y: 30, opacity: 0, duration: 0.60, ease: "power3.out" }, 53.169);
-  tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 53.767);
-  tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 54.066);
-  tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 54.365);
+  // ---- options -> close: covered on the downbeat at 50.066
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 49.816);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 49.816);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 49.816);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 49.726);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 49.776);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 49.826);
+  tl.set("#options", { opacity: 0 }, 50.066);
+  tl.set("#close", { opacity: 1 }, 50.066);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 50.086);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 50.136);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 50.186);
+  tl.from("#close-mark", { scale: 0.6, opacity: 0, duration: 0.68, ease: "back.out(1.8)" }, 50.066);
+  tl.from("#close-line", { y: 30, opacity: 0, duration: 0.57, ease: "power3.out" }, 50.585);
+  tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 51.154);
+  tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 51.439);
+  tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 51.723);
   // The button pulses on each beat until the music ends.
-  tl.to("#close-cta", { scale: 1.07, duration: 0.2990, ease: "sine.inOut", yoyo: true, repeat: 7 }, 54.864);
+  tl.to("#close-cta", { scale: 1.07, duration: 0.2845, ease: "sine.inOut", yoyo: true, repeat: 13 }, 52.200);
   // The final scene fades out with the music.
-  tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 58.160);
+  tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 57.210);
 window.__timelines["main"] = tl;
 </script>
 </body>
