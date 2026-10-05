@@ -7,7 +7,8 @@ export interface HistoryPoint {
   dbfs: number;
 }
 
-const KEEP_MS = 45_000;
+/** Long enough for a whole graded exercise in time: 16 bars at 40 BPM is about 100 s. */
+const KEEP_MS = 180_000;
 
 /**
  * Module-level ring buffer of recent analysis frames so the history graph

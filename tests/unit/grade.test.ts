@@ -117,3 +117,141 @@ describe("what the card says", () => {
     expect(guidance({ sung: null, target: 69, doPc: F, onTarget: false })).toBe("Sing mi");
   });
 });
+
+import {
+  STRICTNESS,
+  gradePerformance,
+  gradeSchedule,
+  stepsBetween,
+} from "../../src/lib/grade";
+import type { HistoryPoint } from "../../src/lib/tuner/pitch-history";
+
+describe("the schedule, for grading in time", () => {
+  test("each note's start and length in 32nds, rests between counted, rests in a row joined", () => {
+    const s = gradeSchedule(abc("C8 D8 z8 E8 | z4 z4 F8 G16 |"));
+    expect(s.notes.map((n) => [n.midi, n.startUnits, n.lengthUnits])).toEqual([[60, 0, 8], [62, 8, 8], [64, 24, 8], [65, 40, 8], [67, 48, 16]]);
+    expect(s.rests.map((r) => [r.startUnits, r.lengthUnits])).toEqual([[16, 8], [32, 8]]);
+    expect(s.totalUnits).toBe(64);
+  });
+  test("a tie lengthens the note", () => {
+    expect(gradeSchedule(abc("C24 D8- | D16 E16 |")).notes.map((n) => [n.startUnits, n.lengthUnits])).toEqual([[0, 24], [24, 24], [48, 16]]);
+  });
+});
+
+/**
+ * A singer, frame by frame (every 20 ms): each sung span is a pitch (MIDI,
+ * fractions for cents) from one time to another; silence in between. A short
+ * gap before each span stands for the breath or consonant that starts a note.
+ */
+function sing(spans: { midi: number; from: number; to: number }[], end: number): HistoryPoint[] {
+  const out: HistoryPoint[] = [];
+  for (let t = -500; t <= end; t += 20) {
+    const s = spans.find((x) => t >= x.from && t < x.to - 30);
+    const midi = s ? Math.round(s.midi) : null;
+    out.push({ t, midi, cents: s ? Math.round((s.midi - Math.round(s.midi)) * 100) : 0, dbfs: s ? -12 : -60 });
+  }
+  return out;
+}
+const BEAT = 1000; // 60 BPM
+/** The schedule sung as written: every note on time and in tune. */
+const asWritten = (notes: { midi: number; startUnits: number; lengthUnits: number }[]) =>
+  notes.map((n) => ({ midi: n.midi, from: (n.startUnits / 8) * BEAT, to: ((n.startUnits + n.lengthUnits) / 8) * BEAT }));
+const run = (sched: ReturnType<typeof gradeSchedule>, spans: { midi: number; from: number; to: number }[], strictness: "easy" | "standard" | "strict" = "standard") =>
+  gradePerformance(sched, sing(spans, (sched.totalUnits / 8) * BEAT + 500), { t0: 0, bpm: 60, beatUnits: 8, strictness, latencyMs: 0 });
+
+describe("grading in time (Pitch & rhythm)", () => {
+  const sched = gradeSchedule(abc("C8 D8 E8 F8 | G16 E16 |"));
+
+  test("sung as written: full marks for pitch and rhythm", () => {
+    const r = run(sched, asWritten(sched.notes));
+    expect(r.pitch).toBe(100);
+    expect(r.rhythm).toBe(100);
+    expect(r.letter).toBe("A");
+    expect(r.notes.every((n) => n.pitchOk && !n.missed && !n.cutShort)).toBe(true);
+  });
+
+  test("a note a whole step off: no pitch credit for it, and what was sung is kept", () => {
+    const spans = asWritten(sched.notes);
+    spans[2] = { ...spans[2], midi: 62 }; // re where mi is written
+    const r = run(sched, spans);
+    expect(r.notes[2].pitchOk).toBe(false);
+    expect(r.notes[2].pitch).toBe(0);
+    expect(r.notes[2].sung).toBeCloseTo(62, 0);
+    expect(r.notes[2].rhythm).toBe(100); // on time, though wrong
+    expect(r.pitch).toBeLessThan(100);
+  });
+
+  test("an octave down is the note", () => {
+    const r = run(sched, asWritten(sched.notes).map((s) => ({ ...s, midi: s.midi - 12 })));
+    expect(r.pitch).toBe(100);
+    expect(r.notes[0].sung).toBeCloseTo(60, 0);
+  });
+
+  test("a note a third of a beat late: partial at Standard, full at Easy", () => {
+    const spans = asWritten(sched.notes);
+    spans[1] = { ...spans[1], from: spans[1].from + 330 };
+    spans[0] = { ...spans[0], to: spans[0].to + 330 };
+    const std = run(sched, spans, "standard").notes[1];
+    expect(std.onsetBeats).toBeCloseTo(0.33, 1);
+    expect(std.rhythm).toBeGreaterThan(0);
+    expect(std.rhythm).toBeLessThan(100);
+    expect(run(sched, spans, "easy").notes[1].rhythm).toBe(100);
+    expect(run(sched, spans, "strict").notes[1].rhythm).toBeLessThan(std.rhythm);
+  });
+
+  test("a missed note scores nothing for pitch or rhythm", () => {
+    const spans = asWritten(sched.notes).filter((_, i) => i !== 3);
+    const r = run(sched, spans);
+    expect(r.notes[3]).toMatchObject({ missed: true, pitch: 0, rhythm: 0, sung: null });
+  });
+
+  test("a held note let go early is cut short", () => {
+    const spans = asWritten(sched.notes);
+    spans[4] = { ...spans[4], to: spans[4].from + 600 }; // a half note sung for 0.6 of a beat
+    const r = run(sched, spans);
+    expect(r.notes[4].cutShort).toBe(true);
+    expect(r.notes[4].rhythm).toBe(100 - 25);
+    expect(r.notes[4].pitchOk).toBe(true);
+  });
+
+  test("singing through a rest is a rhythm fault", () => {
+    const withRest = gradeSchedule(abc("C8 D8 z8 E8 |"));
+    const spans = asWritten(withRest.notes);
+    spans[1] = { ...spans[1], to: spans[1].to + 900 }; // re held across the rest
+    const r = run(withRest, spans);
+    expect(r.rests[0].sung).toBe(true);
+    expect(r.rhythm).toBeLessThan(run(withRest, asWritten(withRest.notes)).rhythm);
+  });
+
+  test("intonation: a little flat costs nothing at Easy, something at Strict", () => {
+    const flat = asWritten(sched.notes).map((s) => ({ ...s, midi: s.midi - 0.22 }));
+    expect(run(sched, flat, "easy").pitch).toBe(100);
+    expect(run(sched, flat, "strict").pitch).toBeLessThan(100);
+    expect(run(sched, flat, "strict").pitch).toBeGreaterThan(80);
+  });
+
+  test("a repeated note sung legato keeps its rhythm credit", () => {
+    const rep = gradeSchedule(abc("C8 C8 D16 |"));
+    const spans = [{ midi: 60, from: 0, to: 2000 }, { midi: 62, from: 2000, to: 4000 }];
+    const r = run(rep, spans);
+    expect(r.notes[1].rhythm).toBe(100);
+  });
+
+  test("the strictness levels get stricter", () => {
+    const [e, s, x] = [STRICTNESS.easy, STRICTNESS.standard, STRICTNESS.strict];
+    expect(e.cents > s.cents && s.cents > x.cents).toBe(true);
+    expect(e.onsetBeats > s.onsetBeats && s.onsetBeats > x.onsetBeats).toBe(true);
+  });
+});
+
+describe("drawing what was sung on the staff", () => {
+  test("staff steps between two notes in the key", () => {
+    expect(stepsBetween(64, 60, 0)).toBe(2); // C to E in C: a third, two steps
+    expect(stepsBetween(72, 60, 0)).toBe(7); // an octave
+    expect(stepsBetween(59, 60, 0)).toBe(-1); // ti below do
+    expect(stepsBetween(61, 60, 0)).toBe(0.5); // a chromatic note sits between
+    expect(stepsBetween(64, 62, 2)).toBe(1); // in D: re (E) a step above do (D)
+    expect(stepsBetween(66, 62, 2)).toBe(2); // and mi (F#) on its own line, two steps up
+    expect(stepsBetween(60.5, 60, 0)).toBeCloseTo(0.25, 5); // a quarter tone sharp: halfway to di, itself halfway to re
+  });
+});

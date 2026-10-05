@@ -49,6 +49,14 @@ export interface TunerState {
   challengeGuideTone: boolean;
   /** Grade's reference before the count-in: the first note, or the tonic chord. */
   gradeReference: "note" | "triad";
+  /** Grade: Pitch only (the cursor waits on each note) or Pitch & rhythm (in time). */
+  gradeMode: "pitch" | "performance";
+  /** Grade's leniency (grade.ts STRICTNESS). */
+  gradeStrictness: "easy" | "standard" | "strict";
+  /** Pitch & rhythm: the cursor while singing (the page's own modes). */
+  gradeCursor: "off" | "smooth" | "beat" | "note";
+  /** Pitch & rhythm: the click while singing - none, beats, or beats with their subdivision. */
+  gradeClick: "off" | "beat" | "sub";
   /** Grade has the microphone: closing a Tools card must not stop it. */
   micHeld: boolean;
   // Live analysis, from the last frame
@@ -85,6 +93,7 @@ const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
+  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick",
 ] as const;
 const STORAGE_KEY = "abc-tuner-settings";
 
@@ -107,6 +116,10 @@ const initial: TunerState = {
   challengeDifficulty: "normal",
   challengeGuideTone: true,
   gradeReference: "note",
+  gradeMode: "pitch",
+  gradeStrictness: "standard",
+  gradeCursor: "smooth",
+  gradeClick: "beat",
   micHeld: false,
   pitch: null,
   note: null,
@@ -242,5 +255,6 @@ export const tuner = {
   setChallengeDifficulty: (challengeDifficulty: Difficulty) => set({ challengeDifficulty }),
   toggleChallengeGuideTone: () => state.update((s) => ({ ...s, challengeGuideTone: !s.challengeGuideTone })),
   setGradeReference: (gradeReference: "note" | "triad") => set({ gradeReference }),
+  setGrade: (patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick">>) => set(patch),
   setMicHeld: (micHeld: boolean) => set({ micHeld }),
 };

@@ -44,7 +44,9 @@
     beatSymbolOf,
     COMPOUND_METER_NAMES,
     EXERCISE_METER_NAMES,
+    isCompound,
     meterKindOf,
+    resolveMeter,
     SIMPLE_METER_NAMES,
     tempoField,
     timeSignaturesFor,
@@ -67,7 +69,10 @@
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import GradePanel from "./GradePanel.svelte";
   import { GradeRunner } from "../lib/grade-runner";
-  import { gradeNotes, type GradeNote } from "../lib/grade";
+  import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
+  import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
+  import type { GradeTrace } from "../lib/grade-runner";
+  import { solfegeOf } from "../lib/grade";
   import { billingStatus } from "../lib/billing-client";
   import { signedInUser } from "../lib/auth-client";
   import { initTuner, startTuner, stopTuner } from "../lib/tuner/controller";
@@ -111,7 +116,6 @@
   import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
-  import { billingStatus } from "../lib/billing-client";
   import {
     defaultSyllableSystem,
     isSyllableSystemId,
@@ -1581,6 +1585,12 @@
         // Every note on the rhythm staff is the same placeholder pitch, so
         // playing it back would be meaningless.
         if (rhythmOnly) return;
+        // After a Grade run, a tapped note says how it went.
+        if (gradePhase === "results") {
+          const drawn = drawnNotes();
+          const i = gradeList.findIndex((n) => drawn[n.cursor]?.absEl?.abcelem === event);
+          if (i >= 0) gradeDetailIndex = i;
+        }
         if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
@@ -1866,7 +1876,9 @@
           beatNumber,
           beatsPerMeasure
         );
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click) playMetronomeClick(beat.isDownbeat);
+        // A Grade run with the click off still counts in.
+        const gradeQuiet = gradeTimeline && gradeClickChoice === "off" && beatNumber >= countInBeats(playedMeter());
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat);
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -2355,7 +2367,8 @@
     const { clickSound, accent, subdivision } = tuner.get();
     const level: ClickLevel = isDownbeat && accent ? "downbeat" : "beat";
     scheduleClick(audioContext, clickBank, metronomeGainNode, when, clickSound, level);
-    const sub = Math.max(1, Math.round(subdivision));
+    // A Grade run in time sets its own: beats, or beats with their subdivision.
+    const sub = Math.max(1, Math.round(gradeSubdivision ?? subdivision));
     const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
     for (let k = 1; k < sub; k++) {
       scheduleClick(audioContext, clickBank, metronomeGainNode, when + (k * secondsPerBeat) / sub, clickSound, "sub");
@@ -3596,7 +3609,103 @@
       playMetronomeClick(downbeat);
     },
     marked: (scores) => markGradedNotes(scores),
+    startTimeline: (o) => startGradeTimeline(o),
+    stopTimeline: () => stopGradeTimeline(),
+    traced: (trace) => drawGradeTrace(trace),
   });
+  // For the end-to-end Grade check (scripts/check-grade.ts): the exercise as
+  // the page plays it. Development builds only.
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    (window as any).__gradeDebug = {
+      abc: () => originalTuneString, transpose: () => transposeSemitones, tempo: () => tempo, meter: () => playedMeter(),
+      view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
+    };
+  }
+  /** A Grade run in time is using the page's timeline (cursor and click, no melody). */
+  let gradeTimeline = false;
+  let gradeClickChoice: "off" | "beat" | "sub" = "beat";
+  let gradeSubdivision: number | null = null;
+  let gradeRestList: GradeRest[] = [];
+  let gradeTrace: GradeTrace | null = null;
+  /** The note tapped on the score after a run, for its details. */
+  let gradeDetailIndex: number | null = null;
+
+  /**
+   * Pitch & rhythm: the exercise in time from its count-in, on the same
+   * TimingCallbacks as Play (so the cursor modes and the count-in words are
+   * the page's own) but with no synth: the melody never sounds. Returns the
+   * first downbeat, in performance.now ms.
+   */
+  function startGradeTimeline(o: { cursor: CursorMode; click: "off" | "beat" | "sub" }): number {
+    if (!timingCallbacks) return performance.now();
+    if (audioContext?.state === "suspended") void audioContext.resume();
+    gradeTimeline = true;
+    gradeClickChoice = o.click;
+    // Beats with their subdivision: twos in simple meter, threes in compound.
+    gradeSubdivision = o.click === "sub" ? (isCompound(playedMeter()) ? 3 : 2) : 1;
+    passCursorOverride = o.cursor;
+    passMetronomeOverride = true;
+    scrollToFirstSystem();
+    const startedAt = performance.now();
+    timingCallbacks.start(0);
+    return startedAt + getCountInDuration() * 1000;
+  }
+
+  function stopGradeTimeline() {
+    if (!gradeTimeline) return;
+    gradeTimeline = false;
+    gradeSubdivision = null;
+    passCursorOverride = null;
+    passMetronomeOverride = null;
+    timingCallbacks?.stop();
+    hidePlaybackCursor();
+    hideCountIn();
+  }
+
+  /** What was sung, drawn on the score (grade-feedback.ts). */
+  function drawGradeTrace(trace: GradeTrace) {
+    gradeTrace = trace;
+    const svg = document.querySelector("#paper svg") as SVGSVGElement | null;
+    if (!svg) return;
+    const drawn = drawnNotes();
+    drawGradeFeedback({
+      svg,
+      notes: gradeList,
+      drawn: gradeList.map((n) => drawn[n.cursor]),
+      drawnAt: (cursor) => drawn[cursor],
+      trace,
+      perf: $gradeRunner.perf,
+      doPc: gradeDoPc,
+      onsetBeats: STRICTNESS[$tuner.gradeStrictness].onsetBeats,
+      bpm: tempo,
+    });
+  }
+
+  /** What the panel says about the tapped note. */
+  $: gradeDetail = (() => {
+    const i = gradeDetailIndex;
+    const v = $gradeRunner;
+    if (i === null || v.phase !== "results") return null;
+    const n = gradeList[i];
+    if (!n) return null;
+    const want = solfegeOf(n.midi, gradeDoPc);
+    if (v.perf) {
+      const r = v.perf.notes[i];
+      if (!r) return null;
+      if (r.missed) return `Note ${i + 1} (${want}): not heard`;
+      const parts = [r.pitchOk ? `${want}, ${r.cents === 0 ? "in tune" : `${Math.abs(r.cents ?? 0)} cents ${(r.cents ?? 0) > 0 ? "sharp" : "flat"}`}` : `you sang ${solfegeOf(r.sung ?? n.midi, gradeDoPc)}, the note is ${want}`];
+      if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > STRICTNESS[$tuner.gradeStrictness].onsetBeats)
+        parts.push(`${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`);
+      else if (r.onsetBeats !== null) parts.push("on time");
+      if (r.cutShort) parts.push("cut short");
+      return `Note ${i + 1}: ${parts.join(" · ")}`;
+    }
+    const r = v.result?.notes[i];
+    if (!r) return null;
+    if (r.missed) return `Note ${i + 1} (${want}): missed`;
+    if (r.skipped) return `Note ${i + 1} (${want}): skipped`;
+    return `Note ${i + 1} (${want}): ${r.score}%, found in ${(r.findBeats ?? 0).toFixed(1)} beats${r.cents !== null ? `, ${Math.abs(r.cents)} cents ${r.cents > 0 ? "sharp" : r.cents < 0 ? "flat" : ""}` : ""}${r.help.heardNote ? ", heard the note" : r.help.heardKey ? ", heard the key" : ""}`;
+  })();
   /** Do's pitch class for naming notes in solfege, with the playback transposition. */
   $: gradeDoPc = (() => {
     const info = originalTuneString ? exerciseInfo(originalTuneString) : null;
@@ -3608,6 +3717,9 @@
   function clearGradeMarks() {
     for (const el of gradeMarked) el.classList.remove("grade-good", "grade-ok", "grade-bad");
     gradeMarked = [];
+    clearGradeFeedback(document.querySelector("#paper svg"));
+    gradeTrace = null;
+    gradeDetailIndex = null;
   }
   function markGradedNotes(scores: number[]) {
     clearGradeMarks();
@@ -3684,7 +3796,9 @@
     clearGradeMarks();
     if (drillRunning) await stopDrill();
     if (isPlaying) stopMusic();
-    gradeList = gradeNotes(originalTuneString, transposeSemitones);
+    const schedule = gradeSchedule(originalTuneString, transposeSemitones);
+    gradeList = schedule.notes;
+    gradeRestList = schedule.rests;
     if (!gradeList.length) return;
     // The button press is the gesture the microphone needs.
     initTuner();
@@ -3699,12 +3813,19 @@
     const first = gradeList[0].midi;
     const tonic = first - ((((first - tonicPc) % 12) + 12) % 12);
     const meter = playedMeter();
+    const t = tuner.get();
     gradeRunner.start({
       notes: gradeList,
+      rests: gradeRestList,
       bpm: tempo,
       beatsPerBar: parseInt(meter, 10) || 4,
+      beatUnits: resolveMeter(meter).beatUnits,
       countInBeats: countInBeats(meter),
-      reference: tuner.get().gradeReference,
+      reference: t.gradeReference,
+      mode: t.gradeMode,
+      strictness: t.gradeStrictness,
+      cursor: t.gradeCursor,
+      click: t.gradeClick,
       tonicTriad: info?.minor ? [tonic, tonic + 3, tonic + 7] : [tonic, tonic + 4, tonic + 7],
     });
   }
@@ -3832,6 +3953,7 @@
       onClose={closeGrade}
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
+      detail={gradeDetail}
     />
   {/if}
   {#if playAlongOpen}
@@ -4858,7 +4980,7 @@
             title="Sing it into the microphone and get a score"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-            Grade my singing
+            Listen and grade
           </button>
         </div>
       {/if}

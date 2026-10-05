@@ -48,39 +48,62 @@ export const HELP_KEY_COST = 10;
 /** No note loses more than this, however stuck; a skipped note loses exactly this. */
 export const MAX_LOSS = 60;
 
-/** One note to sing. `cursor` is its place among the score's notes and rests. */
-export type GradeNote = { midi: number; beats: number; cursor: number };
+/**
+ * One note to sing. `cursor` is its place among the score's notes and rests;
+ * `beats` its length in quarter notes; `startUnits` and `lengthUnits` where it
+ * falls from the first downbeat and how long it is, in 32nd notes (the ABC's
+ * L:1/32), for grading in time.
+ */
+export type GradeNote = { midi: number; beats: number; cursor: number; startUnits: number; lengthUnits: number };
+/** A rest, for grading in time: singing through one is a rhythm fault. */
+export type GradeRest = { cursor: number; startUnits: number; lengthUnits: number };
 
 /**
- * The notes to sing, in order, from the exercise's ABC: rests left out (the
- * singer rests; nothing waits), tied notes as one held note, and the playback
- * transposition added so it matches what the page plays.
+ * The notes to sing and the rests between them, in order, from the exercise's
+ * ABC: tied notes as one held note, and the playback transposition added so it
+ * matches what the page plays.
  */
-export function gradeNotes(abc: string, transpose = 0): GradeNote[] {
+export function gradeSchedule(abc: string, transpose = 0): { notes: GradeNote[]; rests: GradeRest[]; totalUnits: number } {
   const score = scoreFromAbc(abc);
   const part = score.parts[0];
-  if (!part) return [];
-  const out: GradeNote[] = [];
+  const notes: GradeNote[] = [];
+  const rests: GradeRest[] = [];
+  if (!part) return { notes, rests, totalUnits: 0 };
   let cursor = 0;
+  let at = 0;
   let tied: GradeNote | null = null;
   for (const measure of part.measures) {
     for (const n of measure.notes) {
       const here = cursor++;
+      const start = at;
+      at += n.length;
       if (n.rest || !n.pitch) {
         tied = null;
+        const last = rests[rests.length - 1];
+        // Rests in a row are one silence.
+        if (last && last.startUnits + last.lengthUnits === start) last.lengthUnits += n.length;
+        else rests.push({ cursor: here, startUnits: start, lengthUnits: n.length });
         continue;
       }
-      const beats = n.length / 8;
       if (tied && n.tieStop) {
-        tied.beats += beats;
+        tied.beats += n.length / 8;
+        tied.lengthUnits += n.length;
       } else {
-        tied = { midi: midiOf(n.pitch) + transpose, beats, cursor: here };
-        out.push(tied);
+        tied = { midi: midiOf(n.pitch) + transpose, beats: n.length / 8, cursor: here, startUnits: start, lengthUnits: n.length };
+        notes.push(tied);
       }
       if (!n.tieStart) tied = null;
     }
   }
-  return out;
+  return { notes, rests, totalUnits: at };
+}
+
+/**
+ * The notes to sing, in order: rests left out (the singer rests; nothing
+ * waits in Pitch only).
+ */
+export function gradeNotes(abc: string, transpose = 0): GradeNote[] {
+  return gradeSchedule(abc, transpose).notes;
 }
 
 /** How far a sung pitch is from the target's pitch class, in cents, -600..600. */
@@ -133,11 +156,11 @@ export type NoteResult = {
   score: number;
 };
 
-/** One note's score, 100 down to 100 - MAX_LOSS. */
-export function noteScore(o: { findBeats: number | null; cents: number | null; help: Help; skipped?: boolean }): number {
+/** One note's score, 100 down to 100 - MAX_LOSS. `freeCents` from the strictness. */
+export function noteScore(o: { findBeats: number | null; cents: number | null; help: Help; skipped?: boolean }, freeCents = FREE_CENTS): number {
   if (o.skipped || o.findBeats === null) return 100 - MAX_LOSS;
   const find = Math.min(FIND_MAX, Math.max(0, o.findBeats - FREE_FIND_BEATS) * FIND_POINTS_PER_BEAT);
-  const tune = Math.min(CENTS_MAX, Math.max(0, Math.abs(o.cents ?? 0) - FREE_CENTS));
+  const tune = Math.min(CENTS_MAX, Math.max(0, Math.abs(o.cents ?? 0) - freeCents));
   let score = 100 - find - tune - (o.help.heardKey ? HELP_KEY_COST : 0);
   if (o.help.heardNote) score = Math.min(score, HELP_NOTE_CAP);
   return Math.round(Math.max(100 - MAX_LOSS, score));
@@ -165,4 +188,194 @@ export const letterFor = (score: number) =>
 export function summarize(notes: NoteResult[]): GradeResult {
   const score = notes.length ? Math.round(notes.reduce((a, n) => a + n.score, 0) / notes.length) : 0;
   return { notes, score, letter: letterFor(score) };
+}
+
+// ── Two ways to grade ─────────────────────────────────────────────────────────
+
+/**
+ * Pitch only: the cursor waits on each note until it is sung (the rules
+ * above). Pitch & rhythm ("performance"): the exercise runs in time with a
+ * click, nothing waits, and the recording is graded afterwards for pitch and
+ * for rhythm separately (gradePerformance).
+ */
+export type GradeMode = "pitch" | "performance";
+export type Strictness = "easy" | "standard" | "strict";
+
+/**
+ * How lenient the grading is, chosen before starting. `cents`: how far off a
+ * pitch may be and still be the note (any octave). `onsetBeats`: how early or
+ * late a note may start for full rhythm credit, in beats. `freeCents`:
+ * intonation inside this costs nothing. Starting points, to be tuned by singing.
+ */
+export const STRICTNESS: Record<Strictness, { label: string; cents: number; onsetBeats: number; freeCents: number }> = {
+  easy: { label: "Easy", cents: 50, onsetBeats: 0.5, freeCents: 25 },
+  standard: { label: "Standard", cents: 35, onsetBeats: 0.25, freeCents: 20 },
+  strict: { label: "Strict", cents: 25, onsetBeats: 0.125, freeCents: 12 },
+};
+
+/**
+ * How long after a sound the pitch detector reports it, in ms: subtracted from
+ * every frame's time before it is compared with the music. Measured end to end
+ * with the fake microphone (a WAV sung exactly in time).
+ */
+export const DETECT_LATENCY_MS = 110;
+/** A note sung for less than this share of its length was cut short; */
+export const CUT_SHORT_SHARE = 0.6;
+/** which costs this many rhythm points. */
+export const CUT_SHORT_COST = 25;
+/** Voiced this long inside a rest is singing through it. */
+export const REST_SUNG_MS = 150;
+
+export type PerfNote = {
+  midi: number;
+  cursor: number;
+  startUnits: number;
+  lengthUnits: number;
+  /** What was sung over the note, moved to the written note's octave; null when nothing was. */
+  sung: number | null;
+  /** Median cents from the target over the note, null when unsung. */
+  cents: number | null;
+  pitchOk: boolean;
+  /** 0-100. */
+  pitch: number;
+  /** When the singer came in against the written onset, in beats (+ late); null when no onset was found. */
+  onsetBeats: number | null;
+  cutShort: boolean;
+  missed: boolean;
+  /** 0-100. */
+  rhythm: number;
+};
+export type PerfRest = GradeRest & { sung: boolean };
+export type PerfResult = { pitch: number; rhythm: number; overall: number; letter: string; notes: PerfNote[]; rests: PerfRest[] };
+
+const median = (xs: number[]) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const sungOf = (p: HistoryPoint) => (p.midi === null ? null : p.midi + p.cents / 100);
+
+/**
+ * Grade a run sung in time. `t0` is the first downbeat (performance.now ms),
+ * `frames` the pitch history over the run; the bpm counts the meter's beat,
+ * `beatUnits` 32nds (8 a quarter, 12 a dotted quarter).
+ */
+export function gradePerformance(
+  schedule: { notes: GradeNote[]; rests: GradeRest[] },
+  frames: HistoryPoint[],
+  o: { t0: number; bpm: number; beatUnits: number; strictness: Strictness; latencyMs?: number },
+): PerfResult {
+  const tol = STRICTNESS[o.strictness];
+  const beatMs = 60_000 / Math.max(1, o.bpm);
+  const unitMs = beatMs / o.beatUnits;
+  const lat = o.latencyMs ?? DETECT_LATENCY_MS;
+  const pts = frames.map((p) => ({ t: p.t - lat, sung: sungOf(p), db: p.dbfs })).sort((a, b) => a.t - b.t);
+  const within = (a: number, b: number) => pts.filter((p) => p.t >= a && p.t < b);
+  const spacing = pts.length > 1 ? (pts[pts.length - 1].t - pts[0].t) / (pts.length - 1) : 20;
+
+  // Where a sound starts: from silence, a new pitch, or a fresh attack (a repeated note).
+  const onsets: number[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i], q = pts[i - 1];
+    if (p.sung === null) continue;
+    const fromSilence = q.sung === null || p.t - q.t > 3 * spacing;
+    const newPitch = q.sung !== null && Math.abs(p.sung - q.sung) > 0.7 && (pts[i + 1]?.sung == null || Math.abs(pts[i + 1].sung! - p.sung) < 0.5);
+    const lookback = pts.slice(Math.max(0, i - 4), i).map((x) => x.db);
+    const attack = lookback.length > 0 && p.db - Math.min(...lookback) >= 6;
+    if (fromSilence || newPitch || attack) {
+      if (!onsets.length || p.t - onsets[onsets.length - 1] > 60) onsets.push(p.t);
+    }
+  }
+
+  const notes = schedule.notes.map((n, i): PerfNote => {
+    const on = o.t0 + n.startUnits * unitMs;
+    const dur = n.lengthUnits * unitMs;
+    const off = on + dur;
+    const all = within(on, off);
+    const middle = within(on + Math.min(120, 0.25 * dur), off - 0.15 * dur);
+    const voiced = middle.filter((p) => p.sung !== null);
+    const share = middle.length ? voiced.length / middle.length : 0;
+    const base: PerfNote = {
+      midi: n.midi, cursor: n.cursor, startUnits: n.startUnits, lengthUnits: n.lengthUnits,
+      sung: null, cents: null, pitchOk: false, pitch: 0, onsetBeats: null, cutShort: false, missed: true, rhythm: 0,
+    };
+    // Heard at all: a few frames are enough to judge its pitch (a short
+    // note, or a held one let go early, which is judged cut short below).
+    if (voiced.length < 3 || share < 0.1) return base;
+    const offs = voiced.map((p) => centsOffAnyOctave(p.sung!, n.midi));
+    const inTune = offs.filter((c) => Math.abs(c) <= tol.cents);
+    const pitchOk = inTune.length >= offs.length / 2;
+    const cents = Math.round(median(pitchOk ? inTune : offs)!);
+    const pitch = pitchOk ? Math.round(100 - Math.min(CENTS_MAX, Math.max(0, Math.abs(cents) - tol.freeCents))) : 0;
+
+    // Coming in: the onset nearest the written one, no further than halfway
+    // into this note or back into the last.
+    const prev = schedule.notes[i - 1];
+    const prevDur = prev && prev.startUnits + prev.lengthUnits === n.startUnits ? prev.lengthUnits * unitMs : dur;
+    const lo = on - Math.min(0.5 * prevDur, 3 * tol.onsetBeats * beatMs);
+    const hi = on + Math.min(0.5 * dur, 3 * tol.onsetBeats * beatMs);
+    let onset: number | null = null;
+    for (const t of onsets) if (t >= lo && t <= hi && (onset === null || Math.abs(t - on) < Math.abs(onset - on))) onset = t;
+    let rhythm: number;
+    let onsetBeats: number | null = null;
+    if (onset !== null) {
+      onsetBeats = (onset - on) / beatMs;
+      const err = Math.abs(onsetBeats);
+      rhythm = err <= tol.onsetBeats ? 100 : Math.max(0, 100 * (1 - (err - tol.onsetBeats) / (2 * tol.onsetBeats)));
+    } else {
+      // Sounding, but no clear entry: the pitch carried on from just before
+      // (a repeated note sung legato, or the last note sung on this pitch) is
+      // fine, since it is the right pitch at the right time; otherwise half credit.
+      const around = within(on - 150, on + 100);
+      const carried = around.length > 0 && around.every((p) => p.sung !== null && Math.abs(centsOffAnyOctave(p.sung, n.midi)) <= tol.cents);
+      rhythm = carried ? 100 : 50;
+    }
+    const sounded = all.length ? all.filter((p) => p.sung !== null).length / all.length : 0;
+    const cutShort = sounded < CUT_SHORT_SHARE;
+    if (cutShort) rhythm = Math.max(0, rhythm - CUT_SHORT_COST);
+    const sungMid = median(voiced.map((p) => n.midi + centsOffAnyOctave(p.sung!, n.midi) / 100))!;
+    return { ...base, sung: sungMid, cents, pitchOk, pitch, onsetBeats, cutShort, missed: false, rhythm: Math.round(rhythm) };
+  });
+
+  const rests = schedule.rests.map((r): PerfRest => {
+    const on = o.t0 + r.startUnits * unitMs;
+    const off = on + r.lengthUnits * unitMs;
+    const inside = within(on + 80, off - 80);
+    const voicedMs = inside.filter((p) => p.sung !== null).length * spacing;
+    return { ...r, sung: voicedMs > REST_SUNG_MS };
+  });
+  return summarizePerformance(notes, rests);
+}
+
+/** The totals: pitch and rhythm each the average of their notes (a rest sung through counts as a 0 for rhythm), overall their mean. */
+export function summarizePerformance(notes: PerfNote[], rests: PerfRest[]): PerfResult {
+  const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
+  const pitch = avg(notes.map((n) => n.pitch));
+  const rhythm = avg([...notes.map((n) => n.rhythm), ...rests.filter((r) => r.sung).map(() => 0)]);
+  const overall = Math.round((pitch + rhythm) / 2);
+  return { pitch, rhythm, overall, letter: letterFor(overall), notes, rests };
+}
+
+/** Scale steps from do for each semitone: chromatic notes fall halfway between. */
+const STEP_OF_SEMITONE = [0, 0.5, 1, 1.5, 2, 3, 3.5, 4, 4.5, 5, 5.5, 6];
+
+/**
+ * Staff steps from `written` up to `sung` (each a MIDI number, fractions
+ * allowed) in a key whose do has pitch class `doPc`: what the trace on the
+ * score is drawn by, a step being half a staff space. Between two scale notes
+ * it moves smoothly, so a flat note sits just below its line.
+ */
+export function stepsBetween(sung: number, written: number, doPc: number): number {
+  const steps = (m: number) => {
+    const rel = m - doPc;
+    const oct = Math.floor(rel / 12);
+    const within = rel - oct * 12;
+    const lo = Math.floor(within);
+    const frac = within - lo;
+    const a = STEP_OF_SEMITONE[lo];
+    const b = lo + 1 < 12 ? STEP_OF_SEMITONE[lo + 1] : 7;
+    return oct * 7 + a + (b - a) * frac;
+  };
+  return steps(sung) - steps(written);
 }

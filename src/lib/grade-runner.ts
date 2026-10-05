@@ -2,26 +2,34 @@ import { writable, type Readable } from "svelte/store";
 import { tuner } from "./tuner/store";
 import { pitchHistory } from "./tuner/pitch-history";
 import { NOTES } from "./tuner/pitch";
+import type { HistoryPoint } from "./tuner/pitch-history";
 import { playArpeggio, playNotes } from "./tools/tone";
 import {
   HOLD_GRACE_MS,
-  TOLERANCE_CENTS,
+  STRICTNESS,
   centsOffAnyOctave,
+  gradePerformance,
   holdCents,
   creditMsFor,
   noteMsFor,
   noteScore,
   summarize,
+  type GradeMode,
   type GradeNote,
+  type GradeRest,
   type GradeResult,
+  type PerfResult,
+  type Strictness,
   type Help,
   type NoteResult,
 } from "./grade";
 
 /**
- * Runs one graded attempt at a Unison exercise (rules in grade.ts): a
- * reference, a count-in, then each note waited on until it is sung and held
- * for its written length. The scale challenge's runner is the model (a 50 ms
+ * Runs one graded attempt at a Unison exercise (rules in grade.ts), in either
+ * mode. Pitch only: a reference, a count-in, then each note waited on until it
+ * is sung and held for its written length. Pitch & rhythm: a reference, then
+ * the page runs the exercise in time (its count-in, cursor and click, no
+ * melody) and the recording is graded at the end, pitch and rhythm apart. The scale challenge's runner is the model (a 50 ms
  * poll rather than a subscription or rAF, a run token so stale ticks bail, the
  * hold timed on the clock with a grace for lapses).
  *
@@ -51,6 +59,24 @@ export type GradeView = {
   /** The note has its credit; the cursor waits out its written length. */
   credited: boolean;
   result: GradeResult | null;
+  /** Pitch & rhythm's result: pitch, rhythm and overall. */
+  perf: PerfResult | null;
+  mode: GradeMode;
+};
+
+/**
+ * What the score is drawn from after a run (grade-feedback.ts): the pitch
+ * track, and which note each moment of it belongs to - by time in Pitch &
+ * rhythm, by the note being waited on in Pitch only.
+ */
+export type GradeTrace = {
+  mode: GradeMode;
+  frames: HistoryPoint[];
+  /** For each note, the span of time its frames come from (performance.now ms). */
+  spans: { from: number; to: number }[];
+  /** Pitch & rhythm: each note's sung onset, in performance.now ms, when one was found. */
+  onsets: (number | null)[];
+  tolerance: number;
 };
 
 export type GradeHooks = {
@@ -61,10 +87,15 @@ export type GradeHooks = {
   click: (downbeat: boolean) => void;
   /** The run is over: each note's score, in order, to mark on the score. */
   marked?: (scores: number[]) => void;
+  /** Pitch & rhythm: start the exercise in time, from its count-in. Returns the first downbeat (performance.now ms). */
+  startTimeline?: (o: { cursor: "off" | "smooth" | "beat" | "note"; click: "off" | "beat" | "sub" }) => number;
+  stopTimeline?: () => void;
+  /** The run is over: what was sung, to draw on the score. */
+  traced?: (trace: GradeTrace) => void;
 };
 
 const TICK_MS = 50;
-const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null };
+const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null, perf: null, mode: "pitch" };
 const nameOf = (midi: number) => NOTES[((midi % 12) + 12) % 12];
 const octaveOf = (midi: number) => Math.floor(midi / 12) - 1;
 const midiOfHz = (hz: number, a4: number) => 69 + 12 * Math.log2(hz / a4);
@@ -104,6 +135,16 @@ export class GradeRunner {
   private passing = { ms: 0, since: 0, off: null as number | null };
   private help: Help = { heardNote: false, heardKey: false };
   private tonicTriad: number[] = [];
+  private mode: GradeMode = "pitch";
+  private strictness: Strictness = "standard";
+  private rests: GradeRest[] = [];
+  private beatUnits = 8;
+  private startedAt = 0;
+  /** Pitch only: when each note was waited on, for drawing what was sung. */
+  private spans: { from: number; to: number }[] = [];
+  private get tolerance() {
+    return STRICTNESS[this.strictness].cents;
+  }
 
   constructor(private hooks: GradeHooks) {}
 
@@ -126,15 +167,35 @@ export class GradeRunner {
    * Start. `tonicTriad` is the key's tonic chord near the first note (minor
    * for a minor exercise); `countInBeats` a bar (two in 2/4).
    */
-  start(o: { notes: GradeNote[]; bpm: number; beatsPerBar: number; countInBeats: number; reference: Reference; tonicTriad: number[] }) {
+  start(o: {
+    notes: GradeNote[];
+    rests?: GradeRest[];
+    bpm: number;
+    beatsPerBar: number;
+    /** 32nds a beat: 8 for a quarter, 12 for a dotted quarter. */
+    beatUnits?: number;
+    countInBeats: number;
+    reference: Reference;
+    tonicTriad: number[];
+    mode?: GradeMode;
+    strictness?: Strictness;
+    cursor?: "off" | "smooth" | "beat" | "note";
+    click?: "off" | "beat" | "sub";
+  }) {
     this.clear();
     this.runId++;
     this.notes = o.notes;
+    this.rests = o.rests ?? [];
     this.results = [];
+    this.spans = [];
     this.bpm = o.bpm;
+    this.beatUnits = o.beatUnits ?? 8;
     this.tonicTriad = o.tonicTriad;
-    this.set({ ...IDLE, phase: "reference", total: o.notes.length });
-    this.hooks.moveTo(0);
+    this.mode = o.mode ?? "pitch";
+    this.strictness = o.strictness ?? "standard";
+    this.startedAt = performance.now();
+    this.set({ ...IDLE, phase: "reference", total: o.notes.length, mode: this.mode });
+    this.hooks.moveTo(this.mode === "pitch" ? 0 : -1);
     const a4 = tuner.get().a4;
 
     // The reference: the first note, or the tonic chord broken then held.
@@ -152,6 +213,10 @@ export class GradeRunner {
 
     // Then a count-in at the exercise's tempo.
     const beatMs = 60_000 / Math.max(1, this.bpm);
+    if (this.mode === "performance") {
+      this.later(refMs, () => this.perform(o.cursor ?? "smooth", o.click ?? "beat"));
+      return;
+    }
     this.later(refMs, () => {
       this.set({ phase: "countIn" });
       for (let b = 0; b < o.countInBeats; b++) {
@@ -164,6 +229,57 @@ export class GradeRunner {
         this.hooks.countIn(-1, o.countInBeats);
         this.sing();
       });
+    });
+  }
+
+  /**
+   * Pitch & rhythm: the page runs the exercise in time from its count-in;
+   * nothing waits. The note shown in the strip follows the clock, and at the
+   * end the recording is graded.
+   */
+  private perform(cursor: "off" | "smooth" | "beat" | "note", click: "off" | "beat" | "sub") {
+    const t0 = this.hooks.startTimeline?.({ cursor, click });
+    if (t0 === undefined) return this.stop();
+    const unitMs = 60_000 / Math.max(1, this.bpm) / this.beatUnits;
+    const last = this.notes[this.notes.length - 1];
+    const endUnits = Math.max(last ? last.startUnits + last.lengthUnits : 0, ...this.rests.map((r) => r.startUnits + r.lengthUnits));
+    const end = t0 + endUnits * unitMs + 60_000 / Math.max(1, this.bpm);
+    this.set({ phase: "countIn" });
+    const run = this.runId;
+    this.timer = setInterval(() => {
+      if (this.runId !== run) return;
+      const now = performance.now();
+      if (now < t0) return;
+      let i = -1;
+      while (i + 1 < this.notes.length && t0 + this.notes[i + 1].startUnits * unitMs <= now) i++;
+      const v = { phase: "sing" as const, index: Math.max(0, i), target: this.notes[Math.max(0, i)]?.midi ?? null };
+      const s = tuner.get();
+      const sung = s.pitch !== null ? midiOfHz(s.pitch, s.a4) : null;
+      const cents = sung !== null && v.target !== null ? centsOffAnyOctave(sung, v.target) : null;
+      this.set({ ...v, sung, cents, onTarget: cents !== null && Math.abs(cents) <= this.tolerance });
+      if (now >= end) this.finishPerformance(t0);
+    }, TICK_MS);
+  }
+
+  private finishPerformance(t0: number) {
+    const frames = pitchHistory.recent(performance.now() - t0 + 2000);
+    const perf = gradePerformance({ notes: this.notes, rests: this.rests }, frames, {
+      t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness,
+    });
+    this.clear();
+    this.hooks.stopTimeline?.();
+    this.hooks.moveTo(-1);
+    // The result first: the drawing reads it.
+    this.set({ phase: "results", index: -1, hold: 0, target: null, sung: null, perf, result: null });
+    const unitMs = 60_000 / Math.max(1, this.bpm) / this.beatUnits;
+    const beatMs = 60_000 / Math.max(1, this.bpm);
+    this.hooks.marked?.(perf.notes.map((n) => n.pitch));
+    this.hooks.traced?.({
+      mode: "performance",
+      frames,
+      spans: this.notes.map((n) => ({ from: t0 + n.startUnits * unitMs, to: t0 + (n.startUnits + n.lengthUnits) * unitMs })),
+      onsets: perf.notes.map((n) => (n.onsetBeats === null ? null : t0 + n.startUnits * unitMs + n.onsetBeats * beatMs)),
+      tolerance: this.tolerance,
     });
   }
 
@@ -185,6 +301,8 @@ export class GradeRunner {
     this.advanceAt = 0;
     this.help = { heardNote: false, heardKey: false };
     this.presentedAt = this.lastTickAt = performance.now();
+    // Sung ahead of the cursor, it started being sung before it was shown.
+    this.spans[i] = { from: this.holdMs > 0 ? this.holdStartedAt : this.presentedAt, to: this.presentedAt };
     this.hooks.moveTo(i);
     this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false, credited: false });
   }
@@ -200,7 +318,7 @@ export class GradeRunner {
       if (upcoming) {
         const s = tuner.get();
         const heard = s.pitch !== null ? centsOffAnyOctave(midiOfHz(s.pitch, s.a4), upcoming.midi) : null;
-        if (heard !== null && Math.abs(heard) <= TOLERANCE_CENTS) {
+        if (heard !== null && Math.abs(heard) <= this.tolerance) {
           if (this.ahead.ms === 0) this.ahead.since = now;
           this.ahead.ms += dt;
           this.ahead.off = null;
@@ -225,7 +343,7 @@ export class GradeRunner {
     const s = tuner.get();
     const sung = s.pitch !== null ? midiOfHz(s.pitch, s.a4) : null;
     const cents = sung !== null ? centsOffAnyOctave(sung, note.midi) : null;
-    const onTarget = cents !== null && Math.abs(cents) <= TOLERANCE_CENTS;
+    const onTarget = cents !== null && Math.abs(cents) <= this.tolerance;
     if (onTarget) {
       if (this.holdMs === 0) this.holdStartedAt = now;
       this.holdMs += dt;
@@ -242,7 +360,7 @@ export class GradeRunner {
     const following = this.notes[this.index + 1];
     if (following && following.midi % 12 !== note.midi % 12 && sung !== null && !onTarget) {
       const toNext = centsOffAnyOctave(sung, following.midi);
-      if (Math.abs(toNext) <= TOLERANCE_CENTS) {
+      if (Math.abs(toNext) <= this.tolerance) {
         if (this.passing.ms === 0) this.passing.since = now;
         this.passing.ms += dt;
         this.passing.off = null;
@@ -276,10 +394,11 @@ export class GradeRunner {
   }
 
   private record(r: Omit<NoteResult, "score">) {
-    this.results.push({ ...r, score: noteScore(r) });
+    this.results.push({ ...r, score: noteScore(r, STRICTNESS[this.strictness].freeCents) });
   }
 
   private next() {
+    if (this.spans[this.index]) this.spans[this.index].to = performance.now();
     if (this.index + 1 >= this.notes.length) this.finish();
     else this.present(this.index + 1);
   }
@@ -288,6 +407,13 @@ export class GradeRunner {
     this.clear();
     this.hooks.moveTo(-1);
     this.hooks.marked?.(this.results.map((r) => r.score));
+    this.hooks.traced?.({
+      mode: "pitch",
+      frames: pitchHistory.recent(performance.now() - this.startedAt + 1000),
+      spans: this.spans,
+      onsets: this.notes.map(() => null),
+      tolerance: this.tolerance,
+    });
     this.set({ phase: "results", index: -1, hold: 0, target: null, sung: null, result: summarize(this.results) });
   }
 
@@ -330,6 +456,7 @@ export class GradeRunner {
   stop() {
     this.runId++;
     this.clear();
+    if (this.mode === "performance") this.hooks.stopTimeline?.();
     this.hooks.countIn(-1, 0);
     this.hooks.moveTo(-1);
     this.set(IDLE);
