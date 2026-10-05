@@ -3,7 +3,7 @@ import { tuner } from "./tuner/store";
 import { pitchHistory } from "./tuner/pitch-history";
 import { NOTES } from "./tuner/pitch";
 import type { HistoryPoint } from "./tuner/pitch-history";
-import { playArpeggio, playNotes } from "./tools/tone";
+import { playNotes } from "./tools/tone";
 import {
   ATTEMPT_MS,
   CONFIRM_MS,
@@ -201,9 +201,17 @@ export class GradeRunner {
       this.later(1400, () => tuner.setPlaying(null));
       refMs = 1900;
     } else {
-      playArpeggio(this.tonicTriad, 0.35, a4);
-      this.later(1100, () => playNotes(this.tonicTriad, 1.4, a4, 0.45));
-      refMs = 2900;
+      // The key, as a choir director gives it: do mi so mi do, so below, do,
+      // a note a beat at the exercise's tempo (held between 0.35 and 0.75 s);
+      // then a beat's rest, and the starting note.
+      const beat = Math.min(0.75, Math.max(0.35, 60 / Math.max(1, o.bpm)));
+      const [doNote, mi, so] = this.tonicTriad;
+      const pattern = [doNote, mi, so, mi, doNote, so - 12, doNote];
+      pattern.forEach((m, k) => this.later(k * beat * 1000, () => playNotes([m], Math.max(0.4, beat * 0.95), a4, 0.45)));
+      const firstAt = (pattern.length + 1) * beat;
+      const first = this.notes[0].midi;
+      this.later(firstAt * 1000, () => playNotes([first], Math.max(0.6, 2 * beat), a4, 0.45));
+      refMs = (firstAt + 2 * beat) * 1000 + 300;
     }
 
     // Then a count-in at the exercise's tempo.

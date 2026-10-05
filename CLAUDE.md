@@ -546,7 +546,8 @@ score for it). Its setup (remembered in the tuner store: `gradeMode`,
 `gradeStrictness`, `gradeCursor`, `gradeClick`, `gradeReference`) chooses:
 
 - **Pitch only**: untimed, note by note. A reference (the first note or the
-  tonic chord), then the cursor waits on each note - no tempo, no click,
+  key: do mi so mi do, so below, do, a note a beat, a beat's rest, then the
+  first note), then the cursor waits on each note - no tempo, no click,
   nothing moves on by itself - until it is sung and held on pitch (any
   octave) for 300 ms; it shows green a moment, then the next note. Singing
   in the first 150 ms after a note is shown is the last one dying away, and

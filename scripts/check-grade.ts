@@ -119,7 +119,7 @@ const params = new URLSearchParams({
 });
 await page.evaluateOnNewDocument(
   (s) => localStorage.setItem("abc-tuner-settings", s),
-  JSON.stringify({ gradeMode: MODE, gradeStrictness: STRICT, gradeCursor: CURSOR, gradeClick: CLICK, gradeReference: "note" }),
+  JSON.stringify({ gradeMode: MODE, gradeStrictness: STRICT, gradeCursor: CURSOR, gradeClick: CLICK, gradeReference: process.env.REF ?? "note" }),
 );
 await page.goto(`${APP}/sightreading?${params}`, { waitUntil: "networkidle2" });
 await new Promise((r) => setTimeout(r, 1500));

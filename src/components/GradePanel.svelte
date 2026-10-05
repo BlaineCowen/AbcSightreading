@@ -107,7 +107,7 @@
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Before the count-in, play">
         <span class="text-xs text-sr-muted w-20">First, play</span>
         <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'note' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "note"} on:click={() => tuner.setGradeReference("note")}>the first note</button>
-        <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")}>the tonic chord</button>
+        <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")} title="Do mi so mi do so do, then the first note">the key, then the first note</button>
       </div>
     </div>
   {/if}
