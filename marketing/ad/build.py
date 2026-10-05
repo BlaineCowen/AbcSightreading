@@ -39,10 +39,13 @@ VERSIONS = {
     # bars (intro 0-3, build 4-7, chorus 8-15, verse 16-23, last chorus
     # 24-29, the final hit on 30), and every cut after the hook is on one.
     # (The Kids Song cut, index.html here, is no longer built.)
-    "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
-                bars=[2, 6, 4, 4, 4, 4, 4, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
+    # keep: the bars of the song used, in its own bar numbers, spliced on
+    # downbeats: the intro from bar 2, through the first half of the verse,
+    # then the last chorus to the end (about 60 s).
+    "fun": dict(song="fun-fun-music", keep=[(2, 20), (24, None)], end=73.06, tag="100",
+                bars=[2, 4, 4, 2, 2, 4, 4, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
-ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "tuner", "options", "close"]
+ORDER = ["hook", "unison", "choral", "rhythm", "tuner", "playalong", "options", "close"]
 
 COPY = {
     "unison": dict(kicker="Unison", tint="sky", head="A new exercise every click.",
@@ -199,6 +202,32 @@ def feature(scene, p, tag, track0):
     </div>
   </div>
 </div>'''
+
+
+def edit_song(v):
+    """The song cut to v["keep"] (bar ranges, spliced on downbeats with 10 ms fades),
+    with its analysis remapped: the version then plays the edit from 0."""
+    a = json.load(open(f"music/{v['song']}.json"))
+    d = a["downbeats"]
+    segs = [(d[i], d[j] if j is not None else v["end"] + 1.2) for i, j in v["keep"]]
+    name = f"{v['song']}-edit"
+    parts, labels = [], []
+    for k, (s0, s1) in enumerate(segs):
+        fade = "" if k == len(segs) - 1 else f",afade=t=out:st={s1 - s0 - 0.01:.4f}:d=0.01"
+        parts.append(f"[0:a]atrim={s0:.4f}:{s1:.4f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.01{fade}[s{k}]")
+        labels.append(f"[s{k}]")
+    graph = ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(segs)}:v=0:a=1[out]"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", f"assets/music/{v['song']}.mp3", "-filter_complex", graph,
+                    "-map", "[out]", "-b:a", "256k", f"assets/music/{name}.mp3"], check=True)
+    downbeats, at = [], 0.0
+    for (i, j), (s0, s1) in zip(v["keep"], segs):
+        downbeats += [at + x - s0 for x in d[i:j]]
+        at += s1 - s0
+    end_seg = segs[-1][0]
+    end = at - (segs[-1][1] - end_seg) + (v["end"] - end_seg)
+    json.dump(dict(a, file=f"assets/music/{name}.mp3", first_beat=0.0, downbeats=[round(x, 3) for x in downbeats]),
+              open(f"music/{name}.json", "w"), indent=1)
+    return dict(v, song=name, start=0.0, end=round(end, 3))
 
 
 def mix(name, p):
@@ -500,6 +529,8 @@ window.__timelines["main"] = tl;
 
 if __name__ == "__main__":
     for name, v in VERSIONS.items():
+        if v.get("keep"):
+            v = edit_song(v)
         plan = Plan(v)
         CURRENT_TAG = v["tag"]
         audio = mix(name, plan)
