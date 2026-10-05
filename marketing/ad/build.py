@@ -40,7 +40,13 @@ VERSIONS = {
     # bar 23, the final hit on 24. The hook is the intro's first half;
     # Unison clicks Generate and counts in over its second half, so the
     # exercise starts with the band (bar 4); every other cut is on a phrase.
-    "fun": dict(song="fun-fun-music-60", start=0.0, end=60.0, tag="100",
+    # ending: the 60 s cut fades out after its stop; instead the stop (on
+    # the beat at 55.67, the song's own) is followed by 4 beats of silence
+    # and then the full version's last riff (music/fun-fun-end, clipped by
+    # Blaine), 3e 3& 4 4& 4a | 1, its final hit (1.125 s into the clip)
+    # on the beat 6 after the stop, so every note is on the song's grid.
+    "fun": dict(song="fun-fun-music-60", start=0.0, end=63.1, tag="100",
+                ending=dict(cut=55.70, clip="fun-fun-end", clip_hit=1.125, hit=55.667 + 6 * 0.59797),
                 bars=[2, 6, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "tuner", "playalong", "options", "close"]
@@ -211,7 +217,19 @@ def mix(name, p):
     """The song from its start downbeat, levelled, faded in briefly; its own ending closes the video."""
     out = f"assets/music/ad-mix-{name}.mp3"
     v = p.v
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(v["start"]), "-i", f"assets/music/{v['song']}.mp3",
+    src = f"assets/music/{v['song']}.mp3"
+    if v.get("ending"):
+        # The song to its stop, silence, then the ending riff on the beat.
+        e = v["ending"]
+        src = f"assets/music/{v['song']}-ending.mp3"
+        clip_at = e["hit"] - e["clip_hit"]
+        fmt = "aformat=sample_rates=48000:channel_layouts=stereo"
+        graph = (f"[0:a]{fmt},atrim=end={e['cut']},afade=t=out:st={e['cut'] - 0.02}:d=0.02,apad=whole_dur={clip_at}[a];"
+                 f"[1:a]{fmt}[b];[a][b]concat=n=2:v=0:a=1[out]")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", f"assets/music/{v['song']}.mp3", "-i", f"assets/music/{e['clip']}.mp3",
+                        "-filter_complex", graph, "-map", "[out]", "-c:a", "pcm_s16le", src.replace(".mp3", ".wav")], check=True)
+        src = src.replace(".mp3", ".wav")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(v["start"]), "-i", src,
                     "-t", str(p.duration), "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:st=0:d=0.05,afade=t=out:st={p.duration - 0.5}:d=0.5",
                     "-ar", "48000", "-b:a", "192k", out], check=True)
     # MP3 framing trims the end a little: the video is as long as the audio really is.
@@ -395,14 +413,16 @@ def script(p):
                 js.append(f'  tl.to("#pl{i}", {{ opacity: 0, duration: 0.15 }}, {wall:.3f});')
                 js.append(f'  tl.to("#pc{i}", {{ x: {g["dx"]:.0f}, y: {g["dy"]:.0f}, scale: {g["s"]:.3f}, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }}, {wall + 0.03 * i:.3f});')
         elif new == "close":
+            e = p.v.get("ending")
             pulses = max(1, int((p.duration - 1.2 - beat_n(4)) / b))
             js.append(f"""  tl.from("#close-mark", {{ scale: 0.6, opacity: 0, duration: {min(0.8, 1.2 * b):.2f}, ease: "back.out(1.8)" }}, {t:.3f});
   tl.from("#close-line", {{ y: 30, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {beat_n(1) - 0.05:.3f});
   tl.from("#close-cta", {{ y: 30, scale: 0.8, opacity: 0, duration: {min(0.55, b):.2f}, ease: "back.out(2.4)" }}, {beat_n(2) - 0.05:.3f});
   tl.from("#close-url", {{ x: 40, opacity: 0, duration: {min(0.55, b):.2f}, ease: "expo.out" }}, {beat_n(2) + b / 2 - 0.05:.3f});
   tl.from("#close-price", {{ y: 20, opacity: 0, duration: {min(0.5, b):.2f}, ease: "sine.out" }}, {beat_n(3) - 0.05:.3f});
-  // The button pulses on each beat until the music ends.
-  tl.to("#close-cta", {{ scale: 1.07, duration: {b / 2:.4f}, ease: "sine.inOut", yoyo: true, repeat: {2 * pulses - 1} }}, {beat_n(4) - b / 4:.3f});
+  {"// The button pulses on each beat until the music ends." if not e else "// Over the silence it waits; on the riff's last hit, the logo and the button pop."}
+  {f'tl.to("#close-cta", {{ scale: 1.07, duration: {b / 2:.4f}, ease: "sine.inOut", yoyo: true, repeat: {2 * pulses - 1} }}, {beat_n(4) - b / 4:.3f});' if not e else
+   f'tl.to(["#close-mark", "#close-cta"], {{ scale: 1.1, duration: 0.09, ease: "power2.out", yoyo: true, repeat: 1 }}, {e["hit"] - p.v["start"] - 0.03:.3f});'}
   // The final scene fades out with the music.
   tl.to("#close", {{ opacity: 0, duration: 0.6, ease: "sine.in" }}, {p.duration - 0.6:.3f});""")
     return "\n".join(js)

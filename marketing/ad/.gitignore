@@ -8,3 +8,4 @@ assets/music/*.ogg
 assets/music/*.mp3
 capture/__pycache__/
 .thumbnails/
+assets/music/*.wav

@@ -71,7 +71,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 </style>
 </head>
 <body>
-<div id="root" data-composition-id="main" data-start="0" data-duration="60.03" data-width="1920" data-height="1080">
+<div id="root" data-composition-id="main" data-start="0" data-duration="63.73" data-width="1920" data-height="1080">
 
 <div class="scene" id="hook">
   <div class="blob" id="hook-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
@@ -208,7 +208,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 <div class="wipe" id="wipe-a" data-layout-ignore></div>
 <div class="wipe" id="wipe-b" data-layout-ignore></div>
 <div class="wipe" id="wipe-c" data-layout-ignore></div>
-<audio id="music" data-start="0" data-duration="60.03" data-track-index="1" src="assets/music/ad-mix-fun.mp3" data-volume="0.9"></audio>
+<audio id="music" data-start="0" data-duration="63.73" data-track-index="1" src="assets/music/ad-mix-fun.mp3" data-volume="0.9"></audio>
 </div>
 <script>
 window.__timelines = window.__timelines || {};
@@ -256,7 +256,7 @@ var tl = gsap.timeline({ paused: true });
     // "out." held, then away off the right.
     hop(1920 + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
   }
-  tl.to('.blob', { y: '+=40', x: '-=20', duration: 60.03, ease: 'sine.inOut' }, 0);
+  tl.to('.blob', { y: '+=40', x: '-=20', duration: 63.73, ease: 'sine.inOut' }, 0);
 
   // ---- hook -> unison: covered on the downbeat at 4.762
   tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 4.512);
@@ -424,10 +424,10 @@ var tl = gsap.timeline({ paused: true });
   tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 56.137);
   tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 56.436);
   tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 56.735);
-  // The button pulses on each beat until the music ends.
-  tl.to("#close-cta", { scale: 1.07, duration: 0.2990, ease: "sine.inOut", yoyo: true, repeat: 3 }, 57.234);
+  // Over the silence it waits; on the riff's last hit, the logo and the button pop.
+  tl.to(["#close-mark", "#close-cta"], { scale: 1.1, duration: 0.09, ease: "power2.out", yoyo: true, repeat: 1 }, 59.225);
   // The final scene fades out with the music.
-  tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 59.430);
+  tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 63.130);
 window.__timelines["main"] = tl;
 </script>
 </body>
