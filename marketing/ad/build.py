@@ -27,10 +27,10 @@ index.html here, the others ../ad-<name>/index.html over these assets.
 import html, json, re, subprocess
 
 W, H = 1920, 1080
-# The hook, sung: syllables in a word, and each syllable's length in sixteenths.
-HOOK_WORDS = [["Sight-", "rea", "ding"], ["prac", "tice"], ["that"], ["ne", "ver"], ["runs"], ["out."]]
+# The hook: the ball lands on a word a beat (each length in sixteenths).
+HOOK_WORDS = [["Sight-reading"], ["practice"], ["that"], ["never"], ["runs"], ["out."]]
 HOOK_BREAK = 2   # line two starts at this word
-HOOK_RHYTHM = [2, 1, 1, 1, 2, 1, 1, 1, 2, 2]
+HOOK_RHYTHM = [4, 4, 4, 4, 4, 4]
 SWAP = 0.24             # how long into a wipe the scenes change over: the wipe starts this much before the downbeat
 
 VERSIONS = {
@@ -42,39 +42,54 @@ VERSIONS = {
     "fun": dict(song="fun-fun-music", start=0.576, end=73.06, tag="100",
                 bars=[2, 6, 4, 4, 4, 4, 4, 2], credit="Fun Fun Music (prettyjohn1)", out="../ad-fun/index.html"),
 }
-ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "chromatic", "options", "close"]
+ORDER = ["hook", "unison", "choral", "rhythm", "playalong", "tuner", "options", "close"]
 
 COPY = {
     "unison": dict(kicker="Unison", tint="sky", head="A new exercise every click.",
-                   body="Your key, your notes, your rhythms. Solfège included.", url="abcsightreading.com/sightreading"),
+                   body="Your key, your notes, your rhythms, over real chord progressions.", url="abcsightreading.com/sightreading"),
     "choral": dict(kicker="Choral", tint="mint", flip=True, head="Two, three and four parts.",
                    body="SATB, SSA and TTB, from UIL Level 1 to 5.", url="abcsightreading.com/choral-sightreading"),
     "rhythm": dict(kicker="Rhythm", tint="butter", head="Ta, ti-ti, ti-ki-ti-ki.",
                    body="Kodály, counting, or your own syllables.", url="abcsightreading.com/sightreading"),
-    "chromatic": dict(kicker="Real music", tint="peach", head="Melodies over real chord progressions.",
-                      body="Chromatic notes that resolve. Skips only where you want them.", url="abcsightreading.com/sightreading"),
+    "tuner": dict(kicker="abcTuner · Pro", tint="sky", flip=True, head="A tuner that hears singers.",
+                  body="Pitch, vowels, drone, metronome and timer, a tab each.", url="abcsightreading.com/tuner"),
 }
 
-# The options montage: a card a beat. The tuner and the teacher tools live
-# here too, since the song has room for seven scenes.
-OPTIONS = [
-    ("UIL Levels 1-5", "Texas choir sight-reading"),
-    ("NYSSMA Levels I-V", "New York solo voice"),
-    ("SATB, SSA, TTB", "Two, three or four parts"),
-    ("2/4, 3/4, 4/4", "Simple meter"),
-    ("6/8, 9/8, 12/8", "Compound meter"),
-    ("fi, si, te, le", "Chromatic notes that resolve"),
-    ("Exact skips", "Only the intervals you list"),
-    ("Movable or fixed do", "Or note names"),
-    ("Kodály or counting", "Or your own syllables"),
-    ("Dynamics", "Marked in, level by level"),
-    ("Up to 16 bars", "Short drills or full pieces"),
-    ("Presets and links", "Save it, share it"),
-    ("abcTuner", "Pitch, vowels, drone, timer"),
-    ("Assign practice", "And track the minutes"),
-    ("Student logins", "No email needed"),
-    ("23 steps", "From ta to four parts"),
+# The options montage: the app's own settings panels (capture.ts panels,
+# cropped into assets/footage/panels), a panel a beat for 12 beats, then all
+# of them at once as a wall for the last bar.
+PANELS = [
+    ("u-setup", "Unison · Setup"), ("u-notes", "Unison · Notes and skips"), ("u-rhythm", "Unison · Rhythms"),
+    ("u-score", "Sound, solfège, dynamics"), ("nyssma", "NYSSMA Levels I-V"), ("c-setup", "Choral · Setup"),
+    ("c-harmony", "Choral · Harmony"), ("c-ranges", "Choral · Voice ranges"), ("c-rhythm", "Choral · Rhythms"),
+    ("c-score", "Choral · Score options"), ("uil", "UIL Levels 1-5"), ("steps", "abcStepByStep · 23 steps"),
 ]
+PANEL_BOX = (1560, 640, 960, 655)     # the largest a panel is shown, and its centre
+WALL = (4, 3, 70, 300, 1850, 1050)   # the closing wall: columns, rows, and its box
+
+
+def png_size(path):
+    with open(path, "rb") as f:
+        d = f.read(24)
+    return int.from_bytes(d[16:20], "big"), int.from_bytes(d[20:24], "big")
+
+
+def panel_geometry():
+    """Each panel's size on screen, centred on PANEL_BOX, and where it sits in the wall."""
+    bw, bh, cx, cy = PANEL_BOX
+    cols, rows, x0, y0, x1, y1 = WALL
+    cw, ch = (x1 - x0) / cols, (y1 - y0) / rows
+    out = []
+    for i, (name, label) in enumerate(PANELS):
+        iw, ih = png_size(f"assets/footage/panels/{name}.png")
+        k = min(bw / iw, bh / ih)
+        w, h = iw * k, ih * k
+        c, r = i % cols, i // cols
+        wall_scale = min((cw - 24) / w, (ch - 24) / h)
+        out.append(dict(name=name, label=label, w=w, h=h, x=cx - w / 2, y=cy - h / 2,
+                        dx=x0 + (c + 0.5) * cw - cx, dy=y0 + (r + 0.5) * ch - cy, s=wall_scale))
+    return out
+
 
 TINTS = {"sky": ("#c9e4ff", "#0e3563"), "mint": ("#bdebd9", "#0f3b2c"),
          "peach": ("#ffd3bf", "#5a2310"), "butter": ("#ffefa8", "#5c4a00")}
@@ -155,8 +170,9 @@ def clips_for(scene, p, tag):
             return [(f"{scene}-{tag}", 0.5, at, bar), (f"{scene}-{tag}", c["countin_start"], at + bar, end - at - bar)]
         # The first note on the scene's first downbeat.
         return [(f"{scene}-{tag}", c["music_start"], at, end - at)]
-    if scene == "chromatic":
-        return [("chromatic", 0.5, at, end - at)]
+    if scene == "tuner":
+        last = bar if end - at > 1.5 * bar else (end - at) / 2
+        return [("tuner", 1.0, at, end - at - last), ("tuner", 9.8, end - last, last)]
     raise KeyError(scene)
 
 
@@ -219,20 +235,18 @@ def build(p, tag, audio):
     <p class="pa-sub" id="playalong-sub">Drums, bass and strummed guitar at your tempo. Export it and share it.</p>
   </div>
 </div>'''
-    tints = list(TINTS.values())
     cards = "".join(
-        f'<div class="opt" id="opt{i}" style="background:{tints[i % 4][0]}"><div class="opt-t" style="color:{tints[i % 4][1]}">{esc(t)}</div>'
-        f'<div class="opt-s">{esc(sub)}</div></div>' for i, (t, sub) in enumerate(OPTIONS))
+        f'<div class="pcard" id="pc{i}" style="left:{g["x"]:.0f}px;top:{g["y"]:.0f}px;width:{g["w"]:.0f}px;height:{g["h"]:.0f}px">'
+        f'<span class="plabel" id="pl{i}">{esc(g["label"])}</span>'
+        f'<img src="assets/footage/panels/{g["name"]}.png" alt=""></div>' for i, g in enumerate(panel_geometry()))
     parts["options"] = f'''
 <div class="scene" id="options">
   {blobs("options")}
-  <div class="opt-content">
-    <div class="opt-top">
-      <span class="kicker" id="options-kicker" style="background:#ffefa8;color:#5c4a00">And so much more</span>
-      <h2 class="head opt-head" id="options-head">Set it up your way.</h2>
-    </div>
-    <div class="opt-rail" data-layout-ignore><div class="opt-track" id="opt-track">{cards}</div></div>
+  <div class="opt-top">
+    <span class="kicker" id="options-kicker" style="background:#ffefa8;color:#5c4a00">And so much more</span>
+    <h2 class="head opt-head" id="options-head">Set it up your way.</h2>
   </div>
+  <div class="pdeck" data-layout-ignore>{cards}</div>
 </div>'''
     def hook_words():
         # A span a syllable (the ball lands on each), the words whole on the page.
@@ -273,8 +287,8 @@ def build(p, tag, audio):
 
 def script(p):
     b = p.beat
-    # The hook: the line sung in sixteenths (HOOK_RHYTHM), the ball landing
-    # on each syllable. In from off the left on beat 1, "Sight" landing on
+    # The hook: the line in time (HOOK_RHYTHM), the ball landing on each
+    # word. In from off the left on beat 1, "Sight" landing on
     # beat 2 (so "out." lands on bar 2's downbeat); between the lines it wraps (off the right edge, in
     # from the left) rather than flying back across the words; away off the
     # right after "out.".
@@ -303,7 +317,7 @@ def script(p):
     hop(hops[0].x, hops[0].y, HOOK[0] - B, B, 170);
     // Each hop lasts its syllable: higher for the longer notes.
     for (var i = 1; i < N; i++) {
-      var d = LEN[i - 1], peak = d > 0.2 ? 110 : 65;
+      var d = LEN[i - 1], peak = d > 0.5 ? 150 : d > 0.2 ? 110 : 65;
       if (i === LINE2) {
         // Wrap: off the right edge on the way up, in from the left on the way down.
         var off = 1920 + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
@@ -355,18 +369,20 @@ def script(p):
   tl.from("#playalong-head", {{ y: 40, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {beat_n(2) - 0.05:.3f});
   tl.from("#playalong-sub", {{ y: 20, opacity: 0, duration: {min(0.5, b):.2f}, ease: "expo.out" }}, {beat_n(4) - 0.05:.3f});""")
         elif new == "options":
-            # The rail swipes one card into the middle on every beat.
-            pitch, card = 610, 560
-            x_of = lambda i: W / 2 - card / 2 - i * pitch
-            js.append(f'''  tl.set("#opt-track", {{ x: {x_of(0) + 2 * pitch:.0f} }}, {t:.3f});
-  tl.from("#options-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {t + 0.05:.3f});
+            # A panel swipes in on each beat, the last one out as it comes;
+            # then, on the last bar's downbeat, every panel at once as a wall.
+            n = len(PANELS)
+            js.append(f'''  tl.from("#options-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {t + 0.05:.3f});
   tl.from("#options-head", {{ y: 40, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {t + 0.12:.3f});''')
-            for i in range(len(OPTIONS)):
-                at = beat_n(i) - 0.06
-                js.append(f'  tl.to("#opt-track", {{ x: {x_of(i):.0f}, duration: {0.8 * b:.3f}, ease: "back.out(1.3)" }}, {at:.3f});')
-                js.append(f'  tl.to("#opt{i}", {{ scale: 1, opacity: 1, duration: {0.6 * b:.3f}, ease: "back.out(2)" }}, {at:.3f});')
+            for i in range(n):
+                at = beat_n(i) - 0.14
+                js.append(f'  tl.fromTo("#pc{i}", {{ x: 2100, rotation: 5, opacity: 1 }}, {{ x: 0, rotation: 0, duration: 0.3, ease: "power3.out" }}, {at:.3f});')
                 if i:
-                    js.append(f'  tl.to("#opt{i - 1}", {{ scale: 0.82, opacity: 0.45, duration: {0.6 * b:.3f}, ease: "power2.out" }}, {at:.3f});')
+                    js.append(f'  tl.to("#pc{i - 1}", {{ x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }}, {at:.3f});')
+            wall = beat_n(n) - 0.2
+            for i, g in enumerate(panel_geometry()):
+                js.append(f'  tl.to("#pl{i}", {{ opacity: 0, duration: 0.15 }}, {wall:.3f});')
+                js.append(f'  tl.to("#pc{i}", {{ x: {g["dx"]:.0f}, y: {g["dy"]:.0f}, scale: {g["s"]:.3f}, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }}, {wall + 0.03 * i:.3f});')
         elif new == "close":
             pulses = max(1, int((p.duration - 1.2 - beat_n(4)) / b))
             js.append(f"""  tl.from("#close-mark", {{ scale: 0.6, opacity: 0, duration: {min(0.8, 1.2 * b):.2f}, ease: "back.out(1.8)" }}, {t:.3f});
@@ -408,7 +424,7 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
 .hook-head .hw { display: inline-block; }
 .hook-head .hword { display: inline-block; }
-#hw6, #hw7 { color: #2f6fe0; }
+#hw3 { color: #2f6fe0; }
 #hook-ball { z-index: 1; } /* behind the words, so a hop never covers line one */
 .ball { position: absolute; left: 0; top: 0; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #8dbaff 0%, #2f6fe0 55%, #1e56c0 100%); box-shadow: 0 10px 24px rgba(30,86,192,0.35); z-index: 5; opacity: 0; }
 
@@ -431,14 +447,12 @@ body { font-family: "Nunito", sans-serif; color: #15213a; }
 .vw { position: absolute; inset: 0; }
 .vw video { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.opt-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 0 0; display: flex; flex-direction: column; align-items: center; gap: 90px; }
-.opt-top { display: flex; flex-direction: column; align-items: center; gap: 26px; }
-.opt-head { font-size: 84px; max-width: none; white-space: nowrap; }
-.opt-rail { position: relative; width: 1920px; height: 400px; }
-.opt-track { position: absolute; left: 0; top: 0; height: 400px; display: flex; align-items: center; gap: 50px; }
-.opt { flex: none; width: 560px; height: 330px; border-radius: 36px; padding: 40px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; text-align: center; box-shadow: 0 24px 50px rgba(21,33,58,0.14); opacity: 0.45; transform: scale(0.82); }
-.opt-t { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 62px; line-height: 1.05; }
-.opt-s { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
+.opt-top { position: absolute; z-index: 3; left: 0; right: 0; top: 54px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.opt-head { font-size: 76px; max-width: none; white-space: nowrap; }
+.pdeck { position: absolute; inset: 0; z-index: 2; }
+.pcard { position: absolute; border-radius: 26px; background: #fff; box-shadow: 0 30px 70px rgba(21,33,58,0.22); border: 2px solid #d8e2f1; opacity: 0; }
+.pcard img { display: block; width: 100%; height: 100%; border-radius: 24px; }
+.plabel { position: absolute; left: 22px; top: -26px; font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 30px; color: #0e3563; background: #c9e4ff; padding: 6px 22px; border-radius: 999px; white-space: nowrap; }
 .pa-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 46px 120px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
 .pa-top { display: flex; align-items: center; gap: 28px; }
 .pa-head { font-size: 60px; max-width: none; white-space: nowrap; }

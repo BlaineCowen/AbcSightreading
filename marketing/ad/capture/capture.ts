@@ -186,6 +186,61 @@ const scenes: Record<string, () => Promise<void>> = {
   },
 };
 
+/**
+ * The settings panels, still, for the ad's options montage: every tab of
+ * both practice pages and the preset menus, each cut out at its own size
+ * (panel-<page>-<tab>.png).
+ */
+scenes.panels = async () => {
+  const shoot = async (page: Page, name: string, selector: string) => {
+    await sleep(500);
+    const el = await page.$(selector);
+    if (!el) throw new Error(`no ${selector} for ${name}`);
+    await el.screenshot({ path: `${OUT}/panel-${name}.png` as `${string}.png` });
+  };
+  const tall = { width: 1440, height: 1600, deviceScaleFactor: 4 / 3 };
+  for (const [path, page_, tabs] of [
+    [UNISON, "unison", ["Setup", "Rhythm", "Notes", "Range"]],
+    ["/choral-sightreading?key=D", "choral", ["Setup", "Rhythm", "Harmony", "Voice Ranges"]],
+  ] as const) {
+    const { browser, page } = await open(path);
+    await page.setViewport(tall);
+    await sleep(600);
+    for (const tab of tabs) {
+      await clickText(page, tab, { exact: true, within: ".tab-panel" });
+      await shoot(page, `${page_}-${tab.toLowerCase().replace(/ /g, "-")}`, ".tab-panel");
+    }
+    // The preset menu with this page's levels open (UIL on Choral, NYSSMA on Unison), the steps shut.
+    await page.click(".preset-trigger");
+    await sleep(500);
+    for (const id of ["steps", "uil", "nyssma"]) {
+      const head = await page.$(`#preset-section-head-${id}`);
+      if (!head) continue;
+      const open = await head.evaluate((h) => h.getAttribute("aria-expanded") === "true");
+      if (open !== (id !== "steps")) { await head.click(); await sleep(300); }
+    }
+    await shoot(page, `${page_}-presets`, ".preset-panel");
+    if (page_ === "unison") {
+      // The steps list on its own.
+      for (const id of ["steps", "uil", "nyssma"]) {
+        const head = await page.$(`#preset-section-head-${id}`);
+        if (!head) continue;
+        const open = await head.evaluate((h) => h.getAttribute("aria-expanded") === "true");
+        if (open !== (id === "steps")) { await head.click(); await sleep(300); }
+      }
+      await shoot(page, "unison-steps", ".preset-panel");
+    }
+    await browser.close();
+  }
+  // Rhythm only: its Setup tab, with the syllable systems.
+  const { browser, page } = await open(`/sightreading?rhythmOnly=true&showRhythmSyllables=true&syllableSystem=kodaly`);
+  await page.setViewport(tall);
+  await sleep(600);
+  await clickText(page, "Setup", { exact: true, within: ".tab-panel" });
+  await shoot(page, "rhythm-only-setup", ".tab-panel");
+  await browser.close();
+};
+
 const wanted = process.argv.slice(2);
 for (const [name, run] of Object.entries(scenes)) {
   if (wanted.length && !wanted.includes(name)) continue;
