@@ -3639,6 +3639,8 @@
   const gradeDebugOn =
     import.meta.env.DEV || (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("gradeDebug"));
   let gradeRecording: GradeRecording | null = null;
+  /** The audio output's delay at the last run in time (ms), added to its beat. */
+  let gradeOutputLatencyMs = 0;
   let gradeAudio: { blob: Blob; startedAt: number; mime: string } | null = null;
   async function stopGradeRecording(keep: boolean) {
     const rec = gradeRecording;
@@ -3660,6 +3662,7 @@
         beatUnits: resolveMeter(playedMeter()).beatUnits,
         settings: { mode: t.gradeMode, strictness: t.gradeStrictness, cursor: t.gradeCursor, click: t.gradeClick, reference: t.gradeReference, a4: t.a4 },
         detectLatencyMs: DETECT_LATENCY_MS,
+        outputLatencyMs: gradeOutputLatencyMs,
         notes: gradeList,
         rests: gradeRestList,
         t0: gradeTrace?.t0 ?? null,
@@ -3691,7 +3694,11 @@
     scrollToFirstSystem();
     const startedAt = performance.now();
     timingCallbacks.start(0);
-    return startedAt + getCountInDuration() * 1000;
+    // The click is heard this much after it is played (the audio output's
+    // own delay: a few tens of ms on a laptop, far more on Bluetooth), and a
+    // singer sings with the click they hear.
+    gradeOutputLatencyMs = Math.round((((audioContext as any)?.baseLatency ?? 0) + ((audioContext as any)?.outputLatency ?? 0)) * 1000);
+    return startedAt + getCountInDuration() * 1000 + gradeOutputLatencyMs;
   }
 
   function stopGradeTimeline() {

@@ -119,6 +119,11 @@
           </span>
         {/each}
       </div>
+      {#if v.perf.drift !== undefined && Math.abs(v.perf.drift) >= 15}
+        <p class="text-xs font-bold text-sr-ink-2">
+          Your tuning drifted {Math.abs(v.perf.drift)} cents {v.perf.drift > 0 ? "sharp" : "flat"} by the end{$tuner.gradeStrictness === "strict" ? "." : " - each note was judged in tune with where you were."}
+        </p>
+      {/if}
       <p class="text-xs text-sr-muted">
         Each note: pitch on top, rhythm below. On the score, the line is the pitch you sang: blue on the note, red off it.
         An arrow above a note means you came in early or late; a dashed line under it, you let go early; a cross over a rest, you sang through it.

@@ -570,8 +570,26 @@ score for it). Its setup (remembered in the tuner store: `gradeMode`,
   about 25 ms of the beat.
 
 Strictness (`STRICTNESS`: Easy, Standard, Strict) sets the pitch tolerance
-(50/35/25 cents), the onset window (1/2, 1/4, 1/8 beat) and the free
-intonation (25/20/12 cents) - starting points to tune by singing.
+(50/35/25 cents), the onset window (1/2, 1/4, 1/8 beat), the free
+intonation (25/20/12 cents), how far the singer's own tuning may drift and
+still be followed (100/50/0 cents) and how much of a note must be held
+before it is cut short (35/50/65%) - starting points to tune by singing.
+
+Learned from Blaine's first saved run (a trained singer, 90 pitch on Easy):
+three things graded the singing wrongly, not the singer. (1) Each note's
+pitch was judged over its written slot, so a singer slightly behind had half
+of every eighth heard as the note before; pitch is now judged from the
+note's own entry to the next note's. (2) The entry was where the pitch
+started, so every consonant ("s", "l", "f") read as lateness; it is now
+where the sound starts. (3) Pitch was judged against A440 only, so one
+narrow step and the in-tune line after it all lost points; each note is now
+judged against the closest of the reference, the singer's settled tuning,
+and the interval from the last good note or the note just sung (within the
+drift allowance), and credit falls off gradually to nothing at a semitone.
+The drift is reported, not scored. The beat is also moved by the audio
+output's own delay (`baseLatency` + `outputLatency`), since a singer sings
+with the click as heard. Replayed with these, that run grades 97 pitch,
+99 rhythm.
 
 After a run the score shows what was sung (`grade-feedback.ts`, an overlay
 group in the abcjs SVG): the pitch trace through each note's time (blue in

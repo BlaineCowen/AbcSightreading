@@ -246,6 +246,42 @@ describe("grading in time (Pitch & rhythm)", () => {
     expect(r.notes[1].rhythm).toBe(100);
   });
 
+  test("drifting sharp after one narrow step: followed on Easy and Standard, held to the reference on Strict", () => {
+    const line = gradeSchedule(abc("E8 D8 C8 D8 | E8 D8 C16 |"));
+    // In tune, then from the second note on, everything 55 cents sharp.
+    const spans = asWritten(line.notes).map((sp, i) => ({ ...sp, midi: sp.midi + (i === 0 ? 0 : 0.55) }));
+    const easy = run(line, spans, "easy");
+    expect(easy.notes[1].pitchOk).toBe(false); // the narrow step itself
+    expect(easy.notes.slice(2).every((n) => n.pitch === 100)).toBe(true); // in tune with itself after it
+    expect(easy.drift).toBeGreaterThan(40);
+    expect(run(line, spans, "strict").notes.slice(2).every((n) => n.pitch < 100)).toBe(true);
+  });
+
+  test("a quarter tone off is half a note, not a wrong one", () => {
+    const spans = asWritten(sched.notes);
+    spans[2] = { ...spans[2], midi: spans[2].midi + 0.6 };
+    const p = run(sched, spans, "strict").notes[2].pitch;
+    expect(p).toBeGreaterThan(30);
+    expect(p).toBeLessThan(70);
+  });
+
+  test("a note starts where its consonant does, before the pitch", () => {
+    // 80 ms of loud, unpitched sound (an "s") before each note's pitch.
+    const frames = sing(asWritten(sched.notes).map((sp) => ({ ...sp, from: sp.from + 80 })), 7000).map((f) => {
+      const at = sched.notes.find((n) => f.t >= (n.startUnits / 8) * BEAT && f.t < (n.startUnits / 8) * BEAT + 80);
+      return at ? { ...f, midi: null, dbfs: -16 } : f;
+    });
+    const r = gradePerformance(sched, frames, { t0: 0, bpm: 60, beatUnits: 8, strictness: "strict", latencyMs: 0 });
+    expect(r.notes.every((n) => n.onsetBeats !== null && Math.abs(n.onsetBeats) < 0.05)).toBe(true);
+  });
+
+  test("a breath out of a held note: fine on Easy, cut short on Strict", () => {
+    const spans = asWritten(sched.notes);
+    spans[0] = { ...spans[0], to: spans[0].from + 450 }; // a quarter sung for under half its length
+    expect(run(sched, spans, "easy").notes[0].cutShort).toBe(false);
+    expect(run(sched, spans, "strict").notes[0].cutShort).toBe(true);
+  });
+
   test("the strictness levels get stricter", () => {
     const [e, s, x] = [STRICTNESS.easy, STRICTNESS.standard, STRICTNESS.strict];
     expect(e.cents > s.cents && s.cents > x.cents).toBe(true);
