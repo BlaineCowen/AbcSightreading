@@ -35,12 +35,13 @@ SWAP = 0.24             # how long into a wipe the scenes change over: the wipe 
 
 VERSIONS = {
     # start: a downbeat of the song; end: where its music stops (measured).
-    # The 60 s cut of the song, played straight through from its bar 1 (the
-    # intro's last two bars carry the hook). Its phrases, in its own bars:
-    # the bass comes in at 3, then 7-14 and 15-22, the ending from 23; every
-    # cut after the hook is on a phrase or half-phrase.
-    "fun": dict(song="fun-fun-60", start=4.037, end=61.2, tag="105",
-                bars=[2, 4, 4, 2, 2, 4, 4, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
+    # The song's own 60 s cut, straight through. Its phrases, in bars from
+    # 0: intro 0-3, build 4-7, chorus 8-15, verse 16-19, 20-22, a break
+    # bar 23, the final hit on 24. The hook is the intro's first half;
+    # Unison clicks Generate and counts in over its second half, so the
+    # exercise starts with the band (bar 4); every other cut is on a phrase.
+    "fun": dict(song="fun-fun-music-60", start=0.0, end=60.0, tag="100",
+                bars=[2, 6, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
 }
 ORDER = ["hook", "unison", "choral", "rhythm", "tuner", "playalong", "options", "close"]
 
@@ -137,10 +138,10 @@ class Plan:
         self.v, self.beat = v, a["beat"]
         self.bar = 4 * a["beat"]
         self.duration = round(v["end"] - v["start"] + 0.7, 2)
-        self.downbeats = [d - v["start"] for d in a["downbeats"] if d >= v["start"] - 0.02]
+        self.downbeats = [max(0.0, d - v["start"]) for d in a["downbeats"] if d >= v["start"] - 0.03]
         first = a["first_beat"]
         self.beats = [first + k * a["beat"] - v["start"] for k in range(int((v["end"] + 2) / a["beat"]))]
-        self.beats = [b for b in self.beats if -0.01 <= b <= self.duration]
+        self.beats = [max(0.0, b) for b in self.beats if -0.03 <= b <= self.duration]
         cum = [sum(v["bars"][:i]) for i in range(len(v["bars"]) + 1)]
         # cuts[i]: the downbeat where scene i starts (cuts[0] = 0, the hook).
         self.cuts = [self.downbeats[c] if c < len(self.downbeats) else self.downbeats[-1] + (c - len(self.downbeats) + 1) * self.bar for c in cum[:-1]]
@@ -318,8 +319,9 @@ def script(p):
     tl.to("#hook-ball", { y: y, duration: d / 2 - 0.001, ease: "power2.in" }, from + d / 2);
   }
   if (hops.length === N) {
-    tl.set("#hook-ball", { x: -80, y: hops[0].y, opacity: 1 }, HOOK[0] - B - 0.01);
-    hop(hops[0].x, hops[0].y, HOOK[0] - B, B, 170);
+    var in0 = Math.max(0, HOOK[0] - B);   // the song may start on the downbeat itself
+    tl.set("#hook-ball", { x: -80, y: hops[0].y, opacity: 1 }, in0);
+    hop(hops[0].x, hops[0].y, in0, HOOK[0] - in0, 170);
     // Each hop lasts its syllable: higher for the longer notes.
     for (var i = 1; i < N; i++) {
       var d = LEN[i - 1], peak = d > 0.5 ? 150 : d > 0.2 ? 110 : 65;
@@ -376,7 +378,9 @@ def script(p):
         elif new == "options":
             # A panel swipes in on each beat, the last one out as it comes;
             # then, on the last bar's downbeat, every panel at once as a wall.
-            n = len(PANELS)
+            # As many as the scene has beats for, keeping its last bar for the
+            # wall (which shows every panel, flashed or not).
+            n = min(len(PANELS), round((p.end_of(new) - t) / b) - 4)
             js.append(f'''  tl.from("#options-kicker", {{ y: 24, opacity: 0, duration: {0.7 * b:.3f}, ease: "back.out(2)" }}, {t + 0.05:.3f});
   tl.from("#options-head", {{ y: 40, opacity: 0, duration: {min(0.6, b):.2f}, ease: "power3.out" }}, {t + 0.12:.3f});''')
             for i in range(n):
@@ -386,6 +390,8 @@ def script(p):
                     js.append(f'  tl.to("#pc{i - 1}", {{ x: -2100, rotation: -5, duration: 0.3, ease: "power3.in" }}, {at:.3f});')
             wall = beat_n(n) - 0.2
             for i, g in enumerate(panel_geometry()):
+                if i >= n:   # never flashed: out of the deck, from the middle
+                    js.append(f'  tl.set("#pc{i}", {{ x: 0, scale: 0.6 }}, {wall - 0.01:.3f});')
                 js.append(f'  tl.to("#pl{i}", {{ opacity: 0, duration: 0.15 }}, {wall:.3f});')
                 js.append(f'  tl.to("#pc{i}", {{ x: {g["dx"]:.0f}, y: {g["dy"]:.0f}, scale: {g["s"]:.3f}, rotation: 0, opacity: 1, duration: 0.45, ease: "back.out(1.2)" }}, {wall + 0.03 * i:.3f});')
         elif new == "close":
