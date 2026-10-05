@@ -69,6 +69,52 @@ const scenes: Record<string, () => Promise<void>> = {
     await browser.close();
   },
 
+  async clicks() {
+    // Generate, clicked every two beats: a new exercise each time. Each
+    // click is logged ("click") on the recording's clock, so build.py can
+    // put them on the song's beats.
+    const { browser, page } = await open(UNISON);
+    await clickText(page, "Generate", { exact: true });
+    await sleep(1200);
+    await scrollTo(page, ".abcjs-container, [id^=paper]", "start", -40);
+    await sleep(900);
+    await watchCountIn(page);
+    // The playback bar's Generate, which is always on screen: the page stays put.
+    const generate = () =>
+      page.evaluate(() => {
+        const b = [...document.querySelectorAll<HTMLElement>("button")].filter(
+          (e) => /^Generate/.test((e.textContent ?? "").trim()) && e.getBoundingClientRect().height > 0,
+        );
+        b[b.length - 1]?.click();
+      });
+    await recordExact(page, tagged("unison-clicks"), async () => {
+      await sleep(800);
+      for (let k = 0; k < 5; k++) {
+        await page.evaluate(() => ((window as any).__countIn ??= []).push({ word: "click", at: Date.now() }));
+        await generate();
+        await sleep(2 * (60000 / TEMPO) - 40);
+      }
+      await sleep(600);
+    });
+    await browser.close();
+  },
+
+  async bass() {
+    // A second example: bass clef, F major, played with the cursor.
+    const { browser, page } = await open(
+      `/sightreading?clef=bass&range=4-14&key=F&scaleDegrees=1,2,3,4,5,6,7&rhythms=quarter,eighthEighth,half,dotQuarterEighth&timeSignature=4/4&measures=8&maxSkip=4&bpm=${TEMPO}&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth`,
+    );
+    await clickText(page, "Generate", { exact: true });
+    await sleep(1200);
+    await watchCountIn(page);
+    await recordExact(page, tagged("unison-bass"), async () => {
+      await sleep(400);
+      await clickText(page, "Play", { exact: true });
+      await sleep(4 * (60000 / TEMPO) + 11000);
+    });
+    await browser.close();
+  },
+
   async choral() {
     // Four parts in D, where the soprano sits lower than in C (the address
     // with settings opens in C); and drawn again until the soprano stays

@@ -38,18 +38,21 @@ VERSIONS = {
     # The song's own 60 s cut, straight through. Its phrases, in bars from
     # 0: intro 0-3, build 4-7, chorus 8-15, verse 16-19, 20-22, a break
     # bar 23, the final hit on 24. The hook is the intro's first half;
-    # Unison clicks Generate and counts in over its second half, so the
-    # exercise starts with the band (bar 4); every other cut is on a phrase.
+    # Unison clicks Generate on the beat over its second half, and the
+    # second example (bass clef) starts playing with the band (bar 4);
+    # every other cut is on a phrase.
     # final_hit: the ending's last hit (Blaine's fix of the 60 s cut ends
     # on the full version's last riff), where the close's logo and button pop.
     "fun": dict(song="fun-fun-60-fix", start=0.0, end=62.2, tag="100", final_hit=57.80,
-                bars=[2, 6, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
+                bars=[2, 2, 4, 4, 2, 2, 4, 3, 2], credit="Fun Fun Music, 60 s (prettyjohn1)", out="../ad-fun/index.html"),
 }
-ORDER = ["hook", "unison", "choral", "rhythm", "tuner", "playalong", "options", "close"]
+ORDER = ["hook", "unison", "bass", "choral", "rhythm", "tuner", "playalong", "options", "close"]
 
 COPY = {
     "unison": dict(kicker="Unison", tint="sky", head="A new exercise every click.",
                    body="Your key, your notes, your rhythms, over real chord progressions.", url="abcsightreading.com/sightreading"),
+    "bass": dict(kicker="Unison", tint="peach", flip=True, head="Treble, bass, alto or tenor.",
+                 body="Any key, sung in time. Solfège, fixed do or note names.", url="abcsightreading.com/sightreading"),
     "choral": dict(kicker="Choral", tint="mint", flip=True, head="Two, three and four parts.",
                    body="SATB, SSA and TTB, from UIL Level 1 to 5.", url="abcsightreading.com/choral-sightreading"),
     "rhythm": dict(kicker="Rhythm", tint="butter", head="Ta, ti-ti, ti-ki-ti-ki.",
@@ -165,10 +168,12 @@ def clips_for(scene, p, tag):
     at, bar, end = p.scene_at[scene], p.bar, p.end_of(scene)
     cap = lambda name: json.load(open(f"assets/captures/{name}-{tag}.json"))
     if scene == "unison":
-        c = cap("unison")
-        # Bar 1: the Notes tab and Generate; then the count-in's "1" on a downbeat, the cursor on the next.
-        return [(f"unison-{tag}", max(0.3, 2.5 - 0.65 * bar), at, bar),
-                (f"unison-{tag}", c["countin_start"], at + bar, end - at - bar)]
+        # Generate clicked every two beats (capture.ts clicks): the first click on the scene's second beat.
+        first = next(w["at"] for w in cap("unison-clicks")["words"] if w["word"] == "click")
+        return [(f"unison-clicks-{tag}", first - p.beat, at, end - at)]
+    if scene == "bass":
+        # Already counted in: its first note on the scene's first downbeat, with the band.
+        return [(f"unison-bass-{tag}", cap("unison-bass")["music_start"], at, end - at)]
     if scene == "choral":
         # Recorded from Play (capture.ts): the count-in's "1" on the scene's first downbeat.
         return [(f"choral-{tag}", cap("choral")["countin_start"], at, end - at)]
