@@ -232,6 +232,21 @@ if (failures && process.env.DUMP) {
   console.log("late note at beat", sched.notes[LATE].startUnits / 8, "neighbours", sched.notes[LATE - 1]?.startUnits / 8, sched.notes[LATE + 1]?.startUnits / 8, "strays (beats)", r.strays.map((s: any) => (s.units / 8).toFixed(3)).join(" "), "lag", r.lagMs, "forgiven", r.lagForgiven);
   console.log("detected near it:", detectClaps(blocks).filter((c) => Math.abs(c.t - at) < 400).map((c) => (c.t - at).toFixed(0)).join(" "));
 }
+// PLAYBACK=1: the clapped take plays back, the cursor following its notes.
+if (process.env.PLAYBACK && INPUT === "mic") {
+  await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+  const seen: number[] = [];
+  let playing = false;
+  // Six seconds: it starts a moment before the first note, and half notes pass slowly.
+  for (let k = 0; k < 24; k++) {
+    await new Promise((r) => setTimeout(r, 250));
+    const t = await page.evaluate(() => (window as any).__gradeDebug.take());
+    if (t.playing) playing = true;
+    if (t.note >= 0 && seen[seen.length - 1] !== t.note) seen.push(t.note);
+  }
+  console.log(`playback: playing ${playing}, notes followed ${seen.join(" ")}`);
+  expect(playing && seen.length >= 3, "the clapped take should play and the cursor follow it");
+}
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 await browser.close();
 process.exit(failures ? 1 : 0);

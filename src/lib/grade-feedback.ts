@@ -39,6 +39,17 @@ function headOf(d: Drawn): Head | null {
   return { x: b.x, right: b.x + b.width, y: b.y + b.height / 2, h: b.height, line: el.closest?.(".abcjs-staff-wrapper") ?? null };
 }
 
+/**
+ * Hear your take: the notes heard so far (up to note `i`) solid, the rest
+ * faint, the current one highlighted; `null` puts every note back.
+ */
+export function revealTo(svg: Element | null, i: number | null) {
+  svg?.querySelectorAll(`.${GROUP_CLASS} [data-note]`).forEach((el) => {
+    const n = Number(el.getAttribute("data-note"));
+    (el as SVGGElement).style.opacity = i === null || n <= i ? "1" : "0.22";
+  });
+}
+
 export function clearGradeFeedback(svg: Element | null) {
   svg?.querySelectorAll(`.${GROUP_CLASS}`).forEach((g) => g.remove());
 }
@@ -64,6 +75,21 @@ export function drawGradeFeedback(o: {
   g.setAttribute("class", GROUP_CLASS);
   g.setAttribute("pointer-events", "none");
   o.svg.appendChild(g);
+  // Each note's trace and marks in a group of their own (data-note), so Hear
+  // your take can show the notes already heard solid and the rest faint.
+  let target: SVGGElement = g;
+  const groups = new Map<number, SVGGElement>();
+  const forNote = (i: number) => {
+    let n = groups.get(i);
+    if (!n) {
+      n = document.createElementNS(NS, "g") as SVGGElement;
+      n.setAttribute("data-note", String(i));
+      g.appendChild(n);
+      groups.set(i, n);
+    }
+    target = n;
+  };
+  const put = (el: Element) => target.appendChild(el);
 
   const heads = o.drawn.map(headOf);
   // A staff step is half a space; a notehead is about a space tall.
@@ -91,7 +117,7 @@ export function drawGradeFeedback(o: {
     p.setAttribute("stroke-linecap", "round");
     p.setAttribute("stroke-linejoin", "round");
     p.setAttribute("opacity", "0.85");
-    g.appendChild(p);
+    put(p);
   };
 
   // The trace, note by note. In time, each frame is moved back by the
@@ -101,6 +127,7 @@ export function drawGradeFeedback(o: {
   const GOOD = "#2f6fe0";
   const BAD = "#d13f2f";
   o.notes.forEach((n, i) => {
+    forNote(i);
     const lane = lanes[i];
     const span = o.trace.spans[i];
     if (!lane || !span || span.to <= span.from) return;
@@ -147,7 +174,7 @@ export function drawGradeFeedback(o: {
     c.setAttribute("stroke", color);
     c.setAttribute("stroke-width", String(stroke));
     c.setAttribute("stroke-linecap", "round");
-    g.appendChild(c);
+    put(c);
   };
   const label = (x: number, y: number, text: string, color: string) => {
     const t = document.createElementNS(NS, "text");
@@ -162,7 +189,7 @@ export function drawGradeFeedback(o: {
     t.setAttribute("stroke", "none");
     t.style.stroke = "none";
     t.textContent = text;
-    g.appendChild(t);
+    put(t);
   };
   /**
    * Came in early or late: an arrow above the staff from the note to where
@@ -194,18 +221,20 @@ export function drawGradeFeedback(o: {
     p.setAttribute("fill", "none");
     p.setAttribute("stroke-linecap", "round");
     p.setAttribute("stroke-linejoin", "round");
-    g.appendChild(p);
+    put(p);
     label((x0 + x1) / 2, y - space * 0.9, late ? "late" : "early", color);
   };
 
   if (o.claps) {
     o.claps.notes.forEach((r, i) => {
+      forNote(i);
       arrow(i, r.onsetBeats, r.rhythm);
       const h = heads[i];
       if (r.missed && h) label(h.x + space * 0.5, h.y - 3.8 * space, "missed", BAD);
     });
     // A stray clap: a cross above the staff, where it fell in time - between
     // the notes either side of it, at its share of the way from one to the next.
+    target = g;
     for (const stray of o.claps.strays) {
       let i = -1;
       while (i + 1 < o.notes.length && o.notes[i + 1].startUnits <= stray.units) i++;
@@ -225,6 +254,7 @@ export function drawGradeFeedback(o: {
 
   if (!o.perf) return;
   o.perf.notes.forEach((r, i) => {
+    forNote(i);
     const h = heads[i];
     const lane = lanes[i];
     if (!h || !lane) return;
@@ -246,7 +276,7 @@ export function drawGradeFeedback(o: {
         head.setAttribute("transform", `rotate(-20 ${x} ${y})`);
         head.setAttribute("fill", BAD);
         head.setAttribute("opacity", "0.9");
-        g.appendChild(head);
+        put(head);
         const degree = ((sung - o.doPc) % 12 + 12) % 12;
         if (![0, 2, 4, 5, 7, 9, 11].includes(degree)) label(x - space * 1.15, y + space * 0.45, sung > n.midi ? "♯" : "♭", BAD);
         label(x + space * 1.9, y + space * 0.45, solfegeOf(sung, o.doPc), BAD);
@@ -263,10 +293,11 @@ export function drawGradeFeedback(o: {
       line.setAttribute("stroke", LATE);
       line.setAttribute("stroke-width", String(stroke * 0.8));
       line.setAttribute("stroke-dasharray", `${space * 0.6} ${space * 0.4}`);
-      g.appendChild(line);
+      put(line);
     }
   });
   // A rest sung through: a cross over it.
+  target = g;
   for (const rest of o.perf.rests) {
     if (!rest.sung) continue;
     const h = headOf(o.drawnAt(rest.cursor));

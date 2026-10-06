@@ -188,6 +188,20 @@ if (MODE === "pitch") {
     if (!ok) failures++;
   });
   console.log(`pitch ${r.score}% ${r.letter}`);
+  if (process.env.PLAYBACK) {
+    await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+    const seen: number[] = [];
+    let playing = false, music = true;
+    for (let k = 0; k < 24; k++) {
+      await new Promise((res) => setTimeout(res, 250));
+      const t = await page.evaluate(() => (window as any).__gradeDebug.take());
+      if (t.playing) playing = true;
+      music = t.hasMusic;
+      if (t.note >= 0 && seen[seen.length - 1] !== t.note) seen.push(t.note);
+    }
+    console.log(`playback (note by note): playing ${playing}, music offered ${music}, notes followed ${seen.join(" ")}`);
+    if (!playing || seen.length < 2 || music) { failures++; console.log("  FAIL: the take should play, the cursor follow it, and no music be offered (untimed)"); }
+  }
   console.log(failures ? `${failures} check(s) failed` : "all checks passed");
   if (SHOTS) {
     await new Promise((res) => setTimeout(res, 800));
@@ -285,6 +299,50 @@ if (process.env.REGRADE && MODE === "performance") {
   await page.evaluate(() => document.querySelector("#paper")?.scrollIntoView({ block: "center" }));
   await new Promise((r) => setTimeout(r, 400));
   await page.screenshot({ path: process.env.REGRADE });
+}
+// PLAYBACK=1: Hear your take. Where the sung notes land in the recording (its
+// alignment, TAKE_ALIGN_MS), then the player: it plays, the cursor follows the
+// notes, the music toggles, a tapped note seeks.
+if (process.env.PLAYBACK) {
+  const rec = await page.evaluate(() => (window as any).__gradeDebug.recording());
+  if (!rec) {
+    failures++;
+    console.log("  FAIL: no recording was made");
+  } else {
+    const { writeFileSync } = await import("fs");
+    const file = `/tmp/check-grade-take.${rec.mime.includes("mp4") ? "m4a" : "webm"}`;
+    writeFileSync(file, Buffer.from(rec.b64, "base64"));
+    const pcm = Bun.spawnSync(["ffmpeg", "-v", "error", "-i", file, "-ac", "1", "-ar", "8000", "-f", "f32le", "-"]).stdout;
+    const x = new Float32Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 4);
+    // Onsets in the take: the level rising out of quiet (5 ms frames).
+    const fr = 40, lv: number[] = [];
+    for (let k = 0; k + fr <= x.length; k += fr) { let e = 0; for (let j = 0; j < fr; j++) e += x[k + j] ** 2; lv.push(Math.sqrt(e / fr)); }
+    const takeOnsets: number[] = [];
+    const { TAKE_ALIGN_MS } = await import("../src/lib/grade-playback");
+    // Where the player puts each onset on the page's clock (after its alignment).
+    for (let k = 3; k < lv.length; k++) if (lv[k] > 0.02 && lv[k - 3] < 0.006) { takeOnsets.push(rec.startedAt - TAKE_ALIGN_MS + (k * fr / 8000) * 1000); k += 20; }
+    // Each planted (sung) note against the nearest onset heard in the take.
+    const diffs = (plan as any[]).map((n) => { const near = takeOnsets.reduce((a, t) => (Math.abs(t - n.at) < Math.abs(a - n.at) ? t : a), Infinity); return near - n.at; }).filter((d) => Math.abs(d) < 200).sort((a, b) => a - b);
+    console.log(`take alignment (after TAKE_ALIGN_MS): sung notes land ${diffs[diffs.length >> 1]?.toFixed(0)} ms from where they were sung (range ${diffs[0]?.toFixed(0)}..${diffs[diffs.length - 1]?.toFixed(0)}, ${diffs.length} notes)`);
+    // The player.
+    await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+    const seen: number[] = [];
+    let playing = false;
+    for (let k = 0; k < 16; k++) {
+      await new Promise((r) => setTimeout(r, 250));
+      const t = await page.evaluate(() => (window as any).__gradeDebug.take());
+      if (t.playing) playing = true;
+      if (t.note >= 0 && seen[seen.length - 1] !== t.note) seen.push(t.note);
+    }
+    console.log(`playback: playing ${playing}, notes followed ${seen.join(" ")}`);
+    expect(playing && seen.length >= 3 && seen.every((n, i) => i === 0 || n > seen[i - 1]), "the take should play and the cursor follow the notes in order");
+    const dim = await page.evaluate(() => [...document.querySelectorAll(".grade-overlay [data-note]")].filter((e) => (e as SVGElement).style.opacity === "0.22").length);
+    expect(dim > 0, "notes not yet heard should be faint");
+    await page.evaluate(() => { const b = [...document.querySelectorAll(".grade-dock button")].find((x) => (x.textContent ?? "").trim() === "With the music"); (b as HTMLButtonElement | undefined)?.click(); });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(await page.evaluate(() => (window as any).__gradeDebug.take().music), "With the music should turn on");
+    if (process.env.PLAYBACK_SHOT) { await page.evaluate(() => document.querySelector("#paper")?.scrollIntoView({ block: "center" })); await new Promise((r) => setTimeout(r, 300)); await page.screenshot({ path: process.env.PLAYBACK_SHOT }); }
+  }
 }
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 await browser.close();

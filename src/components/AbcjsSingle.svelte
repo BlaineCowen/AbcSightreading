@@ -73,8 +73,9 @@
   import { detectClaps } from "../lib/clap-detect";
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
-  import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
+  import { clearGradeFeedback, drawGradeFeedback, revealTo } from "../lib/grade-feedback";
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
+  import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
   import { DETECT_LATENCY_MS } from "../lib/grade";
@@ -1604,6 +1605,8 @@
           const drawn = drawnNotes();
           const i = gradeList.findIndex((n) => drawn[n.cursor]?.absEl?.abcelem === event);
           if (i >= 0) gradeDetailIndex = i;
+          // Hearing the take: a tapped note is where it plays from.
+          if (i >= 0 && takePlayer && gradeTrace?.spans[i]) takePlayer.seek(gradeTrace.spans[i].from - 150);
         }
         // Every note on the rhythm staff is the same placeholder pitch, so
         // playing it back would be meaningless.
@@ -3640,6 +3643,14 @@
       view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
       mic: () => { const t = tuner.get(); return { status: t.engineStatus, dbfs: t.dbfs, pitch: t.pitch }; },
       clapBlocks: () => gradeRunner.lastClapBlocks,
+      take: () => ({ ...take, note: takeNote, now: takePlayer?.now() ?? null, start: takePlayer?.start ?? null }),
+      recording: async () => {
+        if (!gradeAudio) return null;
+        const bytes = new Uint8Array(await gradeAudio.blob.arrayBuffer());
+        let bin = "";
+        for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode(...bytes.subarray(k, k + 0x8000));
+        return { startedAt: gradeAudio.startedAt, mime: gradeAudio.mime, b64: btoa(bin), spans: gradeTrace?.spans ?? [] };
+      },
     };
     (window as any).__gradeDebugSkip = () => gradeRunner.skip();
   }
@@ -3841,6 +3852,7 @@
   /** After a run, colour each note on the score as the card does. */
   let gradeMarked: Element[] = [];
   function clearGradeMarks() {
+    disposeTake();
     for (const el of gradeMarked) el.classList.remove("grade-good", "grade-ok", "grade-bad");
     gradeMarked = [];
     clearGradeFeedback(document.querySelector("#paper svg"));
@@ -3893,6 +3905,97 @@
   const drawnNotes = () => selectableArray.filter((e: any) => e?.absEl?.abcelem?.el_type === "note");
 
   /** Point at note `i` of the graded list (none for -1), and bring it into view. */
+  /**
+   * Hear your take (grade-playback.ts): the run's recording played back, the
+   * written music and click under it when asked, the cursor, the note's
+   * feedback and the drawing following it. Kept in this browser; gone when
+   * the marks are cleared (a new run, Close, a new exercise).
+   */
+  let takePlayer: TakePlayer | null = null;
+  let take = { open: false, loading: false, playing: false, progress: 0, music: false, hasMusic: false, error: null as string | null };
+  let takeNote = -1;
+  $: canHearTake = !!gradeAudio && !!gradeTrace && gradePhase === "results";
+  function disposeTake() {
+    takePlayer?.dispose();
+    takePlayer = null;
+    takeNote = -1;
+    take = { ...take, open: false, loading: false, playing: false, progress: 0 };
+  }
+  async function hearTake() {
+    if (takePlayer) {
+      take = { ...take, open: true };
+      return takePlayer.playing ? takePlayer.pause() : takePlayer.play();
+    }
+    if (!gradeAudio || !gradeTrace) return;
+    const trace = gradeTrace;
+    const meter = playedMeter();
+    const beatUnits = resolveMeter(meter).beatUnits;
+    const beatMs = 60_000 / Math.max(1, tempo);
+    const lastUnits = Math.max(0, ...gradeList.map((n) => n.startUnits + n.lengthUnits), ...gradeRestList.map((r) => r.startUnits + r.lengthUnits));
+    // Untimed (Note by note): no music lines up with it.
+    const timed = trace.mode !== "pitch" && trace.t0 !== undefined;
+    const player = new TakePlayer(gradeAudio, timed
+      ? {
+          abc: withChosenSound(originalTuneString),
+          bpm: tempo,
+          transpose: rhythmOnly ? 0 : transposeSemitones,
+          volumeMultiplier: rhythmOnly ? volumeMultiplierFor(rhythmSoundFor(rhythmSoundId)) : 3.0,
+          t0: trace.t0!,
+          beatMs,
+          beatsPerBar: parseInt(meter, 10) || 4,
+          countInBeats: countInBeats(meter),
+          beats: Math.ceil(lastUnits / beatUnits),
+          clickSound: $tuner.clickSound,
+        }
+      : null);
+    takePlayer = player;
+    take = { ...take, open: true, loading: true, error: null, hasMusic: timed };
+    try {
+      await player.load();
+    } catch (e) {
+      console.error("The take could not be played:", e);
+      take = { ...take, loading: false, error: "Your take could not be played back in this browser." };
+      return;
+    }
+    if (takePlayer !== player) return;
+    player.setMusic(take.music);
+    player.onFrame((t) => {
+      const i = noteAt(trace.spans, t);
+      if (i !== takeNote) {
+        takeNote = i;
+        gradeCursorTo(i);
+        revealTo(document.querySelector("#paper svg"), i);
+        gradeDetailIndex = i >= 0 ? i : null;
+      }
+      take = { ...take, playing: player.playing, progress: (t - player.start) / Math.max(1, player.end - player.start) };
+    });
+    player.onEnd(() => {
+      takeNote = -1;
+      gradeCursorTo(-1);
+      revealTo(document.querySelector("#paper svg"), null);
+      take = { ...take, playing: false, progress: 0 };
+    });
+    take = { ...take, loading: false };
+    // From just before the first note.
+    await player.play(Math.max(player.start, (trace.spans[0]?.from ?? player.start) - 1200));
+    take = { ...take, playing: true };
+  }
+  function takeMusic(on: boolean) {
+    take = { ...take, music: on };
+    takePlayer?.setMusic(on);
+  }
+  function takeSeek(frac: number) {
+    if (!takePlayer) return;
+    takePlayer.seek(takePlayer.start + frac * (takePlayer.end - takePlayer.start));
+    take = { ...take, progress: frac };
+  }
+  function closeTake() {
+    takePlayer?.pause();
+    gradeCursorTo(-1);
+    revealTo(document.querySelector("#paper svg"), null);
+    take = { ...take, open: false, playing: false };
+  }
+
   function gradeCursorTo(i: number) {
     for (const el of gradeLit) el.classList.remove("grade-now");
     gradeLit = [];
@@ -3930,7 +4033,9 @@
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
     gradeAudio = null;
-    if ((gradeDebugOn || gradeShareOn) && !(rhythmOnly && $tuner.gradeClapInput === "keys")) {
+    // Every microphone run is recorded, kept in this browser only: Hear your
+    // take plays it back; Send this run (not for students) can send it.
+    if (!(rhythmOnly && $tuner.gradeClapInput === "keys")) {
       await stopGradeRecording(false);
       gradeRecording = await startGradeRecording();
     }
@@ -4192,6 +4297,11 @@
       detail={gradeDetail}
       onSave={gradeDebugOn && !gradeShareOn ? saveGradeRunNow : null}
       onSend={gradeShareOn ? sendGradeRunNow : null}
+      onHearTake={canHearTake ? hearTake : null}
+      {take}
+      onTakeMusic={takeMusic}
+      onTakeSeek={takeSeek}
+      onTakeClose={closeTake}
       {rhythmOnly}
       onCheckTiming={checkClapTiming}
       {timingNote}

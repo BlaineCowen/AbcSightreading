@@ -631,6 +631,22 @@ at once (`GradeRunner.regrade`: it keeps the pitch frames or the claps it
 heard). "See it on the music" puts the results away to the strip, whose
 Results button brings them back.
 
+**Hear your take** (`src/lib/grade-playback.ts`, tests
+`grade-playback.test.ts`): every microphone run is recorded (grade-recording,
+kept in this browser only, students too; gone when the marks clear), and the
+results offer it back. `TakePlayer` decodes the take and plays it on its own
+AudioContext with, under it when With the music is on, the exercise rendered
+by abcjs (`src/lib/render-abc.ts`, shared with the play-along video's
+guide) and the click from the count-in, all started together on the audio
+clock so nothing drifts. Its page time drives the cursor (`gradeCursorTo`),
+the strip's note line (`gradeDetail`) and `revealTo` (grade-feedback: each
+note's trace and marks in a `data-note` group, those not yet heard faint);
+tapping a note seeks there. Note by note has no music (it is untimed); the
+cursor follows its spans. MediaRecorder stamps its start late:
+`TAKE_ALIGN_MS` (74), measured end to end, puts the sung notes within about
+10 ms of where they were sung (`scripts/check-grade.ts PLAYBACK=1`, also
+`MODE=pitch` and `check-clap-grade.ts PLAYBACK=1`).
+
 After a run the score shows what was sung (`grade-feedback.ts`, an overlay
 group in the abcjs SVG): the pitch trace through each note's time (blue in
 tolerance, red off, placed by staff steps from each notehead in the key, so

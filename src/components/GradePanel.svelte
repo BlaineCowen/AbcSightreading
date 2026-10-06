@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, ChevronUp, Check, Ban, ArrowLeftRight, Hash, Scissors, Music2, Sparkles } from "lucide-svelte";
+  import { X, ChevronUp, Check, Ban, ArrowLeftRight, Hash, Scissors, Music2, Sparkles, Play, Pause, Headphones } from "lucide-svelte";
   import { tuner } from "../lib/tuner/store";
   import type { GradeRunner } from "../lib/grade-runner";
   import { guidance, STRICTNESS, type Strictness } from "../lib/grade";
@@ -35,6 +35,18 @@
   export let timingNote: string | null = null;
   /** Send this run to us, with a note (anyone with Grade but students); null hides it. Resolves to what happened. */
   export let onSend: ((note: string) => Promise<string>) | null = null;
+  /** Hear your take (grade-playback.ts): start, or play/pause; null when there is no recording. */
+  export let onHearTake: (() => void) | null = null;
+  export let take: { open: boolean; loading: boolean; playing: boolean; progress: number; music: boolean; hasMusic: boolean; error: string | null } = {
+    open: false, loading: false, playing: false, progress: 0, music: false, hasMusic: false, error: null,
+  };
+  export let onTakeMusic: (on: boolean) => void = () => {};
+  export let onTakeSeek: (frac: number) => void = () => {};
+  export let onTakeClose: () => void = () => {};
+  const hear = () => {
+    resultsOpen = false;
+    onHearTake?.();
+  };
   let sendOpen = false;
   let sendNote = "";
   let sending = false;
@@ -347,7 +359,12 @@
       {/if}
 
       <div class="flex flex-col gap-2">
-        <button class="sr-btn text-sm py-2.5" on:click={() => (resultsOpen = false)}>See it on the music</button>
+        {#if onHearTake}
+          <button class="sr-btn text-sm py-2.5 inline-flex items-center justify-center gap-2" on:click={hear}><Headphones size={16} /> Hear your take</button>
+          <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={() => (resultsOpen = false)}>See it on the music</button>
+        {:else}
+          <button class="sr-btn text-sm py-2.5" on:click={() => (resultsOpen = false)}>See it on the music</button>
+        {/if}
         <div class="grid grid-cols-2 gap-2">
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onStart}>Try again</button>
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onNewExercise}>New exercise</button>
@@ -427,7 +444,26 @@
       </div>
       <button class="sr-btn-quiet text-sm shrink-0 inline-flex items-center gap-1" on:click={() => (stuckOpen = !stuckOpen)} aria-expanded={stuckOpen}>Stuck? <ChevronUp size={14} class={stuckOpen ? "" : "rotate-180"} /></button>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
+    {:else if v.phase === "results" && take.open}
+      <button class="w-11 h-11 rounded-full bg-sr-action text-white flex items-center justify-center shrink-0 disabled:opacity-50" on:click={() => onHearTake?.()} disabled={take.loading || !!take.error}
+        aria-label={take.playing ? "Pause" : "Play your take"}>
+        {#if take.playing}<Pause size={18} />{:else}<Play size={18} class="ml-0.5" />{/if}
+      </button>
+      <div class="flex-1 min-w-0 flex flex-col gap-1">
+        <p class="text-sm text-sr-ink-2 truncate" aria-live="polite">{take.error ?? (take.loading ? "Getting your take ready…" : detail ?? "Your take")}</p>
+        <input type="range" min="0" max="1" step="0.001" value={take.progress} class="w-full accent-sr-action" aria-label="Where in your take"
+          on:input={(e) => onTakeSeek(Number(e.currentTarget.value))} disabled={take.loading || !!take.error} />
+      </div>
+      {#if take.hasMusic}
+        <button class="sr-tok text-xs px-2.5 py-1 shrink-0 {take.music ? 'sr-on' : ''}" aria-pressed={take.music} on:click={() => onTakeMusic(!take.music)}
+          title="The written notes and the click, quietly under your take">With the music</button>
+      {/if}
+      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={() => { onTakeClose(); resultsOpen = true; }}>Results</button>
+      <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onTakeClose} aria-label="Stop playing your take"><X size={14} /></button>
     {:else if v.phase === "results"}
+      {#if onHearTake}
+        <button class="w-10 h-10 rounded-full bg-sr-action text-white flex items-center justify-center shrink-0" on:click={() => onHearTake?.()} aria-label="Hear your take" title="Hear your take"><Headphones size={16} /></button>
+      {/if}
       {#if v.perf || claps}
         <span class="text-xl font-extrabold tabular-nums shrink-0">{v.perf ? v.perf.overall : claps?.rhythm}%</span>
         <span class="text-xl font-extrabold text-sr-action-fg shrink-0">{v.perf ? v.perf.letter : claps?.letter}</span>
@@ -438,9 +474,11 @@
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => (resultsOpen = true)}>Results</button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
     {/if}
-    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">
-      <X size={16} />
-    </button>
+    {#if !(v.phase === "results" && take.open)}
+      <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">
+        <X size={16} />
+      </button>
+    {/if}
   </div>
 </div>
 {/if}

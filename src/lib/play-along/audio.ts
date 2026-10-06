@@ -5,7 +5,6 @@
  * goes through one master gain to the speakers and to `stream`, which the
  * recorder takes, so the exported video sounds exactly like the live one.
  */
-import abcjs from "abcjs";
 import { ENDING_TAIL, type BackingTrack } from "./backing-tracks";
 import { scheduleClick } from "../playback-click";
 import { SampleBank, type ClickSound } from "../tuner/click-sounds";
@@ -34,6 +33,7 @@ const GUITAR_RING_ON = 0.03;
 const GUITAR_FADE_OUT = 0.07;
 const GUITAR_FADE_IN = 0.02;
 import { loopOffset } from "./timeline";
+import { renderAbcBuffer } from "../render-abc";
 
 /** How long the loop takes to fade once the last bar has been played. */
 export const FADE_SECONDS = 1.5;
@@ -161,24 +161,9 @@ export class PlayAlongAudio {
    * current - keeping whichever finished last once left a guide at the old
    * track's tempo, falling further behind every bar. `setGuide` keeps it.
    */
-  async renderGuide(abc: string, bpm: number, volumeMultiplier: number, transpose = 0): Promise<AudioBuffer | null> {
-    const host = document.createElement("div");
-    host.style.cssText = "position:fixed;left:-20000px;top:0;width:800px;visibility:hidden";
-    document.body.appendChild(host);
-    try {
-      const tune = abcjs.renderAbc(host, abc)[0];
-      const synth = new abcjs.synth.CreateSynth();
-      await synth.init({
-        audioContext: this.ctx,
-        visualObj: tune,
-        // transpose: the page's playback transpose, as its own playback applies it.
-        options: { qpm: bpm, soundFontUrl: "/api/soundfont/", soundFontVolumeMultiplier: volumeMultiplier, midiTranspose: transpose },
-      } as any);
-      await synth.prime();
-      return synth.getAudioBuffer() ?? null;
-    } finally {
-      host.remove();
-    }
+  renderGuide(abc: string, bpm: number, volumeMultiplier: number, transpose = 0): Promise<AudioBuffer | null> {
+    // transpose: the page's playback transpose, as its own playback applies it.
+    return renderAbcBuffer(this.ctx, abc, { bpm, volumeMultiplier, transpose });
   }
 
   /** The guide to play with the next run (renderGuide's result, for the current track and tempo). */
