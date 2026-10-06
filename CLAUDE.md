@@ -934,9 +934,12 @@ white in both themes.
 `main` deploys to production on every push. **dev.abc-sightreading.com** is
 the `dev` branch's latest preview build (a Vercel project domain tied to the
 branch; DNS is a CNAME `dev` -> `cname.vercel-dns.com` at Porkbun, where both
-domains' DNS lives). It opens without a Vercel login (Deployment Protection
-is "all except custom domains": the random *.vercel.app preview links still
-ask), is noindex like every preview, and shares the production database.
+domains' DNS lives). It opens without a Vercel login: Vercel Authentication
+is off for the project (6 October 2026), since a domain tied to a preview
+branch keeps the login under every other setting ("all except custom
+domains" frees production custom domains only). So every *.vercel.app
+preview link opens too; they are unguessable and noindex, and anything
+private still needs the site's own sign-in. It shares the production database.
 `BETTER_AUTH_URL` is set to it for Preview (dev) only, so sign-in works there. Preview branches (`dev`) build
 on Vercel only when the commit message contains `[preview]`
 (`scripts/vercel-ignore.sh`, vercel.json `ignoreCommand`): each build is about
