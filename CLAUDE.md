@@ -619,7 +619,8 @@ run in `src/lib/grade-runner.ts`, the strip in `GradePanel.svelte`. While it
 listens the tuner store's `micHeld` keeps a Tools card from switching the
 microphone off; `pitchHistory` keeps 3 minutes, enough for a long exercise.
 
-Runs can be saved for review: on the dev server, or with `?gradeDebug=1`,
+Runs can be saved for review: on the dev server, on every preview deployment
+(Layout's `data-preview`), or with `?gradeDebug=1`,
 the microphone is recorded over each run (a second stream with the tuner's
 own settings, `grade-recording.ts`, so the detection code is untouched) and
 the results have "Save this run": the recording, and a JSON of everything

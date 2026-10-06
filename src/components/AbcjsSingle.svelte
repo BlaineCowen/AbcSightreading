@@ -3674,8 +3674,12 @@
    * Saving runs for review: on the dev server, or with ?gradeDebug=1. The
    * microphone is recorded over each run (grade-recording.ts).
    */
+  // Save this run: on the dev server, on every preview deployment (Layout marks
+  // them data-preview) so runs can be recorded in a real room, or with ?gradeDebug.
   const gradeDebugOn =
-    import.meta.env.DEV || (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("gradeDebug"));
+    import.meta.env.DEV ||
+    (typeof window !== "undefined" &&
+      (new URLSearchParams(window.location.search).has("gradeDebug") || document.documentElement.hasAttribute("data-preview")));
   let gradeRecording: GradeRecording | null = null;
   /** The audio output's delay at the last run in time (ms), added to its beat. */
   let gradeOutputLatencyMs = 0;

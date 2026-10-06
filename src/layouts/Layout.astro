@@ -72,7 +72,7 @@ const feedbackConfigured = !!readFeedbackEmail(
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-preview={production ? undefined : ""}>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
