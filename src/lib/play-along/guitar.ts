@@ -53,11 +53,20 @@ export function guitarChord(key: string, name: string): GuitarChord | null {
     if (chord.flatScaleDegree === d) pc -= 1;
     return ((pc % 12) + 12) % 12;
   };
-  const root = pcOf(chord.root);
+  // The chord's own root is its first triad note: an inversion's `root` in
+  // chords.ts is its bass note (vi in first inversion, "6-6", has mi there),
+  // which named no chord the guitar has, so those bars were silent.
+  const root = pcOf(chord.triadNotes[0] ?? chord.root);
   const intervals = [...new Set(chord.triadNotes.map((d) => (pcOf(d) - root + 12) % 12))].sort((a, b) => a - b);
   const quality = intervals.join(",");
   const suffix: Record<string, string> = { "0,4,7": "", "0,3,7": "m", "0,4,7,10": "7", "0,3,6": "dim", "0,3,7,10": "m7" };
   if (!(quality in suffix)) return null;
+  // A diminished chord on the leading tone was never rendered; it is the
+  // dominant seventh without its root, so the guitar strums V7 for it.
+  if (quality === "0,3,6" && root === (tonic + 11) % 12) {
+    const v = (tonic + 7) % 12;
+    return { id: NAMES[v] + "7", root: v, intervals: [0, 4, 7, 10] };
+  }
   return { id: NAMES[root] + suffix[quality], root, intervals };
 }
 

@@ -21,6 +21,18 @@ import manifest from "../../src/lib/play-along/guitar-manifest.json";
  */
 
 describe("chords in a key", () => {
+  test("an exercise without a progression names inverted chords; the guitar strums their own chord (it was silent on them)", () => {
+    // The older walk's chords (mi so la has no progression): chords.ts keeps an inversion's bass note in `root`.
+    const ids = ["6-6", "1-64", "1-6", "5-7-42", "5/5-6", "4-64"].map((n) => guitarChord("G", n)?.id);
+    expect(ids).toEqual(["Em", "G", "G", "D7", "A", "C"]);
+    // Every one of them was rendered.
+    for (const id of ids) expect((manifest as any).patterns["passengerA@90"].chords).toContain(id);
+  });
+  test("vii (diminished, never rendered) is strummed as V7", () => {
+    expect(guitarChord("G", "7")?.id).toBe("D7");
+    expect(guitarChord("F", "7")?.id).toBe("C7");
+  });
+
   test("the progression's names become chords", () => {
     const inC = (name: string) => guitarChord("C", name)?.id;
     expect(inC("1")).toBe("C");
