@@ -30,7 +30,13 @@
   const STRICT_LEVELS = Object.entries(STRICTNESS) as [Strictness, (typeof STRICTNESS)[Strictness]][];
   const CURSORS = [["off", "Off"], ["smooth", "Smooth"], ["beat", "Beat"], ["note", "Note"]] as const;
   const CLICKS = [["off", "Off"], ["beat", "Beats"], ["sub", "Subdivided"]] as const;
-  let setupOpen = false;
+  /** The setup shows when Grade opens, and again whenever it is back at the start. */
+  let setupOpen = true;
+  let lastPhase = "idle";
+  $: if (v.phase !== lastPhase) {
+    if (v.phase === "idle") setupOpen = true;
+    lastPhase = v.phase;
+  }
 
   $: v = $runner;
   $: sung = v.result?.notes ?? [];
@@ -74,7 +80,7 @@
 
 <div class="grade-dock fixed z-50 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(720px,calc(100vw-2rem))] no-print" role="region" aria-label="Grade">
   <!-- Opened upward from the strip: the setup, the Stuck options, or the results' notes. -->
-  {#if setupOpen && v.phase === "idle" && !blocked}
+  {#if setupOpen && v.phase === "idle" && !blocked && allowed !== false}
     <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2.5 text-sm">
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="What to grade">
         <span class="text-xs text-sr-muted w-20">Grade</span>

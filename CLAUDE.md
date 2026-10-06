@@ -551,8 +551,11 @@ site's theme colours through `src/lib/tuner/canvas-colors.ts`.
 
 **Grade** (Unison page, pitched, Pro): "Listen and grade" above the score
 opens a strip docked above the playback bar (the page leaves room below the
-score for it). Its setup (remembered in the tuner store: `gradeMode`,
-`gradeStrictness`, `gradeCursor`, `gradeClick`, `gradeReference`) chooses:
+score for it). Its setup opens with it (remembered in the tuner store:
+`gradeMode`, `gradeStrictness`, `gradeCursor`, `gradeClick`,
+`gradeReference`; by default Pitch & rhythm, Easy, the cursor beat by beat,
+and the key - do mi so mi do so do, the first note - before the count-in)
+and chooses:
 
 - **Note by note** (`gradeMode: "pitch"`; was "Pitch only"): practice, not graded - the results say "Done: all 13 notes sung" (or how many were skipped), every sung note green. Untimed, note by note. A reference (the first note or the
   key: do mi so mi do, so below, do, a note a beat, a beat's rest, then the

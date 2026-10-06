@@ -115,10 +115,12 @@ const initial: TunerState = {
   challengeShowTuner: true,
   challengeDifficulty: "normal",
   challengeGuideTone: true,
-  gradeReference: "note",
-  gradeMode: "pitch",
-  gradeStrictness: "standard",
-  gradeCursor: "smooth",
+  // Grade's defaults: in time, gently judged, the cursor stepping a beat at a
+  // time, the key given before the count-in.
+  gradeReference: "triad",
+  gradeMode: "performance",
+  gradeStrictness: "easy",
+  gradeCursor: "beat",
   gradeClick: "beat",
   micHeld: false,
   pitch: null,
