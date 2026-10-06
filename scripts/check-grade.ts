@@ -21,7 +21,7 @@
  * DETECT_LATENCY_MS).
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
-import { gradeSchedule } from "../src/lib/grade";
+import { STRICTNESS, gradeSchedule } from "../src/lib/grade";
 
 const APP = process.env.APP ?? "http://localhost:4321";
 const MODE = (process.env.MODE ?? "performance") as "pitch" | "performance";
@@ -255,7 +255,8 @@ if (MODE === "performance") {
   p.notes.forEach((r: any, i: number) => {
     if (i === WRONG) expect(!r.pitchOk && Math.abs((r.sung ?? 0) - (r.midi + 2)) < 0.5, `note ${i + 1} should be heard a step high`);
     else if (i === SKIP) expect(r.missed, `note ${i + 1} should be missed`);
-    else if (i === LATE) expect(r.onsetBeats !== null && Math.abs(r.onsetBeats - LATE_BEATS) < 0.12 && r.rhythm < 100, `note ${i + 1} should be about ${LATE_BEATS} late`);
+    // Measured late either way; marked down only when that is outside the strictness's window.
+    else if (i === LATE) expect(r.onsetBeats !== null && Math.abs(r.onsetBeats - LATE_BEATS) < 0.12 && (LATE_BEATS <= STRICTNESS[STRICT].onsetBeats ? r.rhythm === 100 : r.rhythm < 100), `note ${i + 1} should be about ${LATE_BEATS} late`);
     else expect(r.pitchOk && r.rhythm >= 90, `note ${i + 1} should be clean (pitch ${r.pitch}, rhythm ${r.rhythm})`);
   });
   const clean = p.notes.filter((_: any, i: number) => ![WRONG, LATE, SKIP].includes(i) && _.onsetBeats !== null).map((r: any) => r.onsetBeats * beatMs);
