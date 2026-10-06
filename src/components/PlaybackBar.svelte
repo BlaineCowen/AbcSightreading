@@ -13,6 +13,8 @@
   import Plus from "lucide-svelte/icons/plus";
   import Link2 from "lucide-svelte/icons/link-2";
   import Printer from "lucide-svelte/icons/printer";
+  import Maximize from "lucide-svelte/icons/maximize";
+  import Minimize from "lucide-svelte/icons/minimize";
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
   import Eye from "lucide-svelte/icons/eye";
@@ -42,6 +44,12 @@
   export let onRestart: () => void;
   export let onBpmChange: (bpm: number) => void;
   export let onToggleLoop: () => void;
+  /** Full screen (src/lib/fullscreen.ts): the score alone, for a TV. Null hides the button. */
+  export let fullscreen = false;
+  export let onToggleFullscreen: (() => void) | null = null;
+  /** In full screen, what is written under the notes, chosen here (the settings are hidden). */
+  export let annotationChoices: { id: string; label: string; on: boolean }[] = [];
+  export let onAnnotation: (id: string) => void = () => {};
   export let onToggleMute: (voiceName: string) => void;
   /** Voices with no staff. Omit onToggleHidden and the menu only mutes. */
   export let hiddenVoices: Set<string> = new Set();
@@ -329,7 +337,33 @@
         aria-label="Toggle loop"
         aria-pressed={looping}
       ><Repeat size={18} /></button>
+
+      {#if onToggleFullscreen}
+        <button
+          class="flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {fullscreen
+            ? 'bg-sr-peach text-sr-peach-ink'
+            : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+          on:click={onToggleFullscreen}
+          title={fullscreen ? "Leave full screen (Esc or F)" : "Full screen: the music alone, big, for a TV or projector (F)"}
+          aria-label={fullscreen ? "Leave full screen" : "Full screen"}
+          aria-pressed={fullscreen}
+        >{#if fullscreen}<Minimize size={18} />{:else}<Maximize size={18} />{/if}</button>
+      {/if}
     </div>
+
+    {#if fullscreen && annotationChoices.length}
+      <!-- The settings are hidden in full screen: what is written under the notes is chosen here. -->
+      <div class="flex items-center gap-1.5 px-3 pb-2 xl:p-0 flex-wrap" role="group" aria-label="Annotations">
+        <span class="text-xs text-sr-bar-muted">Show</span>
+        {#each annotationChoices as a}
+          <button
+            class="rounded-full px-3 py-1.5 text-xs font-semibold {a.on ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+            aria-pressed={a.on}
+            on:click={() => onAnnotation(a.id)}
+          >{a.label}</button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="w-px h-6 bg-sr-bar-btn hidden xl:block"></div>
 

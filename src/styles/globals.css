@@ -691,3 +691,23 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
    dark inverted them; they are drawn in currentColor now (see
    scripts/render-rhythm-icons.mjs), so they already take the light text colour,
    and the invert turned that back to near-black on a dark tile. */
+
+/* Full screen on the practice pages (src/lib/fullscreen.ts): the score alone,
+   as wide as the screen, and the playback bar, larger. The page still scrolls,
+   so the score follows the music as it always does. */
+html.sr-focus body > header,
+html.sr-focus body > footer,
+html.sr-focus .focus-hide,
+html.sr-focus .focus-main > :not(.focus-score):not(.focus-keep) {
+  display: none !important;
+}
+html.sr-focus body > main.container {
+  max-width: none;
+  padding-top: 0.75rem;
+}
+html.sr-focus .focus-main {
+  max-width: none !important;
+}
+html.sr-focus .playback-bar {
+  zoom: 1.2;
+}

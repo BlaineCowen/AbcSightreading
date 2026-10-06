@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createFullscreen } from "../lib/fullscreen";
   import { tuner } from "../lib/tuner/store";
   import { drumPatternFor } from "../lib/playback-click";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
@@ -1843,6 +1844,26 @@
     await reRenderAnnotations();
   }
 
+  // Full screen (src/lib/fullscreen.ts): the score alone, for a TV. The
+  // settings are hidden there, so the annotations are chosen from the
+  // playback bar: clean, chord symbols, and one of the syllable systems.
+  const fullscreenCtl = createFullscreen();
+  const fullscreenOn = fullscreenCtl.active;
+  onDestroy(fullscreenCtl.destroy);
+  $: annotationChoices = [
+    { id: "clean", label: "Clean", on: !showChords && !lyricSystem },
+    { id: "chords", label: "Chord symbols", on: showChords },
+    ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: lyricSystem === v })),
+  ];
+  async function pickAnnotation(id: string) {
+    if (id === "clean") {
+      showChords = false;
+      lyricSystem = null;
+      await reRenderAnnotations();
+    } else if (id === "chords") await handleToggleChords();
+    else await handleLyricSystem(id as LyricSystem);
+  }
+
   /**
    * Shift playback without touching the score.
    *
@@ -2413,7 +2434,7 @@
   <ToolsWheel />
 
 
-  <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
+  <main class="focus-main flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
     {#if !assignment}
     <PresetDropdown
@@ -3152,8 +3173,8 @@
       </p>
     {/if}
 
-    <!-- Sheet music -->
-    <div class="relative w-full" class:min-h-40={isGenerating}>
+    <!-- Sheet music (all that full screen keeps) -->
+    <div class="focus-score relative w-full" class:min-h-40={isGenerating}>
       <!-- Kept in the DOM even while hidden: renderAbc finds it by id, and it
            is un-hidden before renderTune measures its width. -->
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
@@ -3214,6 +3235,10 @@
 
   <!-- Sticky playback bar -->
   <PlaybackBar
+    fullscreen={$fullscreenOn}
+    onToggleFullscreen={fullscreenCtl.toggle}
+    {annotationChoices}
+    onAnnotation={pickAnnotation}
     {isPlaying}
     {bpm}
     {looping}

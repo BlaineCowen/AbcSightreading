@@ -72,6 +72,7 @@
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
   import { saveGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
+  import { createFullscreen } from "../lib/fullscreen";
   import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
   import { solfegeOf } from "../lib/grade";
@@ -3625,6 +3626,28 @@
     };
     (window as any).__gradeDebugSkip = () => gradeRunner.skip();
   }
+  // Full screen (src/lib/fullscreen.ts): the score alone, for a TV. The
+  // settings are hidden there, so what is written under the notes is chosen
+  // from the playback bar.
+  const fullscreenCtl = createFullscreen();
+  const fullscreenOn = fullscreenCtl.active;
+  onDestroy(fullscreenCtl.destroy);
+  $: annotationChoices = rhythmOnly
+    ? [
+        { id: "off", label: "Off", on: !showRhythmSyllables },
+        ...playAlongSyllables.map((s) => ({ id: s.id, label: s.label, on: showRhythmSyllables && syllableSystemId === s.id })),
+      ]
+    : [
+        { id: "off", label: "Off", on: !showSolfege },
+        ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: showSolfege && lyricSystem === v })),
+      ];
+  function pickAnnotation(id: string) {
+    if (rhythmOnly) return void setRhythmSyllables(id);
+    if (id === "off") {
+      if (showSolfege) void handleLyricSystem(lyricSystem);
+    } else if (!(showSolfege && lyricSystem === id)) void handleLyricSystem(id as LyricSystem);
+  }
+
   /** A Grade run in time is using the page's timeline (cursor and click, no melody). */
   let gradeTimeline = false;
   let gradeClickChoice: "off" | "beat" | "sub" = "beat";
@@ -4039,7 +4062,7 @@
   {/if}
 
 
-  <main class="flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
+  <main class="focus-main flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
 
     {#if !assignment}
     <PresetDropdown
@@ -5032,12 +5055,12 @@
       </div>
     </div>
 
-    <!-- Music Display -->
-    <div class="relative w-full">
+    <!-- Music Display (all that full screen keeps) -->
+    <div class="focus-score relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
       <CountInBadge />
       {#if !rhythmOnly}
-        <div class="flex justify-end">
+        <div class="focus-hide flex justify-end">
           <button
             class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
             on:click={openGrade}
@@ -5077,7 +5100,7 @@
          document otherwise ends at the last system, so the browser clamps the
          scroll and the final lines can never rise to the reading position. -->
     {#if isPlaying}
-      <div aria-hidden="true" class="w-full" style="height: 75vh"></div>
+      <div aria-hidden="true" class="focus-keep w-full" style="height: 75vh"></div>
     {/if}
 
     <div class="h-4"></div>
@@ -5088,6 +5111,10 @@
        compiled in this component's scope, so every handler below still binds
        directly to local state. -->
   <PlaybackBar
+    fullscreen={$fullscreenOn}
+    onToggleFullscreen={fullscreenCtl.toggle}
+    {annotationChoices}
+    onAnnotation={pickAnnotation}
     {isPlaying}
     bpm={tempo}
     beatSymbol={beatSymbolOf(meterOf(currentTune, selectedTimeSignature))}

@@ -872,6 +872,23 @@ Texas UIL Choir sight-reading levels (1–5). Each preset restricts allowed keys
 
 `src/components/AbcjsChoral.svelte` — the primary Svelte component. Handles all user controls (key, time sig, measures, voicing, UIL preset, NCT probability, BPM), calls `generateChoralExercise()`, and renders the result with `abcjs`. Mounted via `client:only="svelte"` in `src/pages/choral-sightreading.astro`.
 
+## Full screen
+
+Both practice pages have a full-screen button in the playback bar (beside
+Loop; F toggles it, Esc leaves): the score alone, as wide as the screen, for
+a TV or projector (`src/lib/fullscreen.ts`). It asks for the browser's full
+screen and puts `sr-focus` on <html>; globals.css then hides the site
+header and footer, `.focus-hide` (the page title and intro, the Grade
+button) and every child of the component's `.focus-main` except
+`.focus-score` (the score) and `.focus-keep` (the room left below the score
+while playing), and draws the playback bar larger (`zoom: 1.2`). The page
+still scrolls, so the score follows the music as it always does; widened,
+abcjs (`responsive: "resize"`) draws it bigger. The settings are hidden, so
+the playback bar shows the annotations there (`annotationChoices`): Off and
+the solfège systems on Unison (the syllable systems on rhythm only), Clean,
+chord symbols and the solfège systems on Choral. Where the browser has no
+full screen (iPhone Safari) the same view runs inside the window.
+
 ## Score layout
 
 Bars per line come from `src/lib/score-layout.ts` (tests `score-layout.test.ts`),
