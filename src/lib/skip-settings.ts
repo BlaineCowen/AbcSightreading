@@ -33,6 +33,13 @@ export const LAND_ON_CHOICES: readonly { length: number; label: string; icon: st
 /** What a saved full list looked like before sixteenths were a choice: it meant no limit. */
 const OLD_FULL_LAND_ON = [4, 8, 12, 16];
 export const ALL_LAND_ON: number[] = LAND_ON_CHOICES.map((c) => c.length);
+/**
+ * The Unison page's Skips between for a new reader (6 October 2026): quarter,
+ * dotted quarter and half, so eighths and sixteenths step unless they are
+ * chosen. The library's own default (DEFAULT_SKIP_SETTINGS, what the
+ * generator and its pinned snapshots assume) stays every value.
+ */
+export const PAGE_DEFAULT_LAND_ON: number[] = [8, 12, 16];
 
 /** Max skip mode, nothing chosen: what a page, preset or link without the fields gets. */
 export const DEFAULT_SKIP_SETTINGS: SkipSettings = Object.freeze({
@@ -156,7 +163,7 @@ export function policyFor(maxSkip: number, s: SkipSettings): SkipPolicy {
 }
 
 /** The settings in a saved options object. Anything missing or malformed falls back to the default (Max skip). */
-export function skipSettingsFrom(options: unknown): SkipSettings {
+export function skipSettingsFrom(options: unknown, fallbackLandOn: readonly number[] = ALL_LAND_ON): SkipSettings {
   const o = (options && typeof options === "object" ? options : {}) as Record<string, unknown>;
   const extraSkips = Array.isArray(o.extraSkips)
     ? unique(o.extraSkips.filter(isSkipMove))
@@ -169,7 +176,7 @@ export function skipSettingsFrom(options: unknown): SkipSettings {
     exactOn: o.exactOn === true,
     patterns: Array.isArray(o.patterns) ? cleanPatterns(o.patterns) : [],
     extraSkips: extraSkips.map((m) => ({ from: m.from, to: m.to, dir: m.dir })),
-    landOn: landOn.length ? landOn : [...ALL_LAND_ON],
+    landOn: landOn.length ? landOn : [...fallbackLandOn],
   };
 }
 
@@ -182,11 +189,14 @@ const SKIP_PARAMS = ["exactSkips", "skipPatterns", "skips", "skipLand"] as const
  * only when it differs from the default - so Max skip with nothing chosen
  * adds nothing, and the choices survive a reload with the switch off.
  */
-export function writeSkipParams(s: SkipSettings, params: URLSearchParams): void {
+export function writeSkipParams(s: SkipSettings, params: URLSearchParams, defaultLandOn: readonly number[] = ALL_LAND_ON): void {
   if (s.exactOn) params.set("exactSkips", "1");
   if (s.patterns.length) params.set("skipPatterns", s.patterns.join(","));
   if (s.extraSkips.length) params.set("skips", s.extraSkips.map((m) => `${m.from}${DIR_CODE[m.dir]}${m.to}`).join(","));
-  if (ALL_LAND_ON.some((l) => !s.landOn.includes(l))) params.set("skipLand", s.landOn.join(","));
+  // Written whenever it is not the default the reading page falls back to
+  // (so every value, once not the page's default, is written out).
+  const same = s.landOn.length === defaultLandOn.length && defaultLandOn.every((l) => s.landOn.includes(l));
+  if (!same) params.set("skipLand", s.landOn.join(","));
 }
 
 /** The settings a link carries, or null for a link without any (every old link: Max skip mode). */

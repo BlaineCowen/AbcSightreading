@@ -250,3 +250,23 @@ describe("degreesConnected", () => {
     expect(degreesConnected([1, 5], { kind: "max", maxSkip: 1 })).toBe(true);
   });
 });
+
+describe("the Unison page's default: eighths step unless chosen (6 October 2026)", () => {
+  const { PAGE_DEFAULT_LAND_ON: PAGE, ALL_LAND_ON: ALL, skipSettingsFrom: from, writeSkipParams: write, readSkipParams: read } =
+    require("../../src/lib/skip-settings") as typeof import("../../src/lib/skip-settings");
+  test("a new reader: quarter, dotted quarter and half; no eighths or sixteenths", () => {
+    expect(from({}, PAGE).landOn).toEqual([8, 12, 16]);
+  });
+  test("the library's own default is still every value (the generator's snapshots)", () => {
+    expect(from({}).landOn).toEqual(ALL);
+  });
+  test("a link: the page default writes nothing; every value is written out, and reads back as every value", () => {
+    const none = new URLSearchParams();
+    write(from({}, PAGE), none, PAGE);
+    expect(none.has("skipLand")).toBe(false);
+    const all = new URLSearchParams();
+    write(from({ landOn: ALL }, PAGE), all, PAGE);
+    expect(all.get("skipLand")).toBe("2,4,8,12,16");
+    expect(read(all)!.landOn).toEqual(ALL);
+  });
+});

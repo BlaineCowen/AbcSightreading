@@ -92,7 +92,7 @@
   import { landablePolicy, type SkipDir } from "../lib/skip-policy";
   import {
     ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected, withoutShortSkips,
-    policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams,
+    policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams, PAGE_DEFAULT_LAND_ON,
     type SkipSettings,
   } from "../lib/skip-settings";
   import {
@@ -554,9 +554,11 @@
       // Exact skips and Skips between; presets and options from before load in
       // Max skip mode. An old Max 8th skip of 1 (short notes only step) leaves
       // eighths and sixteenths out of Skips between, which says the same.
+      // Without a Skips between list (a new reader, a link that leaves it out),
+      // eighths and sixteenths step: PAGE_DEFAULT_LAND_ON.
       skips: eighthsFrom(options, options.maxSkip || 4).dropShortSkips
-        ? withoutShortSkips(skipSettingsFrom(options))
-        : skipSettingsFrom(options),
+        ? withoutShortSkips(skipSettingsFrom(options, PAGE_DEFAULT_LAND_ON))
+        : skipSettingsFrom(options, PAGE_DEFAULT_LAND_ON),
       bpm: options.bpm || 60,
       // Eighth pairs on one pitch: an old Max 8th skip of 0, or Move 8th Notes off.
       eighths: { onePitch: eighthsFrom(options, options.maxSkip || 4).onePitch },
@@ -813,7 +815,15 @@
     const saved = localStorage.getItem("sightReadingOptions");
     if (saved) {
       try {
-        return stateFromOptions(JSON.parse(saved));
+        const options = JSON.parse(saved);
+        // Once (6 October 2026): a saved Skips between of every value was the
+        // old default, almost never chosen; it becomes the new one, eighths
+        // and sixteenths stepping. A list chosen after this stays.
+        if (!localStorage.getItem("abc-skip-land-v2")) {
+          if (Array.isArray(options.landOn) && ALL_LAND_ON.every((l) => options.landOn.includes(l))) options.landOn = [...PAGE_DEFAULT_LAND_ON];
+          localStorage.setItem("abc-skip-land-v2", "1");
+        }
+        return stateFromOptions(options);
       } catch (e) {
         console.error("Error loading saved options:", e);
       }
@@ -834,7 +844,7 @@
       rangeAnchor: DEFAULT_TREBLE_RANGE.min,
       measures: 8,
       maxSkip: 4,
-      skips: skipSettingsFrom({}),
+      skips: skipSettingsFrom({}, PAGE_DEFAULT_LAND_ON),
       bpm: 60,
       // A new reader: the three skips move together.
       eighths: { onePitch: false },
@@ -1330,7 +1340,7 @@
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
     accidentalsFollowStep !== false ||
-    skips.landOn.length !== ALL_LAND_ON.length || eighthPairsOnePitch;
+    skips.landOn.length !== PAGE_DEFAULT_LAND_ON.length || PAGE_DEFAULT_LAND_ON.some((l) => !skips.landOn.includes(l)) || eighthPairsOnePitch;
   // A range that follows the key is judged by its placement for the pool's
   // first key in picker order, not the key drawn, so Generate cannot flip the dot.
   $: settledRange = (rangeSpan && rangeForSpan(rangeSpan, possibleKeys.find((k) => selectedKeys.has(k)) ?? selectedKey, rangeAnchor)) || selectedRange;
@@ -1429,7 +1439,7 @@
     params.set("timeSignature", [...selectedTimeSignatures].join(","));
     params.set("measures", measures.toString());
     params.set("maxSkip", maxSkip.toString());
-    writeSkipParams(skips, params);
+    writeSkipParams(skips, params, PAGE_DEFAULT_LAND_ON);
     params.set("bpm", bpm.toString());
     params.set("pairsOnePitch", String(eighthPairsOnePitch));
     params.set("accidentalsFollowStep", accidentalsFollowStep.toString());

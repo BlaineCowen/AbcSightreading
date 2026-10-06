@@ -227,7 +227,15 @@ out of Skips between; a list saved with the four old values is all five. The
 NYSSMA levels keep "quarters" (and halves at V), stricter than the chart's
 landing rule but inside it; their skips per exercise fell (Level III 2.19 to
 1.57, V 4.08 to 2.95), every exercise still with one, the chart clean.
-With eighth pairs on one pitch a ti-ti is sung on one pitch, and only inside the pair:
+On the Unison page Skips between defaults to quarter, dotted quarter and half
+(`PAGE_DEFAULT_LAND_ON`, 6 October 2026): an eighth or sixteenth steps
+unless it is chosen. A page or link without a list gets that; links write
+the list whenever it differs (so every value is written out); a saved page
+of every value moved to it once (`abc-skip-land-v2`). The library default
+(`DEFAULT_SKIP_SETTINGS`, the generator's snapshots) is still every value,
+and ladder steps and NYSSMA levels set their own. `bun run
+scripts/check-eighth-steps.ts`: 2,160 exercises at the default, none
+failed, no short note skipped to or from. With eighth pairs on one pitch a ti-ti is sung on one pitch, and only inside the pair:
 any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
