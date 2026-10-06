@@ -123,7 +123,7 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2 } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
   import {
@@ -3925,6 +3925,17 @@
    * feedback and the drawing following it. Kept in this browser; gone when
    * the marks are cleared (a new run, Close, a new exercise).
    */
+  /** Score options: open or folded away, remembered in this browser. */
+  let scoreOptionsOpen = true;
+  try {
+    scoreOptionsOpen = localStorage.getItem("sr-score-options-open") !== "0";
+  } catch {}
+  function toggleScoreOptions() {
+    scoreOptionsOpen = !scoreOptionsOpen;
+    try {
+      localStorage.setItem("sr-score-options-open", scoreOptionsOpen ? "1" : "0");
+    } catch {}
+  }
   let takePlayer: TakePlayer | null = null;
   let take = { open: false, loading: false, playing: false, progress: 0, music: false, hasMusic: false, error: null as string | null };
   let takeNote = -1;
@@ -4354,7 +4365,7 @@
 
 
   <main class="focus-main wide flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
-  <!-- The settings: on a wide screen, a column of their own (globals.css .wide). -->
+  <!-- The settings (hidden in full screen). -->
   <div class="wide-left w-full flex flex-col items-center">
 
     {#if !assignment}
@@ -4559,152 +4570,6 @@
             {/if}
           </div>
 
-          <!-- How the exercise is shown and played, as opposed to what gets
-               written. None of these regenerate anything. -->
-          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4" aria-labelledby="score-options-heading">
-            <h3 id="score-options-heading" class="text-sm font-semibold text-sr-ink mb-1">Score options</h3>
-            <p class="text-xs text-sr-faint mb-4">How the exercise is shown and played. Changing these keeps the exercise on screen.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div class="space-y-2">
-              <p class="sr-label">Playback sound</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Playback sound">
-                {#if rhythmOnly}
-                  {#each RHYTHM_SOUNDS as sound}
-                    <button
-                      class="sr-tok {rhythmSoundId === sound.id ? 'sr-on' : ''}"
-                      on:click={() => handleSoundChange(sound.id)}
-                      aria-pressed={rhythmSoundId === sound.id}
-                    >{sound.label}</button>
-                  {/each}
-                {:else}
-                  {#each INSTRUMENTS as instrument}
-                    <button
-                      class="sr-tok {instrumentProgram === instrument.program ? 'sr-on' : ''}"
-                      on:click={() => handleSoundChange(instrument.program)}
-                      aria-pressed={instrumentProgram === instrument.program}
-                    >{instrument.label}</button>
-                  {/each}
-                {/if}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {rhythmOnly
-                  ? (rhythmSoundFor(rhythmSoundId).kind === "click"
-                      ? "A click: every note sounds the same length. Good for attacks."
-                      : "Sustains, so a held note is heard held.")
-                  : "Changes the sound straight away. The exercise stays as it is."}
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <p class="sr-label">Playback transpose</p>
-              <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
-                <button
-                  class="sr-btn-quiet disabled:opacity-40"
-                  on:click={() => handleTransposeChange(transposeSemitones - 1)}
-                  disabled={transposeSemitones <= MIN_TRANSPOSE}
-                  aria-label="Transpose playback down a semitone"
-                >−</button>
-                <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
-                  {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
-                </span>
-                <button
-                  class="sr-btn-quiet disabled:opacity-40"
-                  on:click={() => handleTransposeChange(transposeSemitones + 1)}
-                  disabled={transposeSemitones >= MAX_TRANSPOSE}
-                  aria-label="Transpose playback up a semitone"
-                >+</button>
-                {#if transposeSemitones !== 0}
-                  <button
-                    class="sr-btn-quiet"
-                    on:click={() => handleTransposeChange(0)}
-                  >Reset</button>
-                {/if}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
-              </p>
-            </div>
-
-            <!-- Pitched exercises only. Rhythm-only has no scale degrees to
-                 name, and its syllables live in the Rhythm tab - the one
-                 place they are set. -->
-            {#if !rhythmOnly}
-            <div class="space-y-2">
-              <p class="sr-label">Annotations</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
-                {#each lyricSystems as [value, label]}
-                  <button
-                    class="sr-tok {showSolfege && lyricSystem === value ? 'sr-on' : ''}"
-                    on:click={() => handleLyricSystem(value)}
-                    aria-pressed={showSolfege && lyricSystem === value}
-                  >{label}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {#if !showSolfege}
-                  Clean: the same exercise, printed for sight-reading.
-                {:else if lyricSystem === "movable"}
-                  Movable do under the staff: do is the tonic, so a tune reads the same in
-                  every key.
-                {:else if lyricSystem === "fixed"}
-                  Fixed do under the staff: C is do whatever the key.
-                {:else}
-                  The note names under the staff.
-                {/if}
-              </p>
-            </div>
-            {/if}
-
-            {#if !rhythmOnly}
-            <div class="space-y-2">
-              <p class="sr-label">Dynamics</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Dynamics">
-                <button
-                  class="sr-tok {dynamicsSet.length === 0 ? 'sr-on' : ''}"
-                  aria-pressed={dynamicsSet.length === 0}
-                  on:click={() => handleDynamicsChange([])}
-                >Off</button>
-                {#each DYNAMIC_MARKS as mark}
-                  <button
-                    class="sr-tok italic {dynamicsSet.includes(mark) ? 'sr-on' : ''}"
-                    aria-pressed={dynamicsSet.includes(mark)}
-                    on:click={() => handleDynamicsChange(toggleDynamic(dynamicsSet, mark))}
-                  >{mark}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {dynamicsSet.length === 0
-                  ? "No dynamics printed."
-                  : dynamicsSet.length === 1
-                    ? `${dynamicsSet[0]} under the first note. Playback follows it.`
-                    : "One under the first note, and each 4-bar phrase may change it. Playback follows them."}
-              </p>
-            </div>
-            {/if}
-
-            <div class="space-y-2">
-              <p class="sr-label">Cursor</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
-                {#each cursorModes as mode}
-                  <button
-                    class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
-                    on:click={() => (cursorMode = mode)}
-                    aria-pressed={cursorMode === mode}
-                  >{cursorModeLabels[mode]}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {cursorMode === "off"
-                  ? "No cursor during playback."
-                  : cursorMode === "smooth"
-                    ? "Travels along with the music."
-                    : cursorMode === "beat"
-                      ? "Steps on every beat."
-                      : "Lands on each note and waits there."}
-              </p>
-            </div>
-            </div>
-          </section>
 
         <!-- Rhythm Tab -->
         {:else if selectedTab === 'rhythm'}
@@ -5068,7 +4933,151 @@
       </div>
     </div>
 
-    <!-- Drill: its own box below the settings (it was inside the setup panel, under every tab). -->
+      <!-- Score options: how the exercise is shown and played (none of it
+         regenerates anything). Its own box below the setup, and it folds away;
+         whether it is open is remembered (scoreOptionsOpen). -->
+    <section class="sr-panel w-full mb-4 p-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="score-options-heading">
+      <button type="button" class="w-full flex items-start gap-2 text-left" aria-expanded={scoreOptionsOpen} aria-controls="score-options-body" on:click={toggleScoreOptions}>
+        <ChevronRight size={18} class="mt-0.5 shrink-0 transition-transform {scoreOptionsOpen ? 'rotate-90' : ''}" />
+        <span>
+          <span id="score-options-heading" class="block text-sm font-semibold text-sr-ink">Score options</span>
+          <span class="block text-xs text-sr-faint">How the exercise is shown and played. Changing these keeps the exercise on screen.</span>
+        </span>
+      </button>
+      {#if scoreOptionsOpen}
+      <div id="score-options-body" class="mt-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      <div class="space-y-2">
+        <p class="sr-label">Playback sound</p>
+        <div class="sr-select">
+          <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
+          <select
+            class="sr-select-input"
+            aria-label="Playback sound"
+            value={rhythmOnly ? rhythmSoundId : String(instrumentProgram)}
+            on:change={(e) => handleSoundChange(rhythmOnly ? e.currentTarget.value : Number(e.currentTarget.value))}
+          >
+            {#if rhythmOnly}
+              {#each RHYTHM_SOUNDS as sound}<option value={sound.id}>{sound.label}</option>{/each}
+            {:else}
+              {#each INSTRUMENTS as instrument}<option value={String(instrument.program)}>{instrument.label}</option>{/each}
+            {/if}
+          </select>
+        </div>
+        <p class="text-xs text-sr-faint">
+          {rhythmOnly
+            ? (rhythmSoundFor(rhythmSoundId).kind === "click"
+                ? "A click: every note sounds the same length. Good for attacks."
+                : "Sustains, so a held note is heard held.")
+            : "Changes the sound straight away. The exercise stays as it is."}
+        </p>
+      </div>
+
+      <div class="space-y-2">
+        <p class="sr-label">Playback transpose</p>
+        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
+          <button
+            class="sr-btn-quiet disabled:opacity-40"
+            on:click={() => handleTransposeChange(transposeSemitones - 1)}
+            disabled={transposeSemitones <= MIN_TRANSPOSE}
+            aria-label="Transpose playback down a semitone"
+          >−</button>
+          <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
+            {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
+          </span>
+          <button
+            class="sr-btn-quiet disabled:opacity-40"
+            on:click={() => handleTransposeChange(transposeSemitones + 1)}
+            disabled={transposeSemitones >= MAX_TRANSPOSE}
+            aria-label="Transpose playback up a semitone"
+          >+</button>
+          {#if transposeSemitones !== 0}
+            <button
+              class="sr-btn-quiet"
+              on:click={() => handleTransposeChange(0)}
+            >Reset</button>
+          {/if}
+        </div>
+        <p class="text-xs text-sr-faint">
+          {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
+        </p>
+      </div>
+
+      <!-- Pitched exercises only. Rhythm-only has no scale degrees to
+           name, and its syllables live in the Rhythm tab - the one
+           place they are set. -->
+      {#if !rhythmOnly}
+      <div class="space-y-2">
+        <p class="sr-label">Annotations</p>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
+          {#each lyricSystems as [value, label]}
+            <button
+              class="sr-tok {showSolfege && lyricSystem === value ? 'sr-on' : ''}"
+              on:click={() => handleLyricSystem(value)}
+              aria-pressed={showSolfege && lyricSystem === value}
+            >{label}</button>
+          {/each}
+        </div>
+        <p class="text-xs text-sr-faint">
+          {#if !showSolfege}
+            Clean: the same exercise, printed for sight-reading.
+          {:else if lyricSystem === "movable"}
+            Movable do under the staff: do is the tonic, so a tune reads the same in
+            every key.
+          {:else if lyricSystem === "fixed"}
+            Fixed do under the staff: C is do whatever the key.
+          {:else}
+            The note names under the staff.
+          {/if}
+        </p>
+      </div>
+      {/if}
+
+      {#if !rhythmOnly}
+      <div class="space-y-2">
+        <p class="sr-label">Dynamics</p>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Dynamics">
+          <button class="sr-tok {dynamicsSet.length === 0 ? 'sr-on' : ''}" aria-pressed={dynamicsSet.length === 0} on:click={() => handleDynamicsChange([])}>Off</button>
+          <!-- On: every mark; a level that names its own (NYSSMA) shows On and keeps them. -->
+          <button class="sr-tok {dynamicsSet.length > 0 ? 'sr-on' : ''}" aria-pressed={dynamicsSet.length > 0} on:click={() => dynamicsSet.length === 0 && handleDynamicsChange([...DYNAMIC_MARKS])}>On</button>
+        </div>
+        <p class="text-xs text-sr-faint">
+          {dynamicsSet.length === 0
+            ? "No dynamics printed."
+            : dynamicsSet.length === 1
+              ? `${dynamicsSet[0]} under the first note. Playback follows it.`
+              : "One under the first note, and each 4-bar phrase may change it. Playback follows them."}
+        </p>
+      </div>
+      {/if}
+
+      <div class="space-y-2">
+        <p class="sr-label">Cursor</p>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
+          {#each cursorModes as mode}
+            <button
+              class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
+              on:click={() => (cursorMode = mode)}
+              aria-pressed={cursorMode === mode}
+            >{cursorModeLabels[mode]}</button>
+          {/each}
+        </div>
+        <p class="text-xs text-sr-faint">
+          {cursorMode === "off"
+            ? "No cursor during playback."
+            : cursorMode === "smooth"
+              ? "Travels along with the music."
+              : cursorMode === "beat"
+                ? "Steps on every beat."
+                : "Lands on each note and waits there."}
+        </p>
+      </div>
+      </div>
+      </div>
+      {/if}
+    </section>
+
+  <!-- Drill: its own box below the settings (it was inside the setup panel, under every tab). -->
     <section class="sr-panel w-full mb-4 p-4 space-y-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="drill-heading">
       <!-- The whole header is the toggle: the button's ::after stretches
            over the bar, and Start / Stop sit above it. -->
@@ -5350,7 +5359,7 @@
     </section>
   </div>
 
-  <!-- The music: beside the settings on a wide screen (globals.css .wide). -->
+  <!-- The music (all full screen keeps). -->
   <div class="wide-right focus-keep w-full">
     <!-- Music Display (all that full screen keeps) -->
     <div class="focus-score relative w-full">

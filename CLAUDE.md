@@ -1068,16 +1068,19 @@ button (it is narrower by the corner buttons there).
 
 ## Big screens
 
-On a wide screen (1800 px and up) both practice pages are two columns, the
-settings (`.wide-left`) beside the music (`.wide-right`), and the site
-container's width cap comes off (globals.css `.focus-main.wide`); below
-that they are one column as before. From 2200 px the root font size steps
-up (18, 20, 22 px at 2200, 2800, 3400) so the interface is not tiny on a 4K
+On a wide screen (1600 px and up) the practice pages stay one column but
+take most of the width (`.focus-main.wide`: up to 94vw, the site
+container's cap lifted); two columns, settings beside the music, were tried
+and Blaine did not like them. From 2200 px the root font size steps up (18,
+20, 22 px at 2200, 2800, 3400) so the interface is not tiny on a 4K
 monitor; Tailwind sizes in rem, its breakpoints in px. Things placed in px
 beside things sized in rem drifted into each other at 4K (the Feedback
-button, the Tools card): place them by the other's rem size. Full screen
-undoes the columns. Unison's Drill is its own box below the settings, not
-inside the setup panel.
+button, the Tools card): place them by the other's rem size.
+
+Below the setup panel, each its own box: Score options (folds away,
+remembered as `sr-score-options-open`; the same on both pages, the sound a
+dropdown) and, on Unison, Drill. Unison's Dynamics there is Off or On (On is
+every mark; a preset with its own set, as NYSSMA's, shows On and keeps it).
 
 ## Score layout
 

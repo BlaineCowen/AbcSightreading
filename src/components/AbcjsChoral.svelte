@@ -1368,6 +1368,17 @@
   }
 
   /** The select hands back a string; the synth wants the program number. */
+  /** Score options: open or folded away, remembered in this browser. */
+  let scoreOptionsOpen = true;
+  try {
+    scoreOptionsOpen = localStorage.getItem("sr-score-options-open") !== "0";
+  } catch {}
+  function toggleScoreOptions() {
+    scoreOptionsOpen = !scoreOptionsOpen;
+    try {
+      localStorage.setItem("sr-score-options-open", scoreOptionsOpen ? "1" : "0");
+    } catch {}
+  }
   function onInstrumentSelect(event: Event) {
     const el = event.currentTarget as HTMLSelectElement;
     handleInstrumentChange(Number(el.value));
@@ -2449,7 +2460,7 @@
 
 
   <main class="focus-main wide flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
-  <!-- The settings: on a wide screen, a column of their own (globals.css .wide). -->
+  <!-- The settings (hidden in full screen). -->
   <div class="wide-left w-full flex flex-col items-center">
 
     {#if !assignment}
@@ -2784,118 +2795,6 @@
 
           </div>
 
-          <!-- How the exercise is shown and played, as opposed to what gets
-               written. None of these regenerate anything. -->
-          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4" aria-labelledby="score-options-heading">
-            <h3 id="score-options-heading" class="text-sm font-semibold text-sr-ink mb-1">Score options</h3>
-            <p class="text-xs text-sr-faint mb-4">How the exercise is shown and played. Changing these keeps the exercise on screen.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div class="space-y-2">
-              <p class="sr-label">Playback sound</p>
-              <div class="sr-select">
-                <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
-                <select
-                  class="sr-select-input"
-                  aria-label="Playback sound"
-                  value={instrumentProgram}
-                  on:change={onInstrumentSelect}
-                >
-                  {#each INSTRUMENTS as instrument}
-                    <option value={instrument.program}>{instrument.label}</option>
-                  {/each}
-                </select>
-              </div>
-              <p class="text-xs text-sr-faint">
-                Changes the sound straight away. The exercise stays as it is.
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <p class="sr-label">Playback transpose</p>
-              <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
-                <button
-                  class="sr-btn-quiet disabled:opacity-40"
-                  on:click={() => handleTransposeChange(transposeSemitones - 1)}
-                  disabled={transposeSemitones <= MIN_TRANSPOSE}
-                  aria-label="Transpose playback down a semitone"
-                >−</button>
-                <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
-                  {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
-                </span>
-                <button
-                  class="sr-btn-quiet disabled:opacity-40"
-                  on:click={() => handleTransposeChange(transposeSemitones + 1)}
-                  disabled={transposeSemitones >= MAX_TRANSPOSE}
-                  aria-label="Transpose playback up a semitone"
-                >+</button>
-                {#if transposeSemitones !== 0}
-                  <button
-                    class="sr-btn-quiet"
-                    on:click={() => handleTransposeChange(0)}
-                  >Reset</button>
-                {/if}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <p class="sr-label">Annotations</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
-                <button
-                  class="sr-tok {showChords ? 'sr-on' : ''}"
-                  on:click={handleToggleChords}
-                  aria-pressed={showChords}
-                >Chord symbols</button>
-                {#each lyricSystems as [value, label]}
-                  <button
-                    class="sr-tok {lyricSystem === value ? 'sr-on' : ''}"
-                    on:click={() => handleLyricSystem(value)}
-                    aria-pressed={lyricSystem === value}
-                  >{label}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {#if showChords}
-                  Chord symbols above the top staff{lyricSystem ? ", " : "."}
-                {/if}
-                {#if lyricSystem === "movable"}
-                  Movable do under each part: do is the tonic, so a tune reads the same in
-                  every key.
-                {:else if lyricSystem === "fixed"}
-                  Fixed do under each part: C is do whatever the key.
-                {:else if lyricSystem === "names"}
-                  The note names under each part.
-                {:else if !showChords}
-                  Clean: the same exercise, printed for sight-reading.
-                {/if}
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <p class="sr-label">Cursor</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
-                {#each cursorModes as mode}
-                  <button
-                    class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
-                    on:click={() => (cursorMode = mode)}
-                    aria-pressed={cursorMode === mode}
-                  >{cursorModeLabels[mode]}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {cursorMode === "off"
-                  ? "No cursor during playback."
-                  : cursorMode === "smooth"
-                    ? "Travels along with the music."
-                    : cursorMode === "beat"
-                      ? "Steps on every beat."
-                      : "Lands on each note and waits there."}
-              </p>
-            </div>
-            </div>
-          </section>
 
         <!-- Rhythm Tab -->
         {:else if selectedTab === 'rhythm'}
@@ -3190,9 +3089,131 @@
     {/if}
 
     <!-- Sheet music (all that full screen keeps) -->
+    <!-- Score options: how the exercise is shown and played (none of it
+         regenerates anything). Its own box below the setup, and it folds away;
+         whether it is open is remembered (scoreOptionsOpen). -->
+    <section class="sr-panel w-full mb-4 p-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="score-options-heading">
+      <button type="button" class="w-full flex items-start gap-2 text-left" aria-expanded={scoreOptionsOpen} aria-controls="score-options-body" on:click={toggleScoreOptions}>
+        <ChevronRight size={18} class="mt-0.5 shrink-0 transition-transform {scoreOptionsOpen ? 'rotate-90' : ''}" />
+        <span>
+          <span id="score-options-heading" class="block text-sm font-semibold text-sr-ink">Score options</span>
+          <span class="block text-xs text-sr-faint">How the exercise is shown and played. Changing these keeps the exercise on screen.</span>
+        </span>
+      </button>
+      {#if scoreOptionsOpen}
+      <div id="score-options-body" class="mt-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      <div class="space-y-2">
+        <p class="sr-label">Playback sound</p>
+        <div class="sr-select">
+          <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
+          <select
+            class="sr-select-input"
+            aria-label="Playback sound"
+            value={instrumentProgram}
+            on:change={onInstrumentSelect}
+          >
+            {#each INSTRUMENTS as instrument}
+              <option value={instrument.program}>{instrument.label}</option>
+            {/each}
+          </select>
+        </div>
+        <p class="text-xs text-sr-faint">
+          Changes the sound straight away. The exercise stays as it is.
+        </p>
+      </div>
+
+      <div class="space-y-2">
+        <p class="sr-label">Playback transpose</p>
+        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
+          <button
+            class="sr-btn-quiet disabled:opacity-40"
+            on:click={() => handleTransposeChange(transposeSemitones - 1)}
+            disabled={transposeSemitones <= MIN_TRANSPOSE}
+            aria-label="Transpose playback down a semitone"
+          >−</button>
+          <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
+            {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
+          </span>
+          <button
+            class="sr-btn-quiet disabled:opacity-40"
+            on:click={() => handleTransposeChange(transposeSemitones + 1)}
+            disabled={transposeSemitones >= MAX_TRANSPOSE}
+            aria-label="Transpose playback up a semitone"
+          >+</button>
+          {#if transposeSemitones !== 0}
+            <button
+              class="sr-btn-quiet"
+              on:click={() => handleTransposeChange(0)}
+            >Reset</button>
+          {/if}
+        </div>
+        <p class="text-xs text-sr-faint">
+          {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
+        </p>
+      </div>
+
+      <div class="space-y-2">
+        <p class="sr-label">Annotations</p>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
+          <button
+            class="sr-tok {showChords ? 'sr-on' : ''}"
+            on:click={handleToggleChords}
+            aria-pressed={showChords}
+          >Chord symbols</button>
+          {#each lyricSystems as [value, label]}
+            <button
+              class="sr-tok {lyricSystem === value ? 'sr-on' : ''}"
+              on:click={() => handleLyricSystem(value)}
+              aria-pressed={lyricSystem === value}
+            >{label}</button>
+          {/each}
+        </div>
+        <p class="text-xs text-sr-faint">
+          {#if showChords}
+            Chord symbols above the top staff{lyricSystem ? ", " : "."}
+          {/if}
+          {#if lyricSystem === "movable"}
+            Movable do under each part: do is the tonic, so a tune reads the same in
+            every key.
+          {:else if lyricSystem === "fixed"}
+            Fixed do under each part: C is do whatever the key.
+          {:else if lyricSystem === "names"}
+            The note names under each part.
+          {:else if !showChords}
+            Clean: the same exercise, printed for sight-reading.
+          {/if}
+        </p>
+      </div>
+
+      <div class="space-y-2">
+        <p class="sr-label">Cursor</p>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
+          {#each cursorModes as mode}
+            <button
+              class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
+              on:click={() => (cursorMode = mode)}
+              aria-pressed={cursorMode === mode}
+            >{cursorModeLabels[mode]}</button>
+          {/each}
+        </div>
+        <p class="text-xs text-sr-faint">
+          {cursorMode === "off"
+            ? "No cursor during playback."
+            : cursorMode === "smooth"
+              ? "Travels along with the music."
+              : cursorMode === "beat"
+                ? "Steps on every beat."
+                : "Lands on each note and waits there."}
+        </p>
+      </div>
+      </div>
+      </div>
+      {/if}
+    </section>
   </div>
 
-  <!-- The music: beside the settings on a wide screen. -->
+  <!-- The music (all full screen keeps). -->
   <div class="wide-right focus-keep w-full">
     <div class="focus-score relative w-full" class:min-h-40={isGenerating}>
       <!-- Kept in the DOM even while hidden: renderAbc finds it by id, and it
