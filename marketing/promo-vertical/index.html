@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1920" />
+<!-- Written by ../promo-video/build.py: edit there, not here. -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+body { font-family: "Nunito", sans-serif; color: #15213a; }
+#root { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+#frame { position: absolute; border-radius: 34px; overflow: hidden; background: #ffffff; box-shadow: 0 34px 80px rgba(21,33,58,0.22); border: 3px solid #ffffff; opacity: 0; }
+.vw { position: absolute; inset: 0; opacity: 0; }
+.vw video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The tempo shot: zoomed on the header, where the BPM steps. */
+#vw-tempo video { transform: scale(2.4); transform-origin: 97% 4%; }
+#plain { position: absolute; inset: 0; z-index: 5; background: #eef0f3; }
+#plain img { position: absolute; filter: grayscale(1) contrast(0.92) brightness(1.03); opacity: 0.9; }
+#tick { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: #9aa3b2; opacity: 0.55; }
+#flash { position: absolute; inset: 0; z-index: 6; background: #ffffff; opacity: 0; pointer-events: none; }
+.pill { position: absolute; z-index: 8; font-family: "Fredoka", sans-serif; font-weight: 600; padding: 12px 30px; border-radius: 999px; opacity: 0; box-shadow: 0 12px 28px rgba(21,33,58,0.16); white-space: nowrap; }
+.cap { position: absolute; z-index: 9; left: 0; right: 0; text-align: center; font-family: "Fredoka", sans-serif; font-weight: 600; color: #6f7a8f; opacity: 0; }
+.cw { display: inline; }
+#tv { position: absolute; z-index: 7; opacity: 0; }
+#tv .bezel { position: absolute; inset: 0; border-radius: 26px; background: #1b2233; box-shadow: 0 40px 90px rgba(21,33,58,0.35); }
+#tv .screen { position: absolute; overflow: hidden; border-radius: 10px; background: #000; }
+#tv .screen video { width: 100%; height: 100%; object-fit: cover; display: block; }
+#tv .stand { position: absolute; background: #1b2233; border-radius: 8px; }
+#close { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; }
+.close-mark { display: inline-flex; align-items: baseline; gap: 0.1em; }
+.close-mark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 600; color: #15213a; line-height: 1; }
+.close-line { font-family: "Fredoka", sans-serif; font-weight: 700; color: #2f6fe0; }
+.url-pill { font-family: "Fredoka", sans-serif; font-weight: 600; color: #15213a; background: #ffffff; border-radius: 999px; border: 2px solid #d8e2f1; box-shadow: 0 16px 34px rgba(21,33,58,0.12); }
+
+#frame { left: 40px; top: 560px; width: 1000px; height: 563px; }
+#plain img { left: 40px; top: 560px; width: 1000px; height: 563px; border-radius: 34px; }
+#tick { left: 523px; top: 330px; }
+.pill { left: 60px; top: 470px; font-size: 38px; }
+.cap { top: 1240px; padding: 0 70px; font-size: 64px; line-height: 1.18; }
+#tv { left: 40px; top: 520px; width: 1000px; height: 680px; }
+#tv .bezel { height: 600px; }
+#tv .screen { left: 20px; top: 20px; width: 960px; height: 540px; }
+#tv .stand { left: 460px; top: 600px; width: 80px; height: 50px; }
+.close-mark { font-size: 96px; } .close-mark .rest { font-size: 96px; }
+#close { gap: 44px; padding-bottom: 120px; }
+.close-line { font-size: 66px; }
+.url-pill { font-size: 48px; padding: 18px 46px; }
+
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="53" data-width="1080" data-height="1920">
+  <div class="blob" style="width:620px;height:620px;left:-180px;top:-200px;background:#c9e4ff"></div>
+  <div class="blob" style="width:520px;height:520px;right:-160px;bottom:-140px;background:#ffd3bf"></div>
+  <div class="blob" style="width:360px;height:360px;right:12%;top:-120px;background:#bdebd9"></div>
+  <div id="frame"><div class="vw" id="vw-open"><video id="v-open" class="clip" data-start="5.650" data-duration="4.850" data-media-start="0" data-track-index="10" src="assets/footage/cut-open.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-ball"><video id="v-ball" class="clip" data-start="10.350" data-duration="5.350" data-media-start="0" data-track-index="11" src="assets/footage/cut-ball.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-rock"><video id="v-rock" class="clip" data-start="15.550" data-duration="2.010" data-media-start="0" data-track-index="12" src="assets/footage/cut-rock.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-soul"><video id="v-soul" class="clip" data-start="17.410" data-duration="0.730" data-media-start="0" data-track-index="13" src="assets/footage/cut-soul.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-cumbia"><video id="v-cumbia" class="clip" data-start="17.990" data-duration="1.230" data-media-start="0" data-track-index="14" src="assets/footage/cut-cumbia.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-trap"><video id="v-trap" class="clip" data-start="19.070" data-duration="1.430" data-media-start="0" data-track-index="15" src="assets/footage/cut-trap.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-band"><video id="v-band" class="clip" data-start="20.350" data-duration="5.950" data-media-start="0" data-track-index="16" src="assets/footage/cut-band.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-tempo"><video id="v-tempo" class="clip" data-start="26.150" data-duration="3.300" data-media-start="0" data-track-index="17" src="assets/footage/cut-tempo.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-syll"><video id="v-syll" class="clip" data-start="29.300" data-duration="3.750" data-media-start="0" data-track-index="18" src="assets/footage/cut-syll.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-solf"><video id="v-solf" class="clip" data-start="32.900" data-duration="3.750" data-media-start="0" data-track-index="19" src="assets/footage/cut-solf.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-export"><video id="v-export" class="clip" data-start="39.120" data-duration="2.930" data-media-start="0" data-track-index="20" src="assets/footage/cut-export.mp4" muted playsinline preload="auto"></video></div><div class="vw" id="vw-finish"><video id="v-finish" class="clip" data-start="41.900" data-duration="4.850" data-media-start="0" data-track-index="21" src="assets/footage/cut-finish.mp4" muted playsinline preload="auto"></video></div></div>
+  <div id="tv"><div class="bezel"></div><div class="screen"><video id="v-board" class="clip" data-start="36.500" data-duration="2.770" data-media-start="0" data-track-index="30" src="assets/footage/cut-board.mp4" muted playsinline preload="auto"></video></div><div class="stand"></div></div>
+  <span class="pill" id="pill-open" style="background:#ffd3bf;color:#5a2310">Play-along videos</span><span class="pill" id="pill-rock" style="background:#c9e4ff;color:#0e3563">Rock</span><span class="pill" id="pill-soul" style="background:#ffd3bf;color:#5a2310">Soul</span><span class="pill" id="pill-cumbia" style="background:#bdebd9;color:#0f3b2c">Cumbia</span><span class="pill" id="pill-trap" style="background:#ffefa8;color:#5c4a00">Trap</span><span class="pill" id="pill-band" style="background:#bdebd9;color:#0f3b2c">Drums · bass · guitar</span><span class="pill" id="pill-tempo" style="background:#c9e4ff;color:#0e3563">Half speed to 150%</span><span class="pill" id="pill-syll" style="background:#ffefa8;color:#5c4a00">Rhythm syllables</span><span class="pill" id="pill-solf" style="background:#ffd3bf;color:#5a2310">Solfège</span><span class="pill" id="pill-board" style="background:#c9e4ff;color:#0e3563">Full screen for the class</span><span class="pill" id="pill-export" style="background:#bdebd9;color:#0f3b2c">Export a video</span>
+  <div id="plain"><img src="assets/footage/plain.png" alt="" /><div id="tick"></div></div>
+  <div id="flash"></div>
+  <div id="close">
+    <div class="close-mark" id="close-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">SightReading</span></div>
+    <p class="close-line" id="close-line">Practice real music.</p>
+    <span class="url-pill" id="close-url">abcsightreading.com</span>
+  </div>
+  <p class="cap" id="cap0"><span class="cw" id="cw0-0">Sight</span> <span class="cw" id="cw0-1">reading</span> <span class="cw" id="cw0-2">doesn't</span> <span class="cw" id="cw0-3">have</span> <span class="cw" id="cw0-4">to</span> <span class="cw" id="cw0-5">sound</span> <span class="cw" id="cw0-6">like</span> <span class="cw" id="cw0-7">a</span> <span class="cw" id="cw0-8">metronome</span> <span class="cw" id="cw0-9">in</span> <span class="cw" id="cw0-10">an</span> <span class="cw" id="cw0-11">empty</span> <span class="cw" id="cw0-12">room.</span> </p><p class="cap" id="cap1"><span class="cw" id="cw1-0">abcSightReading</span> <span class="cw" id="cw1-1">turns</span> <span class="cw" id="cw1-2">any</span> <span class="cw" id="cw1-3">exercise</span> <span class="cw" id="cw1-4">into</span> <span class="cw" id="cw1-5">a</span> <span class="cw" id="cw1-6">play-along</span> <span class="cw" id="cw1-7">video.</span> </p><p class="cap" id="cap2"><span class="cw" id="cw2-0">A</span> <span class="cw" id="cw2-1">real</span> <span class="cw" id="cw2-2">groove,</span> <span class="cw" id="cw2-3">a</span> <span class="cw" id="cw2-4">bouncing</span> <span class="cw" id="cw2-5">ball,</span> <span class="cw" id="cw2-6">and</span> <span class="cw" id="cw2-7">the</span> <span class="cw" id="cw2-8">next</span> <span class="cw" id="cw2-9">bar</span> <span class="cw" id="cw2-10">always</span> <span class="cw" id="cw2-11">waiting</span> <span class="cw" id="cw2-12">below.</span> </p><p class="cap" id="cap3"><span class="cw" id="cw3-0">Clap</span> <span class="cw" id="cw3-1">the</span> <span class="cw" id="cw3-2">rhythm</span> <span class="cw" id="cw3-3">over</span> <span class="cw" id="cw3-4">rock,</span> <span class="cw" id="cw3-5">soul,</span> <span class="cw" id="cw3-6">cumbia,</span> <span class="cw" id="cw3-7">or</span> <span class="cw" id="cw3-8">even</span> <span class="cw" id="cw3-9">trap.</span> </p><p class="cap" id="cap4"><span class="cw" id="cw4-0">Or</span> <span class="cw" id="cw4-1">sing</span> <span class="cw" id="cw4-2">it:</span> <span class="cw" id="cw4-3">your</span> <span class="cw" id="cw4-4">melody,</span> <span class="cw" id="cw4-5">in</span> <span class="cw" id="cw4-6">your</span> <span class="cw" id="cw4-7">key,</span> <span class="cw" id="cw4-8">with</span> <span class="cw" id="cw4-9">a</span> <span class="cw" id="cw4-10">band</span> <span class="cw" id="cw4-11">behind</span> <span class="cw" id="cw4-12">you.</span> </p><p class="cap" id="cap5"><span class="cw" id="cw5-0">Slow</span> <span class="cw" id="cw5-1">it</span> <span class="cw" id="cw5-2">down</span> <span class="cw" id="cw5-3">or</span> <span class="cw" id="cw5-4">speed</span> <span class="cw" id="cw5-5">it</span> <span class="cw" id="cw5-6">up.</span> </p><p class="cap" id="cap6"><span class="cw" id="cw6-0">Counting,</span> <span class="cw" id="cw6-1">Kodály,</span> <span class="cw" id="cw6-2">or</span> <span class="cw" id="cw6-3">your</span> <span class="cw" id="cw6-4">own</span> <span class="cw" id="cw6-5">syllables.</span> <span class="cw" id="cw6-6">Movable</span> <span class="cw" id="cw6-7">do,</span> <span class="cw" id="cw6-8">fixed</span> <span class="cw" id="cw6-9">do,</span> <span class="cw" id="cw6-10">or</span> <span class="cw" id="cw6-11">note</span> <span class="cw" id="cw6-12">names.</span> </p><p class="cap" id="cap7"><span class="cw" id="cw7-0">Put</span> <span class="cw" id="cw7-1">it</span> <span class="cw" id="cw7-2">on</span> <span class="cw" id="cw7-3">the</span> <span class="cw" id="cw7-4">board</span> <span class="cw" id="cw7-5">for</span> <span class="cw" id="cw7-6">the</span> <span class="cw" id="cw7-7">whole</span> <span class="cw" id="cw7-8">class,</span> <span class="cw" id="cw7-9">or</span> <span class="cw" id="cw7-10">export</span> <span class="cw" id="cw7-11">it</span> <span class="cw" id="cw7-12">and</span> <span class="cw" id="cw7-13">share</span> <span class="cw" id="cw7-14">it.</span> </p><p class="cap" id="cap8"><span class="cw" id="cw8-0">Sight</span> <span class="cw" id="cw8-1">reading</span> <span class="cw" id="cw8-2">music</span> <span class="cw" id="cw8-3">can</span> <span class="cw" id="cw8-4">actually</span> <span class="cw" id="cw8-5">sound</span> <span class="cw" id="cw8-6">like,</span> <span class="cw" id="cw8-7">well,</span> <span class="cw" id="cw8-8">music.</span> </p><p class="cap" id="cap9"><span class="cw" id="cw9-0">abcSightReading.</span> <span class="cw" id="cw9-1">Practice</span> <span class="cw" id="cw9-2">real</span> <span class="cw" id="cw9-3">music.</span> </p>
+  <audio id="mix" data-start="0" data-duration="53" data-track-index="1" src="assets/music/promo-mix.m4a" data-volume="1"></audio>
+</div>
+<script>
+window.__timelines = window.__timelines || {};
+var tl = gsap.timeline({ paused: true });
+tl.set("#vw-open", { opacity: 1 }, 5.650); tl.fromTo("#vw-open", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 5.650); tl.set("#vw-open", { opacity: 0 }, 10.400);
+tl.set("#vw-ball", { opacity: 1 }, 10.350); tl.fromTo("#vw-ball", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 10.350); tl.set("#vw-ball", { opacity: 0 }, 15.600);
+tl.set("#vw-rock", { opacity: 1 }, 15.550); tl.fromTo("#vw-rock", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 15.550); tl.set("#vw-rock", { opacity: 0 }, 17.460);
+tl.set("#vw-soul", { opacity: 1 }, 17.410); tl.fromTo("#vw-soul", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 17.410); tl.set("#vw-soul", { opacity: 0 }, 18.040);
+tl.set("#vw-cumbia", { opacity: 1 }, 17.990); tl.fromTo("#vw-cumbia", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 17.990); tl.set("#vw-cumbia", { opacity: 0 }, 19.120);
+tl.set("#vw-trap", { opacity: 1 }, 19.070); tl.fromTo("#vw-trap", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 19.070); tl.set("#vw-trap", { opacity: 0 }, 20.400);
+tl.set("#vw-band", { opacity: 1 }, 20.350); tl.fromTo("#vw-band", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 20.350); tl.set("#vw-band", { opacity: 0 }, 26.200);
+tl.set("#vw-tempo", { opacity: 1 }, 26.150); tl.fromTo("#vw-tempo", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 26.150); tl.set("#vw-tempo", { opacity: 0 }, 29.350);
+tl.set("#vw-syll", { opacity: 1 }, 29.300); tl.fromTo("#vw-syll", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 29.300); tl.set("#vw-syll", { opacity: 0 }, 32.950);
+tl.set("#vw-solf", { opacity: 1 }, 32.900); tl.fromTo("#vw-solf", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 32.900); tl.set("#vw-solf", { opacity: 0 }, 36.550);
+tl.set("#vw-export", { opacity: 1 }, 39.120); tl.fromTo("#vw-export", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 39.120); tl.set("#vw-export", { opacity: 0 }, 41.950);
+tl.set("#vw-finish", { opacity: 1 }, 41.900); tl.fromTo("#vw-finish", { scale: 1.035 }, { scale: 1, duration: 0.5, ease: "power2.out" }, 41.900); tl.set("#vw-finish", { opacity: 0 }, 46.650);
+tl.set("#tv", { opacity: 1 }, 36.500); tl.fromTo("#tv", { y: 60, scale: 0.92 }, { y: 0, scale: 1, duration: 0.6, ease: "back.out(1.6)" }, 36.500); tl.set("#tv", { opacity: 0 }, 39.120);
+tl.set("#frame", { opacity: 0 }, 36.500); tl.set("#frame", { opacity: 1 }, 39.120);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 0.821);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 1.425);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 2.028);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 2.632);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 3.236);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 3.839);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 4.443);
+tl.fromTo("#tick", { scale: 1.35, opacity: 1 }, { scale: 1, opacity: 0.55, duration: 0.25, ease: "power2.out" }, 5.046);
+tl.to("#plain", { opacity: 0, scale: 1.06, duration: 0.25, ease: "power2.in" }, 5.530);
+tl.fromTo("#flash", { opacity: 0.85 }, { opacity: 0, duration: 0.45, ease: "power2.out" }, 5.650);
+tl.fromTo("#frame", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.55, ease: "back.out(1.5)" }, 5.650);
+tl.to("#frame", { opacity: 0, scale: 0.94, duration: 0.35, ease: "power2.in" }, 46.550);
+tl.fromTo("#pill-open", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 5.730); tl.to("#pill-open", { opacity: 0, duration: 0.15 }, 10.250);
+tl.fromTo("#pill-rock", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 15.630); tl.to("#pill-rock", { opacity: 0, duration: 0.15 }, 17.310);
+tl.fromTo("#pill-soul", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 17.490); tl.to("#pill-soul", { opacity: 0, duration: 0.15 }, 17.890);
+tl.fromTo("#pill-cumbia", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 18.070); tl.to("#pill-cumbia", { opacity: 0, duration: 0.15 }, 18.970);
+tl.fromTo("#pill-trap", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 19.150); tl.to("#pill-trap", { opacity: 0, duration: 0.15 }, 20.250);
+tl.fromTo("#pill-band", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 20.430); tl.to("#pill-band", { opacity: 0, duration: 0.15 }, 26.050);
+tl.fromTo("#pill-tempo", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 26.230); tl.to("#pill-tempo", { opacity: 0, duration: 0.15 }, 29.200);
+tl.fromTo("#pill-syll", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 29.380); tl.to("#pill-syll", { opacity: 0, duration: 0.15 }, 32.800);
+tl.fromTo("#pill-solf", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 32.980); tl.to("#pill-solf", { opacity: 0, duration: 0.15 }, 36.400);
+tl.fromTo("#pill-board", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 36.580); tl.to("#pill-board", { opacity: 0, duration: 0.15 }, 39.020);
+tl.fromTo("#pill-export", { opacity: 0, y: 18, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.3, ease: "back.out(2)" }, 39.200); tl.to("#pill-export", { opacity: 0, duration: 0.15 }, 41.800);
+tl.fromTo("#cap0", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 0.550);
+tl.to("#cap0", { opacity: 0, duration: 0.2 }, 5.910);
+tl.to("#cw0-0", { color: "#15213a", duration: 0.12 }, 0.690);
+tl.to("#cw0-1", { color: "#15213a", duration: 0.12 }, 1.290);
+tl.to("#cw0-2", { color: "#15213a", duration: 0.12 }, 1.510);
+tl.to("#cw0-3", { color: "#15213a", duration: 0.12 }, 1.830);
+tl.to("#cw0-4", { color: "#15213a", duration: 0.12 }, 2.150);
+tl.to("#cw0-5", { color: "#15213a", duration: 0.12 }, 2.410);
+tl.to("#cw0-6", { color: "#15213a", duration: 0.12 }, 2.690);
+tl.to("#cw0-7", { color: "#15213a", duration: 0.12 }, 2.970);
+tl.to("#cw0-8", { color: "#15213a", duration: 0.12 }, 3.230);
+tl.to("#cw0-9", { color: "#15213a", duration: 0.12 }, 3.650);
+tl.to("#cw0-10", { color: "#15213a", duration: 0.12 }, 3.830);
+tl.to("#cw0-11", { color: "#15213a", duration: 0.12 }, 3.990);
+tl.to("#cw0-12", { color: "#15213a", duration: 0.12 }, 4.230);
+tl.fromTo("#cap1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 6.000);
+tl.to("#cap1", { opacity: 0, duration: 0.2 }, 10.500);
+tl.to("#cw1-0", { color: "#15213a", duration: 0.12 }, 6.140);
+tl.to("#cw1-1", { color: "#15213a", duration: 0.12 }, 6.574);
+tl.to("#cw1-2", { color: "#15213a", duration: 0.12 }, 7.009);
+tl.to("#cw1-3", { color: "#15213a", duration: 0.12 }, 7.443);
+tl.to("#cw1-4", { color: "#15213a", duration: 0.12 }, 7.877);
+tl.to("#cw1-5", { color: "#15213a", duration: 0.12 }, 8.311);
+tl.to("#cw1-6", { color: "#15213a", duration: 0.12 }, 8.746);
+tl.to("#cw1-7", { color: "#15213a", duration: 0.12 }, 9.180);
+tl.fromTo("#cap2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 10.550);
+tl.to("#cap2", { opacity: 0, duration: 0.2 }, 15.700);
+tl.to("#cw2-0", { color: "#15213a", duration: 0.12 }, 10.690);
+tl.to("#cw2-1", { color: "#15213a", duration: 0.12 }, 10.930);
+tl.to("#cw2-2", { color: "#15213a", duration: 0.12 }, 11.170);
+tl.to("#cw2-3", { color: "#15213a", duration: 0.12 }, 11.930);
+tl.to("#cw2-4", { color: "#15213a", duration: 0.12 }, 12.050);
+tl.to("#cw2-5", { color: "#15213a", duration: 0.12 }, 12.350);
+tl.to("#cw2-6", { color: "#15213a", duration: 0.12 }, 13.110);
+tl.to("#cw2-7", { color: "#15213a", duration: 0.12 }, 13.230);
+tl.to("#cw2-8", { color: "#15213a", duration: 0.12 }, 13.370);
+tl.to("#cw2-9", { color: "#15213a", duration: 0.12 }, 13.570);
+tl.to("#cw2-10", { color: "#15213a", duration: 0.12 }, 13.830);
+tl.to("#cw2-11", { color: "#15213a", duration: 0.12 }, 14.310);
+tl.to("#cw2-12", { color: "#15213a", duration: 0.12 }, 14.550);
+tl.fromTo("#cap3", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 15.750);
+tl.to("#cap3", { opacity: 0, duration: 0.2 }, 20.390);
+tl.to("#cw3-0", { color: "#15213a", duration: 0.12 }, 15.890);
+tl.to("#cw3-1", { color: "#15213a", duration: 0.12 }, 16.010);
+tl.to("#cw3-2", { color: "#15213a", duration: 0.12 }, 16.270);
+tl.to("#cw3-3", { color: "#15213a", duration: 0.12 }, 16.450);
+tl.to("#cw3-4", { color: "#15213a", duration: 0.12 }, 16.790);
+tl.to("#cw3-5", { color: "#15213a", duration: 0.12 }, 17.530);
+tl.to("#cw3-6", { color: "#15213a", duration: 0.12 }, 18.110);
+tl.to("#cw3-7", { color: "#15213a", duration: 0.12 }, 18.710);
+tl.to("#cw3-8", { color: "#15213a", duration: 0.12 }, 18.890);
+tl.to("#cw3-9", { color: "#15213a", duration: 0.12 }, 19.190);
+tl.fromTo("#cap4", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 20.600);
+tl.to("#cap4", { opacity: 0, duration: 0.2 }, 26.400);
+tl.to("#cw4-0", { color: "#15213a", duration: 0.12 }, 20.740);
+tl.to("#cw4-1", { color: "#15213a", duration: 0.12 }, 20.980);
+tl.to("#cw4-2", { color: "#15213a", duration: 0.12 }, 21.180);
+tl.to("#cw4-3", { color: "#15213a", duration: 0.12 }, 21.700);
+tl.to("#cw4-4", { color: "#15213a", duration: 0.12 }, 22.020);
+tl.to("#cw4-5", { color: "#15213a", duration: 0.12 }, 22.500);
+tl.to("#cw4-6", { color: "#15213a", duration: 0.12 }, 23.020);
+tl.to("#cw4-7", { color: "#15213a", duration: 0.12 }, 23.400);
+tl.to("#cw4-8", { color: "#15213a", duration: 0.12 }, 23.720);
+tl.to("#cw4-9", { color: "#15213a", duration: 0.12 }, 24.040);
+tl.to("#cw4-10", { color: "#15213a", duration: 0.12 }, 24.240);
+tl.to("#cw4-11", { color: "#15213a", duration: 0.12 }, 24.400);
+tl.to("#cw4-12", { color: "#15213a", duration: 0.12 }, 24.780);
+tl.fromTo("#cap5", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 26.450);
+tl.to("#cap5", { opacity: 0, duration: 0.2 }, 29.500);
+tl.to("#cw5-0", { color: "#15213a", duration: 0.12 }, 26.590);
+tl.to("#cw5-1", { color: "#15213a", duration: 0.12 }, 26.890);
+tl.to("#cw5-2", { color: "#15213a", duration: 0.12 }, 27.090);
+tl.to("#cw5-3", { color: "#15213a", duration: 0.12 }, 27.450);
+tl.to("#cw5-4", { color: "#15213a", duration: 0.12 }, 27.710);
+tl.to("#cw5-5", { color: "#15213a", duration: 0.12 }, 27.910);
+tl.to("#cw5-6", { color: "#15213a", duration: 0.12 }, 28.110);
+tl.fromTo("#cap6", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 29.550);
+tl.to("#cap6", { opacity: 0, duration: 0.2 }, 36.700);
+tl.to("#cw6-0", { color: "#15213a", duration: 0.12 }, 29.690);
+tl.to("#cw6-1", { color: "#15213a", duration: 0.12 }, 30.610);
+tl.to("#cw6-2", { color: "#15213a", duration: 0.12 }, 31.370);
+tl.to("#cw6-3", { color: "#15213a", duration: 0.12 }, 31.530);
+tl.to("#cw6-4", { color: "#15213a", duration: 0.12 }, 31.690);
+tl.to("#cw6-5", { color: "#15213a", duration: 0.12 }, 31.890);
+tl.to("#cw6-6", { color: "#15213a", duration: 0.12 }, 33.050);
+tl.to("#cw6-7", { color: "#15213a", duration: 0.12 }, 33.430);
+tl.to("#cw6-8", { color: "#15213a", duration: 0.12 }, 34.210);
+tl.to("#cw6-9", { color: "#15213a", duration: 0.12 }, 34.470);
+tl.to("#cw6-10", { color: "#15213a", duration: 0.12 }, 35.130);
+tl.to("#cw6-11", { color: "#15213a", duration: 0.12 }, 35.290);
+tl.to("#cw6-12", { color: "#15213a", duration: 0.12 }, 35.510);
+tl.fromTo("#cap7", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 36.750);
+tl.to("#cap7", { opacity: 0, duration: 0.2 }, 42.100);
+tl.to("#cw7-0", { color: "#15213a", duration: 0.12 }, 36.890);
+tl.to("#cw7-1", { color: "#15213a", duration: 0.12 }, 37.030);
+tl.to("#cw7-2", { color: "#15213a", duration: 0.12 }, 37.170);
+tl.to("#cw7-3", { color: "#15213a", duration: 0.12 }, 37.310);
+tl.to("#cw7-4", { color: "#15213a", duration: 0.12 }, 37.470);
+tl.to("#cw7-5", { color: "#15213a", duration: 0.12 }, 37.650);
+tl.to("#cw7-6", { color: "#15213a", duration: 0.12 }, 37.850);
+tl.to("#cw7-7", { color: "#15213a", duration: 0.12 }, 38.050);
+tl.to("#cw7-8", { color: "#15213a", duration: 0.12 }, 38.210);
+tl.to("#cw7-9", { color: "#15213a", duration: 0.12 }, 38.710);
+tl.to("#cw7-10", { color: "#15213a", duration: 0.12 }, 39.270);
+tl.to("#cw7-11", { color: "#15213a", duration: 0.12 }, 39.690);
+tl.to("#cw7-12", { color: "#15213a", duration: 0.12 }, 39.870);
+tl.to("#cw7-13", { color: "#15213a", duration: 0.12 }, 40.030);
+tl.to("#cw7-14", { color: "#15213a", duration: 0.12 }, 40.290);
+tl.fromTo("#cap8", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 42.150);
+tl.to("#cap8", { opacity: 0, duration: 0.2 }, 46.850);
+tl.to("#cw8-0", { color: "#15213a", duration: 0.12 }, 42.290);
+tl.to("#cw8-1", { color: "#15213a", duration: 0.12 }, 42.430);
+tl.to("#cw8-2", { color: "#15213a", duration: 0.12 }, 42.610);
+tl.to("#cw8-3", { color: "#15213a", duration: 0.12 }, 42.930);
+tl.to("#cw8-4", { color: "#15213a", duration: 0.12 }, 43.250);
+tl.to("#cw8-5", { color: "#15213a", duration: 0.12 }, 43.730);
+tl.to("#cw8-6", { color: "#15213a", duration: 0.12 }, 44.130);
+tl.to("#cw8-7", { color: "#15213a", duration: 0.12 }, 44.610);
+tl.to("#cw8-8", { color: "#15213a", duration: 0.12 }, 45.470);
+tl.set("#close", { opacity: 1 }, 46.600);
+tl.fromTo("#close-mark", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.7)" }, 46.750);
+tl.fromTo("#close-line", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }, 48.300);
+tl.fromTo("#close-url", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2)" }, 49.680);
+window.__timelines["main"] = tl;
+</script>
+</body>
+</html>

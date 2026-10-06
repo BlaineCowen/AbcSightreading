@@ -1,0 +1,10 @@
+node_modules/
+renders/
+snapshots/
+.hyperframes/
+.thumbnails/
+.waveform-cache/
+.downloads/
+assets/footage/
+assets/music/
+assets/vo/*.wav
