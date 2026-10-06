@@ -33,6 +33,69 @@ export interface BarImage {
   staffAt: number;
   /** The top of the notes - stems and beams, which point up - as a fraction of the height: the ball lands there. */
   notesTopAt: number;
+  /** The bottom of the staff, as a fraction of the height. */
+  staffBottomAt: number;
+  /**
+   * The bar's dynamics, drawn by the scene rather than in the picture: `x`
+   * where the note they belong to is (a fraction of the width), `first`
+   * when that is the bar's first note.
+   */
+  dynamics: { text: string; x: number; first: boolean }[];
+}
+
+/** The dynamics abcjs draws (decorations written !mf! and so on). */
+const DYNAMICS = new Set(["pppp", "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff", "ffff", "sfz"]);
+
+/**
+ * The exercise without its dynamics, and where they were: the bar (from 0)
+ * and the note or rest in it (from 0) each belongs to. abcjs draws a dynamic
+ * under the staff, or over it when there are words under it, so a bar with
+ * one framed taller and every bar was drawn smaller to fit; drawn by the
+ * scene instead, the music keeps its size.
+ */
+export function extractDynamics(abc: string): { abc: string; marks: { bar: number; note: number; text: string }[] } {
+  const marks: { bar: number; note: number; text: string }[] = [];
+  const lines = abc.split("\n");
+  let inBody = false;
+  let bar = 0;
+  let note = 0;
+  const out = lines.map((line) => {
+    if (!inBody) {
+      if (/^K:/.test(line)) inBody = true;
+      return line;
+    }
+    // Header-like lines in the body (w:, %%, V:) carry no notes.
+    if (/^([A-Za-z]:|%)/.test(line)) return line;
+    let kept = "";
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        const end = line.indexOf('"', i + 1);
+        const stop = end < 0 ? line.length - 1 : end;
+        kept += line.slice(i, stop + 1);
+        i = stop;
+      } else if (ch === "!") {
+        const end = line.indexOf("!", i + 1);
+        const stop = end < 0 ? line.length - 1 : end;
+        const name = line.slice(i + 1, stop);
+        if (DYNAMICS.has(name)) marks.push({ bar, note, text: name });
+        else kept += line.slice(i, stop + 1);
+        i = stop;
+      } else if (ch === "|") {
+        kept += ch;
+        while (line[i + 1] === "|" || line[i + 1] === ":" || line[i + 1] === "]") kept += line[++i];
+        // Only a bar with something in it ends: a barline opening a line,
+        // after the last line's closing one, is not a new bar.
+        if (note > 0) bar++;
+        note = 0;
+      } else {
+        if (/[A-Ga-gzx]/.test(ch)) note++;
+        kept += ch;
+      }
+    }
+    return kept;
+  });
+  return { abc: out.join("\n"), marks };
 }
 
 export interface RenderedBars {
@@ -49,13 +112,10 @@ const PAD = 6;
  * or not they are showing: the frame is sized from the music and this room,
  * so turning them on fills it instead of rescaling the bar. Measured, the row
  * reaches 19-25 below the music; solfège used to take a bar from 1540 to
- * 1389 px wide on the 1080p canvas. And when the exercise has dynamics, a
- * row above as well: abcjs puts a dynamic under the staff, but moves it over
- * the staff when there are words under it, so turning solfège on grew the
- * top instead (1540 to 1247 px).
+ * 1389 px wide on the 1080p canvas. Dynamics are not drawn in the picture
+ * at all (extractDynamics): the scene draws them.
  */
 const WORDS_BELOW = 26;
-const WORDS_ABOVE = 26;
 
 /**
  * Draws `abc` one bar to a line in a hidden element and returns a picture a
@@ -67,7 +127,8 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
   host.style.cssText = `position:fixed;left:-20000px;top:0;width:${STAFF_WIDTH + 40}px;visibility:hidden;color:#000`;
   document.body.appendChild(host);
   try {
-    const visual = abcjs.renderAbc(host, withStretchedLines(abc), {
+    const { abc: plain, marks } = extractDynamics(abc);
+    const visual = abcjs.renderAbc(host, withStretchedLines(plain), {
       add_classes: true,
       staffwidth: STAFF_WIDTH,
       paddingleft: 0,
@@ -96,11 +157,7 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
     // Below: the music alone (no words) and room for a row of words under it,
     // never less than everything drawn, should the words need more.
     const music = lines.map((g, i) => musicBox(g) ?? boxes[i]);
-    const hasDynamics = lines.some((g) => g.querySelector(".abcjs-decoration"));
-    const above = Math.max(
-      ...boxes.map((b, i) => staffYs[i] - b.y),
-      ...(hasDynamics ? music.map((b, i) => staffYs[i] - b.y + WORDS_ABOVE) : []),
-    ) + PAD;
+    const above = Math.max(...boxes.map((b, i) => staffYs[i] - b.y)) + PAD;
     const below = Math.max(
       ...boxes.map((b, i) => b.y + b.height - staffYs[i]),
       ...music.map((b, i) => b.y + b.height - staffYs[i] + WORDS_BELOW),
@@ -119,6 +176,7 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
           }));
         const staff = staffExtent(lines[i]);
         const top = notesTop(lines[i]) ?? staffYs[i] - 20;
+        const staffBox = lines[i].querySelector<SVGGraphicsElement>(".abcjs-staff")?.getBBox();
         return {
           img,
           aspect: svgWidth / h,
@@ -127,6 +185,10 @@ export async function renderBars(abc: string, bpm: number, expectedBars: number)
           musicEnd: (staff?.end ?? svgWidth) / svgWidth,
           staffAt: above / h,
           notesTopAt: Math.max(0, (top - y) / h),
+          staffBottomAt: staffBox ? (staffBox.y + staffBox.height - y) / h : (above + 12) / h,
+          dynamics: marks
+            .filter((m) => m.bar === i)
+            .map((m) => ({ text: m.text, x: notes[m.note]?.x ?? (staff?.start ?? 0) / svgWidth, first: m.note === 0 })),
         };
       }),
     );

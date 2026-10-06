@@ -245,6 +245,21 @@ function card(g: CanvasRenderingContext2D, which: "top" | "bottom", barIndex: nu
 
   g.globalAlpha = active || !s.playing ? 1 : 0.8;
   g.drawImage(bar.img, dx, dy, dw, dh);
+  // Dynamics, drawn here so the bar's picture keeps its size (bar-images.ts):
+  // on a bar's first note, just before the staff; on a later note, under it.
+  for (const d of bar.dynamics ?? []) {
+    g.fillStyle = "#15213a";
+    g.font = `italic 700 ${Math.round(dh * 0.16)}px Georgia, "Times New Roman", serif`;
+    g.textBaseline = "middle";
+    if (d.first) {
+      g.textAlign = "right";
+      g.fillText(d.text, dx + bar.musicStart * dw - 14, staffY);
+    } else {
+      g.textAlign = "center";
+      g.textBaseline = "top";
+      g.fillText(d.text, dx + d.x * dw, dy + bar.staffBottomAt * dh + 6);
+    }
+  }
   g.globalAlpha = 1;
 
   if (ball) {

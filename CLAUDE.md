@@ -366,9 +366,12 @@ The bars are one abcjs render at a bar a line, each line cut out as its own SVG
 image (`bar-images.ts`), drawn on one 1920x1080 canvas, so full screen and the
 exported video are the same picture. Each picture holds only its own line,
 and is framed from the music with a row always kept below it for solfège or
-syllables (and one above when the exercise has dynamics, which abcjs moves
-over the staff once there are words under it), so turning labels on or off
-in the video never rescales the music. Export records that canvas and the
+syllables, so turning labels on or off in the video never rescales the
+music. Dynamics are not in the pictures at all (`extractDynamics`, tests
+`play-along-dynamics.test.ts`): abcjs put them under the staff, or over it
+once there were words under it, and every bar's frame grew to hold them, so
+the music was drawn small. The scene draws each one: on a bar's first note
+just before the staff, on a later note under it. Export records that canvas and the
 mix with MediaRecorder in real time - MP4 where the browser can, else WebM - and
 cancels itself if the tab is hidden, since a hidden tab gets no frames.
 
