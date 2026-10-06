@@ -53,3 +53,7 @@ src/generated/
 # REAPER's own backups of the guitar template
 scripts/guitar/Backups/
 scripts/guitar/.render/
+.env*
+
+# Grade runs pulled from the store (scripts/grade-runs.ts)
+grade-runs/

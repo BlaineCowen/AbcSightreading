@@ -620,7 +620,14 @@ listens the tuner store's `micHeld` keeps a Tools card from switching the
 microphone off; `pitchHistory` keeps 3 minutes, enough for a long exercise.
 
 Runs can be saved for review: on the dev server, on every preview deployment
-(Layout's `data-preview`), or with `?gradeDebug=1`,
+(Layout's `data-preview`), or with `?gradeDebug=1`. On a preview the button
+is **Send this run**, with an optional note: the browser uploads the JSON and
+the recording straight into the private `grade-runs` Vercel Blob store
+(`/api/grade-runs` signs the uploads: signed in, never production; the store
+is connected to Preview and Development only), so a run can come from a
+school laptop; if sending fails it downloads instead. `bun run
+scripts/grade-runs.ts` lists what has been sent and `... pull [dir]` fetches
+one into `grade-runs/` (gitignored; the token is in .env.local). Otherwise
 the microphone is recorded over each run (a second stream with the tuner's
 own settings, `grade-recording.ts`, so the detection code is untouched) and
 the results have "Save this run": the recording, and a JSON of everything

@@ -74,7 +74,7 @@
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
-  import { saveGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
+  import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
   import { DETECT_LATENCY_MS } from "../lib/grade";
@@ -3690,11 +3690,10 @@
     const out = rec ? await rec.stop() : null;
     if (keep) gradeAudio = out;
   }
-  function saveGradeRunNow() {
+  function gradeRunData() {
     const t = tuner.get();
     const v = $gradeRunner;
-    saveGradeRun(
-      {
+    return {
         version: 1,
         savedAt: new Date().toISOString(),
         abc: originalTuneString,
@@ -3716,9 +3715,26 @@
         clapSettings: { input: t.gradeClapInput, who: t.gradeWho, click: t.gradeClapClick, micLatencyMs: t.clapLatencyMs },
         clapBlocks: gradeRunner.lastClapBlocks,
         userAgent: navigator.userAgent,
-      },
-      gradeAudio,
-    );
+    };
+  }
+  function saveGradeRunNow() {
+    saveGradeRun(gradeRunData(), gradeAudio);
+  }
+  /**
+   * On a preview deployment the run is sent to the grade-runs store
+   * (/api/grade-runs) instead of downloaded, so it can come from a school
+   * laptop; if that fails, it is downloaded after all.
+   */
+  const gradeSendOn = typeof document !== "undefined" && document.documentElement.hasAttribute("data-preview") && !import.meta.env.DEV;
+  async function sendGradeRunNow(note: string): Promise<string> {
+    try {
+      await sendGradeRun(gradeRunData(), gradeAudio, note);
+      return gradeAudio ? "Sent: the results and the recording." : "Sent (no recording was made).";
+    } catch (e) {
+      console.error("Sending the run failed:", e);
+      saveGradeRunNow();
+      return "Could not send, so it downloaded instead.";
+    }
   }
 
   /**
@@ -4169,7 +4185,8 @@
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
       detail={gradeDetail}
-      onSave={gradeDebugOn ? saveGradeRunNow : null}
+      onSave={gradeDebugOn && !gradeSendOn ? saveGradeRunNow : null}
+      onSend={gradeSendOn ? sendGradeRunNow : null}
       {rhythmOnly}
       onCheckTiming={checkClapTiming}
       {timingNote}

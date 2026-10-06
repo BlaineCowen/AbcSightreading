@@ -33,6 +33,24 @@
   export let onCheckTiming: (() => void) | null = null;
   /** What Check timing found, or is doing. */
   export let timingNote: string | null = null;
+  /** Sending the run for review (previews): its note, then what happened. Null hides it. */
+  export let onSend: ((note: string) => Promise<string>) | null = null;
+  let sendOpen = false;
+  let sendNote = "";
+  let sending = false;
+  let sentLine: string | null = null;
+  $: if (v.phase !== "results") {
+    sendOpen = false;
+    sentLine = null;
+  }
+  async function send() {
+    if (!onSend || sending) return;
+    sending = true;
+    sentLine = "Sending…";
+    sentLine = await onSend(sendNote);
+    sending = false;
+    sendOpen = false;
+  }
 
   const STRICT_LEVELS = Object.entries(STRICTNESS) as [Strictness, (typeof STRICTNESS)[Strictness]][];
   const CURSORS = [["off", "Off"], ["smooth", "Smooth"], ["beat", "Beat"], ["note", "Note"]] as const;
@@ -216,6 +234,23 @@
       </p>
     </div>
   {/if}
+  {#if (sendOpen || sentLine) && onSend}
+    <div class="mb-2 ml-auto w-fit max-w-full bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2 text-sm">
+      {#if sendOpen}
+        <label class="flex flex-col gap-1">
+          <span class="text-xs text-sr-muted">What was this run? (optional: who, how it went, chanting, click on…)</span>
+          <input class="sr-input text-sm px-3 py-1.5 rounded-lg border border-sr-hairline bg-sr-paper text-sr-ink w-80 max-w-full" bind:value={sendNote} placeholder="3rd period, chanting, a bit ragged" maxlength="80"
+            on:keydown={(e) => e.key === "Enter" && send()} />
+        </label>
+        <div class="flex gap-2 justify-end">
+          <button class="sr-btn-quiet text-xs" on:click={() => (sendOpen = false)}>Cancel</button>
+          <button class="sr-btn text-xs px-3 py-1.5" on:click={send} disabled={sending}>{sending ? "Sending…" : "Send"}</button>
+        </div>
+      {:else}
+        <p class="text-xs font-bold text-sr-ink-2" aria-live="polite">{sentLine}</p>
+      {/if}
+    </div>
+  {/if}
   {#if stuckOpen}
     <div class="mb-2 ml-auto w-fit bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-2 flex flex-col gap-1">
       <button class="sr-tok text-sm text-left" on:click={() => help("note")} title="The note then scores at most 50">Play this note</button>
@@ -302,6 +337,7 @@
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
       <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
       {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
+      {#if onSend}<button class="sr-btn-quiet text-xs shrink-0" on:click={() => { sendOpen = !sendOpen; sentLine = null; }} title="Send the results and the recording for review">Send this run</button>{/if}
     {:else if v.phase === "results" && claps}
       <div class="flex items-baseline gap-3 shrink-0">
         <span class="flex flex-col items-center leading-none"><span class="text-xl font-extrabold tabular-nums">{claps.rhythm}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Rhythm</span></span>
@@ -314,6 +350,7 @@
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
       <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
       {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
+      {#if onSend}<button class="sr-btn-quiet text-xs shrink-0" on:click={() => { sendOpen = !sendOpen; sentLine = null; }} title="Send the results and the recording for review">Send this run</button>{/if}
     {:else if v.phase === "results" && v.result}
       <span class="text-2xl shrink-0" aria-hidden="true">{skipped === 0 ? "✓" : "•"}</span>
       <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
@@ -323,6 +360,7 @@
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
       <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
       {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
+      {#if onSend}<button class="sr-btn-quiet text-xs shrink-0" on:click={() => { sendOpen = !sendOpen; sentLine = null; }} title="Send the results and the recording for review">Send this run</button>{/if}
     {/if}
     <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">
       <X size={16} />
