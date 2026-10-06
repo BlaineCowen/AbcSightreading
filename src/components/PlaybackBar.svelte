@@ -184,15 +184,14 @@
 
   $: if (!shareOpen) uncopied = null;
 
-  let exportOpen = false;
   let exportError: string | null = null;
-  $: if (!exportOpen) exportError = null;
+  $: if (!shareOpen) exportError = null;
 
   function runExport(item: (typeof exports)[number]) {
     exportError = null;
     try {
       item.run();
-      exportOpen = false;
+      shareOpen = false;
     } catch (error) {
       console.error(`Could not export ${item.label}:`, error);
       exportError = `Could not write the ${item.label} file.`;
@@ -200,7 +199,7 @@
   }
 
   function print() {
-    exportOpen = false;
+    shareOpen = false;
     onPrint();
   }
 
@@ -565,7 +564,8 @@
           </DropUp>
         </div>
       {/if}
-      <DropUp triggerClass={chipBtn} label="Share" title="Copy a link" bind:open={shareOpen} menuClass="min-w-[16rem]">
+      <!-- One menu for getting the exercise out: links, print, files (it was two side by side). -->
+      <DropUp triggerClass={chipBtn} label="Share" title="Share a link, print, or save as a file" bind:open={shareOpen} menuClass="min-w-[17rem]">
         <svelte:fragment slot="trigger">
           {#if copied}
             <Check size={14} class="text-sr-bar-on" /> Copied
@@ -598,42 +598,27 @@
             />
           </div>
         {/if}
+        <div class="my-1 border-t border-sr-bar-line" role="separator"></div>
+        <button class={menuItem} on:click={print}>
+          <span class="text-sm text-sr-bar-ink inline-flex items-center gap-1.5"><Printer size={13} /> Print / Save as PDF</span>
+          <span class="text-xs text-sr-bar-muted">Your browser's print dialog</span>
+        </button>
+        {#each exports as item (item.id)}
+          <button
+            class={menuItem}
+            on:click={() => runExport(item)}
+            disabled={item.disabled}
+            title={item.disabled ? "Generate an exercise first" : ""}
+          >
+            <span class="text-sm text-sr-bar-ink">{item.label}</span>
+            {#if item.detail}<span class="text-xs text-sr-bar-muted">{item.detail}</span>{/if}
+          </button>
+        {/each}
+        {#if exportError}
+          <p class="px-3 pt-1 pb-2 text-xs text-sr-bar-accent" role="alert">{exportError}</p>
+        {/if}
       </DropUp>
       <span class="sr-only" aria-live="polite">{copied ? "Link copied" : ""}</span>
-
-      {#if exports.length}
-        <DropUp
-          triggerClass={chipBtn}
-          label="Print or export"
-          title="Print, or save as a file"
-          bind:open={exportOpen}
-          menuClass="min-w-[17rem]"
-        >
-          <svelte:fragment slot="trigger"><Printer size={14} /> Print<span class="xl:hidden 2xl:inline">/ Export</span></svelte:fragment>
-          <button class={menuItem} on:click={print}>
-            <span class="text-sm text-sr-bar-ink">Print / Save as PDF</span>
-            <span class="text-xs text-sr-bar-muted">Your browser's print dialog</span>
-          </button>
-          {#each exports as item (item.id)}
-            <button
-              class={menuItem}
-              on:click={() => runExport(item)}
-              disabled={item.disabled}
-              title={item.disabled ? "Generate an exercise first" : ""}
-            >
-              <span class="text-sm text-sr-bar-ink">{item.label}</span>
-              {#if item.detail}<span class="text-xs text-sr-bar-muted">{item.detail}</span>{/if}
-            </button>
-          {/each}
-          {#if exportError}
-            <p class="px-3 pt-1 pb-2 text-xs text-sr-bar-accent" role="alert">{exportError}</p>
-          {/if}
-        </DropUp>
-      {:else}
-        <button class={chipBtn} on:click={onPrint} title="Print / Save as PDF">
-          <Printer size={14} /> Print
-        </button>
-      {/if}
     </div>
 </div>
 

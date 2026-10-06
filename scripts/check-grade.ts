@@ -328,19 +328,35 @@ if (process.env.PLAYBACK) {
     await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
     const seen: number[] = [];
     let playing = false;
+    let firstProgress: number | null = null;
     for (let k = 0; k < 16; k++) {
       await new Promise((r) => setTimeout(r, 250));
       const t = await page.evaluate(() => (window as any).__gradeDebug.take());
       if (t.playing) playing = true;
+      if (t.playing && firstProgress === null) firstProgress = t.progress;
       if (t.note >= 0 && seen[seen.length - 1] !== t.note) seen.push(t.note);
     }
-    console.log(`playback: playing ${playing}, notes followed ${seen.join(" ")}`);
+    console.log(`playback: playing ${playing}, notes followed ${seen.join(" ")}, the bar began at ${((firstProgress ?? 1) * 100).toFixed(0)}%`);
+    expect((firstProgress ?? 1) < 0.08, "the progress bar should begin at the left (it starts at the first note, not the count-in)");
     expect(playing && seen.length >= 3 && seen.every((n, i) => i === 0 || n > seen[i - 1]), "the take should play and the cursor follow the notes in order");
     const dim = await page.evaluate(() => [...document.querySelectorAll(".grade-overlay [data-note]")].filter((e) => (e as SVGElement).style.opacity === "0.22").length);
     expect(dim > 0, "notes not yet heard should be faint");
     await page.evaluate(() => { const b = [...document.querySelectorAll(".grade-dock button")].find((x) => (x.textContent ?? "").trim() === "With the music"); (b as HTMLButtonElement | undefined)?.click(); });
     await new Promise((r) => setTimeout(r, 300));
     expect(await page.evaluate(() => (window as any).__gradeDebug.take().music), "With the music should turn on");
+    // Change settings from the results, then back to them: never out of Grade.
+    const dialog = () => page.evaluate(() => document.querySelector('[role="dialog"]')?.textContent?.replace(/\s+/g, " ").slice(0, 60) ?? null);
+    const press = (text: string) => page.evaluate((t) => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === t); (b as HTMLButtonElement | undefined)?.click(); return !!b; }, text);
+    await press("Results");
+    await new Promise((r) => setTimeout(r, 300));
+    await press("Change settings and try again");
+    await new Promise((r) => setTimeout(r, 300));
+    const setup = await dialog();
+    await press("Back to results");
+    await new Promise((r) => setTimeout(r, 300));
+    const back = await dialog();
+    console.log(`settings from the results: "${setup?.slice(0, 30)}" then "${back?.slice(0, 20)}"`);
+    expect(!!setup && /grade/i.test(setup) && !!back && /Your score/.test(back), "Change settings should open the setup and Back return to the results");
     if (process.env.PLAYBACK_SHOT) { await page.evaluate(() => document.querySelector("#paper")?.scrollIntoView({ block: "center" })); await new Promise((r) => setTimeout(r, 300)); await page.screenshot({ path: process.env.PLAYBACK_SHOT }); }
   }
 }

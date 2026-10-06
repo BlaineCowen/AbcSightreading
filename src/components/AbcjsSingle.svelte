@@ -3914,6 +3914,14 @@
   let takePlayer: TakePlayer | null = null;
   let take = { open: false, loading: false, playing: false, progress: 0, music: false, hasMusic: false, error: null as string | null };
   let takeNote = -1;
+  /**
+   * Where the take is played from: just before the first note. Before it is
+   * the key and the count-in, so the progress bar runs from here to the end
+   * (it used to run from the recording's start and began half way along).
+   */
+  let takeFrom = 0;
+  const takeProgress = (t: number) =>
+    takePlayer ? Math.min(1, Math.max(0, (t - takeFrom) / Math.max(1, takePlayer.end - takeFrom))) : 0;
   $: canHearTake = !!gradeAudio && !!gradeTrace && gradePhase === "results";
   function disposeTake() {
     takePlayer?.dispose();
@@ -3924,7 +3932,9 @@
   async function hearTake() {
     if (takePlayer) {
       take = { ...take, open: true };
-      return takePlayer.playing ? takePlayer.pause() : takePlayer.play();
+      if (takePlayer.playing) return takePlayer.pause();
+      // After the end it starts again from the first note, not the count-in.
+      return takePlayer.play(takePlayer.position <= takePlayer.start ? takeFrom : takePlayer.position);
     }
     if (!gradeAudio || !gradeTrace) return;
     const trace = gradeTrace;
@@ -3967,7 +3977,7 @@
         revealTo(document.querySelector("#paper svg"), i);
         gradeDetailIndex = i >= 0 ? i : null;
       }
-      take = { ...take, playing: player.playing, progress: (t - player.start) / Math.max(1, player.end - player.start) };
+      take = { ...take, playing: player.playing, progress: takeProgress(t) };
     });
     player.onEnd(() => {
       takeNote = -1;
@@ -3977,7 +3987,8 @@
     });
     take = { ...take, loading: false };
     // From just before the first note.
-    await player.play(Math.max(player.start, (trace.spans[0]?.from ?? player.start) - 1200));
+    takeFrom = Math.max(player.start, (trace.spans[0]?.from ?? player.start) - 1200);
+    await player.play(takeFrom);
     take = { ...take, playing: true };
   }
   function takeMusic(on: boolean) {
@@ -3986,7 +3997,7 @@
   }
   function takeSeek(frac: number) {
     if (!takePlayer) return;
-    takePlayer.seek(takePlayer.start + frac * (takePlayer.end - takePlayer.start));
+    takePlayer.seek(takeFrom + frac * (takePlayer.end - takeFrom));
     take = { ...take, progress: frac };
   }
   function closeTake() {
@@ -5452,29 +5463,7 @@
         >{metronomeSounding($tuner) ? 'Click On' : 'Click'}</button>
       </div>
 
-      {#if !rhythmOnly}
-        <div class="w-px h-5 bg-sr-bar-btn hidden 2xl:block"></div>
-
-        <!-- Drone (sounds the tonic, so pitched mode only) -->
-        <div class="flex items-center gap-2">
-          <button
-            class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {dronePlaying ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
-            on:click={toggleDrone}
-            aria-pressed={dronePlaying}
-          >{dronePlaying ? 'Drone On' : 'Drone'}</button>
-          {#if dronePlaying}
-            <input
-              type="range" min="-60" max="0" step="1"
-              value={currentDroneVolume}
-              on:input={handleDroneVolumeChange}
-              class="w-16 accent-sr-peach"
-              aria-label="Drone volume"
-            />
-            <span class="text-xs text-sr-bar-muted">{currentDroneVolume}dB</span>
-          {/if}
-        </div>
-      {/if}
-
+      <!-- The drone lives in the Tools wheel (its card follows the exercise's key); the bar kept a second one. -->
     </svelte:fragment>
   </PlaybackBar>
 </div>

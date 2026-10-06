@@ -79,16 +79,32 @@
   let lastPhase = "idle";
   $: if (v.phase !== lastPhase) {
     if (v.phase === "idle") setupOpen = true;
-    if (v.phase === "results") resultsOpen = true;
+    if (v.phase === "results") {
+      resultsOpen = true;
+      setupOpen = false;
+    }
     else resultsOpen = false;
     lastPhase = v.phase;
   }
-  $: setupShown = setupOpen && v.phase === "idle" && !blocked && allowed !== false;
-  $: resultsShown = resultsOpen && v.phase === "results";
+  // The setup also opens over the results (Change settings): another run, set differently, without leaving Grade.
+  $: setupShown = setupOpen && (v.phase === "idle" || v.phase === "results") && !blocked && allowed !== false;
+  $: resultsShown = resultsOpen && v.phase === "results" && !setupShown;
+  /** Leaving the setup: over the results it goes back to them; at the start it closes Grade. */
+  const leaveSetup = () => {
+    if (v.phase === "results") {
+      setupOpen = false;
+      resultsOpen = true;
+    } else onClose();
+  };
+  const changeSettings = () => {
+    onTakeClose();
+    resultsOpen = false;
+    setupOpen = true;
+  };
   function onKey(e: KeyboardEvent) {
     if (e.key !== "Escape") return;
     if (resultsShown) resultsOpen = false;
-    else if (setupShown) onClose();
+    else if (setupShown) leaveSetup();
   }
   const start = () => {
     setupOpen = false;
@@ -180,7 +196,7 @@
 
 <!-- The setup, centred over the page. -->
 {#if setupShown}
-  <div class="grade-veil fixed inset-0 z-[60] flex items-center justify-center p-3 no-print" on:click|self={onClose} role="presentation">
+  <div class="grade-veil fixed inset-0 z-[60] flex items-center justify-center p-3 no-print" on:click|self={leaveSetup} role="presentation">
     <div class="grade-card w-full max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-sm" role="dialog" aria-modal="true" aria-labelledby="grade-title">
       <div class="flex items-start gap-3">
         <div class="flex-1">
@@ -190,7 +206,7 @@
             Grading is new and still being tuned, so a score can be off. Tell us with Send this run.
           </p>
         </div>
-        <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={onClose} aria-label="Close Grade"><X size={18} /></button>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={leaveSetup} aria-label={v.phase === "results" ? "Back to the results" : "Close Grade"}><X size={18} /></button>
       </div>
 
       {#if rhythmOnly}
@@ -284,7 +300,7 @@
       </div>
 
       <div class="flex gap-2 justify-end pt-1">
-        <button class="sr-btn-quiet text-sm" on:click={onClose}>Cancel</button>
+        <button class="sr-btn-quiet text-sm" on:click={leaveSetup}>{v.phase === "results" ? "Back to results" : "Cancel"}</button>
         <button class="sr-btn text-sm px-6 py-2" on:click={start} disabled={allowed === null}>{allowed === null ? "…" : "Start"}</button>
       </div>
     </div>
@@ -369,6 +385,7 @@
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onStart}>Try again</button>
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onNewExercise}>New exercise</button>
         </div>
+        <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={changeSettings}>Change settings and try again</button>
         {#if onSend || onSave}
           <div class="flex justify-center gap-3">
             {#if onSend}<button class="text-xs text-sr-action-fg font-bold" on:click={() => { resultsOpen = false; sendOpen = true; sentLine = null; }}>Graded wrong? Send this run</button>{/if}
@@ -472,6 +489,7 @@
       {/if}
       <p class="flex-1 min-w-0 text-sm text-sr-ink-2 truncate">{detail ?? (v.perf ? (pitchToWork + rhythmToWork === 0 ? "In tune and in time" : `${pitchToWork} pitch, ${rhythmToWork} rhythm to work on`) : claps ? clapLine : doneLine)}</p>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => (resultsOpen = true)}>Results</button>
+      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={changeSettings}>Settings</button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
     {/if}
     {#if !(v.phase === "results" && take.open)}
