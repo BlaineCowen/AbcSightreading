@@ -3874,7 +3874,8 @@
     if (gradeAllowed === null) {
       const who = await signedInUser();
       gradeSignedIn = !!who;
-      gradeShareOn = !!who && who.accountType !== "student" && !import.meta.env.DEV;
+      // On the dev server only with PUBLIC_GRADE_SEND=1 (a store token in the environment), for testing Send.
+      gradeShareOn = !!who && who.accountType !== "student" && (!import.meta.env.DEV || import.meta.env.PUBLIC_GRADE_SEND === "1");
       const status = await billingStatus();
       gradeAllowed = !!status && status.plan !== "free";
     }

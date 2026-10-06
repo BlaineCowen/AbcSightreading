@@ -634,7 +634,11 @@ signs uploads: signed in, Pro or better, not a student, checked against the
 database). The panel says what is sent and that nothing is sent without
 Send. `bun run scripts/grade-runs.ts` lists the runs sent and `... pull
 [dir]` fetches one into `grade-runs/` (gitignored; the token is in
-.env.local). Replay them to tune grading.
+.env.local). Replay them to tune grading. On the dev server Send is off (there is no
+store there) unless `PUBLIC_GRADE_SEND=1` and `BLOB_READ_WRITE_TOKEN` are in
+the environment; with `BETTER_AUTH_URL` and `COMP_EMAILS` set too, a second
+dev server on another port can test Send end to end with a throwaway account
+(done 6 October 2026; delete the account and the upload after).
 
 Runs can also be saved for review: on the dev server, or with `?gradeDebug=1`,
 the microphone is recorded over each run (a second stream with the tuner's
