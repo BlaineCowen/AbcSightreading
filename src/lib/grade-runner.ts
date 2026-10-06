@@ -374,8 +374,8 @@ export class GradeRunner {
   private finish() {
     this.clear();
     this.hooks.moveTo(-1);
-    // Coloured by how each was found: green right first time, amber corrected or helped, red skipped.
-    this.hooks.marked?.(this.results.map((r) => (r.outcome === "first" ? 100 : r.outcome === "skipped" ? 0 : 75)));
+    // Practice, not graded: every note sung is green, a skipped one red.
+    this.hooks.marked?.(this.results.map((r) => (r.outcome === "skipped" ? 0 : 100)));
     this.hooks.traced?.({
       mode: "pitch",
       frames: pitchHistory.recent(performance.now() - this.startedAt + 1000),

@@ -34,8 +34,9 @@
 
   $: v = $runner;
   $: sung = v.result?.notes ?? [];
-  $: toWork = sung.filter((n) => n.outcome !== "first").length;
-  $: firstTimes = sung.filter((n) => n.outcome === "first").length;
+  // Note by note is practice, not graded: getting through it is the point.
+  $: skipped = sung.filter((n) => n.outcome === "skipped").length;
+  $: doneLine = skipped === 0 ? `Done: all ${sung.length} notes sung` : `${sung.length - skipped} of ${sung.length} sung, ${skipped} skipped`;
   const OUTCOME = { first: "right first time", corrected: "corrected", helped: "heard it first", skipped: "skipped" } as const;
   $: perfNotes = v.perf?.notes ?? [];
   $: pitchToWork = perfNotes.filter((n) => n.pitch < 90).length;
@@ -77,11 +78,11 @@
     <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2.5 text-sm">
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="What to grade">
         <span class="text-xs text-sr-muted w-20">Grade</span>
-        <button class="sr-tok text-xs px-2.5 py-1 {!performance ? 'sr-on' : ''}" aria-pressed={!performance} on:click={() => tuner.setGrade({ gradeMode: "pitch" })}>Pitch only</button>
+        <button class="sr-tok text-xs px-2.5 py-1 {!performance ? 'sr-on' : ''}" aria-pressed={!performance} on:click={() => tuner.setGrade({ gradeMode: "pitch" })}>Note by note</button>
         <button class="sr-tok text-xs px-2.5 py-1 {performance ? 'sr-on' : ''}" aria-pressed={performance} on:click={() => tuner.setGrade({ gradeMode: "performance" })}>Pitch & rhythm</button>
       </div>
       <p class="text-xs text-sr-muted -mt-1 ml-[5.4rem]">
-        {performance ? "The music runs in time with a click; a note missed stays missed. Pitch and rhythm are scored apart." : "No tempo: the cursor waits on each note until you sing it and hold it a moment. Right first time scores best. Stuck? Hear help, or skip."}
+        {performance ? "The music runs in time with a click; a note missed stays missed. Pitch and rhythm are scored apart." : "Practice, no grade: the cursor waits on each note until you sing it and hold it a moment. Stuck? Hear help, or skip."}
       </p>
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Strictness">
         <span class="text-xs text-sr-muted w-20">Strictness</span>
@@ -146,14 +147,14 @@
       <div class="flex flex-wrap gap-1" aria-label="Each note">
         {#each sung as n, i}
           <span
-            class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.score)}"
-            title="Note {i + 1}: {OUTCOME[n.outcome]}, {n.score}%{n.help.heardKey ? ', heard the key' : ''}"
+            class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.outcome === "skipped" ? 0 : 100)}"
+            title="Note {i + 1}: {OUTCOME[n.outcome]}{n.help.heardKey ? ', heard the key' : ''}"
           >{i + 1}</span>
         {/each}
       </div>
       <p class="text-xs text-sr-muted">
-        {firstTimes} of {sung.length} right first time. On the score, green is right first time, amber corrected or
-        helped, red skipped; the line is the pitch you sang, blue on the note, red off it. Tap a note for details.
+        {doneLine}. On the score, the notes you sang are green and any you skipped red; the line is the pitch you sang,
+        blue on the note, red off it. Tap a note to see how it went.
       </p>
     </div>
   {/if}
@@ -175,7 +176,7 @@
           <p class="text-xs text-sr-muted">{blocked}</p>
         {:else}
           <button class="text-xs text-sr-action-fg font-bold text-left inline-flex items-center gap-1" on:click={() => (setupOpen = !setupOpen)} aria-expanded={setupOpen}>
-            {performance ? "Pitch & rhythm" : "Pitch only"} · {STRICTNESS[$tuner.gradeStrictness].label}{performance ? ` · cursor ${$tuner.gradeCursor} · click ${$tuner.gradeClick === "sub" ? "subdivided" : $tuner.gradeClick}` : ""}
+            {performance ? "Pitch & rhythm" : "Note by note"} · {STRICTNESS[$tuner.gradeStrictness].label}{performance ? ` · cursor ${$tuner.gradeCursor} · click ${$tuner.gradeClick === "sub" ? "subdivided" : $tuner.gradeClick}` : ""}
             <ChevronUp size={12} class={setupOpen ? "" : "rotate-180"} />
           </button>
         {/if}
@@ -214,12 +215,9 @@
       <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
       {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
     {:else if v.phase === "results" && v.result}
-      <div class="flex items-baseline gap-2 shrink-0">
-        <span class="flex flex-col items-center leading-none"><span class="text-2xl font-extrabold tabular-nums">{v.result.score}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Pitch</span></span>
-        <span class="text-xl font-extrabold text-sr-action-fg">{v.result.letter}</span>
-      </div>
+      <span class="text-2xl shrink-0" aria-hidden="true">{skipped === 0 ? "✓" : "•"}</span>
       <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
-        {detail ?? (toWork === 0 ? "Every note right first time" : `${firstTimes} of ${sung.length} right first time`)}
+        {detail ?? doneLine}
         <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
       </button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>

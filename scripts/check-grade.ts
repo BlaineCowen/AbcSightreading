@@ -189,6 +189,10 @@ if (MODE === "pitch") {
   });
   console.log(`pitch ${r.score}% ${r.letter}`);
   console.log(failures ? `${failures} check(s) failed` : "all checks passed");
+  if (SHOTS) {
+    await new Promise((res) => setTimeout(res, 800));
+    await page.screenshot({ path: SHOTS });
+  }
   await browser.close();
   process.exit(0);
 }

@@ -554,7 +554,7 @@ opens a strip docked above the playback bar (the page leaves room below the
 score for it). Its setup (remembered in the tuner store: `gradeMode`,
 `gradeStrictness`, `gradeCursor`, `gradeClick`, `gradeReference`) chooses:
 
-- **Pitch only**: untimed, note by note. A reference (the first note or the
+- **Note by note** (`gradeMode: "pitch"`; was "Pitch only"): practice, not graded - the results say "Done: all 13 notes sung" (or how many were skipped), every sung note green. Untimed, note by note. A reference (the first note or the
   key: do mi so mi do, so below, do, a note a beat, a beat's rest, then the
   first note), then the cursor waits on each note - no tempo, no click,
   nothing moves on by itself - until it is sung and held on pitch (any
