@@ -15,6 +15,8 @@
   import Printer from "lucide-svelte/icons/printer";
   import Maximize from "lucide-svelte/icons/maximize";
   import Minimize from "lucide-svelte/icons/minimize";
+  import { tuner } from "../lib/tuner/store";
+  import { setClickWithMusic } from "../lib/tools/metronome-link";
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
   import Eye from "lucide-svelte/icons/eye";
@@ -268,7 +270,7 @@
        with everything else behind "More controls". An iPad keeps the labels
        and the full-size buttons from sm up. -->
   <div class="flex items-center gap-1.5 min-[380px]:gap-2 sm:gap-3 xl:gap-4 flex-nowrap xl:flex-wrap px-3 py-2 xl:p-0 xl:py-2
-              xl:order-last xl:ml-auto">
+              {fullscreen ? 'w-full justify-center flex-wrap gap-y-2 xl:order-last' : 'xl:order-last xl:ml-auto'}">
     <div class="flex gap-1.5 min-[380px]:gap-2 items-center">
       {#if onGenerate}
         <button
@@ -338,7 +340,7 @@
         aria-pressed={looping}
       ><Repeat size={18} /></button>
 
-      {#if onToggleFullscreen}
+      {#if onToggleFullscreen && !fullscreen}
         <button
           class="flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {fullscreen
             ? 'bg-sr-peach text-sr-peach-ink'
@@ -351,18 +353,31 @@
       {/if}
     </div>
 
-    {#if fullscreen && annotationChoices.length}
-      <!-- The settings are hidden in full screen: what is written under the notes is chosen here. -->
-      <div class="flex items-center gap-1.5 px-3 pb-2 xl:p-0 flex-wrap" role="group" aria-label="Annotations">
-        <span class="text-xs text-sr-bar-muted">Show</span>
-        {#each annotationChoices as a}
-          <button
-            class="rounded-full px-3 py-1.5 text-xs font-semibold {a.on ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
-            aria-pressed={a.on}
-            on:click={() => onAnnotation(a.id)}
-          >{a.label}</button>
-        {/each}
-      </div>
+    {#if fullscreen}
+      <!-- Full screen's one row: everything else (volumes, drone, size, share,
+           print) waits behind the exit; what is written under the notes, and
+           the click, are chosen here. -->
+      <div class="w-px h-6 bg-sr-bar-btn"></div>
+      {#if annotationChoices.length}
+        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Annotations">
+          <span class="text-xs text-sr-bar-muted">Show</span>
+          {#each annotationChoices as a}
+            <button
+              class="rounded-full px-3 py-1.5 text-xs font-semibold {a.on ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+              aria-pressed={a.on}
+              on:click={() => onAnnotation(a.id)}
+            >{a.label}</button>
+          {/each}
+        </div>
+        <div class="w-px h-6 bg-sr-bar-btn"></div>
+      {/if}
+      <button
+        class="rounded-full px-3 py-1.5 text-xs font-semibold {$tuner.clickWithMusic ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+        aria-pressed={$tuner.clickWithMusic}
+        on:click={() => setClickWithMusic(!$tuner.clickWithMusic)}
+        title="The metronome with the music"
+      >Click</button>
+      <div class="w-px h-6 bg-sr-bar-btn"></div>
     {/if}
 
     <div class="w-px h-6 bg-sr-bar-btn hidden xl:block"></div>
@@ -408,8 +423,17 @@
       />
     </div>
 
+      {#if fullscreen && onToggleFullscreen}
+        <!-- Last in full screen's row, where a hand goes to leave. -->
+        <button
+          class="flex items-center gap-1.5 rounded-full px-3 h-11 xl:h-8 text-xs font-semibold bg-sr-peach text-sr-peach-ink"
+          on:click={onToggleFullscreen}
+          title="Leave full screen (Esc or F)"
+          aria-label="Leave full screen"
+        ><Minimize size={16} /> Exit</button>
+      {/if}
       <button
-        class="xl:hidden ml-auto shrink-0 flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {expanded
+        class="{fullscreen ? 'hidden' : 'xl:hidden'} ml-auto shrink-0 flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {expanded
           ? 'bg-sr-peach text-sr-peach-ink'
           : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
         on:click={async () => { expanded = !expanded; await tick(); publishBarHeight(); }}
@@ -422,8 +446,8 @@
   <!-- Secondary controls. order-first puts the sheet above the transport on
        a phone or iPad; xl:contents splices these groups into the desktop row instead. -->
     <div
-      class="order-first xl:order-none {expanded ? 'flex' : 'hidden'}
-             xl:contents flex-wrap items-center gap-3 px-3 py-2 border-b border-sr-bar-line
+      class="order-first xl:order-none {expanded && !fullscreen ? 'flex' : 'hidden'}
+             {fullscreen ? '' : 'xl:contents'} flex-wrap items-center gap-3 px-3 py-2 border-b border-sr-bar-line
              max-h-[50dvh] overflow-y-auto overscroll-contain"
     >
       <div class="flex xl:hidden items-center gap-2 w-full">
