@@ -9,7 +9,10 @@
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 const APP = process.env.APP ?? "http://localhost:4321";
-const SIZES = [{ name: "desktop", w: 1440, h: 900 }, { name: "tablet", w: 820, h: 1180 }, { name: "phone", w: 390, h: 844 }];
+const SIZES = [
+  { name: "4k", w: 3840, h: 2160 }, { name: "1440p", w: 2560, h: 1440 },
+  { name: "desktop", w: 1440, h: 900 }, { name: "tablet", w: 820, h: 1180 }, { name: "phone", w: 390, h: 844 },
+].filter((s) => !process.env.SIZES || process.env.SIZES.split(",").includes(s.name));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true });
 type Case = { page: string; state: string; setup?: (p: any) => Promise<void> };

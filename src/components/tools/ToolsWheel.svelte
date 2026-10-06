@@ -271,6 +271,7 @@
    */
   .no-print { --tools-fab-bottom: max(calc(var(--bottom-bar-h, 96px) + 16px), 132px); }
   .tools-fab { bottom: var(--tools-fab-bottom); }
-  .tools-wheel { bottom: calc(var(--tools-fab-bottom) + 68px); filter: drop-shadow(0 16px 30px rgba(15, 23, 42, 0.28)); }
-  .tools-card { bottom: calc(var(--tools-fab-bottom) + 68px); }
+  /* Above the button by its own height (3.5rem, which grows with the big-screen text) and a gap; a fixed 68px overlapped it at 4K. */
+  .tools-wheel { bottom: calc(var(--tools-fab-bottom) + 3.5rem + 12px); filter: drop-shadow(0 16px 30px rgba(15, 23, 42, 0.28)); }
+  .tools-card { bottom: calc(var(--tools-fab-bottom) + 3.5rem + 12px); }
 </style>

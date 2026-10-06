@@ -1061,10 +1061,23 @@ as the MIDI file's copyright notice (meta event FF 02 opening track 1,
 `bun run scripts/check-overlaps.ts` reports every pair of fixed or sticky
 elements that overlap, on each page at desktop, tablet and phone sizes and
 in the states that add floating things (a clap run with the tap pad, Grade's
-strip, the Tools card), and which is on top. Clean on 6 October 2026 after
-two fixes: the tap pad sat on the Tools button (it now sits above it,
+strip, the Tools card), and which is on top. Clean on 6 October 2026 at five sizes (4K, 1440p, desktop, tablet, phone) after
+three fixes (the Tools card overlapped its button at 4K): the tap pad sat on the Tools button (it now sits above it,
 bottom: bar + 152 px), and on a tablet Grade's strip covered the Feedback
 button (it is narrower by the corner buttons there).
+
+## Big screens
+
+On a wide screen (1800 px and up) both practice pages are two columns, the
+settings (`.wide-left`) beside the music (`.wide-right`), and the site
+container's width cap comes off (globals.css `.focus-main.wide`); below
+that they are one column as before. From 2200 px the root font size steps
+up (18, 20, 22 px at 2200, 2800, 3400) so the interface is not tiny on a 4K
+monitor; Tailwind sizes in rem, its breakpoints in px. Things placed in px
+beside things sized in rem drifted into each other at 4K (the Feedback
+button, the Tools card): place them by the other's rem size. Full screen
+undoes the columns. Unison's Drill is its own box below the settings, not
+inside the setup panel.
 
 ## Score layout
 

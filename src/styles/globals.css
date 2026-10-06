@@ -716,3 +716,26 @@ html.sr-focus .playback-bar {
 html.sr-focus .playback-bar .bar-secondary > :not(.fs-keep) {
   display: none !important;
 }
+
+/* Big screens (a 1440p or 4K monitor): the interface a step larger, and the
+   practice pages in two columns, the settings beside the music, rather than
+   one narrow column in a sea of empty space. Tailwind sizes in rem, so the
+   root size scales nearly everything; its breakpoints are in px and do not
+   move. */
+@media (min-width: 2200px) { html { font-size: 18px; } }
+@media (min-width: 2800px) { html { font-size: 20px; } }
+@media (min-width: 3400px) { html { font-size: 22px; } }
+@media (min-width: 1800px) {
+  /* The site's container caps every page's width; a practice page needs the screen. */
+  body > main.container:has(> * .focus-main.wide), body > main.container:has(.focus-main.wide) { max-width: none; }
+  .focus-main.wide {
+    display: grid !important;
+    grid-template-columns: minmax(34rem, 36%) minmax(0, 1fr);
+    column-gap: 2rem;
+    align-items: start;
+    max-width: min(160rem, 96vw) !important;
+  }
+  .focus-main.wide > .wide-right { padding-top: 1rem; }
+}
+/* Full screen keeps the music alone, in one column. */
+html.sr-focus .focus-main.wide { display: flex !important; }

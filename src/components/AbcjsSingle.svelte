@@ -4353,7 +4353,9 @@
   {/if}
 
 
-  <main class="focus-main flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
+  <main class="focus-main wide flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
+  <!-- The settings: on a wide screen, a column of their own (globals.css .wide). -->
+  <div class="wide-left w-full flex flex-col items-center">
 
     {#if !assignment}
     <PresetDropdown
@@ -5062,290 +5064,294 @@
           </div>
         {/if}
 
-          <!-- Drill. Below every settings tab, so it is there whichever one is open. -->
-          <section class="mt-6 rounded border border-sr-hairline bg-sr-raise p-4 space-y-4" aria-labelledby="drill-heading">
-            <!-- The whole header is the toggle: the button's ::after stretches
-                 over the bar, and Start / Stop sit above it. -->
-            <div class="relative flex items-center justify-between gap-3 flex-wrap cursor-pointer">
-              <button
-                type="button"
-                class="flex items-start gap-2 text-left after:absolute after:inset-0 after:content-['']"
-                aria-expanded={drillPanelOpen}
-                aria-controls="drill-settings"
-                on:click={() => (drillPanelOpen = !drillPanelOpen)}
-              >
-                <span class="text-sr-muted mt-0.5">
-                  {#if drillPanelOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
-                </span>
-                <span>
-                  <span id="drill-heading" class="block text-sm font-semibold text-sr-ink">Drill</span>
-                  <span class="block text-xs text-sr-faint mt-0.5">
-                    Generates and plays a whole session, hands free.
-                  </span>
-                </span>
-              </button>
-              {#if drillRunning}
-                <button
-                  class="sr-btn-quiet relative z-10 font-semibold text-sr-danger border-sr-danger"
-                  on:click={() => stopDrill()}
-                >Stop drill</button>
-              {:else}
-                <!-- Peach, with a play mark: not the blue of Generate, which it
-                     was easy to take it for. -->
-                <button
-                  class="relative z-10 inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
-                  on:click={startDrill}
-                  disabled={isLoading}
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1.2v9.6L10.4 6z" /></svg>
-                  Start drill
-                </button>
-              {/if}
-            </div>
-
-            {#if drillStatusLine}
-              <p class="text-sm text-sr-action-fg bg-sr-tint rounded px-3 py-2">
-                {drillStatusLine}
-              </p>
-            {/if}
-
-            <div id="drill-settings" class:hidden={!drillPanelOpen} class="space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div class="space-y-2">
-                <p class="sr-label">New Exercises</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a drill">
-                  {#each [1, 2, 4, 6, 8, 12] as n}
-                    <button
-                      class="sr-tok {drillExercises === n ? 'sr-on' : ''}"
-                      on:click={() => (drillExercises = n)}
-                      aria-pressed={drillExercises === n}
-                    >{n}</button>
-                  {/each}
-                </div>
-                <p class="text-xs text-sr-faint">A new exercise is written for each one.</p>
-              </div>
-
-              <div class="space-y-2">
-                <p class="sr-label">Passes Each</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Passes of each exercise">
-                  {#each [1, 2, 3, 4] as n}
-                    <button
-                      class="sr-tok {drillRepeats === n ? 'sr-on' : ''}"
-                      on:click={() => (drillRepeats = n)}
-                      aria-pressed={drillRepeats === n}
-                    >{n}</button>
-                  {/each}
-                </div>
-                <p class="text-xs text-sr-faint">How many times each exercise is played before the next.</p>
-              </div>
-
-              <div class="space-y-2">
-                <p class="sr-label">Speed Ramp</p>
-                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Speed ramp">
-                  <input
-                    type="range" min="0" max="20" step="2"
-                    bind:value={drillRampBpm}
-                    class="w-40 sr-range"
-                    aria-label="Tempo added per new exercise"
-                    disabled={drillRunning}
-                  />
-                  <span class="text-sm font-semibold whitespace-nowrap">+{drillRampBpm} BPM</span>
-                </div>
-                <p class="text-xs text-sr-faint">
-                  {#if drillRampBpm === 0}
-                    Every exercise at {bpm} BPM.
-                  {:else}
-                    Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the drill ends.
-                  {/if}
-                </p>
-              </div>
-
-              <div class="space-y-2">
-                <p class="sr-label">Reading Time</p>
-                <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Reading time">
-                  <input
-                    type="range" min="0" max="30" step="1"
-                    bind:value={drillPreviewSeconds}
-                    class="w-40 sr-range"
-                    aria-label="Seconds to read a new exercise before it plays"
-                  />
-                  <span class="text-sm font-semibold whitespace-nowrap">{drillPreviewSeconds}s</span>
-                </div>
-                <p class="text-xs text-sr-faint">
-                  {drillPreviewSeconds === 0
-                    ? "Each new exercise starts straight away."
-                    : "Silence to scan a new exercise before it plays."}
-                </p>
-              </div>
-
-              <div class="space-y-2 sm:col-span-2 border-t border-sr-hairline pt-3">
-                <p class="sr-label">On The Repeats</p>
-                <p class="text-xs text-sr-faint">
-                  The first pass is always your own settings, since that is the one
-                  being sight-read. These are what comes back on the way through again.
-                </p>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-1">
-                  <div class="space-y-2">
-                    <p class="sr-label">Repeat Cursor</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor on the repeats">
-                      {#each [['same', 'Same'], ...cursorModes.map((m) => [m, cursorModeLabels[m]])] as [value, label]}
-                        <button
-                          class="sr-tok {drillRepeatCursor === value ? 'sr-on' : ''}"
-                          on:click={() => (drillRepeatCursor = value)}
-                          aria-label={`Repeat cursor: ${label}`}
-                          aria-pressed={drillRepeatCursor === value}
-                        >{label}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-sr-faint">
-                      {drillRepeatCursor === 'same'
-                        ? 'The repeats follow the cursor setting above.'
-                        : drillRepeatCursor === 'off'
-                          ? 'No cursor and no auto-scroll on the repeats, so the reader holds their own place.'
-                          : 'The repeats use this cursor instead.'}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="sr-label">Repeat Annotations</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations on the repeats">
-                      {#each repeatAnnotationOptions as [value, label]}
-                        <button
-                          class="sr-tok {drillRepeatAnnotation === value ? 'sr-on' : ''}"
-                          on:click={() => (drillRepeatAnnotation = value)}
-                          aria-label={`Repeat annotations: ${label}`}
-                          aria-pressed={drillRepeatAnnotation === value}
-                        >{label}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-sr-faint">
-                      {#if drillRepeatAnnotation === 'same'}
-                        The repeats show whatever the first pass showed.
-                      {:else if drillRepeatAnnotation === 'none'}
-                        Read it clean on the way back through as well.
-                      {:else if drillRepeatAnnotation === 'solfege'}
-                        Solfège under the notes on the repeats, to check yourself against.
-                      {:else}
-                        {drillRepeatAnnotation === 'kodaly' ? 'Kodály' : 'Counting'} syllables on the repeats,
-                        whatever the first pass is read in. Your own system comes back on the
-                        next exercise and when the drill ends.
-                      {/if}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="sr-label">Repeat {rhythmOnly ? 'Percussion' : 'Piano'}</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label={`${rhythmOnly ? 'Percussion' : 'Piano'} on the repeats`}>
-                      {#each passSwitchOptions as [value, label]}
-                        <button
-                          class="sr-tok {drillRepeatNotes === value ? 'sr-on' : ''}"
-                          on:click={() => (drillRepeatNotes = value)}
-                          aria-label={`Repeat ${rhythmOnly ? 'percussion' : 'piano'}: ${label}`}
-                          aria-pressed={drillRepeatNotes === value}
-                        >{label}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-sr-faint">
-                      {drillRepeatNotes === 'same'
-                        ? `The repeats play the ${rhythmOnly ? 'percussion' : 'notes'} if the first pass does.`
-                        : drillRepeatNotes === 'on'
-                          ? `The ${rhythmOnly ? 'percussion plays' : 'notes play'} on the repeats, even with the volume muted.`
-                          : `Nothing played on the repeats - ${rhythmOnly ? 'clap' : 'sing'} it on your own. The volume stays where you set it.`}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="sr-label">Repeat Metronome</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Metronome on the repeats">
-                      {#each passSwitchOptions as [value, label]}
-                        <button
-                          class="sr-tok {drillRepeatMetronome === value ? 'sr-on' : ''}"
-                          on:click={() => (drillRepeatMetronome = value)}
-                          aria-label={`Repeat metronome: ${label}`}
-                          aria-pressed={drillRepeatMetronome === value}
-                        >{label}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-sr-faint">
-                      {drillRepeatMetronome === 'same'
-                        ? 'The repeats click if the metronome is on.'
-                        : drillRepeatMetronome === 'on'
-                          ? 'The click comes in on the repeats, even with the metronome off.'
-                          : 'No click on the repeats. Keep the beat yourself.'}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <p class="sr-label">Repeat Count-In</p>
-                    <div class="flex flex-wrap gap-2" role="group" aria-label="Count-in before the repeats">
-                      {#each [['on', 'On'], ['off', 'Off']] as [value, label]}
-                        <button
-                          class="sr-tok {drillRepeatCountIn === value ? 'sr-on' : ''}"
-                          on:click={() => (drillRepeatCountIn = value === 'off' ? 'off' : 'on')}
-                          aria-label={`Repeat count-in: ${label}`}
-                          aria-pressed={drillRepeatCountIn === value}
-                        >{label}</button>
-                      {/each}
-                    </div>
-                    <p class="text-xs text-sr-faint">
-                      {drillRepeatCountIn === 'on'
-                        ? 'A bar of count-in before each repeat, as before the first pass.'
-                        : 'The repeat follows straight on from the last note, with no bar in between.'}
-                    </p>
-                  </div>
-
-                  {#if !rhythmOnly}
-                    <div class="space-y-2">
-                      <p class="sr-label">Repeat Drone</p>
-                      <div class="flex flex-wrap gap-2" role="group" aria-label="Drone on the repeats">
-                        {#each passSwitchOptions as [value, label]}
-                          <button
-                            class="sr-tok {drillRepeatDrone === value ? 'sr-on' : ''}"
-                            on:click={() => (drillRepeatDrone = value)}
-                            aria-label={`Repeat drone: ${label}`}
-                            aria-pressed={drillRepeatDrone === value}
-                          >{label}</button>
-                        {/each}
-                      </div>
-                      <p class="text-xs text-sr-faint">
-                        {drillRepeatDrone === 'same'
-                          ? 'The drone is left as you set it.'
-                          : drillRepeatDrone === 'on'
-                            ? 'The tonic sounds under the repeats, to hold the key by.'
-                            : 'The drone stops for the repeats and comes back after.'}
-                      </p>
-                    </div>
-                  {/if}
-                </div>
-
-                {#if repeatsSilent}
-                  <p class="text-xs text-sr-faint">
-                    Nothing sounds on the repeats. The music still runs, so a repeat takes
-                    exactly as long as the first pass. Only the cursor moves.
-                  </p>
-                {:else if repeatCountInSilent}
-                  <p class="text-xs text-sr-faint">
-                    With no click on the repeats, their count-in is a silent bar, and the repeat
-                    still waits it out.
-                  </p>
-                {/if}
-
-                {#if drillRepeatAnnotation !== 'same'}
-                  <p class="text-xs text-sr-faint">
-                    Changing what is written on the score means drawing it again, so a repeat
-                    that changes the annotations starts from the count-in rather than following
-                    straight on.
-                  </p>
-                {/if}
-              </div>
-            </div>
-            </div>
-          </section>
 
       </div>
     </div>
 
+    <!-- Drill: its own box below the settings (it was inside the setup panel, under every tab). -->
+    <section class="sr-panel w-full mb-4 p-4 space-y-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="drill-heading">
+      <!-- The whole header is the toggle: the button's ::after stretches
+           over the bar, and Start / Stop sit above it. -->
+      <div class="relative flex items-center justify-between gap-3 flex-wrap cursor-pointer">
+        <button
+          type="button"
+          class="flex items-start gap-2 text-left after:absolute after:inset-0 after:content-['']"
+          aria-expanded={drillPanelOpen}
+          aria-controls="drill-settings"
+          on:click={() => (drillPanelOpen = !drillPanelOpen)}
+        >
+          <span class="text-sr-muted mt-0.5">
+            {#if drillPanelOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
+          </span>
+          <span>
+            <span id="drill-heading" class="block text-sm font-semibold text-sr-ink">Drill</span>
+            <span class="block text-xs text-sr-faint mt-0.5">
+              Generates and plays a whole session, hands free.
+            </span>
+          </span>
+        </button>
+        {#if drillRunning}
+          <button
+            class="sr-btn-quiet relative z-10 font-semibold text-sr-danger border-sr-danger"
+            on:click={() => stopDrill()}
+          >Stop drill</button>
+        {:else}
+          <!-- Peach, with a play mark: not the blue of Generate, which it
+               was easy to take it for. -->
+          <button
+            class="relative z-10 inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+            on:click={startDrill}
+            disabled={isLoading}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1.2v9.6L10.4 6z" /></svg>
+            Start drill
+          </button>
+        {/if}
+      </div>
+
+      {#if drillStatusLine}
+        <p class="text-sm text-sr-action-fg bg-sr-tint rounded px-3 py-2">
+          {drillStatusLine}
+        </p>
+      {/if}
+
+      <div id="drill-settings" class:hidden={!drillPanelOpen} class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div class="space-y-2">
+          <p class="sr-label">New Exercises</p>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="New exercises in a drill">
+            {#each [1, 2, 4, 6, 8, 12] as n}
+              <button
+                class="sr-tok {drillExercises === n ? 'sr-on' : ''}"
+                on:click={() => (drillExercises = n)}
+                aria-pressed={drillExercises === n}
+              >{n}</button>
+            {/each}
+          </div>
+          <p class="text-xs text-sr-faint">A new exercise is written for each one.</p>
+        </div>
+
+        <div class="space-y-2">
+          <p class="sr-label">Passes Each</p>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Passes of each exercise">
+            {#each [1, 2, 3, 4] as n}
+              <button
+                class="sr-tok {drillRepeats === n ? 'sr-on' : ''}"
+                on:click={() => (drillRepeats = n)}
+                aria-pressed={drillRepeats === n}
+              >{n}</button>
+            {/each}
+          </div>
+          <p class="text-xs text-sr-faint">How many times each exercise is played before the next.</p>
+        </div>
+
+        <div class="space-y-2">
+          <p class="sr-label">Speed Ramp</p>
+          <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Speed ramp">
+            <input
+              type="range" min="0" max="20" step="2"
+              bind:value={drillRampBpm}
+              class="w-40 sr-range"
+              aria-label="Tempo added per new exercise"
+              disabled={drillRunning}
+            />
+            <span class="text-sm font-semibold whitespace-nowrap">+{drillRampBpm} BPM</span>
+          </div>
+          <p class="text-xs text-sr-faint">
+            {#if drillRampBpm === 0}
+              Every exercise at {bpm} BPM.
+            {:else}
+              Each new exercise is faster: {drillRunning ? drillStartBpm : bpm} up to {drillRampEndBpm} BPM. The tempo goes back when the drill ends.
+            {/if}
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <p class="sr-label">Reading Time</p>
+          <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Reading time">
+            <input
+              type="range" min="0" max="30" step="1"
+              bind:value={drillPreviewSeconds}
+              class="w-40 sr-range"
+              aria-label="Seconds to read a new exercise before it plays"
+            />
+            <span class="text-sm font-semibold whitespace-nowrap">{drillPreviewSeconds}s</span>
+          </div>
+          <p class="text-xs text-sr-faint">
+            {drillPreviewSeconds === 0
+              ? "Each new exercise starts straight away."
+              : "Silence to scan a new exercise before it plays."}
+          </p>
+        </div>
+
+        <div class="space-y-2 sm:col-span-2 border-t border-sr-hairline pt-3">
+          <p class="sr-label">On The Repeats</p>
+          <p class="text-xs text-sr-faint">
+            The first pass is always your own settings, since that is the one
+            being sight-read. These are what comes back on the way through again.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-1">
+            <div class="space-y-2">
+              <p class="sr-label">Repeat Cursor</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor on the repeats">
+                {#each [['same', 'Same'], ...cursorModes.map((m) => [m, cursorModeLabels[m]])] as [value, label]}
+                  <button
+                    class="sr-tok {drillRepeatCursor === value ? 'sr-on' : ''}"
+                    on:click={() => (drillRepeatCursor = value)}
+                    aria-label={`Repeat cursor: ${label}`}
+                    aria-pressed={drillRepeatCursor === value}
+                  >{label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {drillRepeatCursor === 'same'
+                  ? 'The repeats follow the cursor setting above.'
+                  : drillRepeatCursor === 'off'
+                    ? 'No cursor and no auto-scroll on the repeats, so the reader holds their own place.'
+                    : 'The repeats use this cursor instead.'}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Repeat Annotations</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations on the repeats">
+                {#each repeatAnnotationOptions as [value, label]}
+                  <button
+                    class="sr-tok {drillRepeatAnnotation === value ? 'sr-on' : ''}"
+                    on:click={() => (drillRepeatAnnotation = value)}
+                    aria-label={`Repeat annotations: ${label}`}
+                    aria-pressed={drillRepeatAnnotation === value}
+                  >{label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {#if drillRepeatAnnotation === 'same'}
+                  The repeats show whatever the first pass showed.
+                {:else if drillRepeatAnnotation === 'none'}
+                  Read it clean on the way back through as well.
+                {:else if drillRepeatAnnotation === 'solfege'}
+                  Solfège under the notes on the repeats, to check yourself against.
+                {:else}
+                  {drillRepeatAnnotation === 'kodaly' ? 'Kodály' : 'Counting'} syllables on the repeats,
+                  whatever the first pass is read in. Your own system comes back on the
+                  next exercise and when the drill ends.
+                {/if}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Repeat {rhythmOnly ? 'Percussion' : 'Piano'}</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label={`${rhythmOnly ? 'Percussion' : 'Piano'} on the repeats`}>
+                {#each passSwitchOptions as [value, label]}
+                  <button
+                    class="sr-tok {drillRepeatNotes === value ? 'sr-on' : ''}"
+                    on:click={() => (drillRepeatNotes = value)}
+                    aria-label={`Repeat ${rhythmOnly ? 'percussion' : 'piano'}: ${label}`}
+                    aria-pressed={drillRepeatNotes === value}
+                  >{label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {drillRepeatNotes === 'same'
+                  ? `The repeats play the ${rhythmOnly ? 'percussion' : 'notes'} if the first pass does.`
+                  : drillRepeatNotes === 'on'
+                    ? `The ${rhythmOnly ? 'percussion plays' : 'notes play'} on the repeats, even with the volume muted.`
+                    : `Nothing played on the repeats - ${rhythmOnly ? 'clap' : 'sing'} it on your own. The volume stays where you set it.`}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Repeat Metronome</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Metronome on the repeats">
+                {#each passSwitchOptions as [value, label]}
+                  <button
+                    class="sr-tok {drillRepeatMetronome === value ? 'sr-on' : ''}"
+                    on:click={() => (drillRepeatMetronome = value)}
+                    aria-label={`Repeat metronome: ${label}`}
+                    aria-pressed={drillRepeatMetronome === value}
+                  >{label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {drillRepeatMetronome === 'same'
+                  ? 'The repeats click if the metronome is on.'
+                  : drillRepeatMetronome === 'on'
+                    ? 'The click comes in on the repeats, even with the metronome off.'
+                    : 'No click on the repeats. Keep the beat yourself.'}
+              </p>
+            </div>
+
+            <div class="space-y-2">
+              <p class="sr-label">Repeat Count-In</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Count-in before the repeats">
+                {#each [['on', 'On'], ['off', 'Off']] as [value, label]}
+                  <button
+                    class="sr-tok {drillRepeatCountIn === value ? 'sr-on' : ''}"
+                    on:click={() => (drillRepeatCountIn = value === 'off' ? 'off' : 'on')}
+                    aria-label={`Repeat count-in: ${label}`}
+                    aria-pressed={drillRepeatCountIn === value}
+                  >{label}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {drillRepeatCountIn === 'on'
+                  ? 'A bar of count-in before each repeat, as before the first pass.'
+                  : 'The repeat follows straight on from the last note, with no bar in between.'}
+              </p>
+            </div>
+
+            {#if !rhythmOnly}
+              <div class="space-y-2">
+                <p class="sr-label">Repeat Drone</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Drone on the repeats">
+                  {#each passSwitchOptions as [value, label]}
+                    <button
+                      class="sr-tok {drillRepeatDrone === value ? 'sr-on' : ''}"
+                      on:click={() => (drillRepeatDrone = value)}
+                      aria-label={`Repeat drone: ${label}`}
+                      aria-pressed={drillRepeatDrone === value}
+                    >{label}</button>
+                  {/each}
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {drillRepeatDrone === 'same'
+                    ? 'The drone is left as you set it.'
+                    : drillRepeatDrone === 'on'
+                      ? 'The tonic sounds under the repeats, to hold the key by.'
+                      : 'The drone stops for the repeats and comes back after.'}
+                </p>
+              </div>
+            {/if}
+          </div>
+
+          {#if repeatsSilent}
+            <p class="text-xs text-sr-faint">
+              Nothing sounds on the repeats. The music still runs, so a repeat takes
+              exactly as long as the first pass. Only the cursor moves.
+            </p>
+          {:else if repeatCountInSilent}
+            <p class="text-xs text-sr-faint">
+              With no click on the repeats, their count-in is a silent bar, and the repeat
+              still waits it out.
+            </p>
+          {/if}
+
+          {#if drillRepeatAnnotation !== 'same'}
+            <p class="text-xs text-sr-faint">
+              Changing what is written on the score means drawing it again, so a repeat
+              that changes the annotations starts from the count-in rather than following
+              straight on.
+            </p>
+          {/if}
+        </div>
+      </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- The music: beside the settings on a wide screen (globals.css .wide). -->
+  <div class="wide-right focus-keep w-full">
     <!-- Music Display (all that full screen keeps) -->
     <div class="focus-score relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
@@ -5394,6 +5400,7 @@
     {/if}
 
     <div class="h-4"></div>
+  </div>
   </main>
 
   <!-- Sticky playback bar. The unison-only audio controls ride in its "extra"

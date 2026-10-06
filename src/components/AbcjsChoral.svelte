@@ -2448,7 +2448,9 @@
   <ToolsWheel />
 
 
-  <main class="focus-main flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
+  <main class="focus-main wide flex flex-col items-center w-full max-w-5xl mx-auto px-2 md:px-4">
+  <!-- The settings: on a wide screen, a column of their own (globals.css .wide). -->
+  <div class="wide-left w-full flex flex-col items-center">
 
     {#if !assignment}
     <PresetDropdown
@@ -3188,6 +3190,10 @@
     {/if}
 
     <!-- Sheet music (all that full screen keeps) -->
+  </div>
+
+  <!-- The music: beside the settings on a wide screen. -->
+  <div class="wide-right focus-keep w-full">
     <div class="focus-score relative w-full" class:min-h-40={isGenerating}>
       <!-- Kept in the DOM even while hidden: renderAbc finds it by id, and it
            is un-hidden before renderTune measures its width. -->
@@ -3245,6 +3251,7 @@
 
     <div class="h-4"></div>
 
+  </div>
   </main>
 
   <!-- Sticky playback bar -->
