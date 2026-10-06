@@ -1,4 +1,4 @@
-import { DETECT_LATENCY_MS, centsOffAnyOctave, stepsBetween, type GradeNote, type PerfResult } from "./grade";
+import { DETECT_LATENCY_MS, centsOffAnyOctave, solfegeOf, stepsBetween, type GradeNote, type PerfResult } from "./grade";
 import type { GradeTrace } from "./grade-runner";
 import type { ClapResult } from "./grade-rhythm";
 
@@ -229,6 +229,29 @@ export function drawGradeFeedback(o: {
     const lane = lanes[i];
     if (!h || !lane) return;
     arrow(i, r.onsetBeats, r.rhythm);
+    // A wrong note: the note that was sung, beside the written one - a red
+    // notehead where it sits on the staff (in the octave nearest the written
+    // note), a sharp or flat if it is outside the key, and its name.
+    if (!r.missed && !r.pitchOk && r.sung !== null && r.sung !== undefined) {
+      const n = o.notes[i];
+      const sung = Math.round(n.midi + centsOffAnyOctave(r.sung, n.midi) / 100);
+      if (sung !== n.midi) {
+        const x = h.right + space * 0.9;
+        const y = h.y - stepsBetween(sung, n.midi, o.doPc) * step;
+        const head = document.createElementNS(NS, "ellipse");
+        head.setAttribute("cx", String(x));
+        head.setAttribute("cy", String(y));
+        head.setAttribute("rx", String(space * 0.62));
+        head.setAttribute("ry", String(space * 0.44));
+        head.setAttribute("transform", `rotate(-20 ${x} ${y})`);
+        head.setAttribute("fill", BAD);
+        head.setAttribute("opacity", "0.9");
+        g.appendChild(head);
+        const degree = ((sung - o.doPc) % 12 + 12) % 12;
+        if (![0, 2, 4, 5, 7, 9, 11].includes(degree)) label(x - space * 1.15, y + space * 0.45, sung > n.midi ? "♯" : "♭", BAD);
+        label(x + space * 1.9, y + space * 0.45, solfegeOf(sung, o.doPc), BAD);
+      }
+    }
     // Let go early: a line under the note, as long as it was meant to last.
     if (r.cutShort) {
       const line = document.createElementNS(NS, "line");

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, ChevronUp } from "lucide-svelte";
+  import { X, ChevronUp, Check, Ban, ArrowLeftRight, Hash, Scissors, Music2, Sparkles } from "lucide-svelte";
   import { tuner } from "../lib/tuner/store";
   import type { GradeRunner } from "../lib/grade-runner";
   import { guidance, STRICTNESS, type Strictness } from "../lib/grade";
@@ -56,13 +56,59 @@
   const CURSORS = [["off", "Off"], ["smooth", "Smooth"], ["beat", "Beat"], ["note", "Note"]] as const;
   const CLICKS = [["off", "Off"], ["beat", "Beats"], ["sub", "Subdivided"]] as const;
   const CLAP_CLICKS = [["off", "Count-in only"], ["beat", "Beats"], ["sub", "Subdivided"]] as const;
-  /** The setup shows when Grade opens, and again whenever it is back at the start. */
+  /**
+   * The setup and the results are centred cards over the page (the setup when
+   * Grade opens or is back at the start, the results when a run ends); while it
+   * runs, only the slim strip shows, so the music is in view. "See it on the
+   * music" puts the results away to the strip, which can bring them back.
+   */
   let setupOpen = true;
+  let resultsOpen = false;
   let lastPhase = "idle";
   $: if (v.phase !== lastPhase) {
     if (v.phase === "idle") setupOpen = true;
+    if (v.phase === "results") resultsOpen = true;
+    else resultsOpen = false;
     lastPhase = v.phase;
   }
+  $: setupShown = setupOpen && v.phase === "idle" && !blocked && allowed !== false;
+  $: resultsShown = resultsOpen && v.phase === "results";
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== "Escape") return;
+    if (resultsShown) resultsOpen = false;
+    else if (setupShown) onClose();
+  }
+  const start = () => {
+    setupOpen = false;
+    onStart();
+  };
+  /** Another strictness, on the same performance: graded again at once (the run keeps what it heard). */
+  const regrade = (id: Strictness) => {
+    tuner.setGrade({ gradeStrictness: id });
+    runner.regrade(id);
+  };
+  $: graded = v.mode !== "pitch" && v.phase === "results";
+  $: s = STRICTNESS[$tuner.gradeStrictness];
+  // Pitch & rhythm, note by note: what each note was.
+  $: perfCounts = v.perf
+    ? {
+        right: perfNotes.filter((n) => !n.missed && n.pitchOk && n.rhythm >= 90 && !n.cutShort).length,
+        wrong: perfNotes.filter((n) => !n.missed && !n.pitchOk).length,
+        missed: perfNotes.filter((n) => n.missed).length,
+        timing: perfNotes.filter((n) => !n.missed && n.onsetBeats !== null && Math.abs(n.onsetBeats) > s.onsetBeats).length,
+        tune: perfNotes.filter((n) => !n.missed && n.pitchOk && n.cents !== null && Math.abs(n.cents) > s.freeCents).length,
+        short: perfNotes.filter((n) => !n.missed && n.cutShort).length,
+        rests: v.perf.rests.filter((r) => r.sung).length,
+      }
+    : null;
+  $: clapCounts = claps
+    ? {
+        right: claps.notes.filter((n) => !n.missed && n.rhythm >= 90).length,
+        timing: clapOff,
+        missed: clapMissed,
+        strays: strayCount,
+      }
+    : null;
 
   $: v = $runner;
   $: sung = v.result?.notes ?? [];
@@ -118,126 +164,208 @@
       : "text-sr-ink-2";
 </script>
 
-<div class="grade-dock fixed z-50 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(720px,calc(100vw-2rem))] no-print" role="region" aria-label="Grade">
-  <!-- Opened upward from the strip: the setup, the Stuck options, or the results' notes. -->
-  {#if setupOpen && v.phase === "idle" && !blocked && allowed !== false}
-    <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2.5 text-sm">
+<svelte:window on:keydown={onKey} />
+
+<!-- The setup, centred over the page. -->
+{#if setupShown}
+  <div class="grade-veil fixed inset-0 z-[60] flex items-center justify-center p-3 no-print" on:click|self={onClose} role="presentation">
+    <div class="grade-card w-full max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-sm" role="dialog" aria-modal="true" aria-labelledby="grade-title">
+      <div class="flex items-start gap-3">
+        <div class="flex-1">
+          <h2 id="grade-title" class="font-display text-2xl font-bold text-sr-ink">{rhythmOnly ? "Clap and grade" : "Listen and grade"}</h2>
+          <p class="text-xs text-sr-muted mt-1">
+            <span class="rounded-full bg-sr-butter text-sr-butter-ink px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide mr-1">Beta</span>
+            Grading is new and still being tuned, so a score can be off. Tell us with Send this run.
+          </p>
+        </div>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={onClose} aria-label="Close Grade"><X size={18} /></button>
+      </div>
+
       {#if rhythmOnly}
-        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Clap with">
-          <span class="text-xs text-sr-muted w-20">Clap with</span>
-          <button class="sr-tok text-xs px-2.5 py-1 {viaMic ? 'sr-on' : ''}" aria-pressed={viaMic} on:click={() => tuner.setGrade({ gradeClapInput: "mic" })}>Microphone</button>
-          <button class="sr-tok text-xs px-2.5 py-1 {!viaMic ? 'sr-on' : ''}" aria-pressed={!viaMic} on:click={() => tuner.setGrade({ gradeClapInput: "keys", gradeWho: "solo" })}>Spacebar & pad</button>
+        <div class="flex flex-col gap-2" role="radiogroup" aria-label="Who claps">
+          <span class="text-xs font-bold text-sr-muted uppercase tracking-wide">Who's clapping?</span>
+          <div class="grid grid-cols-2 gap-2">
+            {#each [["solo", "Just me", "One person, on this device."], ["class", "The class", "The whole room, heard by one microphone."]] as [id, label, sub]}
+              <button class="choice {$tuner.gradeWho === id ? 'on' : ''}" role="radio" aria-checked={$tuner.gradeWho === id}
+                on:click={() => tuner.setGrade(id === "class" ? { gradeWho: "class", gradeClapInput: "mic" } : { gradeWho: "solo" })}>
+                <span class="font-display text-base font-bold">{label}</span><span class="text-xs opacity-80">{sub}</span>
+              </button>
+            {/each}
+          </div>
+          <p class="note" aria-live="polite">
+            {#if $tuner.gradeWho === "class"}
+              <b>Grading the class as one.</b> Everyone claps together; each clap is the room's. Chanting along is fine, and a few children a little late count as the same clap. Claps well off the beat or in a rest cost points.
+            {:else if viaMic}
+              <b>Grading one person.</b> Clap each note as it starts; rests are silent. Chanting is fine. A clap that matches no note costs a point. For a whole room, choose The class.
+            {:else}
+              <b>Grading one person.</b> Tap the spacebar or the pad at the side as each note starts. A tap that matches no note costs a point.
+            {/if}
+          </p>
         </div>
-        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Who claps">
-          <span class="text-xs text-sr-muted w-20">Who</span>
-          <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeWho === 'solo' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeWho === "solo"} on:click={() => tuner.setGrade({ gradeWho: "solo" })}>Just me</button>
-          <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeWho === 'class' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeWho === "class"} on:click={() => tuner.setGrade({ gradeWho: "class", gradeClapInput: "mic" })}
-            title="One microphone hears the whole room, graded together">The class</button>
-        </div>
-        <p class="text-xs text-sr-muted -mt-1 ml-[5.4rem]">
-          {$tuner.gradeWho === "class"
-            ? "Everyone claps together; the room is graded as one. Claps that come early, late or in a rest cost points."
-            : viaMic
-              ? "Clap each note as it starts; rests are silent. A clap that matches no note costs a point."
-              : "Tap the spacebar or the pad at the side as each note starts. A tap that matches no note costs a point."}
-        </p>
+        {#if $tuner.gradeWho === "solo"}
+          <div class="row" role="group" aria-label="Clap with">
+            <span>Clap with</span>
+            <button class="sr-tok text-xs px-2.5 py-1 {viaMic ? 'sr-on' : ''}" aria-pressed={viaMic} on:click={() => tuner.setGrade({ gradeClapInput: "mic" })}>Microphone</button>
+            <button class="sr-tok text-xs px-2.5 py-1 {!viaMic ? 'sr-on' : ''}" aria-pressed={!viaMic} on:click={() => tuner.setGrade({ gradeClapInput: "keys", gradeWho: "solo" })}>Spacebar & pad</button>
+          </div>
+        {/if}
       {:else}
-      <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="What to grade">
-        <span class="text-xs text-sr-muted w-20">Grade</span>
-        <button class="sr-tok text-xs px-2.5 py-1 {!performance ? 'sr-on' : ''}" aria-pressed={!performance} on:click={() => tuner.setGrade({ gradeMode: "pitch" })}>Note by note</button>
-        <button class="sr-tok text-xs px-2.5 py-1 {performance ? 'sr-on' : ''}" aria-pressed={performance} on:click={() => tuner.setGrade({ gradeMode: "performance" })}>Pitch & rhythm</button>
-      </div>
-      <p class="text-xs text-sr-muted -mt-1 ml-[5.4rem]">
-        {performance ? "The music runs in time with a click; a note missed stays missed. Pitch and rhythm are scored apart." : "Practice, no grade: the cursor waits on each note until you sing it and hold it a moment. Stuck? Hear help, or skip."}
-      </p>
+        <div class="flex flex-col gap-2" role="radiogroup" aria-label="What to grade">
+          <span class="text-xs font-bold text-sr-muted uppercase tracking-wide">How?</span>
+          <div class="grid grid-cols-2 gap-2">
+            {#each [["performance", "Pitch & rhythm", "In time with a click, graded."], ["pitch", "Note by note", "The cursor waits. Practice, no grade."]] as [id, label, sub]}
+              <button class="choice {$tuner.gradeMode === id ? 'on' : ''}" role="radio" aria-checked={$tuner.gradeMode === id}
+                on:click={() => tuner.setGrade({ gradeMode: id === "pitch" ? "pitch" : "performance" })}>
+                <span class="font-display text-base font-bold">{label}</span><span class="text-xs opacity-80">{sub}</span>
+              </button>
+            {/each}
+          </div>
+          <p class="note" aria-live="polite">
+            {performance ? "The music runs in time; a note missed stays missed. Pitch and rhythm are scored apart, and you can switch how strict at the end." : "Sing each note and hold it; the cursor moves on when you've got it. Stuck? Hear help, or skip."}
+          </p>
+        </div>
       {/if}
-      <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Strictness">
-        <span class="text-xs text-sr-muted w-20">Strictness</span>
-        {#each STRICT_LEVELS as [id, s]}
-          <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeStrictness === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeStrictness === id} on:click={() => tuner.setGrade({ gradeStrictness: id })}
-            title={rhythmOnly ? `In time within ${s.onsetBeats} of a beat` : `In tune within ${s.cents} cents${performance ? `; in time within ${s.onsetBeats} of a beat` : ""}`}>{s.label}</button>
-        {/each}
-      </div>
-      {#if performance || rhythmOnly}
-        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Cursor">
-          <span class="text-xs text-sr-muted w-20">Cursor</span>
-          {#each CURSORS as [id, label]}
-            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeCursor === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeCursor === id} on:click={() => tuner.setGrade({ gradeCursor: id })}>{label}</button>
+
+      <div class="flex flex-col gap-2 border-t border-sr-hairline pt-3">
+        <div class="row" role="group" aria-label="Strictness">
+          <span>Strictness</span>
+          {#each STRICT_LEVELS as [id, lv]}
+            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeStrictness === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeStrictness === id} on:click={() => tuner.setGrade({ gradeStrictness: id })}
+              title={rhythmOnly ? `In time within ${lv.onsetBeats} of a beat` : `In tune within ${lv.cents} cents${performance ? `; in time within ${lv.onsetBeats} of a beat` : ""}`}>{lv.label}</button>
           {/each}
         </div>
-        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Click">
-          <span class="text-xs text-sr-muted w-20">Click</span>
-          {#if rhythmOnly}
-            {#each CLAP_CLICKS as [id, label]}
-              <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClapClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClapClick === id} on:click={() => tuner.setGrade({ gradeClapClick: id })}
-                title={id !== "off" && viaMic ? "The microphone may hear the click; headphones help" : ""}>{label}</button>
+        {#if performance || rhythmOnly}
+          <div class="row" role="group" aria-label="Cursor">
+            <span>Cursor</span>
+            {#each CURSORS as [id, label]}
+              <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeCursor === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeCursor === id} on:click={() => tuner.setGrade({ gradeCursor: id })}>{label}</button>
             {/each}
-          {:else}
-            {#each CLICKS as [id, label]}
-              <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClick === id} on:click={() => tuner.setGrade({ gradeClick: id })}>{label}</button>
-            {/each}
-          {/if}
-        </div>
-      {/if}
-      {#if rhythmOnly && viaMic && onCheckTiming}
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="text-xs text-sr-muted w-20">Timing</span>
-          <button class="sr-tok text-xs px-2.5 py-1" on:click={onCheckTiming} title="Clap along with eight clicks, so claps are timed for this microphone">Check timing</button>
-          <span class="text-xs text-sr-muted">{timingNote ?? ($tuner.clapLatencyMs === null ? "Not checked yet: clap along once for the fairest timing." : `Checked: this microphone hears claps ${$tuner.clapLatencyMs} ms late.`)}</span>
-        </div>
-      {/if}
-      {#if !rhythmOnly}
-      <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Before the count-in, play">
-        <span class="text-xs text-sr-muted w-20">First, play</span>
-        <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'note' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "note"} on:click={() => tuner.setGradeReference("note")}>the first note</button>
-        <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")} title="Do mi so mi do so do, then the first note">the key, then the first note</button>
-      </div>
-      {/if}
-    </div>
-  {/if}
-  {#if detailsOpen && v.perf}
-    <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2">
-      <div class="flex flex-wrap gap-1" aria-label="Each note: pitch over rhythm">
-        {#each perfNotes as n, i}
-          <span class="flex flex-col rounded-md overflow-hidden w-7 text-[10px] font-bold tabular-nums text-center" title="Note {i + 1}: pitch {n.pitch}%, rhythm {n.rhythm}%{n.missed ? ', not heard' : ''}{n.cutShort ? ', cut short' : ''}">
-            <span class="{tone(n.pitch)} leading-4">{i + 1}</span>
-            <span class="{tone(n.rhythm)} leading-3 opacity-80">♩</span>
-          </span>
-        {/each}
-      </div>
-      {#if v.perf.drift !== undefined && Math.abs(v.perf.drift) >= 15}
-        <p class="text-xs font-bold text-sr-ink-2">
-          Your tuning drifted {Math.abs(v.perf.drift)} cents {v.perf.drift > 0 ? "sharp" : "flat"} by the end{$tuner.gradeStrictness === "strict" ? "." : " - each note was judged in tune with where you were."}
-        </p>
-      {/if}
-      <p class="text-xs text-sr-muted">
-        Each note: pitch on top, rhythm below. On the score, the line is the pitch you sang: blue on the note, red off it.
-        An arrow above a note means you came in early or late; a dashed line under it, you let go early; a cross over a rest, you sang through it.
-        Tap a note for details.
-      </p>
-    </div>
-  {/if}
-  {#if detailsOpen && claps}
-    <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2">
-      <div class="flex flex-wrap gap-1" aria-label="Each note">
-        {#each claps.notes as n, i}
-          <span
-            class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.rhythm)}"
-            title="Note {i + 1}: {n.missed ? 'missed' : n.onsetBeats !== null && n.rhythm < 100 ? `${Math.abs(n.onsetBeats).toFixed(2)} beats ${n.onsetBeats > 0 ? 'late' : 'early'}` : 'in time'}"
-          >{i + 1}</span>
-        {/each}
-      </div>
-      <p class="text-xs text-sr-muted">
-        On the score, each note is coloured by its timing; an arrow above it means the clap came early or late, and a cross above the staff is a stray clap
-        (in a rest, a second clap on a note, or one that matched no note), which counts as a note scored 0{$tuner.gradeWho === "class" ? ", less for a few people than for the whole room" : ""}.
-        {#if claps.together !== undefined}The class was {togetherLabel(claps.together).toLowerCase()} together: claps spread over about {claps.together} ms.{/if}
-        {#if claps.ignored && claps.ignored.voiced + claps.ignored.merged > 0}
-          Not counted against you: {[claps.ignored.voiced && `${claps.ignored.voiced} chanted syllable${claps.ignored.voiced === 1 ? "" : "s"}`, claps.ignored.merged && `${claps.ignored.merged} late claps folded into the class's clap`].filter(Boolean).join(" and ")}.
+          </div>
+          <div class="row" role="group" aria-label="Click">
+            <span>Click</span>
+            {#if rhythmOnly}
+              {#each CLAP_CLICKS as [id, label]}
+                <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClapClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClapClick === id} on:click={() => tuner.setGrade({ gradeClapClick: id })}
+                  title={id !== "off" && viaMic ? "The microphone may hear the click; headphones help" : ""}>{label}</button>
+              {/each}
+            {:else}
+              {#each CLICKS as [id, label]}
+                <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClick === id} on:click={() => tuner.setGrade({ gradeClick: id })}>{label}</button>
+              {/each}
+            {/if}
+          </div>
         {/if}
-        Tap a note for details.
-      </p>
+        {#if rhythmOnly && viaMic && onCheckTiming}
+          <div class="row">
+            <span>Timing</span>
+            <button class="sr-tok text-xs px-2.5 py-1" on:click={onCheckTiming} title="Clap along with eight clicks, so claps are timed for this microphone">Check timing</button>
+            <span class="text-xs text-sr-muted basis-full sm:basis-auto">{timingNote ?? ($tuner.clapLatencyMs === null ? "Not checked yet: clap along once for the fairest timing." : `Checked: this microphone hears claps ${$tuner.clapLatencyMs} ms late.`)}</span>
+          </div>
+        {/if}
+        {#if !rhythmOnly}
+          <div class="row" role="group" aria-label="Before the count-in, play">
+            <span>First, play</span>
+            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'note' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "note"} on:click={() => tuner.setGradeReference("note")}>the first note</button>
+            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")} title="Do mi so mi do so do, then the first note">the key, then the first note</button>
+          </div>
+        {/if}
+      </div>
+
+      <div class="flex gap-2 justify-end pt-1">
+        <button class="sr-btn-quiet text-sm" on:click={onClose}>Cancel</button>
+        <button class="sr-btn text-sm px-6 py-2" on:click={start} disabled={allowed === null}>{allowed === null ? "…" : "Start"}</button>
+      </div>
     </div>
-  {/if}
+  </div>
+{/if}
+
+<!-- The results, centred over the page. -->
+{#if resultsShown}
+  <div class="grade-veil fixed inset-0 z-[60] flex items-center justify-center p-3 no-print" on:click|self={() => (resultsOpen = false)} role="presentation">
+    <div class="grade-card w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4" role="dialog" aria-modal="true" aria-labelledby="grade-result-title">
+      <div class="flex items-center gap-3">
+        <h2 id="grade-result-title" class="flex-1 font-display text-xl font-bold text-sr-ink">{v.mode === "pitch" ? "Note by note" : "Your score"}</h2>
+        <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={() => (resultsOpen = false)} aria-label="Close the results"><X size={18} /></button>
+      </div>
+
+      {#if v.perf || claps}
+        {@const score = v.perf ? v.perf.overall : claps?.rhythm ?? 0}
+        {@const letter = v.perf ? v.perf.letter : claps?.letter ?? ""}
+        <div class="flex items-center justify-center gap-4">
+          <span class="score-ring {score >= 90 ? 'good' : score >= 70 ? 'ok' : 'low'}" aria-hidden="true">{letter}</span>
+          <div class="flex flex-col">
+            <span class="font-display text-6xl font-bold tabular-nums leading-none text-sr-ink">{score}<span class="text-3xl">%</span></span>
+            {#if v.perf}
+              <span class="text-sm font-bold text-sr-muted mt-1">Pitch {v.perf.pitch}% · Rhythm {v.perf.rhythm}%</span>
+            {:else}
+              <span class="text-sm font-bold text-sr-muted mt-1">Rhythm{claps?.together !== undefined ? ` · together: ${togetherLabel(claps.together).toLowerCase()}` : ""}</span>
+            {/if}
+          </div>
+        </div>
+        <div class="flex items-center justify-center gap-1.5" role="group" aria-label="Grade it again as">
+          <span class="text-xs text-sr-muted mr-1">Graded</span>
+          {#each STRICT_LEVELS as [id, lv]}
+            <button class="sr-tok text-xs px-3 py-1 {$tuner.gradeStrictness === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeStrictness === id} on:click={() => regrade(id)}>{lv.label}</button>
+          {/each}
+        </div>
+        <ul class="flex flex-col gap-1.5 text-sm">
+          {#if perfCounts}
+            <li class="tally"><Check size={16} class="text-sr-action-fg" /><span>Right, in tune and in time</span><b class="good">{perfCounts.right}</b></li>
+            <li class="tally"><Music2 size={16} /><span>Wrong note</span><b class={perfCounts.wrong ? "bad" : "zero"}>{perfCounts.wrong}</b></li>
+            <li class="tally"><Ban size={16} /><span>Not heard</span><b class={perfCounts.missed ? "bad" : "zero"}>{perfCounts.missed}</b></li>
+            <li class="tally"><ArrowLeftRight size={16} /><span>Early or late</span><b class={perfCounts.timing ? "warn" : "zero"}>{perfCounts.timing}</b></li>
+            <li class="tally"><Hash size={16} /><span>Sharp or flat</span><b class={perfCounts.tune ? "warn" : "zero"}>{perfCounts.tune}</b></li>
+            {#if perfCounts.short || perfCounts.rests}
+              <li class="tally"><Scissors size={16} /><span>Let go early{perfCounts.rests ? ", or sang through a rest" : ""}</span><b class="warn">{perfCounts.short + perfCounts.rests}</b></li>
+            {/if}
+          {:else if clapCounts}
+            <li class="tally"><Check size={16} class="text-sr-action-fg" /><span>Clapped in time</span><b class="good">{clapCounts.right}</b></li>
+            <li class="tally"><ArrowLeftRight size={16} /><span>Early or late</span><b class={clapCounts.timing ? "warn" : "zero"}>{clapCounts.timing}</b></li>
+            <li class="tally"><Ban size={16} /><span>Missed</span><b class={clapCounts.missed ? "bad" : "zero"}>{clapCounts.missed}</b></li>
+            <li class="tally"><X size={16} /><span>Stray claps</span><b class={clapCounts.strays ? "bad" : "zero"}>{clapCounts.strays}</b></li>
+          {/if}
+        </ul>
+        {#if v.perf?.drift !== undefined && Math.abs(v.perf.drift) >= 15}
+          <p class="note">Your tuning drifted {Math.abs(v.perf.drift)} cents {v.perf.drift > 0 ? "sharp" : "flat"} by the end{$tuner.gradeStrictness === "strict" ? "." : "; each note was judged in tune with where you were."}</p>
+        {/if}
+        {#if claps?.soundedLikeClass}
+          <p class="note"><Sparkles size={14} class="inline -mt-0.5" /> This sounded like a whole class. For a room, choose <b>The class</b> before you start.</p>
+        {/if}
+        {#if claps?.ignored && claps.ignored.voiced + claps.ignored.merged > 0}
+          <p class="text-xs text-sr-muted">Not counted against you: {[claps.ignored.voiced && `${claps.ignored.voiced} chanted syllable${claps.ignored.voiced === 1 ? "" : "s"}`, claps.ignored.merged && `${claps.ignored.merged} late claps folded into the class's clap`].filter(Boolean).join(" and ")}.</p>
+        {/if}
+        <p class="text-xs text-sr-muted">
+          {#if v.perf}On the music: a wrong note shows the note you sang beside it, and the line is your pitch, blue on the note, red off it. An arrow means early or late. Tap a note for details.{:else}On the music: an arrow means a clap came early or late; a cross, a stray clap. Tap a note for details.{/if}
+        </p>
+      {:else if v.result}
+        <p class="font-display text-2xl font-bold text-sr-ink text-center">{skipped === 0 ? "✓ " : ""}{doneLine}</p>
+        <div class="flex flex-wrap gap-1 justify-center" aria-label="Each note">
+          {#each sung as n, i}
+            <span class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.outcome === 'skipped' ? 0 : 100)}" title="Note {i + 1}: {OUTCOME[n.outcome]}">{i + 1}</span>
+          {/each}
+        </div>
+      {/if}
+
+      <div class="flex flex-col gap-2">
+        <button class="sr-btn text-sm py-2.5" on:click={() => (resultsOpen = false)}>See it on the music</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onStart}>Try again</button>
+          <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onNewExercise}>New exercise</button>
+        </div>
+        {#if onSend || onSave}
+          <div class="flex justify-center gap-3">
+            {#if onSend}<button class="text-xs text-sr-action-fg font-bold" on:click={() => { resultsOpen = false; sendOpen = true; sentLine = null; }}>Graded wrong? Send this run</button>{/if}
+            {#if onSave}<button class="text-xs text-sr-action-fg font-bold" on:click={onSave}>Save this run</button>{/if}
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- The strip: while it runs, and after the results are put away. -->
+{#if !setupShown && !resultsShown}
+<div class="grade-dock fixed z-50 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(720px,calc(100vw-2rem))] no-print" role="region" aria-label="Grade">
   {#if (sendOpen || sentLine) && onSend}
     <div class="mb-2 ml-auto w-fit max-w-full bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2 text-sm">
       {#if sendOpen}
@@ -247,7 +375,7 @@
         </p>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-sr-muted">What seemed wrong? (optional)</span>
-          <input class="text-sm px-3 py-1.5 rounded-lg border border-sr-hairline bg-sr-paper text-sr-ink w-80 max-w-full" bind:value={sendNote}
+          <input class="text-sm px-3 py-1.5 rounded-lg border border-sr-hairline bg-sr-track text-sr-ink w-80 max-w-full" bind:value={sendNote}
             placeholder="I sang note 5 right but it was marked off" maxlength="120" on:keydown={(e) => e.key === "Enter" && send()} />
         </label>
         <div class="flex gap-2 justify-end">
@@ -267,53 +395,24 @@
       <button class="sr-tok text-sm text-left" on:click={skip}>Skip this note</button>
     </div>
   {/if}
-  {#if detailsOpen && v.result}
-    <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2">
-      <div class="flex flex-wrap gap-1" aria-label="Each note">
-        {#each sung as n, i}
-          <span
-            class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.outcome === "skipped" ? 0 : 100)}"
-            title="Note {i + 1}: {OUTCOME[n.outcome]}{n.help.heardKey ? ', heard the key' : ''}"
-          >{i + 1}</span>
-        {/each}
-      </div>
-      <p class="text-xs text-sr-muted">
-        {doneLine}. On the score, the notes you sang are green and any you skipped red; the line is the pitch you sang,
-        blue on the note, red off it. Tap a note to see how it went.
-      </p>
-    </div>
-  {/if}
 
   <div class="bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl px-3 py-2 flex items-center gap-2 sm:gap-3 min-h-[56px]">
     {#if allowed === false}
       <p class="flex-1 text-sm text-sr-ink-2">{rhythmOnly ? "Grade scores your clapping, note by note, for you or a whole class." : "Grade scores your singing, note by note."} It's part of Pro, $19.99 a year.</p>
       <a class="sr-btn text-sm px-4 py-2 shrink-0" href={signedIn ? "/account#plan" : `/login?mode=signup&next=${encodeURIComponent("/account#plan")}`}>Get Pro</a>
     {:else if v.phase === "idle"}
-      <div class="flex-1 min-w-0 flex flex-col gap-1">
-        <p class="text-[11px] text-sr-muted leading-snug">
-          <span class="rounded-full bg-sr-butter text-sr-butter-ink px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide mr-1">Beta</span>
-          Grading is new and still being tuned, so a score can be off. If one seems wrong, tell us with Feedback.
-        </p>
-        <p class="text-sm font-bold text-sr-ink">
-          {rhythmOnly ? ($tuner.gradeWho === "class" ? "Clap it together, in time. The music keeps going." : "Clap it in time. The music keeps going.") : performance ? "Sing it in time. The music keeps going." : "Sing each note. The cursor waits for you."}
-        </p>
-        {#if blocked}
-          <p class="text-xs text-sr-muted">{blocked}</p>
-        {:else}
-          <button class="text-xs text-sr-action-fg font-bold text-left inline-flex items-center gap-1" on:click={() => (setupOpen = !setupOpen)} aria-expanded={setupOpen}>
-            {rhythmOnly ? clapSummary : `${performance ? "Pitch & rhythm" : "Note by note"} · ${STRICTNESS[$tuner.gradeStrictness].label}${performance ? ` · cursor ${$tuner.gradeCursor} · click ${$tuner.gradeClick === "sub" ? "subdivided" : $tuner.gradeClick}` : ""}`}
-            <ChevronUp size={12} class={setupOpen ? "" : "rotate-180"} />
-          </button>
-        {/if}
+      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+        <p class="text-sm font-bold text-sr-ink">{blocked ?? (rhythmOnly ? "Clap and grade" : "Listen and grade")}</p>
+        {#if !blocked}<button class="text-xs text-sr-action-fg font-bold text-left" on:click={() => (setupOpen = true)}>{rhythmOnly ? clapSummary : `${performance ? "Pitch & rhythm" : "Note by note"} · ${STRICTNESS[$tuner.gradeStrictness].label}`} · change</button>{/if}
       </div>
-      <button class="sr-btn text-sm px-5 py-2 shrink-0" on:click={() => { setupOpen = false; onStart(); }} disabled={!!blocked || allowed === null}>{allowed === null ? "…" : "Start"}</button>
+      <button class="sr-btn text-sm px-5 py-2 shrink-0" on:click={start} disabled={!!blocked || allowed === null}>{allowed === null ? "…" : "Start"}</button>
     {:else if v.phase === "reference" || v.phase === "countIn"}
       <p class="flex-1 text-sm font-bold">{v.phase === "reference" ? "Listen…" : "Get ready…"}</p>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
     {:else if v.phase === "sing" && v.mode === "claps"}
       <div class="flex-1 min-w-0 flex flex-col leading-tight">
         <span class="text-xs font-bold text-sr-muted tabular-nums">Note {v.index + 1} of {v.total}</span>
-        <span class="text-sm font-semibold text-sr-ink-2" aria-live="off">{viaMic ? "Clap each note as it starts" : `Tap each note as it starts${v.tapped ? ` · ${v.tapped} tapped` : ""}`}</span>
+        <span class="text-sm font-semibold text-sr-ink-2" aria-live="off">{viaMic ? ($tuner.gradeWho === "class" ? "Everyone: clap each note as it starts" : "Clap each note as it starts") : `Tap each note as it starts${v.tapped ? ` · ${v.tapped} tapped` : ""}`}</span>
       </div>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
     {:else if v.phase === "sing"}
@@ -326,57 +425,47 @@
         <span class="text-xs font-bold text-sr-muted tabular-nums">Note {v.index + 1} of {v.total}</span>
         <span class="text-sm font-semibold truncate {lineTone}" aria-live="polite">{line}</span>
       </div>
-      <button
-        class="sr-btn-quiet text-sm shrink-0 inline-flex items-center gap-1"
-        on:click={() => (stuckOpen = !stuckOpen)}
-        aria-expanded={stuckOpen}
-      >Stuck? <ChevronUp size={14} class={stuckOpen ? "" : "rotate-180"} /></button>
+      <button class="sr-btn-quiet text-sm shrink-0 inline-flex items-center gap-1" on:click={() => (stuckOpen = !stuckOpen)} aria-expanded={stuckOpen}>Stuck? <ChevronUp size={14} class={stuckOpen ? "" : "rotate-180"} /></button>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
-    {:else if v.phase === "results" && v.perf}
-      <div class="flex items-baseline gap-3 shrink-0">
-        <span class="flex flex-col items-center leading-none"><span class="text-xl font-extrabold tabular-nums">{v.perf.pitch}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Pitch</span></span>
-        <span class="flex flex-col items-center leading-none"><span class="text-xl font-extrabold tabular-nums">{v.perf.rhythm}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Rhythm</span></span>
-        <span class="text-xl font-extrabold text-sr-action-fg">{v.perf.letter}</span>
-      </div>
-      <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
-        {detail ?? (pitchToWork + rhythmToWork === 0 ? "In tune and in time" : `${pitchToWork} pitch, ${rhythmToWork} rhythm to work on`)}
-        <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
-      </button>
+    {:else if v.phase === "results"}
+      {#if v.perf || claps}
+        <span class="text-xl font-extrabold tabular-nums shrink-0">{v.perf ? v.perf.overall : claps?.rhythm}%</span>
+        <span class="text-xl font-extrabold text-sr-action-fg shrink-0">{v.perf ? v.perf.letter : claps?.letter}</span>
+      {:else}
+        <span class="text-2xl shrink-0" aria-hidden="true">{skipped === 0 ? "✓" : "•"}</span>
+      {/if}
+      <p class="flex-1 min-w-0 text-sm text-sr-ink-2 truncate">{detail ?? (v.perf ? (pitchToWork + rhythmToWork === 0 ? "In tune and in time" : `${pitchToWork} pitch, ${rhythmToWork} rhythm to work on`) : claps ? clapLine : doneLine)}</p>
+      <button class="sr-btn-quiet text-sm shrink-0" on:click={() => (resultsOpen = true)}>Results</button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
-      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
-      {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
-      {#if onSend}<button class="sr-btn-quiet text-xs shrink-0" on:click={() => { sendOpen = !sendOpen; sentLine = null; }} title="Think this was graded wrong? Send us the run">Send this run</button>{/if}
-    {:else if v.phase === "results" && claps}
-      <div class="flex items-baseline gap-3 shrink-0">
-        <span class="flex flex-col items-center leading-none"><span class="text-xl font-extrabold tabular-nums">{claps.rhythm}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Rhythm</span></span>
-        <span class="text-xl font-extrabold text-sr-action-fg">{claps.letter}</span>
-      </div>
-      <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
-        {detail ?? clapLine}
-        <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
-      </button>
-      <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
-      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
-      {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
-      {#if onSend}<button class="sr-btn-quiet text-xs shrink-0" on:click={() => { sendOpen = !sendOpen; sentLine = null; }} title="Think this was graded wrong? Send us the run">Send this run</button>{/if}
-    {:else if v.phase === "results" && v.result}
-      <span class="text-2xl shrink-0" aria-hidden="true">{skipped === 0 ? "✓" : "•"}</span>
-      <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
-        {detail ?? doneLine}
-        <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
-      </button>
-      <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
-      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
-      {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
-      {#if onSend}<button class="sr-btn-quiet text-xs shrink-0" on:click={() => { sendOpen = !sendOpen; sentLine = null; }} title="Think this was graded wrong? Send us the run">Send this run</button>{/if}
     {/if}
     <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">
       <X size={16} />
     </button>
   </div>
 </div>
+{/if}
 
 <style>
   /* Just above the playback bar, whose height the page publishes. */
   .grade-dock { bottom: calc(var(--bottom-bar-h, 96px) + 10px); }
+  .grade-veil { background: color-mix(in srgb, var(--sr-ink) 28%, transparent); }
+  .choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 12px 14px; border-radius: 18px;
+    border: 2px solid var(--sr-hairline); background: var(--sr-track); color: var(--sr-ink); }
+  /* Not --sr-paper: the score's paper stays white in the dark theme, and the text on it did not. */
+  .choice.on { border-color: var(--sr-action); background: color-mix(in srgb, var(--sr-action) 16%, var(--sr-track)); }
+  .note { font-size: 0.8rem; line-height: 1.35; color: var(--sr-ink-2); background: color-mix(in srgb, var(--sr-sky) 55%, transparent); border-radius: 14px; padding: 8px 12px; }
+  .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .row > span:first-child { font-size: 0.75rem; color: var(--sr-muted); width: 5.2rem; }
+  .tally { display: flex; align-items: center; gap: 10px; color: var(--sr-ink-2); }
+  .tally > span { flex: 1; }
+  .tally b { min-width: 2rem; height: 2rem; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tally b.good { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .tally b.warn { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .tally b.bad { background: var(--sr-peach); color: var(--sr-peach-ink); }
+  .tally b.zero { background: var(--sr-track); color: var(--sr-muted); }
+  .score-ring { width: 72px; height: 72px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+    font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 2.2rem; }
+  .score-ring.good { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .score-ring.ok { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .score-ring.low { background: var(--sr-peach); color: var(--sr-peach-ink); }
 </style>

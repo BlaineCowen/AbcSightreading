@@ -150,7 +150,7 @@ await page.evaluate(() => {
 });
 await new Promise((r) => setTimeout(r, 1200));
 await page.evaluate(() => {
-  const b = [...document.querySelectorAll(".grade-dock button")].find((x) => (x.textContent ?? "").trim() === "Start");
+  const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
   (b as HTMLButtonElement | undefined)?.click();
 });
 const one = await page.waitForFunction(() => (window as any).__countIn.find((w: any) => w.word === "1")?.at, { timeout: 15000 });
@@ -193,7 +193,7 @@ await page.waitForFunction(() => (window as any).__gradeDebug.view().phase === "
 await new Promise((r) => setTimeout(r, 600));
 if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS });
 const out = await page.evaluate(() => ({
-  dock: document.querySelector(".grade-dock")?.textContent?.replace(/\s+/g, " ").trim(),
+  dock: (document.querySelector('[role="dialog"]') ?? document.querySelector(".grade-dock"))?.textContent?.replace(/\s+/g, " ").trim(),
   marks: document.querySelectorAll(".grade-overlay path").length,
   view: (window as any).__gradeDebug.view(),
 }));

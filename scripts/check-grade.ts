@@ -155,7 +155,7 @@ await page.evaluate(() => {
 });
 await new Promise((r) => setTimeout(r, 1200));
 await page.evaluate(() => {
-  const b = [...document.querySelectorAll(".grade-dock button")].find((x) => (x.textContent ?? "").trim() === "Start");
+  const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
   (b as HTMLButtonElement | undefined)?.click();
 });
 
@@ -229,14 +229,14 @@ if (process.env.SAVE) {
   const cdp = await page.createCDPSession();
   await cdp.send("Page.setDownloadBehavior", { behavior: "allow", downloadPath: process.env.SAVE });
   await page.evaluate(() => {
-    const b = [...document.querySelectorAll(".grade-dock button")].find((x) => (x.textContent ?? "").trim() === "Save this run");
+    const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Save this run");
     (b as HTMLButtonElement | undefined)?.click();
   });
   await new Promise((r) => setTimeout(r, 2500));
 }
 
 const out = await page.evaluate(() => {
-  const dock = document.querySelector(".grade-dock")?.textContent?.replace(/\s+/g, " ").trim();
+  const dock = (document.querySelector('[role="dialog"]') ?? document.querySelector(".grade-dock"))?.textContent?.replace(/\s+/g, " ").trim();
   const trace = document.querySelectorAll(".grade-overlay polyline").length;
   const marks = document.querySelectorAll(".grade-overlay path, .grade-overlay line").length;
   return { dock, trace, marks, view: (window as any).__gradeDebug.view() };
@@ -267,6 +267,24 @@ if (MODE === "performance") {
   if (!r) throw new Error("no result: " + JSON.stringify(v).slice(0, 300));
   console.log(`pitch ${r.score}% ${r.letter}`);
   r.notes.forEach((x: any, i: number) => console.log(`  ${String(i + 1).padStart(2)} midi ${x.midi} score ${x.score} find ${x.findBeats?.toFixed(2) ?? "-"} cents ${x.cents ?? "-"}${x.missed ? " missed" : x.skipped ? " skipped" : ""}`));
+}
+// REGRADE=<png>: switch the results to Easy (graded again from what was heard), then put them away and show the music.
+if (process.env.REGRADE && MODE === "performance") {
+  const scoreOf = () => page.evaluate(() => (window as any).__gradeDebug.view().perf?.overall);
+  const before = await scoreOf();
+  await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent ?? "").trim() === "Easy"); (b as HTMLButtonElement | undefined)?.click(); });
+  await new Promise((r) => setTimeout(r, 600));
+  const after = await scoreOf();
+  console.log(`regraded: ${STRICT} ${before} -> Easy ${after}`);
+  expect(after !== undefined && after >= before, "Easy should grade at least as high");
+  await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent ?? "").trim() === "See it on the music"); (b as HTMLButtonElement | undefined)?.click(); });
+  await new Promise((r) => setTimeout(r, 600));
+  const ghost = await page.evaluate(() => document.querySelectorAll(".grade-overlay ellipse").length);
+  console.log(`sung notes drawn beside wrong ones: ${ghost}`);
+  expect(ghost >= 1, "the wrong note's sung note should be drawn");
+  await page.evaluate(() => document.querySelector("#paper")?.scrollIntoView({ block: "center" }));
+  await new Promise((r) => setTimeout(r, 400));
+  await page.screenshot({ path: process.env.REGRADE });
 }
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 await browser.close();

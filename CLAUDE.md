@@ -620,12 +620,23 @@ output's own delay (`baseLatency` + `outputLatency`), since a singer sings
 with the click as heard. Replayed with these, that run grades 97 pitch,
 99 rhythm.
 
+Grade's setup and results are centred cards over the page (GradePanel);
+while it runs only the slim strip shows, so the music is in view. The setup
+asks, for a rhythm, Just me or The class (Just me the default), saying what
+the chosen one grades; for a sung exercise, Pitch & rhythm or Note by note.
+The results show the score, a tally (right; wrong note; not heard; early or
+late; sharp or flat; let go early; for claps: in time, early or late,
+missed, stray) and Easy / Standard / Strict, which grades the same run again
+at once (`GradeRunner.regrade`: it keeps the pitch frames or the claps it
+heard). "See it on the music" puts the results away to the strip, whose
+Results button brings them back.
+
 After a run the score shows what was sung (`grade-feedback.ts`, an overlay
 group in the abcjs SVG): the pitch trace through each note's time (blue in
 tolerance, red off, placed by staff steps from each notehead in the key, so
 no clef is needed), each note coloured, an arrow where a note came in early
 or late, a dashed line under one cut short, a cross over a rest sung through;
-tapping a note puts its details in the strip ("you sang fa, the note is mi ·
+beside a wrong note, the note that was sung: a red notehead where it sits, a sharp or flat if outside the key, and its solfège; tapping a note puts its details in the strip ("you sang fa, the note is mi ·
 0.35 beats late"). Rules in `src/lib/grade.ts` (tests `grade.test.ts`), the
 run in `src/lib/grade-runner.ts`, the strip in `GradePanel.svelte`. While it
 listens the tuner store's `micHeld` keeps a Tools card from switching the

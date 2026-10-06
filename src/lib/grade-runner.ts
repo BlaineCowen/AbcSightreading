@@ -318,14 +318,22 @@ export class GradeRunner {
     for (let k = 1; k <= 8; k++) clicks.push(t0 - k * beatMs);
     if (this.click !== "off") for (let at = 0; at <= endMs; at += this.click === "sub" ? beatMs / 2 : beatMs) clicks.push(t0 + at);
     heard = withoutClickEcho(heard, clicks, t0 - 50);
-    const claps = gradeClaps({ notes: this.notes, rests: this.rests }, [...heard, ...this.taps], {
-      t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness, who: this.who,
-      // Taps have no microphone delay; claps with an unchecked one forgive a steady lag.
-      forgiveLag: this.forgiveLag && !!this.clapMicUsed,
-    });
     this.clear();
     this.hooks.stopTimeline?.();
     this.hooks.moveTo(-1);
+    // Taps have no microphone delay; claps with an unchecked one forgive a steady lag.
+    const all = [...heard, ...this.taps];
+    const forgiveLag = this.forgiveLag && !!this.clapMicUsed;
+    this.lastRun = { kind: "claps", t0, heard: all, forgiveLag };
+    this.showClaps(t0, all, forgiveLag);
+  }
+
+  private showClaps(t0: number, heard: Clap[], forgiveLag: boolean) {
+    const beatMs = 60_000 / Math.max(1, this.bpm);
+    const unitMs = beatMs / this.beatUnits;
+    const claps = gradeClaps({ notes: this.notes, rests: this.rests }, heard, {
+      t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness, who: this.who, forgiveLag,
+    });
     this.set({ phase: "results", index: -1, hold: 0, target: null, sung: null, perf: null, result: null, claps });
     this.hooks.marked?.(claps.notes.map((n) => n.rhythm));
     this.hooks.traced?.({
@@ -339,14 +347,34 @@ export class GradeRunner {
     });
   }
 
+  /** What the last graded run heard, to grade again at another strictness (regrade). */
+  private lastRun: { kind: "performance"; t0: number; frames: HistoryPoint[] } | { kind: "claps"; t0: number; heard: Clap[]; forgiveLag: boolean } | null = null;
+
+  /**
+   * The same performance graded again at another strictness: nothing is sung
+   * or clapped again; the results, the marks and the drawing follow.
+   */
+  regrade(strictness: Strictness) {
+    const last = this.lastRun;
+    if (!last || this.view === undefined) return;
+    this.strictness = strictness;
+    if (last.kind === "performance") this.showPerformance(last.t0, last.frames);
+    else this.showClaps(last.t0, last.heard, last.forgiveLag);
+  }
+
   private finishPerformance(t0: number) {
     const frames = pitchHistory.recent(performance.now() - t0 + 2000);
-    const perf = gradePerformance({ notes: this.notes, rests: this.rests }, frames, {
-      t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness,
-    });
     this.clear();
     this.hooks.stopTimeline?.();
     this.hooks.moveTo(-1);
+    this.lastRun = { kind: "performance", t0, frames };
+    this.showPerformance(t0, frames);
+  }
+
+  private showPerformance(t0: number, frames: HistoryPoint[]) {
+    const perf = gradePerformance({ notes: this.notes, rests: this.rests }, frames, {
+      t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness,
+    });
     // The result first: the drawing reads it.
     this.set({ phase: "results", index: -1, hold: 0, target: null, sung: null, perf, result: null });
     const unitMs = 60_000 / Math.max(1, this.bpm) / this.beatUnits;
