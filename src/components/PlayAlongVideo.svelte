@@ -200,10 +200,29 @@
   let run: { t0: number; musicEnd: number; end: number } | null = null;
 
   $: audio?.setMix({ ...sound, bass: pitched ? sound.bass : 0, guitar: pitched ? sound.guitar : 0 });
-  /** Pitched, over a progression: the guitar part (guitar.ts), bar by bar. */
+  /**
+   * Pitched: one chord a bar read from the melody (bass.ts barChords), where
+   * the older walk wrote the exercise and there is no progression - a line
+   * that cannot start and end on do (mi so la, say) is written that way.
+   */
+  $: melodyBars =
+    pitched && score?.key && !score.harmony
+      ? barChords(
+          harmonyNotes((score.partsObject as any).parts.Unison.chordNoteObject),
+          score.timeSig.tsPerMeasure,
+          beatUnitOf(scoreMeter),
+          /m$/.test(score.key),
+        )
+      : null;
+  /**
+   * Pitched: the guitar part (guitar.ts), bar by bar: the progression, or the
+   * melody's chord a bar. Only a progression's harmony used to reach it, so
+   * the guitar was silent on every exercise without one.
+   */
+  $: guitarHarmony = score?.harmony ?? melodyBars?.map((c) => [c.name]) ?? null;
   $: guitarPieces =
-    pitched && score?.key && score.harmony
-      ? guitarPart(score.harmony, {
+    pitched && score?.key && guitarHarmony
+      ? guitarPart(guitarHarmony, {
           key: score.key,
           meter: scoreMeter,
           style: sound.guitarStyle,
@@ -225,14 +244,7 @@
   $: bassText =
     pitched && score?.key
       ? bassAbc(
-          score.harmony
-            ? progressionChords(score.harmony)
-            : barChords(
-                harmonyNotes((score.partsObject as any).parts.Unison.chordNoteObject),
-                score.timeSig.tsPerMeasure,
-                beatUnitOf(scoreMeter),
-                /m$/.test(score.key),
-              ),
+          score.harmony ? progressionChords(score.harmony) : (melodyBars ?? []),
           { key: score.key, meter: scoreMeter, barUnits: score.timeSig.tsPerMeasure },
         )
       : "";

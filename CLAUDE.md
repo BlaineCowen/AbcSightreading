@@ -449,7 +449,13 @@ bar at 60 has too few strums to carry it. At each barline the old chord
 rings on 30 ms and fades under the new strum, which lands 10-25 ms late in
 the render (the strum's spread); and a stretched clip is padded with
 silence so SoundTouch gives back its end (it kept the last few hundred ms,
-a gap before every barline). The count-in strums the home
+a gap before every barline). Without a progression (a line
+that cannot start and end on do, like mi so la, is written by the older walk)
+the guitar plays the bass's chord a bar (`barChords`); it used to read only
+a progression and was silent there. Those chords come with inversions
+("6-6", "1-64"), whose `root` in chords.ts is the bass note, so
+`guitarChord` takes the root from `triadNotes[0]`; vii (diminished, never
+rendered) is strummed as V7. The count-in strums the home
 chord so the key is set before the first note; Guitar level and strum (Pop
 strum, Campfire; 4/4 and 2/4 only) in the Sound panel. The page's Playback
 transpose moves the whole band: the melody and bass through abcjs's
