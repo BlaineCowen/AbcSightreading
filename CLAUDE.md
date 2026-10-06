@@ -527,7 +527,8 @@ mic only while showing; the drone (`src/lib/tools/state.ts`), metronome and
 timer keep going with the card closed. Analysis has four views: Pitch (the
 trace and its half-minute stats), Spectrum (live, with the outline, numbered
 harmonics and F1/F2 as overlays), Harmonics (levels, H1 vs H2, ring,
-brightness) and Vowel (a guess among ee, eh, ah, oh, oo on a vowel chart).
+brightness) and Vowel (a guess among ee, eh, ah, oh, oo on a vowel chart; hidden for now,
+with the spectrum's F1/F2 lines, by `SHOW_VOWELS` in ToolAnalysis.svelte).
 The maths is `src/lib/tuner/voice-spectrum.ts` (tests `voice-spectrum.test.ts`).
 Formants come two ways: below C4 (`LPC_BELOW_HZ`) by LPC on the mic's raw
 samples (`TunerEngine.readSamples`), above it by analysis by synthesis over

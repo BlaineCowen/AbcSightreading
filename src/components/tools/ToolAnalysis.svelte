@@ -21,12 +21,19 @@
   /** The abcTuner page's version: more room for the spectrum and bars. */
   export let large = false;
 
+  /**
+   * The vowel guess and the F1/F2 lines are hidden for now (Blaine, October
+   * 2026): the guess is only trusted below about A4, and rough above E4.
+   * The code stays; this brings them back.
+   */
+  const SHOW_VOWELS = false;
+
   type View = "pitch" | "spectrum" | "harmonics" | "vowel";
   const VIEWS: { id: View; label: string }[] = [
     { id: "pitch", label: "Pitch" },
     { id: "spectrum", label: "Spectrum" },
     { id: "harmonics", label: "Harmonics" },
-    { id: "vowel", label: "Vowel" },
+    ...(SHOW_VOWELS ? [{ id: "vowel" as View, label: "Vowel" }] : []),
   ];
   const KEY = "sr-analysis-view";
   let view: View = "pitch";
@@ -43,7 +50,7 @@
   // Spectrum overlays.
   let outline = true;
   let marks = true;
-  let formantLines = true;
+  let formantLines = SHOW_VOWELS;
 
   const stopWatching = watchVoice();
   onDestroy(stopWatching);
@@ -134,14 +141,20 @@
   <div class="flex flex-wrap gap-1.5" role="group" aria-label="Show on the spectrum">
     <button class="sr-freq {outline ? 'sr-on' : ''}" aria-pressed={outline} on:click={() => (outline = !outline)}>Outline</button>
     <button class="sr-freq {marks ? 'sr-on' : ''}" aria-pressed={marks} on:click={() => (marks = !marks)}>Harmonics</button>
-    <button class="sr-freq {formantLines ? 'sr-on' : ''}" aria-pressed={formantLines} on:click={() => (formantLines = !formantLines)}>F1 and F2</button>
+    {#if SHOW_VOWELS}
+      <button class="sr-freq {formantLines ? 'sr-on' : ''}" aria-pressed={formantLines} on:click={() => (formantLines = !formantLines)}>F1 and F2</button>
+    {/if}
   </div>
   <p class="text-xs text-sr-muted">
-    The peaks are the note's harmonics. The outline through them is the shape your vowel gives the sound: its humps are
-    the resonances F1 and F2.
+    {#if SHOW_VOWELS}
+      The peaks are the note's harmonics. The outline through them is the shape your vowel gives the sound: its humps are
+      the resonances F1 and F2.
+    {:else}
+      The peaks are the note's harmonics. The outline through them is the shape of your tone.
+    {/if}
   </p>
 {:else if view === "harmonics"}
   <HarmonicsView {large} />
-{:else}
+{:else if SHOW_VOWELS}
   <VowelView />
 {/if}
