@@ -87,3 +87,7 @@ export function solfegeFor(note: NoteName, key: NoteName): SolfegeName {
   const relative = (NOTES.indexOf(note) - NOTES.indexOf(key) + 12) % 12;
   return NOTE_TO_SOLFEGE[NOTES[relative]];
 }
+
+/** A key's tonic as a choir reads it: the flat keys spelled flat (Eb, not D#), F♯ sharp. */
+const KEY_SPELLING: Record<string, string> = { "C#": "D♭", "D#": "E♭", "F#": "F♯", "G#": "A♭", "A#": "B♭" };
+export const spellKey = (note: string) => KEY_SPELLING[note] ?? note;

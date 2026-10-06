@@ -497,7 +497,7 @@ sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): every
 practice tool at full size, a tab each (`AbcTuner.svelte`): tuner, Analysis,
 metronome, drone, timer and
-the scale challenge. The mic stays on across tabs. In the navbar as abcTuner, and
+the scale challenge. The mic stays on across tabs. The Drone (on `/tuner`; on a practice page it follows the exercise) and Scale challenge tabs set the key with one tap (`KeyPicker.svelte`, the tuner store's `key`), spelled as a choir reads it (`spellKey`: Eb, not D#). In the navbar as abcTuner, and
 the practice pages reach it from their tools.
 
 The practice pages carry a Tools button in the bottom-right corner

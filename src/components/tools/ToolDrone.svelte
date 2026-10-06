@@ -4,6 +4,8 @@
   import { toolSettings, setTool, type DroneMode } from "../../lib/tools/settings";
   import { tuner } from "../../lib/tuner/store";
   import { droneOn, initDrone } from "../../lib/tools/state";
+  import KeyPicker from "../tuner/KeyPicker.svelte";
+  import { spellKey } from "../../lib/tuner/pitch";
 
   /**
    * The drone card: do held under the singing, so every note is heard against
@@ -17,7 +19,7 @@
     ["doso", "Do + So"],
     ["chord", "Tonic chord"],
   ];
-  $: label = $exercise?.doLabel ?? $tuner.key;
+  $: label = $exercise?.doLabel ?? spellKey($tuner.key);
   onMount(initDrone);
   const toggle = () => droneOn.update((on) => !on);
 </script>
@@ -31,6 +33,10 @@
   aria-pressed={$droneOn}
 >{$droneOn ? `Drone on ${label} (do) · stop` : `Start a drone on ${label} (do)`}</button>
 
+<!-- On a practice page the drone follows the exercise's key; elsewhere (abcTuner) it is chosen here. -->
+{#if !$exercise}
+  <KeyPicker />
+{/if}
 <div class="flex flex-wrap gap-1.5">
   {#each MODES as [id, text]}
     <button class="sr-tok text-sm {$toolSettings.droneMode === id ? 'sr-on' : ''}" on:click={() => setTool({ droneMode: id })}>{text}</button>

@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { CHALLENGE_OCTAVE_MAX, CHALLENGE_OCTAVE_MIN, tuner } from "../../lib/tuner/store";
-  import { NOTES, solfegeFor } from "../../lib/tuner/pitch";
+  import { NOTES, solfegeFor, spellKey } from "../../lib/tuner/pitch";
   import type { NoteName } from "../../lib/tuner/types";
   import { ScaleChallengeRunner } from "../../lib/tuner/scale-challenge-runner";
   import { FREE_FIND_MS, TOLERANCE_CENTS, buildTargets } from "../../lib/tuner/scale-challenge";
   import type { Difficulty, Direction } from "../../lib/tuner/scale-challenge";
   import RadialTuner from "./RadialTuner.svelte";
+  import KeyPicker from "./KeyPicker.svelte";
 
   export let onStartMic: () => void;
 
@@ -66,8 +67,8 @@
   $: rootLabel = targets.length ? label(targets[0]) : "";
   $: startLabel = targets.length
     ? displayMode === "solfege"
-      ? `${rootLabel}${octaveOf(targets[0])} (${nameOf(targets[0])}${octaveOf(targets[0])})`
-      : rootLabel
+      ? `${rootLabel}${octaveOf(targets[0])} (${spellKey(nameOf(targets[0]))}${octaveOf(targets[0])})`
+      : `${spellKey(nameOf(targets[0]))}${octaveOf(targets[0])}`
     : "";
 
   function hearStart() {
@@ -181,6 +182,8 @@
       </p>
     </div>
 
+    <KeyPicker />
+
     <div class="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
       <div class="flex items-center gap-2">
         <span class="text-sr-muted">Start on</span>
@@ -244,7 +247,7 @@
     </div>
 
     <p class="text-xs text-sr-faint">
-      {targets.length} notes · key of {key} · within ±{TOLERANCE_CENTS[difficulty]}¢{guideTone
+      {targets.length} notes · key of {spellKey(key)} · within ±{TOLERANCE_CENTS[difficulty]}¢{guideTone
         ? " · each note played first"
         : " · no guide tone"}{` · ${seconds(FREE_FIND_MS[difficulty])} to find it free`}{showTuner
         ? " · tuner visible"
