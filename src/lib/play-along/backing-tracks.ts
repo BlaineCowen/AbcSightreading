@@ -21,6 +21,15 @@ export interface BackingTrack {
   bars: number;
   /** Where beat 1 of the repeating part falls in the file, in seconds. */
   downbeatSec: number;
+  /**
+   * The song's tonic as a pitch class (0 = C), for a pitched guide (piano,
+   * marimba, organ, voice) to play the rhythm on. Read from the packs' file
+   * names and checked against the finished mix (pitch-class profiles):
+   * soul B flat minor, trap A minor, cumbia F minor, reggaeton G (its pack
+   * says G; the mix has C, not C sharp, so G major's notes over a pluck on
+   * B and F sharp). Drum loops have none: the guide plays on C.
+   */
+  tonic?: number;
   /** Bars before the repeating part that serve as the count-in; the meter's own count-in when absent. */
   introBars?: number;
   /**
@@ -79,6 +88,7 @@ const drumTracks: BackingTrack[] = DRUM_LOOPS.map((d) => ({
 export const BACKING_TRACKS: BackingTrack[] = [
   {
     id: "soul-4-4-80",
+    tonic: 10,
     name: "Soul band (4/4, 80)",
     file: "/backing/soul-4-4-80.mp3",
     bpm: 80,
@@ -90,6 +100,7 @@ export const BACKING_TRACKS: BackingTrack[] = [
   },
   {
     id: "reggaeton-4-4-108",
+    tonic: 7,
     name: "Reggaeton (4/4, 108)",
     file: "/backing/reggaeton-4-4-108.mp3",
     bpm: 108,
@@ -102,6 +113,7 @@ export const BACKING_TRACKS: BackingTrack[] = [
   // Trap is made at 140 and felt in half time: written at 70, the snare on 2 and 4.
   {
     id: "trap-4-4-70",
+    tonic: 9,
     name: "Trap (4/4, 70)",
     file: "/backing/trap-4-4-70.mp3",
     bpm: 70,
@@ -115,6 +127,7 @@ export const BACKING_TRACKS: BackingTrack[] = [
   // 36 bars of 4/4 are 72 of 2/4 with the same four-beat count-in.
   {
     id: "cumbia-4-4-100",
+    tonic: 5,
     name: "Cumbia (4/4, 100)",
     file: "/backing/cumbia-100.mp3",
     bpm: 100,
@@ -126,6 +139,7 @@ export const BACKING_TRACKS: BackingTrack[] = [
   },
   {
     id: "cumbia-2-4-100",
+    tonic: 5,
     name: "Cumbia (2/4, 100)",
     file: "/backing/cumbia-100.mp3",
     bpm: 100,
@@ -162,3 +176,13 @@ export function maxBarsIn(meter: string): number {
 }
 
 export const backingTracksIn = (meter: string) => BACKING_TRACKS.filter((t) => t.meter === meter);
+
+/**
+ * Semitones from the rhythm staff's placeholder note (B4, MIDI 71) to the
+ * track's tonic, the nearest one (F4 up to E5), for a pitched rhythm guide;
+ * C without a tonic.
+ */
+export function guideTranspose(track: { tonic?: number } | null | undefined): number {
+  const pc = track?.tonic ?? 0;
+  return ((((pc - 11 + 6) % 12) + 12) % 12) - 6;
+}

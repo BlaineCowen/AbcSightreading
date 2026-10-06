@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
-  import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
+  import { BACKING_TRACKS, DRUM_LOOPS, barsFor, countInBarsFor, drumLoopId, guideTranspose, maxBarsIn, type BackingTrack } from "../lib/play-along/backing-tracks";
   import { barsForLength, frameAt, tempoChoices } from "../lib/play-along/timeline";
   import { barChords, bassAbc, harmonyNotes, progressionChords } from "../lib/play-along/bass";
   import { GUITAR_STYLES, guitarDouble, guitarFeel, guitarPart, type GuitarStyle } from "../lib/play-along/guitar";
@@ -249,7 +249,13 @@
         )
       : "";
   /** What the guide (and bass) was rendered for: the instrument, the tempo and the exercise as written. */
-  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${pitched ? transpose : 0}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}|${JSON.stringify(guitarPieces)}`;
+  /**
+   * Rhythm: a pitched guide (piano, marimba, organ, voice) plays the rhythm on
+   * the track's tonic, not on the staff's placeholder B, which clashed with
+   * every song (backing-tracks.ts `tonic`); a click sound stays as it is.
+   */
+  $: rhythmGuideShift = !pitched && rhythmSoundFor(sound.guideSound).kind === "sustained" ? guideTranspose(track) : 0;
+  $: guideKey = `${pitched ? sound.melodyProgram : sound.guideSound}|${pitched ? transpose : rhythmGuideShift}|${tempo}|${abc.length}|${syllables}|${scoreBars}|${bassText.length}|${JSON.stringify(guitarPieces)}`;
   $: if (abc && audioRunning && status === "ready" && guideKey !== guideFor) void renderGuide();
 
   /**
@@ -268,7 +274,7 @@
     const a = audio;
     const melody = pitched
       ? a.renderGuide(withInstrument(abc, sound.melodyProgram), tempo, 3, transpose)
-      : a.renderGuide(withRhythmSound(abc, rhythmSoundFor(sound.guideSound)), tempo, volumeMultiplierFor(rhythmSoundFor(sound.guideSound)));
+      : a.renderGuide(withRhythmSound(abc, rhythmSoundFor(sound.guideSound)), tempo, volumeMultiplierFor(rhythmSoundFor(sound.guideSound)), rhythmGuideShift);
     const bassLine = pitched && bassText ? a.renderGuide(bassText, tempo, 3, transpose) : Promise.resolve(null);
     // A guitar that cannot load leaves the video playing without it.
     const guitar = guitarPieces.length ? a.prepareGuitar(guitarPieces, { meter: scoreMeter, bpm: guitarDouble(scoreMeter, tempo) ? 2 * tempo : tempo }).catch(() => null) : Promise.resolve(null);
