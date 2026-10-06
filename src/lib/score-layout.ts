@@ -15,7 +15,10 @@
  * note, or sixteenths, need the room: at 4, rhythm syllables were pushed onto
  * a second row), or 2 on a phone.
  */
-export function measuresPerLine(o: { measures: number; narrow: boolean; dense: boolean; most?: number }): number {
+export function measuresPerLine(o: { measures: number; narrow: boolean; dense: boolean; most?: number; want?: number | null }): number {
+  // The reader's own choice (the Layout menu), up to the bars there are and
+  // no more than abcjs managed to fit last time (`most`).
+  if (o.want) return Math.max(1, Math.min(o.want, Math.round(o.measures) || o.want, o.most ?? Infinity));
   const cap = Math.max(1, Math.min(o.narrow ? 2 : o.dense ? 3 : 4, o.most ?? Infinity));
   const m = Math.max(1, Math.round(o.measures));
   if (m <= cap) return m;

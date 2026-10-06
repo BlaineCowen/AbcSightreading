@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createFullscreen } from "../lib/fullscreen";
+  import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
   import { tuner } from "../lib/tuner/store";
   import { drumPatternFor } from "../lib/playback-click";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
@@ -773,18 +774,28 @@
    *  only magnifies. It rose with the page column (max-w-4xl -> 5xl, 896 ->
    *  1024px), 740 -> 846, so the extra width became room for the music at the
    *  size it already was, rather than bigger notes in the same layout. */
+  /** Size, bars per line and line spacing: the playback bar's Layout menu (score-view.ts). 1x is the page's usual size. */
+  let scoreView: ScoreView = loadScoreView("choral", { scale: 1, bars: null, spacing: "normal" });
+  function changeScoreView(patch: Partial<ScoreView>) {
+    scoreView = { ...scoreView, ...patch };
+    saveScoreView("choral", scoreView);
+    if (renderedString) renderTune();
+  }
+
   function scoreLayout(most?: number) {
     const cw = document.getElementById("paper")?.clientWidth ?? 1000;
     // Bars shared out evenly over the lines (score-layout.ts): four bars with
     // words under them were three and a lonely one.
     const abc = typeof renderedString === "string" ? renderedString : "";
     return {
-      staffwidth: Math.max(160, Math.min(846, cw - 30)),
+      // Bigger is a narrower staff, which responsive:"resize" scales up to the page.
+      staffwidth: Math.max(160, Math.round(Math.min(846, cw - 30) / scoreView.scale)),
       measuresPerLine: barsPerLine({
         measures: barCount(abc) || measures,
         narrow: cw < 480,
         dense: isDense({ lyrics: !!lyricSystem, abc }),
         most,
+        want: scoreView.bars,
       }),
     };
   }
@@ -794,7 +805,7 @@
     const draw = (most?: number) => {
       const { staffwidth, measuresPerLine } = scoreLayout(most);
       // No `scale`: abcjs discards it when responsive:"resize" is set.
-      return mod.renderAbc("paper", renderedString, {
+      return mod.renderAbc("paper", withLineSpacing(renderedString, scoreView.spacing), {
         // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
         // the cursor works out how tall a system is. Without it the SVG carries
         // no staff groups at all and the cursor can only cover one voice.
@@ -3238,6 +3249,8 @@
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}
     onAnnotation={pickAnnotation}
+    {scoreView}
+    onScoreView={changeScoreView}
     {isPlaying}
     {bpm}
     {looping}

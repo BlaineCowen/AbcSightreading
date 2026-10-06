@@ -73,6 +73,7 @@
   import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
   import { saveGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { createFullscreen } from "../lib/fullscreen";
+  import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
   import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
   import { solfegeOf } from "../lib/grade";
@@ -1241,7 +1242,15 @@
   const NARROW = 640; // Tailwind's `sm`
   const isNarrow = () =>
     typeof window !== "undefined" && window.innerWidth < NARROW;
-  let displayScale = isNarrow() ? 1 : 2; // Scale for visual display
+  /** Size, bars per line and line spacing: the playback bar's Layout menu (score-view.ts). */
+  let scoreView: ScoreView = loadScoreView("unison", { scale: isNarrow() ? 1 : 2, bars: null, spacing: "normal" });
+  $: displayScale = scoreView.scale; // Scale for visual display
+  function changeScoreView(patch: Partial<ScoreView>) {
+    scoreView = { ...scoreView, ...patch };
+    saveScoreView("unison", scoreView);
+    // The drawing reads displayScale; let it update before redrawing.
+    tick().then(() => currentTune && originalTuneString && rerenderTune());
+  }
 
   function getStaffWidth(): number {
     const paper = document.getElementById("paper");
@@ -1580,6 +1589,7 @@
             abc: typeof originalTuneString === "string" ? originalTuneString : "",
           }),
           most,
+          want: scoreView.bars,
         }),
         minSpacing: 1.5,
         maxSpacing: 5,
@@ -2021,7 +2031,9 @@
    * room, abcjs breaks the lines itself, unevenly (8 bars as 3 + 2 + 3). Then
    * it is drawn once more with no more a line than abcjs managed.
    */
-  function drawEven(abc: string) {
+  function drawEven(source: string) {
+    // The room between the lines (the Layout menu) is written into the tune as it is drawn.
+    const abc = withLineSpacing(source, scoreView.spacing);
     let visualObj = abcjs.renderAbc("paper", abc, getAbcOptions());
     let drawn = drawnLines(document.getElementById("paper"));
     // Fewer a line each time until the lines come out even: on a phone two bars
@@ -5112,6 +5124,8 @@
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}
     onAnnotation={pickAnnotation}
+    {scoreView}
+    onScoreView={changeScoreView}
     {isPlaying}
     bpm={tempo}
     beatSymbol={beatSymbolOf(meterOf(currentTune, selectedTimeSignature))}
@@ -5205,24 +5219,6 @@
         </div>
       {/if}
 
-      <div class="w-px h-5 bg-sr-bar-btn hidden 2xl:block"></div>
-
-      <!-- Display size -->
-      <div class="flex items-center gap-2">
-        <!-- Unlabelled from xl to 2xl, where the one-row bar is tightest. -->
-        <span class="text-xs text-slate-400 uppercase tracking-wide xl:hidden 2xl:inline">Size</span>
-        <button
-          class="flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-9 sm:h-6 sm:w-6"
-          on:click={() => { displayScale = Math.max(0.5, displayScale - 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
-          aria-label="Decrease score size"
-        ><Minus size={14} /></button>
-        <span class="text-xs font-bold w-8 text-center">{displayScale.toFixed(1)}x</span>
-        <button
-          class="flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-9 sm:h-6 sm:w-6"
-          on:click={() => { displayScale = Math.min(3, displayScale + 0.1); if (currentTune && originalTuneString) rerenderTune(); }}
-          aria-label="Increase score size"
-        ><Plus size={14} /></button>
-      </div>
     </svelte:fragment>
   </PlaybackBar>
 </div>

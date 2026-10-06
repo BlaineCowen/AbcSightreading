@@ -59,7 +59,7 @@
   </button>
   {#if open}
     <div
-      class="mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 {menuClass}
+      class="sr-dropup-menu mt-2 sm:mt-0 sm:absolute sm:bottom-full sm:left-0 sm:mb-2 {menuClass}
              rounded-[18px] bg-sr-bar-menu shadow-xl ring-1 ring-sr-bar-line py-1.5 overflow-hidden"
       role="group"
       aria-label={label}

@@ -17,6 +17,7 @@
   import Minimize from "lucide-svelte/icons/minimize";
   import { tuner } from "../lib/tuner/store";
   import { setClickWithMusic } from "../lib/tools/metronome-link";
+  import { BAR_CHOICES, SCALE_MAX, SCALE_MIN, clampScale, type ScoreView } from "../lib/score-view";
   import MoreHorizontal from "lucide-svelte/icons/more-horizontal";
   import RefreshCw from "lucide-svelte/icons/refresh-cw";
   import Eye from "lucide-svelte/icons/eye";
@@ -53,6 +54,15 @@
   export let annotationChoices: { id: string; label: string; on: boolean }[] = [];
   export let onAnnotation: (id: string) => void = () => {};
   let annotationsOpen = false;
+  /** The score's size, bars per line and line spacing (score-view.ts); null hides the Layout menu. */
+  export let scoreView: ScoreView | null = null;
+  export let onScoreView: (patch: Partial<ScoreView>) => void = () => {};
+  let layoutOpen = false;
+  const SPACINGS: { id: ScoreView["spacing"]; label: string }[] = [
+    { id: "tight", label: "Tight" },
+    { id: "normal", label: "Normal" },
+    { id: "wide", label: "Wide" },
+  ];
   $: annotationSummary = (() => {
     const on = annotationChoices.filter((a) => a.on).map((a) => a.label);
     return `Annotations: ${on.length ? on.join(", ") : "off"}`;
@@ -520,6 +530,41 @@
         </DropUp>
       {/if}
 
+      {#if scoreView}
+        <!-- Size, bars per line and line spacing; kept in full screen. -->
+        <div class="fs-keep">
+          <DropUp triggerClass={chipBtn} label="Layout" title="The score's size, bars per line and spacing" bind:open={layoutOpen} menuClass="min-w-[15rem]">
+            <svelte:fragment slot="trigger">Layout · {scoreView.scale.toFixed(1)}x</svelte:fragment>
+            <div class="px-3 py-2 flex flex-col gap-3 text-sm text-sr-bar-ink">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs text-sr-bar-muted">Size</span>
+                <div class="flex items-center gap-2">
+                  <button class={stepBtn} on:click={() => onScoreView({ scale: clampScale(scoreView.scale - 0.2) })} disabled={scoreView.scale <= SCALE_MIN} aria-label="Smaller"><Minus size={14} /></button>
+                  <span class="w-10 text-center font-bold tabular-nums">{scoreView.scale.toFixed(1)}x</span>
+                  <button class={stepBtn} on:click={() => onScoreView({ scale: clampScale(scoreView.scale + 0.2) })} disabled={scoreView.scale >= SCALE_MAX} aria-label="Bigger"><Plus size={14} /></button>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <span class="text-xs text-sr-bar-muted">Bars per line</span>
+                <div class="flex flex-wrap gap-1">
+                  <button class="rounded-full px-2.5 py-1 text-xs font-semibold {scoreView.bars === null ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}" on:click={() => onScoreView({ bars: null })}>Auto</button>
+                  {#each BAR_CHOICES as n}
+                    <button class="rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums {scoreView.bars === n ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}" on:click={() => onScoreView({ bars: n })}>{n}</button>
+                  {/each}
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <span class="text-xs text-sr-bar-muted">Space between lines</span>
+                <div class="flex gap-1">
+                  {#each SPACINGS as { id, label }}
+                    <button class="rounded-full px-2.5 py-1 text-xs font-semibold {scoreView.spacing === id ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}" on:click={() => onScoreView({ spacing: id })}>{label}</button>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          </DropUp>
+        </div>
+      {/if}
       <DropUp triggerClass={chipBtn} label="Share" title="Copy a link" bind:open={shareOpen} menuClass="min-w-[16rem]">
         <svelte:fragment slot="trigger">
           {#if copied}

@@ -895,6 +895,15 @@ full screen (iPhone Safari) the same view runs inside the window.
 
 ## Score layout
 
+The playback bar's **Layout** menu (both pages, kept in full screen;
+`src/lib/score-view.ts`, tests `score-view.test.ts`) sets the score's size
+(0.5x to 5x; Unison's 2x and Choral's 1x are the old defaults - bigger is
+a narrower staff that `responsive: "resize"` scales up), the bars per line
+(Auto, or 1, 2, 3, 4, 6: `measuresPerLine`'s `want`, still capped at what
+abcjs fitted) and the space between lines (Tight, Normal, Wide: `%%staffsep`
+written into the tune as it is drawn). Remembered per page in this browser.
+It replaced Unison's Size buttons.
+
 Bars per line come from `src/lib/score-layout.ts` (tests `score-layout.test.ts`),
 used by both practice pages: up to 4 a line, 3 when the score is dense (lyrics,
 or sixteenths), 2 on a phone, and shared out so lines are even (4 bars dense is

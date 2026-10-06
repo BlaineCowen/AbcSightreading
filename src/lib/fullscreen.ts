@@ -42,7 +42,10 @@ export function createFullscreen(): { active: Readable<boolean>; toggle: () => v
     const el = e.target as HTMLElement | null;
     if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === "Escape" && on) exit();
+    // Esc with a drop-up open closes the menu (DropUp), not full screen.
+    if (e.key === "Escape" && on) {
+      if (!document.querySelector(".sr-dropup-menu")) exit();
+    }
     else if (e.key === "f" || e.key === "F") {
       e.preventDefault();
       toggle();
