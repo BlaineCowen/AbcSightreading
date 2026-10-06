@@ -1044,6 +1044,28 @@ on rhythm only; one at a time), chord symbols and the solfège systems on
 Choral. Where the browser has no
 full screen (iPhone Safari) the same view runs inside the window.
 
+## Copyright
+
+Every exercise carries "© <year> abcSightReading · abc-sightreading.com"
+(`src/lib/copyright.ts`, tests `copyright.test.ts`), as the play-along video
+carries the site's address: centred under the drawn score on both practice
+pages (a `%%center` line added where the score is drawn, never to the ABC the
+grading reads; abcjs draws it at 21 px whatever `%%textfont` says, so
+`styleCopyright` sizes it after drawing, divided by the page's own scale, to
+about 11 px), so in print and a saved PDF too; in the MusicXML's `<rights>`;
+as the MIDI file's copyright notice (meta event FF 02 opening track 1,
+`midiWithCopyright`); and in the ABC file (`abcFileFor`).
+
+## Floating elements
+
+`bun run scripts/check-overlaps.ts` reports every pair of fixed or sticky
+elements that overlap, on each page at desktop, tablet and phone sizes and
+in the states that add floating things (a clap run with the tap pad, Grade's
+strip, the Tools card), and which is on top. Clean on 6 October 2026 after
+two fixes: the tap pad sat on the Tools button (it now sits above it,
+bottom: bar + 152 px), and on a tablet Grade's strip covered the Feedback
+button (it is narrower by the corner buttons there).
+
 ## Score layout
 
 The playback bar's **Layout** menu (both pages, kept in full screen;

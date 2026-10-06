@@ -36,6 +36,7 @@
     keyAndMeterOf,
     midiFileFor,
     withTempo,
+    abcFileFor,
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
@@ -78,6 +79,7 @@
   import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
+  import { styleCopyright, withCopyright } from "../lib/copyright";
   import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
   import { solfegeOf } from "../lib/grade";
@@ -2050,7 +2052,8 @@
    */
   function drawEven(source: string) {
     // The room between the lines (the Layout menu) is written into the tune as it is drawn.
-    const abc = withLineSpacing(source, scoreView.spacing);
+    // The copyright under the score (copyright.ts), as drawn and printed only.
+    const abc = withCopyright(withLineSpacing(source, scoreView.spacing));
     let visualObj = abcjs.renderAbc("paper", abc, getAbcOptions());
     let drawn = drawnLines(document.getElementById("paper"));
     // Fewer a line each time until the lines come out even: on a phone two bars
@@ -2063,6 +2066,7 @@
       drawn = drawnLines(document.getElementById("paper"));
       most = Math.min(most - 1, Math.max(...drawn));
     }
+    styleCopyright(document.getElementById("paper"));
     return visualObj;
   }
 
@@ -3483,7 +3487,7 @@
       label: "ABC notation",
       detail: "The text the score is written in",
       disabled: !currentTune,
-      run: () => save("abc", withTempo(shownAbc(), tempo)),
+      run: () => save("abc", abcFileFor(shownAbc(), tempo)),
     },
   ];
 

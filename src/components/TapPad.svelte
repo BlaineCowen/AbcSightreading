@@ -39,8 +39,9 @@
 </div>
 
 <style>
-  /* Mid-height of what the playback bar and Grade's strip leave free. */
-  .tap-pad { bottom: calc(var(--bottom-bar-h, 96px) + 90px); }
+  /* Above the Tools button (bottom right, its 56 px and a gap over the
+     playback bar): at +90 px it sat on top of it (scripts/check-overlaps.ts). */
+  .tap-pad { bottom: calc(var(--bottom-bar-h, 96px) + 152px); }
   .pad { touch-action: none; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; }
   .hit { animation: tap 160ms ease-out; }
   @keyframes tap {

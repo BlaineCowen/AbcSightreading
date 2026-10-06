@@ -1,6 +1,7 @@
 import abcjs from "abcjs";
 import { withPlaybackTranspose } from "./transpose";
 import { tempoField } from "./meter";
+import { midiWithCopyright, withCopyright } from "./copyright";
 
 /**
  * The files the Print / Export menu hands over, built from the ABC on screen.
@@ -34,7 +35,12 @@ export function midiFileFor(abc: string, opts: { bpm: number; transpose?: number
   if (!(file instanceof Uint8Array) || file.length === 0) {
     throw new Error("The MIDI file could not be written.");
   }
-  return file;
+  return midiWithCopyright(file);
+}
+
+/** The ABC file as saved: its tempo set, and the copyright under the tune. */
+export function abcFileFor(abc: string, bpm: number): string {
+  return withCopyright(withTempo(abc, bpm));
 }
 
 /** The ABC with its tempo set, counted in the meter's beat (Q:3/8 in compound), replacing a Q: line or adding one. */

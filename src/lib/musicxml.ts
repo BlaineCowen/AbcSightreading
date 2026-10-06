@@ -1,3 +1,4 @@
+import { copyrightLine } from "./copyright";
 import abcjs from "abcjs";
 import { isCompound } from "./meter";
 
@@ -390,6 +391,7 @@ export function musicXmlFor(score: ScoreModel, options: MusicXmlOptions = {}): s
   }
   line(1, "<identification>");
   if (score.composer) line(2, `<creator type="composer">${esc(score.composer)}</creator>`);
+  line(2, `<rights>${esc(copyrightLine())}</rights>`);
   line(2, "<encoding>");
   line(3, "<software>abcSightReading</software>");
   line(3, `<encoding-date>${esc(date)}</encoding-date>`);

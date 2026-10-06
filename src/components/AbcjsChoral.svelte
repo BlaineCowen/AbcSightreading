@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
+  import { styleCopyright, withCopyright } from "../lib/copyright";
   import { tuner } from "../lib/tuner/store";
   import { drumPatternFor } from "../lib/playback-click";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
@@ -57,6 +58,7 @@
     keyAndMeterOf,
     midiFileFor,
     withTempo,
+    abcFileFor,
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
@@ -805,7 +807,8 @@
     const draw = (most?: number) => {
       const { staffwidth, measuresPerLine } = scoreLayout(most);
       // No `scale`: abcjs discards it when responsive:"resize" is set.
-      return mod.renderAbc("paper", withLineSpacing(renderedString, scoreView.spacing), {
+      // The copyright under the score (copyright.ts), as drawn and printed only.
+      return mod.renderAbc("paper", withCopyright(withLineSpacing(renderedString, scoreView.spacing)), {
         // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
         // the cursor works out how tall a system is. Without it the SVG carries
         // no staff groups at all and the cursor can only cover one voice.
@@ -827,6 +830,7 @@
       drawn = drawnLines(document.getElementById("paper"));
       most = Math.min(most - 1, Math.max(...drawn));
     }
+    styleCopyright(document.getElementById("paper"));
     return result;
   }
 
@@ -2002,7 +2006,7 @@
       label: "ABC notation",
       detail: "The text the score is written in",
       disabled: !renderedTune,
-      run: () => save("abc", withTempo(renderedString, bpm)),
+      run: () => save("abc", abcFileFor(renderedString, bpm)),
     },
   ];
 

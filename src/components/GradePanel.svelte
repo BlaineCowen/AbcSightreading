@@ -399,7 +399,9 @@
 
 <!-- The strip: while it runs, and after the results are put away. -->
 {#if !setupShown && !resultsShown}
-<div class="grade-dock fixed z-50 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(720px,calc(100vw-2rem))] no-print" role="region" aria-label="Grade">
+<!-- Narrower than the screen by the corner buttons (Tools, Feedback) on a
+     tablet, which it covered there (scripts/check-overlaps.ts). -->
+<div class="grade-dock fixed z-50 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[min(720px,calc(100vw-15rem))] no-print" role="region" aria-label="Grade">
   {#if (sendOpen || sentLine) && onSend}
     <div class="mb-2 ml-auto w-fit max-w-full bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2 text-sm">
       {#if sendOpen}
