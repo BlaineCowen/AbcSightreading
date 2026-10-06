@@ -119,7 +119,7 @@ const scenes: Record<string, () => Promise<void>> = {
   async bass() {
     // A second example: bass clef, F major, played with the cursor.
     const { browser, page } = await open(
-      `/sightreading?clef=bass&range=4-14&key=F&scaleDegrees=1,2,3,4,5,6,7&rhythms=quarter,eighthEighth,half,dotQuarterEighth&timeSignature=4/4&measures=8&maxSkip=4&bpm=${TEMPO}&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth`,
+      `/sightreading?clef=bass&range=4-14&key=F&scaleDegrees=1,2,3,4,5,6&rhythms=quarter,half&timeSignature=4/4&measures=${PHONE ? 8 : 4}&maxSkip=2&bpm=${TEMPO}&showSolfege=true&rhythmOnly=false&progressions=true&cursor=smooth`,
     );
     await gen(page);
     await sleep(1200);
