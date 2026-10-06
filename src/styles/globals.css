@@ -711,3 +711,8 @@ html.sr-focus .focus-main {
 html.sr-focus .playback-bar {
   zoom: 1.2;
 }
+/* Of the bar's secondary controls, full screen keeps the instrument and
+   metronome volumes (marked .fs-keep by the pages); the rest wait. */
+html.sr-focus .playback-bar .bar-secondary > :not(.fs-keep) {
+  display: none !important;
+}

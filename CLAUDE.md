@@ -881,12 +881,16 @@ screen and puts `sr-focus` on <html>; globals.css then hides the site
 header and footer, `.focus-hide` (the page title and intro, the Grade
 button) and every child of the component's `.focus-main` except
 `.focus-score` (the score) and `.focus-keep` (the room left below the score
-while playing), and draws the playback bar larger (`zoom: 1.2`). The page
+while playing), and draws the playback bar larger (`zoom: 1.2`) as one
+centred row: the instrument (voices) and metronome volumes with their mute
+buttons (the pages mark them `.fs-keep`; the bar's other secondary controls
+wait), the transport, an Annotations drop-up, the tempo and Exit. The page
 still scrolls, so the score follows the music as it always does; widened,
 abcjs (`responsive: "resize"`) draws it bigger. The settings are hidden, so
-the playback bar shows the annotations there (`annotationChoices`): Off and
-the solfège systems on Unison (the syllable systems on rhythm only), Clean,
-chord symbols and the solfège systems on Choral. Where the browser has no
+the annotations are switched on and off from that drop-up
+(`annotationChoices`): the solfège systems on Unison (the syllable systems
+on rhythm only; one at a time), chord symbols and the solfège systems on
+Choral. Where the browser has no
 full screen (iPhone Safari) the same view runs inside the window.
 
 ## Score layout

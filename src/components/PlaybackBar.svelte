@@ -52,6 +52,11 @@
   /** In full screen, what is written under the notes, chosen here (the settings are hidden). */
   export let annotationChoices: { id: string; label: string; on: boolean }[] = [];
   export let onAnnotation: (id: string) => void = () => {};
+  let annotationsOpen = false;
+  $: annotationSummary = (() => {
+    const on = annotationChoices.filter((a) => a.on).map((a) => a.label);
+    return `Annotations: ${on.length ? on.join(", ") : "off"}`;
+  })();
   export let onToggleMute: (voiceName: string) => void;
   /** Voices with no staff. Omit onToggleHidden and the menu only mutes. */
   export let hiddenVoices: Set<string> = new Set();
@@ -248,7 +253,7 @@
 <div
   bind:this={barEl}
   class="playback-bar fixed bottom-0 left-0 right-0 bg-sr-bar text-sr-bar-ink z-50 shadow-lg rounded-t-[22px]
-         flex flex-col xl:flex-row xl:flex-wrap xl:items-center xl:gap-3 2xl:gap-4 xl:px-4"
+         flex {fullscreen ? 'flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-1' : 'flex-col xl:flex-row xl:flex-wrap xl:items-center xl:gap-3 2xl:gap-4 xl:px-4'}"
   style="padding-bottom: env(safe-area-inset-bottom, 0px)"
 >
   <!-- "1, 2, Ready, Go" over the tempo controls while the count-in plays. -->
@@ -270,7 +275,7 @@
        with everything else behind "More controls". An iPad keeps the labels
        and the full-size buttons from sm up. -->
   <div class="flex items-center gap-1.5 min-[380px]:gap-2 sm:gap-3 xl:gap-4 flex-nowrap xl:flex-wrap px-3 py-2 xl:p-0 xl:py-2
-              {fullscreen ? 'w-full justify-center flex-wrap gap-y-2 xl:order-last' : 'xl:order-last xl:ml-auto'}">
+              {fullscreen ? 'justify-center flex-wrap gap-y-2 xl:order-last' : 'xl:order-last xl:ml-auto'}">
     <div class="flex gap-1.5 min-[380px]:gap-2 items-center">
       {#if onGenerate}
         <button
@@ -353,31 +358,20 @@
       {/if}
     </div>
 
-    {#if fullscreen}
-      <!-- Full screen's one row: everything else (volumes, drone, size, share,
-           print) waits behind the exit; what is written under the notes, and
-           the click, are chosen here. -->
-      <div class="w-px h-6 bg-sr-bar-btn"></div>
-      {#if annotationChoices.length}
-        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Annotations">
-          <span class="text-xs text-sr-bar-muted">Show</span>
-          {#each annotationChoices as a}
-            <button
-              class="rounded-full px-3 py-1.5 text-xs font-semibold {a.on ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
-              aria-pressed={a.on}
-              on:click={() => onAnnotation(a.id)}
-            >{a.label}</button>
-          {/each}
-        </div>
-        <div class="w-px h-6 bg-sr-bar-btn"></div>
-      {/if}
-      <button
-        class="rounded-full px-3 py-1.5 text-xs font-semibold {$tuner.clickWithMusic ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
-        aria-pressed={$tuner.clickWithMusic}
-        on:click={() => setClickWithMusic(!$tuner.clickWithMusic)}
-        title="The metronome with the music"
-      >Click</button>
-      <div class="w-px h-6 bg-sr-bar-btn"></div>
+    {#if fullscreen && annotationChoices.length}
+      <!-- The settings are hidden in full screen: what is written under the
+           notes is chosen here, each switched on or off. -->
+      <DropUp triggerClass={chipBtn} label="Annotations" title="What is written under the notes" bind:open={annotationsOpen} menuClass="min-w-[13rem]">
+        <svelte:fragment slot="trigger">
+          {annotationSummary}
+        </svelte:fragment>
+        {#each annotationChoices as a}
+          <button class="{menuItem} !flex-row !items-center gap-2" role="menuitemcheckbox" aria-checked={a.on} on:click={() => onAnnotation(a.id)}>
+            <span class="w-4 shrink-0">{#if a.on}<Check size={14} class="text-sr-bar-on" />{/if}</span>
+            <span class="text-sm text-sr-bar-ink">{a.label}</span>
+          </button>
+        {/each}
+      </DropUp>
     {/if}
 
     <div class="w-px h-6 bg-sr-bar-btn hidden xl:block"></div>
@@ -446,8 +440,8 @@
   <!-- Secondary controls. order-first puts the sheet above the transport on
        a phone or iPad; xl:contents splices these groups into the desktop row instead. -->
     <div
-      class="order-first xl:order-none {expanded && !fullscreen ? 'flex' : 'hidden'}
-             {fullscreen ? '' : 'xl:contents'} flex-wrap items-center gap-3 px-3 py-2 border-b border-sr-bar-line
+      class="bar-secondary order-first xl:order-none {fullscreen ? 'contents' : expanded ? 'flex' : 'hidden'}
+             xl:contents flex-wrap items-center gap-3 px-3 py-2 border-b border-sr-bar-line
              max-h-[50dvh] overflow-y-auto overscroll-contain"
     >
       <div class="flex xl:hidden items-center gap-2 w-full">

@@ -1851,7 +1851,6 @@
   const fullscreenOn = fullscreenCtl.active;
   onDestroy(fullscreenCtl.destroy);
   $: annotationChoices = [
-    { id: "clean", label: "Clean", on: !showChords && !lyricSystem },
     { id: "chords", label: "Chord symbols", on: showChords },
     ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: lyricSystem === v })),
   ];
@@ -3262,7 +3261,7 @@
     {exports}
   >
     <svelte:fragment slot="extra">
-      <div class="flex items-center gap-2" title="Voices volume">
+      <div class="fs-keep flex items-center gap-2" title="Voices volume">
         <Volume2 size={18} class="shrink-0 text-sr-faint" aria-hidden="true" />
         <input
           type="range" min="0" max="1.5" step="0.05"
@@ -3272,8 +3271,8 @@
           aria-label="Voices volume"
         />
       </div>
-      <!-- The page's one metronome, the same as in Tools (metronome-link). -->
-      <div class="flex items-center gap-2">
+      <!-- The page's one metronome, the same as in Tools (metronome-link); kept in full screen. -->
+      <div class="fs-keep flex items-center gap-2">
         <button
           class="flex-shrink-0 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8 {$tuner.clickWithMusic ? 'opacity-100' : 'opacity-50'}"
           on:click={() => setClickWithMusic(!$tuner.clickWithMusic)}

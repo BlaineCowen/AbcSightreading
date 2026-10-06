@@ -3634,18 +3634,15 @@
   onDestroy(fullscreenCtl.destroy);
   $: annotationChoices = rhythmOnly
     ? [
-        { id: "off", label: "Off", on: !showRhythmSyllables },
         ...playAlongSyllables.map((s) => ({ id: s.id, label: s.label, on: showRhythmSyllables && syllableSystemId === s.id })),
       ]
     : [
-        { id: "off", label: "Off", on: !showSolfege },
         ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: showSolfege && lyricSystem === v })),
       ];
+  /** Each annotation switches on or off; one system at a time, so another replaces it. */
   function pickAnnotation(id: string) {
-    if (rhythmOnly) return void setRhythmSyllables(id);
-    if (id === "off") {
-      if (showSolfege) void handleLyricSystem(lyricSystem);
-    } else if (!(showSolfege && lyricSystem === id)) void handleLyricSystem(id as LyricSystem);
+    if (rhythmOnly) return void setRhythmSyllables(showRhythmSyllables && syllableSystemId === id ? "off" : id);
+    void handleLyricSystem(id as LyricSystem);
   }
 
   /** A Grade run in time is using the page's timeline (cursor and click, no melody). */
@@ -5140,8 +5137,8 @@
     {exports}
   >
     <svelte:fragment slot="extra">
-      <!-- Instrument volume (the percussion level in rhythm-only mode) -->
-      <div class="flex items-center gap-2">
+      <!-- Instrument volume (the percussion level in rhythm-only mode); kept in full screen -->
+      <div class="fs-keep flex items-center gap-2">
         <button
           class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8"
           on:click={toggleMute}
@@ -5159,8 +5156,8 @@
         />
       </div>
 
-      <!-- Metronome -->
-      <div class="flex items-center gap-2">
+      <!-- Metronome; kept in full screen -->
+      <div class="fs-keep flex items-center gap-2">
         <button
           class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8"
           on:click={() => setClickWithMusic(!$tuner.clickWithMusic)}
