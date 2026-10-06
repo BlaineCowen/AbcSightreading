@@ -64,9 +64,9 @@ export function saveGradeRun(run: Record<string, unknown>, audio: RunAudio) {
 }
 
 /**
- * Send both files to the private grade-runs store (/api/grade-runs, on
- * previews), as grade-runs/<date>/run.json and its recording, so nobody has
- * to move files. `note` names the run (a class, "chanting"...).
+ * Send both files to the private grade-runs store (/api/grade-runs) as
+ * grade-runs/<date>-<note>/run.json and its recording. `note` is what the
+ * singer says about it.
  */
 export async function sendGradeRun(run: Record<string, unknown>, audio: RunAudio, note: string): Promise<string> {
   const { upload } = await import("@vercel/blob/client");

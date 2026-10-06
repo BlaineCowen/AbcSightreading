@@ -3721,19 +3721,20 @@
     saveGradeRun(gradeRunData(), gradeAudio);
   }
   /**
-   * On a preview deployment the run is sent to the grade-runs store
-   * (/api/grade-runs) instead of downloaded, so it can come from a school
-   * laptop; if that fails, it is downloaded after all.
+   * Send this run: anyone with Grade but a student (who may be under 13)
+   * can send a run and a note to the private grade-runs store, to tell us
+   * when grading seems wrong. Their runs are recorded in the browser so
+   * there is something to send; nothing leaves it unless they press Send.
+   * On the dev server (no store) runs are downloaded instead.
    */
-  const gradeSendOn = typeof document !== "undefined" && document.documentElement.hasAttribute("data-preview") && !import.meta.env.DEV;
+  let gradeShareOn = false;
   async function sendGradeRunNow(note: string): Promise<string> {
     try {
       await sendGradeRun(gradeRunData(), gradeAudio, note);
-      return gradeAudio ? "Sent: the results and the recording." : "Sent (no recording was made).";
+      return gradeAudio ? "Sent. Thank you: we'll listen to it." : "Sent (the recording could not be made). Thank you.";
     } catch (e) {
       console.error("Sending the run failed:", e);
-      saveGradeRunNow();
-      return "Could not send, so it downloaded instead.";
+      return "It could not be sent. Please try again in a moment.";
     }
   }
 
@@ -3871,7 +3872,9 @@
   async function openGrade() {
     gradeOpen = true;
     if (gradeAllowed === null) {
-      gradeSignedIn = !!(await signedInUser());
+      const who = await signedInUser();
+      gradeSignedIn = !!who;
+      gradeShareOn = !!who && who.accountType !== "student" && !import.meta.env.DEV;
       const status = await billingStatus();
       gradeAllowed = !!status && status.plan !== "free";
     }
@@ -3925,7 +3928,7 @@
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
     gradeAudio = null;
-    if (gradeDebugOn && !(rhythmOnly && $tuner.gradeClapInput === "keys")) {
+    if ((gradeDebugOn || gradeShareOn) && !(rhythmOnly && $tuner.gradeClapInput === "keys")) {
       await stopGradeRecording(false);
       gradeRecording = await startGradeRecording();
     }
@@ -4185,8 +4188,8 @@
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
       detail={gradeDetail}
-      onSave={gradeDebugOn && !gradeSendOn ? saveGradeRunNow : null}
-      onSend={gradeSendOn ? sendGradeRunNow : null}
+      onSave={gradeDebugOn && !gradeShareOn ? saveGradeRunNow : null}
+      onSend={gradeShareOn ? sendGradeRunNow : null}
       {rhythmOnly}
       onCheckTiming={checkClapTiming}
       {timingNote}
