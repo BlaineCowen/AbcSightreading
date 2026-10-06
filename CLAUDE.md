@@ -625,7 +625,18 @@ run in `src/lib/grade-runner.ts`, the strip in `GradePanel.svelte`. While it
 listens the tuner store's `micHeld` keeps a Tools card from switching the
 microphone off; `pitchHistory` keeps 3 minutes, enough for a long exercise.
 
-Runs can be saved for review: on the dev server, or with `?gradeDebug=1`,
+**Send this run** (anyone with Grade but students, who may be under 13 and
+whose pages carry no feedback form): each run is recorded in the browser and
+kept there; after it, Send uploads the results, the exercise and the
+recording, with an optional note on what seemed wrong, straight from the
+browser into the private `grade-runs` Vercel Blob store (`/api/grade-runs`
+signs uploads: signed in, Pro or better, not a student, checked against the
+database). The panel says what is sent and that nothing is sent without
+Send. `bun run scripts/grade-runs.ts` lists the runs sent and `... pull
+[dir]` fetches one into `grade-runs/` (gitignored; the token is in
+.env.local). Replay them to tune grading.
+
+Runs can also be saved for review: on the dev server, or with `?gradeDebug=1`,
 the microphone is recorded over each run (a second stream with the tuner's
 own settings, `grade-recording.ts`, so the detection code is untouched) and
 the results have "Save this run": the recording, and a JSON of everything

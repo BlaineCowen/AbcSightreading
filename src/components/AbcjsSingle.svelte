@@ -71,7 +71,7 @@
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
-  import { saveGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
+  import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
   import { DETECT_LATENCY_MS } from "../lib/grade";
@@ -3681,11 +3681,10 @@
     const out = rec ? await rec.stop() : null;
     if (keep) gradeAudio = out;
   }
-  function saveGradeRunNow() {
+  function gradeRunData() {
     const t = tuner.get();
     const v = $gradeRunner;
-    saveGradeRun(
-      {
+    return {
         version: 1,
         savedAt: new Date().toISOString(),
         abc: originalTuneString,
@@ -3704,9 +3703,27 @@
         perf: v.perf,
         result: v.result,
         userAgent: navigator.userAgent,
-      },
-      gradeAudio,
-    );
+    };
+  }
+  function saveGradeRunNow() {
+    saveGradeRun(gradeRunData(), gradeAudio);
+  }
+  /**
+   * Send this run: anyone with Grade but a student (who may be under 13)
+   * can send a run and a note to the private grade-runs store, to tell us
+   * when grading seems wrong. Their runs are recorded in the browser so
+   * there is something to send; nothing leaves it unless they press Send.
+   * On the dev server (no store) runs are downloaded instead.
+   */
+  let gradeShareOn = false;
+  async function sendGradeRunNow(note: string): Promise<string> {
+    try {
+      await sendGradeRun(gradeRunData(), gradeAudio, note);
+      return gradeAudio ? "Sent. Thank you: we'll listen to it." : "Sent (the recording could not be made). Thank you.";
+    } catch (e) {
+      console.error("Sending the run failed:", e);
+      return "It could not be sent. Please try again in a moment.";
+    }
   }
 
   /**
@@ -3838,7 +3855,9 @@
   async function openGrade() {
     gradeOpen = true;
     if (gradeAllowed === null) {
-      gradeSignedIn = !!(await signedInUser());
+      const who = await signedInUser();
+      gradeSignedIn = !!who;
+      gradeShareOn = !!who && who.accountType !== "student" && !import.meta.env.DEV;
       const status = await billingStatus();
       gradeAllowed = !!status && status.plan !== "free";
     }
@@ -3892,7 +3911,7 @@
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
     gradeAudio = null;
-    if (gradeDebugOn) {
+    if (gradeDebugOn || gradeShareOn) {
       await stopGradeRecording(false);
       gradeRecording = await startGradeRecording();
     }
@@ -4050,7 +4069,8 @@
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
       detail={gradeDetail}
-      onSave={gradeDebugOn ? saveGradeRunNow : null}
+      onSave={gradeDebugOn && !gradeShareOn ? saveGradeRunNow : null}
+      onSend={gradeShareOn ? sendGradeRunNow : null}
     />
   {/if}
   {#if playAlongOpen}

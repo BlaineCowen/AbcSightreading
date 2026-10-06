@@ -46,14 +46,35 @@ export async function startGradeRecording(): Promise<GradeRecording | null> {
   }
 }
 
-/** Both files, named for the moment: grade-<date>.json and grade-<date>.webm (or .m4a). */
-export function saveGradeRun(run: Record<string, unknown>, audio: { blob: Blob; startedAt: number; mime: string } | null) {
+type RunAudio = { blob: Blob; startedAt: number; mime: string } | null;
+
+/** A run's two files, named for the moment: grade-<date>.json and grade-<date>.webm (or .m4a). */
+function runFiles(run: Record<string, unknown>, audio: RunAudio) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const ext = audio?.mime.includes("mp4") ? "m4a" : "webm";
-  downloadFile(
-    JSON.stringify({ ...run, audio: audio ? { file: `grade-${stamp}.${ext}`, startedAt: audio.startedAt, mime: audio.mime } : null }, null, 1),
-    `grade-${stamp}.json`,
-    "application/json",
-  );
+  const json = JSON.stringify({ ...run, audio: audio ? { file: `grade-${stamp}.${ext}`, startedAt: audio.startedAt, mime: audio.mime } : null }, null, 1);
+  return { stamp, ext, json };
+}
+
+/** Download both files. */
+export function saveGradeRun(run: Record<string, unknown>, audio: RunAudio) {
+  const { stamp, ext, json } = runFiles(run, audio);
+  downloadFile(json, `grade-${stamp}.json`, "application/json");
   if (audio) setTimeout(() => downloadFile(audio.blob, `grade-${stamp}.${ext}`, audio.mime), 400);
+}
+
+/**
+ * Send both files to the private grade-runs store (/api/grade-runs) as
+ * grade-runs/<date>-<note>/run.json and its recording. `note` is what the
+ * singer says about it.
+ */
+export async function sendGradeRun(run: Record<string, unknown>, audio: RunAudio, note: string): Promise<string> {
+  const { upload } = await import("@vercel/blob/client");
+  const { stamp, ext, json } = runFiles({ ...run, note }, audio);
+  const slug = note.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  const dir = `grade-runs/${stamp}${slug ? `-${slug}` : ""}`;
+  const opts = { access: "private" as const, handleUploadUrl: "/api/grade-runs" };
+  await upload(`${dir}/run.json`, new Blob([json], { type: "application/json" }), { ...opts, contentType: "application/json" });
+  if (audio) await upload(`${dir}/recording.${ext}`, audio.blob, { ...opts, contentType: audio.mime.split(";")[0], multipart: audio.blob.size > 8e6 });
+  return dir;
 }
