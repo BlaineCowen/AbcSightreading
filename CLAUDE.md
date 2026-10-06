@@ -393,7 +393,13 @@ also removes the early copies speeding up leaves). Measured on clicks: within
 `play-along-stretch.test.ts`); on the real tracks 223 of 225 hits within
 5 ms. A full song at half speed takes up to 3 s to warp, on the main thread,
 under "Adjusting tempo…" (a Web Worker would free the page if that matters).
-The bars stay the same, so half speed makes a 1:30 video three minutes. The
+The bars stay the same, so half speed makes a 1:30 video three minutes.
+A pitched guide sound (piano, marimba, organ, voice) plays the rhythm on the
+song's tonic, not the rhythm staff's placeholder B (`tonic` on each song in
+backing-tracks.ts, `guideTranspose`; drum loops, with no key, take C): soul
+B flat minor, trap A minor, cumbia F minor, reggaeton G, from the packs' file
+names checked against each mix's pitch-class profile (reggaeton's pluck sits
+on B and F sharp, which reads as B minor, but the mix has C and not C sharp). The
 syllables picker (Off, Kodaly, Counting, Mine) starts at the page's choice and
 redraws from the exercise's data through the page's `playAlongAbc`, never a
 new exercise.
