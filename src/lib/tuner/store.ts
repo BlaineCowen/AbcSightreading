@@ -59,6 +59,16 @@ export interface TunerState {
   gradeClick: "off" | "beat" | "sub";
   /** Grade has the microphone: closing a Tools card must not stop it. */
   micHeld: boolean;
+  /** Grading a rhythm (grade-rhythm.ts): clapped into the microphone, or tapped on the spacebar and pad. */
+  gradeClapInput: "mic" | "keys";
+  /** One person, or a class graded as one room. */
+  gradeWho: "solo" | "class";
+  /** The click while a rhythm is clapped; the count-in always clicks. Off by default, so the speaker is not heard as claps. */
+  gradeClapClick: "off" | "beat" | "sub";
+  /** Which edge the tap pad sits on. */
+  tapPadSide: "right" | "left";
+  /** The microphone's delay for claps, in ms, from Check timing (null: the default). */
+  clapLatencyMs: number | null;
   // Live analysis, from the last frame
   pitch: number | null;
   note: NoteName | null;
@@ -93,7 +103,7 @@ const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
-  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick",
+  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs",
 ] as const;
 const STORAGE_KEY = "abc-tuner-settings";
 
@@ -123,6 +133,11 @@ const initial: TunerState = {
   gradeCursor: "beat",
   gradeClick: "beat",
   micHeld: false,
+  gradeClapInput: "mic",
+  gradeWho: "solo",
+  gradeClapClick: "off",
+  tapPadSide: "right",
+  clapLatencyMs: null,
   pitch: null,
   note: null,
   cents: 0,
@@ -257,6 +272,8 @@ export const tuner = {
   setChallengeDifficulty: (challengeDifficulty: Difficulty) => set({ challengeDifficulty }),
   toggleChallengeGuideTone: () => state.update((s) => ({ ...s, challengeGuideTone: !s.challengeGuideTone })),
   setGradeReference: (gradeReference: "note" | "triad") => set({ gradeReference }),
-  setGrade: (patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick">>) => set(patch),
+  setGrade: (
+    patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick" | "gradeClapInput" | "gradeWho" | "gradeClapClick" | "tapPadSide" | "clapLatencyMs">>,
+  ) => set(patch),
   setMicHeld: (micHeld: boolean) => set({ micHeld }),
 };

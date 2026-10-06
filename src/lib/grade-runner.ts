@@ -4,6 +4,9 @@ import { pitchHistory } from "./tuner/pitch-history";
 import { NOTES } from "./tuner/pitch";
 import type { HistoryPoint } from "./tuner/pitch-history";
 import { playNotes } from "./tools/tone";
+import { detectBursts, detectClaps, withoutClickEcho, type Clap, type ClapBlock } from "./clap-detect";
+import type { ClapListener } from "./clap-listener";
+import { gradeClaps, type ClapResult, type ClapWho } from "./grade-rhythm";
 import {
   ATTEMPT_MS,
   CONFIRM_MS,
@@ -64,6 +67,10 @@ export type GradeView = {
   result: GradeResult | null;
   /** Pitch & rhythm's result: pitch, rhythm and overall. */
   perf: PerfResult | null;
+  /** A rhythm clapped or tapped: its result. */
+  claps: ClapResult | null;
+  /** Claps and taps heard so far in this run (for the pad's flash and the strip). */
+  tapped: number;
   mode: GradeMode;
 };
 
@@ -82,6 +89,8 @@ export type GradeTrace = {
   tolerance: number;
   /** Pitch & rhythm: the first downbeat (performance.now ms). */
   t0?: number;
+  /** A rhythm clapped: its result (each note's clap, the strays). */
+  claps?: ClapResult;
 };
 
 export type GradeHooks = {
@@ -100,7 +109,7 @@ export type GradeHooks = {
 };
 
 const TICK_MS = 50;
-const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null, perf: null, mode: "pitch" };
+const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null, perf: null, claps: null, tapped: 0, mode: "pitch" };
 const nameOf = (midi: number) => NOTES[((midi % 12) + 12) % 12];
 const octaveOf = (midi: number) => Math.floor(midi / 12) - 1;
 const midiOfHz = (hz: number, a4: number) => 69 + 12 * Math.log2(hz / a4);
@@ -135,6 +144,15 @@ export class GradeRunner {
   private rests: GradeRest[] = [];
   private beatUnits = 8;
   private startedAt = 0;
+  /** A rhythm clapped: the microphone's clap listener (none for keys and the pad), the taps, who claps. */
+  private clapMic: ClapListener | null = null;
+  private clapMicLatency = 0;
+  private taps: Clap[] = [];
+  /** The last run's microphone blocks, for "Save this run". */
+  lastClapBlocks: ClapBlock[] = [];
+  private who: ClapWho = "solo";
+  private click: "off" | "beat" | "sub" = "beat";
+  private running = false;
   /** Pitch only: when each note was waited on, for drawing what was sung. */
   private spans: { from: number; to: number }[] = [];
   private get tolerance() {
@@ -176,6 +194,8 @@ export class GradeRunner {
     strictness?: Strictness;
     cursor?: "off" | "smooth" | "beat" | "note";
     click?: "off" | "beat" | "sub";
+    /** Rhythm clapped (mode "claps"): who, the microphone's listener if clapping into it, and its delay. */
+    claps?: { who: ClapWho; mic: ClapListener | null; micLatencyMs: number };
   }) {
     this.clear();
     this.runId++;
@@ -189,7 +209,18 @@ export class GradeRunner {
     this.mode = o.mode ?? "pitch";
     this.strictness = o.strictness ?? "standard";
     this.startedAt = performance.now();
+    this.clapMic = o.claps?.mic ?? null;
+    this.clapMicLatency = o.claps?.micLatencyMs ?? 0;
+    this.who = o.claps?.who ?? "solo";
+    this.click = o.click ?? "beat";
+    this.taps = [];
+    this.running = false;
     this.set({ ...IDLE, phase: "reference", total: o.notes.length, mode: this.mode });
+    // A rhythm has no pitch to give: straight to its count-in.
+    if (this.mode === "claps") {
+      this.perform(o.cursor ?? "beat", this.click);
+      return;
+    }
     this.hooks.moveTo(this.mode === "pitch" ? 0 : -1);
     const a4 = tuner.get().a4;
 
@@ -250,8 +281,51 @@ export class GradeRunner {
       const sung = s.pitch !== null ? midiOfHz(s.pitch, s.a4) : null;
       const cents = sung !== null && v.target !== null ? centsOffAnyOctave(sung, v.target) : null;
       this.set({ ...v, sung, cents, onTarget: cents !== null && Math.abs(cents) <= this.tolerance });
-      if (now >= end) this.finishPerformance(t0);
+      if (now >= end) (this.mode === "claps" ? this.finishClaps(t0) : this.finishPerformance(t0));
     }, TICK_MS);
+    this.running = true;
+  }
+
+  /** A tap on the spacebar or the pad, at `t` (the event's timeStamp, performance.now ms). */
+  tap(t: number) {
+    if (!this.running || this.mode !== "claps") return;
+    this.taps.push({ t, level: 1 });
+    this.view.update((v) => ({ ...v, tapped: v.tapped + 1 }));
+  }
+
+  private finishClaps(t0: number) {
+    this.running = false;
+    const beatMs = 60_000 / Math.max(1, this.bpm);
+    const blocks = this.clapMic?.stop() ?? [];
+    this.lastClapBlocks = blocks;
+    this.clapMic = null;
+    // The microphone's claps, moved back by its delay; the page's clicks as
+    // heard, to tell its echo from a clap (the count-in always clicks).
+    let heard = (this.who === "class" ? detectBursts(blocks) : detectClaps(blocks)).map((c) => ({ ...c, t: c.t - this.clapMicLatency }));
+    const unitMs = beatMs / this.beatUnits;
+    const last = this.notes[this.notes.length - 1];
+    const endMs = last ? (last.startUnits + last.lengthUnits) * unitMs + beatMs : 0;
+    const clicks: number[] = [];
+    for (let k = 1; k <= 8; k++) clicks.push(t0 - k * beatMs);
+    if (this.click !== "off") for (let at = 0; at <= endMs; at += this.click === "sub" ? beatMs / 2 : beatMs) clicks.push(t0 + at);
+    heard = withoutClickEcho(heard, clicks, t0 - 50);
+    const claps = gradeClaps({ notes: this.notes, rests: this.rests }, [...heard, ...this.taps], {
+      t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness, who: this.who,
+    });
+    this.clear();
+    this.hooks.stopTimeline?.();
+    this.hooks.moveTo(-1);
+    this.set({ phase: "results", index: -1, hold: 0, target: null, sung: null, perf: null, result: null, claps });
+    this.hooks.marked?.(claps.notes.map((n) => n.rhythm));
+    this.hooks.traced?.({
+      mode: "claps",
+      t0,
+      frames: [],
+      spans: this.notes.map((n) => ({ from: t0 + n.startUnits * unitMs, to: t0 + (n.startUnits + n.lengthUnits) * unitMs })),
+      onsets: claps.notes.map((n) => (n.onsetBeats === null ? null : t0 + n.startUnits * unitMs + n.onsetBeats * beatMs)),
+      tolerance: 0,
+      claps,
+    });
   }
 
   private finishPerformance(t0: number) {
@@ -426,7 +500,10 @@ export class GradeRunner {
   stop() {
     this.runId++;
     this.clear();
-    if (this.mode === "performance") this.hooks.stopTimeline?.();
+    this.running = false;
+    this.clapMic?.stop();
+    this.clapMic = null;
+    if (this.mode !== "pitch") this.hooks.stopTimeline?.();
     this.hooks.countIn(-1, 0);
     this.hooks.moveTo(-1);
     this.set(IDLE);

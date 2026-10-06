@@ -640,6 +640,47 @@ and Grade must find exactly those. It reads the page through a dev-only
 `window.__gradeDebug`, and prints where the clean onsets landed (for
 `DETECT_LATENCY_MS`).
 
+**Clap grading** (rhythm-only Unison, Pro; "Clap and grade"): only each
+note's start counts and rests are silence. Clap with the **Microphone** or
+the **Spacebar & pad** (`TapPad.svelte`: a big round pad fixed at the right
+edge, moved left with its arrow, answering on pointerdown; the spacebar
+likewise, key repeat ignored), and **Who**: Just me, or The class - one
+device hears the room and grades it as one. Rules in `src/lib/grade-rhythm.ts`
+(`gradeClaps`), hearing in `src/lib/clap-detect.ts` (tests
+`clap-grading.test.ts`), the runner's mode `"claps"`. Claps are matched to
+notes one to one and in order (a small dynamic program), each within its
+note's window: three onset windows, never past halfway to a neighbouring
+note (reaching to the neighbour let every clap after a missed note slide one
+note over). Credit is the singing grade's onset rule. Every clap matched to
+no note is a stray and counts as one more note scored 0 (rhythm = sum over
+notes + strays). A class's clap is a burst (`detectBursts`), timed where
+half its energy has arrived; its level is the root of its energy, so against
+the room's usual level it is the root of the share of the room that clapped:
+a stray from one child in twenty weighs about 0.2, a whole room's 1, and a
+note under 0.4 of the usual gets that part of its credit. How together the
+room was (the bursts' 20-80% width: Tight, Fair, Ragged) is reported, not
+scored.
+
+The microphone is the tuner's own stream (`micInput`), listened to by
+`public/clap-detector.js`: the power above 1.5 kHz and over the whole band
+every 128 samples, stamped on the audio clock and moved onto performance.now
+(`ClapListener`), since the tuner's 2048-sample frames are too coarse. A clap
+is a sudden rise of the high band (9 dB over its floor and over the 10 ms
+before it, so a clap's ringing tail never retriggers) with a fair share of
+its power up there (a voice has little). The page's click heard back is
+learned from the count-in, when nobody claps, and later a sound within 40 ms
+of a click counts only if 6 dB louder (`withoutClickEcho`); the click is off
+after the count-in by default. One quiet clap exactly on a click cannot be
+told from its echo. The microphone's delay is `CLAP_MIC_LATENCY_MS` (45,
+measured with the fake microphone) until **Check timing** (clap along with
+eight clicks) stores the median for this browser (`clapLatencyMs`).
+`bun run scripts/check-clap-grade.ts` checks it end to end (`WHO=class`,
+`INPUT=keys`, `ECHO=1 CLICK=beat`, `STRICT=`, `MEASURE=1`, `SHOTS=`): claps
+synthesized into a fake microphone (a class: twenty per clap, 35 ms either
+side), one note late, one missed, one doubled, one stray; 27 runs across the
+variants clean on 6 October 2026. The Grade button is kept in full screen,
+for a class on a TV.
+
 To test with a real signal, run Chromium with
 `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`;
 a synthetic 440 Hz tone reads A4 within a cent.

@@ -95,6 +95,11 @@ export async function startTuner() {
   }
 }
 
+/** The running microphone's node, for clap grading to listen on too; null when it is off. */
+export function micInput() {
+  return engine?.micInput() ?? null;
+}
+
 /** Closes the microphone. Settings and the metronome are left as they are. */
 export function stopTuner() {
   engine?.stop();

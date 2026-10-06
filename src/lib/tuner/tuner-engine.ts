@@ -21,6 +21,7 @@ export class TunerEngine {
   /** The latest 2048 samples, for the Analysis tool's LPC (readSamples). */
   private lastSamples: Float32Array | null = null;
   private sink: GainNode | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
   private onFrameCallback: ((frame: TunerFrame) => void) | null = null;
   /** Frames actually delivered by the worklet — 0 means the graph never ran. */
   frameCount = 0;
@@ -69,6 +70,11 @@ export class TunerEngine {
     return { samples: this.lastSamples, sampleRate: this.audioContext.sampleRate };
   }
 
+  /** The microphone's node and context, for another listener on the same stream (clap grading). */
+  micInput(): { ctx: AudioContext; source: AudioNode } | null {
+    return this.audioContext && this.source ? { ctx: this.audioContext, source: this.source } : null;
+  }
+
   async start(): Promise<void> {
     if (this.status === "running" || this.status === "starting") return;
     this.status = "starting";
@@ -96,6 +102,7 @@ export class TunerEngine {
       await ctx.audioWorklet.addModule("/tuner-accumulator.js");
 
       const source = ctx.createMediaStreamSource(this.mediaStream);
+      this.source = source;
 
       this.analyser = ctx.createAnalyser();
       this.analyser.fftSize = FFT_SIZE;
@@ -138,6 +145,7 @@ export class TunerEngine {
     this.viewSpectrum = null;
     this.lastSamples = null;
     this.sink = null;
+    this.source = null;
     this.audioContext = null;
     this.tracker.reset();
     if (this.status !== "error") this.status = "idle";

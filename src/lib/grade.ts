@@ -191,7 +191,7 @@ export function summarize(notes: NoteResult[]): GradeResult {
  * click, nothing waits, and the recording is graded afterwards for pitch and
  * for rhythm separately (gradePerformance).
  */
-export type GradeMode = "pitch" | "performance";
+export type GradeMode = "pitch" | "performance" | "claps";
 export type Strictness = "easy" | "standard" | "strict";
 
 /**

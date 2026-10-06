@@ -1,5 +1,6 @@
 import { DETECT_LATENCY_MS, centsOffAnyOctave, stepsBetween, type GradeNote, type PerfResult } from "./grade";
 import type { GradeTrace } from "./grade-runner";
+import type { ClapResult } from "./grade-rhythm";
 
 /**
  * What Grade draws on the score after a run, so the singer sees what they sang
@@ -51,6 +52,8 @@ export function drawGradeFeedback(o: {
   drawnAt: (cursor: number) => Drawn;
   trace: GradeTrace;
   perf: PerfResult | null;
+  /** A rhythm clapped: each note's clap and the stray claps (no pitch trace). */
+  claps?: ClapResult | null;
   doPc: number;
   /** Beats a note may be early or late with full credit (the strictness). */
   onsetBeats: number;
@@ -135,16 +138,25 @@ export function drawGradeFeedback(o: {
     flush();
   });
 
-  if (!o.perf) return;
   const LATE = "#c26a00";
   const beatMs = 60_000 / Math.max(1, o.bpm);
-  o.perf.notes.forEach((r, i) => {
+  const cross = (x: number, y: number, color: string) => {
+    const s = space * 0.6;
+    const c = document.createElementNS(NS, "path");
+    c.setAttribute("d", `M${x - s},${y - s} L${x + s},${y + s} M${x + s},${y - s} L${x - s},${y + s}`);
+    c.setAttribute("stroke", color);
+    c.setAttribute("stroke-width", String(stroke));
+    c.setAttribute("stroke-linecap", "round");
+    g.appendChild(c);
+  };
+  // Came in early or late: a tick above the staff where they did.
+  const arrow = (i: number, onsetBeats: number | null) => {
     const h = heads[i];
     const lane = lanes[i];
     const span = o.trace.spans[i];
     if (!h || !lane || !span) return;
-    // Came in early or late: a tick above the staff where they did.
-    if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > o.onsetBeats) {
+    if (onsetBeats !== null && Math.abs(onsetBeats) > o.onsetBeats) {
+      const r = { onsetBeats };
       const at = span.from + r.onsetBeats * beatMs;
       const x = lane.from + ((at - span.from) / (span.to - span.from)) * (lane.to - lane.from);
       const top = h.y - 5 * space;
@@ -158,6 +170,34 @@ export function drawGradeFeedback(o: {
       tick.setAttribute("stroke-linecap", "round");
       g.appendChild(tick);
     }
+  };
+
+  if (o.claps) {
+    o.claps.notes.forEach((r, i) => arrow(i, r.onsetBeats));
+    // A stray clap: a cross above the staff, where it fell in time - between
+    // the notes either side of it, at its share of the way from one to the next.
+    for (const stray of o.claps.strays) {
+      let i = -1;
+      while (i + 1 < o.notes.length && o.notes[i + 1].startUnits <= stray.units) i++;
+      const k = Math.max(0, i);
+      const h = heads[k];
+      const lane = lanes[k];
+      if (!h || !lane) continue;
+      const from = o.notes[k].startUnits;
+      const to = o.notes[k + 1]?.startUnits ?? from + o.notes[k].lengthUnits;
+      const share = i < 0 ? -0.5 : Math.min(1, (stray.units - from) / Math.max(1, to - from));
+      const x = i < 0 ? h.x - 2 * space : lane.from + share * (lane.to - lane.from);
+      cross(x, h.y - 4 * space, BAD);
+    }
+    return;
+  }
+
+  if (!o.perf) return;
+  o.perf.notes.forEach((r, i) => {
+    const h = heads[i];
+    const lane = lanes[i];
+    if (!h || !lane) return;
+    arrow(i, r.onsetBeats);
     // Let go early: a line under the note, as long as it was meant to last.
     if (r.cutShort) {
       const line = document.createElementNS(NS, "line");
@@ -177,14 +217,6 @@ export function drawGradeFeedback(o: {
     if (!rest.sung) continue;
     const h = headOf(o.drawnAt(rest.cursor));
     if (!h) continue;
-    const x = (h.x + h.right) / 2;
-    const y = h.y - 3 * space;
-    const s = space * 0.6;
-    const cross = document.createElementNS(NS, "path");
-    cross.setAttribute("d", `M${x - s},${y - s} L${x + s},${y + s} M${x + s},${y - s} L${x - s},${y + s}`);
-    cross.setAttribute("stroke", BAD);
-    cross.setAttribute("stroke-width", String(stroke));
-    cross.setAttribute("stroke-linecap", "round");
-    g.appendChild(cross);
+    cross((h.x + h.right) / 2, h.y - 3 * space, BAD);
   }
 }

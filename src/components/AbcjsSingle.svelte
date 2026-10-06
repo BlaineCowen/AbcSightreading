@@ -68,6 +68,9 @@
   import { activePresetToRestore, rememberActivePreset, restoredSignature, type ActivePresetRecord } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import GradePanel from "./GradePanel.svelte";
+  import TapPad from "./TapPad.svelte";
+  import { ClapListener } from "../lib/clap-listener";
+  import { detectClaps } from "../lib/clap-detect";
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clearGradeFeedback, drawGradeFeedback } from "../lib/grade-feedback";
@@ -79,7 +82,7 @@
   import { solfegeOf } from "../lib/grade";
   import { billingStatus } from "../lib/billing-client";
   import { signedInUser } from "../lib/auth-client";
-  import { initTuner, startTuner, stopTuner } from "../lib/tuner/controller";
+  import { initTuner, micInput, startTuner, stopTuner } from "../lib/tuner/controller";
   import { exerciseInfo } from "../lib/tools/context";
   import { NOTES } from "../lib/tuner/pitch";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
@@ -1595,15 +1598,15 @@
         maxSpacing: 5,
       },
       clickListener: async (event: any) => {
-        // Every note on the rhythm staff is the same placeholder pitch, so
-        // playing it back would be meaningless.
-        if (rhythmOnly) return;
         // After a Grade run, a tapped note says how it went.
         if (gradePhase === "results") {
           const drawn = drawnNotes();
           const i = gradeList.findIndex((n) => drawn[n.cursor]?.absEl?.abcelem === event);
           if (i >= 0) gradeDetailIndex = i;
         }
+        // Every note on the rhythm staff is the same placeholder pitch, so
+        // playing it back would be meaningless.
+        if (rhythmOnly) return;
         if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
@@ -3703,6 +3706,9 @@
         frames: gradeTrace?.frames ?? [],
         perf: v.perf,
         result: v.result,
+        claps: v.claps,
+        clapSettings: { input: t.gradeClapInput, who: t.gradeWho, click: t.gradeClapClick, micLatencyMs: t.clapLatencyMs },
+        clapBlocks: gradeRunner.lastClapBlocks,
         userAgent: navigator.userAgent,
       },
       gradeAudio,
@@ -3760,6 +3766,7 @@
       drawnAt: (cursor) => drawn[cursor],
       trace,
       perf: $gradeRunner.perf,
+      claps: $gradeRunner.claps,
       doPc: gradeDoPc,
       onsetBeats: STRICTNESS[$tuner.gradeStrictness].onsetBeats,
       bpm: tempo,
@@ -3773,6 +3780,14 @@
     if (i === null || v.phase !== "results") return null;
     const n = gradeList[i];
     if (!n) return null;
+    if (v.claps) {
+      const r = v.claps.notes[i];
+      if (!r) return null;
+      if (r.missed) return `Note ${i + 1}: no clap heard`;
+      if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > STRICTNESS[$tuner.gradeStrictness].onsetBeats)
+        return `Note ${i + 1}: ${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`;
+      return `Note ${i + 1}: on time`;
+    }
     const want = solfegeOf(n.midi, gradeDoPc);
     if (v.perf) {
       const r = v.perf.notes[i];
@@ -3822,11 +3837,7 @@
   }
   $: gradePhase = $gradeRunner.phase;
   $: grading = gradePhase === "reference" || gradePhase === "countIn" || gradePhase === "sing";
-  $: gradeBlocked = rhythmOnly
-    ? "Grade is for pitched exercises. Switch Mode to Pitched."
-    : !originalTuneString
-      ? "Generate an exercise first."
-      : null;
+  $: gradeBlocked = !originalTuneString ? "Generate an exercise first." : null;
   // The microphone is Grade's only while it runs.
   let gradeHadMic = false;
   $: if (!grading && gradeHadMic) {
@@ -3888,6 +3899,7 @@
     gradeList = schedule.notes;
     gradeRestList = schedule.rests;
     if (!gradeList.length) return;
+    if (rhythmOnly) return startClapGrade();
     // Saving runs for review: the recording starts first. Nothing may await
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
@@ -3924,6 +3936,107 @@
       click: t.gradeClick,
       tonicTriad: info?.minor ? [tonic, tonic + 3, tonic + 7] : [tonic, tonic + 4, tonic + 7],
     });
+  }
+
+  /**
+   * A rhythm clapped into the microphone or tapped (grade-rhythm.ts). With
+   * the microphone, the clap listener shares the tuner's stream; it is not
+   * awaited, since nothing may await between the tuner starting and the run
+   * starting, and the count-in gives it time to load.
+   */
+  async function startClapGrade() {
+    const t0 = tuner.get();
+    let mic: ClapListener | null = null;
+    if (t0.gradeClapInput === "mic") {
+      initTuner();
+      await startTuner();
+      if (tuner.get().engineStatus !== "running") return;
+      tuner.setMicHeld(true);
+      gradeHadMic = true;
+      const input = micInput();
+      if (input) {
+        mic = new ClapListener(input.ctx, input.source);
+        void mic.start();
+      }
+    }
+    const meter = playedMeter();
+    const t = tuner.get();
+    gradeRunner.start({
+      notes: gradeList,
+      rests: gradeRestList,
+      bpm: tempo,
+      beatsPerBar: parseInt(meter, 10) || 4,
+      beatUnits: resolveMeter(meter).beatUnits,
+      countInBeats: countInBeats(meter),
+      reference: "note",
+      mode: "claps",
+      strictness: t.gradeStrictness,
+      cursor: t.gradeCursor,
+      click: t.gradeClapClick,
+      tonicTriad: [],
+      claps: { who: t.gradeWho, mic, micLatencyMs: t.clapLatencyMs ?? CLAP_MIC_LATENCY_MS },
+    });
+  }
+  /**
+   * The microphone's delay for a clap until Check timing has measured it:
+   * measured end to end with the fake microphone (scripts/check-clap-grade.ts
+   * MEASURE=1: 45 ms on every clap). A real microphone adds its own, which
+   * Check timing finds.
+   */
+  const CLAP_MIC_LATENCY_MS = 45;
+
+  /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
+  $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";
+  function onTapKey(e: KeyboardEvent) {
+    if (!tapping || e.code !== "Space" || e.repeat) return;
+    const el = e.target as HTMLElement | null;
+    if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+    e.preventDefault();
+    gradeRunner.tap(e.timeStamp);
+  }
+
+  /**
+   * Check timing: eight clicks to clap along with, and the microphone's delay
+   * is the median of how late the claps were heard (each clap matched to the
+   * nearest click). Stored in this browser for every run after.
+   */
+  let timingNote: string | null = null;
+  async function checkClapTiming() {
+    initTuner();
+    await startTuner();
+    if (tuner.get().engineStatus !== "running") return;
+    tuner.setMicHeld(true);
+    const input = micInput();
+    if (!input) return;
+    const mic = new ClapListener(input.ctx, input.source);
+    await mic.start();
+    if (audioContext?.state === "suspended") await audioContext.resume();
+    const beatMs = 600;
+    const outMs = ((audioContext?.baseLatency ?? 0) + (audioContext?.outputLatency ?? 0)) * 1000;
+    const clicks: number[] = [];
+    timingNote = "Clap with the clicks: 1 2 3 4, then four more…";
+    const start = performance.now() + 300;
+    for (let k = 0; k < 12; k++) {
+      setTimeout(() => playMetronomeClick(k % 4 === 0), start + k * beatMs - performance.now());
+      // The first four are a count-in: clap along with the last eight.
+      if (k >= 4) clicks.push(start + k * beatMs + outMs);
+    }
+    setTimeout(() => {
+      const claps = detectClaps(mic.stop());
+      tuner.setMicHeld(false);
+      if (!grading) stopTuner();
+      const lags = clicks
+        .map((k) => claps.map((c) => c.t - k).filter((d) => d > -150 && d < 250).sort((a, b) => Math.abs(a) - Math.abs(b))[0])
+        .filter((d): d is number => d !== undefined)
+        .sort((a, b) => a - b);
+      if (lags.length < 5) {
+        timingNote = `Only ${lags.length} of 8 claps heard. Clap a little louder, nearer the microphone, and try again.`;
+        return;
+      }
+      const ms = Math.round(lags[lags.length >> 1]);
+      tuner.setGrade({ clapLatencyMs: ms });
+      timingNote = `Checked: this microphone hears claps ${ms} ms late. Claps are timed for that now.`;
+    }, start + 12 * beatMs + 400 - performance.now());
   }
 
   async function gradeNewExercise() {
@@ -4051,7 +4164,13 @@
       doPc={gradeDoPc}
       detail={gradeDetail}
       onSave={gradeDebugOn ? saveGradeRunNow : null}
+      {rhythmOnly}
+      onCheckTiming={checkClapTiming}
+      {timingNote}
     />
+    {#if tapping}
+      <TapPad onTap={(t) => gradeRunner.tap(t)} />
+    {/if}
   {/if}
   {#if playAlongOpen}
     <PlayAlongVideo
@@ -5068,20 +5187,19 @@
     <div class="focus-score relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
       <CountInBadge />
-      {#if !rhythmOnly}
-        <div class="focus-hide flex justify-end">
-          <button
-            class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
-            on:click={openGrade}
-            disabled={grading}
-            title="Sing it into the microphone and get a score"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-            Listen and grade
-            <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
-          </button>
-        </div>
-      {/if}
+      <!-- Kept in full screen: a class grades its clapping on the TV. -->
+      <div class="flex justify-end">
+        <button
+          class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+          on:click={openGrade}
+          disabled={grading}
+          title={rhythmOnly ? "Clap it (or tap it) and get a score, alone or as a class" : "Sing it into the microphone and get a score"}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+          {rhythmOnly ? "Clap and grade" : "Listen and grade"}
+          <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
+        </button>
+      </div>
       <!-- Before the first exercise, say what to do: the page used to open on an
            empty white card. Outside #paper, which abcjs empties when it draws. -->
       {#if !originalTuneString && !isLoading}
@@ -5223,6 +5341,8 @@
   </PlaybackBar>
 </div>
 
+
+<svelte:window on:keydown={onTapKey} />
 <style>
   /* Grade: the note waiting to be sung, then how each went. */
   :global(#paper .grade-now), :global(#paper .grade-now path) {

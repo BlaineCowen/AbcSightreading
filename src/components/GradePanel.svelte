@@ -3,6 +3,7 @@
   import { tuner } from "../lib/tuner/store";
   import type { GradeRunner } from "../lib/grade-runner";
   import { guidance, STRICTNESS, type Strictness } from "../lib/grade";
+  import { togetherLabel } from "../lib/grade-rhythm";
 
   /**
    * Grade's strip on the Unison page (rules in grade.ts, the run in
@@ -26,10 +27,17 @@
   export let detail: string | null = null;
   /** Saving a run for review (the recording and the grading's data); null hides it. */
   export let onSave: (() => void) | null = null;
+  /** A rhythm-only exercise: clapped or tapped, rhythm alone (grade-rhythm.ts). */
+  export let rhythmOnly = false;
+  /** Clap along with the click to measure the microphone's delay; null hides it. */
+  export let onCheckTiming: (() => void) | null = null;
+  /** What Check timing found, or is doing. */
+  export let timingNote: string | null = null;
 
   const STRICT_LEVELS = Object.entries(STRICTNESS) as [Strictness, (typeof STRICTNESS)[Strictness]][];
   const CURSORS = [["off", "Off"], ["smooth", "Smooth"], ["beat", "Beat"], ["note", "Note"]] as const;
   const CLICKS = [["off", "Off"], ["beat", "Beats"], ["sub", "Subdivided"]] as const;
+  const CLAP_CLICKS = [["off", "Count-in only"], ["beat", "Beats"], ["sub", "Subdivided"]] as const;
   /** The setup shows when Grade opens, and again whenever it is back at the start. */
   let setupOpen = true;
   let lastPhase = "idle";
@@ -48,6 +56,19 @@
   $: pitchToWork = perfNotes.filter((n) => n.pitch < 90).length;
   $: rhythmToWork = perfNotes.filter((n) => n.rhythm < 90).length + (v.perf?.rests.filter((r) => r.sung).length ?? 0);
   $: performance = $tuner.gradeMode === "performance";
+  $: claps = v.claps;
+  $: clapMissed = claps?.notes.filter((n) => n.missed).length ?? 0;
+  $: clapOff = claps?.notes.filter((n) => !n.missed && n.rhythm < 90).length ?? 0;
+  $: strayCount = claps ? Math.round(claps.strays.reduce((a, s) => a + s.weight, 0) * 10) / 10 : 0;
+  $: clapLine = !claps
+    ? ""
+    : [
+        clapMissed + clapOff === 0 ? "Every note in time" : [clapOff && `${clapOff} early or late`, clapMissed && `${clapMissed} missed`].filter(Boolean).join(", "),
+        strayCount ? `${strayCount === 1 ? "1 stray clap" : `${strayCount} stray claps`}` : "",
+        claps.together !== undefined ? `together: ${togetherLabel(claps.together).toLowerCase()}` : "",
+      ].filter(Boolean).join(" · ");
+  $: viaMic = $tuner.gradeClapInput === "mic";
+  $: clapSummary = `${viaMic ? "Microphone" : "Spacebar & pad"}${$tuner.gradeWho === "class" ? " · the class" : ""} · ${STRICTNESS[$tuner.gradeStrictness].label} · cursor ${$tuner.gradeCursor} · ${$tuner.gradeClapClick === "off" ? "count-in only" : `click ${$tuner.gradeClapClick === "sub" ? "subdivided" : "beats"}`}`;
   let stuckOpen = false;
   let detailsOpen = false;
   $: if (v.phase !== "sing") stuckOpen = false;
@@ -82,6 +103,26 @@
   <!-- Opened upward from the strip: the setup, the Stuck options, or the results' notes. -->
   {#if setupOpen && v.phase === "idle" && !blocked && allowed !== false}
     <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2.5 text-sm">
+      {#if rhythmOnly}
+        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Clap with">
+          <span class="text-xs text-sr-muted w-20">Clap with</span>
+          <button class="sr-tok text-xs px-2.5 py-1 {viaMic ? 'sr-on' : ''}" aria-pressed={viaMic} on:click={() => tuner.setGrade({ gradeClapInput: "mic" })}>Microphone</button>
+          <button class="sr-tok text-xs px-2.5 py-1 {!viaMic ? 'sr-on' : ''}" aria-pressed={!viaMic} on:click={() => tuner.setGrade({ gradeClapInput: "keys", gradeWho: "solo" })}>Spacebar & pad</button>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Who claps">
+          <span class="text-xs text-sr-muted w-20">Who</span>
+          <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeWho === 'solo' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeWho === "solo"} on:click={() => tuner.setGrade({ gradeWho: "solo" })}>Just me</button>
+          <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeWho === 'class' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeWho === "class"} on:click={() => tuner.setGrade({ gradeWho: "class", gradeClapInput: "mic" })}
+            title="One microphone hears the whole room, graded together">The class</button>
+        </div>
+        <p class="text-xs text-sr-muted -mt-1 ml-[5.4rem]">
+          {$tuner.gradeWho === "class"
+            ? "Everyone claps together; the room is graded as one. Claps that come early, late or in a rest cost points."
+            : viaMic
+              ? "Clap each note as it starts; rests are silent. A clap that matches no note costs a point."
+              : "Tap the spacebar or the pad at the side as each note starts. A tap that matches no note costs a point."}
+        </p>
+      {:else}
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="What to grade">
         <span class="text-xs text-sr-muted w-20">Grade</span>
         <button class="sr-tok text-xs px-2.5 py-1 {!performance ? 'sr-on' : ''}" aria-pressed={!performance} on:click={() => tuner.setGrade({ gradeMode: "pitch" })}>Note by note</button>
@@ -90,14 +131,15 @@
       <p class="text-xs text-sr-muted -mt-1 ml-[5.4rem]">
         {performance ? "The music runs in time with a click; a note missed stays missed. Pitch and rhythm are scored apart." : "Practice, no grade: the cursor waits on each note until you sing it and hold it a moment. Stuck? Hear help, or skip."}
       </p>
+      {/if}
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Strictness">
         <span class="text-xs text-sr-muted w-20">Strictness</span>
         {#each STRICT_LEVELS as [id, s]}
           <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeStrictness === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeStrictness === id} on:click={() => tuner.setGrade({ gradeStrictness: id })}
-            title="In tune within {s.cents} cents{performance ? `; in time within ${s.onsetBeats} of a beat` : ''}">{s.label}</button>
+            title={rhythmOnly ? `In time within ${s.onsetBeats} of a beat` : `In tune within ${s.cents} cents${performance ? `; in time within ${s.onsetBeats} of a beat` : ""}`}>{s.label}</button>
         {/each}
       </div>
-      {#if performance}
+      {#if performance || rhythmOnly}
         <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Cursor">
           <span class="text-xs text-sr-muted w-20">Cursor</span>
           {#each CURSORS as [id, label]}
@@ -106,16 +148,32 @@
         </div>
         <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Click">
           <span class="text-xs text-sr-muted w-20">Click</span>
-          {#each CLICKS as [id, label]}
-            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClick === id} on:click={() => tuner.setGrade({ gradeClick: id })}>{label}</button>
-          {/each}
+          {#if rhythmOnly}
+            {#each CLAP_CLICKS as [id, label]}
+              <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClapClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClapClick === id} on:click={() => tuner.setGrade({ gradeClapClick: id })}
+                title={id !== "off" && viaMic ? "The microphone may hear the click; headphones help" : ""}>{label}</button>
+            {/each}
+          {:else}
+            {#each CLICKS as [id, label]}
+              <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeClick === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeClick === id} on:click={() => tuner.setGrade({ gradeClick: id })}>{label}</button>
+            {/each}
+          {/if}
         </div>
       {/if}
+      {#if rhythmOnly && viaMic && onCheckTiming}
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-xs text-sr-muted w-20">Timing</span>
+          <button class="sr-tok text-xs px-2.5 py-1" on:click={onCheckTiming} title="Clap along with eight clicks, so claps are timed for this microphone">Check timing</button>
+          <span class="text-xs text-sr-muted">{timingNote ?? ($tuner.clapLatencyMs === null ? "Not checked yet: clap along once for the fairest timing." : `Checked: this microphone hears claps ${$tuner.clapLatencyMs} ms late.`)}</span>
+        </div>
+      {/if}
+      {#if !rhythmOnly}
       <div class="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Before the count-in, play">
         <span class="text-xs text-sr-muted w-20">First, play</span>
         <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'note' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "note"} on:click={() => tuner.setGradeReference("note")}>the first note</button>
         <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeReference === 'triad' ? 'sr-on' : ''}" aria-pressed={$tuner.gradeReference === "triad"} on:click={() => tuner.setGradeReference("triad")} title="Do mi so mi do so do, then the first note">the key, then the first note</button>
       </div>
+      {/if}
     </div>
   {/if}
   {#if detailsOpen && v.perf}
@@ -136,6 +194,24 @@
       <p class="text-xs text-sr-muted">
         Each note: pitch on top, rhythm below. On the score, the line is the pitch you sang: blue on the note, red off it.
         An arrow above a note means you came in early or late; a dashed line under it, you let go early; a cross over a rest, you sang through it.
+        Tap a note for details.
+      </p>
+    </div>
+  {/if}
+  {#if detailsOpen && claps}
+    <div class="mb-2 bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2">
+      <div class="flex flex-wrap gap-1" aria-label="Each note">
+        {#each claps.notes as n, i}
+          <span
+            class="w-7 h-7 rounded-md flex items-center justify-center text-[11px] font-bold tabular-nums {tone(n.rhythm)}"
+            title="Note {i + 1}: {n.missed ? 'missed' : n.onsetBeats !== null && n.rhythm < 100 ? `${Math.abs(n.onsetBeats).toFixed(2)} beats ${n.onsetBeats > 0 ? 'late' : 'early'}` : 'in time'}"
+          >{i + 1}</span>
+        {/each}
+      </div>
+      <p class="text-xs text-sr-muted">
+        On the score, each note is coloured by its timing; an arrow above it means the clap came early or late, and a cross above the staff is a stray clap
+        (in a rest, a second clap on a note, or one that matched no note), which counts as a note scored 0{$tuner.gradeWho === "class" ? ", less for a few people than for the whole room" : ""}.
+        {#if claps.together !== undefined}The class was {togetherLabel(claps.together).toLowerCase()} together: claps spread over about {claps.together} ms.{/if}
         Tap a note for details.
       </p>
     </div>
@@ -167,7 +243,7 @@
 
   <div class="bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl px-3 py-2 flex items-center gap-2 sm:gap-3 min-h-[56px]">
     {#if allowed === false}
-      <p class="flex-1 text-sm text-sr-ink-2">Grade scores your singing, note by note. It's part of Pro, $19.99 a year.</p>
+      <p class="flex-1 text-sm text-sr-ink-2">{rhythmOnly ? "Grade scores your clapping, note by note, for you or a whole class." : "Grade scores your singing, note by note."} It's part of Pro, $19.99 a year.</p>
       <a class="sr-btn text-sm px-4 py-2 shrink-0" href={signedIn ? "/account#plan" : `/login?mode=signup&next=${encodeURIComponent("/account#plan")}`}>Get Pro</a>
     {:else if v.phase === "idle"}
       <div class="flex-1 min-w-0 flex flex-col gap-1">
@@ -176,13 +252,13 @@
           Grading is new and still being tuned, so a score can be off. If one seems wrong, tell us with Feedback.
         </p>
         <p class="text-sm font-bold text-sr-ink">
-          {performance ? "Sing it in time. The music keeps going." : "Sing each note. The cursor waits for you."}
+          {rhythmOnly ? ($tuner.gradeWho === "class" ? "Clap it together, in time. The music keeps going." : "Clap it in time. The music keeps going.") : performance ? "Sing it in time. The music keeps going." : "Sing each note. The cursor waits for you."}
         </p>
         {#if blocked}
           <p class="text-xs text-sr-muted">{blocked}</p>
         {:else}
           <button class="text-xs text-sr-action-fg font-bold text-left inline-flex items-center gap-1" on:click={() => (setupOpen = !setupOpen)} aria-expanded={setupOpen}>
-            {performance ? "Pitch & rhythm" : "Note by note"} · {STRICTNESS[$tuner.gradeStrictness].label}{performance ? ` · cursor ${$tuner.gradeCursor} · click ${$tuner.gradeClick === "sub" ? "subdivided" : $tuner.gradeClick}` : ""}
+            {rhythmOnly ? clapSummary : `${performance ? "Pitch & rhythm" : "Note by note"} · ${STRICTNESS[$tuner.gradeStrictness].label}${performance ? ` · cursor ${$tuner.gradeCursor} · click ${$tuner.gradeClick === "sub" ? "subdivided" : $tuner.gradeClick}` : ""}`}
             <ChevronUp size={12} class={setupOpen ? "" : "rotate-180"} />
           </button>
         {/if}
@@ -190,6 +266,12 @@
       <button class="sr-btn text-sm px-5 py-2 shrink-0" on:click={() => { setupOpen = false; onStart(); }} disabled={!!blocked || allowed === null}>{allowed === null ? "…" : "Start"}</button>
     {:else if v.phase === "reference" || v.phase === "countIn"}
       <p class="flex-1 text-sm font-bold">{v.phase === "reference" ? "Listen…" : "Get ready…"}</p>
+      <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
+    {:else if v.phase === "sing" && v.mode === "claps"}
+      <div class="flex-1 min-w-0 flex flex-col leading-tight">
+        <span class="text-xs font-bold text-sr-muted tabular-nums">Note {v.index + 1} of {v.total}</span>
+        <span class="text-sm font-semibold text-sr-ink-2" aria-live="off">{viaMic ? "Clap each note as it starts" : `Tap each note as it starts${v.tapped ? ` · ${v.tapped} tapped` : ""}`}</span>
+      </div>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => runner.stop()}>Stop</button>
     {:else if v.phase === "sing"}
       <svg width="32" height="32" viewBox="0 0 32 32" class="shrink-0" aria-hidden="true">
@@ -215,6 +297,18 @@
       </div>
       <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
         {detail ?? (pitchToWork + rhythmToWork === 0 ? "In tune and in time" : `${pitchToWork} pitch, ${rhythmToWork} rhythm to work on`)}
+        <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
+      </button>
+      <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
+      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={onNewExercise}>New exercise</button>
+      {#if onSave}<button class="sr-btn-quiet text-xs shrink-0" on:click={onSave} title="Download the recording and the grading's data, to send for review">Save this run</button>{/if}
+    {:else if v.phase === "results" && claps}
+      <div class="flex items-baseline gap-3 shrink-0">
+        <span class="flex flex-col items-center leading-none"><span class="text-xl font-extrabold tabular-nums">{claps.rhythm}%</span><span class="text-[10px] font-bold text-sr-muted uppercase">Rhythm</span></span>
+        <span class="text-xl font-extrabold text-sr-action-fg">{claps.letter}</span>
+      </div>
+      <button class="flex-1 min-w-0 text-left text-sm text-sr-ink-2 truncate inline-flex items-center gap-1" on:click={() => (detailsOpen = !detailsOpen)} aria-expanded={detailsOpen}>
+        {detail ?? clapLine}
         <ChevronUp size={14} class="shrink-0 {detailsOpen ? '' : 'rotate-180'}" />
       </button>
       <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
