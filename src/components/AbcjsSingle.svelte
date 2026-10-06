@@ -3714,6 +3714,7 @@
         claps: v.claps,
         clapSettings: { input: t.gradeClapInput, who: t.gradeWho, click: t.gradeClapClick, micLatencyMs: t.clapLatencyMs },
         clapBlocks: gradeRunner.lastClapBlocks,
+        clapsHeard: gradeRunner.lastHeard,
         userAgent: navigator.userAgent,
     };
   }

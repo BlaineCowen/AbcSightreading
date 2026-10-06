@@ -19,7 +19,7 @@
  */
 
 export type ClapBlock = { t: number; hi: number; full: number };
-export type Clap = { t: number; level: number; spread?: number };
+export type Clap = { t: number; level: number; spread?: number; voiced?: boolean };
 
 /** A clap rises this far above the running floor. */
 export const CLAP_RISE_DB = 9;
@@ -147,10 +147,55 @@ export function detectBursts(blocks: ClapBlock[]): Clap[] {
  * echo cancellation doing its job nothing is learned and nothing is dropped.
  */
 export const ECHO_NEAR_MS = 40;
-export function withoutClickEcho(claps: Clap[], clicks: number[], countInEnd: number): Clap[] {
+export function withoutClickEcho<T extends Clap>(claps: T[], clicks: number[], countInEnd: number): T[] {
   const near = (c: Clap) => clicks.some((k) => Math.abs(c.t - k) <= ECHO_NEAR_MS);
   const heard = claps.filter((c) => c.t < countInEnd && near(c)).map((c) => c.level);
   if (!heard.length) return claps;
   const echo = median(heard);
   return claps.filter((c) => !(near(c) && c.level < echo * 2));
+}
+
+/**
+ * The microphone's sound at about 16 kHz, its first sample at page time `t0`
+ * (clap-listener.ts), for telling a clap from a chanted syllable.
+ */
+export type ClapAudio = { t0: number; rate: number; samples: Float32Array };
+
+/** How pitched a sound is: above this, a voice (a chanted "ta"), not a clap. */
+export const VOICED_ABOVE = 0.45;
+
+/**
+ * How pitched the sound is just after `t` (page ms): the strongest normalised
+ * autocorrelation over the lags of a voice's pitch (80-500 Hz), over 80 ms
+ * from 30 ms in (past the attack, into the vowel or the clap's ring). A clap
+ * is noise: about 0.1-0.25. A sung or chanted syllable is periodic: 0.5-0.95.
+ * Measured on Blaine's class recordings (6 October): every clap below 0.38,
+ * the chant 0.42 and up.
+ */
+export function voicingAt(audio: ClapAudio, t: number): number {
+  const n = Math.round(0.08 * audio.rate);
+  const i = Math.round(((t - audio.t0 + 30) / 1000) * audio.rate);
+  if (i < 0 || i + n > audio.samples.length) return 0;
+  let mean = 0;
+  for (let k = 0; k < n; k++) mean += audio.samples[i + k];
+  mean /= n;
+  const y = new Float32Array(n);
+  let energy = 0;
+  for (let k = 0; k < n; k++) {
+    y[k] = audio.samples[i + k] - mean;
+    energy += y[k] * y[k];
+  }
+  if (energy < 1e-7) return 0;
+  let best = 0;
+  for (let lag = Math.floor(audio.rate / 500); lag <= Math.floor(audio.rate / 80); lag++) {
+    let s = 0;
+    for (let k = 0; k + lag < n; k++) s += y[k] * y[k + lag];
+    if (s > best) best = s;
+  }
+  return best / energy;
+}
+
+/** Each sound marked as a voice or not (VOICED_ABOVE). */
+export function markVoiced<T extends Clap>(claps: T[], audio: ClapAudio | null): (T & { voiced: boolean })[] {
+  return claps.map((c) => ({ ...c, voiced: !!audio && voicingAt(audio, c.t) > VOICED_ABOVE }));
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { detectBursts, detectClaps, withoutClickEcho, type ClapBlock } from "../../src/lib/clap-detect";
 import { gradeClaps, togetherLabel } from "../../src/lib/grade-rhythm";
+import { voicingAt } from "../../src/lib/clap-detect";
 import { gradeSchedule } from "../../src/lib/grade";
 
 // ── The microphone's blocks, synthesized ─────────────────────────────────────
@@ -165,16 +166,86 @@ describe("grading a clapped rhythm", () => {
   });
   test("a class: a quiet stray (a child or two) costs a fraction; a loud one (half the room) nearly a whole note", () => {
     const body = "B8 B8 B8 B8 |";
-    const quiet = run(body, [0, 1000, 1500, 2000, 3000], "standard", "class", [1, 1, 0.1, 1, 1]);
+    const quiet = run(body, [0, 1000, 1500, 2000, 3000], "standard", "class", [1, 1, 0.3, 1, 1]);
     const loud = run(body, [0, 1000, 1500, 2000, 3000], "standard", "class", [1, 1, 0.9, 1, 1]);
-    expect(quiet.strays[0].weight).toBeCloseTo(0.1, 5);
-    expect(quiet.rhythm).toBe(98); // 400 / 4.1
+    expect(quiet.strays[0].weight).toBeCloseTo(0.3, 5);
+    expect(quiet.rhythm).toBe(93); // 400 / 4.3
     expect(loud.rhythm).toBe(82); // 400 / 4.9
     expect(quiet.together).toBe(30);
     expect(togetherLabel(30)).toBe("Tight");
   });
   test("a class: a note only part of the room clapped gets that part", () => {
-    const r = run("B8 B8 B8 B8 |", [0, 1000, 2000, 3000], "standard", "class", [1, 1, 0.2, 1]);
-    expect(r.notes[2].rhythm).toBe(50); // 0.2 / 0.4
+    const r = run("B8 B8 B8 B8 |", [0, 1000, 2000, 3000], "standard", "class", [1, 1, 0.3, 1]);
+    expect(r.notes[2].rhythm).toBe(75); // 0.3 / 0.4
+  });
+});
+
+// ── From Blaine's class recordings (6 October): chant, a ragged room, background ──
+const runWith = (body: string, claps: { t: number; level?: number; voiced?: boolean }[], who: "solo" | "class" = "solo", strictness: "easy" | "standard" = "easy") =>
+  gradeClaps(gradeSchedule(abc(body)), claps.map((c) => ({ level: 1, ...c })), { t0: 0, bpm: 60, beatUnits: 8, strictness, who });
+
+describe("a class clapping and chanting", () => {
+  test("a chanted syllable is never a stray", () => {
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 120, voiced: true }, { t: 1000 }, { t: 1500, voiced: true }, { t: 2000 }, { t: 3000 }]);
+    expect(r.strays).toEqual([]);
+    expect(r.rhythm).toBe(100);
+    expect(r.ignored.voiced).toBe(2);
+  });
+  test("a chant can fill a note whose clap it buried", () => {
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 1030, voiced: true }, { t: 2000 }, { t: 3000 }]);
+    expect(r.notes[1].missed).toBe(false);
+  });
+  test("a class: a sound close behind a matched clap is the same, ragged clap", () => {
+    // Children 150-280 ms behind the rest, on every note.
+    const r = runWith("B8 B8 B8 B8 |", [0, 1000, 2000, 3000].flatMap((t) => [{ t }, { t: t + 150, level: 0.8 }, { t: t + 280, level: 0.6 }]), "class");
+    expect(r.strays).toEqual([]);
+    expect(r.ignored.merged).toBe(8);
+    expect(r.rhythm).toBe(100);
+  });
+  test("a class: a clap half a beat off is still a stray", () => {
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 500 }, { t: 1000 }, { t: 2000 }, { t: 3000 }], "class");
+    expect(r.strays.length).toBe(1);
+  });
+  test("just me: a second clap close behind still costs (a double clap)", () => {
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 1000 }, { t: 1150 }, { t: 2000 }, { t: 3000 }]);
+    expect(r.strays.length).toBe(1);
+  });
+  test("a class: a faint sliver just ahead of the clap is not matched in its place", () => {
+    // The room's clap at 2000 split off a faint leading edge at 1990, nearer the beat.
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 1000 }, { t: 1990, level: 0.01 }, { t: 2060 }, { t: 3000 }], "class");
+    expect(r.notes[2].rhythm).toBe(100);
+    expect(r.strays).toEqual([]);
+  });
+  test("just me: a quiet clap is still a clap", () => {
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 1000, level: 0.05 }, { t: 2000 }, { t: 3000 }]);
+    expect(r.notes[1].missed).toBe(false);
+  });
+  test("much quieter than the claps is the room, not a stray", () => {
+    const r = runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 500, level: 0.1 }, { t: 1000 }, { t: 2000 }, { t: 3000 }]);
+    expect(r.strays).toEqual([]);
+    expect(r.ignored.quiet).toBe(1);
+  });
+  test("just me, but it sounds like a room: the result says to try The class", () => {
+    const ragged = [0, 1000, 2000, 3000].flatMap((t) => [{ t }, { t: t + 160 }]);
+    expect(runWith("B8 B8 B8 B8 |", ragged).soundedLikeClass).toBe(true);
+    expect(runWith("B8 B8 B8 B8 |", [{ t: 0 }, { t: 1000 }, { t: 2000 }, { t: 3000 }]).soundedLikeClass).toBeUndefined();
+  });
+});
+
+describe("telling a voice from a clap", () => {
+  const rate = 16000;
+  const sound = (f: (k: number) => number) => {
+    const samples = new Float32Array(rate);
+    for (let k = 0; k < samples.length; k++) samples[k] = f(k);
+    return { t0: 0, rate, samples };
+  };
+  test("a sung vowel is pitched; a clap's noise is not", () => {
+    // A voice at 220 Hz with harmonics, and white noise ringing out.
+    const vowel = sound((k) => Math.sin((2 * Math.PI * 220 * k) / rate) + 0.5 * Math.sin((2 * Math.PI * 440 * k) / rate) + 0.3 * Math.sin((2 * Math.PI * 660 * k) / rate));
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    const clap = sound((k) => rnd() * Math.exp(-k / (0.03 * rate)));
+    expect(voicingAt(vowel, 100)).toBeGreaterThan(0.8);
+    expect(voicingAt(clap, 0)).toBeLessThan(0.3);
   });
 });

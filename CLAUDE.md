@@ -688,6 +688,31 @@ note under 0.4 of the usual gets that part of its credit. How together the
 room was (the bursts' 20-80% width: Tight, Fair, Ragged) is reported, not
 scored.
 
+Tuned on Blaine's first class recordings (6 October, four runs sent with
+Send this run; `bun run scripts/replay-clap-run.ts` replays sent runs through
+the grading as it stands, as sent and as the other Who). Every note was
+clapped in time; the strays sank them (53-82). Three causes, three rules:
+- **Chanting.** A "ta" said with the clap is a sharp onset of its own. A
+  voice has a pitch and a clap none: `voicingAt` (autocorrelation over 80 ms,
+  30 ms past the onset, on the worklet's 16 kHz copy of the sound) read every
+  clap 0.08-0.38 and the chant 0.42-0.96, so above `VOICED_ABOVE` (0.45) a
+  sound is chant: never a stray, and only filling a note no clap did.
+- **A ragged room.** Children a little behind the rest made extra bursts
+  after each clap. For The class, a sound within a third of a beat (300 ms at
+  most, `CLAP_MERGE_MS`) of a matched clap is that clap. Just me keeps a
+  second clap that close as a double clap.
+- **Slivers and the room.** A room's clap can split off a faint leading edge
+  just ahead of it, nearer the beat, which was matched in its place and the
+  note credited as clapped by a handful. For The class, sounds under
+  `CLASS_QUIET_SHARE` (15%) of the run's typical level are dropped before
+  matching (one child alone is about a fifth and still counts); for Just me,
+  under `QUIET_SHARE` (25%) of its claps, from the strays only, since one
+  person's quiet clap is still a clap.
+Those four runs went 53/61/67/82 -> 77/97/98/99 as The class. Two had been
+left on Just me; a Just me run whose claps come in clusters now says it
+sounded like a class (`soundedLikeClass`). The result lists what was not
+counted (chanted syllables, late claps folded in).
+
 The microphone is the tuner's own stream (`micInput`), listened to by
 `public/clap-detector.js`: the power above 1.5 kHz and over the whole band
 every 128 samples, stamped on the audio clock and moved onto performance.now

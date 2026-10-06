@@ -84,6 +84,7 @@
         clapMissed + clapOff === 0 ? "Every note in time" : [clapOff && `${clapOff} early or late`, clapMissed && `${clapMissed} missed`].filter(Boolean).join(", "),
         strayCount ? `${strayCount === 1 ? "1 stray clap" : `${strayCount} stray claps`}` : "",
         claps.together !== undefined ? `together: ${togetherLabel(claps.together).toLowerCase()}` : "",
+        claps.soundedLikeClass ? "sounded like a whole class: try Who, The class" : "",
       ].filter(Boolean).join(" · ");
   $: viaMic = $tuner.gradeClapInput === "mic";
   $: clapSummary = `${viaMic ? "Microphone" : "Spacebar & pad"}${$tuner.gradeWho === "class" ? " · the class" : ""} · ${STRICTNESS[$tuner.gradeStrictness].label} · cursor ${$tuner.gradeCursor} · ${$tuner.gradeClapClick === "off" ? "count-in only" : `click ${$tuner.gradeClapClick === "sub" ? "subdivided" : "beats"}`}`;
@@ -230,6 +231,9 @@
         On the score, each note is coloured by its timing; an arrow above it means the clap came early or late, and a cross above the staff is a stray clap
         (in a rest, a second clap on a note, or one that matched no note), which counts as a note scored 0{$tuner.gradeWho === "class" ? ", less for a few people than for the whole room" : ""}.
         {#if claps.together !== undefined}The class was {togetherLabel(claps.together).toLowerCase()} together: claps spread over about {claps.together} ms.{/if}
+        {#if claps.ignored && claps.ignored.voiced + claps.ignored.merged > 0}
+          Not counted against you: {[claps.ignored.voiced && `${claps.ignored.voiced} chanted syllable${claps.ignored.voiced === 1 ? "" : "s"}`, claps.ignored.merged && `${claps.ignored.merged} late claps folded into the class's clap`].filter(Boolean).join(" and ")}.
+        {/if}
         Tap a note for details.
       </p>
     </div>

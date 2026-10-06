@@ -4,7 +4,7 @@ import { pitchHistory } from "./tuner/pitch-history";
 import { NOTES } from "./tuner/pitch";
 import type { HistoryPoint } from "./tuner/pitch-history";
 import { playNotes } from "./tools/tone";
-import { detectBursts, detectClaps, withoutClickEcho, type Clap, type ClapBlock } from "./clap-detect";
+import { detectBursts, detectClaps, markVoiced, withoutClickEcho, type Clap, type ClapBlock } from "./clap-detect";
 import type { ClapListener } from "./clap-listener";
 import { gradeClaps, type ClapResult, type ClapWho } from "./grade-rhythm";
 import {
@@ -150,6 +150,8 @@ export class GradeRunner {
   private taps: Clap[] = [];
   /** The last run's microphone blocks, for "Save this run". */
   lastClapBlocks: ClapBlock[] = [];
+  /** The last run's detected sounds (voiced or not), for "Save this run". */
+  lastHeard: Clap[] = [];
   private who: ClapWho = "solo";
   private forgiveLag = false;
   private clapMicUsed = false;
@@ -301,11 +303,14 @@ export class GradeRunner {
     const beatMs = 60_000 / Math.max(1, this.bpm);
     this.clapMicUsed = !!this.clapMic;
     const blocks = this.clapMic?.stop() ?? [];
+    const audio = this.clapMic?.audio() ?? null;
     this.lastClapBlocks = blocks;
     this.clapMic = null;
     // The microphone's claps, moved back by its delay; the page's clicks as
     // heard, to tell its echo from a clap (the count-in always clicks).
-    let heard = (this.who === "class" ? detectBursts(blocks) : detectClaps(blocks)).map((c) => ({ ...c, t: c.t - this.clapMicLatency }));
+    // Chanted syllables told from claps by their pitch, on the sound as heard (before the delay is taken off).
+    let heard = markVoiced(this.who === "class" ? detectBursts(blocks) : detectClaps(blocks), audio).map((c) => ({ ...c, t: c.t - this.clapMicLatency }));
+    this.lastHeard = heard;
     const unitMs = beatMs / this.beatUnits;
     const last = this.notes[this.notes.length - 1];
     const endMs = last ? (last.startUnits + last.lengthUnits) * unitMs + beatMs : 0;

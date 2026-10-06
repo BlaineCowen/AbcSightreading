@@ -46,7 +46,28 @@ export type ClapResult = {
   lagMs: number;
   /** Whether that lag was taken out of the timing (an unchecked microphone's). */
   lagForgiven: boolean;
+  /** Sounds not counted as strays: chanted syllables, sounds folded into a class's clap, background. */
+  ignored: { voiced: number; merged: number; quiet: number };
+  /** Just me, but it sounded like a room (many claps a little apart on each note): try The class. */
+  soundedLikeClass?: boolean;
 };
+
+/**
+ * Within this much of a matched clap (a third of a beat, at most CLAP_MERGE_MS),
+ * another sound is the same clap: a class is tens to hundreds of ms wide, and a
+ * child a little behind the rest is the room's ragged clap, not an extra one
+ * (Blaine's class, 6 October: most "strays" were exactly that). The class only:
+ * one person's second clap that close is a double clap and still costs.
+ */
+export const CLAP_MERGE_MS = 300;
+/** Quieter than this share of the run's own claps: the room (talk, a chair), not a clap. */
+export const QUIET_SHARE = 0.25;
+/**
+ * A class's floor, on its burst levels: the faint slivers in Blaine's runs
+ * were under 6% of the room's typical clap, and one child clapping alone is
+ * about a fifth (the root of 1/20), which should still count as a stray.
+ */
+export const CLASS_QUIET_SHARE = 0.15;
 
 /**
  * How far behind the music the claps ran as a whole: the median of each
@@ -114,7 +135,24 @@ export function gradeClaps(
   const notes = schedule.notes;
   const written = notes.map((n) => o.t0 + n.startUnits * unitMs);
   const lat = o.latencyMs ?? 0;
-  const moved = heard.map((c) => ({ ...c, t: c.t - lat })).sort((a, b) => a.t - b.t);
+  const all = heard.map((c) => ({ ...c, t: c.t - lat })).sort((a, b) => a.t - b.t);
+  // A chanted syllable (clap-detect markVoiced) is never a clap: claps are
+  // matched alone, a syllable only fills a note no clap did (a loud chant can
+  // bury a clap), and it is never a stray.
+  // Background first: much quieter than the run's own sounds (talk, a chair,
+  // or the faint leading edge a room's clap can split off just ahead of it,
+  // which sat nearer the beat and was matched in its place, the note then
+  // credited as clapped by a handful). The reference is the run's typical
+  // level, above the median since most of what is heard is claps.
+  const levels = all.filter((c) => !c.voiced).map((c) => c.level).sort((a, b) => a - b);
+  const typical = levels.length ? levels[Math.floor(levels.length * 0.6)] : 0;
+  // A class's claps are all much alike in level; one person's vary far more,
+  // and their quiet ones are still claps, so for them the floor applies to
+  // strays only (below).
+  const isQuiet = (c: Clap) => typical > 0 && c.level < CLASS_QUIET_SHARE * typical;
+  const quietHeard = o.who === "class" ? all.filter((c) => !c.voiced && isQuiet(c)) : [];
+  const moved = all.filter((c) => !c.voiced && !quietHeard.includes(c));
+  const voicedHeard = all.filter((c) => c.voiced);
   const lag = Math.max(-MAX_LAG_MS, Math.min(MAX_LAG_MS, steadyLag(moved.filter((c) => c.t >= written[0] - beatMs), written, beatMs)));
   // The windows sit where the claps steadily land; the credit is measured
   // from there too when the lag is forgiven, else from the written beat.
@@ -154,22 +192,46 @@ export function gradeClaps(
   const used = new Set(match.filter((j): j is number => j !== null));
   const matchedLevels = [...used].map((j) => claps[j].level).sort((a, b) => a - b);
   const usual = matchedLevels.length ? matchedLevels[matchedLevels.length >> 1] : 0;
+  // A note no clap matched may take a chanted syllable in its window.
+  const takenVoiced = new Set<number>();
+  const fill: (Clap | null)[] = match.map((j, i) => {
+    if (j !== null) return claps[j];
+    let best = -1;
+    voicedHeard.forEach((c, k) => {
+      if (takenVoiced.has(k) || c.t < wins[i].from || c.t > wins[i].to) return;
+      if (best < 0 || Math.abs(c.t - onsets[i]) < Math.abs(voicedHeard[best].t - onsets[i])) best = k;
+    });
+    if (best < 0) return null;
+    takenVoiced.add(best);
+    return voicedHeard[best];
+  });
 
   const out: ClapNote[] = notes.map((note, i) => {
-    const j = match[i];
+    const c = fill[i];
     const base = { cursor: note.cursor, startUnits: note.startUnits, lengthUnits: note.lengthUnits };
-    if (j === null) return { ...base, onsetBeats: null, missed: true, rhythm: 0 };
-    const err = claps[j].t - from[i];
+    if (!c) return { ...base, onsetBeats: null, missed: true, rhythm: 0 };
+    const err = c.t - from[i];
     let rhythm = credit(err);
-    if (o.who === "class" && usual > 0) {
-      const share = claps[j].level / usual;
+    if (o.who === "class" && usual > 0 && !c.voiced) {
+      const share = c.level / usual;
       if (share < WEAK_SHARE) rhythm *= share / WEAK_SHARE;
     }
     return { ...base, onsetBeats: err / beatMs, missed: false, rhythm: Math.round(rhythm) };
   });
 
-  const strays: StrayClap[] = claps
-    .filter((_, j) => !used.has(j))
+  // What is left over: background (much quieter than the claps), then for a
+  // class anything close to a clap it matched (the same, ragged clap).
+  const matchedAt = fill.filter((c): c is Clap => !!c).map((c) => c.t);
+  const merge = Math.min(beatMs / 3, CLAP_MERGE_MS);
+  const nearMatched = (c: Clap) => matchedAt.some((t) => Math.abs(t - c.t) <= merge);
+  const leftover = claps.filter((_, j) => !used.has(j));
+  const quietLeft = o.who === "class" ? [] : leftover.filter((c) => usual > 0 && c.level < QUIET_SHARE * usual);
+  const audible = leftover.filter((c) => !quietLeft.includes(c));
+  const merged = o.who === "class" ? audible.filter(nearMatched) : [];
+  // One person's claps that come in clusters, on note after note: a room graded as one person.
+  const clustered = o.who === "solo" ? audible.filter(nearMatched).length : 0;
+  const strays: StrayClap[] = audible
+    .filter((c) => !merged.includes(c))
     .map((c) => ({
       t: c.t,
       units: (c.t - o.t0) / unitMs,
@@ -178,7 +240,7 @@ export function gradeClaps(
 
   const counted = n + strays.reduce((a, s) => a + s.weight, 0);
   const rhythm = counted ? Math.round(out.reduce((a, x) => a + x.rhythm, 0) / counted) : 0;
-  const spreads = [...used].map((j) => claps[j].spread).filter((s): s is number => s !== undefined).sort((a, b) => a - b);
+  const spreads = fill.filter((c): c is Clap => !!c && !c.voiced).map((c) => c.spread).filter((s): s is number => s !== undefined).sort((a, b) => a - b);
   return {
     rhythm,
     letter: letterFor(rhythm),
@@ -187,5 +249,7 @@ export function gradeClaps(
     ...(o.who === "class" && spreads.length ? { together: Math.round(spreads[spreads.length >> 1]) } : {}),
     lagMs: Math.round(lag),
     lagForgiven: !!o.forgiveLag,
+    ignored: { voiced: voicedHeard.length - takenVoiced.size, merged: merged.length, quiet: quietHeard.filter((c) => !notes.length || c.t >= wins[0].from).length + quietLeft.length },
+    ...(clustered >= Math.max(3, 0.25 * n) ? { soundedLikeClass: true } : {}),
   };
 }
