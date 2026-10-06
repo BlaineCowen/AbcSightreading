@@ -78,7 +78,7 @@
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
-  import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
+  import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
@@ -2053,7 +2053,7 @@
   function drawEven(source: string) {
     // The room between the lines (the Layout menu) is written into the tune as it is drawn.
     // The copyright under the score (copyright.ts), as drawn and printed only.
-    const abc = withCopyright(withLineSpacing(source, scoreView.spacing));
+    const abc = withCopyright(withMeasureNumbers(withLineSpacing(source, scoreView.spacing), scoreView.measureNumbers));
     let visualObj = abcjs.renderAbc("paper", abc, getAbcOptions());
     let drawn = drawnLines(document.getElementById("paper"));
     // Fewer a line each time until the lines come out even: on a phone two bars
@@ -3674,15 +3674,19 @@
   const fullscreenCtl = createFullscreen();
   const fullscreenOn = fullscreenCtl.active;
   onDestroy(fullscreenCtl.destroy);
-  $: annotationChoices = rhythmOnly
+  $: annotationChoices = [
+    { id: "measures", label: "Measure numbers", on: scoreView.measureNumbers !== false },
+    ...(rhythmOnly
     ? [
         ...playAlongSyllables.map((s) => ({ id: s.id, label: s.label, on: showRhythmSyllables && syllableSystemId === s.id })),
       ]
     : [
         ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: showSolfege && lyricSystem === v })),
-      ];
+      ]),
+  ];
   /** Each annotation switches on or off; one system at a time, so another replaces it. */
   function pickAnnotation(id: string) {
+    if (id === "measures") return changeScoreView({ measureNumbers: scoreView.measureNumbers === false });
     if (rhythmOnly) return void setRhythmSyllables(showRhythmSyllables && syllableSystemId === id ? "off" : id);
     void handleLyricSystem(id as LyricSystem);
   }
@@ -5003,13 +5007,18 @@
         </p>
       </div>
 
-      <!-- Pitched exercises only. Rhythm-only has no scale degrees to
-           name, and its syllables live in the Rhythm tab - the one
-           place they are set. -->
-      {#if !rhythmOnly}
+      <!-- Measure numbers in both modes. The syllables are pitched only:
+           rhythm-only has no scale degrees to name, and its syllables live
+           in the Rhythm tab - the one place they are set. -->
       <div class="space-y-2">
         <p class="sr-label">Annotations</p>
         <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
+          <button
+            class="sr-tok {scoreView.measureNumbers !== false ? 'sr-on' : ''}"
+            on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })}
+            aria-pressed={scoreView.measureNumbers !== false}
+          >Measure numbers</button>
+          {#if !rhythmOnly}
           {#each lyricSystems as [value, label]}
             <button
               class="sr-tok {showSolfege && lyricSystem === value ? 'sr-on' : ''}"
@@ -5017,9 +5026,12 @@
               aria-pressed={showSolfege && lyricSystem === value}
             >{label}</button>
           {/each}
+          {/if}
         </div>
         <p class="text-xs text-sr-faint">
-          {#if !showSolfege}
+          {#if rhythmOnly}
+            {scoreView.measureNumbers !== false ? "A number over each bar." : "No measure numbers."} Rhythm syllables are in the Rhythm tab.
+          {:else if !showSolfege}
             Clean: the same exercise, printed for sight-reading.
           {:else if lyricSystem === "movable"}
             Movable do under the staff: do is the tonic, so a tune reads the same in
@@ -5031,7 +5043,6 @@
           {/if}
         </p>
       </div>
-      {/if}
 
       {#if !rhythmOnly}
       <div class="space-y-2">

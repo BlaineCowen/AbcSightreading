@@ -728,5 +728,5 @@ html.sr-focus .playback-bar .bar-secondary > :not(.fs-keep) {
 @media (min-width: 1600px) {
   /* The site's container caps every page's width; a practice page takes the screen. */
   body > main.container:has(.focus-main.wide) { max-width: none; padding-left: 2rem; padding-right: 2rem; }
-  .focus-main.wide { max-width: min(120rem, 94vw) !important; }
+  .focus-main.wide { max-width: min(100rem, 84vw) !important; }
 }

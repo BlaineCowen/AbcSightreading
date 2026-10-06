@@ -1069,7 +1069,7 @@ button (it is narrower by the corner buttons there).
 ## Big screens
 
 On a wide screen (1600 px and up) the practice pages stay one column but
-take most of the width (`.focus-main.wide`: up to 94vw, the site
+take most of the width (`.focus-main.wide`: up to 84vw, the site
 container's cap lifted); two columns, settings beside the music, were tried
 and Blaine did not like them. From 2200 px the root font size steps up (18,
 20, 22 px at 2200, 2800, 3400) so the interface is not tiny on a 4K
@@ -1092,6 +1092,10 @@ a narrower staff that `responsive: "resize"` scales up), the bars per line
 abcjs fitted) and the space between lines (Tight, Normal, Wide: `%%staffsep`
 written into the tune as it is drawn). Remembered per page in this browser.
 It replaced Unison's Size buttons.
+Measure numbers (on by default; Annotations on both pages, both Unison
+modes, and the full-screen drop-up) are `scoreView.measureNumbers`, saved
+with the layout: `withMeasureNumbers` writes `%%barnumbers 1` as the score
+is drawn (every bar but the first), never into the ABC exported or graded.
 
 Bars per line come from `src/lib/score-layout.ts` (tests `score-layout.test.ts`),
 used by both practice pages: up to 4 a line, 3 when the score is dense (lyrics,

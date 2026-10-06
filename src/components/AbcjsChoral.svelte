@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createFullscreen } from "../lib/fullscreen";
-  import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../lib/score-view";
+  import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { tuner } from "../lib/tuner/store";
   import { drumPatternFor } from "../lib/playback-click";
@@ -808,7 +808,7 @@
       const { staffwidth, measuresPerLine } = scoreLayout(most);
       // No `scale`: abcjs discards it when responsive:"resize" is set.
       // The copyright under the score (copyright.ts), as drawn and printed only.
-      return mod.renderAbc("paper", withCopyright(withLineSpacing(renderedString, scoreView.spacing)), {
+      return mod.renderAbc("paper", withCopyright(withMeasureNumbers(withLineSpacing(renderedString, scoreView.spacing), scoreView.measureNumbers)), {
         // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
         // the cursor works out how tall a system is. Without it the SVG carries
         // no staff groups at all and the cursor can only cover one voice.
@@ -1878,6 +1878,7 @@
   onDestroy(fullscreenCtl.destroy);
   $: annotationChoices = [
     { id: "chords", label: "Chord symbols", on: showChords },
+    { id: "measures", label: "Measure numbers", on: scoreView.measureNumbers !== false },
     ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: lyricSystem === v })),
   ];
   async function pickAnnotation(id: string) {
@@ -1886,6 +1887,7 @@
       lyricSystem = null;
       await reRenderAnnotations();
     } else if (id === "chords") await handleToggleChords();
+    else if (id === "measures") changeScoreView({ measureNumbers: scoreView.measureNumbers === false });
     else await handleLyricSystem(id as LyricSystem);
   }
 
@@ -3161,6 +3163,11 @@
             on:click={handleToggleChords}
             aria-pressed={showChords}
           >Chord symbols</button>
+          <button
+            class="sr-tok {scoreView.measureNumbers !== false ? 'sr-on' : ''}"
+            on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })}
+            aria-pressed={scoreView.measureNumbers !== false}
+          >Measure numbers</button>
           {#each lyricSystems as [value, label]}
             <button
               class="sr-tok {lyricSystem === value ? 'sr-on' : ''}"

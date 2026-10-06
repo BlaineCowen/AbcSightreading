@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { clampScale, withLineSpacing } from "../../src/lib/score-view";
+import { clampScale, withLineSpacing, withMeasureNumbers } from "../../src/lib/score-view";
 import { measuresPerLine } from "../../src/lib/score-layout";
 
 describe("the score's layout, from the Layout menu", () => {
@@ -21,5 +21,18 @@ describe("the score's layout, from the Layout menu", () => {
     expect(clampScale(7)).toBe(5);
     expect(clampScale(0.2)).toBe(0.5);
     expect(clampScale(2.04)).toBe(2);
+  });
+});
+
+describe("withMeasureNumbers", () => {
+  const abc = "X:1\nT:t\nK:C\nCDEF|GABc|\n";
+  test("numbers the bars unless switched off", () => {
+    expect(withMeasureNumbers(abc, undefined)).toContain("X:1\n%%barnumbers 1\n");
+    expect(withMeasureNumbers(abc, true)).toContain("%%barnumbers 1");
+    expect(withMeasureNumbers(abc, false)).toBe(abc);
+  });
+  test("adds it once", () => {
+    const once = withMeasureNumbers(abc, true);
+    expect(withMeasureNumbers(once, true)).toBe(once);
   });
 });

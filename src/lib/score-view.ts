@@ -5,9 +5,11 @@
  * browser. Size is the drawn scale (2 is the desktop default: the staff is
  * drawn at half the page's width and abcjs scales it to fill it); bars
  * per line overrides score-layout's choice; spacing is ABC's %%staffsep.
+ * Measure numbers (on unless switched off, under Annotations) are drawn
+ * over every bar but the first.
  */
 export type LineSpacing = "tight" | "normal" | "wide";
-export type ScoreView = { scale: number; bars: number | null; spacing: LineSpacing };
+export type ScoreView = { scale: number; bars: number | null; spacing: LineSpacing; measureNumbers?: boolean };
 
 export const SCALE_MIN = 0.5;
 export const SCALE_MAX = 5;
@@ -25,6 +27,7 @@ export function loadScoreView(page: string, defaults: ScoreView): ScoreView {
         scale: clampScale(Number(saved.scale) || defaults.scale),
         bars: BAR_CHOICES.includes(saved.bars) ? saved.bars : null,
         spacing: saved.spacing in STAFFSEP ? saved.spacing : defaults.spacing,
+        measureNumbers: typeof saved.measureNumbers === "boolean" ? saved.measureNumbers : defaults.measureNumbers ?? true,
       };
     }
   } catch {}
@@ -44,4 +47,10 @@ export function withLineSpacing(abc: string, spacing: LineSpacing): string {
   const sep = STAFFSEP[spacing];
   if (sep === null || !abc) return abc;
   return abc.replace(/^(X:.*)$/m, `$1\n%%staffsep ${sep}`);
+}
+
+/** The tune with a number over every bar but the first (abcjs's %%barnumbers 1), unless switched off. */
+export function withMeasureNumbers(abc: string, on: boolean | undefined): string {
+  if (on === false || !abc || /^%%(barnumbers|measurenb)/m.test(abc)) return abc;
+  return abc.replace(/^(X:.*)$/m, "$1\n%%barnumbers 1");
 }
