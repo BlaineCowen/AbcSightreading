@@ -188,6 +188,15 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 if (typeof start.clickWithMusic !== "boolean") start.clickWithMusic = true;
+// Grade's cursor defaulted to smooth before beat by beat; nobody chose it, so once it moves.
+if (typeof window !== "undefined") {
+  try {
+    if (!localStorage.getItem("abc-grade-cursor-v2")) {
+      if (start.gradeCursor === "smooth") start.gradeCursor = "beat";
+      localStorage.setItem("abc-grade-cursor-v2", "1");
+    }
+  } catch {}
+}
 if (!(start.metronomeVolume >= 0 && start.metronomeVolume <= 1)) start.metronomeVolume = 0.5;
 const state = writable<TunerState>(start);
 

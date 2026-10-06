@@ -25,8 +25,14 @@ export type Clap = { t: number; level: number; spread?: number };
 export const CLAP_RISE_DB = 9;
 /** The floor: the median of the high band over this much before. */
 const FLOOR_MS = 300;
-/** A clap is sudden: this far above the quietest of the RISE_MS before it (a clap's own ringing tail never is). */
-const RISE_MS = 10;
+/**
+ * A clap is sudden: it peaks RISE_DB above the quietest of the RISE_MS before
+ * it. A real clap rose 40 dB or more in Blaine's run; the bumps in a clap's
+ * own ring (a reflection 60 ms on rose 12 dB) did not, and at 9 dB over 10 ms
+ * they were counted as a second clap each.
+ */
+const RISE_MS = 30;
+const RISE_DB = 20;
 /** No quieter than this (dB of the high band's power): the room's own noise. */
 const ABS_GATE_DB = -70;
 /** The peak is looked for this soon after the crossing. */
@@ -71,12 +77,12 @@ export function detectClaps(blocks: ClapBlock[]): Clap[] {
     const b = blocks[i];
     const level = db(b.hi);
     if (b.t < quietUntil || level < ABS_GATE_DB || level - floor[i] < CLAP_RISE_DB) continue;
-    let before = Infinity;
-    for (let j = i - 1; j >= 0 && b.t - blocks[j].t <= RISE_MS; j--) before = Math.min(before, levels[j]);
-    if (before !== Infinity && level - before < CLAP_RISE_DB) continue;
     let peak = i;
     for (let j = i + 1; j < blocks.length && blocks[j].t - b.t <= PEAK_MS; j++) if (blocks[j].hi > blocks[peak].hi) peak = j;
     const p = blocks[peak];
+    let before = Infinity;
+    for (let j = i - 1; j >= 0 && b.t - blocks[j].t <= RISE_MS; j--) before = Math.min(before, levels[j]);
+    if (before !== Infinity && levels[peak] - before < RISE_DB) continue;
     if (p.hi < HI_SHARE * p.full) continue;
     claps.push({ t: b.t, level: Math.sqrt(p.hi) });
     quietUntil = b.t + CLAP_REFRACTORY_MS;

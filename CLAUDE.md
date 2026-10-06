@@ -665,9 +665,19 @@ The microphone is the tuner's own stream (`micInput`), listened to by
 `public/clap-detector.js`: the power above 1.5 kHz and over the whole band
 every 128 samples, stamped on the audio clock and moved onto performance.now
 (`ClapListener`), since the tuner's 2048-sample frames are too coarse. A clap
-is a sudden rise of the high band (9 dB over its floor and over the 10 ms
-before it, so a clap's ringing tail never retriggers) with a fair share of
-its power up there (a voice has little). The page's click heard back is
+is a sudden rise of the high band (9 dB over its floor, and peaking 20 dB
+over the quietest of the 30 ms before it) with a fair share of its power up
+there (a voice has little). Blaine's first real run (6 October) found 9 dB
+over 10 ms too loose: a reflection 60 ms into a clap's ring rose 12 dB and
+was counted as a second clap, five strays of nine. It also ran a steady
+100 ms behind the 45 ms guess, which at 72 BPM pushed every sixteenth's clap
+into the next note's window. So the steady lag (`steadyLag`: the median of
+each clap's distance to its nearest note) now centres the windows, and until
+Check timing has run it is taken to be the microphone and not counted
+(`forgiveLag`); after it, only lateness counts. That run regraded from 56 to
+100. On the score each early or late note has a labelled arrow from the note
+to where it came in (orange with some credit, red with none), a missed note
+says "missed" and a stray has its cross and "extra". The page's click heard back is
 learned from the count-in, when nobody claps, and later a sound within 40 ms
 of a click counts only if 6 dB louder (`withoutClickEcho`); the click is off
 after the count-in by default. One quiet clap exactly on a click cannot be
@@ -677,8 +687,9 @@ eight clicks) stores the median for this browser (`clapLatencyMs`).
 `bun run scripts/check-clap-grade.ts` checks it end to end (`WHO=class`,
 `INPUT=keys`, `ECHO=1 CLICK=beat`, `STRICT=`, `MEASURE=1`, `SHOTS=`): claps
 synthesized into a fake microphone (a class: twenty per clap, 35 ms either
-side), one note late, one missed, one doubled, one stray; 27 runs across the
-variants clean on 6 October 2026. The Grade button is kept in full screen,
+side), one note late, one missed, one doubled, one stray, placed where each
+is unambiguous (a late clap on a note a beat clear of the next); 24 runs
+across the variants, sixteenths included, clean on 6 October 2026. The Grade button is kept in full screen,
 for a class on a TV.
 
 To test with a real signal, run Chromium with

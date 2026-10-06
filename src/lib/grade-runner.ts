@@ -151,6 +151,8 @@ export class GradeRunner {
   /** The last run's microphone blocks, for "Save this run". */
   lastClapBlocks: ClapBlock[] = [];
   private who: ClapWho = "solo";
+  private forgiveLag = false;
+  private clapMicUsed = false;
   private click: "off" | "beat" | "sub" = "beat";
   private running = false;
   /** Pitch only: when each note was waited on, for drawing what was sung. */
@@ -195,7 +197,7 @@ export class GradeRunner {
     cursor?: "off" | "smooth" | "beat" | "note";
     click?: "off" | "beat" | "sub";
     /** Rhythm clapped (mode "claps"): who, the microphone's listener if clapping into it, and its delay. */
-    claps?: { who: ClapWho; mic: ClapListener | null; micLatencyMs: number };
+    claps?: { who: ClapWho; mic: ClapListener | null; micLatencyMs: number; forgiveLag: boolean };
   }) {
     this.clear();
     this.runId++;
@@ -212,6 +214,7 @@ export class GradeRunner {
     this.clapMic = o.claps?.mic ?? null;
     this.clapMicLatency = o.claps?.micLatencyMs ?? 0;
     this.who = o.claps?.who ?? "solo";
+    this.forgiveLag = o.claps?.forgiveLag ?? false;
     this.click = o.click ?? "beat";
     this.taps = [];
     this.running = false;
@@ -296,6 +299,7 @@ export class GradeRunner {
   private finishClaps(t0: number) {
     this.running = false;
     const beatMs = 60_000 / Math.max(1, this.bpm);
+    this.clapMicUsed = !!this.clapMic;
     const blocks = this.clapMic?.stop() ?? [];
     this.lastClapBlocks = blocks;
     this.clapMic = null;
@@ -311,6 +315,8 @@ export class GradeRunner {
     heard = withoutClickEcho(heard, clicks, t0 - 50);
     const claps = gradeClaps({ notes: this.notes, rests: this.rests }, [...heard, ...this.taps], {
       t0, bpm: this.bpm, beatUnits: this.beatUnits, strictness: this.strictness, who: this.who,
+      // Taps have no microphone delay; claps with an unchecked one forgive a steady lag.
+      forgiveLag: this.forgiveLag && !!this.clapMicUsed,
     });
     this.clear();
     this.hooks.stopTimeline?.();

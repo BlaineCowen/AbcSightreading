@@ -46,6 +46,11 @@ describe("hearing claps", () => {
     const found = detectClaps(blocks(1200, [clap(400, 0.3), clap(420, 0.05)]));
     expect(found.length).toBe(1);
   });
+  test("a bump in a clap's ring (a reflection) is not a second clap", () => {
+    // Blaine's run: a clap, and 60 ms on a reflection rising 12 dB out of its ring.
+    const found = detectClaps(blocks(1200, [clap(400, 0.3), clap(460, 0.3 * 10 ** (-28 / 20))]));
+    expect(found.length).toBe(1);
+  });
   test("a class clapping together is one clap a beat, timed at its middle, with its width", () => {
     // Twenty children, each up to 40 ms either side of the beat.
     const jitter = (k: number) => ((k * 37) % 81) - 40;
@@ -137,6 +142,23 @@ describe("grading a clapped rhythm", () => {
     const r = run("B8 B8 B8 B8 |", [0, 2000, 3000], "easy");
     expect(r.notes.map((n) => n.missed)).toEqual([false, true, false, false]);
     expect(r.notes[2].onsetBeats).toBe(0);
+  });
+  test("a steady lag (the microphone's, unchecked) is not counted, and sixteenths stay on their own notes", () => {
+    // Blaine's run: ta ti-ti-ki at 72, every clap about 150 ms behind.
+    const body = "B8 B4 B2 B2 | B4 B4 B8 |";
+    const beat = 60000 / 72;
+    const at = [0, 1, 1.5, 1.75, 2, 2.5, 3].map((b) => b * beat + 150);
+    const sched = gradeSchedule(abc(body));
+    const graded = (forgiveLag: boolean, strictness: "standard" | "strict") =>
+      gradeClaps(sched, at.map((t) => ({ t, level: 1 })), { t0: 0, bpm: 72, beatUnits: 8, strictness, who: "solo", forgiveLag });
+    const forgiven = graded(true, "strict");
+    expect(forgiven.rhythm).toBe(100);
+    expect(forgiven.strays).toEqual([]);
+    expect(Math.abs(forgiven.lagMs - 150)).toBeLessThan(2);
+    // Checked microphone: the lag counts, but the claps still land on their own notes.
+    const counted = graded(false, "strict");
+    expect(counted.strays).toEqual([]);
+    expect(counted.notes.every((n) => !n.missed && (n.onsetBeats ?? 0) > 0.17)).toBe(true);
   });
   test("claps in the count-in are not graded", () => {
     expect(run("B8 B8 B8 B8 |", [-4000, -3000, 0, 1000, 2000, 3000]).strays).toEqual([]);

@@ -336,7 +336,7 @@
   };
   const isCursorMode = (v: unknown): v is CursorMode =>
     typeof v === "string" && (cursorModes as readonly string[]).includes(v);
-  let cursorMode: CursorMode = "smooth";
+  let cursorMode: CursorMode = "beat";
   let playbackCursor: SVGLineElement | null = null;
   /** Whole-beat tracker for the beat-by-beat cursor. */
   let cursorBeats = newMetronomeBeatState();

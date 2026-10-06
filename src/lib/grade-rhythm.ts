@@ -42,7 +42,30 @@ export type ClapResult = {
   strays: StrayClap[];
   /** A class: the median width of its claps, in ms (how together it was). */
   together?: number;
+  /** How far behind (+) or ahead the claps ran as a whole, in ms (`steadyLag`). */
+  lagMs: number;
+  /** Whether that lag was taken out of the timing (an unchecked microphone's). */
+  lagForgiven: boolean;
 };
+
+/**
+ * How far behind the music the claps ran as a whole: the median of each
+ * clap's distance to its nearest note, from those within a quarter beat
+ * either way of one, when there are at least four; 0 otherwise.
+ */
+export function steadyLag(claps: { t: number }[], onsets: number[], beatMs: number): number {
+  const errs: number[] = [];
+  for (const c of claps) {
+    let best = Infinity;
+    for (const on of onsets) if (Math.abs(c.t - on) < Math.abs(best)) best = c.t - on;
+    if (Math.abs(best) <= Math.max(0.25 * beatMs, 120)) errs.push(best);
+  }
+  if (errs.length < 4) return 0;
+  errs.sort((a, b) => a - b);
+  return errs[errs.length >> 1];
+}
+/** No more than this is ever taken for a steady lag (more is the clapper, not the microphone). */
+export const MAX_LAG_MS = 250;
 
 /** Below this share of the room's usual loudness, a note was clapped by only part of it. */
 export const WEAK_SHARE = 0.4;
@@ -56,33 +79,52 @@ export const togetherLabel = (ms: number) => (ms < 40 ? "Tight" : ms <= 90 ? "Fa
  * neighbour let every clap after a missed note slide one note over (each then
  * "a beat late") rather than one note being missed.
  */
-export function windowsFor(onsets: number[], reach: number) {
+export function windowsFor(onsets: number[], reach: number, edge = reach) {
+  // Before the first note and after the last there is no neighbour: `edge`
+  // (half a beat) keeps a clap in the count-in from counting as a stray.
   return onsets.map((on, i) => ({
-    from: on - Math.min(reach, i ? (on - onsets[i - 1]) / 2 : reach),
-    to: on + Math.min(reach, i < onsets.length - 1 ? (onsets[i + 1] - on) / 2 : reach),
+    from: on - Math.min(reach, i ? (on - onsets[i - 1]) / 2 : edge),
+    to: on + Math.min(reach, i < onsets.length - 1 ? (onsets[i + 1] - on) / 2 : edge),
   }));
 }
 
 export function gradeClaps(
   schedule: { notes: GradeNote[]; rests: GradeRest[] },
   heard: Clap[],
-  o: { t0: number; bpm: number; beatUnits: number; strictness: Strictness; who: ClapWho; latencyMs?: number },
+  o: {
+    t0: number;
+    bpm: number;
+    beatUnits: number;
+    strictness: Strictness;
+    who: ClapWho;
+    latencyMs?: number;
+    /**
+     * The microphone's delay is a guess (Check timing never run): a steady lag
+     * is taken to be the microphone's and not counted. Otherwise it only
+     * centres the windows, so one steady lag cannot push every clap of a
+     * sixteenth into the next note's window, and lateness still counts.
+     */
+    forgiveLag?: boolean;
+  },
 ): ClapResult {
   const beatMs = 60_000 / Math.max(1, o.bpm);
   const unitMs = beatMs / Math.max(1, o.beatUnits);
   const tol = STRICTNESS[o.strictness].onsetBeats * beatMs;
   const reach = 3 * tol;
   const notes = schedule.notes;
-  const onsets = notes.map((n) => o.t0 + n.startUnits * unitMs);
-  const wins = windowsFor(onsets, reach);
+  const written = notes.map((n) => o.t0 + n.startUnits * unitMs);
+  const lat = o.latencyMs ?? 0;
+  const moved = heard.map((c) => ({ ...c, t: c.t - lat })).sort((a, b) => a.t - b.t);
+  const lag = Math.max(-MAX_LAG_MS, Math.min(MAX_LAG_MS, steadyLag(moved.filter((c) => c.t >= written[0] - beatMs), written, beatMs)));
+  // The windows sit where the claps steadily land; the credit is measured
+  // from there too when the lag is forgiven, else from the written beat.
+  const onsets = written.map((t) => t + lag);
+  const from = o.forgiveLag ? onsets : written;
+  const wins = windowsFor(onsets, reach, Math.min(reach, beatMs / 2));
   const credit = (err: number) => (Math.abs(err) <= tol ? 100 : Math.max(0, (100 * (reach - Math.abs(err))) / (reach - tol)));
 
   // Claps from the first note's window on (a clap in the count-in is not graded).
-  const lat = o.latencyMs ?? 0;
-  const claps = heard
-    .map((c) => ({ ...c, t: c.t - lat }))
-    .filter((c) => !notes.length || c.t >= wins[0].from)
-    .sort((a, b) => a.t - b.t);
+  const claps = moved.filter((c) => !notes.length || c.t >= wins[0].from);
 
   // The best one-to-one matching in order: dp[i][j] over the first i notes and j claps.
   const n = notes.length;
@@ -91,7 +133,7 @@ export function gradeClaps(
   const fit = (i: number, j: number) => {
     const c = claps[j];
     // The +1 makes a match worth more than none; the last term breaks ties toward the nearer clap.
-    return c.t >= wins[i].from && c.t <= wins[i].to ? credit(c.t - onsets[i]) + 1 - Math.abs(c.t - onsets[i]) / (1000 * reach) : -1;
+    return c.t >= wins[i].from && c.t <= wins[i].to ? credit(c.t - from[i]) + 1 - Math.abs(c.t - onsets[i]) / (1000 * reach) : -1;
   };
   for (let i = 1; i <= n; i++)
     for (let j = 1; j <= m; j++) {
@@ -117,7 +159,7 @@ export function gradeClaps(
     const j = match[i];
     const base = { cursor: note.cursor, startUnits: note.startUnits, lengthUnits: note.lengthUnits };
     if (j === null) return { ...base, onsetBeats: null, missed: true, rhythm: 0 };
-    const err = claps[j].t - onsets[i];
+    const err = claps[j].t - from[i];
     let rhythm = credit(err);
     if (o.who === "class" && usual > 0) {
       const share = claps[j].level / usual;
@@ -143,5 +185,7 @@ export function gradeClaps(
     notes: out,
     strays,
     ...(o.who === "class" && spreads.length ? { together: Math.round(spreads[spreads.length >> 1]) } : {}),
+    lagMs: Math.round(lag),
+    lagForgiven: !!o.forgiveLag,
   };
 }

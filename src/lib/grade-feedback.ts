@@ -149,31 +149,61 @@ export function drawGradeFeedback(o: {
     c.setAttribute("stroke-linecap", "round");
     g.appendChild(c);
   };
-  // Came in early or late: a tick above the staff where they did.
-  const arrow = (i: number, onsetBeats: number | null) => {
+  const label = (x: number, y: number, text: string, color: string) => {
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", String(x));
+    t.setAttribute("y", String(y));
+    t.setAttribute("fill", color);
+    t.setAttribute("font-size", String(space * 1.25));
+    t.setAttribute("font-weight", "700");
+    t.setAttribute("font-family", "Nunito, system-ui, sans-serif");
+    t.setAttribute("text-anchor", "middle");
+    // abcjs's styles outline SVG text; a label is plain.
+    t.setAttribute("stroke", "none");
+    t.style.stroke = "none";
+    t.textContent = text;
+    g.appendChild(t);
+  };
+  /**
+   * Came in early or late: an arrow above the staff from the note to where
+   * the sound came in - pointing right for late, left for early - labelled,
+   * orange where the note still had some credit and red where it had none.
+   */
+  const arrow = (i: number, onsetBeats: number | null, credit: number) => {
     const h = heads[i];
     const lane = lanes[i];
     const span = o.trace.spans[i];
-    if (!h || !lane || !span) return;
-    if (onsetBeats !== null && Math.abs(onsetBeats) > o.onsetBeats) {
-      const r = { onsetBeats };
-      const at = span.from + r.onsetBeats * beatMs;
-      const x = lane.from + ((at - span.from) / (span.to - span.from)) * (lane.to - lane.from);
-      const top = h.y - 5 * space;
-      const tick = document.createElementNS(NS, "path");
-      const dir = r.onsetBeats > 0 ? 1 : -1;
-      // A short line with an arrowhead pointing back to where the note is.
-      tick.setAttribute("d", `M${x},${top} V${top + 1.6 * space} M${x},${top + 0.5 * space} l${-dir * space * 0.7},${-space * 0.35} M${x},${top + 0.5 * space} l${-dir * space * 0.7},${space * 0.35}`);
-      tick.setAttribute("stroke", LATE);
-      tick.setAttribute("stroke-width", String(stroke * 0.8));
-      tick.setAttribute("fill", "none");
-      tick.setAttribute("stroke-linecap", "round");
-      g.appendChild(tick);
-    }
+    if (!h || !lane || !span || onsetBeats === null || Math.abs(onsetBeats) <= o.onsetBeats) return;
+    const late = onsetBeats > 0;
+    const color = credit > 0 ? LATE : BAD;
+    // Where it came in: its time on this note's lane (early runs back toward the note before).
+    const perMs = (lane.to - lane.from) / Math.max(1, span.to - span.from);
+    const at = h.x + onsetBeats * beatMs * perMs;
+    const reach = Math.max(1.6 * space, Math.abs(at - h.x));
+    const x0 = h.x + space * 0.5;
+    const x1 = x0 + (late ? reach : -reach);
+    const y = h.y - 4.2 * space;
+    const head = space * 0.55;
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute(
+      "d",
+      `M${x0},${y - space * 0.6} V${y + space * 0.6} M${x0},${y} H${x1} M${x1},${y} l${late ? -head : head},${-head} M${x1},${y} l${late ? -head : head},${head}`,
+    );
+    p.setAttribute("stroke", color);
+    p.setAttribute("stroke-width", String(stroke * 0.85));
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke-linecap", "round");
+    p.setAttribute("stroke-linejoin", "round");
+    g.appendChild(p);
+    label((x0 + x1) / 2, y - space * 0.9, late ? "late" : "early", color);
   };
 
   if (o.claps) {
-    o.claps.notes.forEach((r, i) => arrow(i, r.onsetBeats));
+    o.claps.notes.forEach((r, i) => {
+      arrow(i, r.onsetBeats, r.rhythm);
+      const h = heads[i];
+      if (r.missed && h) label(h.x + space * 0.5, h.y - 3.8 * space, "missed", BAD);
+    });
     // A stray clap: a cross above the staff, where it fell in time - between
     // the notes either side of it, at its share of the way from one to the next.
     for (const stray of o.claps.strays) {
@@ -188,6 +218,7 @@ export function drawGradeFeedback(o: {
       const share = i < 0 ? -0.5 : Math.min(1, (stray.units - from) / Math.max(1, to - from));
       const x = i < 0 ? h.x - 2 * space : lane.from + share * (lane.to - lane.from);
       cross(x, h.y - 4 * space, BAD);
+      label(x, h.y - 5.4 * space, "extra", BAD);
     }
     return;
   }
@@ -197,7 +228,7 @@ export function drawGradeFeedback(o: {
     const h = heads[i];
     const lane = lanes[i];
     if (!h || !lane) return;
-    arrow(i, r.onsetBeats);
+    arrow(i, r.onsetBeats, r.rhythm);
     // Let go early: a line under the note, as long as it was meant to last.
     if (r.cutShort) {
       const line = document.createElementNS(NS, "line");

@@ -126,7 +126,17 @@ const n = sched.notes.length;
 console.log(`${n} notes, ${sched.rests.length} rests at ${info.tempo} BPM; ${INPUT}, ${WHO}, ${STRICT}, click ${CLICK}${ECHO ? ", echo" : ""}`);
 
 // The faults, apart from each other.
-const LATE = Math.min(2, n - 1), MISS = Math.min(4, n - 1), DOUBLE = Math.min(6, n - 1);
+// The late one on a note a beat or more before the next: 0.35 beats late on an
+// eighth is nearer the next note than its own, which no grader can tell apart.
+const roomy = (i: number) => i < n - 1 && sched.notes[i + 1].startUnits - sched.notes[i].startUnits >= 8;
+// The doubled one likewise (its second clap 0.18 beats on must stay nearer it than the next note); none next to another.
+const picks: number[] = [];
+// Every note from the third on: a busy start can have no roomy note among the first dozen.
+for (let i = 2; i < n - 1; i++) if (roomy(i) && picks.every((p) => Math.abs(p - i) > 1)) picks.push(i);
+const LATE = picks[0] ?? Math.min(2, n - 1);
+// A room's second clap comes half a beat on, so its note needs two beats clear.
+const DOUBLE = picks.slice(1).find((i) => WHO !== "class" || (i < n - 1 && sched.notes[i + 1].startUnits - sched.notes[i].startUnits >= 16)) ?? picks[1] ?? Math.min(6, n - 1);
+const MISS = [...Array(n).keys()].slice(1).find((i) => Math.abs(i - LATE) > 1 && Math.abs(i - DOUBLE) > 1) ?? Math.min(4, n - 1);
 // Two beats clear of the note left out, which on Easy would otherwise take the stray as itself, clapped late.
 const clear = (u: number) => Math.abs(u - sched.notes[MISS].startUnits) >= 16;
 const rest = sched.rests.find((r) => r.startUnits > 0 && clear(r.startUnits + 4));
@@ -213,6 +223,15 @@ if (WHO === "class") {
 errs.sort((a, b) => a - b);
 console.log(`clean claps vs written: median ${errs[errs.length >> 1]?.toFixed(0)} ms, range ${errs[0]?.toFixed(0)}..${errs[errs.length - 1]?.toFixed(0)}${MEASURE ? " (no latency set: this is the microphone's delay)" : ""}`);
 console.log(`planted: note ${LATE + 1} ${LATE_BEATS} beats late, note ${MISS + 1} not clapped, note ${DOUBLE + 1} clapped twice${strayUnits !== null ? `, a stray at beat ${(strayUnits / 8).toFixed(2)}` : ""}`);
+if (failures && process.env.DUMP) {
+  const blocks = await page.evaluate(() => (window as any).__gradeDebug.clapBlocks());
+  const at = t0 + sched.notes[LATE].startUnits * unitMs + LATE_BEATS * beatMs + 45;
+  console.log("blocks around the late clap (ms from it: hi dB / full dB):");
+  console.log(blocks.filter((b: any) => Math.abs(b.t - at) < 120).map((b: any) => `${(b.t - at).toFixed(0)}:${(10 * Math.log10(b.hi + 1e-12)).toFixed(0)}/${(10 * Math.log10(b.full + 1e-12)).toFixed(0)}`).join(" "));
+  const { detectClaps } = await import("../src/lib/clap-detect");
+  console.log("late note at beat", sched.notes[LATE].startUnits / 8, "neighbours", sched.notes[LATE - 1]?.startUnits / 8, sched.notes[LATE + 1]?.startUnits / 8, "strays (beats)", r.strays.map((s: any) => (s.units / 8).toFixed(3)).join(" "), "lag", r.lagMs, "forgiven", r.lagForgiven);
+  console.log("detected near it:", detectClaps(blocks).filter((c) => Math.abs(c.t - at) < 400).map((c) => (c.t - at).toFixed(0)).join(" "));
+}
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 await browser.close();
 process.exit(failures ? 1 : 0);

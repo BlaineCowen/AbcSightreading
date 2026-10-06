@@ -573,7 +573,7 @@
       // Chord progressions (unison-progressions.ts). Unset in presets saved
       // before they existed, which leaves the page's own setting alone.
       progressions: typeof options.progressions === "boolean" ? options.progressions : undefined,
-      cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "smooth",
+      cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "beat",
       run: runOptionsFrom(options.run),
       // How it sounds. Undefined when not saved (older presets and options),
       // which leaves the page's own setting alone.
@@ -843,7 +843,7 @@
       showRhythmSyllables: false,
       syllableSystemId: defaultSyllableSystem.id,
       allowTiesAcrossBarline: false,
-      cursorMode: "smooth",
+      cursorMode: "beat",
       dynamics: [] as DynamicMark[],
     };
   }
@@ -1124,7 +1124,8 @@
    * phrase and then a chromatic one. On unless turned off.
    */
   let progressions: boolean = initialState.progressions ?? true;
-  let cursorMode: CursorMode = initialState.cursorMode || "smooth";
+  // Beat by beat by default: a reader follows the beat (Blaine, 6 October 2026).
+  let cursorMode: CursorMode = initialState.cursorMode || "beat";
   /** Printed dynamics: the marks to draw from, or empty for Off (dynamics.ts). */
   let dynamicsSet: DynamicMark[] = initialState.dynamics ?? [];
   // Turning the cursor off should clear it at once, not leave the last
@@ -3638,6 +3639,7 @@
       abc: () => originalTuneString, transpose: () => transposeSemitones, tempo: () => tempo, meter: () => playedMeter(),
       view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
       mic: () => { const t = tuner.get(); return { status: t.engineStatus, dbfs: t.dbfs, pitch: t.pitch }; },
+      clapBlocks: () => gradeRunner.lastClapBlocks,
     };
     (window as any).__gradeDebugSkip = () => gradeRunner.skip();
   }
@@ -3899,15 +3901,15 @@
     gradeList = schedule.notes;
     gradeRestList = schedule.rests;
     if (!gradeList.length) return;
-    if (rhythmOnly) return startClapGrade();
     // Saving runs for review: the recording starts first. Nothing may await
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
     gradeAudio = null;
-    if (gradeDebugOn) {
+    if (gradeDebugOn && !(rhythmOnly && $tuner.gradeClapInput === "keys")) {
       await stopGradeRecording(false);
       gradeRecording = await startGradeRecording();
     }
+    if (rhythmOnly) return startClapGrade();
     // The button press is the gesture the microphone needs.
     initTuner();
     await startTuner();
@@ -3974,7 +3976,7 @@
       cursor: t.gradeCursor,
       click: t.gradeClapClick,
       tonicTriad: [],
-      claps: { who: t.gradeWho, mic, micLatencyMs: t.clapLatencyMs ?? CLAP_MIC_LATENCY_MS },
+      claps: { who: t.gradeWho, mic, micLatencyMs: t.clapLatencyMs ?? CLAP_MIC_LATENCY_MS, forgiveLag: t.clapLatencyMs === null },
     });
   }
   /**
