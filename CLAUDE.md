@@ -940,7 +940,10 @@ branch keeps the login under every other setting ("all except custom
 domains" frees production custom domains only). So every *.vercel.app
 preview link opens too; they are unguessable and noindex, and anything
 private still needs the site's own sign-in. It shares the production database.
-`BETTER_AUTH_URL` is set to it for Preview (dev) only, so sign-in works there. Preview branches (`dev`) build
+`BETTER_AUTH_URL` is set to it for Preview (dev) only, so sign-in works there.
+Changes go to the dev site first (`dev`, with `[preview]` on the finished
+batch's last commit so it rebuilds) and reach `main` only when Blaine says
+to push to main. Preview branches (`dev`) build
 on Vercel only when the commit message contains `[preview]`
 (`scripts/vercel-ignore.sh`, vercel.json `ignoreCommand`): each build is about
 45 s of build time, and building every dev push spent most of the budget.
