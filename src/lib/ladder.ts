@@ -448,7 +448,7 @@ const STEPS: StepDef[] = [
       level: 4,
       allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A"],
       allowedChordNames: ["1", "2", "4", "5", "6", "5-7"],
-      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "dotHalfQuarter"],
+      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth"],
       allowedVoicings: [...FOUR_PART, ...THREE_PART],
       allowedMeters: ["4/4", "3/4"],
       maxSkip: 4,
@@ -466,7 +466,7 @@ const STEPS: StepDef[] = [
     choral: choral({
       ...pick(U["UIL 4"]),
       level: 4,
-      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "dotHalfQuarter"],
+      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth"],
       allowedRhythmNames: U["UIL 4"].allowedRhythmNames,
       measures: 8,
     }),
@@ -481,7 +481,7 @@ const STEPS: StepDef[] = [
       level: 5,
       allowedKeys: ["Am", "Em", "Dm", "Gm", "Bm", "Cm"],
       allowedChordNames: ["m_i", "m_iv", "m_V", "m_V7", "m_VI", "m_iid", "m_III", "m_VII", "m_viid", "m_i6"],
-      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "dotHalfQuarter"],
+      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth"],
       allowedRhythmNames: U["UIL 4"].allowedRhythmNames,
       allowedVoicings: [...FOUR_PART, ...THREE_PART],
       allowedMeters: ["4/4", "3/4"],
@@ -500,7 +500,7 @@ const STEPS: StepDef[] = [
     choral: choral({
       ...pick(U["UIL 5"]),
       level: 5,
-      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "dotHalfQuarter", "fourSixteenths"],
+      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "fourSixteenths"],
       allowedRhythmNames: U["UIL 5"].allowedRhythmNames,
       measures: 8,
     }),
@@ -518,7 +518,7 @@ const STEPS: StepDef[] = [
       level: 5,
       selectedRhythmNames: [
         "quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth",
-        "dotHalfQuarter", "eighthQuarterEighth", "eighthDotQuarter", "dotEighthSixteenth",
+        "eighthQuarterEighth", "eighthDotQuarter", "dotEighthSixteenth",
       ],
       allowedRhythmNames: [
         ...U["UIL 5"].allowedRhythmNames,
@@ -536,7 +536,7 @@ const STEPS: StepDef[] = [
     choral: choral({
       ...pick(U["UIL 5"]),
       level: 5,
-      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "dotHalfQuarter"],
+      selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth"],
       allowedRhythmNames: U["UIL 5"].allowedRhythmNames,
       voiceTexture: "staggered",
       measures: 8,

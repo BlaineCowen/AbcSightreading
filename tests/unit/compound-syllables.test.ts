@@ -21,7 +21,7 @@ describe("compound syllables, from the spec's table", () => {
     expect(read(counting, "quarterEighth")).toEqual(["1", "li"]);
     expect(read(counting, "eighthQuarter")).toEqual(["1", "la"]);
     expect(read(counting, "dotQuarter")).toEqual(["1"]);
-    expect(read(counting, "dotHalfCompound")).toEqual(["1_2"]);
+    expect(read(counting, "dotHalfCompound")).toEqual(["1_(2)"]);
     expect(read(counting, "twoSixteenthsTwoEighths")).toEqual(["1", "ta", "la", "li"]);
     expect(read(counting, "eighthTwoSixteenthsEighth")).toEqual(["1", "la", "ta", "li"]);
     expect(read(counting, "quarterEighthRest")).toEqual(["1", "(li)"]);

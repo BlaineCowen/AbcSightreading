@@ -106,6 +106,10 @@ A cell is something a choir director can select, so a cell that fails is an
 exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
+Latest: 0 failures in 34,080 exercises (2,840 cells), 8 October 2026, after
+dotted half + quarter left the picker (a dotted half and a quarter, both on
+offer; `NOT_OFFERED` in selectable-rhythms.ts) and UIL 3-5 and the ladder.
+
 **It sweeps with stepwise eighths ON**, because that is what the app ships;
 `STEPWISE_EIGHTHS=0` sweeps with it off. The most recent run: **0 failures in
 26,304 exercises** as shipped (2,192 cells, 282 of them NYSSMA Voice, all at 0),

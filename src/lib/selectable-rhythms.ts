@@ -29,11 +29,16 @@ export function containsRest(rhythm: Rhythm): boolean {
   return rhythm.rest || rhythm.abcValue.some((v) => String(v).startsWith("z"));
 }
 
+const NOT_OFFERED = new Set(["dotHalfQuarter"]);
+
 export function isSelectableRhythm(rhythm: Rhythm): boolean {
   // Simple meter's picker. Compound figures (the dotted quarter among them)
   // have their own: selectableCompoundRhythms.
   if ((rhythm.meterKind ?? "simple") !== "simple") return false;
   if (rhythm.name.includes("thirtySecond")) return false;
+  // Dotted half + quarter is a dotted half and a quarter, both on offer; as
+  // one figure it only fitted 4/4 (removed 8 October 2026).
+  if (NOT_OFFERED.has(rhythm.name)) return false;
   if (rhythm.rest) return SELECTABLE_RESTS.has(rhythm.name);
   return true;
 }
@@ -91,7 +96,7 @@ export const PICKER_ORDER: Record<MeterKind, { label: PickerGroupLabel; names: s
       names: [
         "whole", "dotHalf", "half", "quarter", "eighthEighth", "fourSixteenths", "eighthSixteenthSixteenth",
         "sixteenthSixteenthEighth", "dotEighthSixteenth", "sixteenthEighthSixteenth", "dotQuarterEighth",
-        "eighthDotQuarter", "eighthQuarterEighth", "dotHalfQuarter",
+        "eighthDotQuarter", "eighthQuarterEighth",
       ],
     },
     { label: "Rests", names: ["quarterRest", "eighthRestEighth", "halfRest", "wholeRest"] },
