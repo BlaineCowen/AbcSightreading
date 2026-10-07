@@ -133,7 +133,7 @@
     isMinorKey, minorLabel, minorScaleName, degreesFrom,
   } from "../lib/minor-degrees";
   import { minorSolfegeFrom, type MinorSolfege } from "../resources/solfege";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2 } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2, SlidersHorizontal } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
   import {
@@ -4131,10 +4131,34 @@
    * feedback and the drawing following it. Kept in this browser; gone when
    * the marks are cleared (a new run, Close, a new exercise).
    */
+  /**
+   * The settings fold into a one-line summary each time a new exercise is
+   * drawn, so the music sits right under it; Edit settings opens them again.
+   */
+  let settingsOpen = true;
+  let foldedFor = "";
+  $: if (originalTuneString && originalTuneString !== foldedFor) {
+    foldedFor = originalTuneString;
+    settingsOpen = false;
+  }
+  const keyName = (k: string) => (isMinorKey(k) ? `${k.replace(/m$/, "")} minor` : `${k} major`);
+  $: settingsSummary = [
+    selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : [...selectedKeys].join(", "),
+    [...selectedTimeSignatures].join(", "),
+    `${measures} bars`,
+    rhythmOnly
+      ? "Rhythm only"
+      : (minorInPool && !majorInPool ? [...minorScaleDegrees] : [...selectedScaleDegrees])
+          .sort((a, b) => a - b)
+          .map((d) => degreeNames[d - 1])
+          .join(" "),
+    `${selectedRhythms.length} ${selectedRhythms.length === 1 ? "rhythm" : "rhythms"}`,
+  ].filter(Boolean);
+
   /** Score options: open or folded away, remembered in this browser. */
-  let scoreOptionsOpen = true;
+  let scoreOptionsOpen = false;
   try {
-    scoreOptionsOpen = localStorage.getItem("sr-score-options-open") !== "0";
+    scoreOptionsOpen = localStorage.getItem("sr-score-options-open") === "1";
   } catch {}
   function toggleScoreOptions() {
     scoreOptionsOpen = !scoreOptionsOpen;
@@ -4619,6 +4643,32 @@
       </div>
     {/if}
 
+    <!-- Once there is an exercise the settings fold into one line (settingsOpen). -->
+    {#if originalTuneString && !settingsOpen}
+    <section class="sr-panel w-full my-4 no-print settings-summary" aria-label="Exercise settings">
+      <ul class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-sm font-bold text-sr-ink">
+        {#each settingsSummary as fact, i}
+          {#if i > 0}<li aria-hidden="true" class="text-sr-faint">·</li>{/if}
+          <li class="whitespace-nowrap">{fact}</li>
+        {/each}
+      </ul>
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          class="sr-btn sr-btn-video flex items-center gap-1.5"
+          on:click={openPlayAlong}
+          title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
+        >
+          <Clapperboard size={16} />
+          <span>Video</span>
+          {#if videoAllowed === false}<span class="sr-pro-tag">Pro</span>{/if}
+        </button>
+        <button class="sr-tok flex items-center gap-1.5" aria-expanded="false" on:click={() => (settingsOpen = true)}>
+          <SlidersHorizontal size={16} />
+          <span>{assignment ? "Settings" : "Edit settings"}</span>
+        </button>
+      </div>
+    </section>
+    {:else}
     <!-- Tab panel -->
     <div class="tab-panel sr-panel w-full my-4 no-print">
 
@@ -4655,6 +4705,9 @@
           {/if}
         </button>
 
+        {#if originalTuneString}
+          <button class="sr-tok mr-2 my-1.5 shrink-0" on:click={() => (settingsOpen = false)}>Done</button>
+        {/if}
         <!-- Generate button always visible in tab bar -->
         <button
           class="sr-btn md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
@@ -4662,7 +4715,7 @@
           disabled={isLoading}
         >
           <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
-          <span>Generate</span>
+          <span>{originalTuneString ? "Generate with these" : "Generate"}</span>
         </button>
       </div>
 
@@ -5210,7 +5263,65 @@
 
       </div>
     </div>
+    {/if}
 
+  </div>
+
+  <!-- The music (all full screen keeps). -->
+  <div class="wide-right focus-keep w-full">
+    <!-- Music Display (all that full screen keeps) -->
+    <div class="focus-score relative w-full">
+      <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
+      <CountInBadge />
+      <!-- Kept in full screen: a class grades its clapping on the TV. -->
+      <div class="flex justify-end">
+        <button
+          class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+          on:click={openGrade}
+          disabled={grading}
+          title={rhythmOnly ? "Clap it (or tap it) and get a score, alone or as a class" : "Sing it into the microphone and get a score"}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+          {rhythmOnly ? "Clap and grade" : "Listen and grade"}
+          <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
+        </button>
+      </div>
+      <!-- Before the first exercise, say what to do: the page used to open on an
+           empty white card. Outside #paper, which abcjs empties when it draws. -->
+      {#if !originalTuneString && !isLoading}
+        <div class="sr-sheet w-full my-2 px-6 py-8 flex flex-col gap-4">
+          <div class="skel-staff">
+            {#each [0, 1, 2, 3, 4] as _line}<div class="skel-staff-line"></div>{/each}
+          </div>
+          <p class="text-center text-sm text-[#56637f] font-semibold">Press Generate to write an exercise.</p>
+        </div>
+      {/if}
+      <div
+        id="paper"
+        class="sr-sheet w-full my-2"
+        class:hidden={!originalTuneString && !isLoading}
+      >
+        {#if isLoading}
+          <div class="flex items-center justify-center h-48">
+            <div class="text-sr-muted text-sm">Generating exercise…</div>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- While playing, leave a viewport's worth of room below the score. The
+         document otherwise ends at the last system, so the browser clamps the
+         scroll and the final lines can never rise to the reading position. -->
+    {#if isPlaying}
+      <div aria-hidden="true" class="focus-keep w-full" style="height: 75vh"></div>
+    {/if}
+
+    <div class="h-4"></div>
+  </div>
+
+  <!-- Below the music: how it is shown and played, and the drill. Folded by
+       default, so the exercise is what the page is about. -->
+  <div class="w-full flex flex-col items-center">
       <!-- Score options: how the exercise is shown and played (none of it
          regenerates anything). Its own box below the setup, and it folds away;
          whether it is open is remembered (scoreOptionsOpen). -->
@@ -5219,7 +5330,7 @@
         <ChevronRight size={18} class="mt-0.5 shrink-0 transition-transform {scoreOptionsOpen ? 'rotate-90' : ''}" />
         <span>
           <span id="score-options-heading" class="block text-sm font-semibold text-sr-ink">Score options</span>
-          <span class="block text-xs text-sr-faint">How the exercise is shown and played. Changing these keeps the exercise on screen.</span>
+          <span class="block text-xs text-sr-faint">Sound, solfège, dynamics and the cursor. The exercise stays as it is.</span>
         </span>
       </button>
       {#if scoreOptionsOpen}
@@ -5643,58 +5754,6 @@
       </div>
     </section>
   </div>
-
-  <!-- The music (all full screen keeps). -->
-  <div class="wide-right focus-keep w-full">
-    <!-- Music Display (all that full screen keeps) -->
-    <div class="focus-score relative w-full">
-      <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
-      <CountInBadge />
-      <!-- Kept in full screen: a class grades its clapping on the TV. -->
-      <div class="flex justify-end">
-        <button
-          class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
-          on:click={openGrade}
-          disabled={grading}
-          title={rhythmOnly ? "Clap it (or tap it) and get a score, alone or as a class" : "Sing it into the microphone and get a score"}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-          {rhythmOnly ? "Clap and grade" : "Listen and grade"}
-          <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
-        </button>
-      </div>
-      <!-- Before the first exercise, say what to do: the page used to open on an
-           empty white card. Outside #paper, which abcjs empties when it draws. -->
-      {#if !originalTuneString && !isLoading}
-        <div class="sr-sheet w-full my-2 px-6 py-8 flex flex-col gap-4">
-          <div class="skel-staff">
-            {#each [0, 1, 2, 3, 4] as _line}<div class="skel-staff-line"></div>{/each}
-          </div>
-          <p class="text-center text-sm text-[#56637f] font-semibold">Press Generate to write an exercise.</p>
-        </div>
-      {/if}
-      <div
-        id="paper"
-        class="sr-sheet w-full my-2"
-        class:hidden={!originalTuneString && !isLoading}
-      >
-        {#if isLoading}
-          <div class="flex items-center justify-center h-48">
-            <div class="text-sr-muted text-sm">Generating exercise…</div>
-          </div>
-        {/if}
-      </div>
-    </div>
-
-    <!-- While playing, leave a viewport's worth of room below the score. The
-         document otherwise ends at the last system, so the browser clamps the
-         scroll and the final lines can never rise to the reading position. -->
-    {#if isPlaying}
-      <div aria-hidden="true" class="focus-keep w-full" style="height: 75vh"></div>
-    {/if}
-
-    <div class="h-4"></div>
-  </div>
   </main>
 
   <!-- Sticky playback bar. The unison-only audio controls ride in its "extra"
@@ -5786,6 +5845,15 @@
 
 <svelte:window on:keydown={onTapKey} />
 <style>
+  /* The settings folded to one line: the facts, then Video and Edit settings. */
+  .settings-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 0.75rem 0.75rem 0.75rem 1.25rem;
+  }
+  .settings-summary ul { list-style: none; margin: 0; padding: 0; flex: 1 1 16rem; }
   /* Grade: the note waiting to be sung, then how each went. */
   :global(#paper .grade-now), :global(#paper .grade-now path) {
     fill: #2f6fe0;
