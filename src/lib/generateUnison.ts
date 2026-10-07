@@ -1,3 +1,4 @@
+import { keySignatures as sharedKeySignatures } from "../resources/key-signatures";
 import { chords } from "../resources/chords";
 import { writeProgressionLine } from "./unison-progressions";
 import type { Chord } from "../types/ChordSet";
@@ -6,8 +7,11 @@ import { noteArray } from "../resources/noteArray";
 import {
   alterationOf,
   fixedDoFor,
+  minorSolfegeFrom,
+  minorSyllable,
   noteNameFor,
   type LyricSystem,
+  type MinorSolfege,
 } from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { beatUnitOf, resolveMeter } from "./meter";
@@ -117,57 +121,10 @@ interface ChordSet {
   };
 }
 
-var keySignatures: {
-  [key: string]: {
-    flats: number[] | undefined;
-    sharps: number[] | undefined;
-  };
-} = {
-  C: {
-    flats: [],
-    sharps: [],
-  },
-  G: {
-    flats: [],
-    sharps: [6],
-  },
-  D: {
-    flats: [],
-    sharps: [6, 2],
-  },
-  A: {
-    flats: [],
-    sharps: [6, 2, 5],
-  },
-  E: {
-    flats: [],
-    sharps: [6, 2, 5, 1],
-  },
-  B: {
-    flats: [],
-    sharps: [6, 2, 5, 1, 4],
-  },
-  F: {
-    flats: [3],
-    sharps: [],
-  },
-  Bb: {
-    flats: [3, 0],
-    sharps: [],
-  },
-  Eb: {
-    flats: [3, 0, 4],
-    sharps: [],
-  },
-  Ab: {
-    flats: [3, 0, 4, 1],
-    sharps: [],
-  },
-  Db: {
-    flats: [3, 0, 4, 1, 5],
-    sharps: [],
-  },
-};
+// The shared key table (src/resources/key-signatures.ts): the same
+// key-relative degrees this file's own major-only copy held, and the minor
+// keys besides, which the Unison page now offers.
+const keySignatures = sharedKeySignatures;
 
 interface Note {
   name: string;
@@ -2023,6 +1980,8 @@ export type UnisonDisplay = {
   syllableSystemId?: string;
   /** The teacher's own set, when `syllableSystemId` is "custom". */
   customSyllables?: unknown;
+  /** How a minor key is sung in movable do: la-based (the default) or do-based. */
+  minorSolfege?: MinorSolfege;
 };
 
 /** Write a generated exercise as ABC, with the annotations asked for. */
@@ -2037,6 +1996,7 @@ export function assembleUnisonAbc(
     // Rhythm-only has no scale degrees to name.
     showSolfege: score.staff === "pitched" && display.showSolfege === true,
     lyricSystem: display.lyricSystem,
+    minorSolfege: display.minorSolfege,
     key: score.key,
     showRhythmSyllables,
     syllableSystem: resolveSyllableSystem(display.syllableSystemId, display.customSyllables),
@@ -2154,6 +2114,8 @@ function createConcatString(
     lyricSystem?: LyricSystem;
     /** The key, for the two systems that name pitches rather than degrees. */
     key?: string;
+    /** Movable do in a minor key: la-based (the default) or do-based. */
+    minorSolfege?: MinorSolfege;
     showRhythmSyllables?: boolean;
     syllableSystem?: SyllableSystem;
     /** Marks to print, by note index (dynamics.ts). */
@@ -2319,7 +2281,16 @@ function createConcatString(
           const natural = accidental === "=";
           const naturalRaises = natural && !!keyObject?.flats?.includes(note.degree);
           const naturalLowers = natural && !!keyObject?.sharps?.includes(note.degree);
-          if (accidental === "^" || accidental === "^^" || naturalRaises) {
+          if (String(params.key ?? "").trim().endsWith("m")) {
+            // Minor: la- or do-based, the teacher's choice (solfege.ts).
+            const alter =
+              accidental === "^" || accidental === "^^" || naturalRaises
+                ? ("sharp" as const)
+                : accidental === "_" || accidental === "__" || naturalLowers
+                  ? ("flat" as const)
+                  : null;
+            syllable = minorSyllable(note.degree, alter, minorSolfegeFrom(params.minorSolfege));
+          } else if (accidental === "^" || accidental === "^^" || naturalRaises) {
             syllable =
               sharpSolfegeMap[note.degree as keyof typeof sharpSolfegeMap] ||
               solfege[note.degree];

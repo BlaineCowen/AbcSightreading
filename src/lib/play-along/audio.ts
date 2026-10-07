@@ -182,7 +182,12 @@ export class PlayAlongAudio {
     const rendered = nearestGuitarTempo(feel, o.bpm);
     const rate = o.bpm / rendered;
     const out: PreparedGuitarPiece[] = [];
-    for (const p of pieces) {
+    for (let p of pieces) {
+      // Endings are rendered on the major tonics only: a minor key's last bar
+      // strums its pattern instead of falling silent with the whole part.
+      if (p.ending && !(GUITAR.endings as Record<string, GuitarFile>)[`${p.slot}@${rendered}`]?.chords.includes(p.chord)) {
+        p = { ...p, ending: false };
+      }
       const set = (p.ending ? GUITAR.endings : GUITAR.patterns) as Record<string, GuitarFile>;
       const f = set[`${p.slot}@${rendered}`];
       const index = f?.chords.indexOf(p.chord) ?? -1;

@@ -23,11 +23,19 @@
 import { chordNamed } from "../unison-progressions";
 import { isCompound, resolveMeter } from "../meter";
 
-/** Pitch classes of the keys' tonics (the Unison page's keys, all major). */
+/** Pitch classes of the keys' tonics; a minor key is its tonic and an "m" (keyParts). */
 const TONIC_PC: Record<string, number> = {
   C: 0, "C#": 1, Db: 1, D: 2, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, Ab: 8, A: 9, Bb: 10, B: 11, Cb: 11,
 };
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+const NATURAL_MINOR = [0, 2, 3, 5, 7, 8, 10];
+
+/** A key's tonic pitch class and mode: "F#m" is 6, minor. */
+function keyParts(key: string): { tonic: number | undefined; minor: boolean } {
+  const k = key.trim();
+  const minor = k.length > 1 && k.endsWith("m");
+  return { tonic: TONIC_PC[minor ? k.slice(0, -1) : k], minor };
+}
 const NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
 /** A chord as the guitar plays it: its root and quality, e.g. "Bb", "Gm", "C7". */
@@ -39,16 +47,18 @@ export interface GuitarChord {
 }
 
 /**
- * The chord a progression's chord name stands for in `key` (major keys only:
- * the page offers no others), or null when it is not one the guitar has.
+ * The chord a progression's chord name stands for in `key` (a minor key's
+ * chords from its natural minor scale, as chords.ts spells them there, the
+ * raised leading tone in m_V), or null when it is not one the guitar has.
  */
 export function guitarChord(key: string, name: string): GuitarChord | null {
-  const tonic = TONIC_PC[key.trim()];
+  const { tonic, minor } = keyParts(key);
+  const scale = minor ? NATURAL_MINOR : MAJOR;
   const chord = chordNamed(name);
   if (tonic === undefined || !chord) return null;
   const pcOf = (degree: number) => {
     const d = ((degree % 7) + 7) % 7;
-    let pc = tonic + MAJOR[d];
+    let pc = tonic + scale[d];
     if (chord.sharpScaleDegree === d) pc += 1;
     if (chord.flatScaleDegree === d) pc -= 1;
     return ((pc % 12) + 12) % 12;
@@ -66,6 +76,12 @@ export function guitarChord(key: string, name: string): GuitarChord | null {
   if (quality === "0,3,6" && root === (tonic + 11) % 12) {
     const v = (tonic + 7) % 12;
     return { id: NAMES[v] + "7", root: v, intervals: [0, 4, 7, 10] };
+  }
+  // Minor's ii° is a predominant like iv, with two of its notes: the guitar
+  // strums iv for it.
+  if (quality === "0,3,6" && minor && root === (tonic + 2) % 12) {
+    const iv = (tonic + 5) % 12;
+    return { id: NAMES[iv] + "m", root: iv, intervals: [0, 3, 7] };
   }
   return { id: NAMES[root] + suffix[quality], root, intervals };
 }
@@ -178,7 +194,7 @@ export function nearestGuitarTempo(feel: "straight" | "waltz" | "triplet", bpm: 
 }
 
 /** The keys the Unison page offers. */
-export const GUITAR_KEYS = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+export const GUITAR_KEYS = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"];
 /**
  * The keys whose chords are rendered: all twelve, since the page's playback
  * transpose can move any of its keys to any other.
@@ -187,9 +203,9 @@ export const GUITAR_RENDER_KEYS = [...NAMES];
 
 /** The key `semitones` above (or below) `key`, named by pitch class: the guitar's chords are. */
 export function transposeKey(key: string, semitones: number): string {
-  const tonic = TONIC_PC[key.trim()];
+  const { tonic, minor } = keyParts(key);
   if (tonic === undefined || !semitones) return key;
-  return NAMES[(((tonic + semitones) % 12) + 12) % 12];
+  return NAMES[(((tonic + semitones) % 12) + 12) % 12] + (minor ? "m" : "");
 }
 
 /**

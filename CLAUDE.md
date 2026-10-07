@@ -270,9 +270,8 @@ neighbour notes over the diatonic chords: on a weak beat, stepped into,
 resolving the way they lean, never against their own natural in the chord.
 `EXTRA_CHORDS` holds the chords chords.ts lacks (borrowed i, ♭VII, the
 Neapolitan for minor). `placeMissingChromatics` stays the safety net, but
-never alters the first phrase. The Unison page is major keys only, so the
-minor chromatic table (the Neapolitan) is not reachable from it yet; the
-generator's own key table there has no minor keys either. Measured: each of
+never alters the first phrase. In minor the table has the Neapolitan
+(lowered 2) and the raised leading tone over harmonic minor's V (`m_V`). Measured: each of
 the ten notes, alone and fi with te, in four meters, six keys and 4, 8 and 16
 bars: over a progression 100% (fi 99%), the altered note written every time,
 no failures.
@@ -293,6 +292,36 @@ general settings in four meters, eight keys and do re mi in steps;
 0 failures in 5,184 Unison and NYSSMA sweep exercises
 (`PROGRESSIONS=1 ONLY_UNISON=1 bun run sweep`); the NYSSMA chart clean
 (`PROGRESSIONS=1 bun run check:nyssma`).
+
+### Minor keys (Unison)
+
+The Unison page has a second row of keys, the relative minors (Fm Cm Gm Dm
+Am Em Bm F#m C#m; `src/lib/minor-degrees.ts`), in the same pool as the
+major ones. While a minor key is in the pool a second Scale Degrees
+selector shows beside the major one (each only while its mode is in the
+pool): the natural minor row, raised notes over it (♯6 and ♯7, ringed:
+melodic and harmonic minor; ♯1, ♯3 the Picardy third, ♯4) and lowered
+under it (♭2 the Neapolitan, ♭5), each labelled with its syllable. A drawn
+minor key writes from those degrees (`degreesFor`), a major key from the
+major ones. Degrees count from the minor tonic and an accidental is against
+the key signature, so ♯7 is G♯ in A minor and B♮ in C minor. Links and
+presets carry `minorDegrees`, `minorSharps`, `minorFlats`, `minorSolfege`.
+
+How minor is sung is the teacher's choice (`minorSolfege`, `minorSyllable`
+in solfege.ts): La-based (default; the tonic is la, as Choral, Grade and
+the tools read minor) or Do-based (do re me fa so le te; raised 6 and 7 are
+la and ti). It relabels the exercise on screen, Grade's note names
+(`gradeDoPc`) and, in a minor-only pool, the skip panel's syllables.
+
+The generator uses the shared key table (`src/resources/key-signatures.ts`;
+its own copy had no minor keys, and the major entries were identical: the
+snapshots did not move). The guitar plays minor keys from its existing
+minor clips (natural minor; m_V major; ii° as iv); endings are rendered on
+major tonics only, so a minor exercise's last bar strums its pattern. The
+sweep has 648 minor cells (9 keys, 4 meters, natural/harmonic/melodic, all
+degrees and 1 3 5, 4/8/16 bars): 0 failures with and without progressions,
+7 October 2026 (`MINOR=0` leaves them out). Tests: `unison-minor.test.ts`.
+NYSSMA levels and ladder steps stay major.
 
 ### Meters
 

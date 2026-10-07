@@ -195,8 +195,12 @@ const CHROMATIC_CHORDS: Record<"major" | "minor", ChromaticNote[]> = {
     { degree: 2, alter: "flat", progressions: [[["1"], ["u_borrowed_i"], ["5"], ["1"]], [["1"], ["4"], ["u_borrowed_i", "5"], ["1"]]] },
   ],
   minor: [
-    // ra: the Neapolitan, down to do and on to ti.
+    // The Neapolitan (lowered 2: ra do-based, te la-based), down to the tonic
+    // and on to the leading tone.
     { degree: 1, alter: "flat", progressions: [[["1"], ["4"], ["u_N", "5"], ["1"]]] },
+    // The raised leading tone (si la-based, ti do-based): harmonic minor's
+    // major V (chords.ts m_V), up to the tonic.
+    { degree: 6, alter: "sharp", progressions: [[["1"], ["4"], ["m_V"], ["1"]], [["1"], ["6"], ["4", "m_V"], ["1"]], [["1"], ["m_V"], ["4", "m_V"], ["1"]]] },
   ],
 };
 
@@ -294,6 +298,11 @@ export function writeProgressionLine(input: ProgressionLineInput): ProgressionLi
   if (!pitches.length) return null;
   const chordByName = new Map<string, Chord>(EXTRA_CHORDS.map((c) => [c.name, c]));
   for (const c of input.chords) chordByName.set(c.name, c);
+  // Minor's major V carries the raised leading tone, chosen or not by its own note.
+  if (input.minor) {
+    const v = chordNamed("m_V");
+    if (v && !chordByName.has(v.name)) chordByName.set(v.name, v);
+  }
 
   /** A progression fits when each of its chords is available and has a selected note in range. */
   const fits = (p: Progression) =>

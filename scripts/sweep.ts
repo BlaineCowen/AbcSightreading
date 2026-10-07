@@ -13,6 +13,7 @@
  * sweep that walked the real space found 55%. A cell here is a thing a choir
  * director can select, so a cell that fails is an exercise someone cannot get.
  */
+import { MINOR_KEYS } from "../src/lib/minor-degrees";
 import { generateChoralExercise } from "../src/lib/generateChoral";
 import { createNewSr } from "../src/lib/generateUnison";
 import { uilPresets } from "../src/lib/uil-presets";
@@ -182,6 +183,44 @@ for (const rhythmOnly of [false, true]) {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
           } as any);
         });
+      }
+    }
+  }
+}
+
+// ------------------------------------------------------------ unison minor
+// The minor keys (minor-degrees.ts), natural, harmonic (raised 7) and melodic
+// (raised 6 and 7), over the whole scale and over la do mi alone, in the
+// simple meters and 6/8. MINOR=0 leaves them out.
+if (process.env.MINOR !== "0") {
+  const SCALES = [
+    { name: "natural", sharps: [] as number[] },
+    { name: "harmonic", sharps: [7] },
+    { name: "melodic", sharps: [6, 7] },
+  ];
+  for (const key of MINOR_KEYS) {
+    for (const tsName of ["4/4", "3/4", "2/4", "6/8"]) {
+      const compound = tsName === "6/8";
+      const rhythmNames = compound ? DEFAULT_RHYTHM_NAMES.compound : ["quarter", "half", "eighthEighth", "dotHalf"];
+      for (const degrees of [[1, 2, 3, 4, 5, 6, 7], [1, 3, 5]]) {
+        for (const scale of SCALES) {
+          for (const measures of [4, 8, 16]) {
+            run(`unison minor | ${key} | ${scale.name} | ${degrees.length === 7 ? "all" : "1 3 5"} | ${tsName} | ${measures}m`, () => {
+              createNewSr({
+                bpm: 60, clef: "treble", selectedClef: "treble",
+                timeSig: timeSignatureFor(tsName), selectedTimeSignature: tsName,
+                measures, maxSkip: 4, tempo: 60, range: { min: 14, max: 21 },
+                selectedRhythms: rhythmNames,
+                rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
+                scaleDegrees: degrees, selectedSharpDegrees: scale.sharps, selectedFlatDegrees: [],
+                key, showSolfege: true, rhythmOnly: false, progressions: PROGRESSIONS,
+                showRhythmSyllables: false, syllableSystemId: "kodaly",
+                partsObject: { numofParts: 1, parts: { Unison: {
+                  chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
+              } as any);
+            });
+          }
+        }
       }
     }
   }

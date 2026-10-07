@@ -86,6 +86,44 @@ export function solfegeFor(
 }
 
 /**
+ * How a minor key is sung in movable do, the teacher's choice on the Unison
+ * page: **la**-based (the tonic is la: la ti do re mi fa so, the relative
+ * major's syllables; what Choral, Grade and the tools use) or **do**-based
+ * (the tonic is do: do re me fa so le te).
+ */
+export type MinorSolfege = "la" | "do";
+
+/** Do-based natural minor, tonic first. */
+const DO_MINOR = ["do", "re", "me", "fa", "so", "le", "te"] as const;
+/** Do-based minor raised a half step from the natural minor note: me->mi, le->la, te->ti. */
+const DO_MINOR_RAISED: Record<number, string> = { 0: "di", 1: "ri", 2: "mi", 3: "fi", 4: "si", 5: "la", 6: "ti" };
+/** Do-based minor lowered a half step: re->ra, so->se (fa->fe). */
+const DO_MINOR_LOWERED: Record<number, string> = { 1: "ra", 3: "fe", 4: "se" };
+
+/**
+ * A minor-key syllable from a key-relative degree (0 = the tonic) and how the
+ * note is altered against the key signature. La-based is solfegeFor's
+ * rotation (raised 6 fi, raised 7 si, lowered 2 te); do-based names the
+ * natural minor do re me fa so le te (raised 6 la, raised 7 ti, lowered 2 ra).
+ */
+export function minorSyllable(
+  degree: number,
+  alteration: "sharp" | "flat" | null,
+  system: MinorSolfege = "la"
+): string {
+  if (!Number.isInteger(degree) || degree < 0 || degree > 6) return "";
+  if (system === "la") {
+    return solfegeFor(degree, alteration, undefined, "minor");
+  }
+  if (alteration === "sharp") return DO_MINOR_RAISED[degree] ?? DO_MINOR[degree];
+  if (alteration === "flat") return DO_MINOR_LOWERED[degree] ?? DO_MINOR[degree];
+  return DO_MINOR[degree];
+}
+
+/** The minor solfège from a stored value: do-based only when it says so. */
+export const minorSolfegeFrom = (v: unknown): MinorSolfege => (v === "do" ? "do" : "la");
+
+/**
  * The syllables for one voice, ready to join into a `w:` line.
  *
  * Rests are skipped rather than given a placeholder: ABC aligns lyrics to note

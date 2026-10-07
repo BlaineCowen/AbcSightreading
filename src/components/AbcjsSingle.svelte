@@ -123,6 +123,11 @@
   } from "../lib/metronome-beats";
   import * as Tone from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
+  import {
+    MAJOR_KEYS, MINOR_KEYS, MINOR_DEGREES, MINOR_SHARPS, MINOR_FLATS, DEFAULT_MINOR_DEGREES,
+    isMinorKey, minorLabel, minorScaleName, degreesFrom,
+  } from "../lib/minor-degrees";
+  import { minorSolfegeFrom, type MinorSolfege } from "../resources/solfege";
   import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2 } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
@@ -158,7 +163,8 @@
   // import PitchVisualizer from "./PitchVisualizer.svelte";
 
   // --- Static Options ---
-  const possibleKeys = ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"];
+  // Major keys, then their relative minors (minor-degrees.ts): one pool, a row each.
+  const possibleKeys = [...MAJOR_KEYS, ...MINOR_KEYS];
   const timeSignatures = timeSignaturesFor(EXERCISE_METER_NAMES);
   /** The meter picker: simple meters, then compound. */
   const meterGroups = [
@@ -338,6 +344,13 @@
         options.selectedFlatDegrees = degrees;
       }
     }
+
+    // A minor key's degrees and how it is sung (minor-degrees.ts).
+    const minorDegrees = degreesFrom(getParam("minorDegrees"), MINOR_DEGREES);
+    if (minorDegrees) options.minorScaleDegrees = minorDegrees;
+    if (urlParams.has("minorSharps")) options.minorSharpDegrees = degreesFrom(getParam("minorSharps"), MINOR_SHARPS) ?? [];
+    if (urlParams.has("minorFlats")) options.minorFlatDegrees = degreesFrom(getParam("minorFlats"), MINOR_FLATS) ?? [];
+    if (urlParams.has("minorSolfege")) options.minorSolfege = minorSolfegeFrom(getParam("minorSolfege"));
 
     // One key, or several to draw from ("C,F"). An old link names one.
     const keys = parsePool(getParam("key"), possibleKeys);
@@ -544,6 +557,10 @@
       selectedScaleDegrees: new Set<number>(options.selectedScaleDegrees || [1, 3, 5]),
       selectedSharpDegrees: new Set<number>(options.selectedSharpDegrees || []),
       selectedFlatDegrees: new Set<number>(options.selectedFlatDegrees || []),
+      minorScaleDegrees: new Set<number>(degreesFrom(options.minorScaleDegrees, MINOR_DEGREES) ?? DEFAULT_MINOR_DEGREES),
+      minorSharpDegrees: new Set<number>(degreesFrom(options.minorSharpDegrees, MINOR_SHARPS) ?? []),
+      minorFlatDegrees: new Set<number>(degreesFrom(options.minorFlatDegrees, MINOR_FLATS) ?? []),
+      minorSolfege: minorSolfegeFrom(options.minorSolfege),
       selectedKeys: keys,
       selectedKey: keys[0],
       selectedRhythms: resolveSelectedRhythms(options.selectedRhythms, meters[0]),
@@ -638,6 +655,10 @@
     selectedScaleDegrees = next.selectedScaleDegrees;
     selectedSharpDegrees = next.selectedSharpDegrees;
     selectedFlatDegrees = next.selectedFlatDegrees;
+    minorScaleDegrees = next.minorScaleDegrees;
+    minorSharpDegrees = next.minorSharpDegrees;
+    minorFlatDegrees = next.minorFlatDegrees;
+    minorSolfege = next.minorSolfege;
     selectedKey = next.selectedKey;
     selectedKeys = new Set(next.selectedKeys);
     selectedRhythms = next.selectedRhythms;
@@ -837,6 +858,10 @@
       selectedScaleDegrees: new Set<number>([1, 3, 5]),
       selectedSharpDegrees: new Set(),
       selectedFlatDegrees: new Set(),
+      minorScaleDegrees: new Set<number>(DEFAULT_MINOR_DEGREES),
+      minorSharpDegrees: new Set<number>(),
+      minorFlatDegrees: new Set<number>(),
+      minorSolfege: "la" as MinorSolfege,
       selectedKey: "F",
       selectedKeys: ["F"],
       selectedRhythms: resolveSelectedRhythms([]),
@@ -872,6 +897,28 @@
   let selectedScaleDegrees: Set<number> = initialState.selectedScaleDegrees;
   let selectedSharpDegrees = initialState.selectedSharpDegrees;
   let selectedFlatDegrees = initialState.selectedFlatDegrees;
+  /** A minor key's degrees (1-based from its tonic) and how it is sung; used when a minor key is drawn. */
+  let minorScaleDegrees: Set<number> = initialState.minorScaleDegrees;
+  let minorSharpDegrees: Set<number> = initialState.minorSharpDegrees;
+  let minorFlatDegrees: Set<number> = initialState.minorFlatDegrees;
+  let minorSolfege: MinorSolfege = initialState.minorSolfege;
+  $: minorInPool = [...selectedKeys].some(isMinorKey);
+  /**
+   * The skip panel's syllables. Its moves are scale degrees from the tonic, so
+   * a pool of minor keys names them as the minor is sung: la ti do... la-based,
+   * do re me... do-based. A mixed pool keeps the major names.
+   */
+  $: degreeNames = minorInPool && !majorInPool
+    ? MINOR_DEGREES.map((d) => minorLabel(d, null, minorSolfege))
+    : [...DEGREE_NAMES];
+  $: chipLabel = (label: string) =>
+    minorInPool && !majorInPool
+      ? label.replace(/\b(Do|Re|Mi|Fa|Sol|La|Ti)\b/g, (w) => {
+          const name = degreeNames[["do", "re", "mi", "fa", "sol", "la", "ti"].indexOf(w.toLowerCase())];
+          return name.charAt(0).toUpperCase() + name.slice(1);
+        })
+      : label;
+  $: majorInPool = [...selectedKeys].some((k) => !isMinorKey(k));
   let selectedKey = initialState.selectedKey;
   /** Keys to draw from; `selectedKey` is the key of the exercise on screen. */
   let selectedKeys: Set<string> = new Set(initialState.selectedKeys);
@@ -1221,6 +1268,7 @@
     originalTuneString = assembleUnisonAbc(currentScore, {
       showSolfege: !rhythmOnly,
       lyricSystem: lyric,
+      minorSolfege,
       showRhythmSyllables: true,
       syllableSystemId: systemId,
       customSyllables: $mySyllables,
@@ -1242,6 +1290,7 @@
     originalTuneString = assembleUnisonAbc(currentScore, {
       showSolfege: !rhythmOnly,
       lyricSystem: writtenLyricSystem,
+      minorSolfege,
       showRhythmSyllables: true,
       syllableSystemId: writtenSyllableSystem,
       customSyllables: $mySyllables,
@@ -1252,6 +1301,33 @@
     createSynth = null;
     if (currentTune) await rerenderTune();
   }
+  /**
+   * La- or do-based minor: relabels the exercise on screen (a minor one) from
+   * its notes, without writing a new one.
+   */
+  async function handleMinorSolfege(next: MinorSolfege) {
+    minorSolfege = next;
+    updateUrlFromState();
+    if (!currentScore || currentScore.staff !== "pitched" || !isMinorKey(currentScore.key ?? "")) return;
+    originalTuneString = assembleUnisonAbc(currentScore, {
+      showSolfege: !rhythmOnly,
+      lyricSystem: writtenLyricSystem,
+      minorSolfege,
+      showRhythmSyllables: true,
+      syllableSystemId: writtenSyllableSystem,
+      customSyllables: $mySyllables,
+    });
+    renderedString = [originalTuneString, [], currentScore];
+    if (currentTune) await rerenderTune();
+  }
+
+  function toggleIn(set: Set<number>, d: number): Set<number> {
+    const next = new Set(set);
+    if (next.has(d)) next.delete(d);
+    else next.add(d);
+    return next;
+  }
+
   let selectableArray: any[] = [];
   let pitchCursor: SVGLineElement | null = null;
   let playbackCursor: SVGLineElement | null = null; // Follows playback
@@ -1341,6 +1417,8 @@
   $: notesDirty = maxSkip !== DEFAULTS.maxSkip || skips.exactOn ||
     JSON.stringify(Array.from(selectedScaleDegrees).sort()) !== JSON.stringify([...DEFAULTS.scaleDegrees].sort()) ||
     selectedSharpDegrees.size > 0 || selectedFlatDegrees.size > 0 ||
+    (minorInPool && (JSON.stringify(Array.from(minorScaleDegrees).sort()) !== JSON.stringify([...DEFAULT_MINOR_DEGREES]) ||
+      minorSharpDegrees.size > 0 || minorFlatDegrees.size > 0 || minorSolfege !== "la")) ||
     accidentalsFollowStep !== false ||
     skips.landOn.length !== PAGE_DEFAULT_LAND_ON.length || PAGE_DEFAULT_LAND_ON.some((l) => !skips.landOn.includes(l)) || eighthPairsOnePitch;
   // A range that follows the key is judged by its placement for the pool's
@@ -1367,6 +1445,10 @@
       selectedScaleDegrees: Array.from(selectedScaleDegrees),
       selectedSharpDegrees: Array.from(selectedSharpDegrees),
       selectedFlatDegrees: Array.from(selectedFlatDegrees),
+      minorScaleDegrees: Array.from(minorScaleDegrees),
+      minorSharpDegrees: Array.from(minorSharpDegrees),
+      minorFlatDegrees: Array.from(minorFlatDegrees),
+      minorSolfege,
       selectedRhythms: selectedRhythms.map((r: Rhythm) => r.name),
       measures,
       maxSkip,
@@ -1435,6 +1517,12 @@
       Array.from(selectedFlatDegrees).join(",")
     );
     params.set("key", [...selectedKeys].join(","));
+    if (minorInPool) {
+      params.set("minorDegrees", Array.from(minorScaleDegrees).join(","));
+      params.set("minorSharps", Array.from(minorSharpDegrees).join(","));
+      params.set("minorFlats", Array.from(minorFlatDegrees).join(","));
+      params.set("minorSolfege", minorSolfege);
+    }
     params.set("rhythmSound", rhythmSoundId);
     params.set("sound", String(instrumentProgram));
     params.set("rhythms", selectedRhythms.map((r: Rhythm) => r.name).join(","));
@@ -2434,6 +2522,16 @@
    * and range drawn for this exercise. Shared by Generate and the play-along
    * video, which writes a longer rhythm at its backing track's tempo.
    */
+  /** The degrees a key writes from: the minor selector's for a minor key, the major one's otherwise. */
+  function degreesFor(key: string) {
+    const minor = isMinorKey(key);
+    return {
+      scaleDegrees: Array.from(minor ? minorScaleDegrees : selectedScaleDegrees),
+      selectedSharpDegrees: Array.from(minor ? minorSharpDegrees : selectedSharpDegrees),
+      selectedFlatDegrees: Array.from(minor ? minorFlatDegrees : selectedFlatDegrees),
+    };
+  }
+
   function generationParams(drawnKey: string, drawnMeter: string, drawnRange: typeof selectedRange) {
     return {
       bpm,
@@ -2446,9 +2544,9 @@
       tempo: tempo,
       range: drawnRange,
       rhythms: selectedRhythms,
-      scaleDegrees: Array.from(selectedScaleDegrees),
-      selectedSharpDegrees: Array.from(selectedSharpDegrees),
-      selectedFlatDegrees: Array.from(selectedFlatDegrees),
+      // A minor key drawn writes from the minor selector's degrees.
+      ...degreesFor(drawnKey),
+      minorSolfege,
 
       selectedClef: selectedClef,
       selectedTimeSignature: drawnMeter,
@@ -2528,6 +2626,7 @@
       let pitchedAbc = assembleUnisonAbc(score, {
         showSolfege: !lyricsOff,
         lyricSystem: (lyricsOff ? lyricSystem : o.syllables) as LyricSystem,
+        minorSolfege,
         showRhythmSyllables: false,
         syllableSystemId,
         customSyllables: $mySyllables,
@@ -2540,6 +2639,7 @@
     let abc = assembleUnisonAbc(score, {
       showSolfege: false,
       lyricSystem,
+      minorSolfege,
       showRhythmSyllables: !off,
       syllableSystemId: off ? syllableSystemId : o.syllables,
       customSyllables: $mySyllables,
@@ -2579,17 +2679,22 @@
   async function generateExercise() {
     // Client-side validation (scale degrees are irrelevant in rhythm-only mode)
     // Skips that no selected rhythm can land are no skips: the line steps.
-    if (
-      !rhythmOnly && skips.exactOn &&
-      !degreesConnected(Array.from(selectedScaleDegrees), landablePolicy(skipPolicy, selectedRhythms))
-    ) {
-      error = degreesConnected(Array.from(selectedScaleDegrees), skipPolicy)
+    // Each mode in the key pool is checked with its own degrees.
+    const degreeSets = [
+      ...(majorInPool ? [selectedScaleDegrees] : []),
+      ...(minorInPool ? [minorScaleDegrees] : []),
+    ];
+    const unconnected = degreeSets.find(
+      (d) => !degreesConnected(Array.from(d), landablePolicy(skipPolicy, selectedRhythms))
+    );
+    if (!rhythmOnly && skips.exactOn && unconnected) {
+      error = degreesConnected(Array.from(unconnected), skipPolicy)
         ? NO_LANDING_MESSAGE
         : "With these skips the line cannot get between all the selected notes. Add a skip, or select the notes in between.";
       isLoading = false;
       return;
     }
-    if (!rhythmOnly && !skips.exactOn && !validateSettings(selectedScaleDegrees, maxSkip)) {
+    if (!rhythmOnly && !skips.exactOn && degreeSets.some((d) => !validateSettings(d, maxSkip))) {
       error =
         "The gap between selected scale degrees is larger than the Max Skip. Please increase Max Skip or select more notes to fill the gap.";
       isLoading = false;
@@ -3326,8 +3431,11 @@
    * @param {string} key - The musical key
    * @returns {number} The frequency in Hz
    */
+  /** The drone's note: the key's tonic (a minor key's own, la). */
   function getRootNoteFrequency(key: string): number {
     const keyMap: Record<string, number> = {
+      "F#": 66,
+      "C#": 61,
       C: 60,
       G: 67,
       D: 62,
@@ -3340,7 +3448,7 @@
       Ab: 56,
       Db: 61,
     };
-    return Tone.Frequency(keyMap[key], "midi").toFrequency();
+    return Tone.Frequency(keyMap[key.trim().replace(/m$/, "")] ?? 60, "midi").toFrequency();
   }
 
   // ── PlaybackBar handlers ───────────────────────────────────────────────────
@@ -3575,6 +3683,7 @@
       originalTuneString = assembleUnisonAbc(score, {
         showSolfege: !rhythmOnly,
         lyricSystem,
+        minorSolfege,
         showRhythmSyllables: true,
         syllableSystemId,
         customSyllables: $mySyllables,
@@ -3861,10 +3970,15 @@
     const tune = r.cents !== null && Math.abs(r.cents) >= 10 ? ` · ${Math.abs(r.cents)} cents ${r.cents > 0 ? "sharp" : "flat"}` : "";
     return `Note ${i + 1} (${want}): ${how}${tune}${r.help.heardKey ? " · heard the key" : ""}`;
   })();
-  /** Do's pitch class for naming notes in solfege, with the playback transposition. */
+  /**
+   * Do's pitch class for naming notes in solfege, with the playback
+   * transposition. In minor it is the relative major's do (la-based), or the
+   * tonic itself when the teacher sings minor do-based.
+   */
   $: gradeDoPc = (() => {
     const info = originalTuneString ? exerciseInfo(originalTuneString) : null;
-    return (((info ? NOTES.indexOf(info.doNote) : 0) + transposeSemitones) % 12 + 12) % 12;
+    const doBased = !!info?.minor && minorSolfege === "do" ? 9 : 0;
+    return (((info ? NOTES.indexOf(info.doNote) : 0) + doBased + transposeSemitones) % 12 + 12) % 12;
   })();
 
   /** After a run, colour each note on the score as the card does. */
@@ -4472,8 +4586,10 @@
             {#if !rhythmOnly}
               <div class="space-y-2">
                 <p class="sr-label">Key</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Key">
-                  {#each possibleKeys as key}
+                {#each [{ label: "Major", keys: MAJOR_KEYS }, { label: "Minor", keys: MINOR_KEYS }] as row}
+                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="{row.label} keys">
+                  <span class="w-12 text-xs text-sr-faint">{row.label}</span>
+                  {#each row.keys as key}
                     <button
                       class="sr-tok {selectedKeys.has(key) ? 'sr-on' : ''}"
                       aria-pressed={selectedKeys.has(key)}
@@ -4487,6 +4603,7 @@
                     >{key}</button>
                   {/each}
                 </div>
+                {/each}
                 {#if selectedKeys.size > 1}
                   <p class="text-xs text-sr-faint">
                     {selectedKeys.size} keys selected. One is drawn at random each time you generate.
@@ -4564,6 +4681,8 @@
                 <p class="text-xs text-sr-faint">
                   {#if !progressions}
                     A chord for every note, wherever the line goes.
+                  {:else if minorInPool && !majorInPool}
+                    The line follows a repeating minor progression, i iv v i, i VI VII i and the like{minorSharpDegrees.has(7) ? ", with a phrase over V that sings the raised leading tone" : ""}.
                   {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
                     A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
                   {:else}
@@ -4682,9 +4801,12 @@
         <!-- Notes Tab -->
         {:else if selectedTab === 'notes'}
           <div class="space-y-5">
-            <!-- Scale Degrees -->
+            <!-- Scale Degrees: the major selector while a major key is in the pool,
+                 the minor one beside it while a minor key is. -->
+            <div class="flex flex-wrap gap-x-10 gap-y-5">
+            {#if majorInPool}
             <div class="space-y-2">
-              <p class="sr-label">Scale Degrees</p>
+              <p class="sr-label">Scale Degrees{minorInPool ? " (major)" : ""}</p>
               <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
                 {#each sharpScaleDegrees as degree}
                   <button
@@ -4713,6 +4835,55 @@
                   >{degree.display}</button>
                 {/each}
               </div>
+            </div>
+            {/if}
+            {#if minorInPool}
+            <!-- A minor key's degrees, from its own tonic (minor-degrees.ts):
+                 the natural minor row, raised notes over it (♯6 and ♯7 make
+                 melodic and harmonic minor), lowered under it. -->
+            <div class="space-y-2">
+              <p class="sr-label">Scale Degrees (minor)</p>
+              <div class="grid grid-cols-[repeat(7,2.6rem)] sm:grid-cols-[repeat(7,3rem)] gap-1.5 sm:gap-2 w-max" role="group" aria-label="Minor scale degrees">
+                {#each MINOR_DEGREES as d}
+                  {#if MINOR_SHARPS.includes(d)}
+                    <button
+                      class="sr-tok px-0 flex flex-col items-center leading-tight {minorSharpDegrees.has(d) ? 'sr-on' : ''} {d >= 6 ? 'ring-1 ring-sr-action/40' : ''}"
+                      style="grid-column: {d}; grid-row: 1"
+                      aria-pressed={minorSharpDegrees.has(d)}
+                      on:click={() => (minorSharpDegrees = toggleIn(minorSharpDegrees, d))}
+                    >♯{d}<span class="text-[10px] opacity-70">{minorLabel(d, "sharp", minorSolfege)}</span></button>
+                  {/if}
+                  <button
+                    class="sr-tok px-0 flex flex-col items-center leading-tight {minorScaleDegrees.has(d) ? 'sr-on' : ''}"
+                    style="grid-column: {d}; grid-row: 2"
+                    aria-pressed={minorScaleDegrees.has(d)}
+                    on:click={() => (minorScaleDegrees = toggleIn(minorScaleDegrees, d))}
+                  >{d}<span class="text-[10px] opacity-70">{minorLabel(d, null, minorSolfege)}</span></button>
+                  {#if MINOR_FLATS.includes(d)}
+                    <button
+                      class="sr-tok px-0 flex flex-col items-center leading-tight {minorFlatDegrees.has(d) ? 'sr-on' : ''}"
+                      style="grid-column: {d}; grid-row: 3"
+                      aria-pressed={minorFlatDegrees.has(d)}
+                      on:click={() => (minorFlatDegrees = toggleIn(minorFlatDegrees, d))}
+                    >♭{d}<span class="text-[10px] opacity-70">{minorLabel(d, "flat", minorSolfege)}</span></button>
+                  {/if}
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">{minorScaleName(minorSharpDegrees, minorSolfege)}. Raise 7 for harmonic minor, 6 and 7 for melodic.</p>
+              <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Minor solfège">
+                <span class="text-xs text-sr-faint">Sing minor</span>
+                <button class="sr-tok {minorSolfege === 'la' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'la'}
+                  on:click={() => handleMinorSolfege("la")}>La-based</button>
+                <button class="sr-tok {minorSolfege === 'do' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'do'}
+                  on:click={() => handleMinorSolfege("do")}>Do-based</button>
+              </div>
+              <p class="text-xs text-sr-faint">
+                {minorSolfege === "la"
+                  ? "The tonic is la: la ti do re mi fa so, the relative major's syllables."
+                  : "The tonic is do: do re me fa so le te."}
+              </p>
+            </div>
+            {/if}
             </div>
 
             <!-- Skips: the largest skip by note value, and the exact-skips panel
@@ -4828,7 +4999,7 @@
                         <button type="button"
                           class="sr-tok px-3 py-1.5 text-[13px] {skips.patterns.includes(chip.id) ? 'sr-on' : ''}"
                           aria-pressed={skips.patterns.includes(chip.id)}
-                          on:click={() => (skips = togglePattern(skips, chip.id))}>{chip.label}</button>
+                          on:click={() => (skips = togglePattern(skips, chip.id))}>{chipLabel(chip.label)}</button>
                       {/each}
                     </div>
 
@@ -4838,9 +5009,9 @@
                       <div class="flex flex-wrap items-center gap-2">
                         {#each skips.extraSkips as move, k}
                           <span class="inline-flex items-center gap-1 rounded-full bg-sr-sky text-sr-sky-ink pl-3 pr-1 py-1 text-[13px] font-bold">
-                            {DEGREE_NAMES[move.from - 1]} {DIR_ARROWS[move.dir]} {DEGREE_NAMES[move.to - 1]}
+                            {degreeNames[move.from - 1]} {DIR_ARROWS[move.dir]} {degreeNames[move.to - 1]}
                             <button type="button" class="rounded-full p-1 hover:bg-sr-panel"
-                              aria-label="Remove {DEGREE_NAMES[move.from - 1]} {skipDirChoices.find((c) => c.dir === move.dir)?.label} to {DEGREE_NAMES[move.to - 1]}"
+                              aria-label="Remove {degreeNames[move.from - 1]} {skipDirChoices.find((c) => c.dir === move.dir)?.label} to {degreeNames[move.to - 1]}"
                               on:click={() => (skips = { ...skips, extraSkips: skips.extraSkips.filter((_, j) => j !== k) })}><X size={13} /></button>
                           </span>
                         {/each}
@@ -4854,7 +5025,7 @@
                         <div class="space-y-1">
                           <p class="text-[11px] font-bold text-sr-muted">From</p>
                           <div class="grid grid-cols-[repeat(7,minmax(0,2.25rem))] gap-1" role="group" aria-label="From">
-                            {#each DEGREE_NAMES as name, k}
+                            {#each degreeNames as name, k}
                               <button type="button" class="sr-tok min-w-0 w-full px-0 py-1.5 text-[13px] {pickFrom === k + 1 ? 'sr-on' : ''}"
                                 aria-pressed={pickFrom === k + 1}
                                 on:click={() => (pickFrom = k + 1)}>{name}</button>
@@ -4874,7 +5045,7 @@
                         <div class="space-y-1">
                           <p class="text-[11px] font-bold text-sr-muted">To</p>
                           <div class="grid grid-cols-[repeat(7,minmax(0,2.25rem))] gap-1" role="group" aria-label="To">
-                            {#each DEGREE_NAMES as name, k}
+                            {#each degreeNames as name, k}
                               <button type="button" class="sr-tok min-w-0 w-full px-0 py-1.5 text-[13px] {pickTo === k + 1 ? 'sr-on' : ''}"
                                 aria-pressed={pickTo === k + 1} disabled={pickFrom === k + 1}
                                 on:click={() => (pickTo = k + 1)}>{name}</button>
