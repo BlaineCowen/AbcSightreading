@@ -97,6 +97,12 @@
   export let onBpmCommit: ((bpm: number) => void) | null = null;
   /** Omit to leave Generate out of the bar entirely. */
   export let onGenerate: (() => void) | null = null;
+  /**
+   * The page's own New exercise is on screen (its settings row): the bar's
+   * Generate steps aside so there is one at a time, and comes back once the
+   * row scrolls away.
+   */
+  export let hideGenerate = false;
   export let isGenerating: boolean = false;
   /**
    * True from a Play press until the sound starts: the first Play fetches the
@@ -286,7 +292,7 @@
   <div class="flex items-center gap-1.5 min-[380px]:gap-2 sm:gap-3 xl:gap-4 flex-nowrap xl:flex-wrap px-3 py-2 xl:p-0 xl:py-2
               {fullscreen ? 'justify-center flex-wrap gap-y-2 xl:order-last' : 'xl:order-last xl:ml-auto'}">
     <div class="flex gap-1.5 min-[380px]:gap-2 items-center">
-      {#if onGenerate}
+      {#if onGenerate && !(hideGenerate && !fullscreen)}
         <button
           class="flex items-center justify-center gap-1.5 shrink-0 sr-btn sr-btn-go font-bold px-3 sm:px-4 h-11 xl:h-8 text-sm disabled:opacity-50"
           on:click={onGenerate}
@@ -355,8 +361,9 @@
       ><Repeat size={18} /></button>
 
       {#if onToggleFullscreen && !fullscreen}
+        <!-- Not on a phone's row, which it pushed past the edge: it is in More controls there. -->
         <button
-          class="flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {fullscreen
+          class="max-sm:hidden flex items-center justify-center rounded-full h-11 w-11 xl:h-8 xl:w-8 {fullscreen
             ? 'bg-sr-peach text-sr-peach-ink'
             : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
           on:click={onToggleFullscreen}
@@ -462,7 +469,7 @@
           value={bpm}
           on:input={handleBpmInput}
           on:change={handleBpmCommit}
-          class="flex-1 accent-sr-bar-on"
+          class="flex-1 h-10 accent-sr-bar-on"
           aria-label="Tempo"
         />
       </div>
@@ -474,6 +481,14 @@
         on:click={onToggleLoop}
         aria-pressed={looping}
       ><Repeat size={14} /> Loop</button>
+
+      {#if onToggleFullscreen && !fullscreen}
+        <button
+          class="sm:hidden flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold bg-sr-bar-btn hover:bg-sr-bar-btn-hi"
+          on:click={onToggleFullscreen}
+          aria-label="Full screen"
+        ><Maximize size={14} /> Full screen</button>
+      {/if}
 
       <slot name="extra" />
 

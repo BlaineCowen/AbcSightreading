@@ -4141,13 +4141,26 @@
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | "drill" | null = null;
   let popLeft = 0;
+  let setbarInView = false;
   let setbarEl: HTMLElement;
   let toolsEl: HTMLElement;
   let showMinorKeys = false;
   const POP_WIDTH = 420;
-  function closePops() {
+  /** The button that opened the popover, for focus to return to. */
+  let popOpener: HTMLElement | null = null;
+  function closePops(returnFocus = true) {
+    const opener = popOpener;
     settingPop = null;
     toolPop = null;
+    popOpener = null;
+    if (returnFocus) opener?.focus({ preventScroll: true });
+  }
+  /** Focus moves into a popover as it opens: its chosen chip, else its first control. */
+  async function focusPop() {
+    await tick();
+    const pop = document.querySelector<HTMLElement>(".set-pop");
+    const target = pop?.querySelector<HTMLElement>(".sr-on, [aria-pressed='true']") ?? pop?.querySelector<HTMLElement>("button, input, select");
+    target?.focus({ preventScroll: true });
   }
   function togglePop(which: SettingPop, e: MouseEvent) {
     toolPop = null;
@@ -4156,24 +4169,34 @@
     const room = setbarEl?.clientWidth ?? POP_WIDTH;
     popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
     settingPop = which;
+    popOpener = pill;
+    void focusPop();
   }
   function toggleTool(which: "display" | "drill") {
     settingPop = null;
     toolPop = toolPop === which ? null : which;
+    popOpener = toolPop ? (document.activeElement as HTMLElement | null) : null;
+    if (toolPop) void focusPop();
   }
   onMount(() => {
     // Checked on pointerdown, before a chip's click redraws the popover.
     const outside = (e: PointerEvent) => {
       const t = e.target as Node;
-      if (settingPop && setbarEl && !setbarEl.contains(t)) settingPop = null;
-      if (toolPop && toolsEl && !toolsEl.contains(t)) toolPop = null;
+      if (settingPop && setbarEl && !setbarEl.contains(t)) { settingPop = null; popOpener = null; }
+      if (toolPop && toolsEl && !toolsEl.contains(t)) { toolPop = null; popOpener = null; }
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && (settingPop || toolPop)) closePops();
     };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", esc);
+    // While the settings row (and its New exercise) is on screen, the bar's
+    // Generate steps aside; it comes back once the row scrolls away.
+    // On screen means most of it: a sliver at the top edge is not a button to press.
+    const seen = new IntersectionObserver(([e]) => (setbarInView = e.intersectionRatio >= 0.6), { threshold: [0, 0.6, 1] });
+    if (setbarEl) seen.observe(setbarEl);
     return () => {
+      seen.disconnect();
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("keydown", esc);
     };
@@ -4191,7 +4214,7 @@
       const base = degs.length === 7 ? "all 7" : degs.map((d) => names[d - 1]).join(" ");
       return chroma ? `${base} +${chroma}` : base;
     })(),
-    rhythm: `${selectedRhythms.length} selected`,
+    rhythm: `${selectedRhythms.length} ${selectedRhythms.length === 1 ? "rhythm" : "rhythms"}`,
   };
 
   let takePlayer: TakePlayer | null = null;
@@ -4676,16 +4699,23 @@
          phone. New exercise sits at the end of the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
       <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
+        <!-- The big switch, first: a sung line, or rhythm alone. -->
+        <div class="set-mode" role="group" aria-label="Mode">
+          <button class:on={!rhythmOnly} aria-pressed={!rhythmOnly} on:click={() => { rhythmOnly = false; closePops(false); }}>Pitched</button>
+          <button class:on={rhythmOnly} aria-pressed={rhythmOnly} on:click={() => { rhythmOnly = true; closePops(false); }}>Rhythm only</button>
+        </div>
         {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}><span class="set-pill-k">Key</span>{pillText.key}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {/if}
         <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}><span class="set-pill-k">Notes</span>{pillText.notes}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {/if}
-        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}><span class="set-pill-k">Rhythms</span>{pillText.rhythm}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{rhythmOnly ? "Rhythm only · More" : "More"}</button>
+        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        {#if !rhythmOnly}
+          <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More</button>
+        {/if}
       </div>
       <button class="sr-btn setbar-new flex items-center gap-1.5" on:click={handleClick} disabled={isLoading}>
         <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
@@ -4693,7 +4723,7 @@
       </button>
 
       {#if settingPop}
-        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={closePops}></button>
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
         <div
           class="set-pop {settingPop === 'notes' || settingPop === 'rhythm' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
@@ -5183,19 +5213,6 @@
           </div>
           {:else if settingPop === 'more'}
             <div class="space-y-4">
-            <div class="space-y-2 ">
-              <p class="sr-label">Mode</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
-                <button
-                  class="sr-tok {!rhythmOnly ? 'sr-on' : ''}"
-                  on:click={() => (rhythmOnly = false)}
-                >Pitched</button>
-                <button
-                  class="sr-tok {rhythmOnly ? 'sr-on' : ''}"
-                  on:click={() => (rhythmOnly = true)}
-                >Rhythm only</button>
-              </div>
-            </div>
 {#if !rhythmOnly}
               <div class="space-y-2">
                 <p class="sr-label">Clef</p>
@@ -5232,8 +5249,8 @@
             </div>
           {/if}
           <div class="set-pop-foot">
-            <button class="sr-tok" on:click={closePops}>Done</button>
-            <button class="sr-btn flex items-center gap-1.5" on:click={() => { closePops(); handleClick(); }} disabled={isLoading}>
+            <button class="sr-tok" on:click={() => closePops()}>Done</button>
+            <button class="sr-btn flex items-center gap-1.5" on:click={() => { closePops(false); handleClick(); }} disabled={isLoading}>
               <RefreshCw size={16} />
               <span>New exercise</span>
             </button>
@@ -5282,7 +5299,7 @@
         </button>
 
         {#if toolPop}
-          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={closePops}></button>
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
           <div class="set-pop set-pop-tools no-print" role="dialog" aria-label={toolPop === 'display' ? 'Display' : 'Drill'}>
             {#if toolPop === 'display'}
               <p class="set-pop-title">Display</p>
@@ -5679,7 +5696,7 @@
               </div>
             {/if}
             <div class="set-pop-foot">
-              <button class="sr-tok" on:click={closePops}>Done</button>
+              <button class="sr-tok" on:click={() => closePops()}>Done</button>
             </div>
           </div>
         {/if}
@@ -5729,6 +5746,7 @@
        compiled in this component's scope, so every handler below still binds
        directly to local state. -->
   <PlaybackBar
+    hideGenerate={setbarInView}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}
@@ -5842,6 +5860,22 @@
   .set-pill[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
   .set-pill-k { font-size: 12px; font-weight: 600; opacity: 0.7; }
   :global(.set-pill-chev) { opacity: 0.7; }
+  .set-mode {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--sr-track);
+    margin-right: 0.25rem;
+  }
+  .set-mode button {
+    min-height: 2.25rem;
+    padding: 0 0.9rem;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--sr-ink-2);
+  }
+  .set-mode button.on { background: var(--sr-action); color: var(--sr-action-ink); }
   .set-pill-more { background: transparent; color: var(--sr-action-fg); padding-inline: 0.6rem; }
   .set-pill-more[aria-expanded="true"] { background: var(--sr-tint); color: var(--sr-action-fg); }
   .setbar-new { margin-left: auto; min-height: 2.75rem; }

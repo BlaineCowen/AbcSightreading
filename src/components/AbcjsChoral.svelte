@@ -1384,12 +1384,25 @@
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | null = null;
   let popLeft = 0;
+  let setbarInView = false;
   let setbarEl: HTMLElement;
   let toolsEl: HTMLElement;
   const POP_WIDTH = 420;
-  function closePops() {
+  /** The button that opened the popover, for focus to return to. */
+  let popOpener: HTMLElement | null = null;
+  function closePops(returnFocus = true) {
+    const opener = popOpener;
     settingPop = null;
     toolPop = null;
+    popOpener = null;
+    if (returnFocus) opener?.focus({ preventScroll: true });
+  }
+  /** Focus moves into a popover as it opens: its chosen chip, else its first control. */
+  async function focusPop() {
+    await tick();
+    const pop = document.querySelector<HTMLElement>(".set-pop");
+    const target = pop?.querySelector<HTMLElement>(".sr-on, [aria-pressed='true']") ?? pop?.querySelector<HTMLElement>("button, input, select");
+    target?.focus({ preventScroll: true });
   }
   function togglePop(which: SettingPop, e: MouseEvent) {
     toolPop = null;
@@ -1398,24 +1411,34 @@
     const room = setbarEl?.clientWidth ?? POP_WIDTH;
     popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
     settingPop = which;
+    popOpener = pill;
+    void focusPop();
   }
   function toggleTool(which: "display") {
     settingPop = null;
     toolPop = toolPop === which ? null : which;
+    popOpener = toolPop ? (document.activeElement as HTMLElement | null) : null;
+    if (toolPop) void focusPop();
   }
   onMount(() => {
     // Checked on pointerdown, before a chip's click redraws the popover.
     const outside = (e: PointerEvent) => {
       const t = e.target as Node;
-      if (settingPop && setbarEl && !setbarEl.contains(t)) settingPop = null;
-      if (toolPop && toolsEl && !toolsEl.contains(t)) toolPop = null;
+      if (settingPop && setbarEl && !setbarEl.contains(t)) { settingPop = null; popOpener = null; }
+      if (toolPop && toolsEl && !toolsEl.contains(t)) { toolPop = null; popOpener = null; }
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key === "Escape" && (settingPop || toolPop)) closePops();
     };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", esc);
+    // While the settings row (and its New exercise) is on screen, the bar's
+    // Generate steps aside; it comes back once the row scrolls away.
+    // On screen means most of it: a sliver at the top edge is not a button to press.
+    const seen = new IntersectionObserver(([e]) => (setbarInView = e.intersectionRatio >= 0.6), { threshold: [0, 0.6, 1] });
+    if (setbarEl) seen.observe(setbarEl);
     return () => {
+      seen.disconnect();
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("keydown", esc);
     };
@@ -2632,7 +2655,7 @@
       </div>
 
       {#if settingPop}
-        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={closePops}></button>
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
         <div
           class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'more' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
@@ -3108,8 +3131,8 @@
           {/if}
           </div>
           <div class="set-pop-foot">
-            <button class="sr-tok" on:click={closePops}>Done</button>
-            <button class="sr-btn flex items-center gap-1.5" on:click={() => { closePops(); handleClick(); }} disabled={isGenerating}>
+            <button class="sr-tok" on:click={() => closePops()}>Done</button>
+            <button class="sr-btn flex items-center gap-1.5" on:click={() => { closePops(false); handleClick(); }} disabled={isGenerating}>
               <RefreshCw size={16} />
               <span>New exercise</span>
             </button>
@@ -3157,7 +3180,7 @@
           <Eye size={16} aria-hidden="true" />Display
         </button>
         {#if toolPop}
-          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={closePops}></button>
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
           <div class="set-pop set-pop-tools" role="dialog" aria-label="Display">
             <p class="set-pop-title">Display</p>
             <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
@@ -3288,7 +3311,7 @@
             </div>
             <p class="text-xs text-sr-faint mt-4">These change how the exercise looks and sounds. The notes stay the same.</p>
             <div class="set-pop-foot">
-              <button class="sr-tok" on:click={closePops}>Done</button>
+              <button class="sr-tok" on:click={() => closePops()}>Done</button>
             </div>
           </div>
         {/if}
@@ -3354,6 +3377,7 @@
 
   <!-- Sticky playback bar -->
   <PlaybackBar
+    hideGenerate={setbarInView}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}
