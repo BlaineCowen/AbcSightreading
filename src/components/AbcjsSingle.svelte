@@ -3885,10 +3885,12 @@
   async function sendGradeRunNow(note: string): Promise<string> {
     try {
       await sendGradeRun(gradeRunData(), gradeAudio, note);
-      return gradeAudio ? "Sent. Thank you: we'll listen to it." : "Sent (the recording could not be made). Thank you.";
+      return gradeAudio
+        ? "Reported. Thank you: we'll listen to it and use it to improve grading."
+        : "Reported (the recording could not be made). Thank you.";
     } catch (e) {
       console.error("Sending the run failed:", e);
-      return "It could not be sent. Please try again in a moment.";
+      return "It could not be reported. Please try again in a moment.";
     }
   }
 

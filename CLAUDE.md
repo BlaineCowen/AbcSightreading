@@ -709,7 +709,7 @@ run in `src/lib/grade-runner.ts`, the strip in `GradePanel.svelte`. While it
 listens the tuner store's `micHeld` keeps a Tools card from switching the
 microphone off; `pitchHistory` keeps 3 minutes, enough for a long exercise.
 
-**Send this run** (anyone with Grade but students, who may be under 13 and
+**Send this run**, labelled **Report error** on the page ("it helps improve the grading algorithm"; anyone with Grade but students, who may be under 13 and
 whose pages carry no feedback form): each run is recorded in the browser and
 kept there; after it, Send uploads the results, the exercise and the
 recording, with an optional note on what seemed wrong, straight from the

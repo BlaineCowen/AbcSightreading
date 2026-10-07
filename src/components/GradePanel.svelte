@@ -203,7 +203,7 @@
           <h2 id="grade-title" class="font-display text-2xl font-bold text-sr-ink">{rhythmOnly ? "Clap and grade" : "Listen and grade"}</h2>
           <p class="text-xs text-sr-muted mt-1">
             <span class="rounded-full bg-sr-butter text-sr-butter-ink px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide mr-1">Beta</span>
-            Grading is new and still being tuned, so a score can be off. Tell us with Send this run.
+            Grading is new and still being tuned, so a score can be off. If it is, press Report error: it helps improve the grading algorithm.
           </p>
         </div>
         <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={leaveSetup} aria-label={v.phase === "results" ? "Back to the results" : "Close Grade"}><X size={18} /></button>
@@ -388,7 +388,7 @@
         <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={changeSettings}>Change settings and try again</button>
         {#if onSend || onSave}
           <div class="flex justify-center gap-3">
-            {#if onSend}<button class="text-xs text-sr-action-fg font-bold" on:click={() => { resultsOpen = false; sendOpen = true; sentLine = null; }}>Graded wrong? Send this run</button>{/if}
+            {#if onSend}<button class="text-xs text-sr-action-fg font-bold" on:click={() => { resultsOpen = false; sendOpen = true; sentLine = null; }}>Report error</button>{/if}
             {#if onSave}<button class="text-xs text-sr-action-fg font-bold" on:click={onSave}>Save this run</button>{/if}
           </div>
         {/if}
@@ -406,8 +406,8 @@
     <div class="mb-2 ml-auto w-fit max-w-full bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2 text-sm">
       {#if sendOpen}
         <p class="text-xs text-sr-ink-2 max-w-sm">
-          Think this was graded wrong? Send us the run and we'll listen to it to make grading better. It sends your results,
-          the exercise and a recording of your microphone during this run, nothing else. Nothing is sent unless you press Send.
+          Graded wrong? Reporting it helps improve the grading algorithm: we listen to the run and tune grading on it. It sends
+          your results, the exercise and a recording of your microphone during this run, nothing else. Nothing is sent unless you press Report.
         </p>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-sr-muted">What seemed wrong? (optional)</span>
@@ -416,7 +416,7 @@
         </label>
         <div class="flex gap-2 justify-end">
           <button class="sr-btn-quiet text-xs" on:click={() => (sendOpen = false)}>Cancel</button>
-          <button class="sr-btn text-xs px-3 py-1.5" on:click={send} disabled={sending}>{sending ? "Sending…" : "Send"}</button>
+          <button class="sr-btn text-xs px-3 py-1.5" on:click={send} disabled={sending}>{sending ? "Reporting…" : "Report"}</button>
         </div>
       {:else}
         <p class="text-xs font-bold text-sr-ink-2" aria-live="polite">{sentLine}</p>
