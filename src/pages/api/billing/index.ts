@@ -4,13 +4,18 @@ import { prisma } from "../../../lib/server/db";
 import { billingEnabled } from "../../../lib/server/auth";
 import { complimentary, planFor } from "../../../lib/server/plan";
 import { currentGrant } from "../../../lib/server/codes";
+import { endingPlanFor } from "../../../lib/server/plan-ending";
 
 /**
  * The account's plan and the subscription behind it, for the account page.
  *
  * GET -> { plan, via, billingEnabled, subscription: { id, plan, status,
  *          periodEnd, cancelAtPeriodEnd } | null,
- *          po: { poNumber, school, invoiceUrl, dueAt, paid } | null }
+ *          po: { poNumber, school, invoiceUrl, dueAt, paid, renews } | null,
+ *          ending: { plan, endsAt, kind, quoteId? } | null }
+ *
+ * `ending` is a plan that will not renew and ends within 30 days (the banner;
+ * plan-ending.ts).
  *
  * `via` says where a paid plan comes from: "subscription", "code" (with
  * `grantEnds`), "complimentary" or "class"; null on the free plan.
@@ -31,10 +36,11 @@ export const GET: APIRoute = async ({ request }) => {
   const po = subscription?.stripeSubscriptionId
     ? await prisma.quote.findFirst({
         where: { userId: user.id, stripeSubscriptionId: subscription.stripeSubscriptionId, status: "accepted" },
-        select: { poNumber: true, school: true, invoiceUrl: true, invoiceDueAt: true, paidAt: true },
+        select: { poNumber: true, school: true, invoiceUrl: true, invoiceDueAt: true, paidAt: true, renews: true },
       })
     : null;
   const grant = await currentGrant(user.id);
+  const ending = await endingPlanFor(user.id);
   const via =
     plan === "free" ? null
     : subscription ? "subscription"
@@ -62,7 +68,9 @@ export const GET: APIRoute = async ({ request }) => {
           invoiceUrl: po.invoiceUrl,
           dueAt: po.invoiceDueAt?.getTime() ?? null,
           paid: !!po.paidAt,
+          renews: po.renews,
         }
       : null,
+    ending: ending ? { ...ending, endsAt: ending.endsAt.getTime() } : null,
   });
 };

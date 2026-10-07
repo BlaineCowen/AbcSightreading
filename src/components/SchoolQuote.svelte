@@ -22,6 +22,7 @@
     sendTo: string[];
     packs: number;
     taxExempt: boolean;
+    renews: boolean;
     amountTotal: number;
     status: "open" | "accepted" | "canceled" | "expired";
     expiresAt: number;
@@ -34,6 +35,8 @@
 
   let quotes: Quote[] = [];
   let currentPlan: "free" | "pro" | "educator" | null = null;
+  /** The current plan will not renew (one year only, renewal off, a code): it may be renewed by a new quote. */
+  let wontRenew = false;
   let open = false;
   let busy = false;
   let problem = "";
@@ -48,6 +51,8 @@
     address: { line1: "", line2: "", city: "", state: "TX", postalCode: "" },
     packs: 0,
     taxExempt: true,
+    /** One year only unless they ask for yearly renewal: many districts buy a year at a time. */
+    renews: false,
   };
   let po: Record<string, string> = {};
 
@@ -57,8 +62,13 @@
   }
   onMount(async () => {
     load();
-    currentPlan = (await billingStatus())?.plan ?? "free";
-    if (location.hash === "#quote") open = true;
+    const status = await billingStatus();
+    currentPlan = status?.plan ?? "free";
+    wontRenew = status?.subscription ? status.subscription.cancelAtPeriodEnd : status?.via === "code";
+    // ?renew=<quote id>: a renewal quote filled in from that one (the email and the banner link here).
+    const renew = new URLSearchParams(location.search).get("renew");
+    if (renew) await startRenewal(renew);
+    else if (location.hash === "#quote") open = true;
   });
 
   async function call(path: string, init: RequestInit) {
@@ -66,6 +76,21 @@
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error ?? `The server said ${res.status}.`);
     return body;
+  }
+
+  /** Fill the form from an earlier quote (the school, contact, address, plan and seats), ready to send again. */
+  async function startRenewal(id: string) {
+    problem = notice = "";
+    try {
+      const prior = await call(`/api/quotes/${id}/renewal`, { method: "GET" });
+      const sendTo = [...prior.sendTo, "", "", ""].slice(0, MAX_RECIPIENTS);
+      form = { ...form, ...prior, sendTo, address: { ...form.address, ...prior.address } };
+      open = true;
+      notice = "This renewal quote is filled in from last year's. Check it and send it to purchasing. The new year starts the day you enter its PO, so enter it when your current year ends.";
+      document.getElementById("quote")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      problem = e instanceof Error ? e.message : String(e);
+    }
   }
 
   async function sendQuote() {
@@ -113,8 +138,8 @@
   const input = "w-full rounded-[14px] border-2 border-sr-hairline bg-sr-raise text-sr-ink text-sm px-3 py-2";
   $: total = form.plan === "pro" ? 1999 : 9900 + form.packs * 2500;
   // Who can ask: Pro for anyone on the free plan, Educator (while on sale) for anyone short of it.
-  $: canPro = currentPlan === "free";
-  $: canEducator = educatorOnSale && currentPlan !== "educator";
+  $: canPro = currentPlan === "free" || (currentPlan === "pro" && wontRenew);
+  $: canEducator = educatorOnSale && (currentPlan !== "educator" || wontRenew);
   $: if (!canPro && canEducator) form.plan = "educator";
   $: shown = quotes.length > 0 || canPro || canEducator;
 </script>
@@ -160,6 +185,12 @@
         {#if q.invoiceUrl}<a class="underline font-bold text-sr-action-fg" href={q.invoiceUrl} target="_blank" rel="noopener">Invoice</a>{/if}
         {#if q.status === "open"}
           <button class="text-sr-muted underline" on:click={() => cancel(q)}>Cancel quote</button>
+        {/if}
+        {#if q.status === "accepted" && !q.renews}
+          <span class="text-sr-muted">One year only</span>
+          <button class="underline font-bold text-sr-action-fg" on:click={() => startRenewal(q.id)}>Renewal quote</button>
+        {:else if q.status === "accepted"}
+          <span class="text-sr-muted">Renews each year by invoice</span>
         {/if}
       </div>
       {#if q.status === "open"}
@@ -227,12 +258,25 @@
           </label>
         {/if}
 
+        <fieldset class="flex flex-col gap-2">
+          <legend class="text-sm font-bold text-sr-ink mb-1">Length</legend>
+          <div class="flex gap-2 flex-wrap">
+            <button type="button" class="sr-tok {!form.renews ? 'sr-on' : ''}" on:click={() => (form.renews = false)} aria-pressed={!form.renews}>One year only</button>
+            <button type="button" class="sr-tok {form.renews ? 'sr-on' : ''}" on:click={() => (form.renews = true)} aria-pressed={form.renews}>Renew each year</button>
+          </div>
+          <p class="text-xs text-sr-muted">
+            {form.renews
+              ? "The school is invoiced again each year until it cancels."
+              : "Nothing renews. A month before the year ends you get a reminder and a renewal quote ready to send."}
+          </p>
+        </fieldset>
+
         <label class="text-sm text-sr-ink-2 flex items-start gap-2">
           <input type="checkbox" class="sr-check mt-1" bind:checked={form.taxExempt} />
           <span><strong class="text-sr-ink">Tax-exempt public school or district</strong> <span class="block text-xs text-sr-muted">They send their exemption certificate with the PO (Texas: Form 01-339).</span></span>
         </label>
 
-        <p class="text-sm text-sr-ink"><strong>{dollars(total)}</strong> for one year{form.taxExempt ? ", tax-exempt" : ", any sales tax included"}. Due {INVOICE_DAYS} days after you enter the PO.</p>
+        <p class="text-sm text-sr-ink"><strong>{dollars(total)}</strong> for one year{form.renews ? ", renewing yearly" : ""}{form.taxExempt ? ", tax-exempt" : ", any sales tax included"}. Due {INVOICE_DAYS} days after you enter the PO.</p>
         <div class="flex gap-3 items-center">
           <button class="sr-btn text-sm" disabled={busy}>{busy ? "Sending…" : "Send the quote"}</button>
           <button type="button" class="text-sm font-bold text-sr-muted underline" on:click={() => (open = false)}>Not now</button>

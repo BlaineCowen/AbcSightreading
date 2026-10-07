@@ -75,8 +75,13 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
     throw new QuoteError("Confirm your email address first (the link is in your inbox), so a quote sent in your name really comes from you.", 403);
   }
   const current = await planFor(user.id);
-  if (req.plan === "pro" && current !== "free") throw new QuoteError(`You already have ${planName(current)}.`, 409);
-  if (req.plan === "educator" && current === "educator") throw new QuoteError("You already have Educator.", 409);
+  // A plan that will not renew (one year only, or renewal off) may be renewed by a new quote.
+  const renewing = await prisma.subscription.findFirst({
+    where: { referenceId: user.id, status: { in: ["active", "trialing", "past_due"] }, cancelAtPeriodEnd: false },
+    select: { id: true },
+  });
+  if (renewing && req.plan === "pro" && current !== "free") throw new QuoteError(`You already have ${planName(current)}.`, 409);
+  if (renewing && req.plan === "educator" && current === "educator") throw new QuoteError("You already have Educator.", 409);
   const open = await prisma.quote.count({ where: { userId: user.id, status: "open", expiresAt: { gt: new Date() } } });
   if (open >= MAX_OPEN) throw new QuoteError(`You have ${open} open quotes. Cancel one before asking for another.`, 409);
 
@@ -119,7 +124,10 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
     description:
       `For ${req.school}${req.district ? `, ${req.district}` : ""}. Attention: ${req.contactName}.\n` +
       `Account holder: ${user.name} (${user.email}).\n` +
-      `${planLine(req.plan, seats)} Renews yearly by invoice; cancel any time before renewal.`,
+      `${planLine(req.plan, seats)} ` +
+      (req.renews
+        ? "Renews yearly by invoice; cancel any time before renewal."
+        : "One year only: it does not renew. A renewal quote can be sent before the year ends."),
     footer:
       `Please put this quote number on the purchase order. Payment: net ${INVOICE_DAYS} by ACH, card or check through the invoice's payment link. ` +
       `If the invoice is not paid by its due date, the plan ends. ` +
@@ -142,6 +150,7 @@ export async function createSchoolQuote(user: Teacher, req: QuoteRequest) {
       sendTo: req.sendTo.join(","),
       packs: req.packs,
       taxExempt: req.taxExempt,
+      renews: req.renews,
       amountTotal: quote.amount_total,
       expiresAt: new Date((quote.expires_at ?? 0) * 1000),
     },
@@ -206,6 +215,9 @@ export async function acceptSchoolQuote(user: Teacher, quoteId: string, poNumber
     invoiceDueAt = sent.due_date ? new Date(sent.due_date * 1000) : new Date(Date.now() + INVOICE_DAYS * 86_400_000);
   }
 
+  // One year only: the subscription ends at the end of its term, and nothing is invoiced again.
+  if (!row.renews) await stripe.subscriptions.update(sub.id, { cancel_at_period_end: true });
+
   const item = sub.items.data[0];
   const periodEnd = new Date(item.current_period_end * 1000);
   await prisma.subscription.upsert({
@@ -220,6 +232,7 @@ export async function acceptSchoolQuote(user: Teacher, quoteId: string, poNumber
       periodStart: new Date(item.current_period_start * 1000),
       periodEnd,
       billingInterval: "year",
+      cancelAtPeriodEnd: !row.renews,
     },
     update: {},
   });
@@ -292,6 +305,21 @@ export async function reviewPoInvoices(now = new Date()) {
       }
       const inv = sub.latest_invoice as Stripe.Invoice | null;
       if (!inv?.id || inv.status === "draft" || inv.status === "void") continue;
+
+      // Our record of the term follows Stripe's. A renewal moves the term on,
+      // and nothing else updated it here: a school that paid its renewal
+      // would have lost the plan (and its seats) at the end of the first year.
+      const item = sub.items.data[0];
+      if (item) {
+        const periodEnd = new Date(item.current_period_end * 1000);
+        await prisma.subscription.updateMany({
+          where: { stripeSubscriptionId: sub.id },
+          data: { status: sub.status, periodStart: new Date(item.current_period_start * 1000), periodEnd, cancelAtPeriodEnd: sub.cancel_at_period_end },
+        });
+        if (row.plan === "educator" && row.packs > 0) {
+          await prisma.seatGrant.updateMany({ where: { stripeCheckoutId: `quote:${row.stripeQuoteId}` }, data: { expiresAt: periodEnd } });
+        }
+      }
 
       // A new invoice (a renewal): watch that one from the start.
       let state = { invoiceId: row.invoiceId, dueAt: row.invoiceDueAt, paidAt: row.paidAt, remindedAt: row.remindedAt };

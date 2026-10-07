@@ -2,7 +2,8 @@
   import ReferralNote from "./ReferralNote.svelte";
   import { onMount } from "svelte";
   import { authClient } from "../lib/auth-client";
-  import { billingStatus, openBillingPortal, redeemCode, startCheckout, type BillingStatus } from "../lib/billing-client";
+  import { billingStatus, openBillingPortal, redeemCode, setAutoRenew, startCheckout, type BillingStatus } from "../lib/billing-client";
+  import PlanEndingBanner from "./PlanEndingBanner.svelte";
   import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 
   const session = authClient.useSession();
@@ -99,6 +100,20 @@
     }
   }
 
+  /** Automatic renewal of a card plan on or off: off, the year runs out and the card is not charged again. */
+  let renewBusy = false;
+  async function autoRenew(on: boolean) {
+    problem = "";
+    renewBusy = true;
+    try {
+      billing = await setAutoRenew(on);
+    } catch (e) {
+      problem = e instanceof Error ? e.message : "Could not change renewal.";
+    } finally {
+      renewBusy = false;
+    }
+  }
+
   const planName = (p: string) => (p === "educator" ? "Educator" : p === "pro" ? "Pro" : "Free");
   const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 
@@ -177,6 +192,7 @@
 
     <section id="plan" class="flex flex-col gap-2">
       <h2 class="text-xs uppercase tracking-wide text-sr-faint">Plan</h2>
+      {#if !isStudent}<PlanEndingBanner />{/if}
       {#if isStudent}
         <p class="text-sm text-sr-ink-2">Your teacher's class plan. If you forget your password, ask your teacher for a new one.</p>
       {:else if !billing}
@@ -193,6 +209,9 @@
             {#if po.paid}The invoice is paid.
             {:else if po.dueAt}The invoice is due {day(po.dueAt)}; if it is still unpaid then, the plan ends.{/if}
             {#if po.invoiceUrl && !po.paid}<a class="underline" href={po.invoiceUrl} target="_blank" rel="noopener">See the invoice</a>.{/if}
+            {#if billing.subscription?.periodEnd}
+              {po.renews ? `Renews by invoice ${day(billing.subscription.periodEnd)}.` : `One year only: ends ${day(billing.subscription.periodEnd)}.`}
+            {/if}
           </p>
         {:else if billing.subscription}
           {@const sub = billing.subscription}
@@ -200,13 +219,23 @@
             {#if sub.status === "past_due"}
               The last payment did not go through. Update the card to keep the plan.
             {:else if sub.cancelAtPeriodEnd && sub.periodEnd}
-              Ends {day(sub.periodEnd)}.
+              Ends {day(sub.periodEnd)}; your card will not be charged again.
             {:else if sub.periodEnd}
               Renews {day(sub.periodEnd)}.
             {/if}
           </p>
+          {#if sub.status !== "past_due"}
+            <!-- One year, or every year: off, the plan runs to its end and nobody is charged (plan-ending.ts warns before). -->
+            <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Automatic renewal">
+              <span class="text-sm text-sr-ink-2">Automatic renewal</span>
+              <button class="sr-tok text-sm {!sub.cancelAtPeriodEnd ? 'sr-on' : ''}" aria-pressed={!sub.cancelAtPeriodEnd}
+                disabled={renewBusy || !sub.cancelAtPeriodEnd} on:click={() => autoRenew(true)}>On</button>
+              <button class="sr-tok text-sm {sub.cancelAtPeriodEnd ? 'sr-on' : ''}" aria-pressed={sub.cancelAtPeriodEnd}
+                disabled={renewBusy || sub.cancelAtPeriodEnd} on:click={() => autoRenew(false)}>Off (one year)</button>
+            </div>
+          {/if}
           <div class="flex flex-wrap gap-2">
-            <button class="sr-btn-quiet text-sm" on:click={manageBilling}>Card, receipts and cancelling</button>
+            <button class="sr-btn-quiet text-sm" on:click={manageBilling}>Card and receipts</button>
           </div>
           {#if EDUCATOR_ON_SALE && billing.plan === "pro" && accountType !== "student"}
             <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">

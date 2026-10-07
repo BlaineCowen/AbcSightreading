@@ -38,6 +38,7 @@ model User {
   seatGrants    SeatGrant[]
   usage         GenerationUsage[]
   quotes        Quote[]
+  planNotices   PlanNotice[]
   practice      PracticeTime[]
   practiceClock PracticeClock?
   grants        AccessGrant[]
@@ -277,6 +278,8 @@ model Quote {
   paidAt               DateTime?
   remindedAt           DateTime?
   lapsedAt             DateTime?
+  /// False: one year only (the plan ends at the end of the term, nothing is invoiced again). New quotes default to it.
+  renews               Boolean   @default(true)
   createdAt            DateTime  @default(now())
 
   @@index([userId])
@@ -410,4 +413,18 @@ model AffiliateSale {
 
   @@index([affiliateId])
   @@map("affiliate_sale")
+}
+
+/// A notice that a plan which will not renew is ending, sent once: `key` names
+/// the plan and the term (subscription id or grant id, and its end date) and
+/// how many days ahead (30 or 7). See src/lib/server/plan-ending.ts.
+model PlanNotice {
+  id     String   @id @default(cuid())
+  userId String
+  key    String   @unique
+  sentAt DateTime @default(now())
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("plan_notice")
 }

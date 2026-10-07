@@ -15,8 +15,21 @@ export type BillingStatus = {
   billingEnabled: boolean;
   subscription: { id: string | null; plan: string; status: string; periodEnd: number | null; cancelAtPeriodEnd: boolean } | null;
   /** A plan on a school purchase order. */
-  po?: { poNumber: string | null; school: string; invoiceUrl: string | null; dueAt: number | null; paid: boolean } | null;
+  po?: { poNumber: string | null; school: string; invoiceUrl: string | null; dueAt: number | null; paid: boolean; renews: boolean } | null;
+  /** A plan that will not renew and ends within 30 days (plan-ending.ts). */
+  ending?: { plan: "pro" | "educator"; endsAt: number; kind: "card" | "quote" | "code"; quoteId?: string } | null;
 };
+
+/** Automatic renewal of the card plan on or off; resolves to the fresh status. */
+export async function setAutoRenew(renew: boolean): Promise<BillingStatus | null> {
+  const res = await fetch("/api/billing/renewal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ renew }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error ?? "That did not work. Try again.");
+  return billingStatus(true);
+}
 
 let current: Promise<BillingStatus | null> | null = null;
 

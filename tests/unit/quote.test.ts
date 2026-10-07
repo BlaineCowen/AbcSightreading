@@ -38,6 +38,7 @@ describe("a quote request", () => {
         contactEmail: "purchasing@springfield.k12.tx.us",
         sendTo: ["purchasing@springfield.k12.tx.us"],
         address: { ...valid.address, line2: "", country: "US" },
+        renews: false,
       },
     });
   });
@@ -47,6 +48,13 @@ describe("a quote request", () => {
     const r = checkQuoteRequest(bare);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value).toMatchObject({ district: "", packs: 0, taxExempt: false });
+  });
+
+  test("one year only unless renewing each year is asked for", () => {
+    const one = checkQuoteRequest(valid);
+    if (one.ok) expect(one.value.renews).toBe(false);
+    const yearly = checkQuoteRequest({ ...valid, renews: true });
+    if (yearly.ok) expect(yearly.value.renews).toBe(true);
   });
 
   test("refuses what would make a quote the office cannot use", () => {

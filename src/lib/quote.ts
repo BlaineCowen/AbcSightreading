@@ -22,6 +22,13 @@ export type QuoteRequest = {
   address: { line1: string; line2: string; city: string; state: string; postalCode: string; country: "US" };
   packs: number;
   taxExempt: boolean;
+  /**
+   * Renew each year by invoice, or one year only (false, the default): many
+   * districts buy a year at a time, on a PO from that year's budget. A
+   * one-year plan ends at the end of its term; the teacher is told before it
+   * does (plan-ending.ts) and can send a renewal quote filled in from this one.
+   */
+  renews: boolean;
 };
 
 /** How long a quote holds. Purchasing offices are slow; sixty days is the usual. */
@@ -64,6 +71,7 @@ export function checkQuoteRequest(body: unknown): Checked<QuoteRequest> {
     },
     packs: b.packs === undefined || b.packs === null || b.packs === "" ? 0 : Number(b.packs),
     taxExempt: b.taxExempt === true,
+    renews: b.renews === true,
   };
   const texts = [value.school, value.district, value.contactName, value.address.line1, value.address.line2, value.address.city];
   if (texts.some((t) => t.length > MAX_TEXT)) return { ok: false, error: "One of those is too long." };

@@ -909,6 +909,24 @@ presets once; the server dedupes by name + creation time.
   set `CRON_SECRET`) reminds purchasing and the teacher a week before the
   invoice is due and, if it falls due unpaid, cancels the subscription, voids
   the invoice and ends the plan (`reviewPoInvoices`; renewals the same).
+- One year at a time (7 October 2026; rules `src/lib/plan-ending.ts`, tests
+  `plan-ending.test.ts`; server `src/lib/server/plan-ending.ts`). A school
+  quote is **one year only** by default (`Quote.renews`, false on new quotes;
+  "Renew each year" on the form): on the PO the subscription is set to end at
+  its term (`cancel_at_period_end`) and nothing is invoiced again. A card
+  plan has an Automatic renewal On / Off switch on /account
+  (`/api/billing/renewal`). A plan that will not renew (those, and a code's
+  months) is "ending" when nothing else carries the account on at that plan:
+  the daily cron emails the teacher 30 and 7 days before (purchasing copied
+  for a school; once each, `PlanNotice`), and `PlanEndingBanner` shows on
+  /account and both practice pages for the last 30 days with the one step
+  that renews it: turn renewal on, or a **renewal quote** filled in from
+  last year's (`/api/quotes/<id>/renewal`, `?renew=<id>` on /account; a plan
+  that will not renew may be quoted again). The new year starts when its PO
+  is entered. The same cron now keeps our record of a renewing school
+  subscription's term in step with Stripe's (it was written once, at accept,
+  so a school that paid its renewal would have lost the plan and its seats
+  after the first year).
 - Assignments and practice time (rules `src/lib/practice.ts`, tests
   `practice.test.ts`; server `src/lib/server/practice.ts`): a teacher assigns a
   class one preset (step, UIL level or saved - a saved one is copied in) for N

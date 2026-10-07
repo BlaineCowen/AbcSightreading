@@ -58,6 +58,7 @@
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import PlanEndingBanner from "./PlanEndingBanner.svelte";
   import CountInBadge from "./CountInBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
@@ -4527,6 +4528,8 @@
     {/if}
     {#if assignment}<AssignmentBanner {assignment} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
+    <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
+    {#if !assignment}<PlanEndingBanner />{/if}
     {#if error}
       <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">
         <p class="text-sm text-sr-brass">{error}</p>

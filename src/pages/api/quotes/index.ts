@@ -22,6 +22,7 @@ const view = (q: Awaited<ReturnType<typeof prisma.quote.findFirstOrThrow>>) => (
   contactEmail: q.contactEmail,
   packs: q.packs,
   taxExempt: q.taxExempt,
+  renews: q.renews,
   amountTotal: q.amountTotal,
   status: q.status === "open" && q.expiresAt < new Date() ? "expired" : q.status,
   expiresAt: q.expiresAt.getTime(),
