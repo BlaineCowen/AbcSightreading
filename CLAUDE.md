@@ -784,8 +784,10 @@ dev server on another port can test Send end to end with a throwaway account
 (done 6 October 2026; delete the account and the upload after).
 
 Runs can also be saved for review: on the dev server, or with `?gradeDebug=1`,
-the microphone is recorded over each run (a second stream with the tuner's
-own settings, `grade-recording.ts`, so the detection code is untouched) and
+the microphone is recorded over each run (a second stream, `grade-recording.ts`,
+so the detection code is untouched; without the tuner's echo cancellation,
+which turned the take down on every click of Grade's beat click and left it
+cutting out on playback) and
 the results have "Save this run": the recording, and a JSON of everything
 the grading used (the ABC, tempo, meter, settings, the pitch frames with
 their times, t0, every note's result). Nothing may await between the tuner
