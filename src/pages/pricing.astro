@@ -1,11 +1,11 @@
 ---
-import { serverEnv } from "../lib/server/env";
+import { enabled as freeMonthOn } from "../lib/server/free-month";
 import Layout from "../layouts/Layout.astro";
 import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 import { PLAN_OFFERS } from "../lib/seo";
 
 // The free month of Pro (src/lib/free-month.ts), unless switched off.
-const freeMonth = serverEnv("FREE_MONTH_ENABLED") !== "0";
+const freeMonth = freeMonthOn();
 
 /**
  * The plans, in the page's own HTML so search engines and purchasing offices
@@ -92,6 +92,7 @@ import ReferralNote from "../components/ReferralNote.svelte";
             <h2 class="text-xl font-semibold text-sr-ink">
               {p.name}
               {p.soon && <span class="ml-2 align-middle rounded bg-sr-brass-bg text-sr-brass text-xs font-semibold px-2 py-0.5">Coming soon</span>}
+              {p.name === "Pro" && freeMonth && <span class="ml-2 align-middle rounded-full bg-sr-mint text-sr-mint-ink text-xs font-extrabold uppercase tracking-wide px-2 py-0.5">Limited time: free month</span>}
             </h2>
             <p class="mt-2"><span class="text-3xl font-bold text-sr-ink">{p.price}</span> <span class="text-sr-muted">{p.per}</span></p>
           </div>

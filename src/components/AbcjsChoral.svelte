@@ -12,6 +12,7 @@
   import { onMount, onDestroy, tick } from "svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
+  import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import CountInBadge from "./CountInBadge.svelte";
   import { revealNextLine, scrollToReadingPosition, systemAt, systemOf } from "../lib/scroll-to-system";
   import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
@@ -2495,7 +2496,7 @@
     {#if assignment}<AssignmentBanner {assignment} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
-    {#if !assignment}<PlanEndingBanner />{/if}
+    {#if !assignment}<PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
     {#if generationError}
       <div
         class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"

@@ -29,7 +29,23 @@ function browserOf(request: Request, sentId?: unknown) {
   return { cookie: cookie || null, id };
 }
 
-export const enabled = () => serverEnv("FREE_MONTH_ENABLED") !== "0";
+/**
+ * The offer is on unless FREE_MONTH_ENABLED=0, and until FREE_MONTH_UNTIL
+ * (an ISO date, e.g. 2026-12-31) if that is set: "for a limited time" ends
+ * by itself on the day.
+ */
+export function enabled(now = new Date()) {
+  if (serverEnv("FREE_MONTH_ENABLED") === "0") return false;
+  const until = serverEnv("FREE_MONTH_UNTIL");
+  if (until && !Number.isNaN(Date.parse(until)) && now.getTime() > Date.parse(until) + 86_400_000) return false;
+  return true;
+}
+
+/** The last day of the offer, when one is set (for "until December 31"). */
+export const offerUntil = () => {
+  const until = serverEnv("FREE_MONTH_UNTIL");
+  return until && !Number.isNaN(Date.parse(until)) ? Date.parse(until) : null;
+};
 
 async function check(userId: string, request: Request, clientAddress?: string, browserId?: unknown) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true, accountType: true } });

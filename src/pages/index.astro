@@ -6,6 +6,7 @@ import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 // abcjs once and saved, so the home page shows the product without loading
 // the generator or spending a visitor's free exercises.
 import heroExercise from "../assets/hero-exercise.svg?raw";
+import FreeMonthPromo from "../components/FreeMonthPromo.svelte";
 
 /**
  * The landing page.
@@ -109,6 +110,9 @@ const jsonLd = [
   jsonLd={jsonLd}
 >
   <div class="w-full max-w-5xl mx-auto px-2 md:px-4">
+    <!-- The free month of Pro, while it is on offer (drawn in the browser: it
+         asks whether this visitor can claim it). -->
+    <div class="pt-2"><FreeMonthPromo client:only="svelte" variant="strip" /></div>
     <!-- Hero: the pitch on the left, a real exercise on the right that counts
          itself in and plays through (a cursor sweep, CSS only). Stacked on a
          phone, the exercise under the buttons. -->

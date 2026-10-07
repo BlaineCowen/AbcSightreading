@@ -2,6 +2,7 @@
 <script lang="ts">
   import { authClient } from "../lib/auth-client";
   import { safeNext } from "../lib/safe-next";
+  import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import { normalizeJoinCode, isJoinCode } from "../lib/join-code";
   import { studentLoginName } from "../lib/roster";
 
@@ -145,6 +146,7 @@
       </label>
     {/if}
     {#if mode === "signup"}
+      <FreeMonthPromo variant="signup" />
       <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
         Name <span class="text-sr-faint text-xs">(optional)</span>
         <input class={input} type="text" bind:value={name} autocomplete="name" maxlength="80" />

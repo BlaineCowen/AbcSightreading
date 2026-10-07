@@ -942,6 +942,12 @@ presets once; the server dedupes by name + creation time.
   from `x-vercel-forwarded-for`, hashed). Better Auth's own sign-up rate limit
   sits in front of all of it. `FREE_MONTH_ENABLED=0` switches the offer off.
   Checked end to end on a local server and database (14 checks, 8 October).
+  Promoted while on (`FreeMonthPromo.svelte`, which asks /api/free-month and
+  shows nothing to someone who cannot claim it): a "Limited time" strip atop
+  the home page, a line on the sign-up form, a dismissible note on both
+  practice pages for signed-in accounts that can claim it, and a badge on
+  /pricing's Pro card. `FREE_MONTH_UNTIL` (an ISO date) ends the offer by
+  itself after that day, and the note then says "until <date>".
 - Assignments and practice time (rules `src/lib/practice.ts`, tests
   `practice.test.ts`; server `src/lib/server/practice.ts`): a teacher assigns a
   class one preset (step, UIL level or saved - a saved one is copied in) for N

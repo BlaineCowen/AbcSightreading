@@ -1,18 +1,20 @@
 import type { APIRoute } from "astro";
 import { currentUser, json } from "../../../lib/server/api";
-import { BROWSER_COOKIE, FreeMonthError, claimFreeMonth, freeMonthStatus } from "../../../lib/server/free-month";
+import { BROWSER_COOKIE, FreeMonthError, claimFreeMonth, enabled, freeMonthStatus, offerUntil } from "../../../lib/server/free-month";
 
 /**
  * The free month of Pro (src/lib/free-month.ts).
- *   GET  -> { ok: true } | { ok: false, reason, quiet? }   whether this account may claim it
+ *   GET  -> { ok: true } | { ok: false, reason, quiet? }   whether this account may claim it,
+ *           with { offer: on/off, until, signedIn } for the promotions (FreeMonthPromo)
  *   POST { browserId } -> { plan, expiresAt }               claim it (checked again here)
  * The browser is marked with a long-lived cookie when it claims, so a second
  * account in the same browser is refused.
  */
 export const GET: APIRoute = async ({ request, clientAddress }) => {
   const user = await currentUser(request);
-  if (!user) return json({ ok: false, reason: "Create a free account first.", quiet: true });
-  return json(await freeMonthStatus(user.id, request, clientAddress));
+  const offer = { offer: enabled(), until: offerUntil() };
+  if (!user) return json({ ok: false, reason: "Create a free account first.", quiet: true, signedIn: false, ...offer });
+  return json({ ...(await freeMonthStatus(user.id, request, clientAddress)), signedIn: true, ...offer });
 };
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
