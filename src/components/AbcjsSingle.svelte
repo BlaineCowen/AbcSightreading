@@ -4644,7 +4644,7 @@
     {/if}
 
     <!-- Once there is an exercise the settings fold into one line (settingsOpen). -->
-    {#if originalTuneString && !settingsOpen}
+    {#if !settingsOpen}
     <section class="sr-panel w-full my-4 no-print settings-summary" aria-label="Exercise settings">
       <ul class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-sm font-bold text-sr-ink">
         {#each settingsSummary as fact, i}
@@ -4705,9 +4705,14 @@
           {/if}
         </button>
 
-        {#if originalTuneString}
-          <button class="sr-tok mr-2 my-1.5 shrink-0" on:click={() => (settingsOpen = false)}>Done</button>
-        {/if}
+        <button
+          class="sr-tok mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
+          aria-expanded="true"
+          on:click={() => (settingsOpen = false)}
+        >
+          <SlidersHorizontal size={16} />
+          <span>Close settings</span>
+        </button>
         <!-- Generate button always visible in tab bar -->
         <button
           class="sr-btn md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
