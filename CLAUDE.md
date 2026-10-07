@@ -702,6 +702,13 @@ subdivided when it does; it kept a click of its own, on every beat, until
   moving on in time and counting pitch sung ahead toward the next note -
   and a singer following the cursor in time had short notes marked missed
   and attempts counted against the wrong notes (Blaine's saved run).
+The key's reference (do mi so mi do, so below, do, then the first note) plays
+on the grand piano the exercise plays on (`playPiano` in tools/tone.ts, the
+/api/soundfont samples, fetched as the run starts and waited on for at most
+`PIANO_WAIT_MS`), at 0.8 of the exercise's beat, held 0.3 to 0.6 s (8 October
+2026; it was a soft tone at the exercise's own beat). A new exercise closes
+Grade's strip and its marks.
+
 - **Pitch & rhythm** (`gradeMode: "performance"`): a reference, then the
   exercise runs in time on the page's own TimingCallbacks with no synth (the
   melody never sounds): its count-in, the chosen cursor (off, smooth, beat,

@@ -3,7 +3,7 @@ import { tuner } from "./tuner/store";
 import { pitchHistory } from "./tuner/pitch-history";
 import { NOTES } from "./tuner/pitch";
 import type { HistoryPoint } from "./tuner/pitch-history";
-import { playNotes } from "./tools/tone";
+import { playPiano, preloadPiano } from "./tools/tone";
 import { detectBursts, detectClaps, markVoiced, withoutClickEcho, type Clap, type ClapBlock } from "./clap-detect";
 import type { ClapListener } from "./clap-listener";
 import { gradeClaps, type ClapResult, type ClapWho } from "./grade-rhythm";
@@ -42,6 +42,9 @@ import {
  * What it draws on the page - the cursor, the count-in words, the click - it
  * asks the page for through `hooks`, so it knows nothing of the score.
  */
+/** How long the key's reference waits for the piano samples before it starts anyway. */
+const PIANO_WAIT_MS = 1500;
+
 export type GradePhase = "idle" | "reference" | "countIn" | "sing" | "results";
 export type Reference = "note" | "triad";
 export type HelpKind = "note" | "tonic" | "triad";
@@ -230,35 +233,44 @@ export class GradeRunner {
     const a4 = tuner.get().a4;
 
     // The reference: the first note, or the tonic chord broken then held.
-    let refMs: number;
     if (o.reference === "note") {
       const first = this.notes[0].midi;
       tuner.setPlaying({ name: nameOf(first), octave: octaveOf(first) });
       this.later(1400, () => tuner.setPlaying(null));
-      refMs = 1900;
-    } else {
-      // The key, as a choir director gives it: do mi so mi do, so below, do,
-      // a note a beat at the exercise's tempo (held between 0.35 and 0.75 s);
-      // then a beat's rest, and the starting note.
-      const beat = Math.min(0.75, Math.max(0.35, 60 / Math.max(1, o.bpm)));
-      const [doNote, mi, so] = this.tonicTriad;
-      const pattern = [doNote, mi, so, mi, doNote, so - 12, doNote];
-      pattern.forEach((m, k) => this.later(k * beat * 1000, () => playNotes([m], Math.max(0.4, beat * 0.95), a4, 0.45)));
-      const firstAt = (pattern.length + 1) * beat;
-      const first = this.notes[0].midi;
-      this.later(firstAt * 1000, () => playNotes([first], Math.max(0.6, 2 * beat), a4, 0.45));
-      refMs = (firstAt + 2 * beat) * 1000 + 300;
-    }
-
-    // Then a count-in at the exercise's tempo.
-    const beatMs = 60_000 / Math.max(1, this.bpm);
-    if (this.mode === "performance") {
-      this.later(refMs, () => this.perform(o.cursor ?? "smooth", o.click ?? "beat"));
+      this.afterReference(1900, o);
       return;
     }
-    // Pitch only is untimed: no count-in, the first note straight away.
-    void beatMs;
-    this.later(refMs, () => this.sing());
+    // The key, as a choir director gives it, on the piano: do mi so mi do, so
+    // below, do, a note a beat at a little faster than the exercise's tempo
+    // (held between 0.3 and 0.6 s; it was the exercise's own beat, 0.35 to
+    // 0.75, on a soft tone - Blaine, 8 October 2026), then a beat's rest and
+    // the starting note. The piano is fetched first, waiting at most
+    // PIANO_WAIT_MS, so the first notes are not the tone and the rest piano.
+    const beat = Math.min(0.6, Math.max(0.3, (0.8 * 60) / Math.max(1, o.bpm)));
+    const [doNote, mi, so] = this.tonicTriad;
+    const pattern = [doNote, mi, so, mi, doNote, so - 12, doNote];
+    const first = this.notes[0].midi;
+    const firstAt = (pattern.length + 1) * beat;
+    let begun = false;
+    const begin = () => {
+      if (begun) return;
+      begun = true;
+      pattern.forEach((m, k) => this.later(k * beat * 1000, () => playPiano([m], Math.max(0.35, beat * 0.95), a4, 0.5)));
+      this.later(firstAt * 1000, () => playPiano([first], Math.max(0.6, 2 * beat), a4, 0.5));
+      this.afterReference((firstAt + 2 * beat) * 1000 + 300, o);
+    };
+    const run = this.runId;
+    void preloadPiano([...pattern, first]).then(() => this.runId === run && begin());
+    this.later(PIANO_WAIT_MS, begin);
+  }
+
+  /** After the reference: Pitch & rhythm's count-in, or Pitch only's first note (untimed). */
+  private afterReference(ms: number, o: { cursor?: "off" | "smooth" | "beat" | "note"; click?: "off" | "beat" | "sub" }) {
+    if (this.mode === "performance") {
+      this.later(ms, () => this.perform(o.cursor ?? "smooth", o.click ?? "beat"));
+      return;
+    }
+    this.later(ms, () => this.sing());
   }
 
   /**
@@ -518,7 +530,7 @@ export class GradeRunner {
       this.helpUntil = now + 1400;
       this.help = { ...this.help, heardKey: true };
     } else {
-      playNotes(this.tonicTriad, 1.4, a4, 0.45);
+      playPiano(this.tonicTriad, 1.4, a4, 0.5);
       this.helpUntil = now + 1700;
       this.help = { ...this.help, heardKey: true };
     }

@@ -2895,6 +2895,8 @@
         currentScore = (result.data[2] as UnisonScore) ?? null;
         writtenSyllableSystem = syllableSystemId;
         writtenLyricSystem = lyricSystem;
+        // Grade's strip and its marks were about the last exercise: put them away.
+        if (gradeOpen) closeGrade();
         // A new exercise is not the one a link opened: the URL stops pointing at it.
         useExerciseScore(currentScore);
         exerciseHash = "";
