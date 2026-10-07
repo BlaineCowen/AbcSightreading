@@ -846,6 +846,19 @@
           if (Array.isArray(options.landOn) && ALL_LAND_ON.every((l) => options.landOn.includes(l))) options.landOn = [...PAGE_DEFAULT_LAND_ON];
           localStorage.setItem("abc-skip-land-v2", "1");
         }
+        // Once (7 October 2026): a page left on a ladder step's settings kept
+        // eighth pairs on one pitch, and sometimes a set of notes without do
+        // (no tonic, so no progression and no guitar in the video). The page
+        // goes back to eighths moving and gets do; saved presets are untouched.
+        if (!localStorage.getItem("abc-page-defaults-v3")) {
+          options.eighthPairsOnePitch = false;
+          delete options.moveEighthNotes;
+          delete options.maxEighthSkip;
+          if (Array.isArray(options.selectedScaleDegrees) && !options.selectedScaleDegrees.includes(1)) {
+            options.selectedScaleDegrees = [1, ...options.selectedScaleDegrees];
+          }
+          localStorage.setItem("abc-page-defaults-v3", "1");
+        }
         return stateFromOptions(options);
       } catch (e) {
         console.error("Error loading saved options:", e);

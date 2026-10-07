@@ -235,7 +235,10 @@ of every value moved to it once (`abc-skip-land-v2`). The library default
 (`DEFAULT_SKIP_SETTINGS`, the generator's snapshots) is still every value,
 and ladder steps and NYSSMA levels set their own. `bun run
 scripts/check-eighth-steps.ts`: 2,160 exercises at the default, none
-failed, no short note skipped to or from. With eighth pairs on one pitch a ti-ti is sung on one pitch, and only inside the pair:
+failed, no short note skipped to or from. A page left on a ladder step's settings is reset once (`abc-page-defaults-v3`,
+7 October 2026): eighth pairs move again, and do is added to notes that lack
+it (no do, no progression, no guitar in the video); presets are untouched.
+With eighth pairs on one pitch a ti-ti is sung on one pitch, and only inside the pair:
 any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
