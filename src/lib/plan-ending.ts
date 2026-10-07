@@ -75,7 +75,7 @@ export function noticeEmail(e: EndingPlan, now: Date, accountUrl: string) {
     subject: e.kind === "trial" ? `Your free month of abcSightReading Pro ends ${endDate(e.endsAt)}` : `Your abcSightReading ${planName(e.plan)} plan ends ${endDate(e.endsAt)}`,
     text: [
       e.kind === "trial"
-        ? `Your free month of Pro ends on ${endDate(e.endsAt)}, in ${left} day${left === 1 ? "" : "s"}. Nothing is charged; it simply ends.`
+        ? `Your free month of Pro ends on ${endDate(e.endsAt)}, in ${left} day${left === 1 ? "" : "s"}. Nothing is charged.`
         : `Your ${what} ends on ${endDate(e.endsAt)}, in ${left} day${left === 1 ? "" : "s"}. It does not renew by itself.`,
       "",
       renewHow(e),
