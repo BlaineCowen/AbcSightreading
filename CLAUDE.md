@@ -706,7 +706,9 @@ The key's reference (do mi so mi do, so below, do, then the first note) plays
 on the grand piano the exercise plays on (`playPiano` in tools/tone.ts, the
 /api/soundfont samples, fetched as the run starts and waited on for at most
 `PIANO_WAIT_MS`), at 0.8 of the exercise's beat, held 0.3 to 0.6 s (8 October
-2026; it was a soft tone at the exercise's own beat). A new exercise closes
+2026; it was a soft tone at the exercise's own beat). The first note alone
+(the other reference) and the help buttons' note and do play on the piano
+too; every pitch of the run is fetched as it starts. A new exercise closes
 Grade's strip and its marks.
 
 - **Pitch & rhythm** (`gradeMode: "performance"`): a reference, then the

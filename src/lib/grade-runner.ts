@@ -1,7 +1,6 @@
 import { writable, type Readable } from "svelte/store";
 import { tuner } from "./tuner/store";
 import { pitchHistory } from "./tuner/pitch-history";
-import { NOTES } from "./tuner/pitch";
 import type { HistoryPoint } from "./tuner/pitch-history";
 import { playPiano, preloadPiano } from "./tools/tone";
 import { detectBursts, detectClaps, markVoiced, withoutClickEcho, type Clap, type ClapBlock } from "./clap-detect";
@@ -113,8 +112,6 @@ export type GradeHooks = {
 
 const TICK_MS = 50;
 const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null, perf: null, claps: null, tapped: 0, mode: "pitch" };
-const nameOf = (midi: number) => NOTES[((midi % 12) + 12) % 12];
-const octaveOf = (midi: number) => Math.floor(midi / 12) - 1;
 const midiOfHz = (hz: number, a4: number) => 69 + 12 * Math.log2(hz / a4);
 
 export class GradeRunner {
@@ -233,11 +230,21 @@ export class GradeRunner {
     const a4 = tuner.get().a4;
 
     // The reference: the first note, or the tonic chord broken then held.
+    // Every pitch the run may sound on the piano - the reference, and the
+    // help buttons' note and do - is fetched as it starts.
+    void preloadPiano([...this.notes.map((n) => n.midi), ...this.tonicTriad]);
     if (o.reference === "note") {
       const first = this.notes[0].midi;
-      tuner.setPlaying({ name: nameOf(first), octave: octaveOf(first) });
-      this.later(1400, () => tuner.setPlaying(null));
-      this.afterReference(1900, o);
+      let begunNote = false;
+      const beginNote = () => {
+        if (begunNote) return;
+        begunNote = true;
+        playPiano([first], 1.4, a4, 0.5);
+        this.afterReference(1900, o);
+      };
+      const runNote = this.runId;
+      void preloadPiano([first]).then(() => this.runId === runNote && beginNote());
+      this.later(PIANO_WAIT_MS, beginNote);
       return;
     }
     // The key, as a choir director gives it, on the piano: do mi so mi do, so
@@ -519,14 +526,12 @@ export class GradeRunner {
     const now = performance.now();
     if (kind === "note") {
       const m = this.notes[this.index].midi;
-      tuner.setPlaying({ name: nameOf(m), octave: octaveOf(m) });
-      this.later(1100, () => tuner.setPlaying(null));
+      playPiano([m], 1.1, a4, 0.5);
       this.helpUntil = now + 1400;
       this.help = { ...this.help, heardNote: true };
     } else if (kind === "tonic") {
       const t = this.tonicTriad[0];
-      tuner.setPlaying({ name: nameOf(t), octave: octaveOf(t) });
-      this.later(1100, () => tuner.setPlaying(null));
+      playPiano([t], 1.1, a4, 0.5);
       this.helpUntil = now + 1400;
       this.help = { ...this.help, heardKey: true };
     } else {
