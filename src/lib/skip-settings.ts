@@ -259,3 +259,24 @@ export function degreesConnected(degrees: number[], policy: SkipPolicy): boolean
 export function writeOverProgression(maxSkip: number, skips: Pick<SkipSettings, "exactOn" | "patterns" | "extraSkips">): boolean {
   return skips.exactOn ? skips.patterns.length + skips.extraSkips.length > 0 : maxSkip > 1;
 }
+
+/**
+ * The same decision from a skip rule already built (`policyFor`'s result, or a
+ * NYSSMA level's `nyssmaPolicy`), for code that holds the rule rather than the
+ * page's controls: the sweep and the NYSSMA check, which must write what the
+ * page writes. A number is a Max skip.
+ */
+export function progressionForPolicy(policy: SkipPolicy | number): boolean {
+  if (typeof policy === "number") return policy > 1;
+  return policy.kind === "custom" ? policy.moves.length > 0 : policy.maxSkip > 1;
+}
+
+/**
+ * For the checking scripts: PROGRESSIONS=1 or 0 forces it on or off, to
+ * compare; unset, each exercise decides as the page does.
+ */
+export function progressionsFromEnv(env: string | undefined, policy: SkipPolicy | number): boolean {
+  if (env === "1") return true;
+  if (env === "0") return false;
+  return progressionForPolicy(policy);
+}

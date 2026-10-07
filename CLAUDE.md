@@ -361,6 +361,15 @@ general settings in four meters, eight keys and do re mi in steps;
 (`PROGRESSIONS=1 ONLY_UNISON=1 bun run sweep`); the NYSSMA chart clean
 (`PROGRESSIONS=1 bun run check:nyssma`).
 
+The sweep and the NYSSMA check now decide progressions per exercise as the
+page does (`progressionForPolicy`, which a test holds to agree with
+`writeOverProgression`), with no setting needed; they had stayed off unless
+`PROGRESSIONS=1` after the page made them always on, so the gate swept
+exercises nobody got. `PROGRESSIONS=1` or `0` forces either way, to compare.
+As shipped, 8 October 2026: 0 failures in 12,960 Unison and NYSSMA sweep
+exercises, the NYSSMA chart clean. The ladder and course checks already
+matched (their steps carry `progressions: maxSkip > 1`).
+
 ### Minor keys (Unison)
 
 The Unison page has a second row of keys, the relative minors (Fm Cm Gm Dm
