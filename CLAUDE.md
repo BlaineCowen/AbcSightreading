@@ -677,7 +677,10 @@ score for it). Its setup opens with it (remembered in the tuner store:
 `gradeMode`, `gradeStrictness`, `gradeCursor`, `gradeClick`,
 `gradeReference`; by default Pitch & rhythm, Easy, the cursor beat by beat,
 and the key - do mi so mi do so do, the first note - before the count-in)
-and chooses:
+and chooses. The click is set each time it opens from the page's
+metronome (`openGrade`): off unless the page clicks with the music,
+subdivided when it does; it kept a click of its own, on every beat, until
+7 October 2026, so the metronome off still clicked through the run.
 
 - **Note by note** (`gradeMode: "pitch"`; was "Pitch only"): practice, not graded - the results say "Done: all 13 notes sung" (or how many were skipped), every sung note green. Untimed, note by note. A reference (the first note or the
   key: do mi so mi do, so below, do, a note a beat, a beat's rest, then the

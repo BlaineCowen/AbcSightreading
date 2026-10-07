@@ -4118,6 +4118,15 @@
   }
 
   async function openGrade() {
+    // A sung run's click follows the page's metronome: off unless the page
+    // clicks with the music, and subdivided when it does. It used to keep a
+    // click of its own, on every beat by default, so a singer with the
+    // metronome off still heard one (Blaine, 7 October 2026). The setup card
+    // can still change it for this run. Claps keep theirs (off after the
+    // count-in), since a click heard back muddies clap detection.
+    const page = $tuner;
+    const pageClicks = page.clickWithMusic && page.metronomeVolume > 0;
+    tuner.setGrade({ gradeClick: pageClicks ? (page.subdivision > 1 ? "sub" : "beat") : "off" });
     gradeOpen = true;
     if (gradeAllowed === null) {
       const who = await signedInUser();
