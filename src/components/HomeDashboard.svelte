@@ -134,13 +134,13 @@
   {#if accountType !== "student"}
     <section class="sr-panel p-5" aria-labelledby="tracks-h">
       <div class="flex items-baseline justify-between gap-3 mb-3">
-        <h2 id="tracks-h" class="text-xl font-bold text-sr-ink">My tracks</h2>
-        <a class="sr-link text-sm" href="/curriculum">Choose tracks</a>
+        <h2 id="tracks-h" class="text-xl font-bold text-sr-ink">My courses</h2>
+        <a class="sr-link text-sm" href="/curriculum">Choose courses</a>
       </div>
       {#if tracks === null}
         <p class="text-sm text-sr-muted">Loading…</p>
       {:else if cards.length === 0}
-        <p class="text-sm text-sr-muted">No tracks yet. <a class="sr-link" href="/curriculum">Choose one</a> and its steps appear in the preset menu.</p>
+        <p class="text-sm text-sr-muted">No courses yet. <a class="sr-link" href="/curriculum">Choose one</a> and its steps appear in the preset menu.</p>
       {:else}
         <ul class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(13rem,1fr))]">
           {#each cards as c (c.id)}

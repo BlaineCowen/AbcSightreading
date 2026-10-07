@@ -255,7 +255,13 @@ any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
-### Curriculum tracks
+### Curriculum tracks ("courses" on the site)
+
+On the page they are **courses** (My courses, Choose courses, Instrument
+courses, /curriculum's heading): "tracks" read as music tracks beside the
+play-along's backing tracks (8 October 2026). The code, the API
+(`/api/tracks`), the stored fields and every id keep "track"; only the words
+a teacher reads changed, so nothing saved moved.
 
 The preset menu's Levels tab lists only what the teacher subscribes to on
 `/curriculum` (`src/lib/curriculum/catalogue.ts`, its "Choose tracks" link
@@ -1063,8 +1069,8 @@ presets once; the server dedupes by name + creation time.
 and every crawler (`src/components/Landing.astro`, unchanged), and for
 someone signed in their home (`HomeDashboard.svelte`, sent `private,
 no-store`): Continue (the last exercise), Unison and Choral, Recent
-exercises, My tracks (the subscribed sets and instrument tracks, with Choose
-tracks; Tracks left the navbar for here and the footer), a student's
+exercises, My courses (the subscribed sets and instrument courses, with
+Choose courses; the navbar's Tracks left for here and the footer's Courses), a student's
 assignments, an educator's classes, and Account and settings.
 
 Recent exercises are kept on the account (`RecentExercise`, the last

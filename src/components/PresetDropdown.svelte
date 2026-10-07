@@ -477,7 +477,7 @@
 
   {#if activeTrackKey && ownVersion && !edited && onKeepVersion}
     <span class="text-xs text-sr-muted">Your version of this step ·
-      <button class="underline" on:click={() => onKeepVersion?.(false)} title="Go back to the step as the track writes it">use the track's</button>
+      <button class="underline" on:click={() => onKeepVersion?.(false)} title="Go back to the step as the course writes it">use the course's</button>
     </span>
   {/if}
 
@@ -521,11 +521,11 @@
         {#if tab === 'levels'}
           <!-- What is listed here is what the teacher subscribes to (/curriculum). -->
           <a href="/curriculum" class="flex items-center gap-2 rounded-2xl bg-sr-tint text-sr-action-fg px-3 py-2 mb-2 text-sm font-extrabold hover:brightness-95">
-            <Plus size={15} /> Choose tracks
+            <Plus size={15} /> Choose courses
             <span class="font-semibold text-xs text-sr-muted truncate">UIL, NYSSMA, band instruments and more</span>
           </a>
           {#if $trackPrefs.ready && sections.length === 0}
-            <p class="text-sm text-sr-muted px-2 py-3">Nothing subscribed yet. Choose the tracks you teach from and they will be listed here.</p>
+            <p class="text-sm text-sr-muted px-2 py-3">Nothing subscribed yet. Choose the courses you teach from and they will be listed here.</p>
           {/if}
           {#each sections as section, i (section.id)}
             <!-- The whole header row opens and shuts its section. It sticks to

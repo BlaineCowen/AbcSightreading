@@ -79,7 +79,7 @@ export async function setSubscribed(track: string, subscribed: boolean) {
   let signedIn = false;
   trackPrefs.subscribe((p) => (signedIn = p.signedIn))();
   if (signedIn) return put({ track, subscribed });
-  if (subscribed && needsPro(track)) throw new Error("Instrument tracks come with Pro.");
+  if (subscribed && needsPro(track)) throw new Error("Instrument courses come with Pro.");
   trackPrefs.update((p) => {
     const tracks = subscribed ? [...new Set([...p.tracks, track])] : p.tracks.filter((t) => t !== track);
     saveLocal(tracks);

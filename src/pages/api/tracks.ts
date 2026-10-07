@@ -18,7 +18,7 @@ import { Prisma } from "../../generated/prisma/client";
  * PUT { key, options | null }          -> the same, after keeping (or dropping) a version of a step
  */
 
-const notSignedIn = () => json({ error: "Sign in to subscribe to a track." }, 401);
+const notSignedIn = () => json({ error: "Sign in to subscribe to a course." }, 401);
 
 async function state(userId: string, canSubscribe: boolean) {
   const pref = await prisma.userPreference.findUnique({ where: { userId } });
@@ -49,10 +49,10 @@ export const PUT: APIRoute = async ({ request }) => {
   };
 
   if (body.track !== undefined) {
-    if (!isSubscribable(body.track)) return json({ error: "There is no such track." }, 400);
+    if (!isSubscribable(body.track)) return json({ error: "There is no such course." }, 400);
     const now = subscriptionsFrom(pref?.curriculumTracks);
     if (body.subscribed === false) return save(now.filter((t) => t !== body.track));
-    if (needsPro(body.track) && !pro) return json({ error: "Instrument tracks come with Pro." }, 403);
+    if (needsPro(body.track) && !pro) return json({ error: "Instrument courses come with Pro." }, 403);
     return save(now.includes(body.track) ? now : [...now, body.track]);
   }
 
