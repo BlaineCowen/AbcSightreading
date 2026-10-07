@@ -748,6 +748,9 @@
       ? new URLSearchParams(window.location.search).get(STEP_PARAM)
       : null;
 
+  /** ?nyssma=<level id>: a NYSSMA Voice level, from /curriculum. Read now, like the step. */
+  const linkedNyssmaId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("nyssma") : null;
+
   /** ?track=<step id>&part=rhythm|notes: a curriculum step, from /curriculum. Read now, like the step. */
   const linkedTrackKey = (() => {
     if (typeof window === "undefined") return null;
@@ -3803,6 +3806,8 @@
     // A curriculum step from /curriculum: the teacher's own version once their tracks load.
     const linkedTrack = !linkedStep && linkedTrackKey && stepOfKey(linkedTrackKey) ? linkedTrackKey : null;
     if (linkedTrack) applyTrackStep(linkedTrack);
+    const linkedLevel = !linkedStep && !linkedTrack && linkedNyssmaId && Object.hasOwn(nyssmaById, linkedNyssmaId) ? nyssmaById[linkedNyssmaId] : null;
+    if (linkedLevel) applyNyssmaLevel(linkedLevel);
     loadTrackPrefs()
       .then(() => { if (linkedTrack && activeTrackKey === linkedTrack && $trackPrefs.overrides[linkedTrack]) applyTrackStep(linkedTrack); })
       .catch(() => {});
@@ -3814,10 +3819,10 @@
     // A reload keeps the preset the settings came from (active-preset.ts).
     // A saved preset chosen on the Choral page's picker (preset-link.ts), read
     // before the page rewrote its address.
-    const presetId = linkedStep || linkedTrack || assignmentId || linked ? null : arrivedPresetId;
+    const presetId = linkedStep || linkedTrack || linkedLevel || assignmentId || linked ? null : arrivedPresetId;
     if (presetId) void openLinkedPreset("unison", presetId, (p) => applySavedPreset(p));
     const remembered = presetId ? null : activePresetToRestore("unison");
-    if (remembered && !linkedStep && !linkedTrack && !assignmentId && !linked) restoreActivePreset(remembered);
+    if (remembered && !linkedStep && !linkedTrack && !linkedLevel && !assignmentId && !linked) restoreActivePreset(remembered);
     presetMemoryReady = true;
     window.addEventListener("hashchange", onHashChange);
   });
@@ -4595,8 +4600,6 @@
       nyssmaLevels={nyssmaVoiceLevels}
       {activeNyssmaId}
       onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
-      tracks={$trackPrefs.tracks.map((id) => trackById[id]).filter(Boolean)}
-      tracksSignedIn={$trackPrefs.signedIn}
       {activeTrackKey}
       ownVersion={!!activeTrackKey && !!$trackPrefs.overrides[activeTrackKey]}
       onSelectTrack={(key) => applyTrackStep(key)}

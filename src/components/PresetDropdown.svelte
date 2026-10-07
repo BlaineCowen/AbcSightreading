@@ -14,8 +14,8 @@
   import { ladder, ladderStages, type LadderStep, type LadderPage } from '../lib/ladder';
   import { presetHref, storeFor } from '../lib/preset-link';
   import { levelSections, sectionToOpen, type LevelSectionId } from '../lib/preset-sections';
-  import { TRACK_DOT_CLASS, trackPresetKey } from '../lib/curriculum/tracks';
-  import type { Track } from '../lib/curriculum/types';
+  import { TRACK_DOT_CLASS, trackById, trackHref, trackPresetKey } from '../lib/curriculum/tracks';
+  import { loadTrackPrefs, trackPrefs } from '../lib/track-prefs';
 
   /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
@@ -55,15 +55,18 @@
   export let activeNyssmaId: string | null = null;
   export let onSelectNyssma: (id: string) => void = () => {};
   /**
-   * Curriculum tracks (src/lib/curriculum): the ones subscribed to. Undefined
-   * on a page that offers none; an empty list still shows the section, with
-   * where to find them.
+   * What the Levels tab lists is what the teacher subscribes to
+   * (src/lib/curriculum/catalogue.ts, chosen on /curriculum): the built-in
+   * sets, abcStepByStep by default, and the instrument tracks.
    */
-  export let tracks: Track[] | undefined = undefined;
-  export let tracksSignedIn = false;
+  $: tracks = $trackPrefs.tracks.map((id) => trackById[id]).filter(Boolean);
   /** The track step half loaded: "track:band-trumpet-03:notes". */
   export let activeTrackKey: string | null = null;
-  export let onSelectTrack: (key: string) => void = () => {};
+  /** A track step; a page that cannot apply one (Choral) sends it to the Unison page. */
+  export let onSelectTrack: (key: string) => void = (key) => {
+    const m = /^track:(.+):(rhythm|notes)$/.exec(key);
+    if (m) window.location.href = trackHref(m[1], m[2] as 'rhythm' | 'notes');
+  };
   /** Whether the teacher keeps their own version of the loaded step. */
   export let ownVersion = false;
   /** Keep the settings as the teacher's own version of the step (true), or go back to the track's (false). Pro. */
@@ -122,6 +125,7 @@
     otherPresets = getPresets(storeFor(otherPage));
     refresh();
     loadClasses().catch((e) => (problem = 'Could not load your classes: ' + message(e)));
+    loadTrackPrefs().catch(() => {});
   });
 
   // ── Classes: who is being taught, and what they have passed ─────────────
@@ -271,7 +275,7 @@
   let panel: HTMLElement;
 
   $: uilOffered = showBuiltins && !hideUILLevels;
-  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tracks: tracks?.length });
+  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tracks: tracks.length, subscribed: $trackPrefs.tracks });
   /** Where each subscribed track's class goes next: the half after the furthest one passed. */
   $: trackNext = Object.fromEntries((tracks ?? []).map((t) => {
     const halves = t.steps.flatMap((s) => [trackPresetKey(s.id, 'rhythm'), ...(s.notes ? [trackPresetKey(s.id, 'notes')] : [])]);
@@ -515,6 +519,14 @@
 
       <div class="overflow-y-auto p-2" id="preset-list-{tab}" role="tabpanel" aria-labelledby="preset-tab-{tab}">
         {#if tab === 'levels'}
+          <!-- What is listed here is what the teacher subscribes to (/curriculum). -->
+          <a href="/curriculum" class="flex items-center gap-2 rounded-2xl bg-sr-tint text-sr-action-fg px-3 py-2 mb-2 text-sm font-extrabold hover:brightness-95">
+            <Plus size={15} /> Choose tracks
+            <span class="font-semibold text-xs text-sr-muted truncate">UIL, NYSSMA, band instruments and more</span>
+          </a>
+          {#if $trackPrefs.ready && sections.length === 0}
+            <p class="text-sm text-sr-muted px-2 py-3">Nothing subscribed yet. Choose the tracks you teach from and they will be listed here.</p>
+          {/if}
           {#each sections as section, i (section.id)}
             <!-- The whole header row opens and shuts its section. It sticks to
                  the top while its section scrolls, so it can be shut from
@@ -582,13 +594,7 @@
                     </ul>
                   {/each}
                 {:else if section.id === 'tracks'}
-                  {#if !tracks || tracks.length === 0}
-                    <p class="text-sm text-sr-muted px-2 py-2">
-                      Curriculum tracks are sequences for one instrument: trumpet, clarinet and tuba so far,
-                      rhythm always two steps ahead of the notes.
-                      <a class="text-sr-action-fg font-bold underline" href="/curriculum">{tracksSignedIn ? 'Choose your tracks' : 'See the tracks'}</a>
-                    </p>
-                  {:else}
+                  {#if tracks.length}
                     {#each tracks as track (track.id)}
                       <button
                         type="button"
@@ -636,7 +642,6 @@
                     {/each}
                     <p class="text-xs text-sr-muted px-2 pt-2">
                       Each step sets the instrument, its transposition and clef. Change anything and keep it as your version.
-                      <a class="underline" href="/curriculum">Manage tracks</a>
                     </p>
                   {/if}
                 {:else if section.id === 'uil'}

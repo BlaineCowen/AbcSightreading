@@ -166,8 +166,9 @@ model UserPreference {
   userId          String   @id
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rhythmSyllables Json?
-  // Curriculum tracks the teacher subscribes to (src/lib/curriculum/tracks.ts ids)
-  curriculumTracks String[] @default([])
+  // What the preset menu offers: subscribed sets and tracks (src/lib/curriculum/catalogue.ts ids).
+  // Null until the teacher chooses: then the default, abcStepByStep.
+  curriculumTracks Json?
   // The teacher's own versions of track steps: { "track:<step id>:<rhythm|notes>": Unison options }
   trackOverrides  Json?
   updatedAt       DateTime @updatedAt

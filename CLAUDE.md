@@ -249,10 +249,19 @@ when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
 ### Curriculum tracks
 
+The preset menu's Levels tab lists only what the teacher subscribes to on
+`/curriculum` (`src/lib/curriculum/catalogue.ts`, its "Choose tracks" link
+at the top): the site's own sets - abcStepByStep (subscribed by default,
+`DEFAULT_SUBSCRIPTIONS`), UIL, NYSSMA Voice - free to anyone and kept in this
+browser when signed out (`sr-subscriptions`, carried to the account on first
+sign-in), and the instrument tracks, Pro. `UserPreference.curriculumTracks`
+is null until the teacher chooses. `/sightreading?nyssma=<level id>` opens a
+level.
+
 `src/lib/curriculum/` (tests `curriculum.test.ts`): a sequence for one
 instrument that a teacher subscribes to on `/curriculum` (public, each track
-at `/curriculum/<id>`; subscribing is Pro, `/api/tracks`) and then finds under
-**My tracks** in the Unison page's preset menu. Beginner band is first:
+at `/curriculum/<id>`; `/api/tracks`) and then finds under **Instrument
+tracks** in the preset menu. Beginner band is first:
 trumpet, clarinet, tuba (`band.ts`), all on one sequence so a band takes the
 same step together in concert B♭, E♭, F, then C (trumpet and clarinet read
 written C, F, G, D and play back −2; tuba reads concert pitch in bass clef).

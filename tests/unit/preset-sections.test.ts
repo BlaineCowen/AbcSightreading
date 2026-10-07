@@ -28,3 +28,12 @@ describe("the Levels tab's sections", () => {
     expect(sectionToOpen(unison, { step: false, nyssma: false, uil: true })).toBeNull();
   });
 });
+
+describe("subscriptions choose the sections", () => {
+  test("only what is subscribed shows, and the page must offer it", () => {
+    expect(levelSections({ uil: true, nyssma: false, subscribed: ["abc-step-by-step"] }).map((s) => s.id)).toEqual(["steps"]);
+    expect(levelSections({ uil: false, nyssma: true, subscribed: ["nyssma-voice", "uil-choir"] }).map((s) => s.id)).toEqual(["nyssma"]);
+    expect(levelSections({ uil: true, nyssma: false, subscribed: [] }).map((s) => s.id)).toEqual([]);
+    expect(levelSections({ uil: false, nyssma: true, tracks: 2, subscribed: ["abc-step-by-step"] }).map((s) => s.id)).toEqual(["steps", "tracks"]);
+  });
+});

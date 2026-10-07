@@ -5,6 +5,7 @@
  */
 
 import { ladder } from "./ladder";
+import { NYSSMA_VOICE, STEP_BY_STEP, UIL_CHOIR } from "./curriculum/catalogue";
 
 export type LevelSectionId = "steps" | "tracks" | "uil" | "nyssma";
 
@@ -15,15 +16,18 @@ export interface LevelSection {
   note: string;
 }
 
-export function levelSections(offered: { uil: boolean; nyssma: boolean; tracks?: number }): LevelSection[] {
+/**
+ * `subscribed` (src/lib/curriculum/catalogue.ts ids) keeps the built-in sets
+ * to the ones the teacher subscribes to; without it every one the page
+ * offers shows. `tracks` is how many instrument tracks are subscribed.
+ */
+export function levelSections(offered: { uil: boolean; nyssma: boolean; tracks?: number; subscribed?: string[] }): LevelSection[] {
+  const has = (id: string) => !offered.subscribed || offered.subscribed.includes(id);
   return [
-    { id: "steps", label: "abcStepByStep", note: `${ladder.length} steps` },
-    // Curriculum tracks (src/lib/curriculum): the ones subscribed to, or where to find them.
-    ...(offered.tracks !== undefined
-      ? [{ id: "tracks" as const, label: "My tracks", note: offered.tracks ? `${offered.tracks} subscribed` : "Band curriculum" }]
-      : []),
-    ...(offered.uil ? [{ id: "uil" as const, label: "UIL", note: "Levels 1–5" }] : []),
-    ...(offered.nyssma ? [{ id: "nyssma" as const, label: "NYSSMA Voice", note: "Levels I–V" }] : []),
+    ...(has(STEP_BY_STEP) ? [{ id: "steps" as const, label: "abcStepByStep", note: `${ladder.length} steps` }] : []),
+    ...(offered.tracks ? [{ id: "tracks" as const, label: "Instrument tracks", note: `${offered.tracks} subscribed` }] : []),
+    ...(offered.uil && has(UIL_CHOIR) ? [{ id: "uil" as const, label: "UIL", note: "Levels 1–5" }] : []),
+    ...(offered.nyssma && has(NYSSMA_VOICE) ? [{ id: "nyssma" as const, label: "NYSSMA Voice", note: "Levels I–V" }] : []),
   ];
 }
 

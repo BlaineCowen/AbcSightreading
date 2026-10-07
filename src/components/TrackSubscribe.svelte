@@ -1,14 +1,19 @@
-<!-- Subscribe to a curriculum track (src/lib/curriculum), on /curriculum and
-     each track's page. Signed out it offers sign-up, on a free account Pro; a
-     subscribed track shows in the Unison page's preset menu. -->
+<!-- Subscribe to a set or track (src/lib/curriculum/catalogue.ts), on
+     /curriculum and each track's page; what is subscribed is what the preset
+     menu lists. The built-in sets (`free`) are anyone's, kept in this browser
+     when signed out; an instrument track needs an account, then Pro. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { Check } from "lucide-svelte";
   import { loadTrackPrefs, setSubscribed, trackPrefs } from "../lib/track-prefs";
-  import { trackHref } from "../lib/curriculum/tracks";
-
   export let trackId: string;
-  export let firstStepId: string;
+  /** Where "Try it" goes: a track's first step, or a set's page. */
+  export let tryHref: string;
+  export let tryLabel = "Try step 1";
+  /** Where it is used, for "Open it". */
+  export let openHref = "/sightreading";
+  /** A built-in set: free, and kept in this browser when signed out. */
+  export let free = false;
   /** "card" sits at the foot of a catalogue card; "hero" on a track's own page. */
   export let variant: "card" | "hero" = "card";
 
@@ -40,9 +45,9 @@
 <div class="flex flex-wrap items-center gap-2 {variant === 'hero' ? 'mt-2' : ''}">
   {#if !ready}
     <span class="h-9 w-32 rounded-full bg-sr-track/60 animate-pulse" aria-hidden="true"></span>
-  {:else if !$trackPrefs.signedIn}
+  {:else if !free && !$trackPrefs.signedIn}
     <a class="sr-btn text-sm" href="/login?mode=signup&next={here()}">Sign up to subscribe</a>
-  {:else if !$trackPrefs.canSubscribe}
+  {:else if !free && !$trackPrefs.canSubscribe}
     <a class="sr-btn text-sm" href="/pricing">Get Pro to subscribe</a>
   {:else}
     <button
@@ -56,9 +61,9 @@
       {#if subscribed}<Check size={15} /> Subscribed{:else}Subscribe{/if}
     </button>
     {#if subscribed}
-      <a class="text-sm font-bold underline" href="/sightreading">Open it in the preset menu</a>
+      <a class="text-sm font-bold underline" href={openHref}>In your presets</a>
     {/if}
   {/if}
-  <a class="text-sm font-bold underline" href={trackHref(firstStepId, "rhythm")}>Try step 1</a>
+  <a class="text-sm font-bold underline" href={tryHref}>{tryLabel}</a>
   {#if problem}<span class="text-xs text-sr-danger w-full" role="alert">{problem}</span>{/if}
 </div>

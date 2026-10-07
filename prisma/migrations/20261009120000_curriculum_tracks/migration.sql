@@ -1,4 +1,4 @@
 -- AlterTable
-ALTER TABLE "user_preference" ADD COLUMN     "curriculumTracks" TEXT[] DEFAULT ARRAY[]::TEXT[],
+ALTER TABLE "user_preference" ADD COLUMN     "curriculumTracks" JSONB,
 ADD COLUMN     "trackOverrides" JSONB;
 

@@ -45,7 +45,7 @@ const jsonLd = {
         <p class="text-sm font-bold opacity-85">
           {track.clef === "bass" ? "Bass clef" : "Treble clef"} · {trackKeys(track).join(", ")} · {trackReach(track)}{track.transposeSemitones ? " written, sounding a step lower" : ""}
         </p>
-        <TrackSubscribe client:only="svelte" trackId={track.id} firstStepId={track.steps[0].id} variant="hero" />
+        <TrackSubscribe client:only="svelte" trackId={track.id} tryHref={trackHref(track.steps[0].id, "rhythm")} variant="hero" />
       </div>
     </header>
 

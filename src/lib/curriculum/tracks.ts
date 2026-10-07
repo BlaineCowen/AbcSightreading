@@ -11,9 +11,9 @@ export const TRACKS: Track[] = [...BAND_TRACKS];
 export const trackById: Record<string, Track> = Object.fromEntries(TRACKS.map((t) => [t.id, t]));
 
 export const FAMILIES: { id: TrackFamily; label: string; live: boolean; blurb: string }[] = [
+  { id: "choir", label: "Choir and voice", live: true, blurb: "abcStepByStep, UIL and NYSSMA Voice." },
   { id: "band", label: "Band", live: true, blurb: "Beginner band: every instrument on the same step, in the band's concert keys." },
   { id: "strings", label: "Strings", live: false, blurb: "Violin, viola, cello and bass." },
-  { id: "choir", label: "Choir", live: false, blurb: "Soprano, alto, tenor and bass." },
   { id: "piano", label: "Piano", live: false, blurb: "Both hands, later on." },
 ];
 
