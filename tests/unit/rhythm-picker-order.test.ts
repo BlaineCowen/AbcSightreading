@@ -4,6 +4,7 @@ import {
   selectableCompoundRhythms,
   selectableRhythms,
   containsRest,
+  PICKER_ORDER,
 } from "../../src/lib/selectable-rhythms";
 
 describe("the rhythm picker's order", () => {
@@ -22,11 +23,14 @@ describe("the rhythm picker's order", () => {
     expect(groups[1].rhythms.map((r) => r.name)).toContain("eighthRestEighth");
   });
 
-  test("each group runs shortest to longest", () => {
-    for (const g of groups) {
-      const lengths = g.rhythms.map((r) => r.totalValue);
-      expect(lengths).toEqual([...lengths].sort((a, b) => a - b));
-    }
+  test("follows the chosen order (PICKER_ORDER) exactly", () => {
+    expect(groups.map((g) => ({ label: g.label, names: g.rhythms.map((r) => r.name) }))).toEqual(PICKER_ORDER.simple);
+  });
+
+  test("a figure the order does not name still appears, at the end of its group", () => {
+    const extra = { ...selectableRhythms.find((r) => r.name === "quarter")!, name: "aNewFigure" };
+    const g = rhythmPickerGroups([...selectableRhythms, extra]);
+    expect(g[0].rhythms.at(-1)?.name).toBe("aNewFigure");
   });
 
   test("a single note comes before the patterns of its length", () => {
@@ -45,10 +49,7 @@ describe("the compound picker", () => {
     );
   });
 
-  test("each group runs shortest to longest", () => {
-    for (const g of groups) {
-      const lengths = g.rhythms.map((r) => r.totalValue);
-      expect(lengths).toEqual([...lengths].sort((a, b) => a - b));
-    }
+  test("follows the chosen order (PICKER_ORDER) exactly", () => {
+    expect(groups.map((g) => ({ label: g.label, names: g.rhythms.map((r) => r.name) }))).toEqual(PICKER_ORDER.compound);
   });
 });

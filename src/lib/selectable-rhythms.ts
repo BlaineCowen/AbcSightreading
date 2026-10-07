@@ -78,42 +78,58 @@ export function canAppearInChoral(
 
 export type PickerGroupLabel = "Notes" | "Rests" | "Core" | "Sixteenths";
 
-const COMPOUND_GROUPS = ["Core", "Rests", "Sixteenths"] as const;
+/**
+ * The picker's order, chosen by Blaine (8 October 2026, by dragging the
+ * figures into place): longest note first in simple meter, then the beat's
+ * subdivisions, then the dotted and syncopated figures; compound meter the
+ * same way. The groups are the picker's headings.
+ */
+export const PICKER_ORDER: Record<MeterKind, { label: PickerGroupLabel; names: string[] }[]> = {
+  simple: [
+    {
+      label: "Notes",
+      names: [
+        "whole", "dotHalf", "half", "quarter", "eighthEighth", "fourSixteenths", "eighthSixteenthSixteenth",
+        "sixteenthSixteenthEighth", "dotEighthSixteenth", "sixteenthEighthSixteenth", "dotQuarterEighth",
+        "eighthDotQuarter", "eighthQuarterEighth", "dotHalfQuarter",
+      ],
+    },
+    { label: "Rests", names: ["quarterRest", "eighthRestEighth", "halfRest", "wholeRest"] },
+  ],
+  compound: [
+    { label: "Core", names: ["dotHalfCompound", "dotQuarter", "quarterEighth", "eighthQuarter", "threeEighths"] },
+    { label: "Rests", names: ["dotQuarterRest", "quarterEighthRest", "eighthRestTwoEighths", "twoEighthsEighthRest", "dotHalfRest"] },
+    {
+      label: "Sixteenths",
+      names: ["quarterTwoSixteenths", "twoSixteenthsTwoEighths", "eighthTwoSixteenthsEighth", "twoEighthsTwoSixteenths", "sixSixteenths"],
+    },
+  ],
+};
 
 /**
- * The picker's order: notes, then rests, each shortest first.
- *
- * The picker used to show the rhythm file's own order, which is the order the
- * figures were added to it - a dotted half beside a sixteenth pattern, rests
- * scattered through. Grouped and sorted, a director finds a figure by how long
- * it is. Figures of the same length keep a single note ahead of the patterns
- * that fill that length, and are otherwise left in file order.
+ * The picker's groups and order (PICKER_ORDER). A figure the list does not
+ * name (one added later) is never lost: it goes to the end of its group, by
+ * the old rule (a rest is a Rest, a compound figure by its pickerGroup),
+ * shortest first.
  */
 export function rhythmPickerGroups<R extends Rhythm>(
   list: R[]
 ): { label: PickerGroupLabel; rhythms: R[] }[] {
-  const ordered = (rs: R[]) =>
-    rs
-      .map((r, i) => ({ r, i }))
-      .sort(
-        (a, b) =>
-          a.r.totalValue - b.r.totalValue ||
-          a.r.abcValue.length - b.r.abcValue.length ||
-          a.i - b.i
-      )
-      .map(({ r }) => r);
-  // Compound meter groups as the spec does: the core figures, the ones with
-  // rests, the ones with sixteenths.
-  if (list.length > 0 && list.every((r) => r.meterKind === "compound")) {
-    return COMPOUND_GROUPS.map((label) => ({
-      label,
-      rhythms: ordered(list.filter((r) => r.pickerGroup === label)),
-    })).filter((g) => g.rhythms.length > 0);
+  const kind: MeterKind = list.length > 0 && list.every((r) => r.meterKind === "compound") ? "compound" : "simple";
+  const groups = PICKER_ORDER[kind].map((g) => ({
+    label: g.label,
+    rhythms: g.names.map((n) => list.find((r) => r.name === n)).filter((r): r is R => r !== undefined),
+  }));
+  const named = new Set(PICKER_ORDER[kind].flatMap((g) => g.names));
+  const groupOf = (r: R): PickerGroupLabel =>
+    kind === "compound" ? ((r.pickerGroup as PickerGroupLabel) ?? "Core") : containsRest(r) ? "Rests" : "Notes";
+  const extras = list.filter((r) => !named.has(r.name)).sort((a, b) => a.totalValue - b.totalValue);
+  for (const r of extras) {
+    const g = groups.find((x) => x.label === groupOf(r));
+    if (g) g.rhythms.push(r);
+    else groups.push({ label: groupOf(r), rhythms: [r] });
   }
-  return [
-    { label: "Notes" as const, rhythms: ordered(list.filter((r) => !containsRest(r))) },
-    { label: "Rests" as const, rhythms: ordered(list.filter((r) => containsRest(r))) },
-  ].filter((g) => g.rhythms.length > 0);
+  return groups.filter((g) => g.rhythms.length > 0);
 }
 
 /** What a fresh selection is, per kind: eighths and quarters, or compound's Core set. */
