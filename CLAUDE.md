@@ -314,7 +314,14 @@ How minor is sung is the teacher's choice (`minorSolfege`, `minorSyllable`
 in solfege.ts): La-based (default; the tonic is la, as Choral, Grade and
 the tools read minor) or Do-based (do re me fa so le te; raised 6 and 7 are
 la and ti). It relabels the exercise on screen, Grade's note names
-(`gradeDoPc`) and, in a minor-only pool, the skip panel's syllables.
+(`gradeDoPc`), the Tools cards' do (`setPracticeContext`'s third argument)
+and, in a minor-only pool, the skip panel's syllables. The Choral page has
+the same choice under Annotations while movable do and a minor key are on
+(`minorSolfege` in its links and presets, `lyricLineFor`). The Tools drone
+holds the tonic (`ExerciseInfo.tonicNote`), the minor chord in minor: it
+used to hold the relative major's do and chord under a minor exercise.
+`scripts/check-grade.ts KEY=Am` (and `MINOR_SOLFEGE=do`) grades a minor
+exercise end to end and checks the wrong note's syllables.
 
 The generator uses the shared key table (`src/resources/key-signatures.ts`;
 its own copy had no minor keys, and the major entries were identical: the
@@ -374,7 +381,8 @@ tests `unison-phrasing.test.ts`): a listed skip is weighted hard until the line
 has sung one, then until about 3 per 8 bars; notes a skip can start from (do,
 mi) are reached for; going back to the note two before (A-B-A) is penalised,
 A-B-A-B far more, and a step run carries on; a line with no skip is drawn again
-(`SKIP_DRAWS`). Rests end only at breaths - the end of bar 2, 4 or 6 of 8 -
+(`SKIP_DRAWS`, 16: at 8 about one exercise in 1,200 had no skip, and the
+phrasing test failed about one run in ten). Rests end only at breaths - the end of bar 2, 4 or 6 of 8 -
 any other rest is sung as the note of its length, and a level with rests gets
 one at bar 4 most of the time. `scripts/measure-nyssma-music.ts` measures it
 (treble, 200 runs a cell): a listed skip in 49/40/35/95% of Level II-V

@@ -6,7 +6,7 @@ import {
   type Rhythm,
   type TimeSignature,
 } from "./types";
-import { lyricLineFor, type LyricSystem } from "../resources/solfege";
+import { lyricLineFor, type LyricSystem, type MinorSolfege } from "../resources/solfege";
 import { beatUnitOf, tempoField } from "./meter";
 import { keySignatures } from "../resources/key-signatures";
 import { getDiatonicDegree } from "./prep-params";
@@ -25,6 +25,8 @@ export interface AbcDisplayOptions {
    * note names. Absent prints none.
    */
   lyrics?: LyricSystem | null;
+  /** Movable do in a minor key: la-based (the default) or do-based. */
+  minorSolfege?: MinorSolfege;
   /**
    * Voices left off the page, by full name ("Alto"). They are still part of the
    * exercise and still heard - playback reads a full copy of the score - they
@@ -283,7 +285,7 @@ export function assembleAbcString(
     // is how ABC attaches lyrics to a voice. One syllable per *note* - rests
     // take no slot, or every later syllable would sit one note to the left.
     if (display.lyrics) {
-      const syllables = lyricLineFor(notesForPart, key, display.lyrics);
+      const syllables = lyricLineFor(notesForPart, key, display.lyrics, display.minorSolfege);
       if (syllables.length > 0) abcString += `w: ${syllables.join(" ")}\n`;
     }
   }

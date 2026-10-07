@@ -646,7 +646,7 @@
    */
   // The practice tools read the exercise on the page: its key, meter, tempo
   // and each part's first note.
-  $: setPracticeContext(typeof originalTuneString === "string" ? originalTuneString : null, bpm);
+  $: setPracticeContext(typeof originalTuneString === "string" ? originalTuneString : null, bpm, minorSolfege);
 
   function applySavedPreset(preset: SavedPreset<any>) {
     const next = stateFromOptions(preset.params ?? {});
@@ -3779,6 +3779,8 @@
       view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
       mic: () => { const t = tuner.get(); return { status: t.engineStatus, dbfs: t.dbfs, pitch: t.pitch }; },
       clapBlocks: () => gradeRunner.lastClapBlocks,
+      // A note's detail line, as tapping it shows (for checking the syllables named).
+      detailOf: async (i: number) => { gradeDetailIndex = i; await tick(); return gradeDetail; },
       take: () => ({ ...take, note: takeNote, now: takePlayer?.now() ?? null, start: takePlayer?.start ?? null }),
       recording: async () => {
         if (!gradeAudio) return null;

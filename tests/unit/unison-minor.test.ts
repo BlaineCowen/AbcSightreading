@@ -99,3 +99,16 @@ describe("minor exercises", () => {
     }
   }, 60000);
 });
+
+describe("the practice tools in minor", () => {
+  test("the tonic is the minor tonic; do moves with the minor solfège", async () => {
+    const { exerciseInfo } = await import("../../src/lib/tools/context");
+    const abc = "X:1\nM:4/4\nL:1/4\nK:Am\nA c e A|]\n";
+    const la = exerciseInfo(abc)!;
+    expect([la.tonicLabel, la.tonicSyllable, la.doLabel]).toEqual(["A", "la", "C"]);
+    const dob = exerciseInfo(abc, "do")!;
+    expect([dob.tonicLabel, dob.tonicSyllable, dob.doLabel]).toEqual(["A", "do", "A"]);
+    const major = exerciseInfo("X:1\nM:4/4\nL:1/4\nK:Bb\nB d f B|]\n")!;
+    expect([major.tonicLabel, major.doLabel, major.tonicSyllable]).toEqual(["B♭", "B♭", "do"]);
+  });
+});

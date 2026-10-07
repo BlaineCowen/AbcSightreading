@@ -62,7 +62,7 @@
     type ExportType,
   } from "../lib/exports";
   import { downloadFile } from "../lib/download";
-  import type { LyricSystem } from "../resources/solfege";
+  import { minorSolfegeFrom, type LyricSystem, type MinorSolfege } from "../resources/solfege";
   import {
     canAppearInChoral,
     containsRest,
@@ -257,6 +257,8 @@
    * the tonic), fixed do (C is always do), or the note names themselves.
    */
   let lyricSystem: LyricSystem | null = null;
+  /** How a minor key is sung in movable do (solfege.ts): la-based unless chosen. */
+  let minorSolfege: MinorSolfege = "la";
   $: showSolfege = lyricSystem !== null;
   /**
    * Chord symbols above the top staff, controlled on their own.
@@ -689,7 +691,7 @@
     // says "edited" too.
     stepwiseEighths, voiceTexture, JSON.stringify(Object.entries(rhythmBias).sort()),
     accidentalsByStep, chromaticFrequency, focusChord,
-    lyricSystem, showChords, cursorMode, instrumentProgram, transposeSemitones,
+    lyricSystem, minorSolfege, showChords, cursorMode, instrumentProgram, transposeSemitones,
     [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','),
     playbackVolume, $tuner.metronomeVolume, $tuner.clickWithMusic,
     $tuner.subdivision, $tuner.accent, $tuner.clickSound,
@@ -1013,6 +1015,7 @@
     // copy is being able to send it.
     // "1" was movable-do solfège, before there was a choice; a shared link
     // written then still opens showing what it showed.
+    minorSolfege = minorSolfegeFrom(p.get("minorSolfege"));
     const lyrics = p.get("solfege");
     lyricSystem =
       lyrics === "1" || lyrics === "movable"
@@ -1058,6 +1061,7 @@
     if (assignmentId) p.set(ASSIGNMENT_PARAM, assignmentId);
     p.set("sound", String(instrumentProgram));
     p.set("solfege", lyricSystem ?? "0");
+    if (minorSolfege === "do") p.set("minorSolfege", "do");
     p.set("chords", showChords ? "1" : "0");
     p.set("transpose", String(transposeSemitones));
     p.set("texture", voiceTexture);
@@ -1504,7 +1508,7 @@
 
   // The practice tools read the exercise on the page: its key, meter, tempo
   // and each part's first note.
-  $: setPracticeContext(typeof renderedString === "string" ? renderedString : null, bpm);
+  $: setPracticeContext(typeof renderedString === "string" ? renderedString : null, bpm, minorSolfege);
 
   function applySavedPreset(preset: SavedPreset) {
     const { params: p } = preset;
@@ -1572,6 +1576,7 @@
       chromaticFrequency,
       focusChord,
       lyricSystem,
+      minorSolfege,
       showChords,
       cursorMode,
       instrumentProgram,
@@ -1592,6 +1597,7 @@
     const lyrics = p.lyricSystem;
     return {
       lyricSystem: lyrics === "movable" || lyrics === "fixed" || lyrics === "names" ? lyrics : null,
+      minorSolfege: minorSolfegeFrom(p.minorSolfege),
       showChords: p.showChords === true,
       cursorMode: isCursorMode(p.cursorMode) ? p.cursorMode : cursorMode,
       instrumentProgram: isInstrumentProgram(p.instrumentProgram) ? Number(p.instrumentProgram) : instrumentProgram,
@@ -1610,6 +1616,7 @@
   /** Put them on the page, and re-write the exercise on screen to match. */
   async function showPresetDisplay(d: NonNullable<ReturnType<typeof presetDisplayFrom>>) {
     lyricSystem = d.lyricSystem;
+    minorSolfege = d.minorSolfege;
     showChords = d.showChords;
     cursorMode = d.cursorMode;
     instrumentProgram = d.instrumentProgram;
@@ -1846,6 +1853,7 @@
     return {
       chordSymbols: showChords,
       lyrics: lyricSystem,
+      minorSolfege,
       midiProgram: instrumentProgram,
       hiddenVoices: [...hiddenVoices],
     };
@@ -3191,6 +3199,19 @@
             Clean: the same exercise, printed for sight-reading.
           {/if}
         </p>
+        {#if lyricSystem === "movable" && [...selectedKeys].some((k) => isMinorKey(k))}
+          <!-- How minor is sung: the tonic as la (the relative major's syllables) or as do. -->
+          <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Minor solfège">
+            <span class="text-xs text-sr-faint">Sing minor</span>
+            <button class="sr-tok {minorSolfege === 'la' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'la'}
+              on:click={() => { minorSolfege = "la"; void reRenderAnnotations(); }}>La-based</button>
+            <button class="sr-tok {minorSolfege === 'do' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'do'}
+              on:click={() => { minorSolfege = "do"; void reRenderAnnotations(); }}>Do-based</button>
+          </div>
+          <p class="text-xs text-sr-faint">
+            {minorSolfege === "la" ? "In minor the tonic is la: la ti do re mi fa so." : "In minor the tonic is do: do re me fa so le te."}
+          </p>
+        {/if}
       </div>
 
       <div class="space-y-2">

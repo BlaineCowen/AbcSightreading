@@ -274,7 +274,9 @@ export const MOMENTUM = 2;
  * none of the listed skips though the range and rhythm allow one. The best
  * draw is kept if none does: never fails an exercise for this.
  */
-export const SKIP_DRAWS = 8;
+// 8 left about one exercise in 1,200 without a skip (the phrasing test failed
+// about one run in ten); each draw is a few milliseconds, so 16 (7 Oct 2026).
+export const SKIP_DRAWS = 16;
 
 /** Sung moves wider than a step: with exact skips every one is a listed skip. */
 export function skipCount(sungPitches: readonly number[]): number {

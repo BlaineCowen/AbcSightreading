@@ -132,11 +132,19 @@ export const minorSolfegeFrom = (v: unknown): MinorSolfege => (v === "do" ? "do"
  * from rests, which carry an inconsistent degree sentinel - 0 in one place and
  * -1 in another, and `solfege[0]` would quietly print "do".
  */
-export function solfegeLineFor(notes: VoiceNote[], key: string): string[] {
+export function solfegeLineFor(notes: VoiceNote[], key: string, minorSolfege: MinorSolfege = "la"): string[] {
   const mode = modeOf(key);
   const syllables: string[] = [];
   for (const note of notes) {
     if (note.rest) continue;
+    if (mode === "minor" && minorSolfege === "do") {
+      // Do-based minor: the alteration against the key, as solfegeFor reads it.
+      const a = note.accidental;
+      const raised = a === "sharp" || a === "double-sharp" || (a === "natural" && note.wasRaised === true);
+      const lowered = a === "flat" || a === "double-flat" || (a === "natural" && note.wasRaised === false);
+      syllables.push(minorSyllable(note.degree, raised ? "sharp" : lowered ? "flat" : null, "do"));
+      continue;
+    }
     syllables.push(solfegeFor(note.degree, note.accidental, note.wasRaised, mode));
   }
   return syllables;
@@ -217,9 +225,10 @@ export function noteNameFor(
 export function lyricLineFor(
   notes: VoiceNote[],
   key: string,
-  system: LyricSystem
+  system: LyricSystem,
+  minorSolfege: MinorSolfege = "la"
 ): string[] {
-  if (system === "movable") return solfegeLineFor(notes, key);
+  if (system === "movable") return solfegeLineFor(notes, key, minorSolfege);
   const out: string[] = [];
   for (const note of notes) {
     if (note.rest) continue;

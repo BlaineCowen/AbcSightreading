@@ -20,6 +20,7 @@
  * reports where the clean notes' onsets landed (the detector's delay, for
  * DETECT_LATENCY_MS).
  */
+import { solfegeOf } from "../src/lib/grade";
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 import { STRICTNESS, gradeSchedule } from "../src/lib/grade";
 
@@ -114,8 +115,10 @@ await page.evaluateOnNewDocument(() => {
 });
 
 const params = new URLSearchParams({
-  clef: "treble", range: "14-21", key: "G", scaleDegrees: "1,2,3,4,5", rhythms: process.env.RHYTHMS ?? "quarter,half",
+  clef: "treble", range: "14-21", key: process.env.KEY ?? "G", scaleDegrees: "1,2,3,4,5", rhythms: process.env.RHYTHMS ?? "quarter,half",
   timeSignature: "4/4", measures: "4", maxSkip: "2", bpm: "90", showSolfege: "true", rhythmOnly: "false",
+  // KEY=Am and the like: a minor key writes from these; MINOR_SOLFEGE=do sings it do-based.
+  minorDegrees: "1,2,3,4,5", minorSolfege: process.env.MINOR_SOLFEGE ?? "la",
 });
 await page.evaluateOnNewDocument(
   (s) => localStorage.setItem("abc-tuner-settings", s),
@@ -273,6 +276,16 @@ if (MODE === "performance") {
     else if (i === LATE) expect(r.onsetBeats !== null && Math.abs(r.onsetBeats - LATE_BEATS) < 0.12 && (LATE_BEATS <= STRICTNESS[STRICT].onsetBeats ? r.rhythm === 100 : r.rhythm < 100), `note ${i + 1} should be about ${LATE_BEATS} late`);
     else expect(r.pitchOk && r.rhythm >= 90, `note ${i + 1} should be clean (pitch ${r.pitch}, rhythm ${r.rhythm})`);
   });
+  // A minor key: the wrong note is named la- or do-based (MINOR_SOLFEGE), as the page sings it.
+  if ((process.env.KEY ?? "").endsWith("m")) {
+    const detail: string = await page.evaluate((i) => (window as any).__gradeDebug.detailOf(i), WRONG);
+    const tonicPc = ({ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 } as Record<string, number>)[process.env.KEY![0]] + (process.env.KEY!.includes("#") ? 1 : 0);
+    const doPc = (process.env.MINOR_SOLFEGE === "do" ? tonicPc : tonicPc + 3) % 12;
+    const r = p.notes[WRONG];
+    const want = `you sang ${solfegeOf(Math.round(r.sung), doPc)}, the note is ${solfegeOf(r.midi, doPc)}`;
+    console.log("detail:", detail);
+    expect(detail.includes(want), `the wrong note should say "${want}"`);
+  }
   const clean = p.notes.filter((_: any, i: number) => ![WRONG, LATE, SKIP].includes(i) && _.onsetBeats !== null).map((r: any) => r.onsetBeats * beatMs);
   clean.sort((a: number, b: number) => a - b);
   console.log(`clean onsets vs written: median ${clean[clean.length >> 1]?.toFixed(0)} ms (after DETECT_LATENCY_MS), range ${clean[0]?.toFixed(0)}..${clean[clean.length - 1]?.toFixed(0)}`);

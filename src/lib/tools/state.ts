@@ -16,8 +16,10 @@ export const droneOn = writable(false);
 /** The notes the drone should sound now, as one string, or "" for silence. */
 const droneTarget = derived([droneOn, exercise, toolSettings, tuner], ([on, ex, s, t]) => {
   if (!on) return "";
-  const root = (s.droneOctave + 1) * 12 + NOTES.indexOf(ex?.doNote ?? t.key);
-  const notes = s.droneMode === "do" ? [root] : s.droneMode === "doso" ? [root, root + 7] : [root, root + 4, root + 7];
+  // The tonic: in minor its own (la-based, the chord under la, not do's).
+  const root = (s.droneOctave + 1) * 12 + NOTES.indexOf(ex?.tonicNote ?? t.key);
+  const third = ex?.minor ? 3 : 4;
+  const notes = s.droneMode === "do" ? [root] : s.droneMode === "doso" ? [root, root + 7] : [root, root + third, root + 7];
   return `${notes.join(",")}|${t.a4}`;
 });
 

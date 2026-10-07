@@ -42,6 +42,8 @@ export interface PresetParams {
   focusChord?: string | null;
   /** What is printed and how it sounds: the Display and playback controls. */
   lyricSystem?: "movable" | "fixed" | "names" | null;
+  /** How a minor key is sung in movable do; la-based when absent. */
+  minorSolfege?: "la" | "do";
   showChords?: boolean;
   cursorMode?: string;
   instrumentProgram?: number;

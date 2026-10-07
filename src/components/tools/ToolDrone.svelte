@@ -14,24 +14,27 @@
    * closed (see lib/tools/state.ts); the Tools button shows it is on.
    */
 
-  const MODES: [DroneMode, string][] = [
-    ["do", "Do"],
-    ["doso", "Do + So"],
+  // Named from the tonic: la and mi in la-based minor.
+  $: MODES = [
+    ["do", syllable === "la" ? "La" : "Do"],
+    ["doso", syllable === "la" ? "La + Mi" : "Do + So"],
     ["chord", "Tonic chord"],
-  ];
-  $: label = $exercise?.doLabel ?? spellKey($tuner.key);
+  ] as [DroneMode, string][];
+  // The tonic: in minor its own, la or do as the page sings it.
+  $: label = $exercise?.tonicLabel ?? spellKey($tuner.key);
+  $: syllable = $exercise?.tonicSyllable ?? "do";
   onMount(initDrone);
   const toggle = () => droneOn.update((on) => !on);
 </script>
 
 <h3 class="text-[15px] font-semibold text-sr-ink">Drone</h3>
-<p class="text-sm text-sr-muted">Hold the tonic under the singing, so every note is heard against do.</p>
+<p class="text-sm text-sr-muted">Hold the tonic under the singing, so every note is heard against {syllable}.</p>
 
 <button
   class="h-12 rounded-lg font-semibold {$droneOn ? 'border border-sr-action text-sr-action-fg bg-sr-tint' : 'sr-btn'}"
   on:click={toggle}
   aria-pressed={$droneOn}
->{$droneOn ? `Drone on ${label} (do) · stop` : `Start a drone on ${label} (do)`}</button>
+>{$droneOn ? `Drone on ${label} (${syllable}) · stop` : `Start a drone on ${label} (${syllable})`}</button>
 
 <!-- On a practice page the drone follows the exercise's key; elsewhere (abcTuner) it is chosen here. -->
 {#if !$exercise}
