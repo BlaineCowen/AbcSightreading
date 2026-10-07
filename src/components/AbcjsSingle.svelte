@@ -101,6 +101,7 @@
     ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected, withoutShortSkips,
     policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams, PAGE_DEFAULT_LAND_ON,
     type SkipSettings,
+    writeOverProgression,
   } from "../lib/skip-settings";
   import {
     readShortSkipParams, eighthsFrom, capsFor, MAX_SKIP_RANGE,
@@ -446,7 +447,6 @@
     if (urlParams.has("allowTiesAcrossBarline"))
       options.allowTiesAcrossBarline =
         getParam("allowTiesAcrossBarline") === "true";
-    if (urlParams.has("progressions")) options.progressions = getParam("progressions") !== "false";
 
     const cursor = getParam("cursor");
     if (isCursorMode(cursor)) {
@@ -603,9 +603,6 @@
         ? options.syllableSystemId
         : defaultSyllableSystem.id,
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
-      // Chord progressions (unison-progressions.ts). Unset in presets saved
-      // before they existed, which leaves the page's own setting alone.
-      progressions: typeof options.progressions === "boolean" ? options.progressions : undefined,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "beat",
       run: runOptionsFrom(options.run),
       // How it sounds. Undefined when not saved (older presets and options),
@@ -692,7 +689,6 @@
     showRhythmSyllables = next.showRhythmSyllables;
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
-    if (typeof next.progressions === "boolean") progressions = next.progressions;
     cursorMode = next.cursorMode;
     // Every preset saved before dynamics existed meant Off - not whatever the
     // page last held (a NYSSMA level's p, mf and f, say).
@@ -808,7 +804,6 @@
       selectedKeys = new Set(u.keys ?? [u.selectedKey]);
     }
     if (u.bpm) handleBpmChange(u.bpm);
-    if (typeof u.progressions === "boolean") progressions = u.progressions;
     // The steps are spoken and sung on Kodály syllables: shown under a rhythm drill.
     syllableSystemId = "kodaly";
     showRhythmSyllables = u.rhythmOnly;
@@ -1274,9 +1269,10 @@
    * Chord progressions (unison-progressions.ts): the line is written over a
    * repeating progression - I IV V I and the like - with chord notes on the
    * strong beats and passing notes between; with chromatic notes, a diatonic
-   * phrase and then a chromatic one. On unless turned off.
+   * phrase and then a chromatic one. Not an option any more: always, unless
+   * the line only steps (writeOverProgression).
    */
-  let progressions: boolean = initialState.progressions ?? true;
+  $: progressions = writeOverProgression(maxSkip, skips);
   // Beat by beat by default: a reader follows the beat (Blaine, 6 October 2026).
   let cursorMode: CursorMode = initialState.cursorMode || "beat";
   /** Printed dynamics: the marks to draw from, or empty for Off (dynamics.ts). */
@@ -1555,7 +1551,6 @@
       showRhythmSyllables,
       syllableSystemId,
       allowTiesAcrossBarline,
-      progressions,
       cursorMode,
       dynamics: dynamicsSet,
       rhythmSoundId,
@@ -1634,7 +1629,6 @@
     params.set("transpose", String(transposeSemitones));
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
-    params.set("progressions", progressions.toString());
     params.set("cursor", cursorMode);
     if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
@@ -4791,28 +4785,7 @@
               </div>
             </div>
 
-            {#if !rhythmOnly}
-              <div class="space-y-2">
-                <p class="sr-label">Chord progression</p>
-                <button
-                  class="sr-tok {progressions ? 'sr-on' : ''}"
-                  on:click={() => (progressions = !progressions)}
-                  aria-label="Chord progression"
-                  aria-pressed={progressions}
-                >{progressions ? 'On' : 'Off'}</button>
-                <p class="text-xs text-sr-faint">
-                  {#if !progressions}
-                    A chord for every note, wherever the line goes.
-                  {:else if minorInPool && !majorInPool}
-                    The line follows a repeating minor progression, i iv v i, i VI VII i and the like{minorSharpDegrees.has(7) ? ", with a phrase over V that sings the raised leading tone" : ""}.
-                  {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
-                    A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
-                  {:else}
-                    The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
-                  {/if}
-                </p>
-              </div>
-            {/if}
+
           </div>
 
 

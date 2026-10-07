@@ -302,8 +302,11 @@ written F♯ under a clarinet's lowest note).
 ### Chord progressions (Unison)
 
 `src/lib/unison-progressions.ts` (tests `unison-progressions.test.ts`):
-harmony first. With the page's Chord progression option (on by default; in
-links and presets, older presets leave it alone) a diatonic exercise is
+harmony first. Not an option any more (7 October 2026, Blaine: hidden and
+always on): `writeOverProgression` in skip-settings.ts writes over a
+progression whenever the line may skip, and keeps a chord a note when it may
+only step (a stepwise line over the chords got stuck on two notes); links and
+presets no longer carry it. A diatonic exercise is
 written over a short progression - I IV V I, I IV I V I, I V vi IV I,
 I vi IV V I, I ii V I, I vi ii V I; in minor i iv v i, i VI iv v i,
 i VI VII i, i VII VI VII i (natural minor: the raised leading tone waits for

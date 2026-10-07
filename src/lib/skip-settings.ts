@@ -248,3 +248,14 @@ export function degreesConnected(degrees: number[], policy: SkipPolicy): boolean
     return seen.size === selected.length;
   });
 }
+
+/**
+ * Whether the Unison line is written over a chord progression: always, unless
+ * it may only move by step (Max skip of a second, or exact skips with none
+ * listed). A stepwise line over a progression's chords got stuck on two notes
+ * (scripts/check-tracks.ts), so that one keeps a chord a note. It was a page
+ * option; Blaine, 7 October 2026: "should be hidden and always on".
+ */
+export function writeOverProgression(maxSkip: number, skips: Pick<SkipSettings, "exactOn" | "patterns" | "extraSkips">): boolean {
+  return skips.exactOn ? skips.patterns.length + skips.extraSkips.length > 0 : maxSkip > 1;
+}
