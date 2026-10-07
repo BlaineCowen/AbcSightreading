@@ -2672,7 +2672,7 @@
             ><ChevronRight size={18} /></button>
           </div>
         {/if}
-        <button class="sr-btn setbar-new flex items-center gap-1.5" on:click={handleClick} disabled={isGenerating}>
+        <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
           <RefreshCw size={16} class={isGenerating ? 'animate-spin' : ''} />
           <span>New exercise</span>
           {#if $usage && $usage.limit !== null && $usage.remaining !== null}

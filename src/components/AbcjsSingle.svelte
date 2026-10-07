@@ -4742,7 +4742,7 @@
           <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
         {/if}
       </div>
-      <button class="sr-btn setbar-new flex items-center gap-1.5" on:click={handleClick} disabled={isLoading}>
+      <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading}>
         <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
         <span>New exercise</span>
           {#if $usage && $usage.limit !== null && $usage.remaining !== null}
@@ -5417,7 +5417,7 @@
         </div>
         <p class="text-xs text-sr-faint">
           {#if rhythmOnly}
-            {scoreView.measureNumbers !== false ? "A number over each bar." : "No measure numbers."} Rhythm syllables are in the Rhythm tab.
+            {scoreView.measureNumbers !== false ? "A number over each bar." : "No measure numbers."} Rhythm syllables are under Rhythms.
           {:else if !showSolfege}
             Clean: the same exercise, printed for sight-reading.
           {:else if lyricSystem === "movable"}

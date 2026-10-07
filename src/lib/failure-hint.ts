@@ -3,7 +3,7 @@
  *
  * "Failed to generate" is not actionable. Every one of these names a setting
  * and what to do to it, because the reader's next move is to change something
- * and press Generate again - and the Voice Ranges tab shows six sliders with no
+ * and press Generate again - and the voice ranges (under More) show six sliders with no
  * indication of which one is in the way.
  *
  * Kept out of the component so the wording can be tested. A hint that names the
@@ -56,8 +56,8 @@ export function span(p: PartSpan): number {
  */
 export function roomHint(parts: PartSpan[]): string {
   const tightest = tightestPart(parts);
-  if (!tightest) return "give a voice more room under Voice Ranges";
-  return `give the ${tightest.name} a step or two more room at the top, under Voice Ranges`;
+  if (!tightest) return "give a voice more room under More, in Voice ranges";
+  return `give the ${tightest.name} a step or two more room at the top, under More, in Voice ranges`;
 }
 
 export function failureHint(ctx: FailureContext): string {
@@ -72,7 +72,7 @@ export function failureHint(ctx: FailureContext): string {
   // and the cells it fails in are exactly the ones the next hint describes:
   // sixteen bars, three or more close parts, minor keys at level 5.
   if (stepwiseEighths && parts.length >= 3 && measures >= 16) {
-    return `Holding eighth notes to a step is what usually makes this combination unwritable: sixteen bars in three or more close parts leaves the voices nowhere to step to. Turn off "Eighth notes move by step" under Rhythm, try 8 bars, or ${room}.`;
+    return `Holding eighth notes to a step is what usually makes this combination unwritable: sixteen bars in three or more close parts leaves the voices nowhere to step to. Turn off "Eighth notes move by step" in the chords settings, try 8 bars, or ${room}.`;
   }
   if (parts.length >= 3 && measures >= 16) {
     return `Sixteen bars in three or more close parts is the hardest thing to ask for. Try 8 bars instead, or ${room}.`;
@@ -82,10 +82,10 @@ export function failureHint(ctx: FailureContext): string {
   if (parts.length >= 3 && tightest !== null && span(tightest) <= 10) {
     // Names the part once. Composing this from `roomHint` said "the Tenor"
     // twice in one breath.
-    return `The ${tightest.name} has the least room of any part here, and three or more voices need somewhere to go. Give it a step or two more at the top, under Voice Ranges. That is usually the end that helps.`;
+    return `The ${tightest.name} has the least room of any part here, and three or more voices need somewhere to go. Give it a step or two more at the top, under More, in Voice ranges. That is usually the end that helps.`;
   }
   if (chordCount <= 4) {
-    return "With this few chords there may be nowhere left for the bass to go. Switching one more on under Harmony usually does it.";
+    return "With this few chords there may be nowhere left for the bass to go. Switching one more on in the chords settings usually does it.";
   }
   if (maxSkip <= 2) {
     return "A largest leap of a third leaves the parts very little room. Raising it by one usually does it.";
