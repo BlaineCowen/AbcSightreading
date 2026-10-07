@@ -638,7 +638,9 @@ the scale challenge. The mic stays on across tabs. The Drone (on `/tuner`; on a 
 the practice pages reach it from their tools.
 
 The practice pages carry a Tools button in the bottom-right corner
-(`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
+(on a phone, 640 px and under, it is in the playback bar's More controls
+instead, since it sat over the music: PlaybackBar `tools`, the
+`sr-tools-toggle` event) (`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
 metronome, drone, starting pitches, analysis, timer - each opening as a card.
 A practice page has one metronome (`src/lib/tools/metronome-link.ts`, tests
 `metronome-link.test.ts`): the Tools card, the transport's metronome icon,
@@ -1295,7 +1297,10 @@ usage banner beside Preset shows only at 3 or fewer left
 (GenerationLimit `LOW_LEFT`). With a preset active, a pill changed since it
 was chosen has a dot (`pillChanged`). Focus moves into a popover as it
 opens and back to its pill on Done or Esc; while one is open, Tools and
-Feedback step aside (`html.sr-pop-open`).
+Feedback step aside (`html.sr-pop-open`). The boxes ease in and out (down
+from their pill, up as a sheet on a phone; none with reduced motion), and on
+touch screens every control in the playback bar is at least 44 px tall.
+Choral's history is Previous, and Latest while looking back.
 
 The score has its own toolbar above it: Display (the old Score options:
 sound, transpose, annotations, cursor; Unison's Dynamics there is Off or On,

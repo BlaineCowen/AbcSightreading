@@ -126,9 +126,22 @@
    */
   function onDocPointer(e: PointerEvent) {
     if (!root || root.contains(e.target as Node)) return;
+    // The playback bar's own Tools button (on a phone) toggles it itself.
+    if ((e.target as Element | null)?.closest?.("[data-tools-toggle]")) return;
     if (wheelOpen) wheelOpen = false;
     else if (tool) closeCard();
   }
+
+  /**
+   * On a phone the floating button is hidden (it sat over the music) and the
+   * playback bar's More controls carry a Tools button, which asks for the
+   * wheel with this event.
+   */
+  onMount(() => {
+    const toggle = () => void toggleWheel();
+    window.addEventListener("sr-tools-toggle", toggle);
+    return () => window.removeEventListener("sr-tools-toggle", toggle);
+  });
 
   $: running = $droneOn || $tuner.metronomeRunning || $timer.running || $tuner.engineStatus === "running";
   $: current = TOOLS.find((t) => t.id === tool);
@@ -271,6 +284,8 @@
    */
   .no-print { --tools-fab-bottom: max(calc(var(--bottom-bar-h, 96px) + 16px), 132px); }
   .tools-fab { bottom: var(--tools-fab-bottom); }
+  /* On a phone the playback bar's More controls carry Tools instead (it sat over the music). */
+  @media (max-width: 640px) { .tools-fab { display: none; } }
   /* Above the button by its own height (3.5rem, which grows with the big-screen text) and a gap; a fixed 68px overlapped it at 4K. */
   .tools-wheel { bottom: calc(var(--tools-fab-bottom) + 3.5rem + 12px); filter: drop-shadow(0 16px 30px rgba(15, 23, 42, 0.28)); }
   .tools-card { bottom: calc(var(--tools-fab-bottom) + 3.5rem + 12px); }

@@ -10,6 +10,8 @@
     newMetronomeBeatState,
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
+  import { fade, fly } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
   import GenerationLimit from "./GenerationLimit.svelte";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
   import FreeMonthPromo from "./FreeMonthPromo.svelte";
@@ -1402,6 +1404,14 @@
   const POP_WIDTH = 420;
   /** The button that opened the popover, for focus to return to. */
   let popOpener: HTMLElement | null = null;
+  /**
+   * The boxes ease in and out: down from their pill, or up from the bottom
+   * as a sheet on a phone. Nothing moves for anyone who asks for less motion.
+   */
+  const reduceMotion = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const asSheet = () => typeof matchMedia !== "undefined" && matchMedia("(max-width: 640px)").matches;
+  const popIn = (node: Element) => fly(node, { y: asSheet() ? 40 : -8, duration: reduceMotion ? 0 : 170, easing: cubicOut });
+  const popOut = (node: Element) => fly(node, { y: asSheet() ? 40 : -8, duration: reduceMotion ? 0 : 110 });
   function closePops(returnFocus = true) {
     const opener = popOpener;
     settingPop = null;
@@ -2664,23 +2674,21 @@
             role="group"
             aria-label="Exercise history"
           >
+            <!-- Back to the exercise before; and, while looking back, straight to the newest. -->
             <button
-              class="sr-icon-btn flex items-center justify-center h-8 w-8"
+              class="sr-tok flex items-center gap-1 min-h-10"
               on:click={() => goToHistory(historyIndex - 1)}
               disabled={historyIndex <= 0 || isGenerating}
-              aria-label="Previous exercise"
               title={historyIndex > 0 ? history[historyIndex - 1].label : "No earlier exercise"}
-            ><ChevronLeft size={18} /></button>
-            <span class="text-xs text-sr-muted tabular-nums whitespace-nowrap" aria-live="polite">
-              {historyIndex + 1} of {history.length}
-            </span>
-            <button
-              class="sr-icon-btn flex items-center justify-center h-8 w-8"
-              on:click={() => goToHistory(historyIndex + 1)}
-              disabled={historyIndex >= history.length - 1 || isGenerating}
-              aria-label="Next exercise"
-              title={historyIndex < history.length - 1 ? history[historyIndex + 1].label : "No later exercise"}
-            ><ChevronRight size={18} /></button>
+            ><ChevronLeft size={16} aria-hidden="true" />Previous</button>
+            {#if historyIndex < history.length - 1}
+              <button
+                class="sr-tok flex items-center gap-1 min-h-10"
+                on:click={() => goToHistory(history.length - 1)}
+                disabled={isGenerating}
+                title={history[history.length - 1].label}
+              >Latest<ChevronRight size={16} aria-hidden="true" /></button>
+            {/if}
           </div>
         {/if}
         <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
@@ -2698,8 +2706,10 @@
       </div>
 
       {#if settingPop}
-        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
         <div
+          in:popIn
+          out:popOut
           class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'more' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
           role="dialog"
@@ -3223,8 +3233,8 @@
           <Eye size={16} aria-hidden="true" />Display
         </button>
         {#if toolPop}
-          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
-          <div class="set-pop set-pop-tools" role="dialog" aria-label="Display">
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
+          <div in:popIn out:popOut class="set-pop set-pop-tools" role="dialog" aria-label="Display">
             <p class="set-pop-title">Display</p>
             <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -3420,6 +3430,7 @@
 
   <!-- Sticky playback bar -->
   <PlaybackBar
+    tools
     hideGenerate={setbarInView}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
@@ -3475,11 +3486,11 @@
           type="range" min="0" max="1" step="0.05"
           value={$tuner.metronomeVolume}
           on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
-          class="w-16 accent-sr-bar-on"
+          class="w-16 h-10 xl:h-auto accent-sr-bar-on"
           aria-label="Metronome volume"
         />
         <button
-          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+          class="rounded-full px-3 min-h-11 xl:min-h-0 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
           on:click={toggleMetronome}
           aria-pressed={metronomeSounding($tuner)}
           title="The metronome, the same one as in Tools: on its own, or with the music while it plays"

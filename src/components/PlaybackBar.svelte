@@ -103,6 +103,11 @@
    * row scrolls away.
    */
   export let hideGenerate = false;
+  /**
+   * The page has the Tools wheel: on a phone, where its floating button is
+   * hidden, More controls carries a Tools button that opens it.
+   */
+  export let tools = false;
   export let isGenerating: boolean = false;
   /**
    * True from a Play press until the sound starts: the first Play fetches the
@@ -254,8 +259,9 @@
     "flex items-center justify-center rounded-full bg-sr-bar-btn hover:bg-sr-bar-btn-hi disabled:opacity-40 h-11 w-11 xl:h-8 xl:w-8";
   const stepBtn =
     "flex items-center justify-center bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full h-11 w-8 min-[380px]:w-9 xl:h-6 xl:w-6 max-[359px]:hidden";
+  // 44px tall on touch (phones and iPads), the compact pill from xl up.
   const chipBtn =
-    "flex items-center gap-1 bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full px-3 py-2 xl:py-1 text-xs";
+    "flex items-center gap-1 bg-sr-bar-btn hover:bg-sr-bar-btn-hi rounded-full px-3 min-h-11 xl:min-h-0 py-2 xl:py-1 text-xs";
   const menuItem =
     "w-full flex flex-col items-start px-3 py-2 xl:py-1.5 text-left hover:bg-sr-bar-btn disabled:opacity-40 disabled:hover:bg-transparent";
 </script>
@@ -475,16 +481,24 @@
       </div>
 
       <button
-        class="xl:hidden flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold {looping
+        class="xl:hidden flex items-center gap-1 rounded-full px-3 min-h-11 py-2 text-xs font-semibold {looping
           ? 'bg-sr-peach text-sr-peach-ink'
           : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
         on:click={onToggleLoop}
         aria-pressed={looping}
       ><Repeat size={14} /> Loop</button>
 
+      {#if tools && !fullscreen}
+        <button
+          data-tools-toggle
+          class="sm:hidden flex items-center gap-1 rounded-full px-3 min-h-11 py-2 text-xs font-semibold bg-sr-bar-btn hover:bg-sr-bar-btn-hi"
+          on:click={async () => { expanded = false; await tick(); publishBarHeight(); window.dispatchEvent(new Event("sr-tools-toggle")); }}
+          aria-label="Practice tools"
+        ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /><path d="M12 3v3M21 12h-3M12 21v-3M3 12h3" /></svg> Tools</button>
+      {/if}
       {#if onToggleFullscreen && !fullscreen}
         <button
-          class="sm:hidden flex items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold bg-sr-bar-btn hover:bg-sr-bar-btn-hi"
+          class="sm:hidden flex items-center gap-1 rounded-full px-3 min-h-11 py-2 text-xs font-semibold bg-sr-bar-btn hover:bg-sr-bar-btn-hi"
           on:click={onToggleFullscreen}
           aria-label="Full screen"
         ><Maximize size={14} /> Full screen</button>
