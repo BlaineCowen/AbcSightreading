@@ -21,6 +21,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
+  import { rememberExercise } from "../lib/recent-client";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
@@ -299,7 +300,17 @@
     const mine = ++packing;
     if (!source) return;
     packExercise({ kind: "choral", result: source })
-      .then((value) => { if (mine === packing) exercisePacked = value; })
+      .then((value) => {
+        if (mine !== packing) return;
+        exercisePacked = value;
+        // For the home page's Recent exercises (signed in only).
+        void rememberExercise({
+          page: "choral",
+          title: activePresetLabel || "Choral exercise",
+          detail: [selectedVoicing, keyName(selectedKey), selectedTimeSignature, fullLength ? "Full length" : `${measures} bars`].join(" · "),
+          href: settingsLink() + exerciseFragment(value),
+        });
+      })
       .catch((error) => console.error("Could not pack the exercise for a link:", error));
   }
   /**

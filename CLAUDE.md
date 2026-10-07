@@ -1057,6 +1057,25 @@ presets once; the server dedupes by name + creation time.
   is drawn, so an exercise that could not be written costs nothing; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
 
+## Home page (signed in)
+
+`/` is two pages (8 October 2026): the landing page for anyone signed out
+and every crawler (`src/components/Landing.astro`, unchanged), and for
+someone signed in their home (`HomeDashboard.svelte`, sent `private,
+no-store`): Continue (the last exercise), Unison and Choral, Recent
+exercises, My tracks (the subscribed sets and instrument tracks, with Choose
+tracks; Tracks left the navbar for here and the footer), a student's
+assignments, an educator's classes, and Account and settings.
+
+Recent exercises are kept on the account (`RecentExercise`, the last
+`MAX_RECENT` = 20; `/api/recent`; rules in `src/lib/recent-exercises.ts`,
+tests `recent-exercises.test.ts`). Both practice pages remember each
+exercise once its link is packed (`rememberExercise`, signed in only): the
+preset's name or the kind of exercise, a line of what it is, and the same
+link Share gives, so it reopens exactly. The same link again moves to the
+top. A stored link must be a path to the page it names (`checkRecent`), since
+the home page shows it as a link.
+
 ## SEO
 
 `site` in astro.config.mjs is https://www.abc-sightreading.com, and every page's

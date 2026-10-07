@@ -67,6 +67,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
+  import { rememberExercise } from "../lib/recent-client";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset, restoredSignature, type ActivePresetRecord } from "../lib/active-preset";
   import { stepOfKey, trackById, trackPresetKey, trackStepLabel } from "../lib/curriculum/tracks";
@@ -1303,7 +1304,19 @@
     const mine = ++packing;
     if (!score) return;
     packExercise({ kind: "unison", score })
-      .then((value) => { if (mine === packing) exercisePacked = value; })
+      .then((value) => {
+        if (mine !== packing) return;
+        exercisePacked = value;
+        // For the home page's Recent exercises (signed in only).
+        void rememberExercise({
+          page: "unison",
+          title: activePresetLabel || (rhythmOnly ? "Rhythm exercise" : "Unison exercise"),
+          detail: (rhythmOnly
+            ? [selectedTimeSignature, pillText.length, pillText.rhythm]
+            : [keyName(selectedKey), selectedTimeSignature, pillText.length, pillText.notes]).join(" · "),
+          href: settingsLink() + exerciseFragment(value),
+        });
+      })
       .catch((err) => console.error("Could not pack the exercise for a link:", err));
   }
   /**

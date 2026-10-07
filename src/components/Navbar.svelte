@@ -9,14 +9,14 @@
   const feedbackHere = typeof document !== "undefined" && document.body.dataset.feedback === "1";
 
   /**
-   * The two modules. Short names on the bar - the logo already says "Sight
+   * The practice pages and the tuner (Tracks moved to the signed-in home
+   * page, and the footer). Short names on the bar - the logo already says "Sight
    * Reading" - and the full ones in the phone menu, where there is room.
    */
   const pages = [
     { href: "/sightreading", short: "Unison", full: "Unison Sight Reading" },
     { href: "/choral-sightreading", short: "Choral", full: "Choral Sight Reading" },
     { href: "/tuner", short: "abcTuner", full: "abcTuner" },
-    { href: "/curriculum", short: "Tracks", full: "Curriculum tracks" },
   ];
   // client:only, so the path is there from the first render.
   const here =
