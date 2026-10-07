@@ -5822,13 +5822,13 @@
     gap: 0.5rem;
     padding: 0.625rem;
   }
-  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.375rem; flex: 1 1 26rem; min-width: 0; }
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 26rem; min-width: 0; }
   .set-pill {
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
     min-height: 2.5rem;
-    padding: 0.4rem 0.75rem 0.4rem 1rem;
+    padding: 0.4rem 0.55rem 0.4rem 0.8rem;
     border-radius: 999px;
     background: var(--sr-track);
     color: var(--sr-ink);
@@ -5842,7 +5842,7 @@
   .set-pill[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
   .set-pill-k { font-size: 12px; font-weight: 600; opacity: 0.7; }
   :global(.set-pill-chev) { opacity: 0.7; }
-  .set-pill-more { background: transparent; color: var(--sr-action-fg); }
+  .set-pill-more { background: transparent; color: var(--sr-action-fg); padding-inline: 0.6rem; }
   .set-pill-more[aria-expanded="true"] { background: var(--sr-tint); color: var(--sr-action-fg); }
   .setbar-new { margin-left: auto; min-height: 2.75rem; }
 
