@@ -13,9 +13,23 @@ import { generationAllowance, monthKey, planFrom, type Plan } from "../plan";
 
 export const complimentary = (email: string | null | undefined) => {
   if (!email) return false;
-  const list = (serverEnv("COMP_EMAILS") ?? "").toLowerCase().split(",").map((s) => s.trim());
+  const list = [...emailList("COMP_EMAILS"), ...previewOwners()];
   return list.includes(email.toLowerCase());
 };
+
+const emailList = (name: string) =>
+  (serverEnv(name) ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+
+/**
+ * Outside production (the dev site, previews, a local server) the owner
+ * (ADMIN_EMAILS / ADMIN_EMAIL) is always on Educator, so Pro features can be
+ * tried there with the real account. Nobody else: the dev site is public. To
+ * see what a free or Pro account sees, use a throwaway account.
+ */
+function previewOwners(): string[] {
+  if (serverEnv("VERCEL_ENV") === "production") return [];
+  return [...emailList("ADMIN_EMAILS"), ...emailList("ADMIN_EMAIL")];
+}
 
 const subscriptionsOf = (referenceIds: string[]) =>
   prisma.subscription.findMany({
