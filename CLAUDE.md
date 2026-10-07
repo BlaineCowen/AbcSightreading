@@ -272,7 +272,7 @@ assignment key; an assignment copies the teacher's version in). Links:
 `/sightreading?track=<step id>&part=rhythm|notes`.
 `bun run scripts/check-tracks.ts` generates every half of every step
 (`RUNS`, `TRACK=`): in range, at least three pitches. Clean at 60 runs a step
-(9 October 2026) after two fixes: no progression while a line only steps
+(7 October 2026) after two fixes: no progression while a line only steps
 (it got stuck on two notes) and 8 bars from the first notes; and
 `placeMissingChromatics` now stays inside the exercise's range (it wrote a
 written F♯ under a clarinet's lowest note).

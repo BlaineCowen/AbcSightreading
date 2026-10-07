@@ -2519,7 +2519,7 @@ export function placeMissingChromatics(
       const base = opts.noteList.find((n) => n.pitchValue === pitch);
       if (!base || base.degree !== degree) continue;
       // Inside the range, like every other note: placed below low so it wrote
-      // a written F sharp under a clarinet's lowest note (8 October 2026).
+      // a written F sharp under a clarinet's lowest note (7 October 2026).
       if (opts.range && (pitch < opts.range.min || pitch > opts.range.max)) continue;
       if (prev.pitchValue !== pitch && prev.pitchValue !== next.pitchValue) continue;
       spots.push({ index: i, pitch });
