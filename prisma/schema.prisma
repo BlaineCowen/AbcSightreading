@@ -39,6 +39,7 @@ model User {
   usage         GenerationUsage[]
   quotes        Quote[]
   planNotices   PlanNotice[]
+  freeMonth     FreeMonthClaim?
   practice      PracticeTime[]
   practiceClock PracticeClock?
   grants        AccessGrant[]
@@ -427,4 +428,23 @@ model PlanNotice {
 
   @@index([userId])
   @@map("plan_notice")
+}
+
+/// The free month of Pro (src/lib/free-month.ts), claimed once per person:
+/// one per account, one per email key (the address with Gmail dots and
+/// "+tags" folded away), and counted per browser and per network. The
+/// browser and network are kept only as salted hashes.
+model FreeMonthClaim {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailKey   String   @unique
+  browserKey String?
+  networkKey String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([browserKey])
+  @@index([networkKey, createdAt])
+  @@map("free_month_claim")
 }

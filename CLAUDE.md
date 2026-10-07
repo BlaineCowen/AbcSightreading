@@ -927,6 +927,21 @@ presets once; the server dedupes by name + creation time.
   subscription's term in step with Stripe's (it was written once, at accept,
   so a school that paid its renewal would have lost the plan and its seats
   after the first year).
+- **A free month of Pro** (8 October 2026; rules `src/lib/free-month.ts`,
+  tests `free-month.test.ts`; server `src/lib/server/free-month.ts`,
+  `/api/free-month`, `FreeMonthOffer.svelte` on /account's free plan): no
+  card, it simply ends after 30 days (an AccessGrant with no code, so
+  `planFor` reads it and plan-ending.ts warns in its last week, kind
+  "trial"). Once per person, for accounts that never had Pro (any
+  subscription or grant ever, complimentary, or a teacher's class). Against
+  one person making many accounts: the email confirmed and not a throwaway
+  domain; one per email key (`emailKey`: lower case, "+tags" dropped, Gmail
+  dots dropped and googlemail.com read as gmail.com), unique in
+  `FreeMonthClaim`; one per browser (an HttpOnly `abc_fm` cookie and a saved
+  id, both hashed); `NETWORK_LIMIT` (5) a month per network (the address
+  from `x-vercel-forwarded-for`, hashed). Better Auth's own sign-up rate limit
+  sits in front of all of it. `FREE_MONTH_ENABLED=0` switches the offer off.
+  Checked end to end on a local server and database (14 checks, 8 October).
 - Assignments and practice time (rules `src/lib/practice.ts`, tests
   `practice.test.ts`; server `src/lib/server/practice.ts`): a teacher assigns a
   class one preset (step, UIL level or saved - a saved one is copied in) for N

@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { sendAccountEmail } from "./auth-email";
 import { complimentary } from "./plan";
-import { NOTICE_DAYS, bannerShows, noticeDue, noticeEmail, noticeKey, type EndingPlan } from "../plan-ending";
+import { NOTICE_DAYS, bannerDaysFor, bannerShows, noticeDue, noticeEmail, noticeKey, windowsFor, type EndingPlan } from "../plan-ending";
 
 /**
  * Plans that will not renew, and the notices before they end (rules in
@@ -27,7 +27,7 @@ async function candidates(now: Date, userId?: string): Promise<Candidate[]> {
     }),
     prisma.accessGrant.findMany({
       where: { expiresAt: { gt: now, lte: until }, ...(userId ? { userId } : {}) },
-      select: { id: true, userId: true, plan: true, expiresAt: true },
+      select: { id: true, userId: true, plan: true, expiresAt: true, codeId: true },
     }),
   ]);
   const found: Candidate[] = [
@@ -44,7 +44,8 @@ async function candidates(now: Date, userId?: string): Promise<Candidate[]> {
       source: `grant:${g.id}`,
       plan: (g.plan === "educator" ? "educator" : "pro") as EndingPlan["plan"],
       endsAt: g.expiresAt,
-      kind: "code" as const,
+      // A grant with no code is the free month (free-month.ts).
+      kind: (g.codeId ? "code" : "trial") as EndingPlan["kind"],
     })),
   ];
   // Keep only what really ends: nothing else carries the account on at that plan or better.
@@ -81,7 +82,7 @@ async function candidates(now: Date, userId?: string): Promise<Candidate[]> {
 
 /** The plan this account should be warned about now (the banner), or null. */
 export async function endingPlanFor(userId: string, now = new Date()): Promise<EndingPlan | null> {
-  const c = (await candidates(now, userId)).find((x) => bannerShows(x.endsAt, now));
+  const c = (await candidates(now, userId)).find((x) => bannerShows(x.endsAt, now, bannerDaysFor(x.kind)));
   if (!c) return null;
   const { userId: _u, source: _s, ...plan } = c;
   return plan;
@@ -101,7 +102,7 @@ export async function reviewEndingPlans(now = new Date(), siteUrl = "https://www
     const sent = (await prisma.planNotice.findMany({ where: { key: { startsWith: prefix } }, select: { key: true } })).map((n) =>
       Number(n.key.slice(prefix.length)),
     );
-    const due = noticeDue(c.endsAt, now, sent);
+    const due = noticeDue(c.endsAt, now, sent, windowsFor(c.kind));
     if (due === null) continue;
     const user = await prisma.user.findUnique({ where: { id: c.userId }, select: { email: true } });
     if (!user) continue;

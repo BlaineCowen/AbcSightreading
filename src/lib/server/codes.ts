@@ -42,7 +42,7 @@ export const currentGrant = (userId: string) =>
   prisma.accessGrant.findFirst({
     where: { userId, expiresAt: { gt: new Date() } },
     orderBy: { expiresAt: "desc" },
-    select: { plan: true, expiresAt: true },
+    select: { plan: true, expiresAt: true, codeId: true },
   });
 
 /**

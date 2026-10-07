@@ -1,7 +1,11 @@
 ---
+import { serverEnv } from "../lib/server/env";
 import Layout from "../layouts/Layout.astro";
 import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 import { PLAN_OFFERS } from "../lib/seo";
+
+// The free month of Pro (src/lib/free-month.ts), unless switched off.
+const freeMonth = serverEnv("FREE_MONTH_ENABLED") !== "0";
 
 /**
  * The plans, in the page's own HTML so search engines and purchasing offices
@@ -46,8 +50,9 @@ const plans = [
       "Practice tools beside the music: tuner, metronome, drone, starting pitches, timer",
       "abcTuner: a tuner that follows a singing voice, with a scale challenge",
       "Your own rhythm syllables",
+      ...(freeMonth ? ["Try it free for a month: no card, it simply ends"] : []),
     ],
-    cta: { href: "/account#plan", label: "Get Pro" },
+    cta: { href: "/account#plan", label: freeMonth ? "Get Pro or try it free" : "Get Pro" },
   },
   {
     name: "Educator",

@@ -44,7 +44,7 @@ export const GET: APIRoute = async ({ request }) => {
   const via =
     plan === "free" ? null
     : subscription ? "subscription"
-    : grant ? "code"
+    : grant ? (grant.codeId ? "code" : "trial")
     : complimentary(user.email) ? "complimentary"
     : "class";
   return json({

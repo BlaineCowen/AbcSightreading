@@ -39,7 +39,11 @@
 {#if ending}
   <div class="w-full rounded-[18px] bg-sr-butter text-sr-butter-ink px-4 py-3 text-sm flex flex-wrap items-center gap-x-3 gap-y-2 no-print" role="status">
     <span class="flex-1 min-w-[14rem]">
-      <strong>Your {name} plan ends {day(ending.endsAt)}</strong>, in {left} day{left === 1 ? "" : "s"}. It does not renew by itself.
+      {#if ending.kind === "trial"}
+        <strong>Your free month of Pro ends {day(ending.endsAt)}</strong>, in {left} day{left === 1 ? "" : "s"}. Keep Pro for $19.99 a year, or do nothing and go back to the free plan.
+      {:else}
+        <strong>Your {name} plan ends {day(ending.endsAt)}</strong>, in {left} day{left === 1 ? "" : "s"}. It does not renew by itself.
+      {/if}
     </span>
     {#if ending.kind === "card"}
       <button class="sr-btn text-sm" on:click={renewCard} disabled={busy}>{busy ? "Turning on…" : "Turn renewal on"}</button>

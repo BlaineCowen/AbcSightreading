@@ -9,7 +9,7 @@ import type { Plan } from "./plan";
 
 export type BillingStatus = {
   plan: Plan;
-  via: "subscription" | "code" | "complimentary" | "class" | null;
+  via: "subscription" | "code" | "trial" | "complimentary" | "class" | null;
   /** When a plan given by a code ends. */
   grantEnds: number | null;
   billingEnabled: boolean;
@@ -17,7 +17,7 @@ export type BillingStatus = {
   /** A plan on a school purchase order. */
   po?: { poNumber: string | null; school: string; invoiceUrl: string | null; dueAt: number | null; paid: boolean; renews: boolean } | null;
   /** A plan that will not renew and ends within 30 days (plan-ending.ts). */
-  ending?: { plan: "pro" | "educator"; endsAt: number; kind: "card" | "quote" | "code"; quoteId?: string } | null;
+  ending?: { plan: "pro" | "educator"; endsAt: number; kind: "card" | "quote" | "code" | "trial"; quoteId?: string } | null;
 };
 
 /** Automatic renewal of the card plan on or off; resolves to the fresh status. */

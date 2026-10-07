@@ -4,6 +4,7 @@
   import { authClient } from "../lib/auth-client";
   import { billingStatus, openBillingPortal, redeemCode, setAutoRenew, startCheckout, type BillingStatus } from "../lib/billing-client";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
+  import FreeMonthOffer from "./FreeMonthOffer.svelte";
   import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 
   const session = authClient.useSession();
@@ -246,7 +247,8 @@
           {/if}
         {:else}
           <p class="text-sm text-sr-muted">
-            {#if billing.via === "code" && billing.grantEnds}Free from a code until {day(billing.grantEnds)}.
+            {#if billing.via === "trial" && billing.grantEnds}Your free month of Pro, until {day(billing.grantEnds)}. Nothing is charged; it simply ends.
+            {:else if billing.via === "code" && billing.grantEnds}Free from a code until {day(billing.grantEnds)}.
             {:else if billing.via === "complimentary"}Complimentary.
             {:else}Through your teacher's class.{/if}
           </p>
@@ -255,6 +257,7 @@
         <p class="text-sm text-sr-ink-2">
           <strong>Free</strong>: {GENERATION_LIMITS.free} exercises a month{used !== null ? ` (${used} used this month)` : ""}. Your saved presets follow you to any device you sign in on.
         </p>
+        <FreeMonthOffer on:claimed={async () => { billing = await billingStatus(true); notice = "Your free month of Pro has started. Enjoy it!"; }} />
         <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 flex flex-col gap-2">
           <p class="text-sm text-sr-ink"><strong>Pro: $19.99 a year.</strong> Unlimited exercises, abcTuner, and the practice tools beside the music: tuner, metronome, drone, starting pitches.</p>
           <ReferralNote />

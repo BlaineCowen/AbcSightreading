@@ -14,7 +14,12 @@ export const NOTICE_DAYS = [30, 7] as const;
 export const BANNER_DAYS = 30;
 
 /** How the plan was paid for, which says how it is renewed. */
-export type EndingKind = "card" | "quote" | "code";
+export type EndingKind = "card" | "quote" | "code" | "trial";
+
+/** The free month (free-month.ts) is only a month long: its notice and banner come in the last week only. */
+export const TRIAL_DAYS_NOTICE = 7;
+export const windowsFor = (kind: EndingKind): readonly number[] => (kind === "trial" ? [TRIAL_DAYS_NOTICE] : NOTICE_DAYS);
+export const bannerDaysFor = (kind: EndingKind) => (kind === "trial" ? TRIAL_DAYS_NOTICE : BANNER_DAYS);
 
 export type EndingPlan = {
   plan: "pro" | "educator";
@@ -33,10 +38,10 @@ export const daysLeft = (endsAt: Date, now: Date) => Math.max(0, Math.ceil((ends
  * than a week to run, or the check missing a day), only the nearer one goes,
  * so nobody gets two in a row.
  */
-export function noticeDue(endsAt: Date, now: Date, sent: readonly number[]): number | null {
+export function noticeDue(endsAt: Date, now: Date, sent: readonly number[], windows: readonly number[] = NOTICE_DAYS): number | null {
   if (endsAt.getTime() <= now.getTime()) return null;
   const left = (endsAt.getTime() - now.getTime()) / DAY;
-  const reached = NOTICE_DAYS.filter((d) => left <= d);
+  const reached = windows.filter((d) => left <= d);
   if (!reached.length) return null;
   const nearest = Math.min(...reached);
   if (sent.some((d) => d <= nearest)) return null;
@@ -47,8 +52,8 @@ export function noticeDue(endsAt: Date, now: Date, sent: readonly number[]): num
 export const noticeKey = (source: string, endsAt: Date, days: number) => `${source}:${endsAt.toISOString().slice(0, 10)}:${days}`;
 
 /** Whether the banner shows. */
-export const bannerShows = (endsAt: Date, now: Date) =>
-  endsAt.getTime() > now.getTime() && endsAt.getTime() - now.getTime() <= BANNER_DAYS * DAY;
+export const bannerShows = (endsAt: Date, now: Date, days = BANNER_DAYS) =>
+  endsAt.getTime() > now.getTime() && endsAt.getTime() - now.getTime() <= days * DAY;
 
 const planName = (p: EndingPlan["plan"]) => (p === "pro" ? "Pro" : "Educator");
 export const endDate = (d: Date) =>
@@ -58,6 +63,7 @@ export const endDate = (d: Date) =>
 export function renewHow(e: EndingPlan): string {
   if (e.kind === "card") return "Turn automatic renewal back on from your account page, and it carries on for another year.";
   if (e.kind === "quote") return "Ask for a renewal quote from your account page: it is filled in from last year's, ready to send to purchasing.";
+  if (e.kind === "trial") return "Keep Pro for $19.99 a year from your account page. If you do nothing, you simply go back to the free plan.";
   return "Buy a year from your account page to keep it.";
 }
 
@@ -66,9 +72,11 @@ export function noticeEmail(e: EndingPlan, now: Date, accountUrl: string) {
   const left = daysLeft(e.endsAt, now);
   const what = e.plan === "educator" ? "Educator plan" : "Pro plan";
   return {
-    subject: `Your abcSightReading ${planName(e.plan)} plan ends ${endDate(e.endsAt)}`,
+    subject: e.kind === "trial" ? `Your free month of abcSightReading Pro ends ${endDate(e.endsAt)}` : `Your abcSightReading ${planName(e.plan)} plan ends ${endDate(e.endsAt)}`,
     text: [
-      `Your ${what} ends on ${endDate(e.endsAt)}, in ${left} day${left === 1 ? "" : "s"}. It does not renew by itself.`,
+      e.kind === "trial"
+        ? `Your free month of Pro ends on ${endDate(e.endsAt)}, in ${left} day${left === 1 ? "" : "s"}. Nothing is charged; it simply ends.`
+        : `Your ${what} ends on ${endDate(e.endsAt)}, in ${left} day${left === 1 ? "" : "s"}. It does not renew by itself.`,
       "",
       renewHow(e),
       accountUrl,

@@ -37,3 +37,19 @@ describe("when a plan that will not renew is noticed", () => {
     expect(noticeEmail({ plan: "educator", endsAt: inDays(30), kind: "quote", quoteId: "q" }, now, "u").text).toContain("renewal quote");
   });
 });
+
+describe("the free month's ending", () => {
+  test("only the last week: no email the day it starts", async () => {
+    const { windowsFor, bannerDaysFor } = await import("../../src/lib/plan-ending");
+    expect(noticeDue(inDays(29.9), now, [], windowsFor("trial"))).toBe(null);
+    expect(noticeDue(inDays(6), now, [], windowsFor("trial"))).toBe(7);
+    expect(bannerShows(inDays(20), now, bannerDaysFor("trial"))).toBe(false);
+    expect(bannerShows(inDays(5), now, bannerDaysFor("trial"))).toBe(true);
+  });
+  test("its email says nothing is charged and how to keep Pro", () => {
+    const e = noticeEmail({ plan: "pro", endsAt: inDays(6), kind: "trial" }, now, "u");
+    expect(e.subject).toContain("free month");
+    expect(e.text).toContain("Nothing is charged");
+    expect(e.text).toContain("$19.99");
+  });
+});

@@ -41,12 +41,12 @@
     <div class="flex-1 text-sm flex flex-col gap-2">
       {#if $usage.tier === "anonymous"}
         <p class="font-extrabold">That's this month's {GENERATION_LIMITS.anonymous} free exercises.</p>
-        <p>A free account gives you {GENERATION_LIMITS.free} a month, and keeps your presets. Pro is unlimited.</p>
+        <p>A free account gives you {GENERATION_LIMITS.free} a month, and keeps your presets. Pro is unlimited, and a new account can try it free for a month.</p>
         <p><a class="underline font-extrabold" href={signupHref}>Create a free account</a></p>
       {:else}
         <p class="font-extrabold">That's this month's {GENERATION_LIMITS.free} exercises.</p>
         <p>Pro is unlimited, with the tuner and practice tools, for $19.99 a year. Or wait for the 1st, when the count starts again.</p>
-        <p><a class="underline font-extrabold" href={upgradeHref}>Get Pro</a></p>
+        <p><a class="underline font-extrabold" href={upgradeHref}>Get Pro</a>, or <a class="underline font-extrabold" href="/account#plan">try it free for a month</a> (no card) if you have not had Pro.</p>
       {/if}
     </div>
     <button type="button" class="p-1 opacity-70 hover:opacity-100" on:click={dismissLimit} aria-label="Close">
