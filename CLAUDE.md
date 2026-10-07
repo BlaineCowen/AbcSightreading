@@ -810,6 +810,17 @@ the environment; with `BETTER_AUTH_URL` and `COMP_EMAILS` set too, a second
 dev server on another port can test Send end to end with a throwaway account
 (done 6 October 2026; delete the account and the upload after).
 
+Does the click cost the singer? Grading keeps echo cancellation, which turns
+the microphone down while the speakers sound. Measured on Blaine's two sent
+runs (7 October 2026, half and whole notes at 72, speakers, click on and
+off; `bun run scripts/check-click-dips.ts <runs>`, tests
+`click-dips.test.ts`): inside held notes, the frames just after a click were
+as loud and as pitched as those just before (+0.1 dB, 100% voiced; click off
+-0.7 dB), and the scores matched (96 on, 94 off). The duck is shorter than a
+detection frame (~46 ms), so grading does not feel it; only a recording
+played back did, which is why the take skips echo cancellation and grading
+keeps it.
+
 Runs can also be saved for review: on the dev server, or with `?gradeDebug=1`,
 the microphone is recorded over each run (a second stream, `grade-recording.ts`,
 so the detection code is untouched; without the tuner's echo cancellation,
