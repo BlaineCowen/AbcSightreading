@@ -730,3 +730,8 @@ html.sr-focus .playback-bar .bar-secondary > :not(.fs-keep) {
   body > main.container:has(.focus-main.wide) { max-width: none; padding-left: 2rem; padding-right: 2rem; }
   .focus-main.wide { max-width: min(100rem, 84vw) !important; }
 }
+
+/* A settings box or sheet is open on a practice page: the floating Tools and
+   Feedback buttons step aside so they cover none of it. */
+html.sr-pop-open .tools-fab,
+html.sr-pop-open .feedback-fab { display: none; }

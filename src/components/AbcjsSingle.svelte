@@ -4141,6 +4141,7 @@
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | "drill" | null = null;
   let popLeft = 0;
+  $: if (typeof document !== "undefined") document.documentElement.classList.toggle("sr-pop-open", !!(settingPop || toolPop));
   let setbarInView = false;
   let setbarEl: HTMLElement;
   let toolsEl: HTMLElement;
@@ -4203,6 +4204,30 @@
   });
   const keyName = (k: string) => (isMinorKey(k) ? `${k.replace(/m$/, "")} minor` : `${k} major`);
   const SOLFA = ["do", "re", "mi", "fa", "so", "la", "ti"];
+  /**
+   * What each pill holds, as one string, and those strings as they were when
+   * the preset was chosen: a pill with a dot has been changed since. No preset,
+   * no dots (there is nothing to have changed from).
+   */
+  $: pillSigs = {
+    key: [...selectedKeys].sort().join(","),
+    meter: [...selectedTimeSignatures].sort().join(","),
+    length: String(measures),
+    notes: JSON.stringify([[...selectedScaleDegrees].sort(), [...selectedSharpDegrees].sort(), [...selectedFlatDegrees].sort(),
+      [...minorScaleDegrees].sort(), [...minorSharpDegrees].sort(), [...minorFlatDegrees].sort(), minorSolfege,
+      maxSkip, skips, eighthPairsOnePitch, accidentalsFollowStep, settledRange]),
+    rhythm: JSON.stringify([selectedRhythms.map((r: Rhythm) => r.name).sort(), allowTiesAcrossBarline, showRhythmSyllables, syllableSystemId]),
+    more: JSON.stringify([selectedClef, progressions]),
+  };
+  let presetPillSigs: Record<string, string> | null = null;
+  let pillsFor = "";
+  $: if (activePresetSignature !== pillsFor) {
+    pillsFor = activePresetSignature;
+    presetPillSigs = activePresetSignature ? { ...pillSigs } : null;
+  }
+  $: pillChanged = Object.fromEntries(
+    Object.entries(pillSigs).map(([k, v]) => [k, !!activePresetLabel && !!presetPillSigs && presetPillSigs[k] !== v]),
+  ) as Record<keyof typeof pillSigs, boolean>;
   $: pillText = {
     key: selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : `${selectedKeys.size} keys`,
     meter: [...selectedTimeSignatures].join(", "),
@@ -4705,21 +4730,29 @@
           <button class:on={rhythmOnly} aria-pressed={rhythmOnly} on:click={() => { rhythmOnly = true; closePops(false); }}>Rhythm only</button>
         </div>
         {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {/if}
-        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}{#if pillChanged.notes}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {/if}
-        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {#if !rhythmOnly}
-          <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More</button>
+          <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
         {/if}
       </div>
       <button class="sr-btn setbar-new flex items-center gap-1.5" on:click={handleClick} disabled={isLoading}>
         <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
         <span>New exercise</span>
+          {#if $usage && $usage.limit !== null && $usage.remaining !== null}
+            <!-- This month's exercises left, on the button that uses them. -->
+            <span
+              class="setbar-count {$usage.remaining <= 3 ? 'low' : ''}"
+              title="{$usage.remaining} exercises left this month"
+              aria-label="{$usage.remaining} left this month"
+            >{$usage.remaining}</span>
+          {/if}
       </button>
 
       {#if settingPop}
@@ -5858,6 +5891,20 @@
   }
   .set-pill:hover { border-color: var(--sr-tint); }
   .set-pill[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
+  .set-pill-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--sr-action); flex: none; }
+  .set-pill[aria-expanded="true"] .set-pill-dot { background: var(--sr-action-ink); }
+  .setbar-count {
+    margin-left: 0.15rem;
+    min-width: 1.25rem;
+    border-radius: 999px;
+    padding: 0 0.4rem;
+    font-size: 11px;
+    line-height: 1.25rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .setbar-count.low { background: var(--sr-butter); color: var(--sr-butter-ink); }
   .set-pill-k { font-size: 12px; font-weight: 600; opacity: 0.7; }
   :global(.set-pill-chev) { opacity: 0.7; }
   .set-mode {

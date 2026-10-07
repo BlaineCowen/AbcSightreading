@@ -20,7 +20,7 @@
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
-  import { countGeneration, mayGenerate } from "../lib/usage";
+  import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
@@ -1384,6 +1384,7 @@
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | null = null;
   let popLeft = 0;
+  $: if (typeof document !== "undefined") document.documentElement.classList.toggle("sr-pop-open", !!(settingPop || toolPop));
   let setbarInView = false;
   let setbarEl: HTMLElement;
   let toolsEl: HTMLElement;
@@ -1444,6 +1445,29 @@
     };
   });
   const keyName = (k: string) => (isMinorKey(k) ? `${k.replace(/m$/, "")} minor` : `${k} major`);
+  /**
+   * What each pill holds, as one string, and those strings as they were when
+   * the preset was chosen: a pill with a dot has been changed since. No preset,
+   * no dots (there is nothing to have changed from).
+   */
+  $: pillSigs = {
+    voicing: selectedVoicing,
+    key: [...selectedKeys].sort().join(","),
+    meter: selectedTimeSignature,
+    length: JSON.stringify([measures, fullLength, fullLengthMeasures]),
+    rhythm: _tabSigs.rhythm,
+    harmony: _tabSigs.harmony,
+    more: JSON.stringify([voiceTexture, _tabSigs.ranges]),
+  };
+  let presetPillSigs: Record<string, string> | null = null;
+  let pillsFor: Record<string, string> | null = null;
+  $: if (_presetTabSigs !== pillsFor) {
+    pillsFor = _presetTabSigs;
+    presetPillSigs = _presetTabSigs ? { ...pillSigs } : null;
+  }
+  $: pillChanged = Object.fromEntries(
+    Object.entries(pillSigs).map(([k, v]) => [k, !!activePresetLabel && !!presetPillSigs && presetPillSigs[k] !== v]),
+  ) as Record<keyof typeof pillSigs, boolean>;
   $: pillText = {
     voicing: selectedVoicing,
     key: selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : `${selectedKeys.size} keys`,
@@ -2613,13 +2637,13 @@
          phone. The exercise history and New exercise end the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
       <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-        <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}><span class="set-pill-k">Key</span>{pillText.key}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More</button>
+        <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}><span class="set-pill-k">Key</span>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
       </div>
       <div class="setbar-end">
         <!-- Back through the exercises already generated this session. -->
@@ -2651,6 +2675,14 @@
         <button class="sr-btn setbar-new flex items-center gap-1.5" on:click={handleClick} disabled={isGenerating}>
           <RefreshCw size={16} class={isGenerating ? 'animate-spin' : ''} />
           <span>New exercise</span>
+          {#if $usage && $usage.limit !== null && $usage.remaining !== null}
+            <!-- This month's exercises left, on the button that uses them. -->
+            <span
+              class="setbar-count {$usage.remaining <= 3 ? 'low' : ''}"
+              title="{$usage.remaining} exercises left this month"
+              aria-label="{$usage.remaining} left this month"
+            >{$usage.remaining}</span>
+          {/if}
         </button>
       </div>
 
@@ -3474,6 +3506,20 @@
   }
   .set-pill:hover { border-color: var(--sr-tint); }
   .set-pill[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
+  .set-pill-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--sr-action); flex: none; }
+  .set-pill[aria-expanded="true"] .set-pill-dot { background: var(--sr-action-ink); }
+  .setbar-count {
+    margin-left: 0.15rem;
+    min-width: 1.25rem;
+    border-radius: 999px;
+    padding: 0 0.4rem;
+    font-size: 11px;
+    line-height: 1.25rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .setbar-count.low { background: var(--sr-butter); color: var(--sr-butter-ink); }
   .set-pill-k { font-size: 12px; font-weight: 600; opacity: 0.7; }
   :global(.set-pill-chev) { opacity: 0.7; }
   .set-pill-more { background: transparent; color: var(--sr-action-fg); padding-inline: 0.6rem; }
