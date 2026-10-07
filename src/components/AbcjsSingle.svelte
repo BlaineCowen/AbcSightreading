@@ -133,7 +133,7 @@
     isMinorKey, minorLabel, minorScaleName, degreesFrom,
   } from "../lib/minor-degrees";
   import { minorSolfegeFrom, type MinorSolfege } from "../resources/solfege";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2, SlidersHorizontal } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2, Eye, Repeat } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
   import {
@@ -4132,40 +4132,68 @@
    * the marks are cleared (a new run, Close, a new exercise).
    */
   /**
-   * The settings fold into a one-line summary each time a new exercise is
-   * drawn, so the music sits right under it; Edit settings opens them again.
+   * The settings row: one pill per setting, each showing what is chosen, and
+   * one popover open at a time under it (settingPop). The score's toolbar
+   * opens Display (the score options) and Drill the same way (toolPop).
+   * A tap outside, Escape, Done or New exercise closes them.
    */
-  let settingsOpen = true;
-  let foldedFor = "";
-  $: if (originalTuneString && originalTuneString !== foldedFor) {
-    foldedFor = originalTuneString;
-    settingsOpen = false;
+  type SettingPop = "key" | "meter" | "length" | "notes" | "rhythm" | "more";
+  let settingPop: SettingPop | null = null;
+  let toolPop: "display" | "drill" | null = null;
+  let popLeft = 0;
+  let setbarEl: HTMLElement;
+  let toolsEl: HTMLElement;
+  let showMinorKeys = false;
+  const POP_WIDTH = 420;
+  function closePops() {
+    settingPop = null;
+    toolPop = null;
   }
+  function togglePop(which: SettingPop, e: MouseEvent) {
+    toolPop = null;
+    if (settingPop === which) return (settingPop = null);
+    const pill = e.currentTarget as HTMLElement;
+    const room = setbarEl?.clientWidth ?? POP_WIDTH;
+    popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
+    settingPop = which;
+  }
+  function toggleTool(which: "display" | "drill") {
+    settingPop = null;
+    toolPop = toolPop === which ? null : which;
+  }
+  onMount(() => {
+    // Checked on pointerdown, before a chip's click redraws the popover.
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (settingPop && setbarEl && !setbarEl.contains(t)) settingPop = null;
+      if (toolPop && toolsEl && !toolsEl.contains(t)) toolPop = null;
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && (settingPop || toolPop)) closePops();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", esc);
+    };
+  });
   const keyName = (k: string) => (isMinorKey(k) ? `${k.replace(/m$/, "")} minor` : `${k} major`);
-  $: settingsSummary = [
-    selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : [...selectedKeys].join(", "),
-    [...selectedTimeSignatures].join(", "),
-    `${measures} bars`,
-    rhythmOnly
-      ? "Rhythm only"
-      : (minorInPool && !majorInPool ? [...minorScaleDegrees] : [...selectedScaleDegrees])
-          .sort((a, b) => a - b)
-          .map((d) => degreeNames[d - 1])
-          .join(" "),
-    `${selectedRhythms.length} ${selectedRhythms.length === 1 ? "rhythm" : "rhythms"}`,
-  ].filter(Boolean);
+  const SOLFA = ["do", "re", "mi", "fa", "so", "la", "ti"];
+  $: pillText = {
+    key: selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : `${selectedKeys.size} keys`,
+    meter: [...selectedTimeSignatures].join(", "),
+    length: `${measures} ${measures === 1 ? "bar" : "bars"}`,
+    notes: (() => {
+      const degs = (minorInPool && !majorInPool ? [...minorScaleDegrees] : [...selectedScaleDegrees]).sort((x, y) => x - y);
+      const names = minorInPool && !majorInPool ? degreeNames : SOLFA;
+      const chroma = selectedSharpDegrees.size + selectedFlatDegrees.size;
+      const base = degs.length === 7 ? "all 7" : degs.map((d) => names[d - 1]).join(" ");
+      return chroma ? `${base} +${chroma}` : base;
+    })(),
+    rhythm: `${selectedRhythms.length} selected`,
+  };
 
-  /** Score options: open or folded away, remembered in this browser. */
-  let scoreOptionsOpen = false;
-  try {
-    scoreOptionsOpen = localStorage.getItem("sr-score-options-open") === "1";
-  } catch {}
-  function toggleScoreOptions() {
-    scoreOptionsOpen = !scoreOptionsOpen;
-    try {
-      localStorage.setItem("sr-score-options-open", scoreOptionsOpen ? "1" : "0");
-    } catch {}
-  }
   let takePlayer: TakePlayer | null = null;
   let take = { open: false, loading: false, playing: false, progress: 0, music: false, hasMusic: false, error: null as string | null };
   let takeNote = -1;
@@ -4643,111 +4671,40 @@
       </div>
     {/if}
 
-    <!-- Once there is an exercise the settings fold into one line (settingsOpen). -->
-    {#if !settingsOpen}
-    <section class="sr-panel w-full my-4 no-print settings-summary" aria-label="Exercise settings">
-      <ul class="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-sm font-bold text-sr-ink">
-        {#each settingsSummary as fact, i}
-          {#if i > 0}<li aria-hidden="true" class="text-sr-faint">·</li>{/if}
-          <li class="whitespace-nowrap">{fact}</li>
-        {/each}
-      </ul>
-      <div class="flex items-center gap-2 shrink-0">
-        <button
-          class="sr-btn sr-btn-video flex items-center gap-1.5"
-          on:click={openPlayAlong}
-          title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
-        >
-          <Clapperboard size={16} />
-          <span>Video</span>
-          {#if videoAllowed === false}<span class="sr-pro-tag">Pro</span>{/if}
-        </button>
-        <button class="sr-tok flex items-center gap-1.5" aria-expanded="false" on:click={() => (settingsOpen = true)}>
-          <SlidersHorizontal size={16} />
-          <span>{assignment ? "Settings" : "Edit settings"}</span>
-        </button>
+    <!-- The settings as one row of pills, each showing what is chosen; a pill
+         opens only its own choices (settingPop), under it, or as a sheet on a
+         phone. New exercise sits at the end of the row. -->
+    <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
+      <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
+        {#if !rhythmOnly}
+          <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}><span class="set-pill-k">Key</span>{pillText.key}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        {/if}
+        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        {#if !rhythmOnly}
+          <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}><span class="set-pill-k">Notes</span>{pillText.notes}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        {/if}
+        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}><span class="set-pill-k">Rhythms</span>{pillText.rhythm}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{rhythmOnly ? "Rhythm only · More" : "More"}</button>
       </div>
-    </section>
-    {:else}
-    <!-- Tab panel -->
-    <div class="tab-panel sr-panel w-full my-4 no-print">
+      <button class="sr-btn setbar-new flex items-center gap-1.5" on:click={handleClick} disabled={isLoading}>
+        <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
+        <span>New exercise</span>
+      </button>
 
-      <!-- Tab bar -->
-      <!-- On a phone the tabs take the first row, whole, and the history and
-           Generate a second; from md up, one row. -->
-      <div class="sr-bar flex flex-wrap md:flex-nowrap items-center">
-        <div class="flex items-center overflow-x-auto tab-scroll w-full md:w-auto">
-        {#each visibleTabs as tab}
-          <button
-            type="button"
-            class="sr-tab flex-1 md:flex-none px-2 sm:px-4 py-2.5 sm:py-2 text-[13px] sm:text-sm shrink-0 whitespace-nowrap
-              {selectedTab === tab ? 'sr-on' : ''}"
-            on:click={() => (selectedTab = tab)}
-          >
-            {({'setup':'Setup','rhythm':'Rhythm','notes':'Notes','range':'Range'})[tab] ?? tab}
-            {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'notes' && notesDirty) || (tab === 'range' && rangeDirty)}
-              <span class="sr-pip inline-block w-1.5 h-1.5 rounded-full ml-1 mb-0.5 align-middle"></span>
-            {/if}
-          </button>
-        {/each}
-        </div>
-
-        <!-- The play-along video (Pro), beside Generate: rhythm only or pitched. -->
-        <button
-          class="sr-btn sr-btn-video ml-auto mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
-          on:click={openPlayAlong}
-          title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
+      {#if settingPop}
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={closePops}></button>
+        <div
+          class="set-pop {settingPop === 'notes' || settingPop === 'rhythm' ? 'set-pop-wide' : ''}"
+          style="--pop-left: {popLeft}px"
+          role="dialog"
+          aria-label={({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'More settings' })[settingPop]}
         >
-          <Clapperboard size={16} />
-          <span>Video</span>
-          {#if videoAllowed === false}
-            <span class="sr-pro-tag">Pro</span>
-          {/if}
-        </button>
-
-        <button
-          class="sr-tok mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
-          aria-expanded="true"
-          on:click={() => (settingsOpen = false)}
-        >
-          <SlidersHorizontal size={16} />
-          <span>Close settings</span>
-        </button>
-        <!-- Generate button always visible in tab bar -->
-        <button
-          class="sr-btn md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
-          on:click={handleClick}
-          disabled={isLoading}
-        >
-          <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
-          <span>{originalTuneString ? "Generate with these" : "Generate"}</span>
-        </button>
-      </div>
-
-      <!-- Tab content - locked to an open assignment's settings -->
-      <div class="p-4" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-
-        <!-- Setup Tab -->
-        {#if selectedTab === 'setup'}
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div class="space-y-2 col-span-1 sm:col-span-2">
-              <p class="sr-label">Mode</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
-                <button
-                  class="sr-tok {!rhythmOnly ? 'sr-on' : ''}"
-                  on:click={() => (rhythmOnly = false)}
-                >Pitched</button>
-                <button
-                  class="sr-tok {rhythmOnly ? 'sr-on' : ''}"
-                  on:click={() => (rhythmOnly = true)}
-                >Rhythm only</button>
-              </div>
-            </div>
-
-            {#if !rhythmOnly}
+          <p class="set-pop-title">{({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'More settings' })[settingPop]}</p>
+          {#if settingPop === 'key'}
               <div class="space-y-2">
-                <p class="sr-label">Key</p>
-                {#each [{ label: "Major", keys: MAJOR_KEYS }, { label: "Minor", keys: MINOR_KEYS }] as row}
+                
+                {#each [{ label: "Major", keys: MAJOR_KEYS }, ...(showMinorKeys || minorInPool ? [{ label: "Minor", keys: MINOR_KEYS }] : [])] as row}
                 <div class="flex flex-wrap items-center gap-2" role="group" aria-label="{row.label} keys">
                   <span class="w-12 text-xs text-sr-faint">{row.label}</span>
                   {#each row.keys as key}
@@ -4765,6 +4722,9 @@
                   {/each}
                 </div>
                 {/each}
+                {#if !minorInPool}
+                  <button class="sr-link-btn" on:click={() => (showMinorKeys = !showMinorKeys)}>{showMinorKeys ? "Hide minor keys" : "Show minor keys"}</button>
+                {/if}
                 {#if selectedKeys.size > 1}
                   <p class="text-xs text-sr-faint">
                     {selectedKeys.size} keys selected. One is drawn at random each time you generate.
@@ -4772,22 +4732,9 @@
                   </p>
                 {/if}
               </div>
-
-              <div class="space-y-2">
-                <p class="sr-label">Clef</p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Clef">
-                  {#each clefOptions as clef}
-                    <button
-                      class="sr-tok {selectedClef === clef ? 'sr-on' : ''}"
-                      on:click={() => updateClef(clef)}
-                    >{clef}</button>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-
+          {:else if settingPop === 'meter'}
             <div class="space-y-2">
-              <p class="sr-label">Time Signature</p>
+              
               {#each meterGroups as group}
                 <p class="text-xs text-sr-faint">{group.label}</p>
                 <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature: {group.label}">
@@ -4817,9 +4764,9 @@
                 </p>
               {/if}
             </div>
-
+          {:else if settingPop === 'length'}
             <div class="space-y-2">
-              <p class="sr-label">Measures</p>
+              
               <div class="flex flex-wrap gap-2" role="group" aria-label="Measures">
                 {#each measureOptions as opt}
                   <button
@@ -4829,138 +4776,8 @@
                 {/each}
               </div>
             </div>
-
-            {#if !rhythmOnly}
-              <div class="space-y-2">
-                <p class="sr-label">Chord progression</p>
-                <button
-                  class="sr-tok {progressions ? 'sr-on' : ''}"
-                  on:click={() => (progressions = !progressions)}
-                  aria-label="Chord progression"
-                  aria-pressed={progressions}
-                >{progressions ? 'On' : 'Off'}</button>
-                <p class="text-xs text-sr-faint">
-                  {#if !progressions}
-                    A chord for every note, wherever the line goes.
-                  {:else if minorInPool && !majorInPool}
-                    The line follows a repeating minor progression, i iv v i, i VI VII i and the like{minorSharpDegrees.has(7) ? ", with a phrase over V that sings the raised leading tone" : ""}.
-                  {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
-                    A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
-                  {:else}
-                    The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
-                  {/if}
-                </p>
-              </div>
-            {/if}
-          </div>
-
-
-        <!-- Rhythm Tab -->
-        {:else if selectedTab === 'rhythm'}
-          <div class="space-y-3">
-            <p class="sr-label">Select Allowed Rhythms</p>
-            {#each rhythmPickerGroups(filterRhythms) as group}
-            <p class="text-xs text-sr-faint">{group.label}</p>
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
-              {#each group.rhythms as rhythm}
-                <button
-                  class="sr-tok-sq px-2 py-1 h-12 min-w-12 flex items-center justify-center
-                    {selectedRhythms.some((r) => r?.name === rhythm.name)
-                      ? 'sr-on'
-                      : ''}"
-                  aria-label={rhythmLabel(rhythm.name)}
-                  aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
-                  on:click={() => {
-                    if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
-                      selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
-                    } else {
-                      selectedRhythms = [...selectedRhythms, rhythm];
-                    }
-                  }}
-                >
-                  {#await rhythmSvgs[rhythm.name]}
-                    <span class="text-xs">…</span>
-                  {:then svg}
-                    <span class="rhythm-icon w-full h-full flex items-center justify-center">
-                      {@html svg.default}
-                    </span>
-                  {:catch}
-                    <span class="text-xs">{rhythm.name}</span>
-                  {/await}
-                </button>
-              {/each}
-            </div>
-            {/each}
-
-            <!-- Applies in both modes: without it, a selection that cannot
-                 tile the measure (half notes alone in 3/4) has no valid
-                 output at all. -->
-            <div class="space-y-2 pt-1">
-              <p class="sr-label">
-                Ties Across Barline
-              </p>
-              <button
-                class="sr-tok {allowTiesAcrossBarline ? 'sr-on' : ''}"
-                on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
-                aria-label="Ties across barline"
-                aria-pressed={allowTiesAcrossBarline}
-              >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
-              <p class="text-xs text-sr-faint">
-                {allowTiesAcrossBarline
-                  ? 'A long note may run past the barline, written as tied notes.'
-                  : 'Every note stays inside its measure.'}
-              </p>
-            </div>
-
-            {#if rhythmOnly}
-              <!-- The one place rhythm syllables are set. Only meaningful on
-                   the one-line staff, where there are no scale degrees and
-                   solfege is unavailable. -->
-              <div class="space-y-2 pt-1">
-                <p class="sr-label">
-                  Rhythm Syllables
-                </p>
-                <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
-                  <button
-                    class="sr-tok {!showRhythmSyllables ? 'sr-on' : ''}"
-                    on:click={() => setRhythmSyllables('off')}
-                    aria-pressed={!showRhythmSyllables}
-                  >Off</button>
-                  <!-- Driven by the registry, so a new system is a data change
-                       here as well as in the generator. -->
-                  {#each Object.values(syllableSystems) as system}
-                    <button
-                      class="sr-tok {showRhythmSyllables && syllableSystemId === system.id ? 'sr-on' : ''}"
-                      on:click={() => setRhythmSyllables(system.id)}
-                      aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
-                    >{system.label}</button>
-                  {/each}
-                  {#if $mySyllables}
-                    <button
-                      class="sr-tok {showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'sr-on' : ''}"
-                      on:click={() => setRhythmSyllables(CUSTOM_SYLLABLE_ID)}
-                      aria-pressed={showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID}
-                      title="Your own syllables, from your account"
-                    >Mine</button>
-                  {/if}
-                </div>
-                <p class="text-xs text-sr-faint">
-                  {showRhythmSyllables
-                    ? syllableHint
-                    : 'No syllables. The exercise is unchanged, and turning them back on costs nothing.'}
-                  {#if $mySyllables}
-                    <a class="underline ml-1" href="/account#syllables">Edit mine</a>
-                  {:else if $syllablesAvailable}
-                    <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
-                  {/if}
-                </p>
-                <SignupHint id="own-syllables">Want the words your group uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
-              </div>
-            {/if}
-          </div>
-
-        <!-- Notes Tab -->
-        {:else if selectedTab === 'notes'}
+            <p class="text-xs text-sr-faint mt-2">Bars in each exercise.</p>
+          {:else if settingPop === 'notes'}
           <div class="space-y-5">
             <!-- Scale Degrees: the major selector while a major key is in the pool,
                  the minor one beside it while a minor key is. -->
@@ -5246,9 +5063,7 @@
                  else did. One control, in Setup > Annotations, beside the other
                  things that change what is printed. -->
           </div>
-
-        <!-- Range Tab -->
-        {:else if selectedTab === 'range'}
+            <div class="mt-5">
           <div class="space-y-3">
             <p class="sr-label">Note Range</p>
             <RangeSelector
@@ -5263,12 +5078,169 @@
               </p>
             {/if}
           </div>
-        {/if}
+            </div>
+          {:else if settingPop === 'rhythm'}
+          <div class="space-y-3">
+            
+            {#each rhythmPickerGroups(filterRhythms) as group}
+            <p class="text-xs text-sr-faint">{group.label}</p>
+            <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
+              {#each group.rhythms as rhythm}
+                <button
+                  class="sr-tok-sq px-2 py-1 h-12 min-w-12 flex items-center justify-center
+                    {selectedRhythms.some((r) => r?.name === rhythm.name)
+                      ? 'sr-on'
+                      : ''}"
+                  aria-label={rhythmLabel(rhythm.name)}
+                  aria-pressed={selectedRhythms.some((r) => r?.name === rhythm.name)}
+                  on:click={() => {
+                    if (selectedRhythms.some((r) => r?.name === rhythm.name)) {
+                      selectedRhythms = selectedRhythms.filter((r) => r?.name !== rhythm.name);
+                    } else {
+                      selectedRhythms = [...selectedRhythms, rhythm];
+                    }
+                  }}
+                >
+                  {#await rhythmSvgs[rhythm.name]}
+                    <span class="text-xs">…</span>
+                  {:then svg}
+                    <span class="rhythm-icon w-full h-full flex items-center justify-center">
+                      {@html svg.default}
+                    </span>
+                  {:catch}
+                    <span class="text-xs">{rhythm.name}</span>
+                  {/await}
+                </button>
+              {/each}
+            </div>
+            {/each}
 
+            <!-- Applies in both modes: without it, a selection that cannot
+                 tile the measure (half notes alone in 3/4) has no valid
+                 output at all. -->
+            <div class="space-y-2 pt-1">
+              <p class="sr-label">
+                Ties Across Barline
+              </p>
+              <button
+                class="sr-tok {allowTiesAcrossBarline ? 'sr-on' : ''}"
+                on:click={() => (allowTiesAcrossBarline = !allowTiesAcrossBarline)}
+                aria-label="Ties across barline"
+                aria-pressed={allowTiesAcrossBarline}
+              >{allowTiesAcrossBarline ? 'On' : 'Off'}</button>
+              <p class="text-xs text-sr-faint">
+                {allowTiesAcrossBarline
+                  ? 'A long note may run past the barline, written as tied notes.'
+                  : 'Every note stays inside its measure.'}
+              </p>
+            </div>
 
-      </div>
-    </div>
-    {/if}
+            {#if rhythmOnly}
+              <!-- The one place rhythm syllables are set. Only meaningful on
+                   the one-line staff, where there are no scale degrees and
+                   solfege is unavailable. -->
+              <div class="space-y-2 pt-1">
+                <p class="sr-label">
+                  Rhythm Syllables
+                </p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Rhythm Syllables">
+                  <button
+                    class="sr-tok {!showRhythmSyllables ? 'sr-on' : ''}"
+                    on:click={() => setRhythmSyllables('off')}
+                    aria-pressed={!showRhythmSyllables}
+                  >Off</button>
+                  <!-- Driven by the registry, so a new system is a data change
+                       here as well as in the generator. -->
+                  {#each Object.values(syllableSystems) as system}
+                    <button
+                      class="sr-tok {showRhythmSyllables && syllableSystemId === system.id ? 'sr-on' : ''}"
+                      on:click={() => setRhythmSyllables(system.id)}
+                      aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
+                    >{system.label}</button>
+                  {/each}
+                  {#if $mySyllables}
+                    <button
+                      class="sr-tok {showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'sr-on' : ''}"
+                      on:click={() => setRhythmSyllables(CUSTOM_SYLLABLE_ID)}
+                      aria-pressed={showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID}
+                      title="Your own syllables, from your account"
+                    >Mine</button>
+                  {/if}
+                </div>
+                <p class="text-xs text-sr-faint">
+                  {showRhythmSyllables
+                    ? syllableHint
+                    : 'No syllables. The exercise is unchanged, and turning them back on costs nothing.'}
+                  {#if $mySyllables}
+                    <a class="underline ml-1" href="/account#syllables">Edit mine</a>
+                  {:else if $syllablesAvailable}
+                    <a class="underline ml-1" href="/account#syllables">Use your own syllables</a>
+                  {/if}
+                </p>
+                <SignupHint id="own-syllables">Want the words your group uses (ta-a, ti-ka, whatever you teach)?</SignupHint>
+              </div>
+            {/if}
+          </div>
+          {:else if settingPop === 'more'}
+            <div class="space-y-4">
+            <div class="space-y-2 ">
+              <p class="sr-label">Mode</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Mode">
+                <button
+                  class="sr-tok {!rhythmOnly ? 'sr-on' : ''}"
+                  on:click={() => (rhythmOnly = false)}
+                >Pitched</button>
+                <button
+                  class="sr-tok {rhythmOnly ? 'sr-on' : ''}"
+                  on:click={() => (rhythmOnly = true)}
+                >Rhythm only</button>
+              </div>
+            </div>
+{#if !rhythmOnly}
+              <div class="space-y-2">
+                <p class="sr-label">Clef</p>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Clef">
+                  {#each clefOptions as clef}
+                    <button
+                      class="sr-tok {selectedClef === clef ? 'sr-on' : ''}"
+                      on:click={() => updateClef(clef)}
+                    >{clef}</button>
+                  {/each}
+                </div>
+              </div>
+              <div class="space-y-2">
+                <p class="sr-label">Chord progression</p>
+                <button
+                  class="sr-tok {progressions ? 'sr-on' : ''}"
+                  on:click={() => (progressions = !progressions)}
+                  aria-label="Chord progression"
+                  aria-pressed={progressions}
+                >{progressions ? 'On' : 'Off'}</button>
+                <p class="text-xs text-sr-faint">
+                  {#if !progressions}
+                    A chord for every note, wherever the line goes.
+                  {:else if minorInPool && !majorInPool}
+                    The line follows a repeating minor progression, i iv v i, i VI VII i and the like{minorSharpDegrees.has(7) ? ", with a phrase over V that sings the raised leading tone" : ""}.
+                  {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
+                    A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
+                  {:else}
+                    The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
+                  {/if}
+                </p>
+              </div>
+{/if}
+            </div>
+          {/if}
+          <div class="set-pop-foot">
+            <button class="sr-tok" on:click={closePops}>Done</button>
+            <button class="sr-btn flex items-center gap-1.5" on:click={() => { closePops(); handleClick(); }} disabled={isLoading}>
+              <RefreshCw size={16} />
+              <span>New exercise</span>
+            </button>
+          </div>
+        </div>
+      {/if}
+    </section>
 
   </div>
 
@@ -5278,10 +5250,28 @@
     <div class="focus-score relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
       <CountInBadge />
-      <!-- Kept in full screen: a class grades its clapping on the TV. -->
-      <div class="flex justify-end">
+      <!-- The score's own toolbar: how it is shown (Display), the drill, the
+           video, and grading (kept in full screen: a class grades its clapping
+           on the TV). Display and Drill open under it (toolPop). -->
+      <div class="score-tools" bind:this={toolsEl}>
+        <div class="focus-hide no-print flex flex-wrap items-center gap-2">
+          <button class="tool-btn" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
+            <Eye size={16} aria-hidden="true" />Display
+          </button>
+          <button class="tool-btn {drillRunning ? 'tool-btn-live' : ''}" aria-expanded={toolPop === 'drill'} on:click={() => toggleTool('drill')}>
+            <Repeat size={16} aria-hidden="true" />{drillRunning ? "Drill running" : "Drill"}
+          </button>
+          <button
+            class="tool-btn"
+            on:click={openPlayAlong}
+            title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
+          >
+            <Clapperboard size={16} aria-hidden="true" />Video
+            {#if videoAllowed === false}<span class="sr-pro-tag">Pro</span>{/if}
+          </button>
+        </div>
         <button
-          class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+          class="inline-flex items-center gap-2 rounded-full px-4 min-h-10 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
           on:click={openGrade}
           disabled={grading}
           title={rhythmOnly ? "Clap it (or tap it) and get a score, alone or as a class" : "Sing it into the microphone and get a score"}
@@ -5290,56 +5280,13 @@
           {rhythmOnly ? "Clap and grade" : "Listen and grade"}
           <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
         </button>
-      </div>
-      <!-- Before the first exercise, say what to do: the page used to open on an
-           empty white card. Outside #paper, which abcjs empties when it draws. -->
-      {#if !originalTuneString && !isLoading}
-        <div class="sr-sheet w-full my-2 px-6 py-8 flex flex-col gap-4">
-          <div class="skel-staff">
-            {#each [0, 1, 2, 3, 4] as _line}<div class="skel-staff-line"></div>{/each}
-          </div>
-          <p class="text-center text-sm text-[#56637f] font-semibold">Press Generate to write an exercise.</p>
-        </div>
-      {/if}
-      <div
-        id="paper"
-        class="sr-sheet w-full my-2"
-        class:hidden={!originalTuneString && !isLoading}
-      >
-        {#if isLoading}
-          <div class="flex items-center justify-center h-48">
-            <div class="text-sr-muted text-sm">Generating exercise…</div>
-          </div>
-        {/if}
-      </div>
-    </div>
 
-    <!-- While playing, leave a viewport's worth of room below the score. The
-         document otherwise ends at the last system, so the browser clamps the
-         scroll and the final lines can never rise to the reading position. -->
-    {#if isPlaying}
-      <div aria-hidden="true" class="focus-keep w-full" style="height: 75vh"></div>
-    {/if}
-
-    <div class="h-4"></div>
-  </div>
-
-  <!-- Below the music: how it is shown and played, and the drill. Folded by
-       default, so the exercise is what the page is about. -->
-  <div class="w-full flex flex-col items-center">
-      <!-- Score options: how the exercise is shown and played (none of it
-         regenerates anything). Its own box below the setup, and it folds away;
-         whether it is open is remembered (scoreOptionsOpen). -->
-    <section class="sr-panel w-full mb-4 p-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="score-options-heading">
-      <button type="button" class="w-full flex items-start gap-2 text-left" aria-expanded={scoreOptionsOpen} aria-controls="score-options-body" on:click={toggleScoreOptions}>
-        <ChevronRight size={18} class="mt-0.5 shrink-0 transition-transform {scoreOptionsOpen ? 'rotate-90' : ''}" />
-        <span>
-          <span id="score-options-heading" class="block text-sm font-semibold text-sr-ink">Score options</span>
-          <span class="block text-xs text-sr-faint">Sound, solfège, dynamics and the cursor. The exercise stays as it is.</span>
-        </span>
-      </button>
-      {#if scoreOptionsOpen}
-      <div id="score-options-body" class="mt-4">
+        {#if toolPop}
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={closePops}></button>
+          <div class="set-pop set-pop-tools no-print" role="dialog" aria-label={toolPop === 'display' ? 'Display' : 'Drill'}>
+            {#if toolPop === 'display'}
+              <p class="set-pop-title">Display</p>
+              <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
       <div class="space-y-2">
         <p class="sr-label">Playback sound</p>
@@ -5474,42 +5421,21 @@
         </p>
       </div>
       </div>
-      </div>
-      {/if}
-    </section>
-
-  <!-- Drill: its own box below the settings (it was inside the setup panel, under every tab). -->
-    <section class="sr-panel w-full mb-4 p-4 space-y-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="drill-heading">
-      <!-- The whole header is the toggle: the button's ::after stretches
-           over the bar, and Start / Stop sit above it. -->
-      <div class="relative flex items-center justify-between gap-3 flex-wrap cursor-pointer">
-        <button
-          type="button"
-          class="flex items-start gap-2 text-left after:absolute after:inset-0 after:content-['']"
-          aria-expanded={drillPanelOpen}
-          aria-controls="drill-settings"
-          on:click={() => (drillPanelOpen = !drillPanelOpen)}
-        >
-          <span class="text-sr-muted mt-0.5">
-            {#if drillPanelOpen}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
-          </span>
-          <span>
-            <span id="drill-heading" class="block text-sm font-semibold text-sr-ink">Drill</span>
-            <span class="block text-xs text-sr-faint mt-0.5">
-              Generates and plays a whole session, hands free.
-            </span>
-          </span>
-        </button>
+              </div>
+              <p class="text-xs text-sr-faint mt-4">These change how the exercise looks and sounds. The notes stay the same.</p>
+            {:else}
+              <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                <p class="set-pop-title !mb-0">Drill</p>
         {#if drillRunning}
           <button
-            class="sr-btn-quiet relative z-10 font-semibold text-sr-danger border-sr-danger"
+            class="sr-btn-quiet font-semibold text-sr-danger border-sr-danger"
             on:click={() => stopDrill()}
           >Stop drill</button>
         {:else}
           <!-- Peach, with a play mark: not the blue of Generate, which it
                was easy to take it for. -->
           <button
-            class="relative z-10 inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
+            class="inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
             on:click={startDrill}
             disabled={isLoading}
           >
@@ -5517,15 +5443,9 @@
             Start drill
           </button>
         {/if}
-      </div>
-
-      {#if drillStatusLine}
-        <p class="text-sm text-sr-action-fg bg-sr-tint rounded px-3 py-2">
-          {drillStatusLine}
-        </p>
-      {/if}
-
-      <div id="drill-settings" class:hidden={!drillPanelOpen} class="space-y-4">
+              </div>
+              <p class="text-xs text-sr-faint mb-4">Writes and plays a whole session, hands free.</p>
+              <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         <div class="space-y-2">
           <p class="sr-label">New Exercises</p>
@@ -5756,9 +5676,52 @@
           {/if}
         </div>
       </div>
+              </div>
+            {/if}
+            <div class="set-pop-foot">
+              <button class="sr-tok" on:click={closePops}>Done</button>
+            </div>
+          </div>
+        {/if}
       </div>
-    </section>
+      {#if drillStatusLine}
+        <p class="focus-hide no-print mt-2 text-sm text-sr-action-fg bg-sr-tint rounded px-3 py-2">
+          {drillStatusLine}
+        </p>
+      {/if}
+      <!-- Before the first exercise, say what to do: the page used to open on an
+           empty white card. Outside #paper, which abcjs empties when it draws. -->
+      {#if !originalTuneString && !isLoading}
+        <div class="sr-sheet w-full my-2 px-6 py-8 flex flex-col gap-4">
+          <div class="skel-staff">
+            {#each [0, 1, 2, 3, 4] as _line}<div class="skel-staff-line"></div>{/each}
+          </div>
+          <p class="text-center text-sm text-[#56637f] font-semibold">Press Generate to write an exercise.</p>
+        </div>
+      {/if}
+      <div
+        id="paper"
+        class="sr-sheet w-full my-2"
+        class:hidden={!originalTuneString && !isLoading}
+      >
+        {#if isLoading}
+          <div class="flex items-center justify-center h-48">
+            <div class="text-sr-muted text-sm">Generating exercise…</div>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- While playing, leave a viewport's worth of room below the score. The
+         document otherwise ends at the last system, so the browser clamps the
+         scroll and the final lines can never rise to the reading position. -->
+    {#if isPlaying}
+      <div aria-hidden="true" class="focus-keep w-full" style="height: 75vh"></div>
+    {/if}
+
+    <div class="h-4"></div>
   </div>
+
   </main>
 
   <!-- Sticky playback bar. The unison-only audio controls ride in its "extra"
@@ -5850,15 +5813,130 @@
 
 <svelte:window on:keydown={onTapKey} />
 <style>
-  /* The settings folded to one line: the facts, then Video and Edit settings. */
-  .settings-summary {
+  /* The settings row: pills that each open their own popover, then New exercise. */
+  .setbar {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 0.75rem 0.75rem 0.75rem 1.25rem;
+    gap: 0.5rem;
+    padding: 0.625rem;
   }
-  .settings-summary ul { list-style: none; margin: 0; padding: 0; flex: 1 1 16rem; }
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.375rem; flex: 1 1 26rem; min-width: 0; }
+  .set-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 2.5rem;
+    padding: 0.4rem 0.75rem 0.4rem 1rem;
+    border-radius: 999px;
+    background: var(--sr-track);
+    color: var(--sr-ink);
+    font-size: 14px;
+    font-weight: 800;
+    white-space: nowrap;
+    border: 2px solid transparent;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .set-pill:hover { border-color: var(--sr-tint); }
+  .set-pill[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
+  .set-pill-k { font-size: 12px; font-weight: 600; opacity: 0.7; }
+  :global(.set-pill-chev) { opacity: 0.7; }
+  .set-pill-more { background: transparent; color: var(--sr-action-fg); }
+  .set-pill-more[aria-expanded="true"] { background: var(--sr-tint); color: var(--sr-action-fg); }
+  .setbar-new { margin-left: auto; min-height: 2.75rem; }
+
+  /* One popover at a time: under its pill, or a bottom sheet on a phone. */
+  .set-pop {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 0.5rem);
+    left: var(--pop-left, 0px);
+    width: min(26.25rem, 100%);
+    max-height: min(70vh, 40rem);
+    overflow: auto;
+    padding: 1rem 1.125rem 1.125rem;
+    border-radius: 24px;
+    background: var(--sr-raise);
+    color: var(--sr-ink);
+    border: 1px solid var(--sr-hairline);
+    box-shadow: 0 2px 6px rgba(21, 33, 58, 0.08), 0 30px 60px -20px rgba(21, 33, 58, 0.45);
+    text-align: left;
+  }
+  .set-pop-wide { left: 0; width: 100%; }
+  .set-pop-tools { left: auto; right: 0; width: min(40rem, 100%); }
+  .set-pop-title {
+    font-family: var(--sr-font-display);
+    font-weight: 600;
+    font-size: 17px;
+    margin-bottom: 0.625rem;
+  }
+  .set-pop-foot {
+    position: sticky;
+    bottom: -1.125rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin: 1rem -1.125rem -1.125rem;
+    padding: 0.75rem 1.125rem;
+    background: var(--sr-raise);
+    border-top: 1px solid var(--sr-hairline-2);
+  }
+  .set-scrim { display: none; }
+  .sr-link-btn { color: var(--sr-action-fg); font-weight: 800; font-size: 14px; padding-top: 0.25rem; }
+
+  /* The score's toolbar, above the paper. */
+  .score-tools {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  .tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.5rem;
+    padding: 0 0.875rem;
+    border-radius: 999px;
+    background: var(--sr-panel);
+    color: var(--sr-ink-2);
+    font-size: 14px;
+    font-weight: 800;
+    box-shadow: var(--sr-card-shadow);
+    border: 2px solid transparent;
+  }
+  .tool-btn:hover { border-color: var(--sr-tint); }
+  .tool-btn[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
+  .tool-btn-live { border-color: var(--sr-action); }
+
+  @media (max-width: 640px) {
+    .setbar-new { flex: 1; justify-content: center; }
+    .set-pop,
+    .set-pop-wide,
+    .set-pop-tools {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: auto;
+      bottom: 0;
+      width: 100%;
+      max-height: 78vh;
+      border-radius: 28px 28px 0 0;
+      z-index: 60;
+      padding-bottom: calc(1.125rem + env(safe-area-inset-bottom, 0px));
+    }
+    .set-pop-foot { bottom: calc(-1.125rem - env(safe-area-inset-bottom, 0px)); }
+    .set-scrim {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(21, 33, 58, 0.35);
+    }
+  }
   /* Grade: the note waiting to be sung, then how each went. */
   :global(#paper .grade-now), :global(#paper .grade-now path) {
     fill: #2f6fe0;
