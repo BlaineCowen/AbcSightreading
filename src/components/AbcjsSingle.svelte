@@ -5696,7 +5696,7 @@
           <div class="skel-staff">
             {#each [0, 1, 2, 3, 4] as _line}<div class="skel-staff-line"></div>{/each}
           </div>
-          <p class="text-center text-sm text-[#56637f] font-semibold">Press Generate to write an exercise.</p>
+          <p class="text-center text-sm text-[#56637f] font-semibold">Press New exercise to write one.</p>
         </div>
       {/if}
       <div
