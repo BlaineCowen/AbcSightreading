@@ -28,3 +28,13 @@ describe("parsePresetKey", () => {
     expect(parsePresetKey(presetKeyOf.uil("UIL 1"))).toEqual({ kind: "uil", level: "UIL 1" });
   });
 });
+
+describe("curriculum track keys", () => {
+  test("half of a real step is a key; a step with no notes yet has no notes half", () => {
+    expect(parsePresetKey("track:band-trumpet-03:notes")).toEqual({ kind: "track", stepId: "band-trumpet-03", part: "notes" });
+    expect(parsePresetKey(presetKeyOf.track("band-tuba-01", "rhythm"))).toEqual({ kind: "track", stepId: "band-tuba-01", part: "rhythm" });
+    expect(parsePresetKey("track:band-trumpet-01:notes")).toBeNull();
+    expect(parsePresetKey("track:band-oboe-01:rhythm")).toBeNull();
+    expect(parsePresetKey("track:band-trumpet-03")).toBeNull();
+  });
+});

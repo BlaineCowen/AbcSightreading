@@ -69,6 +69,9 @@
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset, restoredSignature, type ActivePresetRecord } from "../lib/active-preset";
+  import { stepOfKey, trackById, trackPresetKey, trackStepLabel } from "../lib/curriculum/tracks";
+  import { trackStepOptions } from "../lib/curriculum/options";
+  import { loadTrackPrefs, saveStepVersion, trackPrefs } from "../lib/track-prefs";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import GradePanel from "./GradePanel.svelte";
   import TapPad from "./TapPad.svelte";
@@ -105,8 +108,8 @@
   import { nyssmaById, nyssmaVoiceLevels, type NyssmaLevel } from "../lib/nyssma-presets";
   import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import {
-    drawFromPool, meterPoolClick, parsePool, parseSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
-    type Span,
+    drawFromPool, limitFrom, meterPoolClick, parseLimit, parsePool, parseSpan, placeSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
+    type RangeLimit, type Span,
   } from "../lib/unison-pools";
   import {
     DEFAULT_RHYTHM_NAMES,
@@ -262,6 +265,8 @@
     const rest = a.presetKey.slice(a.presetKey.indexOf(":") + 1);
     if (kind === "step" && ladderById[rest]) applyLadderStep(ladderById[rest]);
     else if (kind === "saved" && a.params) applySavedPreset(a.params as SavedPreset<any>);
+    // A track step as the teacher kept it when assigning (server/practice.ts describePreset).
+    else if (kind === "track") applyTrackStep(a.presetKey, (a.params as SavedPreset<any> | null)?.params);
     assignment = a;
     updateUrlFromState();
   }
@@ -384,6 +389,8 @@
     if (span && !isNaN(anchor)) {
       options.rangeSpan = span;
       options.rangeAnchor = anchor;
+      const limit = parseLimit(getParam("limit"));
+      if (limit) options.rangeLimit = limit;
     }
 
     const m = parseInt(getParam("measures") || "", 10);
@@ -570,6 +577,7 @@
       selectedTimeSignature: meters[0],
       rangeSpan: spanFrom(options.rangeSpan),
       rangeAnchor: Number.isInteger(options.rangeAnchor) ? (options.rangeAnchor as number) : selectedRange.min,
+      rangeLimit: limitFrom(options.rangeLimit),
       measures: options.measures || 8,
       maxSkip: options.maxSkip || 4,
       // Exact skips and Skips between; presets and options from before load in
@@ -631,6 +639,8 @@
   let activeStepId: string | null = null;
   /** The NYSSMA level the settings came from, when they came from one. */
   let activeNyssmaId: string | null = null;
+  /** The curriculum track step (and half) the settings came from: "track:band-trumpet-03:notes". */
+  let activeTrackKey: string | null = null;
   /** Loads the active preset or step again, for Revert. */
   let revertPreset: (() => void) | undefined = undefined;
   /**
@@ -668,6 +678,7 @@
     selectedTimeSignatures = new Set(next.selectedTimeSignatures);
     rangeSpan = next.rangeSpan;
     rangeAnchor = next.rangeAnchor;
+    rangeLimit = next.rangeSpan ? next.rangeLimit : null;
     measures = next.measures;
     maxSkip = next.maxSkip;
     skips = next.skips;
@@ -713,6 +724,7 @@
     activeSavedPreset = preset;
     activeStepId = null;
     activeNyssmaId = null;
+    activeTrackKey = null;
     revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
@@ -736,6 +748,46 @@
       ? new URLSearchParams(window.location.search).get(STEP_PARAM)
       : null;
 
+  /** ?track=<step id>&part=rhythm|notes: a curriculum step, from /curriculum. Read now, like the step. */
+  const linkedTrackKey = (() => {
+    if (typeof window === "undefined") return null;
+    const q = new URLSearchParams(window.location.search);
+    const step = q.get("track");
+    return step ? trackPresetKey(step, q.get("part") === "notes" ? "notes" : "rhythm") : null;
+  })();
+
+  /**
+   * Half of a curriculum track's step (src/lib/curriculum): applied as a saved
+   * preset is, since a step sets everything one does - the instrument, its
+   * transposition and clef, the range kept inside the instrument's, rhythms,
+   * keys, tempo. The teacher's own version of the step is used when they kept
+   * one; `options` (an assignment's copy) comes first of all.
+   */
+  function applyTrackStep(key: string, options?: Record<string, unknown> | null) {
+    const found = stepOfKey(key);
+    if (!found) return;
+    const own = $trackPrefs.overrides[key];
+    const params = options ?? own ?? trackStepOptions(found.track, found.step, found.part);
+    const label = trackStepLabel(found.track, found.step, found.part);
+    applySavedPreset({ id: key, name: label, createdAt: 0, params });
+    activeSavedId = null;
+    activeSavedPreset = null;
+    activeTrackKey = key;
+    revertPreset = () => applyTrackStep(key, options);
+  }
+
+  /** Keep these settings as the teacher's own version of the active step, or (null) go back to the track's. */
+  async function keepStepVersion(keep: boolean) {
+    const key = activeTrackKey;
+    if (!key) return;
+    try {
+      await saveStepVersion(key, keep ? { ...currentOptions } : null);
+      applyTrackStep(key);
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   function applyLadderStep(step: LadderStep) {
     const u = step.unison;
     if (!u) {
@@ -752,6 +804,7 @@
       selectedKeys = new Set([u.selectedKey]);
     }
     rangeSpan = null;
+    rangeLimit = null;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
     if (u.maxSkip) maxSkip = u.maxSkip;
     // A step's Move 8th Notes off sings each pair on one pitch.
@@ -768,6 +821,7 @@
     activeSavedId = null;
     activeStepId = step.id;
     activeNyssmaId = null;
+    activeTrackKey = null;
     revertPreset = () => applyLadderStep(step);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
@@ -811,11 +865,13 @@
     // (handleRangeChange), so it is read afresh.
     if (!rangeSpan) rangeAnchor = selectedRange.min;
     rangeSpan = [...level.span] as Span;
-    selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+    rangeLimit = null;
+    selectedRange = placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit) ?? selectedRange;
     activePresetLabel = level.label;
     activeNyssmaId = level.id;
     activeSavedId = null;
     activeStepId = null;
+    activeTrackKey = null;
     revertPreset = () => applyNyssmaLevel(level);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
@@ -884,6 +940,7 @@
       selectedTimeSignatures: ["4/4"],
       rangeSpan: null as Span | null,
       rangeAnchor: DEFAULT_TREBLE_RANGE.min,
+      rangeLimit: null as RangeLimit | null,
       measures: 8,
       maxSkip: 4,
       skips: skipSettingsFrom({}, PAGE_DEFAULT_LAND_ON),
@@ -944,6 +1001,8 @@
   /** A NYSSMA level's range: scale steps around do, placed from `rangeAnchor` for each key drawn. */
   let rangeSpan: Span | null = initialState.rangeSpan ?? null;
   let rangeAnchor: number = initialState.rangeAnchor ?? initialState.selectedRange.min;
+  /** A curriculum track's instrument range: the span is cut at it for every key. */
+  let rangeLimit: RangeLimit | null = (initialState.rangeSpan && initialState.rangeLimit) || null;
   /** The picker follows the meter's kind: compound figures in 6/8, 9/8, 12/8. */
   $: filterRhythms = selectableRhythmsFor(meterKindOf(selectedTimeSignature));
   /** Each kind's selection while the reader is in the other (switchRhythmKind). */
@@ -1438,7 +1497,7 @@
     skips.landOn.length !== PAGE_DEFAULT_LAND_ON.length || PAGE_DEFAULT_LAND_ON.some((l) => !skips.landOn.includes(l)) || eighthPairsOnePitch;
   // A range that follows the key is judged by its placement for the pool's
   // first key in picker order, not the key drawn, so Generate cannot flip the dot.
-  $: settledRange = (rangeSpan && rangeForSpan(rangeSpan, possibleKeys.find((k) => selectedKeys.has(k)) ?? selectedKey, rangeAnchor)) || selectedRange;
+  $: settledRange = (rangeSpan && placeSpan(rangeSpan, possibleKeys.find((k) => selectedKeys.has(k)) ?? selectedKey, rangeAnchor, rangeLimit)) || selectedRange;
   $: rangeDirty = settledRange.min !== DEFAULTS.range.min || settledRange.max !== DEFAULTS.range.max;
 
   // Notes and Range only mean something when there are pitches to control.
@@ -1455,7 +1514,7 @@
       // drawn, or every Generate would mark a preset edited (unison-pools.ts).
       ...setupSnapshot({
         keys: [...selectedKeys], meters: [...selectedTimeSignatures],
-        span: rangeSpan, anchor: rangeAnchor, range: selectedRange,
+        span: rangeSpan, anchor: rangeAnchor, range: selectedRange, limit: rangeLimit,
       }),
       selectedScaleDegrees: Array.from(selectedScaleDegrees),
       selectedSharpDegrees: Array.from(selectedSharpDegrees),
@@ -1521,6 +1580,7 @@
     if (rangeSpan) {
       params.set("span", rangeSpan.join(","));
       params.set("anchor", String(rangeAnchor));
+      if (rangeLimit) params.set("limit", `${rangeLimit.min}-${rangeLimit.max}`);
     }
     params.set("scaleDegrees", Array.from(selectedScaleDegrees).join(","));
     params.set(
@@ -2735,7 +2795,7 @@
       // failed Generate leaves the key, meter and range of the one on screen.
       const drawnKey = drawFromPool([...selectedKeys]);
       const drawnMeter = drawFromPool([...selectedTimeSignatures]);
-      const drawnRange = (rangeSpan && rangeForSpan(rangeSpan, drawnKey, rangeAnchor)) || selectedRange;
+      const drawnRange = (rangeSpan && placeSpan(rangeSpan, drawnKey, rangeAnchor, rangeLimit)) || selectedRange;
 
       // Validate rhythms first
       if (!validateSelectedRhythms(selectedRhythms)) {
@@ -3275,6 +3335,7 @@
   function handleRangeChange(newRange: { min: number; max: number }) {
     // Set by hand, the range is the teacher's own and no longer follows the key.
     rangeSpan = null;
+    rangeLimit = null;
     selectedRange = newRange;
   }
 
@@ -3338,9 +3399,11 @@
         selectedRange = { min: 10, max: 17 };
         break;
     }
-    // A range that follows the key moves to the new clef's octave.
+    // A range that follows the key moves to the new clef's octave, and an
+    // instrument's limit (a track's) belongs to the old clef.
     rangeAnchor = selectedRange.min;
-    if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+    rangeLimit = null;
+    if (rangeSpan) selectedRange = placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit) ?? selectedRange;
   }
 
   // Add state variables
@@ -3737,6 +3800,12 @@
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[linkedStepId ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
+    // A curriculum step from /curriculum: the teacher's own version once their tracks load.
+    const linkedTrack = !linkedStep && linkedTrackKey && stepOfKey(linkedTrackKey) ? linkedTrackKey : null;
+    if (linkedTrack) applyTrackStep(linkedTrack);
+    loadTrackPrefs()
+      .then(() => { if (linkedTrack && activeTrackKey === linkedTrack && $trackPrefs.overrides[linkedTrack]) applyTrackStep(linkedTrack); })
+      .catch(() => {});
     // Practice time, for a student in a class; and an assignment, if the address names one.
     startPractice({ page: "unison", assignmentId, isBusy: () => isPlaying });
     if (assignmentId) openAssignment(assignmentId);
@@ -3745,10 +3814,10 @@
     // A reload keeps the preset the settings came from (active-preset.ts).
     // A saved preset chosen on the Choral page's picker (preset-link.ts), read
     // before the page rewrote its address.
-    const presetId = linkedStep || assignmentId || linked ? null : arrivedPresetId;
+    const presetId = linkedStep || linkedTrack || assignmentId || linked ? null : arrivedPresetId;
     if (presetId) void openLinkedPreset("unison", presetId, (p) => applySavedPreset(p));
     const remembered = presetId ? null : activePresetToRestore("unison");
-    if (remembered && !linkedStep && !assignmentId && !linked) restoreActivePreset(remembered);
+    if (remembered && !linkedStep && !linkedTrack && !assignmentId && !linked) restoreActivePreset(remembered);
     presetMemoryReady = true;
     window.addEventListener("hashchange", onHashChange);
   });
@@ -4356,7 +4425,7 @@
     rememberActivePreset(
       "unison",
       activePresetLabel
-        ? { label: activePresetLabel, stepId: activeStepId, level: activeNyssmaId, saved: activeSavedId ? activeSavedPreset : null, sig: activePresetSignature }
+        ? { label: activePresetLabel, stepId: activeStepId, level: activeNyssmaId, saved: activeSavedId ? activeSavedPreset : null, trackKey: activeTrackKey, sig: activePresetSignature }
         : null
     );
   }
@@ -4374,6 +4443,13 @@
       activeSavedPreset = saved;
       activeStepId = null;
       revertPreset = () => applySavedPreset(saved);
+    } else if (rec.trackKey && stepOfKey(rec.trackKey)) {
+      const key = rec.trackKey;
+      activeTrackKey = key;
+      activeSavedId = null;
+      activeStepId = null;
+      activeNyssmaId = null;
+      revertPreset = () => applyTrackStep(key);
     } else if (rec.level && Object.hasOwn(nyssmaById, rec.level)) {
       const level = nyssmaById[rec.level];
       activeNyssmaId = level.id;
@@ -4519,6 +4595,12 @@
       nyssmaLevels={nyssmaVoiceLevels}
       {activeNyssmaId}
       onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
+      tracks={$trackPrefs.tracks.map((id) => trackById[id]).filter(Boolean)}
+      tracksSignedIn={$trackPrefs.signedIn}
+      {activeTrackKey}
+      ownVersion={!!activeTrackKey && !!$trackPrefs.overrides[activeTrackKey]}
+      onSelectTrack={(key) => applyTrackStep(key)}
+      onKeepVersion={$trackPrefs.canSubscribe ? keepStepVersion : undefined}
       currentParams={() => currentOptions}
       onSelectSaved={applySavedPreset}
       onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
@@ -4619,7 +4701,7 @@
                         selectedKeys = new Set(next);
                         // The key shown follows the click, and stays inside the pool.
                         selectedKey = next.includes(key) ? key : next[0];
-                        if (rangeSpan) selectedRange = rangeForSpan(rangeSpan, selectedKey, rangeAnchor) ?? selectedRange;
+                        if (rangeSpan) selectedRange = placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit) ?? selectedRange;
                       }}
                     >{key}</button>
                   {/each}

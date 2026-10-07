@@ -16,6 +16,7 @@
     { href: "/sightreading", short: "Unison", full: "Unison Sight Reading" },
     { href: "/choral-sightreading", short: "Choral", full: "Choral Sight Reading" },
     { href: "/tuner", short: "abcTuner", full: "abcTuner" },
+    { href: "/curriculum", short: "Tracks", full: "Curriculum tracks" },
   ];
   // client:only, so the path is there from the first render.
   const here =
@@ -163,7 +164,7 @@
           <a
             href={page.href}
             class="sr-navlink text-[15px]"
-            aria-current={here === page.href ? "page" : undefined}
+            aria-current={(here === page.href || here.startsWith(page.href + "/")) ? "page" : undefined}
           >
             {page.short}
           </a>
@@ -197,8 +198,8 @@
         {#each pages as page}
           <a
             href={page.href}
-            class="flex items-center min-h-12 px-4 rounded-full text-base font-bold transition-colors {here === page.href ? 'font-extrabold text-sr-action-fg bg-sr-tint' : 'text-sr-ink-2 hover:bg-sr-track'}"
-            aria-current={here === page.href ? "page" : undefined}
+            class="flex items-center min-h-12 px-4 rounded-full text-base font-bold transition-colors {(here === page.href || here.startsWith(page.href + "/")) ? 'font-extrabold text-sr-action-fg bg-sr-tint' : 'text-sr-ink-2 hover:bg-sr-track'}"
+            aria-current={(here === page.href || here.startsWith(page.href + "/")) ? "page" : undefined}
             on:click={() => (isNavbarOpen = false)}
           >
             {page.full}

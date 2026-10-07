@@ -166,6 +166,10 @@ model UserPreference {
   userId          String   @id
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   rhythmSyllables Json?
+  // Curriculum tracks the teacher subscribes to (src/lib/curriculum/tracks.ts ids)
+  curriculumTracks String[] @default([])
+  // The teacher's own versions of track steps: { "track:<step id>:<rhythm|notes>": Unison options }
+  trackOverrides  Json?
   updatedAt       DateTime @updatedAt
 
   @@map("user_preference")

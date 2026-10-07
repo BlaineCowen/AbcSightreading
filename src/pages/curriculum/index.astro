@@ -1,0 +1,122 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import InstrumentIcon from "../../components/InstrumentIcon.astro";
+import TrackSubscribe from "../../components/TrackSubscribe.svelte";
+import { FAMILIES, TRACKS, TRACK_COLOR_CLASS, trackKeys, trackReach } from "../../lib/curriculum/tracks";
+import { RHYTHM_LEAD, RHYTHM_THREAD } from "../../lib/curriculum/band";
+
+/**
+ * The curriculum catalogue: every track, and subscribing to it. Public, so a
+ * teacher can read a track before paying; subscribing is Pro (TrackSubscribe,
+ * /api/tracks).
+ */
+const band = TRACKS.filter((t) => t.family === "band");
+const instrumentOf = (id: string) => id.replace(/^band-/, "");
+// The lag, drawn: the first six steps, rhythm and notes side by side.
+const demo = band[0].steps.slice(0, 6);
+---
+
+<Layout
+  title="Curriculum Tracks for Band | Trumpet, Clarinet and Tuba Sight Reading"
+  description="Step by step sight-reading curriculum for beginning band: trumpet, clarinet and tuba, in the band's concert keys, with every new rhythm learned two steps before notes go on it. Subscribe and the steps appear in your presets."
+  themable
+>
+  <div class="max-w-6xl mx-auto px-4 pb-16 flex flex-col gap-10">
+    <!-- Hero -->
+    <section class="sr-panel bg-sr-raise p-6 sm:p-10 flex flex-col gap-5 overflow-hidden relative">
+      <p class="text-xs font-extrabold uppercase tracking-widest text-sr-action-fg">Curriculum tracks</p>
+      <h1 class="font-display text-3xl sm:text-5xl font-bold text-sr-ink max-w-3xl leading-tight">
+        A sequence for every instrument, ready to teach.
+      </h1>
+      <p class="text-lg text-sr-ink-2 max-w-2xl">
+        Subscribe to a track and its steps appear in your preset menu, in order, each one set up for the instrument:
+        its sound, its transposition, its clef and a range a first-year player can reach. Change any step and keep it
+        as your version.
+      </p>
+      <ul class="flex flex-wrap gap-2 text-sm font-bold">
+        <li class="rounded-full bg-sr-mint text-sr-mint-ink px-3.5 py-1.5">Rhythm first, always {RHYTHM_LEAD} steps ahead</li>
+        <li class="rounded-full bg-sr-sky text-sr-sky-ink px-3.5 py-1.5">Concert B♭, E♭, F, C: the whole band together</li>
+        <li class="rounded-full bg-sr-butter text-sr-butter-ink px-3.5 py-1.5">{RHYTHM_THREAD.length} steps, rhythm drill plus notes</li>
+      </ul>
+    </section>
+
+    <!-- Families -->
+    <nav aria-label="Track families" class="flex flex-wrap gap-2 -mb-4">
+      {FAMILIES.map((f) => (
+        <span class={`rounded-full px-4 py-2 text-sm font-extrabold ${f.live ? "bg-sr-action text-sr-action-ink" : "bg-sr-track text-sr-muted"}`} aria-current={f.live ? "true" : undefined}>
+          {f.label}{!f.live && <span class="ml-1.5 text-[11px] font-bold opacity-80">coming soon</span>}
+        </span>
+      ))}
+    </nav>
+
+    <!-- Band instruments -->
+    <section class="flex flex-col gap-4">
+      <div>
+        <h2 class="font-display text-2xl font-bold text-sr-ink">Beginning band</h2>
+        <p class="text-sr-ink-2">Every instrument takes the same step on the same day, in the same concert key, so the whole band can read together.</p>
+      </div>
+      <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {band.map((t) => (
+          <article class={`rounded-[28px] p-6 flex flex-col gap-4 ${TRACK_COLOR_CLASS[t.color]}`}>
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{t.level}</p>
+                <h3 class="font-display text-3xl font-bold">{t.name}</h3>
+              </div>
+              <InstrumentIcon instrument={instrumentOf(t.id)} />
+            </div>
+            <p class="text-sm leading-relaxed">{t.blurb}</p>
+            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt class="font-bold opacity-75">Steps</dt><dd>{t.steps.length}, each a rhythm drill and notes</dd>
+              <dt class="font-bold opacity-75">Reads</dt><dd>{t.clef === "bass" ? "Bass clef" : "Treble clef"}, {trackKeys(t).join(", ")}</dd>
+              <dt class="font-bold opacity-75">Range</dt><dd>{trackReach(t)}{t.transposeSemitones ? " written" : ""}</dd>
+              <dt class="font-bold opacity-75">Sounds</dt><dd>{t.transposeSemitones ? "A step below written, as a B♭ instrument does" : "As written"}</dd>
+            </dl>
+            <div class="mt-auto flex flex-col gap-3 pt-2 border-t border-current/15">
+              <TrackSubscribe client:only="svelte" trackId={t.id} firstStepId={t.steps[0].id} />
+              <a class="text-sm font-extrabold" href={`/curriculum/${t.id}`}>See all {t.steps.length} steps →</a>
+            </div>
+          </article>
+        ))}
+        <article class="rounded-[28px] p-6 flex flex-col gap-3 border-2 border-dashed border-sr-hairline text-sr-muted">
+          <h3 class="font-display text-2xl font-bold text-sr-ink">More instruments</h3>
+          <p class="text-sm">Flute, oboe, bassoon, saxophones, horn, trombone, euphonium and percussion are on the way, on the same steps.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- How a step works -->
+    <section class="sr-panel bg-sr-raise p-6 sm:p-8 grid gap-6 lg:grid-cols-[1fr_1.3fr] items-start">
+      <div class="flex flex-col gap-3">
+        <h2 class="font-display text-2xl font-bold text-sr-ink">Rhythm runs two steps ahead</h2>
+        <p class="text-sr-ink-2">
+          A new rhythm arrives on its own, as a rhythm drill: clap it, count it, play it on one note. Notes only go on it
+          {RHYTHM_LEAD} steps later, once it is old news. So a step never asks for a new rhythm and new notes at once.
+        </p>
+        <p class="text-sr-ink-2">
+          When the rhythms are all learned, the notes catch up: the last steps put every rhythm and meter together on
+          four keys and the whole range.
+        </p>
+      </div>
+      <ol class="grid gap-2" aria-label="The first six steps of the trumpet track">
+        <li class="grid grid-cols-[2.5rem_1fr_1fr] gap-2 text-[11px] font-extrabold uppercase tracking-wide text-sr-faint">
+          <span>Step</span><span>Rhythm drill</span><span>Notes</span>
+        </li>
+        {demo.map((s) => (
+          <li class="grid grid-cols-[2.5rem_1fr_1fr] gap-2 items-stretch">
+            <span class="rounded-full w-8 h-8 self-center flex items-center justify-center bg-sr-track text-sr-ink-2 font-bold tabular-nums">{s.number}</span>
+            <span class="rounded-2xl bg-sr-mint text-sr-mint-ink px-3 py-2 text-sm font-bold">{s.title}</span>
+            {s.notes ? (
+              <span class="rounded-2xl bg-sr-sky text-sr-sky-ink px-3 py-2 text-sm">
+                <span class="font-bold">{s.newNotes}</span>
+                <span class="block text-xs opacity-80">on step {s.number - RHYTHM_LEAD} rhythms and before</span>
+              </span>
+            ) : (
+              <span class="rounded-2xl border-2 border-dashed border-sr-hairline px-3 py-2 text-xs text-sr-faint flex items-center">rhythm only, for now</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  </div>
+</Layout>

@@ -1,7 +1,11 @@
 import { prisma } from "./db";
+import type { Prisma } from "../../generated/prisma/client";
 import { ladderById, stepLabel } from "../ladder";
 import { uilPresets } from "../uil-presets";
 import { parsePresetKey } from "../class-validate";
+import { stepOfKey, trackStepLabel } from "../curriculum/tracks";
+import { trackStepOptions } from "../curriculum/options";
+import { overridesFrom } from "../curriculum/subscriptions";
 import { RETENTION_DAYS, assignmentPage, assignmentProgress, creditSeconds, practiceDay } from "../practice";
 
 /**
@@ -15,6 +19,14 @@ export async function describePreset(teacherId: string, presetKey: string) {
   if (!key) return null;
   if (key.kind === "step") return { title: stepLabel(ladderById[key.id]), page: assignmentPage(presetKey), params: null };
   if (key.kind === "uil") return { title: uilPresets[key.level].label ?? key.level, page: "choral" as const, params: null };
+  if (key.kind === "track") {
+    // The teacher's own version of the step if they kept one, copied in like a saved preset.
+    const found = stepOfKey(presetKey)!;
+    const pref = await prisma.userPreference.findUnique({ where: { userId: teacherId }, select: { trackOverrides: true } });
+    const options = overridesFrom(pref?.trackOverrides)[presetKey] ?? trackStepOptions(found.track, found.step, found.part);
+    const title = trackStepLabel(found.track, found.step, found.part);
+    return { title, page: "unison" as const, params: { id: presetKey, name: title, params: options as Prisma.InputJsonObject } };
+  }
   const saved = await prisma.preset.findFirst({ where: { id: key.id, userId: teacherId } });
   if (!saved) return null;
   return { title: saved.name, page: assignmentPage(presetKey, saved.store), params: { id: saved.id, name: saved.name, params: saved.params } };

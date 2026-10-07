@@ -1,0 +1,35 @@
+---
+/** A line drawing of a band instrument, in the text colour (for the curriculum cards). */
+interface Props { instrument: string; size?: number; class?: string }
+const { instrument, size = 72, class: cls = "" } = Astro.props;
+---
+<svg width={size} height={size} viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class={cls} aria-hidden="true">
+  {instrument === "trumpet" && (
+    <g>
+      <path d="M6 34h4" /><path d="M10 32.5v3" />
+      <path d="M10 34h34" />
+      <path d="M44 34c4 0 8-4 14-7v14c-6-3-10-7-14-7z" />
+      <path d="M18 34v8a4 4 0 0 0 4 4h16a4 4 0 0 0 4-4v-8" />
+      <rect x="22" y="22" width="4" height="12" rx="1.5" /><rect x="28" y="22" width="4" height="12" rx="1.5" /><rect x="34" y="22" width="4" height="12" rx="1.5" />
+      <path d="M23 20h2M29 20h2M35 20h2" />
+    </g>
+  )}
+  {instrument === "clarinet" && (
+    <g>
+      <path d="M14 8l4-2 4 4-2 4z" />
+      <path d="M20 14l24 30" /><path d="M23 11l24 30" />
+      <path d="M44 44c1 4 3 8 8 12M47 41c4 1 8 3 12 8" />
+      <path d="M52 56c3-1 6-4 7-7" />
+      <circle cx="28" cy="22" r="1.4" fill="currentColor" /><circle cx="32" cy="27" r="1.4" fill="currentColor" /><circle cx="36" cy="32" r="1.4" fill="currentColor" /><circle cx="40" cy="37" r="1.4" fill="currentColor" />
+    </g>
+  )}
+  {instrument === "tuba" && (
+    <g>
+      <path d="M22 6h20" />
+      <path d="M24 6c0 6 2 9 2 14v18" /><path d="M40 6c0 6-2 9-2 14v18" />
+      <path d="M26 38c-6 0-10 4-10 10s5 10 16 10 16-4 16-10-4-10-10-10" />
+      <rect x="28" y="24" width="3" height="10" rx="1.2" /><rect x="33" y="24" width="3" height="10" rx="1.2" />
+      <path d="M12 46c-4 0-6-2-6-5" /><path d="M5 41h3" />
+    </g>
+  )}
+</svg>

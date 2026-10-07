@@ -1,0 +1,85 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import InstrumentIcon from "../../components/InstrumentIcon.astro";
+import TrackSubscribe from "../../components/TrackSubscribe.svelte";
+import { TRACK_COLOR_CLASS, trackById, trackHref, trackKeys, trackReach } from "../../lib/curriculum/tracks";
+import { RHYTHM_LEAD } from "../../lib/curriculum/band";
+import type { TrackStep } from "../../lib/curriculum/types";
+
+/** One track, every step: what each rhythm drill and note exercise brings in, with a link to try it. */
+const track = trackById[Astro.params.track ?? ""];
+if (!track) return new Response(null, { status: 404 });
+
+const units: { unit: string; steps: TrackStep[] }[] = [];
+for (const s of track.steps) {
+  const last = units[units.length - 1];
+  if (last?.unit === s.unit) last.steps.push(s);
+  else units.push({ unit: s.unit, steps: [s] });
+}
+const instrument = track.id.replace(/^band-/, "");
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Course",
+  name: `${track.level}: ${track.name} sight reading`,
+  description: track.blurb,
+  provider: { "@type": "Organization", name: "abcSightReading", url: "https://www.abc-sightreading.com" },
+  numberOfCredits: track.steps.length,
+};
+---
+
+<Layout
+  title={`${track.name} Sight Reading Curriculum | ${track.level} | abcSightReading`}
+  description={`${track.steps.length} step sight-reading sequence for ${track.level.toLowerCase()} ${track.name.toLowerCase()}: rhythms first, then notes two steps later, in ${trackKeys(track).join(", ")}, ${trackReach(track)}. Every exercise new each time.`}
+  themable
+  jsonLd={jsonLd}
+>
+  <div class="max-w-5xl mx-auto px-4 pb-16 flex flex-col gap-8">
+    <a href="/curriculum" class="text-sm font-bold text-sr-action-fg -mb-4">← All tracks</a>
+
+    <header class={`rounded-[28px] p-6 sm:p-10 flex flex-col sm:flex-row gap-6 sm:items-center ${TRACK_COLOR_CLASS[track.color]}`}>
+      <InstrumentIcon instrument={instrument} size={112} class="shrink-0" />
+      <div class="flex flex-col gap-3">
+        <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{track.level} · {track.steps.length} steps</p>
+        <h1 class="font-display text-4xl sm:text-5xl font-bold">{track.name}</h1>
+        <p class="max-w-2xl">{track.blurb}</p>
+        <p class="text-sm font-bold opacity-85">
+          {track.clef === "bass" ? "Bass clef" : "Treble clef"} · {trackKeys(track).join(", ")} · {trackReach(track)}{track.transposeSemitones ? " written, sounding a step lower" : ""}
+        </p>
+        <TrackSubscribe client:only="svelte" trackId={track.id} firstStepId={track.steps[0].id} variant="hero" />
+      </div>
+    </header>
+
+    {units.map((u) => (
+      <section class="flex flex-col gap-3">
+        <h2 class="font-display text-2xl font-bold text-sr-ink">{u.unit}</h2>
+        <ol class="flex flex-col gap-3">
+          {u.steps.map((s) => (
+            <li class="sr-panel bg-sr-raise p-4 sm:p-5 grid gap-3 sm:grid-cols-[3rem_1fr_1fr] items-start">
+              <span class="rounded-full w-10 h-10 flex items-center justify-center bg-sr-track text-sr-ink font-extrabold tabular-nums">{s.number}</span>
+              <a href={trackHref(s.id, "rhythm")} class="group rounded-2xl bg-sr-mint text-sr-mint-ink p-4 flex flex-col gap-1 hover:brightness-95">
+                <span class="text-[11px] font-extrabold uppercase tracking-wide opacity-75">Rhythm drill</span>
+                <span class="font-bold">{s.title}</span>
+                <span class="text-sm">{s.newRhythm}</span>
+                <span class="text-xs mt-1 opacity-80">{s.rhythm.meters.join(", ")} · {s.rhythm.measures} bars · ♩ = {s.rhythm.bpm}</span>
+                <span class="text-sm font-extrabold mt-1 group-hover:underline">Try it →</span>
+              </a>
+              {s.notes ? (
+                <a href={trackHref(s.id, "notes")} class="group rounded-2xl bg-sr-sky text-sr-sky-ink p-4 flex flex-col gap-1 hover:brightness-95">
+                  <span class="text-[11px] font-extrabold uppercase tracking-wide opacity-75">Notes</span>
+                  <span class="font-bold">{s.newNotes}</span>
+                  <span class="text-sm">On rhythms from step {s.number - RHYTHM_LEAD} and before</span>
+                  <span class="text-xs mt-1 opacity-80">{s.notes.keys!.map((k) => k.replace("b", "♭")).join(", ")} · {s.notes.meters.join(", ")} · {s.notes.measures} bars</span>
+                  <span class="text-sm font-extrabold mt-1 group-hover:underline">Try it →</span>
+                </a>
+              ) : (
+                <span class="rounded-2xl border-2 border-dashed border-sr-hairline p-4 text-sm text-sr-muted self-stretch flex items-center">
+                  No notes yet: this rhythm gets {RHYTHM_LEAD} steps on its own first.
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </section>
+    ))}
+  </div>
+</Layout>

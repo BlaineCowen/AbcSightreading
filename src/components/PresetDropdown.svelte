@@ -14,6 +14,8 @@
   import { ladder, ladderStages, type LadderStep, type LadderPage } from '../lib/ladder';
   import { presetHref, storeFor } from '../lib/preset-link';
   import { levelSections, sectionToOpen, type LevelSectionId } from '../lib/preset-sections';
+  import { TRACK_DOT_CLASS, trackPresetKey } from '../lib/curriculum/tracks';
+  import type { Track } from '../lib/curriculum/types';
 
   /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
@@ -52,6 +54,20 @@
   /** The NYSSMA level the settings came from, if any. */
   export let activeNyssmaId: string | null = null;
   export let onSelectNyssma: (id: string) => void = () => {};
+  /**
+   * Curriculum tracks (src/lib/curriculum): the ones subscribed to. Undefined
+   * on a page that offers none; an empty list still shows the section, with
+   * where to find them.
+   */
+  export let tracks: Track[] | undefined = undefined;
+  export let tracksSignedIn = false;
+  /** The track step half loaded: "track:band-trumpet-03:notes". */
+  export let activeTrackKey: string | null = null;
+  export let onSelectTrack: (key: string) => void = () => {};
+  /** Whether the teacher keeps their own version of the loaded step. */
+  export let ownVersion = false;
+  /** Keep the settings as the teacher's own version of the step (true), or go back to the track's (false). Pro. */
+  export let onKeepVersion: ((keep: boolean) => void) | undefined = undefined;
 
   let savedPresets: SavedPreset<any>[] = [];
   let showSaveInput = false;
@@ -112,7 +128,8 @@
   $: selectedClass = $classes.find(c => c.id === $selectedClassId) ?? null;
   $: activeUILKey = Object.entries(uilPresets).find(([, p]) => p.label === activeLabel)?.[0];
   /** What the loaded settings would be marked passed as, if anything. */
-  $: activeKey = activeStepId ? presetKeyOf.step(activeStepId)
+  $: activeKey = activeTrackKey ? activeTrackKey
+    : activeStepId ? presetKeyOf.step(activeStepId)
     : activeIsSaved && activeSavedId ? presetKeyOf.saved(activeSavedId)
     : activeUILKey ? presetKeyOf.uil(activeUILKey)
     : null;
@@ -254,7 +271,16 @@
   let panel: HTMLElement;
 
   $: uilOffered = showBuiltins && !hideUILLevels;
-  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0 });
+  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tracks: tracks?.length });
+  /** Where each subscribed track's class goes next: the half after the furthest one passed. */
+  $: trackNext = Object.fromEntries((tracks ?? []).map((t) => {
+    const halves = t.steps.flatMap((s) => [trackPresetKey(s.id, 'rhythm'), ...(s.notes ? [trackPresetKey(s.id, 'notes')] : [])]);
+    let furthest = -1;
+    if (selectedClass) halves.forEach((k, i) => { if (selectedClass!.passed[k]) furthest = i; });
+    return [t.id, selectedClass ? halves[furthest + 1] ?? null : null];
+  }));
+  /** Which subscribed tracks are open in the list; the active one opens itself. */
+  let openTracks: Set<string> = new Set();
   /** The Levels sections showing their presets; the rest show only a header. */
   let expanded: Set<LevelSectionId> = new Set();
   function toggleSection(id: LevelSectionId) {
@@ -282,10 +308,12 @@
    * scrolls it into view.
    */
   async function openPanel() {
-    const active = { step: !!activeStepId, nyssma: !!activeNyssmaId, uil: activeUILLevel };
-    tab = activeStepId ? 'levels' : activeIsSaved ? 'mine'
+    const active = { step: !!activeStepId, nyssma: !!activeNyssmaId, uil: activeUILLevel, track: !!activeTrackKey };
+    tab = activeStepId || activeTrackKey ? 'levels' : activeIsSaved ? 'mine'
       : activeNyssmaId || activeUILLevel ? 'levels'
       : tab;
+    const activeTrack = activeTrackKey ? tracks?.find((t) => activeTrackKey!.startsWith(`track:${t.id}-`)) : undefined;
+    if (activeTrack) openTracks = new Set([...openTracks, activeTrack.id]);
     const toOpen = sectionToOpen(sections, active);
     expanded = new Set(toOpen ? [toOpen] : []);
     open = true;
@@ -414,6 +442,13 @@
   {:else if activeLabel && edited}
     <!-- The loaded preset has been changed. A saved one can take the changes;
          a built-in one cannot, so it offers only a copy. -->
+    {#if activeTrackKey && onKeepVersion}
+      <button
+        class="sr-btn text-xs px-2 py-1"
+        on:click={() => onKeepVersion?.(true)}
+        title="Use these settings for this step from now on, here and in what you assign"
+      >Keep as my version</button>
+    {/if}
     {#if activeIsSaved}
       <button
         class="sr-btn text-xs px-2 py-1"
@@ -434,6 +469,12 @@
       class="flex items-center gap-1 border-2 border-dashed border-sr-hairline text-sr-action-fg font-bold rounded-full px-3 py-1.5 text-xs hover:bg-sr-track"
       on:click={openSaveAs}
     ><Plus size={14} /> Save current</button>
+  {/if}
+
+  {#if activeTrackKey && ownVersion && !edited && onKeepVersion}
+    <span class="text-xs text-sr-muted">Your version of this step ·
+      <button class="underline" on:click={() => onKeepVersion?.(false)} title="Go back to the step as the track writes it">use the track's</button>
+    </span>
   {/if}
 
   {#if synced}
@@ -540,6 +581,64 @@
                       {/each}
                     </ul>
                   {/each}
+                {:else if section.id === 'tracks'}
+                  {#if !tracks || tracks.length === 0}
+                    <p class="text-sm text-sr-muted px-2 py-2">
+                      Curriculum tracks are sequences for one instrument: trumpet, clarinet and tuba so far,
+                      rhythm always two steps ahead of the notes.
+                      <a class="text-sr-action-fg font-bold underline" href="/curriculum">{tracksSignedIn ? 'Choose your tracks' : 'See the tracks'}</a>
+                    </p>
+                  {:else}
+                    {#each tracks as track (track.id)}
+                      <button
+                        type="button"
+                        class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sr-track"
+                        aria-expanded={openTracks.has(track.id)}
+                        on:click={() => { const n = new Set(openTracks); if (!n.delete(track.id)) n.add(track.id); openTracks = n; }}
+                      >
+                        <span class="w-2.5 h-2.5 rounded-full {TRACK_DOT_CLASS[track.color]}"></span>
+                        <span class="text-sm font-bold text-sr-ink">{track.name}</span>
+                        <span class="text-xs text-sr-muted">{track.level} · {track.steps.length} steps</span>
+                        <ChevronDown size={14} class="ml-auto text-sr-muted transition-transform {openTracks.has(track.id) ? 'rotate-180' : ''}" />
+                      </button>
+                      {#if openTracks.has(track.id)}
+                        <ul class="pl-2">
+                          {#each track.steps as step (step.id)}
+                            {#each [['rhythm', step.newRhythm], ...(step.notes ? [['notes', step.newNotes ?? '']] : [])] as [part, what]}
+                              {@const key = trackPresetKey(step.id, part === 'notes' ? 'notes' : 'rhythm')}
+                              <li>
+                                <button
+                                  type="button"
+                                  class="w-full text-left flex gap-3 items-start rounded-md px-2 py-1.5 hover:bg-sr-track {key === activeTrackKey ? 'bg-sr-tint' : ''}"
+                                  aria-current={key === activeTrackKey ? 'true' : undefined}
+                                  on:click={() => choose(() => onSelectTrack(key))}
+                                >
+                                  {#if selectedClass && passed(key)}
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-sr-action text-sr-action-ink flex items-center justify-center" title="Passed by {selectedClass.name}"><Check size={14} /><span class="sr-only">Passed</span></span>
+                                  {:else}
+                                    <span class="shrink-0 w-6 h-6 rounded-full border border-sr-hairline text-xs flex items-center justify-center text-sr-muted tabular-nums">{step.number}</span>
+                                  {/if}
+                                  <span class="flex-1 min-w-0">
+                                    <span class="block text-sm text-sr-ink font-medium">
+                                      {part === 'notes' ? 'Notes' : 'Rhythm'}{part === 'rhythm' ? `: ${step.title}` : ''}
+                                      {#if key === trackNext[track.id]}
+                                        <span class="ml-1 text-[11px] font-medium text-sr-action-fg border border-sr-action rounded px-1">Next up</span>
+                                      {/if}
+                                    </span>
+                                    <span class="block text-xs text-sr-muted">{what}</span>
+                                  </span>
+                                </button>
+                              </li>
+                            {/each}
+                          {/each}
+                        </ul>
+                      {/if}
+                    {/each}
+                    <p class="text-xs text-sr-muted px-2 pt-2">
+                      Each step sets the instrument, its transposition and clef. Change anything and keep it as your version.
+                      <a class="underline" href="/curriculum">Manage tracks</a>
+                    </p>
+                  {/if}
                 {:else if section.id === 'uil'}
                   <ul>
                     {#each Object.entries(uilPresets) as [key, level]}

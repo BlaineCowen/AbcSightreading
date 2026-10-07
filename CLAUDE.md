@@ -247,6 +247,36 @@ any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
+### Curriculum tracks
+
+`src/lib/curriculum/` (tests `curriculum.test.ts`): a sequence for one
+instrument that a teacher subscribes to on `/curriculum` (public, each track
+at `/curriculum/<id>`; subscribing is Pro, `/api/tracks`) and then finds under
+**My tracks** in the Unison page's preset menu. Beginner band is first:
+trumpet, clarinet, tuba (`band.ts`), all on one sequence so a band takes the
+same step together in concert B♭, E♭, F, then C (trumpet and clarinet read
+written C, F, G, D and play back −2; tuba reads concert pitch in bass clef).
+Each step is a pair: a rhythm drill bringing in one new figure (or meter, or
+ties), and a note exercise that only uses rhythms from `RHYTHM_LEAD` (2) or
+more steps before - Blaine's rule, "rhythm two steps ahead of the notes". The
+rhythm thread ends at step 15 and the notes catch up in 16-17. Ids
+(`band-trumpet-03`) are permanent, like ladder ids.
+
+A step half is applied as a saved preset is (`trackStepOptions` ->
+AbcjsSingle `applyTrackStep`): instrument, transpose, clef, keys, rhythms,
+tempo, and a span around do kept inside the instrument's first-year range
+(`rangeLimit`, unison-pools `placeSpan`; links carry it as `limit=`). Edited,
+it offers **Keep as my version** (`UserPreference.trackOverrides`, keyed
+`track:<step id>:<rhythm|notes>`, which is also the class-progress and
+assignment key; an assignment copies the teacher's version in). Links:
+`/sightreading?track=<step id>&part=rhythm|notes`.
+`bun run scripts/check-tracks.ts` generates every half of every step
+(`RUNS`, `TRACK=`): in range, at least three pitches. Clean at 60 runs a step
+(9 October 2026) after two fixes: no progression while a line only steps
+(it got stuck on two notes) and 8 bars from the first notes; and
+`placeMissingChromatics` now stays inside the exercise's range (it wrote a
+written F♯ under a clarinet's lowest note).
+
 ### Chord progressions (Unison)
 
 `src/lib/unison-progressions.ts` (tests `unison-progressions.test.ts`):

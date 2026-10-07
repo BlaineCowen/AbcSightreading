@@ -26,8 +26,16 @@ export function findStep(stepId: string): { track: Track; step: TrackStep } | nu
   return null;
 }
 
-/** The class-progress / assignment key of one half of a step: "track:band-trumpet-03:notes". */
+/** The class-progress / assignment key of one half of a step: "track:band-trumpet-03:notes" (class-validate.ts). */
 export const trackPresetKey = (stepId: string, part: TrackPartKind) => `track:${stepId}:${part}`;
+
+/** The step and half a track key names. */
+export function stepOfKey(key: string): { track: Track; step: TrackStep; part: TrackPartKind } | null {
+  const m = /^track:([a-z0-9-]+):(rhythm|notes)$/.exec(key);
+  const found = m ? findStep(m[1]) : null;
+  if (!found || (m![2] === "notes" && !found.step.notes)) return null;
+  return { ...found, part: m![2] as TrackPartKind };
+}
 
 /** The label the preset menu shows: "Trumpet 3 · Notes: do, re, mi". */
 export function trackStepLabel(track: Track, step: TrackStep, part: TrackPartKind) {
@@ -36,3 +44,29 @@ export function trackStepLabel(track: Track, step: TrackStep, part: TrackPartKin
 
 /** The Unison page link that opens a step's half (and applies it). */
 export const trackHref = (stepId: string, part: TrackPartKind) => `/sightreading?track=${encodeURIComponent(stepId)}&part=${part}`;
+
+/** Card colours, spelled out so Tailwind sees each class. */
+export const TRACK_COLOR_CLASS: Record<Track["color"], string> = {
+  sky: "bg-sr-sky text-sr-sky-ink",
+  mint: "bg-sr-mint text-sr-mint-ink",
+  peach: "bg-sr-peach text-sr-peach-ink",
+  butter: "bg-sr-butter text-sr-butter-ink",
+};
+export const TRACK_DOT_CLASS: Record<Track["color"], string> = {
+  sky: "bg-sr-sky", mint: "bg-sr-mint", peach: "bg-sr-peach", butter: "bg-sr-butter",
+};
+
+/** noteArray index -> "C4" (index 14 is middle C). */
+export const noteName = (i: number) => `${"CDEFGAB"[((i % 7) + 7) % 7]}${2 + Math.floor(i / 7)}`;
+
+/** The keys a track reads, in order of first use, written ("C, F, G, D"). */
+export function trackKeys(track: Track): string[] {
+  const seen: string[] = [];
+  for (const s of track.steps) for (const k of s.notes?.keys ?? []) if (!seen.includes(k)) seen.push(k);
+  return seen.map((k) => k.replace("b", "♭"));
+}
+
+/** The highest and lowest written notes any step reaches. */
+export function trackReach(track: Track) {
+  return `${noteName(track.range.min)} to ${noteName(track.range.max)}`;
+}

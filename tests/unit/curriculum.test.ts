@@ -74,3 +74,32 @@ describe("beginner band tracks", () => {
     expect(by["band-tuba"].steps[2].notes!.keys).toEqual(["Bb"]);
   });
 });
+
+import { trackStepOptions } from "../../src/lib/curriculum/options";
+import { trackById } from "../../src/lib/curriculum/tracks";
+
+describe("a step as the Unison page's options", () => {
+  test("trumpet step 3 notes: treble, written C, quarters only, plays on trumpet a step down", () => {
+    const t = trackById["band-trumpet"];
+    const o = trackStepOptions(t, t.steps[2], "notes");
+    expect(o).toMatchObject({
+      selectedClef: "treble", selectedKey: "C", rhythmOnly: false,
+      selectedRhythms: ["quarter", "quarterRest"], instrumentProgram: 56, transposeSemitones: -2,
+      selectedScaleDegrees: [1, 2, 3],
+    });
+    expect(o.selectedRange).toEqual({ min: 14, max: 16 }); // C4 to E4
+  });
+
+  test("tuba is bass clef at concert pitch; a rhythm drill is rhythm only with Counting", () => {
+    const t = trackById["band-tuba"];
+    expect(trackStepOptions(t, t.steps[2], "notes")).toMatchObject({ selectedClef: "bass", selectedKey: "Bb", transposeSemitones: 0, instrumentProgram: 58 });
+    expect(trackStepOptions(t, t.steps[0], "rhythm")).toMatchObject({ rhythmOnly: true, showRhythmSyllables: true, syllableSystemId: "counting" });
+  });
+
+  test("every step's range sits inside its instrument's", () => {
+    for (const t of BAND_TRACKS) for (const s of t.steps) for (const k of ["rhythm", "notes"] as const) {
+      const r = trackStepOptions(t, s, k).selectedRange as { min: number; max: number };
+      expect(r.min >= t.range.min && r.max <= t.range.max && r.max > r.min).toBe(true);
+    }
+  });
+});

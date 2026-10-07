@@ -3,6 +3,8 @@
  * that are accounts, tools or dev scratchpads are left out here and marked
  * noindex on the page (Layout's `noindex`).
  */
+import { TRACKS } from "./curriculum/tracks";
+
 export const PUBLIC_PAGES = [
   "/",
   "/choral-sightreading",
@@ -12,6 +14,8 @@ export const PUBLIC_PAGES = [
   "/pricing",
   "/why-abc-sight-reading",
   "/tuner",
+  "/curriculum",
+  ...TRACKS.map((t) => `/curriculum/${t.id}`),
 ];
 
 import { EDUCATOR_ON_SALE } from "./plan";

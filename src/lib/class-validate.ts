@@ -7,12 +7,14 @@
  *   step:<ladder step id>   a step of the ladder (src/lib/ladder.ts)
  *   uil:<UIL level key>     "uil:UIL 3"
  *   saved:<preset id>       one of the director's own saved presets
+ *   track:<step id>:<part>  half of a curriculum track's step (src/lib/curriculum)
  *
  * Built-in presets have no database row, so they are named rather than
  * referenced; a saved preset is both, so deleting it deletes its checkmarks.
  */
 import { ladderById } from "./ladder";
 import { uilPresets } from "./uil-presets";
+import { parseTrackKey } from "./curriculum/subscriptions";
 
 export const MAX_CLASSES = 50;
 export const MAX_CLASS_NAME_LENGTH = 60;
@@ -31,7 +33,8 @@ export function checkClassName(value: unknown): Checked<string> {
 export type PresetKey =
   | { kind: "step"; id: string }
   | { kind: "uil"; level: string }
-  | { kind: "saved"; id: string };
+  | { kind: "saved"; id: string }
+  | { kind: "track"; stepId: string; part: "rhythm" | "notes" };
 
 /**
  * A preset key the API will store, or null. Steps and levels must exist; a
@@ -47,6 +50,10 @@ export function parsePresetKey(value: unknown): PresetKey | null {
   if (kind === "step" && ladderById[rest]) return { kind, id: rest };
   if (kind === "uil" && uilPresets[rest]) return { kind, level: rest };
   if (kind === "saved" && /^[A-Za-z0-9_-]{1,64}$/.test(rest)) return { kind, id: rest };
+  if (kind === "track") {
+    const t = parseTrackKey(value);
+    if (t) return { kind, ...t };
+  }
   return null;
 }
 
@@ -54,6 +61,7 @@ export const presetKeyOf = {
   step: (id: string) => `step:${id}`,
   uil: (level: string) => `uil:${level}`,
   saved: (id: string) => `saved:${id}`,
+  track: (stepId: string, part: "rhythm" | "notes") => `track:${stepId}:${part}`,
 };
 
 /** A class as the API hands it back: its passes keyed by preset key. */

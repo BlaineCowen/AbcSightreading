@@ -69,6 +69,30 @@ export function spanFrom(value: unknown): Span | null {
 
 export const parseSpan = (raw: string | null | undefined): Span | null => (raw ? spanFrom(raw.split(",")) : null);
 
+/** A range a span is kept inside (a curriculum track's instrument), or null. */
+export type RangeLimit = { min: number; max: number };
+export function limitFrom(value: unknown): RangeLimit | null {
+  const v = value as RangeLimit | null | undefined;
+  const ok = !!v && Number.isInteger(v.min) && Number.isInteger(v.max) && v.min >= 0 && v.max > v.min;
+  return ok ? { min: v!.min, max: v!.max } : null;
+}
+export const parseLimit = (raw: string | null | undefined): RangeLimit | null => {
+  const m = raw ? /^(\d+)-(\d+)$/.exec(raw) : null;
+  return m ? limitFrom({ min: Number(m[1]), max: Number(m[2]) }) : null;
+};
+
+/**
+ * A span placed for one key (rangeForSpan), and kept inside `limit` when
+ * there is one: a track's span is cut at its instrument's first-year range,
+ * so no key carries a beginner past it.
+ */
+export function placeSpan(span: Span, key: string, anchor: number, limit?: RangeLimit | null) {
+  const r = rangeForSpan(span, key, anchor);
+  if (!r || !limit) return r;
+  const cut = { min: Math.max(r.min, limit.min), max: Math.min(r.max, limit.max) };
+  return cut.max > cut.min ? cut : r;
+}
+
 /** The pool in picker order; anything the order does not know goes last, as it was. */
 const inOrder = (pool: readonly string[], order: readonly string[]) =>
   [...pool].sort((a, b) => rank(order, a) - rank(order, b));
@@ -125,13 +149,15 @@ export function setupSnapshot(s: {
   span: Span | null;
   anchor: number;
   range: { min: number; max: number };
+  limit?: RangeLimit | null;
 }) {
   return {
     selectedKeys: [...s.keys],
     selectedKey: s.keys[0],
     selectedTimeSignatures: [...s.meters],
     selectedTimeSignature: s.meters[0],
-    selectedRange: (s.span && rangeForSpan(s.span, s.keys[0], s.anchor)) || { ...s.range },
+    selectedRange: (s.span && placeSpan(s.span, s.keys[0], s.anchor, s.limit)) || { ...s.range },
     ...(s.span ? { rangeSpan: [...s.span] as Span, rangeAnchor: s.anchor } : {}),
+    ...(s.span && s.limit ? { rangeLimit: { ...s.limit } } : {}),
   };
 }

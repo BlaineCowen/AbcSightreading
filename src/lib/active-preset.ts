@@ -20,6 +20,8 @@ export type ActivePresetRecord = {
   stepId?: string | null;
   /** A saved preset, whole, so Revert works without loading the list. */
   saved?: SavedPreset<any> | null;
+  /** Half of a curriculum track's step: "track:band-trumpet-03:notes". */
+  trackKey?: string | null;
   sig: unknown;
 };
 

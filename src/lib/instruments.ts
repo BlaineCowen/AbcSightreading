@@ -32,6 +32,8 @@ export const INSTRUMENTS: readonly Instrument[] = [
   { program: 48, label: "Strings", samples: "string_ensemble_1" },
   { program: 19, label: "Church organ", samples: "church_organ" },
   { program: 71, label: "Clarinet", samples: "clarinet" },
+  { program: 56, label: "Trumpet", samples: "trumpet" },
+  { program: 58, label: "Tuba", samples: "tuba" },
 ];
 
 export const DEFAULT_INSTRUMENT = 0;
