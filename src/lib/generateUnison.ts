@@ -2484,6 +2484,8 @@ export function placeMissingChromatics(
     random?: () => number;
     /** No note before this index is altered (the diatonic first phrase over a progression). */
     from?: number;
+    /** The exercise's range (noteArray indices): an altered note never goes outside it. */
+    range?: { min: number; max: number };
   }
 ): number {
   const keyObject = keySignatures[opts.key];
@@ -2516,6 +2518,9 @@ export function placeMissingChromatics(
       const pitch = next.pitchValue - dir;
       const base = opts.noteList.find((n) => n.pitchValue === pitch);
       if (!base || base.degree !== degree) continue;
+      // Inside the range, like every other note: placed below low so it wrote
+      // a written F sharp under a clarinet's lowest note (8 October 2026).
+      if (opts.range && (pitch < opts.range.min || pitch > opts.range.max)) continue;
       if (prev.pitchValue !== pitch && prev.pitchValue !== next.pitchValue) continue;
       spots.push({ index: i, pitch });
     }
@@ -3445,6 +3450,7 @@ function createNewSrOnce(params: any) {
         key: keyRendered,
         noteList,
         from,
+        range: params.range,
       });
     }
 
