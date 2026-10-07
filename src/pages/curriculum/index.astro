@@ -2,23 +2,29 @@
 import Layout from "../../layouts/Layout.astro";
 import InstrumentIcon from "../../components/InstrumentIcon.astro";
 import TrackSubscribe from "../../components/TrackSubscribe.svelte";
-import { FAMILIES, TRACKS, TRACK_COLOR_CLASS, trackKeys, trackReach } from "../../lib/curriculum/tracks";
+import { FAMILIES, TRACKS, TRACK_COLOR_CLASS, iconFor, soundsLabel, trackHref, trackKeys, trackReach } from "../../lib/curriculum/tracks";
+import { BUILTIN_SETS } from "../../lib/curriculum/catalogue";
 import { RHYTHM_LEAD, RHYTHM_THREAD } from "../../lib/curriculum/band";
 
 /**
- * The curriculum catalogue: every track, and subscribing to it. Public, so a
- * teacher can read a track before paying; subscribing is Pro (TrackSubscribe,
- * /api/tracks).
+ * The curriculum catalogue: everything the preset menu can list, and
+ * subscribing to it (TrackSubscribe, /api/tracks). The site's own sets are
+ * free; the instrument tracks are Pro. Public, so a teacher can read a track
+ * before paying.
  */
 const band = TRACKS.filter((t) => t.family === "band");
-const instrumentOf = (id: string) => id.replace(/^band-/, "");
+const orchestra = TRACKS.filter((t) => t.family === "strings");
+const groups = [
+  { id: "band", title: "Beginning band", note: "Every instrument takes the same step on the same day, in the same concert key, so the whole band can read together.", tracks: band },
+  { id: "strings", title: "Beginning orchestra", note: "The same rhythm steps, with the notes in string order: D major around the open strings, then G, A, C and F.", tracks: orchestra },
+];
 // The lag, drawn: the first six steps, rhythm and notes side by side.
 const demo = band[0].steps.slice(0, 6);
 ---
 
 <Layout
-  title="Curriculum Tracks for Band | Trumpet, Clarinet and Tuba Sight Reading"
-  description="Step by step sight-reading curriculum for beginning band: trumpet, clarinet and tuba, in the band's concert keys, with every new rhythm learned two steps before notes go on it. Subscribe and the steps appear in your presets."
+  title="Curriculum Tracks | Choir, Band and Orchestra Sight Reading"
+  description="Choose the sight-reading sequences you teach from: abcStepByStep, UIL and NYSSMA Voice levels, and step by step tracks for every beginning band and orchestra instrument. Subscribe and they appear in your presets."
   themable
 >
   <div class="max-w-6xl mx-auto px-4 pb-16 flex flex-col gap-10">
@@ -29,9 +35,9 @@ const demo = band[0].steps.slice(0, 6);
         A sequence for every instrument, ready to teach.
       </h1>
       <p class="text-lg text-sr-ink-2 max-w-2xl">
-        Subscribe to a track and its steps appear in your preset menu, in order, each one set up for the instrument:
-        its sound, its transposition, its clef and a range a first-year player can reach. Change any step and keep it
-        as your version.
+        Your preset menu lists what you subscribe to here, so it holds only what you teach from. An instrument track
+        sets up each step for the instrument: its sound, its transposition, its clef and a range a first-year player
+        can reach. Change any step and keep it as your version.
       </p>
       <ul class="flex flex-wrap gap-2 text-sm font-bold">
         <li class="rounded-full bg-sr-mint text-sr-mint-ink px-3.5 py-1.5">Rhythm first, always {RHYTHM_LEAD} steps ahead</li>
@@ -43,47 +49,74 @@ const demo = band[0].steps.slice(0, 6);
     <!-- Families -->
     <nav aria-label="Track families" class="flex flex-wrap gap-2 -mb-4">
       {FAMILIES.map((f) => (
-        <span class={`rounded-full px-4 py-2 text-sm font-extrabold ${f.live ? "bg-sr-action text-sr-action-ink" : "bg-sr-track text-sr-muted"}`} aria-current={f.live ? "true" : undefined}>
-          {f.label}{!f.live && <span class="ml-1.5 text-[11px] font-bold opacity-80">coming soon</span>}
-        </span>
+        f.live ? (
+          <a href={`#${f.id}`} class="rounded-full px-4 py-2 text-sm font-extrabold bg-sr-action text-sr-action-ink hover:brightness-95">{f.label}</a>
+        ) : (
+          <span class="rounded-full px-4 py-2 text-sm font-extrabold bg-sr-track text-sr-muted">
+            {f.label}<span class="ml-1.5 text-[11px] font-bold opacity-80">coming soon</span>
+          </span>
+        )
       ))}
     </nav>
 
-    <!-- Band instruments -->
-    <section class="flex flex-col gap-4">
+    <!-- The site's own sets: free -->
+    <section id="choir" class="flex flex-col gap-4 scroll-mt-24">
       <div>
-        <h2 class="font-display text-2xl font-bold text-sr-ink">Beginning band</h2>
-        <p class="text-sr-ink-2">Every instrument takes the same step on the same day, in the same concert key, so the whole band can read together.</p>
+        <h2 class="font-display text-2xl font-bold text-sr-ink">Choir and voice</h2>
+        <p class="text-sr-ink-2">Free with any account, or none. abcStepByStep is on until you choose.</p>
       </div>
       <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {band.map((t) => (
-          <article class={`rounded-[28px] p-6 flex flex-col gap-4 ${TRACK_COLOR_CLASS[t.color]}`}>
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{t.level}</p>
-                <h3 class="font-display text-3xl font-bold">{t.name}</h3>
-              </div>
-              <InstrumentIcon instrument={instrumentOf(t.id)} />
+        {BUILTIN_SETS.map((s) => (
+          <article class={`rounded-[28px] p-6 flex flex-col gap-4 ${TRACK_COLOR_CLASS[s.color]}`}>
+            <div>
+              <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{s.level}</p>
+              <h3 class="font-display text-3xl font-bold">{s.name}</h3>
             </div>
-            <p class="text-sm leading-relaxed">{t.blurb}</p>
+            <p class="text-sm leading-relaxed">{s.blurb}</p>
             <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-              <dt class="font-bold opacity-75">Steps</dt><dd>{t.steps.length}, each a rhythm drill and notes</dd>
-              <dt class="font-bold opacity-75">Reads</dt><dd>{t.clef === "bass" ? "Bass clef" : "Treble clef"}, {trackKeys(t).join(", ")}</dd>
-              <dt class="font-bold opacity-75">Range</dt><dd>{trackReach(t)}{t.transposeSemitones ? " written" : ""}</dd>
-              <dt class="font-bold opacity-75">Sounds</dt><dd>{t.transposeSemitones ? "A step below written, as a B♭ instrument does" : "As written"}</dd>
+              {s.facts.map(([k, v]) => (<><dt class="font-bold opacity-75">{k}</dt><dd>{v}</dd></>))}
             </dl>
-            <div class="mt-auto flex flex-col gap-3 pt-2 border-t border-current/15">
-              <TrackSubscribe client:only="svelte" trackId={t.id} firstStepId={t.steps[0].id} />
-              <a class="text-sm font-extrabold" href={`/curriculum/${t.id}`}>See all {t.steps.length} steps →</a>
+            <div class="mt-auto pt-2 border-t border-current/15">
+              <TrackSubscribe client:only="svelte" trackId={s.id} tryHref={s.href} tryLabel="Try it" openHref={s.href.split("?")[0]} free />
             </div>
           </article>
         ))}
-        <article class="rounded-[28px] p-6 flex flex-col gap-3 border-2 border-dashed border-sr-hairline text-sr-muted">
-          <h3 class="font-display text-2xl font-bold text-sr-ink">More instruments</h3>
-          <p class="text-sm">Flute, oboe, bassoon, saxophones, horn, trombone, euphonium and percussion are on the way, on the same steps.</p>
-        </article>
       </div>
     </section>
+
+    <!-- Instrument tracks: Pro -->
+    {groups.map((g) => (
+      <section id={g.id} class="flex flex-col gap-4 scroll-mt-24">
+        <div>
+          <h2 class="font-display text-2xl font-bold text-sr-ink">{g.title} <span class="ml-1 align-middle text-xs font-extrabold rounded-full bg-sr-action text-sr-action-ink px-2.5 py-1">Pro</span></h2>
+          <p class="text-sr-ink-2">{g.note}</p>
+        </div>
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {g.tracks.map((t) => (
+            <article class={`rounded-[28px] p-6 flex flex-col gap-4 ${TRACK_COLOR_CLASS[t.color]}`}>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{t.level}</p>
+                  <h3 class="font-display text-3xl font-bold">{t.name}</h3>
+                </div>
+                <InstrumentIcon instrument={iconFor(t)} />
+              </div>
+              <p class="text-sm leading-relaxed">{t.blurb}</p>
+              <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <dt class="font-bold opacity-75">Steps</dt><dd>{t.steps.length}, each a rhythm drill and notes</dd>
+                <dt class="font-bold opacity-75">Reads</dt><dd>{({ treble: "Treble", bass: "Bass", alto: "Alto", tenor: "Tenor" })[t.clef]} clef, {trackKeys(t).join(", ")}</dd>
+                <dt class="font-bold opacity-75">Range</dt><dd>{trackReach(t)}{t.transposeSemitones ? " written" : ""}</dd>
+                <dt class="font-bold opacity-75">Sounds</dt><dd>{soundsLabel(t)}</dd>
+              </dl>
+              <div class="mt-auto flex flex-col gap-3 pt-2 border-t border-current/15">
+                <TrackSubscribe client:only="svelte" trackId={t.id} tryHref={trackHref(t.steps[0].id, "rhythm")} />
+                <a class="text-sm font-extrabold" href={`/curriculum/${t.id}`}>See all {t.steps.length} steps →</a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    ))}
 
     <!-- How a step works -->
     <section class="sr-panel bg-sr-raise p-6 sm:p-8 grid gap-6 lg:grid-cols-[1fr_1.3fr] items-start">

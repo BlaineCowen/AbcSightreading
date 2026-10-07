@@ -190,9 +190,17 @@ nearly got it thrown away. That difference was noise; the sweep is the gate.
 
 ### The ladder
 
-`src/lib/ladder.ts` is abcStepByStep: 23 presets from rhythm alone (ta, ti-ti)
+`src/lib/ladder.ts` is abcStepByStep: 24 steps from rhythm alone (ta, ti-ti)
 through a single line on the Unison page, then two, three and four parts on the
-Choral page, to UIL 5 and past it. It follows sight-singing pedagogy - one new
+Choral page, to UIL 5 and past it. Since 7 October 2026 the single line is
+pairs, as the curriculum tracks are (`part`: a rhythm drill on Kodály
+syllables bringing in one figure, and a sung exercise on rhythms spoken at
+least two steps before, sharing the step's number; ids `sbs-NN-rhythm` /
+`sbs-NN-notes`). The first ten single-line ids are retired and lead to their
+nearest replacement (`RETIRED_STEPS`, through `ladderById`), so old links and
+assignments open; a class's old check marks stay on the old ids. A step sets
+tempo, the progression option and Kodály, and plays at pitch on a voice
+sound (an instrument track's transposition used to stay on into it). It follows sight-singing pedagogy - one new
 thing per step, the new thing on familiar material, rhythm before pitch, pitch
 out from do, unison before parts - and the file's header says how. Keep to that
 when adding steps. Class progress is stored against each step's `id`, so never
@@ -249,13 +257,27 @@ when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
 ### Curriculum tracks
 
+The preset menu's Levels tab lists only what the teacher subscribes to on
+`/curriculum` (`src/lib/curriculum/catalogue.ts`, its "Choose tracks" link
+at the top): the site's own sets - abcStepByStep (subscribed by default,
+`DEFAULT_SUBSCRIPTIONS`), UIL, NYSSMA Voice - free to anyone and kept in this
+browser when signed out (`sr-subscriptions`, carried to the account on first
+sign-in), and the instrument tracks, Pro. `UserPreference.curriculumTracks`
+is null until the teacher chooses. `/sightreading?nyssma=<level id>` opens a
+level.
+
 `src/lib/curriculum/` (tests `curriculum.test.ts`): a sequence for one
 instrument that a teacher subscribes to on `/curriculum` (public, each track
-at `/curriculum/<id>`; subscribing is Pro, `/api/tracks`) and then finds under
-**My tracks** in the Unison page's preset menu. Beginner band is first:
-trumpet, clarinet, tuba (`band.ts`), all on one sequence so a band takes the
-same step together in concert B♭, E♭, F, then C (trumpet and clarinet read
-written C, F, G, D and play back −2; tuba reads concert pitch in bass clef).
+at `/curriculum/<id>`; `/api/tracks`) and then finds under **Instrument
+tracks** in the preset menu. Beginner band (`band.ts`):
+flute, oboe, clarinet, bassoon, alto, tenor and bari sax, trumpet, horn,
+trombone, euphonium, tuba, all on one sequence so a band takes the same step
+together in concert B♭, E♭, F, then C, each reading its own written key
+(`writtenKey`: concert minus the instrument's transposition, so a trumpet reads
+C, F, G, D, an alto sax G, C, D, A, a horn F, B♭, C, G). Beginning orchestra
+(`orchestra.ts`): violin, viola (alto clef), cello, string bass (−12), the same
+rhythm thread with the notes in string order, D, G, A, then C and F. Playback
+transpose reaches ±24 for them (bari sax −21, tenor −14).
 Each step is a pair: a rhythm drill bringing in one new figure (or meter, or
 ties), and a note exercise that only uses rhythms from `RHYTHM_LEAD` (2) or
 more steps before - Blaine's rule, "rhythm two steps ahead of the notes". The
@@ -280,8 +302,11 @@ written F♯ under a clarinet's lowest note).
 ### Chord progressions (Unison)
 
 `src/lib/unison-progressions.ts` (tests `unison-progressions.test.ts`):
-harmony first. With the page's Chord progression option (on by default; in
-links and presets, older presets leave it alone) a diatonic exercise is
+harmony first. Not an option any more (7 October 2026, Blaine: hidden and
+always on): `writeOverProgression` in skip-settings.ts writes over a
+progression whenever the line may skip, and keeps a chord a note when it may
+only step (a stepwise line over the chords got stuck on two notes); links and
+presets no longer carry it. A diatonic exercise is
 written over a short progression - I IV V I, I IV I V I, I V vi IV I,
 I vi IV V I, I ii V I, I vi ii V I; in minor i iv v i, i VI iv v i,
 i VI VII i, i VII VI VII i (natural minor: the raised leading tone waits for
@@ -1201,8 +1226,8 @@ from the bottom on a phone), with Done and New exercise at its foot
 (`settingPop`). It replaced the Setup / Rhythm / Notes / Range tabs (7
 October 2026), which showed every control at once. Unison: a Pitched /
 Rhythm only switch first, then key, meter, length, notes (degrees, skips,
-range), rhythms, More (clef, chord progression); rhythm only hides key,
-notes and More. Choral: voicing, key, meter, length, rhythms, chords (the
+range), rhythms, clef (the chord progression is no longer an option);
+rhythm only hides key, notes and clef. Choral: voicing, key, meter, length, rhythms, chords (the
 old Harmony tab), More (voice texture, voice ranges). The controls inside
 are the ones the tabs held, unchanged. New exercise ends the row and
 carries the month's count (`setbar-count`); the playback bar's Generate

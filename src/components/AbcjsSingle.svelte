@@ -101,6 +101,7 @@
     ALL_LAND_ON, DEGREE_NAMES, DIR_ARROWS, LAND_ON_CHOICES, NO_LANDING_MESSAGE, SKIP_CHIPS, addExtraSkip, degreesConnected, withoutShortSkips,
     policyFor, readSkipParams, setExactOn, skipSettingsFrom, togglePattern, toggleLandOn, writeSkipParams, PAGE_DEFAULT_LAND_ON,
     type SkipSettings,
+    writeOverProgression,
   } from "../lib/skip-settings";
   import {
     readShortSkipParams, eighthsFrom, capsFor, MAX_SKIP_RANGE,
@@ -162,6 +163,7 @@
   import {
     INSTRUMENTS,
     DEFAULT_INSTRUMENT,
+    VOICE_PROGRAMS,
     isInstrumentProgram,
     withInstrument,
   } from "../lib/instruments";
@@ -445,7 +447,6 @@
     if (urlParams.has("allowTiesAcrossBarline"))
       options.allowTiesAcrossBarline =
         getParam("allowTiesAcrossBarline") === "true";
-    if (urlParams.has("progressions")) options.progressions = getParam("progressions") !== "false";
 
     const cursor = getParam("cursor");
     if (isCursorMode(cursor)) {
@@ -602,9 +603,6 @@
         ? options.syllableSystemId
         : defaultSyllableSystem.id,
       allowTiesAcrossBarline: options.allowTiesAcrossBarline || false,
-      // Chord progressions (unison-progressions.ts). Unset in presets saved
-      // before they existed, which leaves the page's own setting alone.
-      progressions: typeof options.progressions === "boolean" ? options.progressions : undefined,
       cursorMode: isCursorMode(options.cursorMode) ? options.cursorMode : "beat",
       run: runOptionsFrom(options.run),
       // How it sounds. Undefined when not saved (older presets and options),
@@ -691,7 +689,6 @@
     showRhythmSyllables = next.showRhythmSyllables;
     syllableSystemId = next.syllableSystemId;
     allowTiesAcrossBarline = next.allowTiesAcrossBarline;
-    if (typeof next.progressions === "boolean") progressions = next.progressions;
     cursorMode = next.cursorMode;
     // Every preset saved before dynamics existed meant Off - not whatever the
     // page last held (a NYSSMA level's p, mf and f, say).
@@ -748,6 +745,9 @@
       ? new URLSearchParams(window.location.search).get(STEP_PARAM)
       : null;
 
+  /** ?nyssma=<level id>: a NYSSMA Voice level, from /curriculum. Read now, like the step. */
+  const linkedNyssmaId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("nyssma") : null;
+
   /** ?track=<step id>&part=rhythm|notes: a curriculum step, from /curriculum. Read now, like the step. */
   const linkedTrackKey = (() => {
     if (typeof window === "undefined") return null;
@@ -797,12 +797,16 @@
     rhythmOnly = u.rhythmOnly;
     selectedRhythms = resolveSelectedRhythms(u.selectedRhythms, u.selectedTimeSignature);
     selectedTimeSignature = u.selectedTimeSignature;
-    selectedTimeSignatures = new Set([u.selectedTimeSignature]);
+    selectedTimeSignatures = new Set(u.meters ?? [u.selectedTimeSignature]);
     measures = u.measures;
     if (u.selectedKey) {
       selectedKey = u.selectedKey;
-      selectedKeys = new Set([u.selectedKey]);
+      selectedKeys = new Set(u.keys ?? [u.selectedKey]);
     }
+    if (u.bpm) handleBpmChange(u.bpm);
+    // The steps are spoken and sung on Kodály syllables: shown under a rhythm drill.
+    syllableSystemId = "kodaly";
+    showRhythmSyllables = u.rhythmOnly;
     rangeSpan = null;
     rangeLimit = null;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
@@ -817,6 +821,16 @@
     selectedFlatDegrees = new Set();
     // No step prints dynamics; a level's marks would otherwise stay on.
     dynamicsSet = [];
+    // Sung, at pitch: an instrument track's transposition and sound (a
+    // trumpet's −2) stayed on into the steps, and the page saved them.
+    const voiceSound = VOICE_PROGRAMS.has(instrumentProgram) ? instrumentProgram : DEFAULT_INSTRUMENT;
+    if (transposeSemitones !== 0 || voiceSound !== instrumentProgram) {
+      transposeSemitones = 0;
+      instrumentProgram = voiceSound;
+      audioBuffer = null;
+      createSynth = null;
+      if (currentTune && originalTuneString) void rerenderTune();
+    }
     activePresetLabel = stepLabel(step);
     activeSavedId = null;
     activeStepId = step.id;
@@ -1255,9 +1269,10 @@
    * Chord progressions (unison-progressions.ts): the line is written over a
    * repeating progression - I IV V I and the like - with chord notes on the
    * strong beats and passing notes between; with chromatic notes, a diatonic
-   * phrase and then a chromatic one. On unless turned off.
+   * phrase and then a chromatic one. Not an option any more: always, unless
+   * the line only steps (writeOverProgression).
    */
-  let progressions: boolean = initialState.progressions ?? true;
+  $: progressions = writeOverProgression(maxSkip, skips);
   // Beat by beat by default: a reader follows the beat (Blaine, 6 October 2026).
   let cursorMode: CursorMode = initialState.cursorMode || "beat";
   /** Printed dynamics: the marks to draw from, or empty for Off (dynamics.ts). */
@@ -1536,7 +1551,6 @@
       showRhythmSyllables,
       syllableSystemId,
       allowTiesAcrossBarline,
-      progressions,
       cursorMode,
       dynamics: dynamicsSet,
       rhythmSoundId,
@@ -1615,7 +1629,6 @@
     params.set("transpose", String(transposeSemitones));
     params.set("syllableSystem", syllableSystemId);
     params.set("allowTiesAcrossBarline", allowTiesAcrossBarline.toString());
-    params.set("progressions", progressions.toString());
     params.set("cursor", cursorMode);
     if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
@@ -3803,6 +3816,8 @@
     // A curriculum step from /curriculum: the teacher's own version once their tracks load.
     const linkedTrack = !linkedStep && linkedTrackKey && stepOfKey(linkedTrackKey) ? linkedTrackKey : null;
     if (linkedTrack) applyTrackStep(linkedTrack);
+    const linkedLevel = !linkedStep && !linkedTrack && linkedNyssmaId && Object.hasOwn(nyssmaById, linkedNyssmaId) ? nyssmaById[linkedNyssmaId] : null;
+    if (linkedLevel) applyNyssmaLevel(linkedLevel);
     loadTrackPrefs()
       .then(() => { if (linkedTrack && activeTrackKey === linkedTrack && $trackPrefs.overrides[linkedTrack]) applyTrackStep(linkedTrack); })
       .catch(() => {});
@@ -3814,10 +3829,10 @@
     // A reload keeps the preset the settings came from (active-preset.ts).
     // A saved preset chosen on the Choral page's picker (preset-link.ts), read
     // before the page rewrote its address.
-    const presetId = linkedStep || linkedTrack || assignmentId || linked ? null : arrivedPresetId;
+    const presetId = linkedStep || linkedTrack || linkedLevel || assignmentId || linked ? null : arrivedPresetId;
     if (presetId) void openLinkedPreset("unison", presetId, (p) => applySavedPreset(p));
     const remembered = presetId ? null : activePresetToRestore("unison");
-    if (remembered && !linkedStep && !linkedTrack && !assignmentId && !linked) restoreActivePreset(remembered);
+    if (remembered && !linkedStep && !linkedTrack && !linkedLevel && !assignmentId && !linked) restoreActivePreset(remembered);
     presetMemoryReady = true;
     window.addEventListener("hashchange", onHashChange);
   });
@@ -4217,7 +4232,7 @@
       [...minorScaleDegrees].sort(), [...minorSharpDegrees].sort(), [...minorFlatDegrees].sort(), minorSolfege,
       maxSkip, skips, eighthPairsOnePitch, accidentalsFollowStep, settledRange]),
     rhythm: JSON.stringify([selectedRhythms.map((r: Rhythm) => r.name).sort(), allowTiesAcrossBarline, showRhythmSyllables, syllableSystemId]),
-    more: JSON.stringify([selectedClef, progressions]),
+    more: selectedClef,
   };
   let presetPillSigs: Record<string, string> | null = null;
   let pillsFor = "";
@@ -4695,8 +4710,6 @@
       nyssmaLevels={nyssmaVoiceLevels}
       {activeNyssmaId}
       onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
-      tracks={$trackPrefs.tracks.map((id) => trackById[id]).filter(Boolean)}
-      tracksSignedIn={$trackPrefs.signedIn}
       {activeTrackKey}
       ownVersion={!!activeTrackKey && !!$trackPrefs.overrides[activeTrackKey]}
       onSelectTrack={(key) => applyTrackStep(key)}
@@ -4739,7 +4752,7 @@
         {/if}
         <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {#if !rhythmOnly}
-          <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
+          <button class="set-pill" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{selectedClef} clef{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
         {/if}
       </div>
       <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading}>
@@ -4761,9 +4774,9 @@
           class="set-pop {settingPop === 'notes' || settingPop === 'rhythm' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
           role="dialog"
-          aria-label={({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'More settings' })[settingPop]}
+          aria-label={({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'Clef' })[settingPop]}
         >
-          <p class="set-pop-title">{({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'More settings' })[settingPop]}</p>
+          <p class="set-pop-title">{({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'Clef' })[settingPop]}</p>
           {#if settingPop === 'key'}
               <div class="space-y-2">
                 
@@ -5248,7 +5261,6 @@
             <div class="space-y-4">
 {#if !rhythmOnly}
               <div class="space-y-2">
-                <p class="sr-label">Clef</p>
                 <div class="flex flex-wrap gap-2" role="group" aria-label="Clef">
                   {#each clefOptions as clef}
                     <button
@@ -5257,26 +5269,6 @@
                     >{clef}</button>
                   {/each}
                 </div>
-              </div>
-              <div class="space-y-2">
-                <p class="sr-label">Chord progression</p>
-                <button
-                  class="sr-tok {progressions ? 'sr-on' : ''}"
-                  on:click={() => (progressions = !progressions)}
-                  aria-label="Chord progression"
-                  aria-pressed={progressions}
-                >{progressions ? 'On' : 'Off'}</button>
-                <p class="text-xs text-sr-faint">
-                  {#if !progressions}
-                    A chord for every note, wherever the line goes.
-                  {:else if minorInPool && !majorInPool}
-                    The line follows a repeating minor progression, i iv v i, i VI VII i and the like{minorSharpDegrees.has(7) ? ", with a phrase over V that sings the raised leading tone" : ""}.
-                  {:else if selectedSharpDegrees.size || selectedFlatDegrees.size}
-                    A diatonic phrase first, then a chromatic one: fi over V/V, te over ♭VII, le over iv and so on, each resolving by step.
-                  {:else}
-                    The line follows a repeating progression, I IV V I and the like: chord notes on the strong beats, passing notes between.
-                  {/if}
-                </p>
               </div>
 {/if}
             </div>
@@ -5879,7 +5871,7 @@
     align-items: center;
     gap: 0.375rem;
     min-height: 2.5rem;
-    padding: 0.4rem 0.55rem 0.4rem 0.8rem;
+    padding: 0.4rem 0.45rem 0.4rem 0.75rem;
     border-radius: 999px;
     background: var(--sr-track);
     color: var(--sr-ink);
@@ -5912,11 +5904,10 @@
     padding: 3px;
     border-radius: 999px;
     background: var(--sr-track);
-    margin-right: 0.25rem;
   }
   .set-mode button {
     min-height: 2.25rem;
-    padding: 0 0.9rem;
+    padding: 0 0.7rem;
     border-radius: 999px;
     font-size: 14px;
     font-weight: 800;

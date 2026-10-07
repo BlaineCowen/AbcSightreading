@@ -247,7 +247,7 @@
           {/if}
         {:else}
           <p class="text-sm text-sr-muted">
-            {#if billing.via === "trial" && billing.grantEnds}Your free month of Pro, until {day(billing.grantEnds)}. Nothing is charged; it simply ends.
+            {#if billing.via === "trial" && billing.grantEnds}Your free month of Pro, until {day(billing.grantEnds)}. Nothing is charged.
             {:else if billing.via === "code" && billing.grantEnds}Free from a code until {day(billing.grantEnds)}.
             {:else if billing.via === "complimentary"}Complimentary.
             {:else}Through your teacher's class.{/if}

@@ -41,7 +41,7 @@
     <div class="w-full rounded-[22px] bg-sr-mint text-sr-mint-ink px-5 py-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-center">
       <p class="text-sm sm:text-base">
         <span class="rounded-full bg-sr-action text-sr-action-ink px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide mr-1">Limited time</span>
-        <strong>Try Pro free for a month.</strong> No card needed, and it simply ends.
+        <strong>Try Pro free for a month.</strong> No card needed.
       </p>
       <a class="sr-btn text-sm" href={s.signedIn ? "/account#plan" : signup}>{s.signedIn ? "Start my free month" : "Create a free account"}</a>
     </div>
