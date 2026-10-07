@@ -20,14 +20,14 @@
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
-  import { countGeneration, mayGenerate } from "../lib/usage";
+  import { countGeneration, mayGenerate, usage } from "../lib/usage";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import { applyClick, clickFrom, currentClick, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
   import abcjs from "abcjs";
-  import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, Volume2 } from "lucide-svelte";
+  import { RefreshCw, Minus, Plus, ChevronLeft, ChevronRight, ChevronDown, Volume2, Eye } from "lucide-svelte";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import { applyMixLevels } from "../lib/mix-volumes";
   import { chords as fullChordSet } from "../resources/chords";
@@ -1374,17 +1374,112 @@
   }
 
   /** The select hands back a string; the synth wants the program number. */
-  /** Score options: open or folded away, remembered in this browser. */
-  let scoreOptionsOpen = true;
-  try {
-    scoreOptionsOpen = localStorage.getItem("sr-score-options-open") !== "0";
-  } catch {}
-  function toggleScoreOptions() {
-    scoreOptionsOpen = !scoreOptionsOpen;
-    try {
-      localStorage.setItem("sr-score-options-open", scoreOptionsOpen ? "1" : "0");
-    } catch {}
+  /**
+   * The settings row: one pill per setting, each showing what is chosen, and
+   * one popover open at a time under it (settingPop). The score's toolbar
+   * opens Display (the score options) the same way (toolPop). A tap outside,
+   * Escape, Done or New exercise closes them.
+   */
+  type SettingPop = "voicing" | "key" | "meter" | "length" | "rhythm" | "harmony" | "more";
+  let settingPop: SettingPop | null = null;
+  let toolPop: "display" | null = null;
+  let popLeft = 0;
+  $: if (typeof document !== "undefined") document.documentElement.classList.toggle("sr-pop-open", !!(settingPop || toolPop));
+  let setbarInView = false;
+  let setbarEl: HTMLElement;
+  let toolsEl: HTMLElement;
+  const POP_WIDTH = 420;
+  /** The button that opened the popover, for focus to return to. */
+  let popOpener: HTMLElement | null = null;
+  function closePops(returnFocus = true) {
+    const opener = popOpener;
+    settingPop = null;
+    toolPop = null;
+    popOpener = null;
+    if (returnFocus) opener?.focus({ preventScroll: true });
   }
+  /** Focus moves into a popover as it opens: its chosen chip, else its first control. */
+  async function focusPop() {
+    await tick();
+    const pop = document.querySelector<HTMLElement>(".set-pop");
+    const target = pop?.querySelector<HTMLElement>(".sr-on, [aria-pressed='true']") ?? pop?.querySelector<HTMLElement>("button, input, select");
+    target?.focus({ preventScroll: true });
+  }
+  function togglePop(which: SettingPop, e: MouseEvent) {
+    toolPop = null;
+    if (settingPop === which) return (settingPop = null);
+    const pill = e.currentTarget as HTMLElement;
+    const room = setbarEl?.clientWidth ?? POP_WIDTH;
+    popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
+    settingPop = which;
+    popOpener = pill;
+    void focusPop();
+  }
+  function toggleTool(which: "display") {
+    settingPop = null;
+    toolPop = toolPop === which ? null : which;
+    popOpener = toolPop ? (document.activeElement as HTMLElement | null) : null;
+    if (toolPop) void focusPop();
+  }
+  onMount(() => {
+    // Checked on pointerdown, before a chip's click redraws the popover.
+    const outside = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (settingPop && setbarEl && !setbarEl.contains(t)) { settingPop = null; popOpener = null; }
+      if (toolPop && toolsEl && !toolsEl.contains(t)) { toolPop = null; popOpener = null; }
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && (settingPop || toolPop)) closePops();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", esc);
+    // While the settings row (and its New exercise) is on screen, the bar's
+    // Generate steps aside; it comes back once the row scrolls away.
+    // On screen means most of it: a sliver at the top edge is not a button to press.
+    const seen = new IntersectionObserver(([e]) => (setbarInView = e.intersectionRatio >= 0.6), { threshold: [0, 0.6, 1] });
+    if (setbarEl) seen.observe(setbarEl);
+    return () => {
+      seen.disconnect();
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", esc);
+    };
+  });
+  const keyName = (k: string) => (isMinorKey(k) ? `${k.replace(/m$/, "")} minor` : `${k} major`);
+  /**
+   * What each pill holds, as one string, and those strings as they were when
+   * the preset was chosen: a pill with a dot has been changed since. No preset,
+   * no dots (there is nothing to have changed from).
+   */
+  $: pillSigs = {
+    voicing: selectedVoicing,
+    key: [...selectedKeys].sort().join(","),
+    meter: selectedTimeSignature,
+    length: JSON.stringify([measures, fullLength, fullLengthMeasures]),
+    rhythm: _tabSigs.rhythm,
+    harmony: _tabSigs.harmony,
+    more: JSON.stringify([voiceTexture, _tabSigs.ranges]),
+  };
+  let presetPillSigs: Record<string, string> | null = null;
+  let pillsFor: Record<string, string> | null = null;
+  $: if (_presetTabSigs !== pillsFor) {
+    pillsFor = _presetTabSigs;
+    presetPillSigs = _presetTabSigs ? { ...pillSigs } : null;
+  }
+  $: pillChanged = Object.fromEntries(
+    Object.entries(pillSigs).map(([k, v]) => [k, !!activePresetLabel && !!presetPillSigs && presetPillSigs[k] !== v]),
+  ) as Record<keyof typeof pillSigs, boolean>;
+  $: pillText = {
+    voicing: selectedVoicing,
+    key: selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : `${selectedKeys.size} keys`,
+    meter: selectedTimeSignature,
+    length: fullLength ? "Full length" : `${measures} bars`,
+    rhythm: `${selectedRhythms.length} ${selectedRhythms.length === 1 ? "rhythm" : "rhythms"}`,
+    harmony: (() => {
+      // The chords the Harmony box shows switched on (inversions ride along unseen).
+      const on = (Object.values(chordGroups) as string[][]).flat().filter((c) => userAllowedChords.has(c)).length;
+      return `${on} ${on === 1 ? "chord" : "chords"}`;
+    })(),
+  };
   function onInstrumentSelect(event: Event) {
     const el = event.currentTarget as HTMLSelectElement;
     handleInstrumentChange(Number(el.value));
@@ -2537,33 +2632,24 @@
       </div>
     {/if}
 
-    <!-- Tab panel -->
-    <div class="tab-panel sr-panel w-full my-4 no-print">
-
-      <!-- Tab bar -->
-      <!-- On a phone the tabs take the first row, whole, and the history and
-           Generate a second; from md up, one row. -->
-      <div class="sr-bar flex flex-wrap md:flex-nowrap items-center">
-          <div class="flex items-center overflow-x-auto tab-scroll w-full md:w-auto">
-        {#each ['setup', 'rhythm', 'harmony', 'ranges'] as tab}
-          <button
-            type="button"
-            class="sr-tab flex-1 md:flex-none px-2 sm:px-4 py-2.5 sm:py-2 text-[13px] sm:text-sm shrink-0 whitespace-nowrap
-              {selectedTab === tab ? 'sr-on' : ''}"
-            on:click={() => (selectedTab = tab)}
-          >
-            {({'setup':'Setup','rhythm':'Rhythm','harmony':'Harmony','ranges':'Voice Ranges'})[tab] ?? tab}
-            {#if (tab === 'setup' && setupDirty) || (tab === 'rhythm' && rhythmDirty) || (tab === 'harmony' && harmonyDirty) || (tab === 'ranges' && rangesDirty)}
-              <span class="sr-pip inline-block w-1.5 h-1.5 rounded-full ml-1 mb-0.5 align-middle"></span>
-            {/if}
-          </button>
-        {/each}
-        </div>
-
+    <!-- The settings as one row of pills, each showing what is chosen; a pill
+         opens only its own choices (settingPop), under it, or as a sheet on a
+         phone. The exercise history and New exercise end the row. -->
+    <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
+      <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
+        <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
+      </div>
+      <div class="setbar-end">
         <!-- Back through the exercises already generated this session. -->
         {#if history.length > 1}
           <div
-            class="md:ml-auto flex items-center gap-1 shrink-0 no-print"
+            class="flex items-center gap-1 shrink-0 no-print"
             role="group"
             aria-label="Exercise history"
           >
@@ -2586,25 +2672,33 @@
             ><ChevronRight size={18} /></button>
           </div>
         {/if}
-
-        <!-- Generate button always visible in tab bar -->
-        <button
-          class="sr-btn {history.length > 1 ? 'ml-auto md:ml-2' : 'ml-auto'} md:mr-2 my-1.5 shrink-0 flex items-center gap-1.5"
-          on:click={handleClick}
-          disabled={isGenerating}
-        >
-          <RefreshCw size={16} /><span>Generate</span>
+        <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
+          <RefreshCw size={16} class={isGenerating ? 'animate-spin' : ''} />
+          <span>New exercise</span>
+          {#if $usage && $usage.limit !== null && $usage.remaining !== null}
+            <!-- This month's exercises left, on the button that uses them. -->
+            <span
+              class="setbar-count {$usage.remaining <= 3 ? 'low' : ''}"
+              title="{$usage.remaining} exercises left this month"
+              aria-label="{$usage.remaining} left this month"
+            >{$usage.remaining}</span>
+          {/if}
         </button>
       </div>
 
-      <!-- Tab content - locked to an open assignment's settings -->
-      <div class="p-4" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-
-        <!-- Setup Tab -->
-        {#if selectedTab === 'setup'}
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      {#if settingPop}
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
+        <div
+          class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'more' ? 'set-pop-wide' : ''}"
+          style="--pop-left: {popLeft}px"
+          role="dialog"
+          aria-label={({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}
+        >
+          <p class="set-pop-title">{({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}</p>
+          <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
+          {#if settingPop === 'voicing'}
             <div class="space-y-2">
-              <p class="sr-label">Voicing</p>
+              
               <div class="flex flex-wrap gap-2" role="group" aria-label="Voicing">
                 {#each Object.keys(possibleVoicing) as voicing}
                   <button
@@ -2615,7 +2709,7 @@
                 {/each}
               </div>
             </div>
-
+          {:else if settingPop === 'key'}
             <div class="space-y-2">
               {#each [false, true] as minorRow}
                 {@const rowKeys = keysInMode(minorRow)}
@@ -2686,9 +2780,9 @@
                 </p>
               {/if}
             </div>
-
+          {:else if settingPop === 'meter'}
             <div class="space-y-2">
-              <p class="sr-label">Time Signature</p>
+              
               <div class="flex flex-wrap gap-2" role="group" aria-label="Time Signature">
                 {#each Object.keys(timeSignatures) as ts}
                   <button
@@ -2699,9 +2793,9 @@
                 {/each}
               </div>
             </div>
-
+          {:else if settingPop === 'length'}
             <div class="space-y-2">
-              <p class="sr-label">Measures</p>
+              
               <div class="flex flex-wrap gap-2 items-center" role="group" aria-label="Measures">
                 {#each measureOptions as opt}
                   <button
@@ -2779,41 +2873,9 @@
                 </div>
               {/if}
             </div>
-
-            <div class="space-y-2 sm:col-span-2">
-              <p class="sr-label">Voice texture</p>
-              {#if fullLength}
-                <p class="text-xs text-sr-muted">
-                  The form decides this per section for a full-length piece: the imitative
-                  passage gets staggered entrances and the rest all voices.
-                </p>
-              {/if}
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
-                {#each voiceTextures as mode}
-                  <button
-                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
-                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
-                    on:click={() => (voiceTexture = mode)}
-                    aria-pressed={voiceTexture === mode}
-                  >{voiceTextureLabels[mode]}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {voiceTexture === "full"
-                  ? "Every part sings throughout, apart from rests in the rhythm."
-                  : measures < 12
-                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
-                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
-              </p>
-            </div>
-
-          </div>
-
-
-        <!-- Rhythm Tab -->
-        {:else if selectedTab === 'rhythm'}
+          {:else if settingPop === 'rhythm'}
           <div class="space-y-3">
-            <p class="sr-label">Select Allowed Rhythms</p>
+            
             {#each rhythmPickerGroups(Object.values(filterRhythms)) as group}
             <p class="text-xs text-sr-faint">{group.label}</p>
             <div class="flex flex-wrap gap-2" role="group" aria-label="Select Allowed Rhythms: {group.label}">
@@ -2901,9 +2963,7 @@
               </p>
             {/if}
           </div>
-
-        <!-- Harmony Tab -->
-        {:else if selectedTab === 'harmony'}
+          {:else if settingPop === 'harmony'}
           <div class="space-y-5">
             <!-- Chord toggles -->
             {#each Object.entries(chordGroups) as [groupName, chordNames]}
@@ -3041,9 +3101,36 @@
               </div>
             </div>
           </div>
-
-        <!-- Voice Ranges Tab -->
-        {:else if selectedTab === 'ranges'}
+          {:else if settingPop === 'more'}
+            <div class="space-y-5">
+            <div class="space-y-2">
+              <p class="sr-label">Voice texture</p>
+              {#if fullLength}
+                <p class="text-xs text-sr-muted">
+                  The form decides this per section for a full-length piece: the imitative
+                  passage gets staggered entrances and the rest all voices.
+                </p>
+              {/if}
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
+                {#each voiceTextures as mode}
+                  <button
+                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
+                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
+                    on:click={() => (voiceTexture = mode)}
+                    aria-pressed={voiceTexture === mode}
+                  >{voiceTextureLabels[mode]}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {voiceTexture === "full"
+                  ? "Every part sings throughout, apart from rests in the rhythm."
+                  : measures < 12
+                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
+                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
+              </p>
+            </div>
+              <div class="space-y-2">
+                <p class="sr-label">Voice ranges</p>
           {#if selectedVoicing && possibleVoicing[selectedVoicing]}
             <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
@@ -3071,10 +3158,20 @@
               {/each}
             </div>
           {/if}
-        {/if}
-
-      </div>
-    </div>
+              </div>
+            </div>
+          {/if}
+          </div>
+          <div class="set-pop-foot">
+            <button class="sr-tok" on:click={() => closePops()}>Done</button>
+            <button class="sr-btn flex items-center gap-1.5" on:click={() => { closePops(false); handleClick(); }} disabled={isGenerating}>
+              <RefreshCw size={16} />
+              <span>New exercise</span>
+            </button>
+          </div>
+        </div>
+      {/if}
+    </section>
 
     <!-- Hidden abcjs audio element -->
     <div id="audio" class="hidden"></div>
@@ -3103,19 +3200,22 @@
     {/if}
 
     <!-- Sheet music (all that full screen keeps) -->
-    <!-- Score options: how the exercise is shown and played (none of it
-         regenerates anything). Its own box below the setup, and it folds away;
-         whether it is open is remembered (scoreOptionsOpen). -->
-    <section class="sr-panel w-full mb-4 p-4 no-print" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})} aria-labelledby="score-options-heading">
-      <button type="button" class="w-full flex items-start gap-2 text-left" aria-expanded={scoreOptionsOpen} aria-controls="score-options-body" on:click={toggleScoreOptions}>
-        <ChevronRight size={18} class="mt-0.5 shrink-0 transition-transform {scoreOptionsOpen ? 'rotate-90' : ''}" />
-        <span>
-          <span id="score-options-heading" class="block text-sm font-semibold text-sr-ink">Score options</span>
-          <span class="block text-xs text-sr-faint">How the exercise is shown and played. Changing these keeps the exercise on screen.</span>
-        </span>
-      </button>
-      {#if scoreOptionsOpen}
-      <div id="score-options-body" class="mt-4">
+  </div>
+
+  <!-- The music (all full screen keeps). -->
+  <div class="wide-right focus-keep w-full">
+    <div class="focus-score relative w-full" class:min-h-40={isGenerating}>
+      <!-- The score's own toolbar: how it is shown and played (Display, the
+           score options), opening under it. -->
+      <div class="score-tools focus-hide no-print" bind:this={toolsEl}>
+        <button class="tool-btn" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
+          <Eye size={16} aria-hidden="true" />Display
+        </button>
+        {#if toolPop}
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
+          <div class="set-pop set-pop-tools" role="dialog" aria-label="Display">
+            <p class="set-pop-title">Display</p>
+            <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
       <div class="space-y-2">
         <p class="sr-label">Playback sound</p>
@@ -3240,14 +3340,14 @@
         </p>
       </div>
       </div>
+            </div>
+            <p class="text-xs text-sr-faint mt-4">These change how the exercise looks and sounds. The notes stay the same.</p>
+            <div class="set-pop-foot">
+              <button class="sr-tok" on:click={() => closePops()}>Done</button>
+            </div>
+          </div>
+        {/if}
       </div>
-      {/if}
-    </section>
-  </div>
-
-  <!-- The music (all full screen keeps). -->
-  <div class="wide-right focus-keep w-full">
-    <div class="focus-score relative w-full" class:min-h-40={isGenerating}>
       <!-- Kept in the DOM even while hidden: renderAbc finds it by id, and it
            is un-hidden before renderTune measures its width. -->
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
@@ -3274,7 +3374,7 @@
             </div>
           {/each}
           <p class="text-center text-sm text-[#56637f] font-semibold">
-            Press Generate to write an exercise.
+            Press New exercise to write one.
           </p>
         </div>
       {/if}
@@ -3309,6 +3409,7 @@
 
   <!-- Sticky playback bar -->
   <PlaybackBar
+    hideGenerate={setbarInView}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}
@@ -3378,6 +3479,148 @@
 </div>
 
 <style>
+  /* The settings row: pills that each open their own popover, then New exercise. */
+  .setbar {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem;
+  }
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 26rem; min-width: 0; }
+  .set-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 2.5rem;
+    padding: 0.4rem 0.55rem 0.4rem 0.8rem;
+    border-radius: 999px;
+    background: var(--sr-track);
+    color: var(--sr-ink);
+    font-size: 14px;
+    font-weight: 800;
+    white-space: nowrap;
+    border: 2px solid transparent;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .set-pill:hover { border-color: var(--sr-tint); }
+  .set-pill[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
+  .set-pill-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--sr-action); flex: none; }
+  .set-pill[aria-expanded="true"] .set-pill-dot { background: var(--sr-action-ink); }
+  .setbar-count {
+    margin-left: 0.15rem;
+    min-width: 1.25rem;
+    border-radius: 999px;
+    padding: 0 0.4rem;
+    font-size: 11px;
+    line-height: 1.25rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .setbar-count.low { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .set-pill-k { font-size: 12px; font-weight: 600; opacity: 0.7; }
+  :global(.set-pill-chev) { opacity: 0.7; }
+  .set-pill-more { background: transparent; color: var(--sr-action-fg); padding-inline: 0.6rem; }
+  .set-pill-more[aria-expanded="true"] { background: var(--sr-tint); color: var(--sr-action-fg); }
+  .setbar-new { min-height: 2.75rem; }
+  .setbar-end { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+
+  /* One popover at a time: under its pill, or a bottom sheet on a phone. */
+  .set-pop {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 0.5rem);
+    left: var(--pop-left, 0px);
+    width: min(26.25rem, 100%);
+    max-height: min(70vh, 40rem);
+    overflow: auto;
+    padding: 1rem 1.125rem 1.125rem;
+    border-radius: 24px;
+    background: var(--sr-raise);
+    color: var(--sr-ink);
+    border: 1px solid var(--sr-hairline);
+    box-shadow: 0 2px 6px rgba(21, 33, 58, 0.08), 0 30px 60px -20px rgba(21, 33, 58, 0.45);
+    text-align: left;
+  }
+  .set-pop-wide { left: 0; width: 100%; }
+  .set-pop-tools { left: auto; right: 0; width: min(40rem, 100%); }
+  .set-pop-title {
+    font-family: var(--sr-font-display);
+    font-weight: 600;
+    font-size: 17px;
+    margin-bottom: 0.625rem;
+  }
+  .set-pop-foot {
+    position: sticky;
+    bottom: -1.125rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin: 1rem -1.125rem -1.125rem;
+    padding: 0.75rem 1.125rem;
+    background: var(--sr-raise);
+    border-top: 1px solid var(--sr-hairline-2);
+  }
+  .set-scrim { display: none; }
+  .sr-link-btn { color: var(--sr-action-fg); font-weight: 800; font-size: 14px; padding-top: 0.25rem; }
+
+  /* The score's toolbar, above the paper. */
+  .score-tools {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+  }
+  .tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.5rem;
+    padding: 0 0.875rem;
+    border-radius: 999px;
+    background: var(--sr-panel);
+    color: var(--sr-ink-2);
+    font-size: 14px;
+    font-weight: 800;
+    box-shadow: var(--sr-card-shadow);
+    border: 2px solid transparent;
+  }
+  .tool-btn:hover { border-color: var(--sr-tint); }
+  .tool-btn[aria-expanded="true"] { background: var(--sr-action); color: var(--sr-action-ink); }
+  .tool-btn-live { border-color: var(--sr-action); }
+
+  @media (max-width: 640px) {
+    .setbar-end { flex: 1; }
+    .setbar-new { flex: 1; justify-content: center; }
+    .set-pop,
+    .set-pop-wide,
+    .set-pop-tools {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: auto;
+      bottom: 0;
+      width: 100%;
+      max-height: 78vh;
+      border-radius: 28px 28px 0 0;
+      z-index: 60;
+      padding-bottom: calc(1.125rem + env(safe-area-inset-bottom, 0px));
+    }
+    .set-pop-foot { bottom: calc(-1.125rem - env(safe-area-inset-bottom, 0px)); }
+    .set-scrim {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(21, 33, 58, 0.35);
+    }
+  }
+
   /* The little rhythm glyphs beside the frequency buttons, at the icons' own
      shared scale like the picker (globals.css), capped to the row. Stretching
      each to the row's full height blew the whole note - a notehead with no

@@ -10,7 +10,7 @@
    * exercises are left this month and the way to more - a free account
    * (signed out) or Pro (signed in) - in amber once three or fewer are left;
    * and when none are, what to do about it. Nothing at all on an unlimited
-   * plan. The playback bar's Generate button carries the number too.
+   * plan. New exercise and the playback bar's Generate carry the number too.
    */
   onMount(() => {
     loadUsage();
@@ -28,6 +28,11 @@
   /** "counter" is the pill beside the preset picker, "alert" the box shown
    *  when none are left; "all" is both, for a page with no preset row. */
   export let part: "all" | "counter" | "alert" = "all";
+  /**
+   * Beside the preset picker the count shows only once this few are left:
+   * until then New exercise carries the number, and the row stays quiet.
+   */
+  const LOW_LEFT = 3;
 
   $: here = typeof location !== "undefined" ? location.pathname + location.search : "/";
   $: signupHref = `/login?mode=signup&next=${encodeURIComponent(here)}`;
@@ -53,7 +58,7 @@
       <X size={14} />
     </button>
   </div>
-{:else if !$usage?.blocked && part !== "alert" && $usage && $usage.limit !== null && $usage.remaining !== null}
+{:else if !$usage?.blocked && part !== "alert" && $usage && $usage.limit !== null && $usage.remaining !== null && (part !== "counter" || $usage.remaining <= LOW_LEFT)}
   {@const low = $usage.remaining <= 3}
   <p
     class="{part === 'counter' ? '' : 'w-full max-w-xl'} text-sm font-semibold rounded-[20px] px-4 py-2 no-print {low ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-butter text-sr-butter-ink'}"

@@ -457,7 +457,7 @@ exercises, up to fourteen in a row; now never. Max skip mode is untouched
 
 ### Play-along videos
 
-Pro, rhythm only: the peach Video button beside Generate on the Unison page
+Pro, rhythm only: the Video button on the score's toolbar on the Unison page
 (`PlayAlongVideo.svelte`, `src/lib/play-along/`; anyone else is sent to
 /pricing). A backing loop plays while two bars show, one above the other; a
 ball bounces from note to note through the top bar, then the bottom, and the
@@ -677,7 +677,10 @@ score for it). Its setup opens with it (remembered in the tuner store:
 `gradeMode`, `gradeStrictness`, `gradeCursor`, `gradeClick`,
 `gradeReference`; by default Pitch & rhythm, Easy, the cursor beat by beat,
 and the key - do mi so mi do so do, the first note - before the count-in)
-and chooses:
+and chooses. The click is set each time it opens from the page's
+metronome (`openGrade`): off unless the page clicks with the music,
+subdivided when it does; it kept a click of its own, on every beat, until
+7 October 2026, so the metronome off still clicked through the run.
 
 - **Note by note** (`gradeMode: "pitch"`; was "Pitch only"): practice, not graded - the results say "Done: all 13 notes sung" (or how many were skipped), every sung note green. Untimed, note by note. A reference (the first note or the
   key: do mi so mi do, so below, do, a note a beat, a beat's rest, then the
@@ -784,8 +787,10 @@ dev server on another port can test Send end to end with a throwaway account
 (done 6 October 2026; delete the account and the upload after).
 
 Runs can also be saved for review: on the dev server, or with `?gradeDebug=1`,
-the microphone is recorded over each run (a second stream with the tuner's
-own settings, `grade-recording.ts`, so the detection code is untouched) and
+the microphone is recorded over each run (a second stream, `grade-recording.ts`,
+so the detection code is untouched; without the tuner's echo cancellation,
+which turned the take down on every click of Grade's beat click and left it
+cutting out on playback) and
 the results have "Save this run": the recording, and a JSON of everything
 the grading used (the ABC, tempo, meter, settings, the pitch frames with
 their times, t0, every note's result). Nothing may await between the tuner
@@ -1218,10 +1223,31 @@ monitor; Tailwind sizes in rem, its breakpoints in px. Things placed in px
 beside things sized in rem drifted into each other at 4K (the Feedback
 button, the Tools card): place them by the other's rem size.
 
-Below the setup panel, each its own box: Score options (folds away,
-remembered as `sr-score-options-open`; the same on both pages, the sound a
-dropdown) and, on Unison, Drill. Unison's Dynamics there is Off or On (On is
-every mark; a preset with its own set, as NYSSMA's, shows On and keeps it).
+## The settings row (both practice pages)
+
+The settings are one row of pills above the score, each showing what is
+chosen; a pill opens only its own choices in a popover under it (a sheet
+from the bottom on a phone), with Done and New exercise at its foot
+(`settingPop`). It replaced the Setup / Rhythm / Notes / Range tabs (7
+October 2026), which showed every control at once. Unison: a Pitched /
+Rhythm only switch first, then key, meter, length, notes (degrees, skips,
+range), rhythms, clef (the chord progression is no longer an option);
+rhythm only hides key, notes and clef. Choral: voicing, key, meter, length, rhythms, chords (the
+old Harmony tab), More (voice texture, voice ranges). The controls inside
+are the ones the tabs held, unchanged. New exercise ends the row and
+carries the month's count (`setbar-count`); the playback bar's Generate
+steps aside while most of the row is on screen (`hideGenerate`), and the
+usage banner beside Preset shows only at 3 or fewer left
+(GenerationLimit `LOW_LEFT`). With a preset active, a pill changed since it
+was chosen has a dot (`pillChanged`). Focus moves into a popover as it
+opens and back to its pill on Done or Esc; while one is open, Tools and
+Feedback step aside (`html.sr-pop-open`).
+
+The score has its own toolbar above it: Display (the old Score options:
+sound, transpose, annotations, cursor; Unison's Dynamics there is Off or On,
+On is every mark, a preset with its own set, as NYSSMA's, shows On and
+keeps it), and on Unison Drill, Video and Listen and grade (`toolPop`). Only
+Listen and grade stays in full screen.
 
 ## Score layout
 

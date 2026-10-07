@@ -6,10 +6,15 @@ import { downloadFile } from "./download";
  * track with its times, every note's result), so a run someone thinks deserved
  * more can be replayed offline against what they really sang.
  *
- * The recording is a second stream on the same microphone, asked for with the
- * tuner's own settings (tuner-engine.ts: echo cancellation on, noise
- * suppression and automatic gain off), so the detection code - kept identical
- * to the standalone tuner's - is not touched. Its first moment is stamped on
+ * The recording is a second stream on the same microphone, so the detection
+ * code - kept identical to the standalone tuner's - is not touched. It asks
+ * for no echo cancellation, where the tuner's stream keeps it: the canceller
+ * turns the microphone down whenever the speakers sound, so with Grade's click
+ * on every beat (its default) the take came back dipping on each beat, and
+ * "Hear your take" played a voice cutting out with no click to explain it
+ * (Blaine, 7 October 2026). Without it the take is the room as sung, click
+ * and all; Chrome opens the two streams side by side, each with its own
+ * settings. Noise suppression and automatic gain stay off. Its first moment is stamped on
  * the page's clock (performance.now), the clock the pitch track and the
  * exercise's timeline use.
  */
@@ -20,7 +25,7 @@ export async function startGradeRecording(): Promise<GradeRecording | null> {
   if (typeof MediaRecorder === "undefined") return null;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
     const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
     const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);

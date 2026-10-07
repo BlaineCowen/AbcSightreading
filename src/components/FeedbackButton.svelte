@@ -153,7 +153,7 @@
      buttons and the practice controls, so there it is in the navbar's menu
      instead, which opens this dialog with the sr-open-feedback event. -->
 <button
-  class="focus-hide max-md:hidden fixed bottom-[76px] right-4 z-20 px-4 py-2 rounded-full bg-sr-peach text-sr-peach-ink text-sm font-extrabold shadow-lg hover:brightness-95 print:hidden"
+  class="feedback-fab focus-hide max-md:hidden fixed bottom-[76px] right-4 z-20 px-4 py-2 rounded-full bg-sr-peach text-sr-peach-ink text-sm font-extrabold shadow-lg hover:brightness-95 print:hidden"
   on:click={() => (open = !open)}
   aria-expanded={open}
 >
