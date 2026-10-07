@@ -157,6 +157,10 @@ model Class {
   position  Int             @default(0)
   /// What students type to join: "KTZ482" (shown KTZ-482). Educator classes only.
   joinCode  String?         @unique
+  /// The course it follows (src/lib/class-course.ts): a set or instrument course id, or "own".
+  course      String?
+  /// Its own list of the course's steps as preset keys (hidden, reordered, presets added); null is the course as written.
+  courseSteps Json?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]

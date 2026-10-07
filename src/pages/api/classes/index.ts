@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/server/db";
 import { checkClassName, MAX_CLASSES } from "../../../lib/class-validate";
 import { listClasses, notSignedIn, toClass, withProgress } from "./_shared";
 import { accountTypeFor, newJoinCode } from "../../../lib/server/students";
+import { isCourse } from "../../../lib/class-course";
 
 /**
  * The signed-in director's classes.
@@ -22,9 +23,11 @@ export const POST: APIRoute = async ({ request }) => {
   const user = await currentUser(request);
   if (!user) return notSignedIn();
   if ((await accountTypeFor(user)) === "student") return json({ error: "Student accounts do not have classes of their own." }, 403);
-  const body = (await readJson(request)) as { name?: unknown } | undefined;
+  const body = (await readJson(request)) as { name?: unknown; course?: unknown } | undefined;
   const name = checkClassName(body?.name);
   if (!name.ok) return json({ error: name.error }, 400);
+  // The course it follows, chosen as it is made (class-course.ts); optional.
+  if (body?.course !== undefined && body.course !== null && !isCourse(body.course)) return json({ error: "No such course." }, 400);
   const count = await prisma.class.count({ where: { userId: user.id } });
   if (count >= MAX_CLASSES) return json({ error: `You can keep up to ${MAX_CLASSES} classes.` }, 409);
   const last = await prisma.class.findFirst({
@@ -37,6 +40,7 @@ export const POST: APIRoute = async ({ request }) => {
       userId: user.id,
       name: name.value,
       position: (last?.position ?? -1) + 1,
+      course: (body?.course as string | null | undefined) ?? null,
       // An educator's class is joinable from the start.
       joinCode: (await accountTypeFor(user)) === "educator" ? await newJoinCode() : null,
     },

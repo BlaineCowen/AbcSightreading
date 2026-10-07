@@ -1199,12 +1199,17 @@
     const arrivedBare = !window.location.search && !exerciseParam(window.location.hash);
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
+    // A UIL level by name, from a class's checklist (class-course.ts uilHref).
+    const linkedUIL = (() => {
+      const k = new URLSearchParams(window.location.search).get("uil");
+      return k && Object.hasOwn(uilPresets, k) ? k : null;
+    })();
     const linked = exerciseParam(window.location.hash);
     // On a reload, the preset the settings came from (active-preset.ts). Not
     // over a step, an assignment or an exercise the address brings.
     // A saved preset chosen on the Unison page's picker (preset-link.ts).
-    const presetId = linkedStep || assignmentId || linked ? null : linkedPresetId();
-    const remembered = linkedStep || assignmentId || linked || presetId ? null : activePresetToRestore("choral");
+    const presetId = linkedStep || linkedUIL || assignmentId || linked ? null : linkedPresetId();
+    const remembered = linkedStep || linkedUIL || assignmentId || linked || presetId ? null : activePresetToRestore("choral");
     loadParams();
     if (remembered) {
       restoreActivePreset(remembered, !arrivedBare);
@@ -1214,6 +1219,7 @@
       selectedKey = "F";
     }
     if (linkedStep) applyLadderStep(linkedStep);
+    else if (linkedUIL) applyUILPreset(linkedUIL);
     if (presetId) void openLinkedPreset<PresetParams>("choral", presetId, (p) => applySavedPreset(p));
     // Practice time, for a student in a class; and an assignment, if the address names one.
     startPractice({ page: "choral", assignmentId, isBusy: () => isPlaying });

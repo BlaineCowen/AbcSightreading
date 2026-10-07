@@ -136,6 +136,7 @@
     : activeStepId ? presetKeyOf.step(activeStepId)
     : activeIsSaved && activeSavedId ? presetKeyOf.saved(activeSavedId)
     : activeUILKey ? presetKeyOf.uil(activeUILKey)
+    : activeNyssmaId ? presetKeyOf.nyssma(activeNyssmaId)
     : null;
   $: passed = (key: string) => !!selectedClass?.passed[key];
   /**

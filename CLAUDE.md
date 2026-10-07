@@ -938,8 +938,19 @@ Auth endpoints live under `/api/auth/*`; pages are `/login` (also
 
 Classes (`Class`, `ClassProgress`; `/api/classes`, `src/lib/classes.ts`) are
 signed-in only: a director's choirs and which presets each has passed, keyed
-`step:<id>`, `uil:UIL n` or `saved:<preset id>`. Picked beside the preset on
-the practice pages ("Mark passed"), and shown as a grid on `/account`.
+`step:<id>`, `uil:UIL n`, `nyssma:<level id>`, `track:<step id>:<part>` or
+`saved:<preset id>`. Picked beside the preset on the practice pages ("Mark
+passed"). Since 8 October 2026 each class follows one course
+(`Class.course`, `src/lib/class-course.ts`, tests `class-course.test.ts`):
+abcStepByStep, an instrument course, or "own" (built from the teacher's
+presets). UIL and NYSSMA are levels by grade, not courses (Blaine), so they
+are never a class's course, but any level can be added to a checklist. On
+`/account` each class is a card: its course's checklist with dates, how far
+through, and Next with a Practice link (`?step=`, `?track=`, `?nyssma=`,
+`?preset=`, and Choral's `?uil=`). Customize hides, reorders and adds steps
+for that class only (`Class.courseSteps`, a list of preset keys; null is the
+course as written; a new course starts over). Ticks are keyed by preset, so
+no change to the list loses one.
 
 A teacher's own rhythm syllables live in `UserPreference.rhythmSyllables`
 (`/api/preferences`, `src/lib/syllable-prefs.ts`), edited on `/account` and
