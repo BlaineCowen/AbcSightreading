@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { BAND_TRACKS, RHYTHM_LEAD, RHYTHM_THREAD } from "../../src/lib/curriculum/band";
+import { BAND_TRACKS, RHYTHM_LEAD, RHYTHM_THREAD, writtenKey } from "../../src/lib/curriculum/band";
 import { TRACKS, findStep, trackPresetKey } from "../../src/lib/curriculum/tracks";
 import { rangeForSpan } from "../../src/lib/ladder";
 import { selectableRhythms, selectableCompoundRhythms } from "../../src/lib/selectable-rhythms";
@@ -9,9 +9,29 @@ const introducedBy = (n: number) => new Set(RHYTHM_THREAD.slice(0, n).flatMap((s
 const offered = new Set([...selectableRhythms, ...selectableCompoundRhythms].map((r) => r.name));
 
 describe("beginner band tracks", () => {
-  test("trumpet, clarinet and tuba, each the full sequence", () => {
-    expect(BAND_TRACKS.map((t) => t.id)).toEqual(["band-trumpet", "band-clarinet", "band-tuba"]);
-    for (const t of BAND_TRACKS) expect(t.steps.length).toBe(RHYTHM_THREAD.length);
+  test("the band in score order and the orchestra, each the full sequence", () => {
+    expect(BAND_TRACKS.map((t) => t.id)).toEqual([
+      "band-flute", "band-oboe", "band-clarinet", "band-bassoon", "band-alto-sax", "band-tenor-sax", "band-bari-sax",
+      "band-trumpet", "band-horn", "band-trombone", "band-euphonium", "band-tuba",
+    ]);
+    expect(TRACKS.filter((t) => t.family === "strings").map((t) => t.id)).toEqual(["orch-violin", "orch-viola", "orch-cello", "orch-bass"]);
+    for (const t of TRACKS) expect(t.steps.length).toBe(RHYTHM_THREAD.length);
+  });
+
+  test("each instrument reads the concert key in its own written key", () => {
+    expect(["Bb", "Eb", "F", "C"].map((k) => writtenKey(k, -2))).toEqual(["C", "F", "G", "D"]); // B♭ clarinet, trumpet
+    expect(["Bb", "Eb", "F", "C"].map((k) => writtenKey(k, -14))).toEqual(["C", "F", "G", "D"]); // tenor sax
+    expect(["Bb", "Eb", "F", "C"].map((k) => writtenKey(k, -9))).toEqual(["G", "C", "D", "A"]); // alto sax
+    expect(["Bb", "Eb", "F", "C"].map((k) => writtenKey(k, -21))).toEqual(["G", "C", "D", "A"]); // bari sax
+    expect(["Bb", "Eb", "F", "C"].map((k) => writtenKey(k, -7))).toEqual(["F", "Bb", "C", "G"]); // horn in F
+    expect(writtenKey("D", -12)).toBe("D"); // string bass
+  });
+
+  test("the orchestra starts in D, then G, then A, at pitch", () => {
+    const v = TRACKS.find((t) => t.id === "orch-violin")!;
+    expect([3, 6, 9].map((n) => v.steps[n - 1].notes!.keys)).toEqual([["D"], ["G"], ["A"]]);
+    expect(TRACKS.find((t) => t.id === "orch-viola")!.clef).toBe("alto");
+    expect(TRACKS.find((t) => t.id === "orch-bass")!.transposeSemitones).toBe(-12);
   });
 
   test("ids are unique across every track, and a step is found by its id", () => {
@@ -22,7 +42,7 @@ describe("beginner band tracks", () => {
   });
 
   test("the rhythm runs two steps ahead: every note exercise uses only rhythms learned RHYTHM_LEAD or more steps before", () => {
-    for (const t of BAND_TRACKS) {
+    for (const t of TRACKS) {
       for (const s of t.steps) {
         if (!s.notes) continue;
         const known = introducedBy(s.number - RHYTHM_LEAD);
@@ -32,7 +52,7 @@ describe("beginner band tracks", () => {
   });
 
   test("no notes before there are rhythms to put them on", () => {
-    for (const t of BAND_TRACKS) {
+    for (const t of TRACKS) {
       for (const s of t.steps) expect(!!s.notes).toBe(s.number > RHYTHM_LEAD);
     }
   });
@@ -46,14 +66,14 @@ describe("beginner band tracks", () => {
   });
 
   test("every rhythm named is one the picker offers, in a meter of its kind", () => {
-    for (const t of BAND_TRACKS) for (const s of t.steps) for (const p of [s.rhythm, s.notes].filter(Boolean)) {
+    for (const t of TRACKS) for (const s of t.steps) for (const p of [s.rhythm, s.notes].filter(Boolean)) {
       for (const r of p!.rhythms) expect({ r, ok: offered.has(r) }).toEqual({ r, ok: true });
       expect(p!.rhythms.length).toBeGreaterThan(0);
     }
   });
 
   test("written keys are the page's, and every key's do sits inside the instrument's first-year range", () => {
-    for (const t of BAND_TRACKS) for (const s of t.steps) {
+    for (const t of TRACKS) for (const s of t.steps) {
       if (!s.notes) continue;
       for (const k of s.notes.keys!) {
         expect(MAJOR_KEYS).toContain(k);
@@ -97,7 +117,7 @@ describe("a step as the Unison page's options", () => {
   });
 
   test("every step's range sits inside its instrument's", () => {
-    for (const t of BAND_TRACKS) for (const s of t.steps) for (const k of ["rhythm", "notes"] as const) {
+    for (const t of TRACKS) for (const s of t.steps) for (const k of ["rhythm", "notes"] as const) {
       const r = trackStepOptions(t, s, k).selectedRange as { min: number; max: number };
       expect(r.min >= t.range.min && r.max <= t.range.max && r.max > r.min).toBe(true);
     }

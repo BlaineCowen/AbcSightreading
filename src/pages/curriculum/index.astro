@@ -2,7 +2,7 @@
 import Layout from "../../layouts/Layout.astro";
 import InstrumentIcon from "../../components/InstrumentIcon.astro";
 import TrackSubscribe from "../../components/TrackSubscribe.svelte";
-import { FAMILIES, TRACKS, TRACK_COLOR_CLASS, trackHref, trackKeys, trackReach } from "../../lib/curriculum/tracks";
+import { FAMILIES, TRACKS, TRACK_COLOR_CLASS, iconFor, soundsLabel, trackHref, trackKeys, trackReach } from "../../lib/curriculum/tracks";
 import { BUILTIN_SETS } from "../../lib/curriculum/catalogue";
 import { RHYTHM_LEAD, RHYTHM_THREAD } from "../../lib/curriculum/band";
 
@@ -13,14 +13,18 @@ import { RHYTHM_LEAD, RHYTHM_THREAD } from "../../lib/curriculum/band";
  * before paying.
  */
 const band = TRACKS.filter((t) => t.family === "band");
-const instrumentOf = (id: string) => id.replace(/^band-/, "");
+const orchestra = TRACKS.filter((t) => t.family === "strings");
+const groups = [
+  { id: "band", title: "Beginning band", note: "Every instrument takes the same step on the same day, in the same concert key, so the whole band can read together.", tracks: band },
+  { id: "strings", title: "Beginning orchestra", note: "The same rhythm steps, with the notes in string order: D major around the open strings, then G, A, C and F.", tracks: orchestra },
+];
 // The lag, drawn: the first six steps, rhythm and notes side by side.
 const demo = band[0].steps.slice(0, 6);
 ---
 
 <Layout
-  title="Curriculum Tracks | Choir, UIL, NYSSMA and Band Sight Reading"
-  description="Choose the sight-reading sequences you teach from: abcStepByStep, UIL and NYSSMA Voice levels, and step by step tracks for trumpet, clarinet and tuba. Subscribe and they appear in your presets."
+  title="Curriculum Tracks | Choir, Band and Orchestra Sight Reading"
+  description="Choose the sight-reading sequences you teach from: abcStepByStep, UIL and NYSSMA Voice levels, and step by step tracks for every beginning band and orchestra instrument. Subscribe and they appear in your presets."
   themable
 >
   <div class="max-w-6xl mx-auto px-4 pb-16 flex flex-col gap-10">
@@ -80,41 +84,39 @@ const demo = band[0].steps.slice(0, 6);
       </div>
     </section>
 
-    <!-- Band instruments -->
-    <section id="band" class="flex flex-col gap-4 scroll-mt-24">
-      <div>
-        <h2 class="font-display text-2xl font-bold text-sr-ink">Beginning band <span class="ml-1 align-middle text-xs font-extrabold rounded-full bg-sr-action text-sr-action-ink px-2.5 py-1">Pro</span></h2>
-        <p class="text-sr-ink-2">Every instrument takes the same step on the same day, in the same concert key, so the whole band can read together.</p>
-      </div>
-      <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {band.map((t) => (
-          <article class={`rounded-[28px] p-6 flex flex-col gap-4 ${TRACK_COLOR_CLASS[t.color]}`}>
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{t.level}</p>
-                <h3 class="font-display text-3xl font-bold">{t.name}</h3>
+    <!-- Instrument tracks: Pro -->
+    {groups.map((g) => (
+      <section id={g.id} class="flex flex-col gap-4 scroll-mt-24">
+        <div>
+          <h2 class="font-display text-2xl font-bold text-sr-ink">{g.title} <span class="ml-1 align-middle text-xs font-extrabold rounded-full bg-sr-action text-sr-action-ink px-2.5 py-1">Pro</span></h2>
+          <p class="text-sr-ink-2">{g.note}</p>
+        </div>
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {g.tracks.map((t) => (
+            <article class={`rounded-[28px] p-6 flex flex-col gap-4 ${TRACK_COLOR_CLASS[t.color]}`}>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-extrabold uppercase tracking-widest opacity-75">{t.level}</p>
+                  <h3 class="font-display text-3xl font-bold">{t.name}</h3>
+                </div>
+                <InstrumentIcon instrument={iconFor(t)} />
               </div>
-              <InstrumentIcon instrument={instrumentOf(t.id)} />
-            </div>
-            <p class="text-sm leading-relaxed">{t.blurb}</p>
-            <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-              <dt class="font-bold opacity-75">Steps</dt><dd>{t.steps.length}, each a rhythm drill and notes</dd>
-              <dt class="font-bold opacity-75">Reads</dt><dd>{t.clef === "bass" ? "Bass clef" : "Treble clef"}, {trackKeys(t).join(", ")}</dd>
-              <dt class="font-bold opacity-75">Range</dt><dd>{trackReach(t)}{t.transposeSemitones ? " written" : ""}</dd>
-              <dt class="font-bold opacity-75">Sounds</dt><dd>{t.transposeSemitones ? "A step below written, as a B♭ instrument does" : "As written"}</dd>
-            </dl>
-            <div class="mt-auto flex flex-col gap-3 pt-2 border-t border-current/15">
-              <TrackSubscribe client:only="svelte" trackId={t.id} tryHref={trackHref(t.steps[0].id, "rhythm")} />
-              <a class="text-sm font-extrabold" href={`/curriculum/${t.id}`}>See all {t.steps.length} steps →</a>
-            </div>
-          </article>
-        ))}
-        <article class="rounded-[28px] p-6 flex flex-col gap-3 border-2 border-dashed border-sr-hairline text-sr-muted">
-          <h3 class="font-display text-2xl font-bold text-sr-ink">More instruments</h3>
-          <p class="text-sm">Flute, oboe, bassoon, saxophones, horn, trombone, euphonium and percussion are on the way, on the same steps.</p>
-        </article>
-      </div>
-    </section>
+              <p class="text-sm leading-relaxed">{t.blurb}</p>
+              <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <dt class="font-bold opacity-75">Steps</dt><dd>{t.steps.length}, each a rhythm drill and notes</dd>
+                <dt class="font-bold opacity-75">Reads</dt><dd>{({ treble: "Treble", bass: "Bass", alto: "Alto", tenor: "Tenor" })[t.clef]} clef, {trackKeys(t).join(", ")}</dd>
+                <dt class="font-bold opacity-75">Range</dt><dd>{trackReach(t)}{t.transposeSemitones ? " written" : ""}</dd>
+                <dt class="font-bold opacity-75">Sounds</dt><dd>{soundsLabel(t)}</dd>
+              </dl>
+              <div class="mt-auto flex flex-col gap-3 pt-2 border-t border-current/15">
+                <TrackSubscribe client:only="svelte" trackId={t.id} tryHref={trackHref(t.steps[0].id, "rhythm")} />
+                <a class="text-sm font-extrabold" href={`/curriculum/${t.id}`}>See all {t.steps.length} steps →</a>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    ))}
 
     <!-- How a step works -->
     <section class="sr-panel bg-sr-raise p-6 sm:p-8 grid gap-6 lg:grid-cols-[1fr_1.3fr] items-start">

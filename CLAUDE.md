@@ -261,10 +261,15 @@ level.
 `src/lib/curriculum/` (tests `curriculum.test.ts`): a sequence for one
 instrument that a teacher subscribes to on `/curriculum` (public, each track
 at `/curriculum/<id>`; `/api/tracks`) and then finds under **Instrument
-tracks** in the preset menu. Beginner band is first:
-trumpet, clarinet, tuba (`band.ts`), all on one sequence so a band takes the
-same step together in concert B♭, E♭, F, then C (trumpet and clarinet read
-written C, F, G, D and play back −2; tuba reads concert pitch in bass clef).
+tracks** in the preset menu. Beginner band (`band.ts`):
+flute, oboe, clarinet, bassoon, alto, tenor and bari sax, trumpet, horn,
+trombone, euphonium, tuba, all on one sequence so a band takes the same step
+together in concert B♭, E♭, F, then C, each reading its own written key
+(`writtenKey`: concert minus the instrument's transposition, so a trumpet reads
+C, F, G, D, an alto sax G, C, D, A, a horn F, B♭, C, G). Beginning orchestra
+(`orchestra.ts`): violin, viola (alto clef), cello, string bass (−12), the same
+rhythm thread with the notes in string order, D, G, A, then C and F. Playback
+transpose reaches ±24 for them (bari sax −21, tenor −14).
 Each step is a pair: a rhythm drill bringing in one new figure (or meter, or
 ties), and a note exercise that only uses rhythms from `RHYTHM_LEAD` (2) or
 more steps before - Blaine's rule, "rhythm two steps ahead of the notes". The

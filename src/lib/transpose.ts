@@ -11,9 +11,12 @@
  * choral score it is not: see `withPlaybackTranspose`.
  */
 
-/** Semitones, either direction. An octave each way is more than anyone needs. */
-export const MIN_TRANSPOSE = -12;
-export const MAX_TRANSPOSE = 12;
+/**
+ * Semitones, either direction: two octaves, since a baritone sax sounds an
+ * octave and a sixth below written (-21, a curriculum track's setting).
+ */
+export const MIN_TRANSPOSE = -24;
+export const MAX_TRANSPOSE = 24;
 
 export function clampTranspose(semitones: number): number {
   if (!Number.isFinite(semitones)) return 0;

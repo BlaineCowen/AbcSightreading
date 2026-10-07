@@ -1,4 +1,5 @@
 import { BAND_TRACKS } from "./band";
+import { ORCHESTRA_TRACKS } from "./orchestra";
 import type { Track, TrackFamily, TrackPartKind, TrackStep } from "./types";
 
 /**
@@ -6,14 +7,14 @@ import type { Track, TrackFamily, TrackPartKind, TrackStep } from "./types";
  * catalogue shows. Ids are permanent: class progress, assignments and
  * teachers' own versions of steps are stored against them.
  */
-export const TRACKS: Track[] = [...BAND_TRACKS];
+export const TRACKS: Track[] = [...BAND_TRACKS, ...ORCHESTRA_TRACKS];
 
 export const trackById: Record<string, Track> = Object.fromEntries(TRACKS.map((t) => [t.id, t]));
 
 export const FAMILIES: { id: TrackFamily; label: string; live: boolean; blurb: string }[] = [
   { id: "choir", label: "Choir and voice", live: true, blurb: "abcStepByStep, UIL and NYSSMA Voice." },
   { id: "band", label: "Band", live: true, blurb: "Beginner band: every instrument on the same step, in the band's concert keys." },
-  { id: "strings", label: "Strings", live: false, blurb: "Violin, viola, cello and bass." },
+  { id: "strings", label: "Orchestra", live: true, blurb: "Violin, viola, cello and bass." },
   { id: "piano", label: "Piano", live: false, blurb: "Both hands, later on." },
 ];
 
@@ -70,3 +71,15 @@ export function trackKeys(track: Track): string[] {
 export function trackReach(track: Track) {
   return `${noteName(track.range.min)} to ${noteName(track.range.max)}`;
 }
+
+/** How a track's written notes sound, for the catalogue. */
+export function soundsLabel(track: Track): string {
+  const t = track.transposeSemitones;
+  if (t === 0) return "As written";
+  if (t === -12) return "An octave below written";
+  const names: Record<number, string> = { [-2]: "A step below written (B♭)", [-7]: "A fifth below written (in F)", [-9]: "A sixth below written (E♭)", [-14]: "An octave and a step below written (B♭)", [-21]: "An octave and a sixth below written (E♭)" };
+  return names[t] ?? `${Math.abs(t)} semitones ${t < 0 ? "below" : "above"} written`;
+}
+
+/** Which drawing a track's card carries (InstrumentIcon). */
+export const iconFor = (track: Track) => track.id.replace(/^(band|orch)-/, "");

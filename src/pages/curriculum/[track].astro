@@ -2,7 +2,7 @@
 import Layout from "../../layouts/Layout.astro";
 import InstrumentIcon from "../../components/InstrumentIcon.astro";
 import TrackSubscribe from "../../components/TrackSubscribe.svelte";
-import { TRACK_COLOR_CLASS, trackById, trackHref, trackKeys, trackReach } from "../../lib/curriculum/tracks";
+import { TRACK_COLOR_CLASS, iconFor, soundsLabel, trackById, trackHref, trackKeys, trackReach } from "../../lib/curriculum/tracks";
 import { RHYTHM_LEAD } from "../../lib/curriculum/band";
 import type { TrackStep } from "../../lib/curriculum/types";
 
@@ -16,7 +16,7 @@ for (const s of track.steps) {
   if (last?.unit === s.unit) last.steps.push(s);
   else units.push({ unit: s.unit, steps: [s] });
 }
-const instrument = track.id.replace(/^band-/, "");
+const instrument = iconFor(track);
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "Course",
@@ -43,7 +43,7 @@ const jsonLd = {
         <h1 class="font-display text-4xl sm:text-5xl font-bold">{track.name}</h1>
         <p class="max-w-2xl">{track.blurb}</p>
         <p class="text-sm font-bold opacity-85">
-          {track.clef === "bass" ? "Bass clef" : "Treble clef"} · {trackKeys(track).join(", ")} · {trackReach(track)}{track.transposeSemitones ? " written, sounding a step lower" : ""}
+          {({ treble: "Treble", bass: "Bass", alto: "Alto", tenor: "Tenor" })[track.clef]} clef · {trackKeys(track).join(", ")} · {trackReach(track)}{track.transposeSemitones ? ` written · sounds ${soundsLabel(track).toLowerCase()}` : ""}
         </p>
         <TrackSubscribe client:only="svelte" trackId={track.id} tryHref={trackHref(track.steps[0].id, "rhythm")} variant="hero" />
       </div>

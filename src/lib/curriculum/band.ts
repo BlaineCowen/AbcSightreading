@@ -17,7 +17,6 @@ import type { Track, TrackPart, TrackStep } from "./types";
 /** How many steps the rhythm thread runs ahead of the notes. */
 export const RHYTHM_LEAD = 2;
 
-type Concert = "Bb" | "Eb" | "F" | "C";
 
 interface RhythmStepDef {
   title: string;
@@ -60,9 +59,10 @@ export const RHYTHM_THREAD: RhythmStepDef[] = [
 const COMPOUND = new Set(["dotQuarter", "threeEighths", "quarterEighth", "eighthQuarter", "dotQuarterRest", "dotHalfCompound", "quarterEighthRest"]);
 const isCompoundMeter = (m: string) => m === "6/8" || m === "9/8" || m === "12/8";
 
-interface NoteStepDef {
+export interface NoteStepDef {
   newNotes: string;
-  keys: Concert[];
+  /** Concert keys (band), or the keys read (orchestra, at pitch). */
+  keys: string[];
   degrees: number[];
   sharps?: number[];
   flats?: number[];
@@ -72,7 +72,7 @@ interface NoteStepDef {
   compound?: boolean;
 }
 
-const D7 = [1, 2, 3, 4, 5, 6, 7];
+export const D7 = [1, 2, 3, 4, 5, 6, 7];
 
 /**
  * The notes thread, by step number (it starts at RHYTHM_LEAD + 1). Degrees
@@ -96,19 +96,26 @@ export const NOTES_THREAD: Record<number, NoteStepDef> = {
   17: { newNotes: "Everything: four keys, every meter, accidentals", keys: ["Bb", "Eb", "F", "C"], degrees: D7, sharps: [4], flats: [7], span: [-3, 7], maxSkip: 4 },
 };
 
-/** Written key for a concert key, by how the instrument transposes. */
-const WRITTEN: Record<"Bb" | "C", Record<Concert, string>> = {
-  Bb: { Bb: "C", Eb: "F", F: "G", C: "D" },
-  C: { Bb: "Bb", Eb: "Eb", F: "F", C: "C" },
-};
+/** Major keys by pitch class, spelled as the Unison page names them. */
+const KEY_BY_PC = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+const PC: Record<string, number> = { C: 0, Db: 1, D: 2, Eb: 3, E: 4, F: 5, "F#": 6, G: 7, Ab: 8, A: 9, Bb: 10, B: 11 };
 
-interface InstrumentDef {
+/**
+ * The key an instrument reads for a concert key: written sounds
+ * `transposeSemitones` away, so written = concert − transpose (B♭ trumpet −2:
+ * concert B♭ is written C; alto sax −9: written G; horn −7: written F).
+ */
+export function writtenKey(concert: string, transposeSemitones: number): string {
+  return KEY_BY_PC[(((PC[concert] - transposeSemitones) % 12) + 12) % 12];
+}
+
+export interface InstrumentDef {
   id: string;
   name: string;
   blurb: string;
   clef: Track["clef"];
-  pitch: "Bb" | "C";
   instrumentProgram: number;
+  /** Written to sounding (B♭ trumpet −2, alto sax −9, string bass −12). */
   transposeSemitones: number;
   anchor: number;
   range: { min: number; max: number };
@@ -117,31 +124,54 @@ interface InstrumentDef {
   notes?: Record<number, Partial<NoteStepDef>>;
 }
 
+/** What makes a family's sequence: its note thread and how its tracks are named. */
+export interface FamilyDef {
+  family: Track["family"];
+  /** Track ids are `${prefix}-${instrument}` and step ids add the step: band-trumpet-03. */
+  prefix: string;
+  level: string;
+  thread: Record<number, NoteStepDef>;
+  /** Whether key names in the thread are concert keys a transposing instrument reads differently. */
+  concertKeys: boolean;
+}
+
+export const BAND: FamilyDef = { family: "band", prefix: "band", level: "Beginner band", thread: NOTES_THREAD, concertKeys: true };
+
 /**
- * The instruments. Ranges are written noteArray indices (C2 = 0, seven to the
- * octave): a first-year range each, which the page keeps every key inside.
- * The anchor places do: the first tonic at or above it, for each key.
+ * The instruments. Ranges are written noteArray indices (C2 = 0, C4 = 14,
+ * seven to the octave): a first-year range each, which the page keeps every
+ * key inside. The anchor places do: the first tonic at or above it, for each
+ * key (tests/unit/curriculum.test.ts holds every key's do inside the range).
+ * Order is the band's score order, as the catalogue shows it.
  */
 export const BAND_INSTRUMENTS: InstrumentDef[] = [
   {
-    id: "trumpet",
-    name: "Trumpet",
-    blurb: "B♭ trumpet, from written C up the staff to E, in the keys the band plays.",
+    id: "flute",
+    name: "Flute",
+    blurb: "Flute at concert pitch, from D above middle C to the A at the top of the staff.",
     clef: "treble",
-    pitch: "Bb",
-    instrumentProgram: 56,
-    transposeSemitones: -2,
-    // G3: written C, F and D sit above it on their middle-staff tonic, G on low G.
-    anchor: 11,
-    range: { min: 11, max: 23 }, // G3 to E5
-    color: "butter",
+    instrumentProgram: 73,
+    transposeSemitones: 0,
+    anchor: 17, // F4: B♭ and C on the staff, E♭ high in it, F low
+    range: { min: 15, max: 26 }, // D4 to A5
+    color: "sky",
+  },
+  {
+    id: "oboe",
+    name: "Oboe",
+    blurb: "Oboe at concert pitch, from D above middle C to A at the top of the staff.",
+    clef: "treble",
+    instrumentProgram: 68,
+    transposeSemitones: 0,
+    anchor: 17,
+    range: { min: 15, max: 26 }, // D4 to A5
+    color: "peach",
   },
   {
     id: "clarinet",
     name: "Clarinet",
     blurb: "B♭ clarinet in the low register, below the break, from low E to A.",
     clef: "treble",
-    pitch: "Bb",
     instrumentProgram: 71,
     transposeSemitones: -2,
     anchor: 9, // E3: written F and G sit low, C and D on the staff
@@ -153,11 +183,100 @@ export const BAND_INSTRUMENTS: InstrumentDef[] = [
     },
   },
   {
+    id: "bassoon",
+    name: "Bassoon",
+    blurb: "Bassoon in bass clef at concert pitch, from low F to the D above middle C.",
+    clef: "bass",
+    instrumentProgram: 70,
+    transposeSemitones: 0,
+    anchor: 5, // A2: B♭ on B♭2, E♭ and F above, C on C3
+    range: { min: 3, max: 15 }, // F2 to D4
+    color: "butter",
+  },
+  {
+    id: "alto-sax",
+    name: "Alto saxophone",
+    blurb: "E♭ alto sax, reading G, C, D and A, from middle C to the A at the top of the staff.",
+    clef: "treble",
+    instrumentProgram: 65,
+    transposeSemitones: -9,
+    anchor: 14, // C4: written C low, D, G and A on the staff
+    range: { min: 14, max: 26 }, // C4 to A5
+    color: "mint",
+  },
+  {
+    id: "tenor-sax",
+    name: "Tenor saxophone",
+    blurb: "B♭ tenor sax, reading C, F, G and D like the clarinet and trumpet, sounding an octave and a step lower.",
+    clef: "treble",
+    instrumentProgram: 66,
+    transposeSemitones: -14,
+    anchor: 14,
+    range: { min: 14, max: 26 },
+    color: "peach",
+  },
+  {
+    id: "bari-sax",
+    name: "Baritone saxophone",
+    blurb: "E♭ bari sax, reading what the alto reads, sounding an octave below it.",
+    clef: "treble",
+    instrumentProgram: 67,
+    transposeSemitones: -21,
+    anchor: 14,
+    range: { min: 14, max: 26 },
+    color: "butter",
+  },
+  {
+    id: "trumpet",
+    name: "Trumpet",
+    blurb: "B♭ trumpet, from written C up the staff to E, in the keys the band plays.",
+    clef: "treble",
+    instrumentProgram: 56,
+    transposeSemitones: -2,
+    // G3: written C, F and D sit above it on their middle-staff tonic, G on low G.
+    anchor: 11,
+    range: { min: 11, max: 23 }, // G3 to E5
+    color: "butter",
+  },
+  {
+    id: "horn",
+    name: "French horn",
+    blurb: "Horn in F, reading F, B♭, C and G, from G below middle C to E at the top of the staff.",
+    clef: "treble",
+    instrumentProgram: 60,
+    transposeSemitones: -7,
+    anchor: 14, // C4: written C on middle C, F and G on the staff, B♭ in its middle
+    range: { min: 11, max: 23 }, // G3 to E5
+    color: "mint",
+  },
+  {
+    id: "trombone",
+    name: "Trombone",
+    blurb: "Trombone in bass clef, from low G to the F above middle C, first position B♭ first.",
+    clef: "bass",
+    instrumentProgram: 57,
+    transposeSemitones: 0,
+    anchor: 5, // A2: B♭2 in first position
+    range: { min: 4, max: 17 }, // G2 to F4
+    color: "sky",
+  },
+  {
+    id: "euphonium",
+    name: "Euphonium",
+    blurb: "Euphonium or baritone in bass clef, the trombone's notes and keys.",
+    clef: "bass",
+    // No euphonium in the soundfont: the trombone is the nearer sound.
+    instrumentProgram: 57,
+    transposeSemitones: 0,
+    anchor: 5,
+    range: { min: 4, max: 17 },
+    color: "peach",
+  },
+  {
     id: "tuba",
     name: "Tuba",
     blurb: "Tuba in bass clef at concert pitch, from low F to middle C.",
     clef: "bass",
-    pitch: "C",
     instrumentProgram: 58,
     transposeSemitones: 0,
     anchor: 5, // A2: B♭ on B♭2, E♭ and F in the octave above, C on C3
@@ -197,8 +316,8 @@ function rhythmPart(n: number): TrackPart {
 }
 
 /** The note exercise for step `n`: its new notes, on rhythms from RHYTHM_LEAD steps before. */
-function notesPart(n: number, inst: InstrumentDef): TrackPart | undefined {
-  const base = NOTES_THREAD[n];
+function notesPart(n: number, inst: InstrumentDef, fam: FamilyDef): TrackPart | undefined {
+  const base = fam.thread[n];
   if (!base) return undefined;
   const def = { ...base, ...(inst.notes?.[n] ?? {}) };
   const from = n - RHYTHM_LEAD;
@@ -216,7 +335,7 @@ function notesPart(n: number, inst: InstrumentDef): TrackPart | undefined {
     bpm: Math.min(80, 60 + Math.floor((n - 1) / 4) * 5),
     ties: tiesBy(from),
     progressions: def.maxSkip > 1,
-    keys: def.keys.map((k) => WRITTEN[inst.pitch][k]),
+    keys: def.keys.map((k) => writtenKey(k, inst.transposeSemitones)),
     scaleDegrees: def.degrees,
     sharps: def.sharps ?? [],
     flats: def.flats ?? [],
@@ -225,38 +344,36 @@ function notesPart(n: number, inst: InstrumentDef): TrackPart | undefined {
   };
 }
 
-/** The new-notes line as the instrument reads it: concert keys named with their written key. */
-function notesLine(n: number, inst: InstrumentDef): string | undefined {
-  const def = { ...NOTES_THREAD[n], ...(inst.notes?.[n] ?? {}) };
+const flat = (k: string) => k.replace("b", "♭");
+
+/** The new-notes line as the instrument reads it: a concert key named with its written key. */
+function notesLine(n: number, inst: InstrumentDef, fam: FamilyDef): string | undefined {
+  const def = { ...fam.thread[n], ...(inst.notes?.[n] ?? {}) };
   if (!def?.newNotes) return undefined;
-  if (inst.pitch === "Bb") {
-    return def.newNotes.replace(/concert ([A-G]♭?)/, (_, k) => {
-      const concert = k.replace("♭", "b") as Concert;
-      return `concert ${k} (written ${WRITTEN.Bb[concert].replace("b", "♭")})`;
-    });
-  }
-  return def.newNotes.replace(/concert /, "");
+  if (!fam.concertKeys) return def.newNotes;
+  if (inst.transposeSemitones % 12 === 0) return def.newNotes.replace(/concert /, "");
+  return def.newNotes.replace(/concert ([A-G]♭?)/, (_, k) => `concert ${k} (written ${flat(writtenKey(k.replace("♭", "b"), inst.transposeSemitones))})`);
 }
 
-export function bandTrack(inst: InstrumentDef): Track {
+export function instrumentTrack(inst: InstrumentDef, fam: FamilyDef): Track {
   const steps: TrackStep[] = RHYTHM_THREAD.map((r, i) => {
     const n = i + 1;
     return {
-      id: `band-${inst.id}-${String(n).padStart(2, "0")}`,
+      id: `${fam.prefix}-${inst.id}-${String(n).padStart(2, "0")}`,
       number: n,
       unit: r.unit,
       title: r.title,
       newRhythm: r.newRhythm,
-      newNotes: notesLine(n, inst),
+      newNotes: notesLine(n, inst, fam),
       rhythm: rhythmPart(n),
-      notes: notesPart(n, inst),
+      notes: notesPart(n, inst, fam),
     };
   });
   return {
-    id: `band-${inst.id}`,
-    family: "band",
+    id: `${fam.prefix}-${inst.id}`,
+    family: fam.family,
     name: inst.name,
-    level: "Beginner band",
+    level: fam.level,
     blurb: inst.blurb,
     clef: inst.clef,
     instrumentProgram: inst.instrumentProgram,
@@ -268,4 +385,4 @@ export function bandTrack(inst: InstrumentDef): Track {
   };
 }
 
-export const BAND_TRACKS: Track[] = BAND_INSTRUMENTS.map(bandTrack);
+export const BAND_TRACKS: Track[] = BAND_INSTRUMENTS.map((i) => instrumentTrack(i, BAND));
