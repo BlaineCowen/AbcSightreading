@@ -203,7 +203,7 @@
           <h2 id="grade-title" class="font-display text-2xl font-bold text-sr-ink">{rhythmOnly ? "Clap and grade" : "Listen and grade"}</h2>
           <p class="text-xs text-sr-muted mt-1">
             <span class="rounded-full bg-sr-butter text-sr-butter-ink px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide mr-1">Beta</span>
-            Graded wrong? Report error helps us improve it.
+            Graded wrong? Report this run to help improve grading.
           </p>
         </div>
         <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={leaveSetup} aria-label={v.phase === "results" ? "Back to the results" : "Close Grade"}><X size={18} /></button>
@@ -406,7 +406,7 @@
     <div class="mb-2 ml-auto w-fit max-w-full bg-sr-raise border border-sr-hairline rounded-2xl shadow-xl p-3 flex flex-col gap-2 text-sm">
       {#if sendOpen}
         <p class="text-xs text-sr-ink-2 max-w-sm">
-          Sends this run's results and recording to help improve grading.
+          Report this run to help improve grading.
         </p>
         <label class="flex flex-col gap-1">
           <span class="text-xs text-sr-muted">What seemed wrong? (optional)</span>
