@@ -1,6 +1,6 @@
 /**
  * Renders the pitched play-along's guitar (src/lib/play-along/guitar.ts):
- * every chord the progressions use in all twelve keys, in each pattern
+ * every chord the progressions use in all twelve major and minor keys, in each pattern
  * slot of the saved Session Guitarist template, at each tempo, through REAPER
  * from the command line (rpp.ts); then one clip a chord, packed into one MP3
  * per pattern and tempo in public/guitar/, and the manifest the video reads.
@@ -54,12 +54,25 @@ const FEEL: Record<GuitarSlot, "straight" | "waltz" | "triplet"> = {
 /** The slots whose endings are rendered: each style's A pattern (the ending set follows the pattern). */
 const ENDING_SLOTS: GuitarSlot[] = ["passengerA", "campfireA", "waltzA", "irishA"];
 
-/** Every chord the progressions use, major and chromatic, in every key (the page's, and any its transpose reaches). */
+/** The minor keys, one on each of the twelve tonics. */
+const MINOR_RENDER_KEYS = GUITAR_RENDER_KEYS.map((k) => `${k}m`);
+
+/**
+ * Every chord the progressions use, major and chromatic, in every key (the
+ * page's, and any its transpose reaches); and minor's, in every minor key:
+ * its progressions, the walk's diatonic chords, harmonic minor's V and V7.
+ */
 function allChords(): GuitarChord[] {
   const names = new Set<string>(PROGRESSIONS.filter((p) => p.mode === "major").flatMap((p) => p.bars.flat()));
   for (const n of ["5/5", "5/6", "5/2", "1-7", "u_b7", "m4", "u_borrowed_i"]) names.add(n);
+  const minorNames = new Set<string>(PROGRESSIONS.filter((p) => p.mode === "minor").flatMap((p) => p.bars.flat()));
+  for (const n of ["1", "2", "3", "4", "5", "6", "7", "m_V", "u_N"]) minorNames.add(n);
   const byId = new Map<string, GuitarChord>();
   for (const key of GUITAR_RENDER_KEYS) for (const n of names) {
+    const c = guitarChord(key, n);
+    if (c) byId.set(c.id, c);
+  }
+  for (const key of MINOR_RENDER_KEYS) for (const n of minorNames) {
     const c = guitarChord(key, n);
     if (c) byId.set(c.id, c);
   }
@@ -163,7 +176,8 @@ if (import.meta.main) {
   mkdirSync(OUT, { recursive: true });
   mkdirSync(WORK, { recursive: true });
   const chords = allChords();
-  const tonics = GUITAR_RENDER_KEYS.map((k) => guitarChord(k, "1")!);
+  // Endings on every home chord, major and minor.
+  const tonics = [...GUITAR_RENDER_KEYS, ...MINOR_RENDER_KEYS].map((k) => guitarChord(k, "1")!);
   const patterns: Sprite[] = [];
   const endings: Sprite[] = [];
   for (const slot of Object.keys(GUITAR_SLOTS) as GuitarSlot[]) {

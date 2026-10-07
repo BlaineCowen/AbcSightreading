@@ -183,8 +183,9 @@ export class PlayAlongAudio {
     const rate = o.bpm / rendered;
     const out: PreparedGuitarPiece[] = [];
     for (let p of pieces) {
-      // Endings are rendered on the major tonics only: a minor key's last bar
-      // strums its pattern instead of falling silent with the whole part.
+      // An ending missing from the files (every home chord, major and minor,
+      // is rendered): the last bar strums its pattern rather than the whole
+      // part falling silent.
       if (p.ending && !(GUITAR.endings as Record<string, GuitarFile>)[`${p.slot}@${rendered}`]?.chords.includes(p.chord)) {
         p = { ...p, ending: false };
       }

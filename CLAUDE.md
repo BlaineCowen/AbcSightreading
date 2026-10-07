@@ -315,9 +315,12 @@ la and ti). It relabels the exercise on screen, Grade's note names
 
 The generator uses the shared key table (`src/resources/key-signatures.ts`;
 its own copy had no minor keys, and the major entries were identical: the
-snapshots did not move). The guitar plays minor keys from its existing
-minor clips (natural minor; m_V major; ii° as iv); endings are rendered on
-major tonics only, so a minor exercise's last bar strums its pattern. The
+snapshots did not move). The guitar plays minor keys (natural minor; m_V
+major; ii° as iv): build.ts renders every chord minor uses in all twelve
+minor keys (they were all among the major keys' chords already) and an
+ending on every minor home chord too (7 October 2026; 24 endings a style,
+`public/guitar/` now about 61 MB). Should an ending be missing, the last
+bar strums its pattern rather than the guitar falling silent (audio.ts). The
 sweep has 648 minor cells (9 keys, 4 meters, natural/harmonic/melodic, all
 degrees and 1 3 5, 4/8/16 bars): 0 failures with and without progressions,
 7 October 2026 (`MINOR=0` leaves them out). Tests: `unison-minor.test.ts`.
@@ -473,8 +476,8 @@ writes projects around that state (REAPER's format is text) and
 `build.ts` renders every chord the progressions use in all twelve keys
 (36; the page has nine, but its playback transpose reaches the rest) in each
 slot at four tempos (75, 90, 110, 130; triplets 65, 80, 95, 115), one steady bar a chord (the second of a two-bar hold),
-plus each style's ending (A#1) on the twelve home chords, into
-`public/guitar/` (47 MB; a video loads two pattern files and an ending,
+plus each style's ending (A#1) on the twenty-four home chords, major and minor, into
+`public/guitar/` (61 MB; a video loads two pattern files and an ending,
 3-5 MB) and `guitar-manifest.json`: `bun run scripts/guitar/build.ts`,
 about 10 minutes. What the instrument wants, found by probing and its manual:
 chords from E2 (MIDI 52) up, root lowest, notes arriving low to high (G B D
