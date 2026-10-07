@@ -46,6 +46,13 @@ export interface UnisonStepSettings {
   rhythmOnly: boolean;
   selectedRhythms: string[];
   selectedTimeSignature: string;
+  /** A pool of meters, one drawn per exercise; without it, the one meter. */
+  meters?: string[];
+  /** Pitched steps: a pool of keys, one drawn per exercise; without it, `selectedKey`. */
+  keys?: string[];
+  bpm?: number;
+  /** Write the line over a chord progression (the page's option). */
+  progressions?: boolean;
   measures: number;
   /**
    * Eighth pairs sung on one pitch (false) or moving (true). Set by every step
@@ -90,6 +97,8 @@ export interface LadderStep {
   title: string;
   /** The one thing this step adds, as a director would say it. */
   newThing: string;
+  /** Half of a pair on the single line: the rhythm drill or the sung exercise. */
+  part?: "rhythm" | "notes";
   /** Roughly where a class is against the UIL levels, when it lines up. */
   uil?: number;
   page: LadderPage;
@@ -131,180 +140,116 @@ const THREE = "Three parts";
 const FOUR = "Four parts";
 const BEYOND = "Beyond UIL 5";
 
+/**
+ * The single line, as pairs (Blaine, 7 October 2026, as the band tracks):
+ * each step is a rhythm drill that brings in one figure, spoken on Kodály
+ * syllables, and a sung exercise that brings in new notes on rhythms learned
+ * at least RHYTHM_LEAD steps before - so the class has spoken a rhythm twice
+ * before any new note is put on it. The rhythm runs out at step 10; the notes
+ * catch up in 11.
+ */
+const RHYTHM_LEAD = 2;
+
+const RHYTHMS: { title: string; newThing: string; add: string[]; meter?: string }[] = [
+  { title: "Ta and ti-ti", newThing: "Quarter notes and eighth-note pairs", add: ["quarter", "eighthEighth"], meter: "4/4" },
+  { title: "Ta rest", newThing: "The quarter rest", add: ["quarterRest"] },
+  { title: "Ta-a", newThing: "The half note", add: ["half"] },
+  { title: "Three beats", newThing: "3/4 time and the dotted half (ta-a-a)", add: ["dotHalf"], meter: "3/4" },
+  { title: "Whole notes", newThing: "The whole note, and half and whole rests", add: ["whole", "halfRest", "wholeRest"] },
+  { title: "Ta-(i) ti", newThing: "The dotted quarter and eighth", add: ["dotQuarterEighth"] },
+  { title: "Syncopa", newThing: "Ti ta ti: eighth, quarter, eighth", add: ["eighthQuarterEighth"] },
+  { title: "Tika-tika", newThing: "Four sixteenths", add: ["fourSixteenths"] },
+  { title: "Ti-tika, tika-ti", newThing: "An eighth and two sixteenths, and the other way round", add: ["eighthSixteenthSixteenth", "sixteenthSixteenthEighth"] },
+  { title: "Two beats", newThing: "2/4 time", add: [], meter: "2/4" },
+  { title: "Every rhythm", newThing: "All the rhythms so far, in every meter", add: [] },
+];
+
+const SCALE = [1, 2, 3, 4, 5, 6, 7];
+const NOTES: Record<number, { title: string; newThing: string; key: string; degrees: number[]; span: [number, number]; maxSkip: number; keys?: string[] }> = {
+  3: { title: "Do, re, mi", newThing: "Do-re-mi by step", key: "C", degrees: [1, 2, 3], span: [0, 2], maxSkip: 1 },
+  4: { title: "Up to so", newThing: "Fa and so: do to so by step", key: "C", degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 1 },
+  5: { title: "Do, mi, so", newThing: "First skips: the tonic triad", key: "C", degrees: [1, 3, 5], span: [0, 4], maxSkip: 2 },
+  6: { title: "Steps and skips", newThing: "Steps and skips together, do to so", key: "C", degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 2 },
+  7: { title: "La, ti, high do", newThing: "The whole scale up from do, new notes by step", key: "C", degrees: SCALE, span: [0, 7], maxSkip: 2 },
+  8: { title: "F major", newThing: "A new key: do moves to F", key: "F", degrees: SCALE, span: [0, 7], maxSkip: 2 },
+  9: { title: "Below do", newThing: "Low so, la and ti, below do", key: "F", degrees: SCALE, span: [-3, 4], maxSkip: 2 },
+  10: { title: "G major", newThing: "A new key: do moves to G", key: "G", degrees: SCALE, span: [-3, 4], maxSkip: 2 },
+  11: { title: "Fourths and fifths", newThing: "Wider skips, in C, F and G", key: "C", keys: ["C", "F", "G"], degrees: SCALE, span: [-3, 5], maxSkip: 4 },
+};
+
+const known = (n: number) => RHYTHMS.slice(0, Math.max(0, n)).flatMap((r) => r.add);
+const meterAt = (n: number) => RHYTHMS[n - 1]?.meter ?? "4/4";
+const bpmAt = (n: number) => (n <= 4 ? 60 : n <= 8 ? 66 : 72);
+
+function unisonPair(n: number): StepDef[] {
+  const r = RHYTHMS[n - 1];
+  const stage = n <= 5 ? FOUNDATIONS : LINE;
+  const pad = String(n).padStart(2, "0");
+  const out: StepDef[] = [{
+    id: `sbs-${pad}-rhythm`,
+    stage,
+    part: "rhythm",
+    title: r.title,
+    newThing: r.newThing,
+    page: "unison",
+    unison: {
+      rhythmOnly: true,
+      selectedRhythms: known(n),
+      selectedTimeSignature: n === RHYTHMS.length ? "4/4" : meterAt(n),
+      meters: n === RHYTHMS.length ? ["4/4", "3/4", "2/4"] : undefined,
+      measures: n <= 2 ? 4 : 8,
+      moveEighthNotes: true,
+      bpm: bpmAt(n),
+    },
+  }];
+  const t = NOTES[n];
+  if (t) {
+    const from = n - RHYTHM_LEAD;
+    out.push({
+      id: `sbs-${pad}-notes`,
+      stage,
+      part: "notes",
+      title: t.title,
+      newThing: t.newThing,
+      page: "unison",
+      unison: {
+        rhythmOnly: false,
+        selectedRhythms: known(from),
+        // The meter its rhythms were spoken in, RHYTHM_LEAD steps before.
+        selectedTimeSignature: meterAt(from),
+        measures: 8,
+        moveEighthNotes: true,
+        bpm: bpmAt(n),
+        selectedKey: t.key,
+        keys: t.keys,
+        selectedScaleDegrees: t.degrees,
+        maxSkip: t.maxSkip,
+        span: t.span,
+        // A line that only steps, over a progression's chords, got stuck on two notes (curriculum tracks).
+        progressions: t.maxSkip > 1,
+      },
+    });
+  }
+  return out;
+}
+
+/** The first steps' old ids (one exercise a step, before the pairs): links, assignments and old progress open the nearest step. */
+export const RETIRED_STEPS: Record<string, string> = {
+  "rhythm-ta-titi": "sbs-01-rhythm",
+  "rhythm-tuu-rest": "sbs-03-rhythm",
+  "pitch-do-re-mi": "sbs-03-notes",
+  "pitch-fa-so": "sbs-04-notes",
+  "skips-tonic-triad": "sbs-05-notes",
+  "steps-and-skips": "sbs-06-notes",
+  "meter-three": "sbs-04-rhythm",
+  "pitch-la-ti-do": "sbs-07-notes",
+  "pitch-below-do": "sbs-09-notes",
+  "rhythm-dotted-quarter": "sbs-06-rhythm",
+};
+
 const STEPS: StepDef[] = [
-  // ── Rhythm alone, then pitch from do ──────────────────────────────────────
-  {
-    id: "rhythm-ta-titi",
-    stage: FOUNDATIONS,
-    title: "Ta and ti-ti",
-    newThing: "Quarter notes and eighth-note pairs, rhythm only",
-    page: "unison",
-    unison: {
-      rhythmOnly: true,
-      selectedRhythms: ["quarter", "eighthEighth"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 4,
-    },
-  },
-  {
-    id: "rhythm-tuu-rest",
-    stage: FOUNDATIONS,
-    title: "Tu-u and the quarter rest",
-    newThing: "Half notes and quarter rests, rhythm only",
-    page: "unison",
-    unison: {
-      rhythmOnly: true,
-      selectedRhythms: ["quarter", "eighthEighth", "half", "quarterRest"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 4,
-    },
-  },
-  {
-    id: "pitch-do-re-mi",
-    stage: FOUNDATIONS,
-    title: "Do, re, mi",
-    newThing: "Pitch: do-re-mi by step, on rhythms already read",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "C",
-      selectedScaleDegrees: [1, 2, 3],
-      maxSkip: 1,
-      span: [0, 2],
-    },
-  },
-  {
-    id: "pitch-fa-so",
-    stage: FOUNDATIONS,
-    title: "Up to so",
-    newThing: "Fa and so: do to so by step",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "C",
-      selectedScaleDegrees: [1, 2, 3, 4, 5],
-      maxSkip: 1,
-      span: [0, 4],
-    },
-  },
-  {
-    id: "skips-tonic-triad",
-    stage: FOUNDATIONS,
-    title: "Do, mi, so",
-    newThing: "First skips: the tonic triad",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "C",
-      selectedScaleDegrees: [1, 3, 5],
-      maxSkip: 4,
-      span: [0, 4],
-    },
-  },
-  {
-    id: "steps-and-skips",
-    stage: LINE,
-    title: "Steps and skips",
-    newThing: "Steps and skips together, do to so",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half", "quarterRest"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "C",
-      selectedScaleDegrees: [1, 2, 3, 4, 5],
-      maxSkip: 4,
-      span: [0, 4],
-    },
-  },
-  {
-    id: "meter-three",
-    stage: LINE,
-    title: "Three beats",
-    newThing: "3/4 time and the dotted half (tu-u-u)",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half", "dotHalf", "quarterRest"],
-      selectedTimeSignature: "3/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "C",
-      selectedScaleDegrees: [1, 2, 3, 4, 5],
-      maxSkip: 4,
-      span: [0, 4],
-    },
-  },
-  {
-    id: "pitch-la-ti-do",
-    stage: LINE,
-    title: "La, ti, high do",
-    newThing: "The whole scale up from do, new notes by step",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half", "dotHalf", "quarterRest"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "C",
-      selectedScaleDegrees: [1, 2, 3, 4, 5, 6, 7],
-      maxSkip: 2,
-      span: [0, 7],
-    },
-  },
-  {
-    id: "pitch-below-do",
-    stage: LINE,
-    title: "Below do",
-    newThing: "Do moves to F, so low so, la and ti appear below it",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half", "dotHalf", "quarterRest"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "F",
-      selectedScaleDegrees: [1, 2, 3, 4, 5, 6, 7],
-      maxSkip: 4,
-      span: [-3, 4],
-    },
-  },
-  {
-    id: "rhythm-dotted-quarter",
-    stage: LINE,
-    title: "Ta-(i) ti",
-    newThing: "The dotted quarter and eighth",
-    page: "unison",
-    unison: {
-      rhythmOnly: false,
-      selectedRhythms: ["quarter", "eighthEighth", "half", "dotHalf", "dotQuarterEighth", "quarterRest"],
-      selectedTimeSignature: "4/4",
-      moveEighthNotes: false,
-      measures: 8,
-      selectedKey: "G",
-      selectedScaleDegrees: [1, 2, 3, 4, 5, 6, 7],
-      maxSkip: 4,
-      span: [-3, 4],
-    },
-  },
+  // ── The single line: rhythm drills, and sung exercises two steps behind ────
+  ...RHYTHMS.flatMap((_, i) => unisonPair(i + 1)),
 
   // ── Parts ──────────────────────────────────────────────────────────────────
   {
@@ -550,14 +495,34 @@ function pick(p: UILPreset) {
   return { allowedKeys, allowedChordNames, allowedVoicings, allowedMeters, maxSkip, voiceRanges };
 }
 
-export const ladder: LadderStep[] = STEPS.map((s, i) => ({ ...s, number: i + 1 }));
+/** Numbered in order, the two halves of a pair sharing their number. */
+export const ladder: LadderStep[] = (() => {
+  let n = 0;
+  let pair = "";
+  return STEPS.map((s) => {
+    const key = s.part ? s.id.replace(/-(rhythm|notes)$/, "") : s.id;
+    if (key !== pair) { n++; pair = key; }
+    return { ...s, number: n };
+  });
+})();
 
-export const ladderById: Record<string, LadderStep> = Object.fromEntries(
-  ladder.map((s) => [s.id, s])
-);
+/** How many steps there are: a pair is one step. */
+export const STEP_COUNT = ladder[ladder.length - 1].number;
 
-/** "Step 3 · Do, re, mi" - what the preset bar calls an active step. */
-export const stepLabel = (s: LadderStep) => `Step ${s.number} · ${s.title}`;
+/** By id, the retired ids (RETIRED_STEPS) leading to the steps that replaced them. */
+export const ladderById: Record<string, LadderStep> = (() => {
+  const byId: Record<string, LadderStep> = Object.fromEntries(ladder.map((s) => [s.id, s]));
+  for (const [old, now] of Object.entries(RETIRED_STEPS)) byId[old] = byId[now];
+  return byId;
+})();
+
+/** A step's title, naming its half of a pair: "Notes: Do, re, mi". */
+export const stepTitle = (s: LadderStep) =>
+  `${s.part ? `${s.part === "rhythm" ? "Rhythm" : "Notes"}: ` : ""}${s.title}`;
+
+/** "Step 3 · Notes: Do, re, mi" - what the preset bar calls an active step. */
+export const stepLabel = (s: LadderStep) =>
+  `Step ${s.number} · ${s.part ? `${s.part === "rhythm" ? "Rhythm" : "Notes"}: ` : ""}${s.title}`;
 
 /** The stages in order, each with its steps. */
 export function ladderStages(): { stage: string; steps: LadderStep[] }[] {

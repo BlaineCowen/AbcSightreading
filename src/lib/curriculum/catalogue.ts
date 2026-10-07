@@ -1,4 +1,4 @@
-import { ladder, stepHref } from "../ladder";
+import { STEP_COUNT, ladder, stepHref } from "../ladder";
 import { nyssmaVoiceLevels } from "../nyssma-presets";
 import { TRACKS, trackById } from "./tracks";
 
@@ -34,7 +34,7 @@ export const BUILTIN_SETS: BuiltinSet[] = [
     name: "abcStepByStep",
     level: "Choir and voice",
     blurb: "From a first rhythm to four parts and past UIL 5, one new thing at a time.",
-    facts: [["Steps", `${ladder.length}`], ["Pages", "Unison, then Choral"], ["Starts", "ta and ti-ti"]],
+    facts: [["Steps", `${STEP_COUNT}`], ["Pages", "Unison, then Choral"], ["Starts", "ta and ti-ti"]],
     href: stepHref(ladder[0]),
     color: "peach",
   },

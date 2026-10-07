@@ -24,8 +24,29 @@ describe("ladder", () => {
     const ids = ladder.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) expect(id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-    ladder.forEach((s, i) => expect(s.number).toBe(i + 1));
-    expect(ladderById["pitch-do-re-mi"].number).toBe(3);
+    // Numbered from 1 with no gaps; the two halves of a pair share a number, rhythm first.
+    expect(ladder[0].number).toBe(1);
+    for (let i = 1; i < ladder.length; i++) {
+      const d = ladder[i].number - ladder[i - 1].number;
+      expect(d === 0 || d === 1).toBe(true);
+      if (d === 0) expect([ladder[i - 1].part, ladder[i].part]).toEqual(["rhythm", "notes"]);
+    }
+    expect(ladderById["sbs-03-notes"].number).toBe(3);
+  });
+
+  test("retired ids open the step that replaced them", () => {
+    expect(ladderById["pitch-do-re-mi"].id).toBe("sbs-03-notes");
+    expect(ladderById["rhythm-ta-titi"].id).toBe("sbs-01-rhythm");
+  });
+
+  test("rhythm runs two steps ahead: a sung step uses only rhythms spoken two or more steps before", () => {
+    const spoken = (n: number) => new Set(ladder.filter((s) => s.part === "rhythm" && s.number <= n).flatMap((s) => s.unison!.selectedRhythms));
+    for (const s of ladder.filter((s) => s.part === "notes")) {
+      const known = spoken(s.number - 2);
+      for (const r of s.unison!.selectedRhythms) expect({ step: s.number, r, known: known.has(r) }).toMatchObject({ known: true });
+    }
+    // And no sung step before there are rhythms to sing on.
+    expect(ladder.find((s) => s.part === "notes")!.number).toBe(3);
   });
 
   test("each step carries the settings of the page it names, and only those", () => {

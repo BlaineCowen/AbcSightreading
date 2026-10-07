@@ -1,7 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
-import { ladder } from "../lib/ladder";
+import { ladder, STEP_COUNT } from "../lib/ladder";
 import choralExample from "../assets/example-choral-annotated.svg?raw";
 import rhythmExample from "../assets/example-rhythm-kodaly.svg?raw";
 
@@ -27,7 +27,7 @@ const benefits = [
   },
   {
     title: "Ready for contest",
-    body: `UIL levels 1 to 5, a ${ladder.length}-step path from rhythm to four parts, and presets of your own.`,
+    body: `UIL levels 1 to 5, a ${STEP_COUNT}-step path from rhythm to four parts, and presets of your own.`,
   },
   {
     title: "The syllables you teach",
@@ -161,7 +161,7 @@ const instrumentFeatures = ["Treble clef", "Bass clef", "Alto clef", "Tenor clef
         <div class="sr-panel p-6 flex flex-col gap-3">
           <p class="sr-label">abcStepByStep</p>
           <p>
-            {ladder.length} steps from rhythm alone to four parts, one new idea at a time. With an account, mark each
+            {STEP_COUNT} steps from rhythm alone to four parts, one new idea at a time. With an account, mark each
             step passed for each of your classes.
           </p>
         </div>

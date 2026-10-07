@@ -13,7 +13,7 @@
  */
 import { generateChoralExercise } from "../src/lib/generateChoral";
 import { createNewSr } from "../src/lib/generateUnison";
-import { ladder, rangeForStep } from "../src/lib/ladder";
+import { ladder, rangeForStep, rangeForSpan } from "../src/lib/ladder";
 import { chords as fullChordSet } from "../src/resources/chords";
 import { rhythms as allRhythms } from "../src/resources/rhythms";
 import { keySignatures } from "../src/resources/key-signatures";
@@ -67,18 +67,21 @@ for (const step of steps) {
     if (rhythms.length !== u.selectedRhythms.length) {
       problems.push(`${tag}: a rhythm the Unison page does not offer`);
     }
+    // Every key and meter a step draws from (`keys`, `meters`), not only the first.
     for (const clef of u.rhythmOnly ? ["treble"] : ["treble", "bass"]) {
+      for (const key of u.rhythmOnly ? ["C"] : u.keys ?? [u.selectedKey ?? "C"])
+      for (const meter of u.meters ?? [u.selectedTimeSignature])
       for (const measures of [...new Set([u.measures, 16])]) {
-        const range = rangeForStep(u, UNISON_RANGES[clef]) ?? UNISON_RANGES[clef];
-        run(`${tag} | unison ${clef} | ${u.selectedTimeSignature} | ${measures}m`, () => {
+        const range = (u.span && rangeForSpan(u.span, key, UNISON_RANGES[clef].min)) || UNISON_RANGES[clef];
+        run(`${tag} | unison ${clef} | ${key} | ${meter} | ${measures}m`, () => {
           const result = createNewSr({
             bpm: 60, clef, selectedClef: clef,
-            timeSig: TIME_SIGS[u.selectedTimeSignature], selectedTimeSignature: u.selectedTimeSignature,
+            timeSig: TIME_SIGS[meter], selectedTimeSignature: meter,
             measures, maxSkip: u.maxSkip ?? 4, tempo: 60, range,
             rhythms, selectedRhythms: u.selectedRhythms,
             scaleDegrees: u.selectedScaleDegrees ?? [1, 3, 5],
             selectedSharpDegrees: [], selectedFlatDegrees: [],
-            key: u.selectedKey ?? "C", showSolfege: !u.rhythmOnly, lyricSystem: "movable",
+            key, showSolfege: !u.rhythmOnly, lyricSystem: "movable", progressions: u.progressions ?? true,
             rhythmOnly: u.rhythmOnly, showRhythmSyllables: true, syllableSystemId: "kodaly",
             allowTiesAcrossBarline: false, moveOnEighthNotes: u.moveEighthNotes, accidentalsFollowStep: true,
             partsObject: { numofParts: 1, parts: { Unison: { order: 0, smallName: "U" } } },

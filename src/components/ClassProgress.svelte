@@ -5,7 +5,7 @@
     classes, classesAvailable, loadClasses, createClass, renameClass, moveClass, deleteClass, setPassed,
   } from "../lib/classes";
   import { presetKeyOf } from "../lib/class-validate";
-  import { ladder, ladderStages, stepHref } from "../lib/ladder";
+  import { ladder, ladderStages, stepHref, stepTitle } from "../lib/ladder";
   import { uilPresets } from "../lib/uil-presets";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
 
@@ -154,7 +154,7 @@
               {#each steps as step}
                 <tr class="border-b border-sr-hairline/60">
                   <th scope="row" class="sticky left-0 bg-sr-raise text-left font-normal px-3 py-1.5">
-                    <a class="text-sr-ink hover:underline" href={stepHref(step)}>{step.number}. {step.title}</a>
+                    <a class="text-sr-ink hover:underline" href={stepHref(step)}>{step.number}. {stepTitle(step)}</a>
                     <span class="block text-xs text-sr-muted">{step.newThing}</span>
                   </th>
                   {#each $classes as c (c.id)}

@@ -162,6 +162,7 @@
   import {
     INSTRUMENTS,
     DEFAULT_INSTRUMENT,
+    VOICE_PROGRAMS,
     isInstrumentProgram,
     withInstrument,
   } from "../lib/instruments";
@@ -800,12 +801,17 @@
     rhythmOnly = u.rhythmOnly;
     selectedRhythms = resolveSelectedRhythms(u.selectedRhythms, u.selectedTimeSignature);
     selectedTimeSignature = u.selectedTimeSignature;
-    selectedTimeSignatures = new Set([u.selectedTimeSignature]);
+    selectedTimeSignatures = new Set(u.meters ?? [u.selectedTimeSignature]);
     measures = u.measures;
     if (u.selectedKey) {
       selectedKey = u.selectedKey;
-      selectedKeys = new Set([u.selectedKey]);
+      selectedKeys = new Set(u.keys ?? [u.selectedKey]);
     }
+    if (u.bpm) handleBpmChange(u.bpm);
+    if (typeof u.progressions === "boolean") progressions = u.progressions;
+    // The steps are spoken and sung on Kodály syllables: shown under a rhythm drill.
+    syllableSystemId = "kodaly";
+    showRhythmSyllables = u.rhythmOnly;
     rangeSpan = null;
     rangeLimit = null;
     if (u.selectedScaleDegrees) selectedScaleDegrees = new Set(u.selectedScaleDegrees);
@@ -820,6 +826,16 @@
     selectedFlatDegrees = new Set();
     // No step prints dynamics; a level's marks would otherwise stay on.
     dynamicsSet = [];
+    // Sung, at pitch: an instrument track's transposition and sound (a
+    // trumpet's −2) stayed on into the steps, and the page saved them.
+    const voiceSound = VOICE_PROGRAMS.has(instrumentProgram) ? instrumentProgram : DEFAULT_INSTRUMENT;
+    if (transposeSemitones !== 0 || voiceSound !== instrumentProgram) {
+      transposeSemitones = 0;
+      instrumentProgram = voiceSound;
+      audioBuffer = null;
+      createSynth = null;
+      if (currentTune && originalTuneString) void rerenderTune();
+    }
     activePresetLabel = stepLabel(step);
     activeSavedId = null;
     activeStepId = step.id;

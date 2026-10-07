@@ -50,6 +50,9 @@ export const INSTRUMENTS: readonly Instrument[] = [
 
 export const DEFAULT_INSTRUMENT = 0;
 
+/** Sounds for sung exercises (piano, the choir and voices, organ, strings pad): a sung step keeps one of these. */
+export const VOICE_PROGRAMS = new Set([0, 52, 53, 54, 48, 19]);
+
 export function isInstrumentProgram(value: unknown): value is number {
   const n = typeof value === "string" ? Number(value) : value;
   return (

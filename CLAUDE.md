@@ -190,9 +190,17 @@ nearly got it thrown away. That difference was noise; the sweep is the gate.
 
 ### The ladder
 
-`src/lib/ladder.ts` is abcStepByStep: 23 presets from rhythm alone (ta, ti-ti)
+`src/lib/ladder.ts` is abcStepByStep: 24 steps from rhythm alone (ta, ti-ti)
 through a single line on the Unison page, then two, three and four parts on the
-Choral page, to UIL 5 and past it. It follows sight-singing pedagogy - one new
+Choral page, to UIL 5 and past it. Since 7 October 2026 the single line is
+pairs, as the curriculum tracks are (`part`: a rhythm drill on Kodály
+syllables bringing in one figure, and a sung exercise on rhythms spoken at
+least two steps before, sharing the step's number; ids `sbs-NN-rhythm` /
+`sbs-NN-notes`). The first ten single-line ids are retired and lead to their
+nearest replacement (`RETIRED_STEPS`, through `ladderById`), so old links and
+assignments open; a class's old check marks stay on the old ids. A step sets
+tempo, the progression option and Kodály, and plays at pitch on a voice
+sound (an instrument track's transposition used to stay on into it). It follows sight-singing pedagogy - one new
 thing per step, the new thing on familiar material, rhythm before pitch, pitch
 out from do, unison before parts - and the file's header says how. Keep to that
 when adding steps. Class progress is stored against each step's `id`, so never

@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { Trash2 } from "lucide-svelte";
   import { presetKeyOf } from "../lib/class-validate";
-  import { ladderStages } from "../lib/ladder";
+  import { ladderStages, stepTitle } from "../lib/ladder";
   import { uilPresets } from "../lib/uil-presets";
   import { MAX_MINUTES } from "../lib/practice";
   import { assignmentHref } from "../lib/assignment-client";
@@ -146,7 +146,7 @@
           <option value="" disabled>Choose…</option>
           {#each ladderStages() as stage}
             <optgroup label="abcStepByStep: {stage.stage}">
-              {#each stage.steps as step}<option value={presetKeyOf.step(step.id)}>{step.number}. {step.title}</option>{/each}
+              {#each stage.steps as step}<option value={presetKeyOf.step(step.id)}>{step.number}. {stepTitle(step)}</option>{/each}
             </optgroup>
           {/each}
           <optgroup label="UIL levels">

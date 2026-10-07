@@ -4,7 +4,7 @@
  * page's own levels - UIL on the Choral page, NYSSMA Voice on the Unison page.
  */
 
-import { ladder } from "./ladder";
+import { STEP_COUNT, ladder } from "./ladder";
 import { NYSSMA_VOICE, STEP_BY_STEP, UIL_CHOIR } from "./curriculum/catalogue";
 
 export type LevelSectionId = "steps" | "tracks" | "uil" | "nyssma";
@@ -24,7 +24,7 @@ export interface LevelSection {
 export function levelSections(offered: { uil: boolean; nyssma: boolean; tracks?: number; subscribed?: string[] }): LevelSection[] {
   const has = (id: string) => !offered.subscribed || offered.subscribed.includes(id);
   return [
-    ...(has(STEP_BY_STEP) ? [{ id: "steps" as const, label: "abcStepByStep", note: `${ladder.length} steps` }] : []),
+    ...(has(STEP_BY_STEP) ? [{ id: "steps" as const, label: "abcStepByStep", note: `${STEP_COUNT} steps` }] : []),
     ...(offered.tracks ? [{ id: "tracks" as const, label: "Instrument tracks", note: `${offered.tracks} subscribed` }] : []),
     ...(offered.uil && has(UIL_CHOIR) ? [{ id: "uil" as const, label: "UIL", note: "Levels 1–5" }] : []),
     ...(offered.nyssma && has(NYSSMA_VOICE) ? [{ id: "nyssma" as const, label: "NYSSMA Voice", note: "Levels I–V" }] : []),

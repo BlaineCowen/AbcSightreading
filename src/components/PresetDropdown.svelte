@@ -11,7 +11,7 @@
   import { listPresets, addPreset, removePreset, updateSavedPreset } from '../lib/preset-sync';
   import type { PresetParams, SavedPreset } from '../lib/preset-storage';
   import { onMount, onDestroy, tick } from 'svelte';
-  import { ladder, ladderStages, type LadderStep, type LadderPage } from '../lib/ladder';
+  import { ladder, ladderStages, stepTitle, type LadderStep, type LadderPage } from '../lib/ladder';
   import { presetHref, storeFor } from '../lib/preset-link';
   import { levelSections, sectionToOpen, type LevelSectionId } from '../lib/preset-sections';
   import { TRACK_DOT_CLASS, trackById, trackHref, trackPresetKey } from '../lib/curriculum/tracks';
@@ -575,7 +575,7 @@
                             {/if}
                             <span class="flex-1 min-w-0">
                               <span class="block text-sm text-sr-ink font-medium">
-                                {step.title}
+                                {stepTitle(step)}
                                 {#if step.page !== page}
                                   <span class="ml-1 text-[11px] font-normal text-sr-muted border border-sr-hairline rounded px-1">{step.page === 'unison' ? 'Unison page' : 'Choral page'}</span>
                                 {/if}
