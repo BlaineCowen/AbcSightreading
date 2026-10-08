@@ -14,6 +14,7 @@ import {
   type MinorSolfege,
 } from "../resources/solfege";
 import { generateRandomRhythm } from "./rhythm-generation";
+import { beatsFirstBar } from "./first-bar";
 import { beatUnitOf, resolveMeter } from "./meter";
 import {
   CUSTOM_SYLLABLE_ID,
@@ -473,7 +474,13 @@ function generateChordProgression(
   chromatic: { sharps: Set<number>; flats: Set<number> } = {
     sharps: new Set(),
     flats: new Set(),
-  }
+  },
+  /**
+   * A rest holds the line in Max skip mode too, so the largest skip is
+   * measured between sung notes: TMEA's "intervals no greater than a 4th"
+   * are the intervals sung (tmea-presets.ts). Exact skips always do.
+   */
+  restHoldsLine = false
 ) {
   /**
    * Is this the altered note the chord carries, and one the reader asked for?
@@ -912,7 +919,7 @@ function generateChordProgression(
       // as its own rhythm. Pushing the entry before it as it was wrote a
       // quarter rest after a half as a half, one after an eighth as an eighth
       // rest, and slid every later note off the beat by the difference.
-      if (policy.kind === "custom" && i > 0 && (randRhythmObjects[i] as any)?.rest === true) {
+      if ((policy.kind === "custom" || restHoldsLine) && i > 0 && (randRhythmObjects[i] as any)?.rest === true) {
         chordProgression.push({ ...chordProgression[i - 1], length: randNoteLengths[i] });
         bassNoteArray.push(bassNoteArray[i - 1]);
         continue;
@@ -2049,10 +2056,36 @@ export function assembleUnisonAbc(
     annotationFont +
     `%%score \n` +
     `${headerString}` +
-    `K: ${score.key} clef=${score.clef} \n` +
+    `K: ${score.key} clef=${clefFor(score.clef)} \n` +
     `%            End of header, start of tune body: \n` +
-    `${tuneBody}`
+    `${score.clef === "treble-8" ? octaveUp(tuneBody) : tuneBody}`
   );
+}
+
+/**
+ * A tenor's treble-8 clef: abcjs draws the 8 but places the notes as
+ * written, so they are written an octave up (where a tenor reads them) and
+ * played an octave down (transpose=-12), as the Choral page writes its
+ * tenors (types.ts ClefType.TrebleOctaveUp). The range and the generator stay
+ * in sounding pitch.
+ */
+const clefFor = (clef: string | undefined) => (clef === "treble-8" ? "treble-8 transpose=-12" : clef);
+
+/** Every note of an ABC tune body an octave higher; annotations ("..."), decorations (!mf!), inline fields and lyric lines (w:) untouched. */
+export function octaveUp(body: string): string {
+  return body
+    .split("\n")
+    .map((line) =>
+      /^\s*[A-Za-z]:/.test(line)
+        ? line
+        : line.replace(/("[^"]*"|![^!]*!|\[[A-Za-z]:[^\]]*\])|([\^_=]*)([A-Ga-g])([,']*)/g, (m, kept, acc, letter, marks) => {
+            if (kept) return kept;
+            if (marks.startsWith(",")) return acc + letter + marks.slice(1);
+            if (letter === letter.toUpperCase()) return acc + letter.toLowerCase() + marks;
+            return acc + letter + marks + "'";
+          }),
+    )
+    .join("\n");
 }
 
 const QUARTER = 8;
@@ -2984,6 +3017,8 @@ function createNewSrOnce(params: any) {
         const base = err instanceof Error ? err.message : "Rhythm generation failed.";
         throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
       }
+      // TMEA: the first bar is all beat notes (first-bar.ts).
+      if (params.firstBarBeats === true) rhythm = beatsFirstBar(rhythm, timeSig.tsPerMeasure, resolveMeter(params.timeSig).kind === "compound");
       if (maxSkip.kind !== "custom") return rhythm;
       const breathed = restsToBreaths(rhythm, {
         tsPerMeasure: timeSig.tsPerMeasure,
@@ -3046,7 +3081,8 @@ function createNewSrOnce(params: any) {
         shortCaps,
         rhythm,
         params.accidentalsFollowStep,
-        { sharps: sharpScaleDegrees, flats: flatScaleDegrees }
+        { sharps: sharpScaleDegrees, flats: flatScaleDegrees },
+        params.restHoldsLine === true
       );
 
     // With exact skips listed, a line that sang none of them is drawn again

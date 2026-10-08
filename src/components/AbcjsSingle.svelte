@@ -113,6 +113,7 @@
     readShortSkipParams, eighthsFrom, capsFor, MAX_SKIP_RANGE,
   } from "../lib/short-note-skips";
   import { nyssmaById, nyssmaVoiceLevels, type NyssmaLevel } from "../lib/nyssma-presets";
+  import { tmeaById, tmeaMeasures, tmeaSkips, tmeaVoiceLevels, type TmeaLevel } from "../lib/tmea-presets";
   import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import {
     drawFromPool, limitFrom, meterPoolClick, parseLimit, parsePool, parseSpan, placeSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
@@ -184,7 +185,8 @@
     { label: "Simple", names: SIMPLE_METER_NAMES },
     { label: "Compound", names: COMPOUND_METER_NAMES },
   ];
-  const clefOptions = ["treble", "bass", "alto", "tenor"];
+  // treble-8: a tenor's treble clef with the 8 below (TMEA's tenor presets).
+  const clefOptions = ["treble", "treble-8", "bass", "alto", "tenor"];
   /** Off draws nothing; smooth glides with the music; note lands on each note. */
   const cursorModes = ["off", "smooth", "beat", "note"] as const;
   type CursorMode = (typeof cursorModes)[number];
@@ -643,6 +645,9 @@
   let activeStepId: string | null = null;
   /** The NYSSMA level the settings came from, when they came from one. */
   let activeNyssmaId: string | null = null;
+  /** The TMEA All-State level the settings came from (tmea-presets.ts): its lengths by meter and first bar apply while it is. */
+  let activeTmeaId: string | null = null;
+  $: activeTmea = activeTmeaId ? tmeaById[activeTmeaId] ?? null : null;
   /** The curriculum track step (and half) the settings came from: "track:band-trumpet-03:notes". */
   let activeTrackKey: string | null = null;
   /** Loads the active preset or step again, for Revert. */
@@ -727,6 +732,7 @@
     activeSavedPreset = preset;
     activeStepId = null;
     activeNyssmaId = null;
+    activeTmeaId = null;
     activeTrackKey = null;
     revertPreset = () => applySavedPreset(preset);
     // After the reactive snapshot has caught up with the values just set.
@@ -753,6 +759,8 @@
 
   /** ?nyssma=<level id>: a NYSSMA Voice level, from /curriculum. Read now, like the step. */
   const linkedNyssmaId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("nyssma") : null;
+  /** ?tmea=<level id>: a TMEA All-State level, from /curriculum. */
+  const linkedTmeaId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tmea") : null;
 
   /** ?track=<step id>&part=rhythm|notes: a curriculum step, from /curriculum. Read now, like the step. */
   const linkedTrackKey = (() => {
@@ -841,6 +849,7 @@
     activeSavedId = null;
     activeStepId = step.id;
     activeNyssmaId = null;
+    activeTmeaId = null;
     activeTrackKey = null;
     revertPreset = () => applyLadderStep(step);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
@@ -889,11 +898,60 @@
     selectedRange = placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit) ?? selectedRange;
     activePresetLabel = level.label;
     activeNyssmaId = level.id;
+    activeTmeaId = null;
     activeSavedId = null;
     activeStepId = null;
     activeTrackKey = null;
     revertPreset = () => applyNyssmaLevel(level);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
+  }
+
+  /**
+   * A TMEA All-State level (tmea-presets.ts): the part's keys, exact range and
+   * clef, every meter the round uses (simple and 6/8 together from Level III:
+   * each exercise takes the rhythms of the meter drawn), the largest interval,
+   * fi and si at Level IV. Its length follows the meter drawn and its first
+   * bar is all beat notes, while it is the active preset.
+   */
+  function applyTmeaLevel(level: TmeaLevel) {
+    rhythmOnly = false;
+    chooseMeter(level.meters[0]);
+    selectedRhythms = resolveSelectedRhythms(level.rhythms, level.meters[0]);
+    if (level.compoundRhythms.length) rhythmMemory = { ...rhythmMemory, compound: [...level.compoundRhythms] };
+    selectedTimeSignatures = new Set(level.meters);
+    selectedKeys = new Set(level.keys);
+    selectedKey = level.keys[0];
+    measures = tmeaMeasures(level, level.meters[0]);
+    handleBpmChange(level.bpm);
+    allowTiesAcrossBarline = false;
+    selectedScaleDegrees = new Set([1, 2, 3, 4, 5, 6, 7]);
+    selectedSharpDegrees = new Set(level.sharpDegrees);
+    selectedFlatDegrees = new Set();
+    maxSkip = level.maxSkip;
+    eighthPairsOnePitch = false;
+    skips = tmeaSkips();
+    dynamicsSet = [];
+    selectedClef = level.clef;
+    rangeSpan = null;
+    rangeLimit = null;
+    selectedRange = { ...level.range };
+    rangeAnchor = level.range.min;
+    activePresetLabel = level.label;
+    activeTmeaId = level.id;
+    activeNyssmaId = null;
+    activeSavedId = null;
+    activeStepId = null;
+    activeTrackKey = null;
+    revertPreset = () => applyTmeaLevel(level);
+    setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
+  }
+
+  /** The rhythms for a meter drawn: the selection, or the other kind's, remembered (a TMEA level draws both). */
+  function rhythmsForMeter(meter: string) {
+    const kind = meterKindOf(meter);
+    if (kind === meterKindOf(selectedTimeSignature)) return selectedRhythms;
+    const remembered = resolveRhythmSelection(rhythmMemory[kind] ?? [], kind);
+    return remembered.length ? remembered : selectedRhythms;
   }
 
   function getInitialState() {
@@ -2666,12 +2724,15 @@
       clef: selectedClef,
       timeSig:
         timeSignatures[drawnMeter as keyof typeof timeSignatures],
-      measures: measures,
+      // A TMEA level's length follows the meter drawn; its first bar is all beat notes.
+      measures: activeTmea ? tmeaMeasures(activeTmea, drawnMeter) : measures,
+      firstBarBeats: !!activeTmea,
+      restHoldsLine: !!activeTmea,
       // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
       maxSkip: skipPolicy,
       tempo: tempo,
       range: drawnRange,
-      rhythms: selectedRhythms,
+      rhythms: rhythmsForMeter(drawnMeter),
       // A minor key drawn writes from the minor selector's degrees.
       ...degreesFor(drawnKey),
       minorSolfege,
@@ -3453,6 +3514,9 @@
       case "tenor":
         selectedRange = { min: 10, max: 17 };
         break;
+      case "treble-8":
+        selectedRange = { min: 9, max: 18 }; // a tenor's E3 to G4
+        break;
     }
     // A range that follows the key moves to the new clef's octave, and an
     // instrument's limit (a track's) belongs to the old clef.
@@ -3860,6 +3924,8 @@
     if (linkedTrack) applyTrackStep(linkedTrack);
     const linkedLevel = !linkedStep && !linkedTrack && linkedNyssmaId && Object.hasOwn(nyssmaById, linkedNyssmaId) ? nyssmaById[linkedNyssmaId] : null;
     if (linkedLevel) applyNyssmaLevel(linkedLevel);
+    const linkedTmea = !linkedStep && !linkedTrack && !linkedLevel && linkedTmeaId && Object.hasOwn(tmeaById, linkedTmeaId) ? tmeaById[linkedTmeaId] : null;
+    if (linkedTmea) applyTmeaLevel(linkedTmea);
     loadTrackPrefs()
       .then(() => { if (linkedTrack && activeTrackKey === linkedTrack && $trackPrefs.overrides[linkedTrack]) applyTrackStep(linkedTrack); })
       .catch(() => {});
@@ -4599,7 +4665,7 @@
     rememberActivePreset(
       "unison",
       activePresetLabel
-        ? { label: activePresetLabel, stepId: activeStepId, level: activeNyssmaId, saved: activeSavedId ? activeSavedPreset : null, trackKey: activeTrackKey, sig: activePresetSignature }
+        ? { label: activePresetLabel, stepId: activeStepId, level: activeNyssmaId ?? activeTmeaId, saved: activeSavedId ? activeSavedPreset : null, trackKey: activeTrackKey, sig: activePresetSignature }
         : null
     );
   }
@@ -4623,6 +4689,8 @@
       activeSavedId = null;
       activeStepId = null;
       activeNyssmaId = null;
+      activeTmeaId = null;
+    activeTmeaId = null;
       revertPreset = () => applyTrackStep(key);
     } else if (rec.level && Object.hasOwn(nyssmaById, rec.level)) {
       const level = nyssmaById[rec.level];
@@ -4630,6 +4698,17 @@
       activeSavedId = null;
       activeStepId = null;
       revertPreset = () => applyNyssmaLevel(level);
+    } else if (rec.level && Object.hasOwn(tmeaById, rec.level)) {
+      const level = tmeaById[rec.level];
+      activeTmeaId = level.id;
+      // Its meter pool mixes simple and 6/8, which the saved settings keep to
+      // one kind: put the level's back, and 6/8's rhythms where it finds them.
+      selectedTimeSignatures = new Set(level.meters);
+      if (level.compoundRhythms.length) rhythmMemory = { ...rhythmMemory, compound: [...level.compoundRhythms] };
+      activeNyssmaId = null;
+      activeSavedId = null;
+      activeStepId = null;
+      revertPreset = () => applyTmeaLevel(level);
     } else {
       return;
     }
@@ -4769,6 +4848,9 @@
       nyssmaLevels={nyssmaVoiceLevels}
       {activeNyssmaId}
       onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
+      tmeaLevels={tmeaVoiceLevels}
+      {activeTmeaId}
+      onSelectTmea={(id) => { if (Object.hasOwn(tmeaById, id)) applyTmeaLevel(tmeaById[id]); }}
       {activeTrackKey}
       ownVersion={!!activeTrackKey && !!$trackPrefs.overrides[activeTrackKey]}
       onSelectTrack={(key) => applyTrackStep(key)}

@@ -48,7 +48,7 @@ const unitsOf = (v: string) => parseInt(String(v).replace(/^[a-z]+/i, ""), 10);
 const isRestValue = (v: string) => String(v).startsWith("z");
 
 /** A figure as the notes the writer reads: a pattern split note by note, as rhythm-generation does. */
-function expand(r: Rhythm): RhythmWithPattern[] {
+export function expand(r: Rhythm): RhythmWithPattern[] {
   if (!r.pattern) {
     return [{ ...r, isPatternNote: false, isPatternStart: false, isPatternEnd: false, patternIndex: null }];
   }

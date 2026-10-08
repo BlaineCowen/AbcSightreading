@@ -9,6 +9,7 @@
  *   saved:<preset id>       one of the director's own saved presets
  *   track:<step id>:<part>  half of a curriculum track's step (src/lib/curriculum)
  *   nyssma:<level id>       a NYSSMA Voice level ("nyssma:nyssma-voice-3")
+ *   tmea:<level id>         a TMEA All-State level ("tmea:tmea-voice-2-alto")
  *
  * Built-in presets have no database row, so they are named rather than
  * referenced; a saved preset is both, so deleting it deletes its checkmarks.
@@ -16,6 +17,7 @@
 import { ladderById } from "./ladder";
 import { uilPresets } from "./uil-presets";
 import { nyssmaById } from "./nyssma-presets";
+import { tmeaById } from "./tmea-presets";
 import { parseTrackKey } from "./curriculum/subscriptions";
 
 export const MAX_CLASSES = 50;
@@ -37,7 +39,8 @@ export type PresetKey =
   | { kind: "uil"; level: string }
   | { kind: "saved"; id: string }
   | { kind: "track"; stepId: string; part: "rhythm" | "notes" }
-  | { kind: "nyssma"; id: string };
+  | { kind: "nyssma"; id: string }
+  | { kind: "tmea"; id: string };
 
 /**
  * A preset key the API will store, or null. Steps and levels must exist; a
@@ -54,6 +57,7 @@ export function parsePresetKey(value: unknown): PresetKey | null {
   if (kind === "uil" && uilPresets[rest]) return { kind, level: rest };
   if (kind === "saved" && /^[A-Za-z0-9_-]{1,64}$/.test(rest)) return { kind, id: rest };
   if (kind === "nyssma" && Object.hasOwn(nyssmaById, rest)) return { kind, id: rest };
+  if (kind === "tmea" && Object.hasOwn(tmeaById, rest)) return { kind, id: rest };
   if (kind === "track") {
     const t = parseTrackKey(value);
     if (t) return { kind, ...t };
@@ -67,6 +71,7 @@ export const presetKeyOf = {
   saved: (id: string) => `saved:${id}`,
   track: (stepId: string, part: "rhythm" | "notes") => `track:${stepId}:${part}`,
   nyssma: (id: string) => `nyssma:${id}`,
+  tmea: (id: string) => `tmea:${id}`,
 };
 
 /** The most items a class's own course list may hold (a course is at most about 40). */
