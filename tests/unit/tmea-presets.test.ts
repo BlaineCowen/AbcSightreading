@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createNewSr } from "../../src/lib/generateUnison";
-import { tmeaById, tmeaGenerationParams, tmeaMeasures, tmeaVoiceLevels } from "../../src/lib/tmea-presets";
+import { TMEA_LEVELS, tmeaById, tmeaGenerationParams, tmeaLevelOf, tmeaMeasures, tmeaPartLevel, tmeaVoiceLevels } from "../../src/lib/tmea-presets";
+import { itemForKey } from "../../src/lib/class-course";
 import { presetKeyOf, parsePresetKey } from "../../src/lib/class-validate";
 import { BUILTIN_SETS, TMEA_ALLSTATE } from "../../src/lib/curriculum/catalogue";
 import { noteArray } from "../../src/resources/noteArray";
@@ -12,6 +13,7 @@ import { noteArray } from "../../src/resources/noteArray";
  */
 test("four levels, four parts each, with the chart's keys, ranges and meters", () => {
   expect(tmeaVoiceLevels.length).toBe(16);
+  expect(TMEA_LEVELS.map((l) => l.id)).toEqual(["tmea-voice-1", "tmea-voice-2", "tmea-voice-3", "tmea-voice-4"]);
   expect(tmeaById["tmea-voice-1-soprano"].keys).toEqual(["F", "G"]);
   expect(tmeaById["tmea-voice-2-alto"].keys).toEqual(["C", "D", "Eb"]);
   expect(tmeaById["tmea-voice-3-bass"].keys).toEqual(["Bb", "C", "D", "Eb"]);
@@ -54,3 +56,16 @@ test("the first bar is all beat notes, the length follows the meter, no sung lea
     }
   }
 }, 60_000);
+
+test("a level is one preset for every part; the first form's per-part ids still open, as their level and part", () => {
+  expect(tmeaLevelOf("tmea-voice-2")).toEqual({ level: TMEA_LEVELS[1], part: null });
+  expect(tmeaLevelOf("tmea-voice-3-tenor")).toEqual({ level: TMEA_LEVELS[2], part: "Tenor" });
+  expect(tmeaLevelOf("tmea-voice-5")).toBeNull();
+  expect(tmeaLevelOf("tmea-voice-1-baritone")).toBeNull();
+  expect(tmeaPartLevel(3, "Tenor")).toBe(tmeaById["tmea-voice-3-tenor"]);
+  // Class check marks: the level's key, and one kept from the first form.
+  expect(parsePresetKey("tmea:tmea-voice-2")).toEqual({ kind: "tmea", id: "tmea-voice-2" });
+  expect(parsePresetKey("tmea:tmea-voice-2-alto")).toEqual({ kind: "tmea", id: "tmea-voice-2-alto" });
+  expect(itemForKey("tmea:tmea-voice-2", [])?.label).toBe("TMEA All-State Level II");
+  expect(itemForKey("tmea:tmea-voice-2-alto", [])?.label).toBe("TMEA All-State Level II · Alto");
+});

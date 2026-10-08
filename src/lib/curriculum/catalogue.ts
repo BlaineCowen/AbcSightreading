@@ -1,6 +1,6 @@
 import { STEP_COUNT, ladder, stepHref } from "../ladder";
 import { nyssmaVoiceLevels } from "../nyssma-presets";
-import { tmeaVoiceLevels } from "../tmea-presets";
+import { TMEA_LEVELS } from "../tmea-presets";
 import { TRACKS, trackById } from "./tracks";
 
 /**
@@ -64,7 +64,7 @@ export const BUILTIN_SETS: BuiltinSet[] = [
     level: "Texas All-State auditions",
     blurb: "The Path to All-State sight-reading rounds, District to Area: each level's keys, range and meters for your voice part.",
     facts: [["Levels", "I to IV"], ["Parts", "S, A, T, B"], ["Source", "TMEA, July 2025"]],
-    href: `/sightreading?tmea=${tmeaVoiceLevels[0].id}`,
+    href: `/sightreading?tmea=${TMEA_LEVELS[0].id}`,
     color: "butter",
   },
 ];

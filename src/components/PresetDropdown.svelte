@@ -55,8 +55,8 @@
   /** The NYSSMA level the settings came from, if any. */
   export let activeNyssmaId: string | null = null;
   export let onSelectNyssma: (id: string) => void = () => {};
-  /** The Unison page's TMEA All-State levels (tmea-presets.ts): four per level, one a voice part. */
-  export let tmeaLevels: { id: string; label: string; short: string; summary: string; level: number; part: string }[] = [];
+  /** The Unison page's TMEA All-State levels (tmea-presets.ts TMEA_LEVELS): four, the voice part the instrument pill's. */
+  export let tmeaLevels: { id: string; label: string; short: string; summary: string; level: number }[] = [];
   export let activeTmeaId: string | null = null;
   export let onSelectTmea: (id: string) => void = () => {};
   /**
@@ -708,28 +708,26 @@
                     instrument's (the pill beside Preset), or from your low note. Level VI comes later.
                   </p>
                 {:else}
-                  {#each [1, 2, 3, 4] as n}
-                    {@const row = tmeaLevels.filter((l) => l.level === n)}
-                    <div class="px-2 pt-2">
-                      <p class="text-xs text-sr-muted">{row[0]?.summary.split(' · ')[0] ?? ''} · Level {['I', 'II', 'III', 'IV'][n - 1]}</p>
-                      <div class="flex flex-wrap gap-1.5 pt-1" role="group" aria-label={`Level ${n}`}>
-                        <!-- A voice part on the instrument pill is the part: its levels alone. -->
-                        {#each row.filter((l) => !reader?.tmeaPart || l.part === reader.tmeaPart) as level}
-                          <button
-                            type="button"
-                            class="sr-tok text-sm {level.id === activeTmeaId ? 'sr-on' : ''}"
-                            aria-current={level.id === activeTmeaId ? 'true' : undefined}
-                            title={level.summary}
-                            on:click={() => choose(() => onSelectTmea(level.id))}
-                          >{level.part}{#if selectedClass && passed(presetKeyOf.tmea(level.id))}<Check size={12} class="inline ml-1" /><span class="sr-only">passed</span>{/if}</button>
-                        {/each}
-                      </div>
-                    </div>
-                  {/each}
+                  <ul>
+                    {#each tmeaLevels as level (level.id)}
+                      <li>
+                        <button
+                          type="button"
+                          class="w-full text-left rounded-md px-2 py-1.5 hover:bg-sr-track {level.id === activeTmeaId ? 'bg-sr-tint' : ''}"
+                          aria-current={level.id === activeTmeaId ? 'true' : undefined}
+                          on:click={() => choose(() => onSelectTmea(level.id))}
+                        >
+                          <span class="block text-sm text-sr-ink font-medium">{level.short}{reader?.tmeaPart ? ` · ${reader.tmeaPart}` : ''}{#if selectedClass && passed(presetKeyOf.tmea(level.id))}<Check size={12} class="inline ml-1" /><span class="sr-only">passed</span>{/if}</span>
+                          <span class="block text-xs text-sr-muted">{level.summary}</span>
+                        </button>
+                      </li>
+                    {/each}
+                  </ul>
                   <p class="text-xs text-sr-muted px-2 pt-2">
-                    TMEA's Path to All-State sight-reading levels (July 2025): each sets the part's keys,
-                    range and clef, the meters (with the length each takes), rhythms and the widest
-                    interval. The first bar is all quarter notes, all eighths in 6/8.
+                    TMEA's Path to All-State sight-reading levels (July 2025): each sets the meters (with
+                    the length each takes), rhythms and the widest interval, and your part's keys, range
+                    and clef. The part is the one on Reading as. The first bar is all quarter notes, all
+                    eighths in 6/8.
                   </p>
                 {/if}
               </div>

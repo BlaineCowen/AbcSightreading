@@ -332,7 +332,7 @@ the anchored span is cut short and keeps the one with more notes, a do
 still in range (a tenor's NYSSMA Level IV in C was C4 to G4, five notes;
 now E3 to C4); a placement that fits whole, as every course step's does,
 never moves. Every voice x NYSSMA level x key x meter generates (282
-cells). Next: TMEA's sixteen presets as four levels on the pill.
+cells). TMEA is four levels on the pill (below).
 
 ### Chord progressions (Unison)
 
@@ -535,6 +535,13 @@ Level IV. The first bar is all quarters, all eighths in 6/8
 audition); a compound dotted-eighth figure is not in the catalogue yet.
 Matches Sight Reading Factory's Texas All-State levels (checked 8 October
 2026). All 180 level x part x key x meter cells clean.
+A teacher picks one of four levels (`TMEA_LEVELS`, ids `tmea-voice-1` to
+`-4`, the class check mark `tmea:tmea-voice-2`); the part is the one on
+Reading as (a plain voice: bass clef the Bass, else the Soprano), and the
+pill is set to it. The per-part entries (`tmeaPartLevel`) are what each part
+reads. Their ids, the presets' first form (`tmea-voice-2-alto`), still open
+as their level with that part set, and check marks kept under them still
+read (`tmeaLevelOf`).
 
 ### Play-along videos
 
