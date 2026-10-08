@@ -210,3 +210,48 @@ export function stretchBuffer(ctx: BaseAudioContext, buffer: AudioBuffer, rate: 
   out.copyToChannel(r, 1);
   return out;
 }
+
+/**
+ * A pitched part moved `semitones` up or down with its timing kept: how a
+ * backing track recorded in one key is given the others (scripts/backing,
+ * the singalong tracks). SoundTouch with the long slices a held chord needs
+ * (as `stretchChannels`' tonal), its processing delay measured against the
+ * input's envelope and taken back out, so the shifted part stays on the grid.
+ */
+export function shiftChannels(ch: Channels, semitones: number, sampleRate = SAMPLE_RATE_FOR_ALIGNMENT): Channels {
+  if (!semitones) return [ch[0].slice(), ch[1].slice()];
+  const st = new SoundTouch();
+  st.pitchSemitones = semitones;
+  st.stretch.setParameters(sampleRate, 82, 28, 12);
+  const padded = ch.map((c) => {
+    const p = new Float32Array(c.length + Math.round(0.5 * sampleRate));
+    p.set(c);
+    return p;
+  }) as Channels;
+  const filter = new SimpleFilter(new ArraySource(padded), st);
+  const want = ch[0].length;
+  const l = new Float32Array(want + 8192), r = new Float32Array(want + 8192);
+  const chunk = 4096;
+  const buf = new Float32Array(chunk * 2);
+  let got = 0;
+  while (got < l.length) {
+    const n = filter.extract(buf, Math.min(chunk, l.length - got));
+    if (n === 0) break;
+    for (let i = 0; i < n; i++) {
+      l[got + i] = buf[i * 2];
+      r[got + i] = buf[i * 2 + 1];
+    }
+    got += n;
+  }
+  const lag = lagMs(envelope(ch[0], sampleRate, 10), envelope(l, sampleRate, 10), 150);
+  const shift = Math.round((lag * sampleRate) / 1000);
+  const outL = new Float32Array(want), outR = new Float32Array(want);
+  for (let i = 0; i < want; i++) {
+    const j = i + shift;
+    if (j >= 0 && j < l.length) {
+      outL[i] = l[j];
+      outR[i] = r[j];
+    }
+  }
+  return [outL, outR];
+}

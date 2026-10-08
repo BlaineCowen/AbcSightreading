@@ -15,7 +15,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { shiftChannels } from "../../src/lib/play-along/stretch";
 
 export const RATE = 44100;
 export type Stereo = [Float32Array, Float32Array];
@@ -25,17 +26,23 @@ export type Stereo = [Float32Array, Float32Array];
  * file), exactly `bars` bars long, and anything ringing past the end (a
  * cymbal) wraps round to the start, so the loop joins without a seam.
  */
-export function song(o: { pack: string; bpm: number; beats: number; bars: number; tailSec: number; out: string; loop?: boolean }) {
-  const PACK = join(homedir(), "Splice/sounds/packs", o.pack);
+export function song(o: {
+  pack: string; bpm: number; beats: number; bars: number; tailSec: number; out: string; loop?: boolean;
+  /** More packs to find samples in: the singalong tracks put parts from different packs together (splice-graph's matches). */
+  packs?: string[];
+}) {
+  const PACKS = [o.pack, ...(o.packs ?? [])].map((p) => join(homedir(), "Splice/sounds/packs", p));
   const beatSec = 60 / o.bpm;
   const barSec = beatSec * o.beats;
   /** Seconds from the start of the file: bar -1 is the count-in, bar 0 the first bar of music. */
   const at = (bar: number, beat = 0) => (o.loop ? bar : bar + 1) * barSec + beat * beatSec;
 
   function file(name: string): string {
-    const out = execFileSync("find", [PACK, "-name", name]).toString().trim().split("\n")[0];
-    if (!out) throw new Error(`Missing ${name} in "${o.pack}" - is it downloaded in Splice?`);
-    return out;
+    for (const pack of PACKS) {
+      const out = execFileSync("find", [pack, "-name", name]).toString().trim().split("\n")[0];
+      if (out) return out;
+    }
+    throw new Error(`Missing ${name} in "${[o.pack, ...(o.packs ?? [])].join('", "')}" - is it downloaded in Splice?`);
   }
 
   /**
@@ -43,7 +50,7 @@ export function song(o: { pack: string; bpm: number; beats: number; bars: number
    * `fromBpm` to the song's tempo, and transposed by `semitones` (tempo kept):
    * resampled to the new pitch, then stretched back to length.
    */
-  function load(name: string, opts: { fromBpm?: number; trim?: boolean; semitones?: number } = {}): Stereo {
+  function load(name: string, opts: { fromBpm?: number; trim?: boolean; semitones?: number; shift?: number } = {}): Stereo {
     const path = file(name);
     const stretch = opts.fromBpm && opts.fromBpm !== o.bpm ? o.bpm / opts.fromBpm : 1;
     const chain: string[] = [];
@@ -75,7 +82,8 @@ export function song(o: { pack: string; bpm: number; beats: number; bars: number
       l[i] = all[start + 2 * i];
       r[i] = all[start + 2 * i + 1];
     }
-    return [l, r];
+    // `shift`: to another key with SoundTouch, timing kept (a singalong track's other keys).
+    return opts.shift ? shiftChannels([l, r], opts.shift, RATE) : [l, r];
   }
 
   /** A stretch of a loaded sound: a single hit cut out of a loop, say. */
@@ -267,7 +275,7 @@ export function song(o: { pack: string; bpm: number; beats: number; bars: number
     h.write("fmt ", 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(2, 22);
     h.writeUInt32LE(RATE, 24); h.writeUInt32LE(RATE * 4, 28); h.writeUInt16LE(4, 32); h.writeUInt16LE(16, 34);
     h.write("data", 36); h.writeUInt32LE(data.length, 40);
-    mkdirSync("public/backing", { recursive: true });
+    mkdirSync(dirname(o.out), { recursive: true });
     writeFileSync(`${o.out}.wav`, Buffer.concat([h, data]));
     execFileSync("ffmpeg", ["-v", "error", "-y", "-i", `${o.out}.wav`, "-codec:a", "libmp3lame", "-b:a", "192k", `${o.out}.mp3`]);
     if (!process.env.KEEP_WAV) rmSync(`${o.out}.wav`);
