@@ -86,6 +86,14 @@ const CHORD_COST: Record<string, number> = { I: 0, IV: 0.3, V: 1.1, "V⁷": 1.3,
 const RETROGRESSION = 2;
 const CHANGE_MID_BAR = 0.4;
 const TEMPERATURE = 0.55;
+/**
+ * The cadential suspension: soprano 2 holds do into the V before a cadence
+ * (a fourth over the bass's sol), falls to ti on the next beat, and goes
+ * home to do. Spring and The Rainbird sing it at nearly every cadence (bars
+ * 8, 16, 24 of Spring); By the Cradle, whose soprano 2 is a duet part, never.
+ * How often a cadence takes it, where the rhythm and the line allow.
+ */
+const SUSPENSION_RATE = 0.9;
 const ATTEMPTS = 40;
 
 const degreeCost = (shares: number[], degree: number) => -DEGREE_WEIGHT * Math.log((shares[degree] + 1) / 101);
@@ -170,6 +178,9 @@ function writeOnce(o: ThreePartOptions) {
   const total = o.rhythms.reduce((n, r) => n + r.totalValue, 0);
   let at = 0;
   let afterCadence = true;
+  /** Soprano 2 is in a suspension and must fall a step next. */
+  let suspended = false;
+  const holdsDo = jobs[1] !== DUET_CRADLE;
 
   for (let step = 0; step < o.rhythms.length; step++) {
     const rhythm = o.rhythms[step] as R;
@@ -191,7 +202,20 @@ function writeOnce(o: ThreePartOptions) {
     const weak = (!strong || continuing) && !cadence;
     const short = rhythm.totalValue < 8 || (step > 0 && o.rhythms[step - 1].totalValue < 8 && !o.rhythms[step - 1].rest);
 
-    const choices: { chord: Chord; cost: number }[] = intoCadence
+    // A suspension slot: this beat strong, the next a weak beat leading into
+    // the cadence on V. The V comes a beat early, so soprano 2's do is held
+    // over it and falls to ti while the V sounds.
+    const nextR = o.rhythms[step + 1] as R | undefined;
+    const afterR = o.rhythms[step + 2] as R | undefined;
+    const vNext = o.progression[chordIndex + 1];
+    const suspend =
+      holdsDo && !intoCadence && strong && !short && !rhythm.isPatternNote && rhythm.totalValue <= 8 &&
+      !!nextR && !nextR.rest && !nextR.isPatternNote && nextR.totalValue <= 8 && !!afterR?.isCadenceEnd &&
+      !!vNext && mod7(vNext.root) === 4 && lines[1].at(-1)?.degree === 0 && rand() < SUSPENSION_RATE;
+
+    const choices: { chord: Chord; cost: number }[] = suspend
+      ? [{ chord: vNext!, cost: 0 }]
+      : intoCadence
       ? [{ chord: planned, cost: 0 }]
       : weak && held
         ? [{ chord: held, cost: 0 }]
@@ -224,6 +248,12 @@ function writeOnce(o: ThreePartOptions) {
         return part.possibleNotes.flatMap((n) => {
           let extra = 0;
           if (nct[v] && prev && Math.abs(n.pitchValue - prev.pitchValue) !== 1) return []; // a passing or neighbour note leaves by step
+          if (v === 1 && suspended && prev && n.pitchValue !== prev.pitchValue - 1) return []; // a suspension falls a step
+          if (v === 1 && suspend) {
+            // Held from the beat before, over the V: do, falling to ti next.
+            if (!prev || n.pitchValue !== prev.pitchValue) return [];
+            return [{ n, cost: 0, nct: !tones.has(n.degree) }];
+          }
           if (!tones.has(n.degree)) {
             if (!weak || !prev || Math.abs(n.pitchValue - prev.pitchValue) !== 1 || !leaves(n) || job.bass) return [];
             extra = NCT_COST;
@@ -308,6 +338,7 @@ function writeOnce(o: ThreePartOptions) {
       out[ix[v]].push(note);
       lines[v].push(notes[v]);
       nct[v] = choice.nct[v];
+      if (v === 1) suspended = suspend;
     });
     held = chord;
     afterCadence = cadence;

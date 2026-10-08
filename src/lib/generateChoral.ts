@@ -553,7 +553,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     maxSkip,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     probability: params.rhymeProbability ?? 0,
-    leapOk: melodyFirst && params.chordSkips ? levelOneLeapOk : undefined,
+    // Every join and swapped note keeps the exercise's own leap rules: an
+    // eighth reached and left by step (it checked maxSkip alone, and 6% of
+    // short notes in SSA restatements were leapt to - "too much skip in 8th
+    // notes", Blaine, 7 October 2026), and Level 1's list of skips.
+    leapOk: (from, to) =>
+      (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
+      (!(melodyFirst && params.chordSkips) || levelOneLeapOk(from, to)),
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 

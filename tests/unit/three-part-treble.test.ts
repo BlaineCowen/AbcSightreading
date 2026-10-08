@@ -95,3 +95,39 @@ test("Level 2: the tune moves by step, soprano 2 holds do, the alto sings a bass
   expect(aRoot / a).toBeGreaterThan(0.7);
   expect(steps / moves).toBeGreaterThan(0.6);
 }, 60_000);
+
+// The cadential suspension of Spring and The Rainbird: soprano 2 holds do over
+// the V's sol (a fourth), falls to ti, then home. About 0.7 an 8-bar Level 2
+// exercise, measured (one authentic cadence each, when the rhythm allows);
+// none before it was written in.
+test("Level 2 cadences carry soprano 2's do held over sol, falling to ti", () => {
+  let found = 0;
+  const exercises = write(30, "UIL 2", 0, 0);
+  for (const ex of exercises) {
+    const s2 = ex.voiceNotes[ex.voiceNames.indexOf("Soprano2")];
+    const alto = ex.voiceNotes[ex.voiceNames.indexOf("Alto")];
+    for (let i = 1; i + 1 < s2.length; i++) {
+      const [p, n, r] = [s2[i - 1], s2[i], s2[i + 1]];
+      if (p.rest || n.rest || r.rest) continue;
+      if (p.pitchValue === n.pitchValue && n.degree === 0 && r.degree === 6 && r.pitchValue === n.pitchValue - 1 && alto[i]?.degree === 4) found++;
+    }
+  }
+  expect(found / exercises.length).toBeGreaterThan(0.3);
+}, 120_000);
+
+// "Too much skip in 8th notes" (Blaine, 7 October 2026): the restatement pass
+// copied phrases and swapped notes checking maxSkip alone, and 6% of short
+// notes in SSA restatements were leapt to or from. Now none in the upper parts.
+test("with restatements on, the upper parts reach and leave every eighth by step", () => {
+  for (const levelKey of ["UIL 2", "UIL 3"] as const) {
+    for (const ex of write(15, levelKey, 0, 0.85)) {
+      for (const name of ["Soprano1", "Soprano2"]) {
+        const sung = ex.voiceNotes[ex.voiceNames.indexOf(name)].filter((n) => !n.rest);
+        for (let i = 1; i < sung.length; i++) {
+          if (sung[i].length >= 8 && sung[i - 1].length >= 8) continue;
+          expect(Math.abs(sung[i].pitchValue - sung[i - 1].pitchValue)).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  }
+}, 120_000);
