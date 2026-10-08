@@ -34,6 +34,9 @@ for (const l of tmeaVoiceLevels) {
       if (notes.some((p) => p < l.range.min || p > l.range.max)) flag("range");
       for (let k = 1; k < notes.length; k++) if (Math.abs(notes[k] - notes[k - 1]) > l.maxSkip) { flag("leap"); break; }
       if (l.level < 4 && /[\^_=]/.test(body.replace(/\d+/g, ""))) flag("accidental below IV");
+      // The last note is do: the key's own letter.
+      const last = (body.match(/[\^_=]*([A-Ga-g])[,']*\d+/g) ?? []).pop()?.match(/[A-Ga-g]/)?.[0];
+      if (last?.toUpperCase() !== key[0].toUpperCase()) flag("not ending on do");
     }
     const keys = Object.keys(problems);
     if (keys.length) { bad++; console.log(`${l.id.padEnd(24)} ${key.padEnd(3)} ${meter}  ${JSON.stringify(problems)}`); }

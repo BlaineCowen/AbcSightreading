@@ -531,7 +531,8 @@ rhythms of the meter drawn, AbcjsSingle `rhythmsForMeter`), the length each
 meter takes (`measuresByMeter`), the largest interval (a 4th, a 5th, then an
 octave; measured across rests, generateUnison `restHoldsLine`), fi and si at
 Level IV. The first bar is all quarters, all eighths in 6/8
-(`firstBarBeats`, first-bar.ts). Tied notes are off (Blaine: never used in an
+(`firstBarBeats`, first-bar.ts). Every exercise ends on do, as NYSSMA's do (`endOnDo`; Blaine, 8 October
+2026: all the examples do). Tied notes are off (Blaine: never used in an
 audition); a compound dotted-eighth figure is not in the catalogue yet.
 Matches Sight Reading Factory's Texas All-State levels (checked 8 October
 2026). All 180 level x part x key x meter cells clean.
