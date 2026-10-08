@@ -43,6 +43,13 @@ const s = song({
   bars: BARS,
   tailSec: 3,
   out: process.env.OUT ?? "public/backing/barefoot-4-4-90",
+  // Mastered to sit with the other tracks (-14 to -17 LUFS) with the encoded
+  // true peak under -1 dBFS: a little drive into the limiter, then loudnorm at
+  // the encode (by sample peaks alone it read +1.1 dBFS true peak).
+  drive: 1.0,
+  // loudnorm holds the peak before the MP3 encoder adds a dB or two: -3 here
+  // keeps every key under -1 dBFS true peak on the MP3, at about -15 LUFS.
+  loudness: { lufs: -15, truePeak: -3 },
 });
 
 const part = {
@@ -64,7 +71,11 @@ const lv = {
 };
 /** The harmony's loops read from their bar 3, the C, so bar 1 of the song is home. */
 const HOME = -2;
-const harmony = (k: "strum" | "bass", from: number, to: number) => s.loop(part[k], from, to, lv[k], {}, { startBar: HOME });
+// Mastering (measured per section, 120-500 Hz was every section's loudest band:
+// the strum's body on top of the bass guitar): the strum keeps nothing below
+// 150 Hz, so the bass owns the bottom.
+const harmony = (k: "strum" | "bass", from: number, to: number) =>
+  s.loop(part[k], from, to, lv[k], {}, { startBar: HOME, highpass: k === "strum" ? 150 : undefined });
 const drumsFrom = (k: "drums" | "hats" | "cymbals", from: number, to: number) => s.loop(part[k], from, to, lv[k], {}, { startBar: from });
 
 // Count-in and the opening: the strum alone with the felt hats, the bass joining.
@@ -72,8 +83,10 @@ drumsFrom("hats", -1, 8);
 harmony("strum", 0, 32);
 harmony("bass", 4, 32);
 
-// 9-16: the full kit, a fill into 17.
+// 9-16: the full kit, a fill into 17. The felt hats carry on under it, low: the
+// kit loop is dark, and its sections measured 4 dB less above 3 kHz than the lift.
 drumsFrom("drums", 8, 15);
+s.loop(part.hats, 8, 15, lv.hats * 0.9, {}, { startBar: 8 });
 s.lay(part.fill, { atSec: s.at(15), gain: lv.fill });
 
 // 17-24: lifted out: hats and the cymbal course, then the ride swell building into 25.
@@ -83,11 +96,12 @@ s.lay(part.swell, { atSec: s.at(20), lenSec: 4 * s.barSec, gain: lv.swell });
 
 // 25-32: everything, toms into the end.
 drumsFrom("drums", 24, 31);
+s.loop(part.hats, 24, 31, lv.hats * 0.9, {}, { startBar: 24 });
 s.lay(part.toms, { atSec: s.at(31), gain: lv.toms });
 
 // 33: home, after the IV. The strum's C (its bars 3-4) held and let ring, the bass's C, the kit's opening crash.
 const ring = s.barSec + 2.5;
-s.lay(part.strum, { atSec: s.at(32), fromSec: 2 * s.barSec, lenSec: ring, gain: lv.strum, fadeOut: 2.5 });
+s.lay(part.strum, { atSec: s.at(32), fromSec: 2 * s.barSec, lenSec: ring, gain: lv.strum, fadeOut: 2.5, highpass: 150 });
 s.lay(part.bass, { atSec: s.at(32), fromSec: 2 * s.barSec, lenSec: ring, gain: lv.bass, fadeOut: 2.5 });
 s.lay(part.drums, { atSec: s.at(32), lenSec: 1.5 * s.beatSec + 2, gain: lv.drums, fadeOut: 2 });
 

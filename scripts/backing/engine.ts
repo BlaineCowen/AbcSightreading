@@ -12,7 +12,7 @@
  * mix does, which is the use Splice's licence allows (a new composition).
  * KEEP_WAV=1 keeps a .wav beside the .mp3 for listening closely.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -30,6 +30,25 @@ export function song(o: {
   pack: string; bpm: number; beats: number; bars: number; tailSec: number; out: string; loop?: boolean;
   /** More packs to find samples in: the singalong tracks put parts from different packs together (splice-graph's matches). */
   packs?: string[];
+  /**
+   * The final peak, as a fraction of full scale (0.89, about -1 dBFS, unless
+   * set). MP3 encoding adds inter-sample peaks above it - Barefoot measured
+   * +1.1 dBFS true peak at 0.89 - so a track that must stay clean sets it lower.
+   */
+  ceiling?: number;
+  /**
+   * How hard the music's loud body is pushed into the soft limiter: the
+   * 99.9th percentile is brought to this (0.8 unless set). Higher is louder
+   * for the same ceiling, with more of the peaks rounded off.
+   */
+  drive?: number;
+  /**
+   * Loudness and true peak, set as the MP3 is made: ffmpeg's loudnorm in two
+   * passes (measured, then applied in its linear mode), e.g. { lufs: -15,
+   * truePeak: -1.5 }. The ceiling above holds sample peaks only, and MP3
+   * encoding of a limited mix put true peaks over 0 dBFS (Barefoot: +0.1).
+   */
+  loudness?: { lufs: number; truePeak: number };
 }) {
   const PACKS = [o.pack, ...(o.packs ?? [])].map((p) => join(homedir(), "Splice/sounds/packs", p));
   const beatSec = 60 / o.bpm;
@@ -252,7 +271,7 @@ export function song(o: {
     const sample: number[] = [];
     for (let i = 0; i < total; i += 7) sample.push(Math.max(Math.abs(L[i]), Math.abs(R[i])));
     sample.sort((a, b) => a - b);
-    const pre = 0.8 / sample[Math.floor(sample.length * 0.999)];
+    const pre = (o.drive ?? 0.8) / sample[Math.floor(sample.length * 0.999)];
     const soft = (x: number) => {
       const k = 0.7;
       const a = Math.abs(x);
@@ -264,7 +283,7 @@ export function song(o: {
       R[i] = soft(R[i] * pre);
       after = Math.max(after, Math.abs(L[i]), Math.abs(R[i]));
     }
-    const post = 0.89 / after;
+    const post = (o.ceiling ?? 0.89) / after;
     const data = Buffer.alloc(total * 4);
     for (let i = 0; i < total; i++) {
       data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, L[i] * post)) * 32767), i * 4);
@@ -277,7 +296,15 @@ export function song(o: {
     h.write("data", 36); h.writeUInt32LE(data.length, 40);
     mkdirSync(dirname(o.out), { recursive: true });
     writeFileSync(`${o.out}.wav`, Buffer.concat([h, data]));
-    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", `${o.out}.wav`, "-codec:a", "libmp3lame", "-b:a", "192k", `${o.out}.mp3`]);
+    let af: string[] = [];
+    if (o.loudness) {
+      const target = `I=${o.loudness.lufs}:TP=${o.loudness.truePeak}:LRA=11`;
+      // The first pass measures; ffmpeg prints the measurement as JSON at the end of stderr.
+      const err = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", `${o.out}.wav`, "-af", `loudnorm=${target}:print_format=json`, "-f", "null", "-"]).stderr.toString();
+      const m = JSON.parse(err.slice(err.lastIndexOf("{"), err.lastIndexOf("}") + 1));
+      af = ["-af", `loudnorm=${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true,aresample=${RATE}`];
+    }
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", `${o.out}.wav`, ...af, "-codec:a", "libmp3lame", "-b:a", "192k", `${o.out}.mp3`]);
     if (!process.env.KEEP_WAV) rmSync(`${o.out}.wav`);
     const shape = o.loop ? `a ${o.bars}-bar loop` : `count-in + ${o.bars} bars + ending`;
     console.log(`${o.out}.mp3: ${o.beats} beats at ${o.bpm}, ${shape}, ${(total / RATE).toFixed(1)} s`);
