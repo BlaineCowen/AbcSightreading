@@ -4,6 +4,7 @@
   import { authClient } from "../lib/auth-client";
   import { billingStatus, openBillingPortal, redeemCode, setAutoRenew, startCheckout, type BillingStatus } from "../lib/billing-client";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
+  import UpgradeNotice from "./UpgradeNotice.svelte";
   import FreeMonthOffer from "./FreeMonthOffer.svelte";
   import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 
@@ -193,7 +194,7 @@
 
     <section id="plan" class="flex flex-col gap-2">
       <h2 class="text-xs uppercase tracking-wide text-sr-faint">Plan</h2>
-      {#if !isStudent}<PlanEndingBanner />{/if}
+      {#if !isStudent}<UpgradeNotice /><PlanEndingBanner />{/if}
       {#if isStudent}
         <p class="text-sm text-sr-ink-2">Your teacher's class plan. If you forget your password, ask your teacher for a new one.</p>
       {:else if !billing}
