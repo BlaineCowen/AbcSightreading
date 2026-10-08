@@ -5663,9 +5663,10 @@
         </p>
       </div>
 
-      <!-- Measure numbers in both modes. The syllables are pitched only:
-           rhythm-only has no scale degrees to name, and its syllables live
-           in the Rhythm tab - the one place they are set. -->
+      <!-- Measure numbers in both modes; then the syllables: solfège when
+           pitched, rhythm syllables in rhythm only (the same setting as the
+           Rhythms pill's; tapping the one on turns it off). They used to live
+           in the Rhythms pill alone, and nobody found them there. -->
       <div class="space-y-2">
         <p class="sr-label">Annotations</p>
         <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
@@ -5674,7 +5675,23 @@
             on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })}
             aria-pressed={scoreView.measureNumbers !== false}
           >Measure numbers</button>
-          {#if !rhythmOnly}
+          {#if rhythmOnly}
+          {#each Object.values(syllableSystems) as system}
+            <button
+              class="sr-tok {showRhythmSyllables && syllableSystemId === system.id ? 'sr-on' : ''}"
+              on:click={() => setRhythmSyllables(showRhythmSyllables && syllableSystemId === system.id ? 'off' : system.id)}
+              aria-pressed={showRhythmSyllables && syllableSystemId === system.id}
+            >{system.label}</button>
+          {/each}
+          {#if $mySyllables}
+            <button
+              class="sr-tok {showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'sr-on' : ''}"
+              on:click={() => setRhythmSyllables(showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID ? 'off' : CUSTOM_SYLLABLE_ID)}
+              aria-pressed={showRhythmSyllables && syllableSystemId === CUSTOM_SYLLABLE_ID}
+              title="Your own syllables, from your account"
+            >Mine</button>
+          {/if}
+          {:else}
           {#each lyricSystems as [value, label]}
             <button
               class="sr-tok {showSolfege && lyricSystem === value ? 'sr-on' : ''}"
@@ -5686,7 +5703,7 @@
         </div>
         <p class="text-xs text-sr-faint">
           {#if rhythmOnly}
-            {scoreView.measureNumbers !== false ? "A number over each bar." : "No measure numbers."} Rhythm syllables are under Rhythms.
+            {showRhythmSyllables ? syllableHint : "No syllables: the same exercise, printed for reading."}
           {:else if !showSolfege}
             Clean: the same exercise, printed for sight-reading.
           {:else if lyricSystem === "movable"}
