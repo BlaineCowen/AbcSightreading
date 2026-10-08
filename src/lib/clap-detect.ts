@@ -41,6 +41,15 @@ const PEAK_MS = 15;
 export const CLAP_REFRACTORY_MS = 60;
 /** At its peak at least this share of a clap's power is in the high band (a voice's is far less). */
 const HI_SHARE = 0.15;
+/**
+ * A class's burst needs less: a room chanting "ta" on the clap fills the low
+ * band, and a whole room's clap peaked with 8-20% of its power up high in
+ * Blaine's runs. At 0.15 the clap on beat 2 of his 8 October run (43 dB over
+ * the quiet before it) was thrown away and the note marked missed (89, should
+ * have been 100); at 0.08 it grades 100, and no other run sent did worse. A
+ * chant that gets through is marked voiced and never counts as a stray.
+ */
+const CLASS_HI_SHARE = 0.08;
 /** A class's burst: gaps shorter than this inside it do not end it. */
 const BURST_GAP_MS = 30;
 /** A burst wider than this is two (a fast rhythm clapped raggedly): split at its quietest point. */
@@ -107,7 +116,7 @@ export function detectBursts(blocks: ClapBlock[]): Clap[] {
   const read = (a: number, z: number) => {
     let peak = a;
     for (let i = a; i <= z; i++) if (blocks[i].hi > blocks[peak].hi) peak = i;
-    if (blocks[peak].hi < HI_SHARE * blocks[peak].full) return;
+    if (blocks[peak].hi < CLASS_HI_SHARE * blocks[peak].full) return;
     if (blocks[z].t - blocks[a].t > BURST_MAX_MS) {
       // Split where it is quietest, away from its ends.
       const lo = a + Math.floor((z - a) * 0.2);
