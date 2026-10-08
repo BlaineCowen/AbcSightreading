@@ -94,6 +94,14 @@ const TEMPERATURE = 0.55;
  * How often a cadence takes it, where the rhythm and the line allow.
  */
 const SUSPENSION_RATE = 0.9;
+/**
+ * The same suspension inside a half cadence's long V (The Rainbird, bars 4
+ * and 20): soprano 2 brings do into the V and holds it over the bass's sol
+ * for the first half of the note, then falls to ti.
+ */
+const HALF_CADENCE_SUSPENSION_RATE = 0.9;
+/** The pull to do for soprano 2 on the beat before such a cadence, so there is a do to hold. */
+const PREPARE = 4;
 const ATTEMPTS = 40;
 
 const degreeCost = (shares: number[], degree: number) => -DEGREE_WEIGHT * Math.log((shares[degree] + 1) / 101);
@@ -213,10 +221,26 @@ function writeOnce(o: ThreePartOptions) {
       !!nextR && !nextR.rest && !nextR.isPatternNote && nextR.totalValue <= 8 && !!afterR?.isCadenceEnd &&
       !!vNext && mod7(vNext.root) === 4 && lines[1].at(-1)?.degree === 0 && rand() < SUSPENSION_RATE;
 
+    // A half cadence's long V, soprano 2 coming from do: its note is split,
+    // do held over the V, then ti. Everything is checked against the ti, the
+    // note the held do decorates (in The Rainbird it rubs a second against
+    // the tune's re, as a suspension may).
+    const prepareHalf =
+      holdsDo && !cadence && !!nextR?.isCadenceEnd && nextR.totalValue >= 16 && !!vNext && mod7(vNext.root) === 4;
+    const susHalf =
+      holdsDo && cadence && rhythm.totalValue >= 16 && mod7(planned.root) === 4 &&
+      lines[1].at(-1)?.degree === 0 && rand() < HALF_CADENCE_SUSPENSION_RATE;
+
     const choices: { chord: Chord; cost: number }[] = suspend
       ? [{ chord: vNext!, cost: 0 }]
       : intoCadence
-      ? [{ chord: planned, cost: 0 }]
+      ? [
+          { chord: planned, cost: 0 },
+          // Before a half cadence, a chord with do in it, so soprano 2 has one to hold into the V.
+          ...(prepareHalf && !toneSet(planned).has(0)
+            ? palette.filter((c) => (c.symbol === "I" || c.symbol === "IV") && c !== planned).map((chord) => ({ chord, cost: CHORD_COST[chord.symbol] }))
+            : []),
+        ]
       : weak && held
         ? [{ chord: held, cost: 0 }]
         : afterCadence && home
@@ -249,6 +273,10 @@ function writeOnce(o: ThreePartOptions) {
           let extra = 0;
           if (nct[v] && prev && Math.abs(n.pitchValue - prev.pitchValue) !== 1) return []; // a passing or neighbour note leaves by step
           if (v === 1 && suspended && prev && n.pitchValue !== prev.pitchValue - 1) return []; // a suspension falls a step
+          if (v === 1 && susHalf) {
+            if (!prev || n.pitchValue !== prev.pitchValue - 1 || !tones.has(n.degree)) return [];
+            return [{ n, cost: 0, nct: false }];
+          }
           if (v === 1 && suspend) {
             // Held from the beat before, over the V: do, falling to ti next.
             if (!prev || n.pitchValue !== prev.pitchValue) return [];
@@ -264,6 +292,7 @@ function writeOnce(o: ThreePartOptions) {
           }
           if (first && v === 2 && n.degree !== 0 && n.degree !== 4) return []; // begin on do (or the sol below, a bass)
           let cost = extra + degreeCost(job.degrees, n.degree) + TESSITURA_PULL * Math.abs(n.pitchValue - target);
+          if (v === 1 && prepareHalf && n.degree !== 0) cost += PREPARE;
           if (prev) cost += job.move[Math.abs(n.pitchValue - prev.pitchValue)] ?? 4;
           if (prev && line.at(-2)?.pitchValue === prev.pitchValue && n.pitchValue === prev.pitchValue) cost += job.move[0] === 0 ? STUCK / 3 : STUCK;
           if (prev && line.at(-2)?.pitchValue === n.pitchValue && line.at(-3)?.pitchValue === prev.pitchValue && n.pitchValue !== prev.pitchValue) cost += SEESAW;
@@ -335,6 +364,17 @@ function writeOnce(o: ThreePartOptions) {
       lastChord = chord;
     }
     placed.forEach((note, v) => {
+      if (v === 1 && susHalf) {
+        const prev = lines[1].at(-1)!;
+        const heldDo = parts[1].possibleNotes.find((x) => x.pitchValue === prev.pitchValue)!;
+        const acc = determineAccidental(heldDo.degree, chord, keySignatures, o.key);
+        const first = rhythm.totalValue >= 32 ? 16 : rhythm.totalValue - 8;
+        out[ix[v]].push({ ...note, ...heldDo, name: acc.accidental ? acc.prefix + heldDo.name : heldDo.name, accidental: acc.accidental, length: first, ornament: true, isCadenceEnd: false, chordSymbol: undefined });
+        out[ix[v]].push({ ...note, length: rhythm.totalValue - first });
+        lines[v].push(notes[v]);
+        nct[v] = false;
+        return;
+      }
       out[ix[v]].push(note);
       lines[v].push(notes[v]);
       nct[v] = choice.nct[v];

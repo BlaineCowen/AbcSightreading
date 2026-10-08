@@ -219,6 +219,9 @@ export function generateChoralExercise(params: GenerateChoralParams): ChoralExer
   return best!;
 }
 
+/** How often a melody-first exercise's inner cadences pair as question and answer (half, then authentic). */
+const PHRASE_PAIR_RATE = 0.85;
+
 function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercise {
 
   const {
@@ -374,7 +377,16 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       const pool = intermediaryCadences.length > 0 ? intermediaryCadences : compatibleCadences;
       const randomIndex = Math.floor(Math.random() * pool.length);
       const randomCadence = pool[randomIndex];
-      selectedCadences.push(randomCadence);
+      // Written melody first, the phrases pair as Blaine's pieces do: every
+      // one asks at bar 4 (a half cadence) and answers at bar 8 (authentic),
+      // where drawing from the pool made bar 4 a half cadence only now and
+      // then - and the suspension that half cadence carries with it.
+      const half = pool.find((c) => c.type === "Half");
+      const planned =
+        (melodyFirst || ssa) && Math.random() < PHRASE_PAIR_RATE
+          ? i % 2 === 0 ? half ?? randomCadence : perfectAuthenticCadence
+          : randomCadence;
+      selectedCadences.push(planned);
     }
   }
 
