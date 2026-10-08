@@ -59,6 +59,13 @@ export type RhythmOptions = {
    * judgement about the exercise, not something the generator can guess.
    */
   weightBias?: Record<string, number>;
+  /**
+   * A multiplier by where in the bar a figure would start (in 32nds from the
+   * downbeat): how a writer asks for a bar's shape - a half on the downbeat,
+   * say - without a template. 1 leaves it alone; see barShapeWeight in
+   * two-part-treble.ts.
+   */
+  positionWeight?: (rhythm: Rhythm, measurePosition: number) => number;
 };
 
 /** The shortest note inside a figure, in 32nd units. */
@@ -572,7 +579,7 @@ export function generateRandomRhythm(
       const weights = possibleRhythms.map((r) => {
         const variety = Math.max(1, 5 - measuresUsedBy(r.name));
         const speed = options.favorLongerNotes ? speedFactorFor(r) : 1;
-        const bias = options.weightBias?.[r.name] ?? 1;
+        const bias = (options.weightBias?.[r.name] ?? 1) * (options.positionWeight?.(r, currentMeasurePosition) ?? 1);
         // Never zero: a rhythm turned all the way down still has to be
         // placeable, or a selection of nothing else has no way to fill a bar.
         const biased = Math.max(0.001, bias);

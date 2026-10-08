@@ -1201,7 +1201,24 @@ changes. A pattern's chord starts on its first sung note
 (`rhythm-generation.ts`): eighth rest + eighth used to start on the rest and
 failed 29 exercises in 40.
 
-The Choral page opens at UIL Level 3 in F major when the address carries no
+**Two treble parts at Levels 1-2 are written melody first**
+(`src/lib/two-part-treble.ts`, tests `two-part-treble.test.ts`; the page's
+`melodyFirstFor`, the sweep passes it too). It replaces buildChordNotes for
+SA only: on each strong beat it picks a chord from the level's own (I, IV,
+V, V7) together with the soprano note and the alto under it; the chord holds
+through the weak beats, where both parts may pass or neighbour by step; the
+planned progression is kept only into each cadence. Scored toward Blaine's
+Level 1 SA piece (7 October 2026, F major; `scripts/sample-choral.ts` writes
+samples to compare): alto on do 63% (his 59, before 38), soprano by step 66%
+of moves (79, before 49), thirds and sixths 80% (78, before 61, a third of it
+so over ti), oblique motion 34% (37). No unison opening there any more (his
+piece starts in harmony), and the bars take his shapes (`barShapeWeight`: a
+half on the downbeat). UIL 1 now allows an eighth pair, rare (his piece has
+one bar in twelve); that alone moved the six UIL 1 meter-regression
+snapshots, updated deliberately. Tenor/Bass keeps the old writer until there
+is a TB example.
+
+ when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
 active preset was chosen.
 

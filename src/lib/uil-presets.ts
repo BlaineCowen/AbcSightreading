@@ -45,8 +45,11 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedKeys: ["C", "F", "G"],
     // I, IV, V only
     allowedChordNames: ["1", "4", "5"],
-    // Whole, half, quarter notes and rests
-    allowedRhythmNames: ["whole", "half", "quarter", "wholeRest", "halfRest", "quarterRest"],
+    // Whole, half, quarter notes and rests, and now and then an eighth pair:
+    // Blaine's Level 1 SA piece (October 2026), "very typical" of the level,
+    // has one in about one bar in twelve, by step. The rhythm draw keeps it
+    // that rare (favorLongerNotes; barShapeWeight for two treble parts).
+    allowedRhythmNames: ["whole", "half", "quarter", "eighthEighth", "wholeRest", "halfRest", "quarterRest"],
     // Treble: SA, Tenor-Bass: TB
     // The doc's level 1 is "Treble: SA" and "Tenor-Bass: TB" - two parts either
     // way. Both are offered now. The three-part tenor-bass voicing

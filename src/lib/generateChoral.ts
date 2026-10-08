@@ -1,3 +1,4 @@
+import { barShapeWeight, isTwoPartTreble, writeTwoPartTreble } from "./two-part-treble";
 import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
@@ -81,6 +82,12 @@ export interface GenerateChoralParams {
    * cadence. See rhymeProbabilityFor in rhyming-phrases.ts; 0 disables it.
    */
   rhymeProbability?: number;
+  /**
+   * Write two treble parts melody first: the soprano as a tune, the alto as a
+   * harmony part under it in thirds and sixths (two-part-treble.ts). Only
+   * takes effect with two treble voices. See melodyFirstFor.
+   */
+  melodyFirst?: boolean;
   /**
    * Restrict decoration to particular non-chord-tone types by name - the names
    * in the library in non-chord-tone-gen: "Suspension", "Passing Tone",
@@ -279,6 +286,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     partsObject
   );
 
+  const melodyFirst = !!params.melodyFirst && isTwoPartTreble(voiceParts);
+
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
     // A figure shorter than a quarter is excluded as a *standalone* rhythm,
@@ -371,7 +380,12 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     // A choral exercise is sung, not drilled: quarters and halves carry it and
     // the fast figures are punctuation. A unison rhythm exercise is the
     // opposite, so this is not the generator's default.
-    { favorLongerNotes: true, weightBias: params.rhythmBias }
+    {
+      favorLongerNotes: true,
+      weightBias: params.rhythmBias,
+      // Melody first, the bars take the shapes of the beginning repertoire: a half on the downbeat.
+      positionWeight: melodyFirst ? (r, pos) => barShapeWeight(r, pos, timeSig.tsPerMeasure) : undefined,
+    }
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
 
@@ -423,6 +437,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
     // 5. Build Chord Notes for All Voices
     try {
+      if (melodyFirst) {
+        // The tune chooses its chords; the planned ones are kept into each cadence.
+        const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
+        voiceNotes = written.voiceNotes;
+        chordProgression = written.progression;
+        break;
+      }
       voiceNotes = buildChordNotes(
         key,
         finalRhythms,
@@ -496,7 +517,9 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     tsPerMeasure: timeSig.tsPerMeasure,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     maxSkip,
-    probability: params.unisonProbability ?? 0,
+    // Written melody first, the parts sing in harmony from the start (Blaine's
+    // Level 1 SA piece does), meeting in unison only where a phrase ends.
+    probability: melodyFirst ? 0 : params.unisonProbability ?? 0,
   });
 
   // The consequent phrase rhymes the antecedent, making the exercise a parallel
