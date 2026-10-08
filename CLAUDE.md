@@ -470,6 +470,23 @@ nothing moves off the beat. Before, Levels III-V ran past four in 36-48% of
 exercises, up to fourteen in a row; now never. Max skip mode is untouched
 (its snapshots pin it).
 
+Compared with Sight Reading Factory's NYSSMA levels (8 October 2026, 127
+of theirs at Levels 1-5, soprano 4/4, against ours, the same checks): SRF
+breaks the chart where ours does not - skips landing on halves and eighths
+at II-V (6, 7, 13, 41 times in 25 exercises), skips to or from eighths,
+below do or past the range at IV and V (12 and 15 of 25), mp at Level IV,
+no dynamic at I-III - and puts rests anywhere (2-3 an exercise at II,
+most inside a phrase). Ours broke nothing, but over a progression it
+marked time (Level II 35% repeated notes against SRF's 21%) and Level I
+(no progression) ended on do 30% of the time. Now: the progression writer
+keeps the line, of up to four progressions (`LINE_CHOICES`), that marks
+time least (`markingTime`), and weighs a return to the note two before at
+0.35 (`ABA_WEIGHT`); a NYSSMA level ends on do (`endOnDo`, the walk too).
+Level II-V repeats 31/23/23/18%, A-B-A 13-18%, every exercise ends on do.
+The rest of the repeats are the chart's: with only rising skips (II-IV) a
+line comes down only by step, and a half note under V in do-la has re
+alone.
+
 ### TMEA All-State Voice levels
 
 `src/lib/tmea-presets.ts` (tests `tmea-presets.test.ts`, every cell

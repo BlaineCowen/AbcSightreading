@@ -275,8 +275,30 @@ export interface ProgressionLine {
 const SEARCH_BUDGET = 8000;
 /** How much more an altered note is wanted where one may go: it is what the phrase is for. */
 const ALTERED_WEIGHT = 4;
+/** A repeated pitch, and a return to the note two before (A-B-A), against a step (3). */
+const REPEAT_WEIGHT = 0.35;
+const ABA_WEIGHT = 0.35;
 
 const mod7 = (n: number) => ((n % 7) + 7) % 7;
+
+/** Lines written over different progressions before the one that marks time least is kept. */
+const LINE_CHOICES = 4;
+
+/**
+ * How much a line marks time: each sung note on the pitch before it, and
+ * half for each return to the pitch two before (mi re mi). A note held
+ * inside a figure (cap 0, a pair on one pitch) is the figure's, not the
+ * line's, and does not count; a rest is not sung.
+ */
+export function markingTime(notes: LineNote[], rhythm: { rest?: boolean }[]): number {
+  const sung = notes.filter((_, k) => !rhythm[k]?.rest).map((n) => n.pitchValue);
+  let cost = 0;
+  for (let k = 1; k < sung.length; k++) {
+    if (sung[k] === sung[k - 1]) cost += 1;
+    else if (k >= 2 && sung[k] === sung[k - 2]) cost += 0.5;
+  }
+  return cost;
+}
 
 /** A note the line may sing: a natural note of the range, or one altered. */
 type Cand = { note: LineNote; alter: Alteration | null; tone: boolean };
@@ -364,13 +386,21 @@ export function writeProgressionLine(input: ProgressionLineInput): ProgressionLi
     }
   }
 
-  // Each fitting progression in random order, until one takes a line over this rhythm.
+  // Each fitting progression in random order: lines over up to LINE_CHOICES
+  // of them, keeping the one that marks time least. In a narrow range with
+  // few skips a chord can leave one note to sing (V over do to la, rising
+  // skips only: re, bar after bar), and another progression need not.
   const shuffled = [...usable].sort(() => Math.random() - 0.5);
+  let best: { line: ProgressionLine; cost: number } | null = null;
+  let written = 0;
   for (const progression of shuffled) {
     const line = writeOver(progression);
-    if (line) return line;
+    if (!line) continue;
+    const cost = markingTime(line.notes, rhythm);
+    if (!best || cost < best.cost) best = { line, cost };
+    if (++written >= LINE_CHOICES || cost === 0) break;
   }
-  return null;
+  return best?.line ?? null;
 
   function writeOver(progression: Progression): ProgressionLine | null {
     // The plan: which phrases are chromatic, and over what.
@@ -473,7 +503,7 @@ export function writeProgressionLine(input: ProgressionLineInput): ProgressionLi
       if (prev) {
         const rise = n.pitchValue - prev.note.pitchValue;
         const d = Math.abs(rise);
-        w = [0.35, 3, 2, 1.1, 0.7, 0.45, 0.3, 0.25][Math.min(d, 7)];
+        w = [REPEAT_WEIGHT, 3, 2, 1.1, 0.7, 0.45, 0.3, 0.25][Math.min(d, 7)];
         // A chromatic step (fa to fi) is a semitone, not a repeat.
         if (d === 0 && c.alter !== prev.alter) w = 3;
         // A third time on one pitch only when the harmony leaves little else
@@ -483,6 +513,9 @@ export function writeProgressionLine(input: ProgressionLineInput): ProgressionLi
         if (before) {
           const last = prev.note.pitchValue - before.note.pitchValue;
           if (Math.abs(last) >= 3) w *= Math.sign(rise) === -Math.sign(last) && d <= 2 ? 2.5 : 0.4;
+          // Back to the note two before (mi re mi) sounds like marking time:
+          // as in unison-phrasing.ts, a step run carries on instead.
+          else if (d !== 0 && n.pitchValue === before.note.pitchValue) w *= ABA_WEIGHT;
         }
       } else {
         // Start in the middle of the range rather than at its edges.
