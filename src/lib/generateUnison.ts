@@ -1878,10 +1878,16 @@ function rhythmSyllableFor(
   // six to a dotted-quarter one. From the subdivision, not the slot count.
   const slotWidth = beatUnits / (meter.subdivision * 2);
   const slot = Math.floor((offsetInMeasure % beatUnits) / slotWidth);
+  // An eighth on the beat or off it, where the system gives eighths words of
+  // their own (simple meter only: compound eighths are its slots).
+  const eighthWord =
+    !compound && active.eighths && note.noteLength === beatUnits / 2 && (slot === 0 || slot === 2)
+      ? active.eighths[slot / 2]
+      : undefined;
   const startLabel =
     onBeat && note.noteLength >= beatUnits
       ? resolveSyllable(active.beat, position)
-      : resolveSyllable(slots[slot % slots.length], position);
+      : resolveSyllable(eighthWord ?? slots[slot % slots.length], position);
 
   const ctx: SyllableContext = { ...position, startLabel };
 
