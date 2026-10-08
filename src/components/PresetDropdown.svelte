@@ -54,6 +54,10 @@
   /** The NYSSMA level the settings came from, if any. */
   export let activeNyssmaId: string | null = null;
   export let onSelectNyssma: (id: string) => void = () => {};
+  /** The Unison page's TMEA All-State levels (tmea-presets.ts): four per level, one a voice part. */
+  export let tmeaLevels: { id: string; label: string; short: string; summary: string; level: number; part: string }[] = [];
+  export let activeTmeaId: string | null = null;
+  export let onSelectTmea: (id: string) => void = () => {};
   /**
    * What the Levels tab lists is what the teacher subscribes to
    * (src/lib/curriculum/catalogue.ts, chosen on /curriculum): the built-in
@@ -137,6 +141,7 @@
     : activeIsSaved && activeSavedId ? presetKeyOf.saved(activeSavedId)
     : activeUILKey ? presetKeyOf.uil(activeUILKey)
     : activeNyssmaId ? presetKeyOf.nyssma(activeNyssmaId)
+    : activeTmeaId ? presetKeyOf.tmea(activeTmeaId)
     : null;
   $: passed = (key: string) => !!selectedClass?.passed[key];
   /**
@@ -276,7 +281,7 @@
   let panel: HTMLElement;
 
   $: uilOffered = showBuiltins && !hideUILLevels;
-  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tracks: tracks.length, subscribed: $trackPrefs.tracks });
+  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tmea: tmeaLevels.length > 0, tracks: tracks.length, subscribed: $trackPrefs.tracks });
   /** Where each subscribed track's class goes next: the half after the furthest one passed. */
   $: trackNext = Object.fromEntries((tracks ?? []).map((t) => {
     const halves = t.steps.flatMap((s) => [trackPresetKey(s.id, 'rhythm'), ...(s.notes ? [trackPresetKey(s.id, 'notes')] : [])]);
@@ -300,11 +305,11 @@
   $: activeUILLevel = uilOffered && !activeStepId && !activeIsSaved && Object.values(uilPresets).some(p => p.label === activeLabel);
 
   const UIL_NOTES: Record<string, string> = {
-    'UIL 1': 'I, IV, V · C, F and G major · whole, half and quarter notes',
-    'UIL 2': '+ V7, D major, dotted quarter-eighth',
-    'UIL 3': '+ ii, vi, Bb major, eighth pairs, dotted halves',
-    'UIL 4': '+ secondary dominants, up to 3 sharps or flats',
-    'UIL 5': '+ minor keys, sixteenths, up to 4 sharps or flats',
+    'UIL 1': 'I, IV, V, V7 · F and G major · whole to quarter notes, a few eighth pairs',
+    'UIL 2': '+ ii, vi, dotted quarter-eighth on strong beats',
+    'UIL 3': '+ B♭, C, D major, more eighths, skips to a 5th',
+    'UIL 4': '+ iii, up to 3 sharps or flats, 2/4',
+    'UIL 5': '+ fi, si, di, te, a turn to the relative minor',
   };
 
   /**
@@ -313,9 +318,9 @@
    * scrolls it into view.
    */
   async function openPanel() {
-    const active = { step: !!activeStepId, nyssma: !!activeNyssmaId, uil: activeUILLevel, track: !!activeTrackKey };
+    const active = { step: !!activeStepId, nyssma: !!activeNyssmaId, uil: activeUILLevel, track: !!activeTrackKey, tmea: !!activeTmeaId };
     tab = activeStepId || activeTrackKey ? 'levels' : activeIsSaved ? 'mine'
-      : activeNyssmaId || activeUILLevel ? 'levels'
+      : activeNyssmaId || activeTmeaId || activeUILLevel ? 'levels'
       : tab;
     const activeTrack = activeTrackKey ? tracks?.find((t) => activeTrackKey!.startsWith(`track:${t.id}-`)) : undefined;
     if (activeTrack) openTracks = new Set([...openTracks, activeTrack.id]);
@@ -667,7 +672,7 @@
                   <p class="text-xs text-sr-muted px-2 pt-2">
                     What each Texas UIL level asks for. For building up to one, use abcStepByStep.
                   </p>
-                {:else}
+                {:else if section.id === 'nyssma'}
                   <ul>
                     {#each nyssmaLevels as level}
                       <li>
@@ -687,6 +692,29 @@
                     NYSSMA solo voice sight-reading criteria (Manual, Edition 33). Each level sets keys,
                     meters, skips, rhythms, tempo and dynamics. Your clef stays, and the level's range
                     is placed from your low note. Level VI comes later.
+                  </p>
+                {:else}
+                  {#each [1, 2, 3, 4] as n}
+                    {@const row = tmeaLevels.filter((l) => l.level === n)}
+                    <div class="px-2 pt-2">
+                      <p class="text-xs text-sr-muted">{row[0]?.summary.split(' · ')[0] ?? ''} · Level {['I', 'II', 'III', 'IV'][n - 1]}</p>
+                      <div class="flex flex-wrap gap-1.5 pt-1" role="group" aria-label={`Level ${n}`}>
+                        {#each row as level}
+                          <button
+                            type="button"
+                            class="sr-tok text-sm {level.id === activeTmeaId ? 'sr-on' : ''}"
+                            aria-current={level.id === activeTmeaId ? 'true' : undefined}
+                            title={level.summary}
+                            on:click={() => choose(() => onSelectTmea(level.id))}
+                          >{level.part}{#if selectedClass && passed(presetKeyOf.tmea(level.id))}<Check size={12} class="inline ml-1" /><span class="sr-only">passed</span>{/if}</button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
+                  <p class="text-xs text-sr-muted px-2 pt-2">
+                    TMEA's Path to All-State sight-reading levels (July 2025): each sets the part's keys,
+                    range and clef, the meters (with the length each takes), rhythms and the widest
+                    interval. The first bar is all quarter notes, all eighths in 6/8.
                   </p>
                 {/if}
               </div>

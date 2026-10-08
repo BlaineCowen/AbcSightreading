@@ -1,11 +1,12 @@
 import { STEP_COUNT, ladder, stepHref } from "../ladder";
 import { nyssmaVoiceLevels } from "../nyssma-presets";
+import { tmeaVoiceLevels } from "../tmea-presets";
 import { TRACKS, trackById } from "./tracks";
 
 /**
  * Everything a teacher can subscribe to, so the preset menu holds only what
  * they teach from: the site's own sets (abcStepByStep, UIL, NYSSMA Voice) and
- * the instrument tracks (src/lib/curriculum/tracks.ts). abcStepByStep is
+ * TMEA All-State Voice) and the instrument tracks (src/lib/curriculum/tracks.ts). abcStepByStep is
  * subscribed until the teacher chooses otherwise (DEFAULT_SUBSCRIPTIONS).
  *
  * The built-in sets are free to subscribe to, signed out too (kept in this
@@ -15,6 +16,7 @@ import { TRACKS, trackById } from "./tracks";
 export const STEP_BY_STEP = "abc-step-by-step";
 export const UIL_CHOIR = "uil-choir";
 export const NYSSMA_VOICE = "nyssma-voice";
+export const TMEA_ALLSTATE = "tmea-allstate-voice";
 
 export interface BuiltinSet {
   id: string;
@@ -55,6 +57,15 @@ export const BUILTIN_SETS: BuiltinSet[] = [
     facts: [["Levels", `I to ${["I", "II", "III", "IV", "V"][nyssmaVoiceLevels.length - 1]}`], ["Page", "Unison"], ["Source", "NYSSMA Manual, Ed. 33"]],
     href: `/sightreading?nyssma=${nyssmaVoiceLevels[0].id}`,
     color: "mint",
+  },
+  {
+    id: TMEA_ALLSTATE,
+    name: "TMEA All-State Voice",
+    level: "Texas All-State auditions",
+    blurb: "The Path to All-State sight-reading rounds, District to Area: each level's keys, range and meters for your voice part.",
+    facts: [["Levels", "I to IV"], ["Parts", "S, A, T, B"], ["Source", "TMEA, July 2025"]],
+    href: `/sightreading?tmea=${tmeaVoiceLevels[0].id}`,
+    color: "butter",
   },
 ];
 
