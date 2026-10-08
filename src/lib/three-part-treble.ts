@@ -34,7 +34,7 @@ import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
 import { listedSkip, type SkipLevel } from "./uil-skips";
-import { pickByChord } from "./part-writer";
+import { alteredOf, isChromatic, pickByChord } from "./part-writer";
 
 /** What a part does: its share of time on each degree (do re mi fa so la ti) and the cost of each move, in diatonic steps. */
 type Job = { degrees: number[]; move: number[]; bass?: boolean };
@@ -195,6 +195,8 @@ function writeOnce(o: ThreePartOptions) {
   let afterCadence = true;
   /** Soprano 2 is in a suspension and must fall a step next. */
   let suspended = false;
+  /** A part owes its altered note's resolution: the direction it must step next. */
+  const owed = [0, 0, 0];
   const holdsDo = jobs[1] !== DUET_CRADLE;
 
   for (let step = 0; step < o.rhythms.length; step++) {
@@ -238,7 +240,11 @@ function writeOnce(o: ThreePartOptions) {
       holdsDo && cadence && rhythm.totalValue >= 16 && mod7(planned.root) === 4 &&
       lines[1].at(-1)?.degree === 0 && rand() < HALF_CADENCE_SUSPENSION_RATE;
 
-    const choices: { chord: Chord; cost: number }[] = suspend
+    // The plan's chromatic chords, and what they resolve to, are kept (part-writer.ts).
+    const keepPlan = isChromatic(planned) || (isChromatic(held) && planned !== held);
+    const choices: { chord: Chord; cost: number }[] = keepPlan
+      ? [{ chord: planned, cost: 0 }]
+      : suspend
       ? [{ chord: vNext!, cost: 0 }]
       : intoCadence
       ? [
@@ -270,6 +276,7 @@ function writeOnce(o: ThreePartOptions) {
       const next = new Set([...toneSet(o.progression[chordIndex + 1] ?? chord), ...tones, ...(weak ? toneSet(home) : [])]);
       const leaves = (n: Note) => [-1, 0, 1].some((d) => next.has(mod7(n.degree + d)));
 
+      const altered = alteredOf(chord);
       // Each part's candidates on their own, scored by its job.
       const cands = parts.map((part, v) => {
         const job = jobs[v];
@@ -278,6 +285,9 @@ function writeOnce(o: ThreePartOptions) {
         const target = centres[v] - (v === 0 ? 1 - o.texture.arch * rise : v === 2 ? 1 : 0);
         return part.possibleNotes.flatMap((n) => {
           let extra = 0;
+          // An altered note: reached by step, resolved by step the way it leans, never doubled.
+          if (owed[v] && prev && !(chord === held && n.pitchValue === prev.pitchValue) && n.pitchValue !== prev.pitchValue + owed[v]) return [];
+          if (altered && n.degree === altered.degree && prev && Math.abs(n.pitchValue - prev.pitchValue) > 1) return [];
           if (nct[v] && prev && Math.abs(n.pitchValue - prev.pitchValue) !== 1) return []; // a passing or neighbour note leaves by step
           if (v === 1 && suspended && prev && n.pitchValue !== prev.pitchValue - 1) return []; // a suspension falls a step
           if (v === 1 && susHalf) {
@@ -330,6 +340,7 @@ function writeOnce(o: ThreePartOptions) {
             const notes = [a.n, b.n, c.n];
             // No doubled leading tone; no parallel fifths, octaves or unisons between any pair.
             if (notes.filter((n) => n.degree === 6).length > 1) continue;
+            if (altered && notes.filter((n) => n.degree === altered.degree).length > 1) continue;
             let parallel = false;
             for (const [x, y] of [[0, 1], [1, 2], [0, 2]]) {
               const px = lines[x].at(-1), py = lines[y].at(-1);
@@ -341,6 +352,7 @@ function writeOnce(o: ThreePartOptions) {
             const classes = new Set(notes.map((n) => n.degree)).size;
             let cost = chordCost + a.cost + b.cost * 0.7 + c.cost * 0.7 + UPPER[ab] + LOWER[bc];
             if (classes < 3 && !cadence && !first && !weak) cost += INCOMPLETE;
+            if (altered && !notes.some((n) => n.degree === altered.degree)) cost += 6; // a chromatic chord without its altered note is not one
             combos.push({ chord, tones, notes, nct: [a.nct, b.nct, c.nct], cost });
           }
         }
@@ -389,6 +401,8 @@ function writeOnce(o: ThreePartOptions) {
       lines[v].push(notes[v]);
       nct[v] = choice.nct[v];
       if (v === 1) suspended = suspend;
+      const alt = alteredOf(chord);
+      owed[v] = alt && notes[v].degree === alt.degree ? alt.lean : owed[v] && chord === held && notes[v].pitchValue === lines[v].at(-2)?.pitchValue ? owed[v] : 0;
     });
     held = chord;
     afterCadence = cadence;

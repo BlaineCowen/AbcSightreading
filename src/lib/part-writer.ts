@@ -116,6 +116,8 @@ const ATTEMPTS = 40;
 const SUSPENSION_RATE = 0.9;
 const HALF_CADENCE_SUSPENSION_RATE = 0.9;
 const PREPARE = 4;
+/** A chromatic chord sung without its altered note is the diatonic chord again: what a drill of that note must not be. */
+const MISSING_ALTERED = 6;
 
 /** The tune over the part below it: a third, a fourth or a unison now and then (Blaine's pieces). */
 const TOP: Record<number, number> = { 2: 0, 3: 1.2, 0: 1.6, 5: 1.0, 4: 1.6, 7: 2.0 };
@@ -156,6 +158,12 @@ export function pickByChord<T extends { chord: Chord; cost: number }>(options: T
   const chosen = pick(best, rand);
   return chosen ? pick(byChord.get(chosen.chord)!, rand) : null;
 }
+
+/** A chord with an altered note: a secondary dominant, V7/IV, a borrowed chord. */
+export const isChromatic = (c: Chord | null | undefined) => !!c && (c.sharpScaleDegree != null || c.flatScaleDegree != null);
+/** Its altered degree and the way that note leans: up for a raised one (fi, si, di), down for a lowered one (te). */
+export const alteredOf = (c: Chord | null | undefined): { degree: number; lean: 1 | -1 } | null =>
+  !c ? null : c.sharpScaleDegree != null ? { degree: mod7(c.sharpScaleDegree), lean: 1 } : c.flatScaleDegree != null ? { degree: mod7(c.flatScaleDegree), lean: -1 } : null;
 
 export type PartWriterOptions = {
   key: string;
@@ -220,6 +228,8 @@ function writeOnce(o: PartWriterOptions) {
   let at = 0;
   let afterCadence = true;
   let suspended = false;
+  /** A part owes its altered note's resolution: the direction it must step next (0 when it owes nothing). */
+  const owed = parts.map(() => 0);
 
   for (let step = 0; step < o.rhythms.length; step++) {
     const rhythm = o.rhythms[step] as R;
@@ -252,7 +262,13 @@ function writeOnce(o: PartWriterOptions) {
     const prepareHalf = holder >= 0 && !cadence && !!nextR?.isCadenceEnd && nextR.totalValue >= 16 && !!vNext && mod7(vNext.root) === 4;
     const susHalf = holderOnDo && cadence && rhythm.totalValue >= 16 && mod7(planned.root) === 4 && rand() < HALF_CADENCE_SUSPENSION_RATE;
 
-    const choices: { chord: Chord; cost: number }[] = suspend
+    // A chromatic chord the plan placed (Focus on a chord, the chromatic chords
+    // ticked, Chromatic frequency) is sung where it was placed, and so is the
+    // chord it resolves to: the plan wrote them as a pair.
+    const keepPlan = isChromatic(planned) || (isChromatic(held) && planned !== held);
+    const choices: { chord: Chord; cost: number }[] = keepPlan
+      ? [{ chord: planned, cost: 0 }]
+      : suspend
       ? [{ chord: vNext!, cost: 0 }]
       : intoCadence
         ? [
@@ -284,6 +300,7 @@ function writeOnce(o: PartWriterOptions) {
       const next = new Set([...toneSet(o.progression[chordIndex + 1] ?? chord), ...tones, ...(weak ? toneSet(home) : [])]);
       const leaves = (n: Note) => [-1, 0, 1].some((d) => next.has(mod7(n.degree + d)));
 
+      const altered = alteredOf(chord);
       const cands: Cand[][] = parts.map((part, v) => {
         const job = jobs[v];
         const line = lines[v];
@@ -291,6 +308,14 @@ function writeOnce(o: PartWriterOptions) {
         const target = centres[v] + (v === 0 ? o.texture.arch * rise - 1 : v === low ? -1 : 0);
         return part.possibleNotes.flatMap((n): Cand[] => {
           let extra = 0;
+          // An altered note resolves by step the way it leans (fi up to sol, te
+          // down to la), or holds while its chord does.
+          if (owed[v] && prev) {
+            const held_ = chord === held && n.pitchValue === prev.pitchValue;
+            if (!held_ && n.pitchValue !== prev.pitchValue + owed[v]) return [];
+          }
+          // The altered note itself, approached by step or held (the accidentals-by-step rule).
+          if (altered && n.degree === altered.degree && prev && Math.abs(n.pitchValue - prev.pitchValue) > 1) return [];
           if (nct[v] && prev && Math.abs(n.pitchValue - prev.pitchValue) !== 1) return [];
           if (v === holder && suspended && prev && n.pitchValue !== prev.pitchValue - 1) return [];
           if (v === holder && susHalf) {
@@ -334,11 +359,13 @@ function writeOnce(o: PartWriterOptions) {
         if (v === N) {
           const notes = chosen.map((c) => c.n);
           if (notes.filter((n) => n.degree === 6).length > 1) return;
+          if (altered && notes.filter((n) => n.degree === altered.degree).length > 1) return; // never doubled
           const classes = new Set(notes.map((n) => n.degree)).size;
           let cost = chordCost;
           chosen.forEach((c, i) => (cost += c.cost * (i === 0 ? 1 : 0.7)));
           for (let i = 0; i + 1 < N; i++) cost += pairOf(i).table[notes[i].pitchValue - notes[i + 1].pitchValue] ?? 0;
           if (classes < Math.min(3, N) && !cadence && !first && !weak) cost += INCOMPLETE * (N >= 4 ? 1.5 : 1);
+          if (altered && !notes.some((n) => n.degree === altered.degree)) cost += MISSING_ALTERED;
           options.push({ chord, tones, notes, nct: chosen.map((c) => c.nct), cost });
           return;
         }
@@ -410,6 +437,8 @@ function writeOnce(o: PartWriterOptions) {
       lines[v].push(notes[v]);
       nct[v] = choice.nct[v];
       if (v === holder) suspended = suspend;
+      const alt = alteredOf(chord);
+      owed[v] = alt && notes[v].degree === alt.degree ? alt.lean : owed[v] && chord === held && notes[v].pitchValue === lines[v].at(-2)?.pitchValue ? owed[v] : 0;
     });
     held = chord;
     afterCadence = cadence;

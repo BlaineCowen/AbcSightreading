@@ -35,6 +35,7 @@ import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
 import { listedSkip, type SkipLevel } from "./uil-skips";
+import { alteredOf, isChromatic } from "./part-writer";
 
 /**
  * What each voicing's pair of parts is like, from Blaine's pieces
@@ -210,6 +211,9 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
   const S: Note[] = [];
   const A: Note[] = [];
   let sNct = false;
+  /** Each part owes its altered note's resolution: the direction it must step next. */
+  let owedS = 0;
+  let owedA = 0;
   let aNct = false;
   let chordIndex = 0;
   let held: Chord | null = null;
@@ -249,7 +253,9 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
     // Which chords this note may carry: the plan's into a cadence, the one
     // held through a weak beat or a pattern, the tonic to open a phrase, else
     // any the level has - chosen with the tune.
-    const choices: { chord: Chord; cost: number }[] = intoCadence
+    // The plan's chromatic chords, and what they resolve to, are kept (part-writer.ts).
+    const keepPlan = isChromatic(planned) || (isChromatic(held) && planned !== held);
+    const choices: { chord: Chord; cost: number }[] = keepPlan || intoCadence
       ? [{ chord: planned, cost: 0 }]
       : weak && held
         ? [{ chord: held, cost: 0 }]
@@ -276,12 +282,16 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
     const pA = A.at(-1) ?? null;
     const options = choices.flatMap(({ chord, cost: chordCost }) => {
       const tones = toneSet(chord);
+      const altered = alteredOf(chord);
       const tonic = chord.symbol === "I";
       // What follows may be this chord held or the plan's next: leave by step into either.
       const next = new Set([...toneSet(o.progression[chordIndex + 1] ?? chord), ...tones, ...(weak ? toneSet(home) : [])]);
       const leaves = (n: Note) => [-1, 0, 1].some((d) => next.has(mod7(n.degree + d)));
       /** Extra cost of singing `n` here: 0 a chord tone, NCT_COST a passing or neighbour note, null not at all. */
-      const allowed = (n: Note, prev: Note | null, prevNct: boolean) => {
+      const allowed = (n: Note, prev: Note | null, prevNct: boolean, owe = 0) => {
+        // An altered note: reached by step, resolved by step the way it leans.
+        if (owe && prev && !(chord === held && n.pitchValue === prev.pitchValue) && n.pitchValue !== prev.pitchValue + owe) return null;
+        if (altered && n.degree === altered.degree && prev && Math.abs(n.pitchValue - prev.pitchValue) > 1) return null;
         if (prevNct && prev && Math.abs(n.pitchValue - prev.pitchValue) !== 1) return null; // a passing or neighbour note leaves by step
         if (tones.has(n.degree)) return 0;
         if (!weak || !prev || Math.abs(n.pitchValue - prev.pitchValue) !== 1 || !leaves(n)) return null;
@@ -307,7 +317,8 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
       };
       const altScored = (s: Note, sExtra: number) =>
         alt.possibleNotes.flatMap((a) => {
-          const extra = allowed(a, pA, aNct);
+          const extra = allowed(a, pA, aNct, owedA);
+          if (altered && a.degree === altered.degree && s.degree === altered.degree) return []; // never doubled
           if (extra === null) return [];
           const apart = s.pitchValue - a.pitchValue;
           if (apart < 0 || !(apart in pf.vertical)) return []; // no crossing, no 2nds or 7ths, nothing past an octave
@@ -325,7 +336,7 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
           return [{ a, aExtra: extra, cost }];
         });
       return sop.possibleNotes.flatMap((s) => {
-        const sExtra = allowed(s, pS, sNct);
+        const sExtra = allowed(s, pS, sNct, owedS);
         if (sExtra === null) return [];
         if (!leapOk(pS, s)) return [];
         if (!pS && s.degree !== 2 && s.degree !== 0) return []; // over do: mi, or a unison do
@@ -336,7 +347,11 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
         if (pS && S.at(-2)?.pitchValue === s.pitchValue && S.at(-3)?.pitchValue === pS.pitchValue && s.pitchValue !== pS.pitchValue) cost += SEESAW;
         if (cadence && tonic) cost += final ? (s.degree === 0 ? 0 : s.degree === 2 ? 0.8 : 5) : s.degree === 2 || s.degree === 0 ? 0 : 3;
         if (cadence && !tonic) cost += s.degree === 1 ? 0 : 2; // re over the half cadence
-        return altScored(s, sExtra).map((p) => ({ chord, tones, s, a: p.a, cost: cost + p.cost * 0.6 }));
+        return altScored(s, sExtra).map((p) => ({
+          chord, tones, s, a: p.a,
+          // A chromatic chord without its altered note is not one: what a drill of that note must not be.
+          cost: cost + p.cost * 0.6 + (altered && s.degree !== altered.degree && p.a.degree !== altered.degree ? 6 : 0),
+        }));
       });
     });
 
@@ -367,6 +382,9 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
       lastSymbol = label;
       lastChord = chord;
     }
+    const leaning = alteredOf(chord);
+    owedS = leaning && s.degree === leaning.degree ? leaning.lean : owedS && chord === held && s.pitchValue === S.at(-1)?.pitchValue ? owedS : 0;
+    owedA = leaning && a.degree === leaning.degree ? leaning.lean : owedA && chord === held && a.pitchValue === A.at(-1)?.pitchValue ? owedA : 0;
     sNct = !tones.has(s.degree);
     aNct = !tones.has(a.degree);
     // Marked as decoration, so the restatement pass does not stack another figure on it.

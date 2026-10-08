@@ -1262,7 +1262,13 @@ page passes `partWriterLevel`. All six voicings are offered at every level.
 Measured: SATB Level 3 against Our Hero, alto on do 62% (62), chords
 complete 83% (83), bass leaping 32% of moves (38). Known: it leans on V
 (the tune on re 28%, his 15%), the planned cadences' doing more than chord
-choice; Level 5's chromatic chords appear only where the plan puts them.
+choice. Chromatic practice works at every level (Focus on a chord, chromatic
+chords ticked, Chromatic frequency): the new writers keep the plan's
+chromatic chords and the chord each resolves to (`keepPlan`), and lead the
+altered note by step in, by step out the way it leans, never doubled,
+costing a voicing without it (`MISSING_ALTERED`). Focus on V/V: 87-100% of
+exercises carry fi across the writers; V7/IV 77-100% (the general writer
+managed 0% at Levels 2-3). Tests `chromatic-drill.test.ts`.
 
 **The UIL levels follow UIL's current criteria** (read from uiltexas.org on
 7 October 2026 and checked with Blaine; notes/uil-criteria.md, which ends

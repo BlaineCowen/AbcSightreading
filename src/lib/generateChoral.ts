@@ -602,7 +602,10 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     // notes", Blaine, 7 October 2026), and Level 1's list of skips.
     leapOk: (from, to) =>
       (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
-      (!((melodyFirst || ssa || partTexture) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)),
+      (!((melodyFirst || ssa || partTexture) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)) &&
+      // An altered note is reached by step (accidentals by step); a restated
+      // phrase's seam leapt to one now and then.
+      (!accidentalsByStep || !to.accidental || Math.abs(to.pitchValue - from.pitchValue) <= 1),
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 
