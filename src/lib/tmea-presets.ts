@@ -120,6 +120,48 @@ const PARTS: TmeaPart[] = ["Soprano", "Alto", "Tenor", "Bass"];
 export const tmeaVoiceLevels: TmeaLevel[] = ([1, 2, 3, 4] as const).flatMap((n) => PARTS.map((p) => level(n, p)));
 export const tmeaById: Record<string, TmeaLevel> = Object.fromEntries(tmeaVoiceLevels.map((l) => [l.id, l]));
 
+/**
+ * The levels as a teacher picks them: four, the voice part coming from the
+ * instrument pill (readers.ts), so a level is one preset and one class
+ * check mark for every part. The per-part entries above are what each part
+ * reads (keys, range, clef); their ids, the presets' first form, still open
+ * as their level with the part set (`tmeaLevelOf`).
+ */
+export interface TmeaChoice {
+  /** Stable: "tmea-voice-2". Stored as the active level and in class progress. Never rename. */
+  id: string;
+  label: string;
+  short: string;
+  summary: string;
+  level: 1 | 2 | 3 | 4;
+}
+
+export const TMEA_LEVELS: TmeaChoice[] = ([1, 2, 3, 4] as const).map((n) => {
+  const soprano = tmeaVoiceLevels.find((l) => l.level === n && l.part === "Soprano")!;
+  return {
+    id: `tmea-voice-${n}`,
+    label: `TMEA All-State Level ${ROMAN[n - 1]}`,
+    short: `Level ${ROMAN[n - 1]}`,
+    // The round, meters and interval; keys and range are the part's.
+    summary: [ROUND[n], soprano.meters.join(", "), n === 1 ? "to a 4th" : n === 2 ? "to a 5th" : "to an octave", ...(n === 4 ? ["fi, si"] : [])].join(" · "),
+    level: n,
+  };
+});
+
+export const TMEA_PARTS: TmeaPart[] = ["Soprano", "Alto", "Tenor", "Bass"];
+
+/** A level id, new or a per-part one of the first form: its level, and the part when the id names one. */
+export function tmeaLevelOf(id: string): { level: TmeaChoice; part: TmeaPart | null } | null {
+  const m = /^tmea-voice-([1-4])(?:-(soprano|alto|tenor|bass))?$/.exec(id);
+  if (!m) return null;
+  const part = m[2] ? ((m[2][0].toUpperCase() + m[2].slice(1)) as TmeaPart) : null;
+  return { level: TMEA_LEVELS[Number(m[1]) - 1], part };
+}
+
+/** What one part reads at a level. */
+export const tmeaPartLevel = (level: number, part: TmeaPart): TmeaLevel =>
+  tmeaVoiceLevels.find((l) => l.level === level && l.part === part)!;
+
 /** Max skip, not a list of skips: the chart gives a largest interval. */
 export const tmeaSkips = (): SkipSettings => ({ exactOn: false, patterns: [], extraSkips: [], landOn: [...ALL_LAND_ON] });
 

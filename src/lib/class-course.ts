@@ -14,7 +14,7 @@
 import { ladder, stepHref, stepTitle } from "./ladder";
 import { uilPresets } from "./uil-presets";
 import { nyssmaById, nyssmaVoiceLevels } from "./nyssma-presets";
-import { tmeaById, tmeaVoiceLevels } from "./tmea-presets";
+import { TMEA_LEVELS, tmeaLevelOf } from "./tmea-presets";
 import { STEP_BY_STEP } from "./curriculum/catalogue";
 import { stepOfKey, trackById, trackHref, trackStepLabel } from "./curriculum/tracks";
 import { presetHref, type PresetPage } from "./preset-link";
@@ -79,7 +79,10 @@ export function itemForKey(key: string, own: OwnPreset[]): CourseItem | null {
   }
   if (kind === "uil") return uilPresets[rest] ? { key, label: uilPresets[rest].label, href: uilHref(rest) } : null;
   if (kind === "nyssma") return nyssmaById[rest] ? { key, label: nyssmaById[rest].label, href: nyssmaHref(rest) } : null;
-  if (kind === "tmea") return tmeaById[rest] ? { key, label: tmeaById[rest].label, href: tmeaHref(rest) } : null;
+  if (kind === "tmea") {
+    const found = tmeaLevelOf(rest);
+    return found ? { key, label: found.part ? `${found.level.label} · ${found.part}` : found.level.label, href: tmeaHref(rest) } : null;
+  }
   if (kind === "track") {
     const found = stepOfKey(key);
     return found ? { key, label: trackStepLabel(found.track, found.step, found.part), href: trackHref(found.step.id, found.part) } : null;
@@ -107,7 +110,7 @@ export function hiddenItems(cls: { course: string | null; courseSteps: string[] 
 export const LEVEL_ITEMS: CourseItem[] = [
   ...Object.entries(uilPresets).map(([k, p]) => ({ key: presetKeyOf.uil(k), label: p.label, href: uilHref(k) })),
   ...nyssmaVoiceLevels.map((l) => ({ key: presetKeyOf.nyssma(l.id), label: l.label, href: nyssmaHref(l.id) })),
-  ...tmeaVoiceLevels.map((l) => ({ key: presetKeyOf.tmea(l.id), label: l.label, href: tmeaHref(l.id) })),
+  ...TMEA_LEVELS.map((l) => ({ key: presetKeyOf.tmea(l.id), label: l.label, href: tmeaHref(l.id) })),
 ];
 
 /** The first item not yet passed: what Practice opens next. */

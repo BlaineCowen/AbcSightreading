@@ -9,7 +9,7 @@
  *   saved:<preset id>       one of the director's own saved presets
  *   track:<step id>:<part>  half of a curriculum track's step (src/lib/curriculum)
  *   nyssma:<level id>       a NYSSMA Voice level ("nyssma:nyssma-voice-3")
- *   tmea:<level id>         a TMEA All-State level ("tmea:tmea-voice-2-alto")
+ *   tmea:<level id>         a TMEA All-State level ("tmea:tmea-voice-2"; "tmea-voice-2-alto" from before the part moved to the instrument pill)
  *
  * Built-in presets have no database row, so they are named rather than
  * referenced; a saved preset is both, so deleting it deletes its checkmarks.
@@ -17,7 +17,7 @@
 import { ladderById } from "./ladder";
 import { uilPresets } from "./uil-presets";
 import { nyssmaById } from "./nyssma-presets";
-import { tmeaById } from "./tmea-presets";
+import { tmeaLevelOf } from "./tmea-presets";
 import { parseTrackKey } from "./curriculum/subscriptions";
 
 export const MAX_CLASSES = 50;
@@ -57,7 +57,8 @@ export function parsePresetKey(value: unknown): PresetKey | null {
   if (kind === "uil" && uilPresets[rest]) return { kind, level: rest };
   if (kind === "saved" && /^[A-Za-z0-9_-]{1,64}$/.test(rest)) return { kind, id: rest };
   if (kind === "nyssma" && Object.hasOwn(nyssmaById, rest)) return { kind, id: rest };
-  if (kind === "tmea" && Object.hasOwn(tmeaById, rest)) return { kind, id: rest };
+  // A level ("tmea-voice-2"), or a part's level of the first form ("tmea-voice-2-alto"), kept so its check marks still read.
+  if (kind === "tmea" && tmeaLevelOf(rest)) return { kind, id: rest };
   if (kind === "track") {
     const t = parseTrackKey(value);
     if (t) return { kind, ...t };

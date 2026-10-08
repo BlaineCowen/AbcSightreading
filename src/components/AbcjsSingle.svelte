@@ -113,7 +113,7 @@
     readShortSkipParams, eighthsFrom, capsFor, MAX_SKIP_RANGE,
   } from "../lib/short-note-skips";
   import { nyssmaById, nyssmaVoiceLevels, type NyssmaLevel } from "../lib/nyssma-presets";
-  import { tmeaById, tmeaMeasures, tmeaSkips, tmeaVoiceLevels, type TmeaLevel } from "../lib/tmea-presets";
+  import { TMEA_LEVELS, tmeaLevelOf, tmeaMeasures, tmeaPartLevel, tmeaSkips, type TmeaPart } from "../lib/tmea-presets";
   import { ladderById, rangeForSpan, rangeForStep, stepHref, stepLabel, STEP_PARAM, type LadderStep } from "../lib/ladder";
   import {
     drawFromPool, limitFrom, meterPoolClick, parseLimit, parsePool, parseSpan, placeSpan, presetSignature, poolFrom, sameKindPool, setupSnapshot, spanFrom, togglePoolMember,
@@ -666,7 +666,12 @@
   let activeNyssmaId: string | null = null;
   /** The TMEA All-State level the settings came from (tmea-presets.ts): its lengths by meter and first bar apply while it is. */
   let activeTmeaId: string | null = null;
-  $: activeTmea = activeTmeaId ? tmeaById[activeTmeaId] ?? null : null;
+  // Its lengths by meter are the same for every part.
+  $: activeTmea = activeTmeaId ? tmeaPartFor(activeTmeaId, "Soprano") : null;
+  function tmeaPartFor(id: string, part: TmeaPart) {
+    const found = tmeaLevelOf(id);
+    return found ? tmeaPartLevel(found.level.level, part) : null;
+  }
   /** The curriculum track step (and half) the settings came from: "track:band-trumpet-03:notes". */
   let activeTrackKey: string | null = null;
   /**
@@ -702,11 +707,8 @@
     else if (r.family === "voice" && !VOICE_PROGRAMS.has(instrumentProgram)) await handleSoundChange(DEFAULT_INSTRUMENT);
     if (r.transposeSemitones !== transposeSemitones) await handleTransposeChange(r.transposeSemitones);
     if (activeNyssmaId && r.family === "voice" && Object.hasOwn(nyssmaById, activeNyssmaId)) applyNyssmaLevel(nyssmaById[activeNyssmaId]);
-    else if (activeTmeaId && r.family === "voice" && Object.hasOwn(tmeaById, activeTmeaId)) {
-      const now = tmeaById[activeTmeaId];
-      const part = r.tmeaPart ? tmeaVoiceLevels.find((l) => l.level === now.level && l.part === r.tmeaPart) : now;
-      applyTmeaLevel(part ?? now);
-    } else if (activeStepId && r.family === "voice") {
+    else if (activeTmeaId && r.family === "voice" && tmeaLevelOf(activeTmeaId)) applyTmeaLevel(activeTmeaId);
+    else if (activeStepId && r.family === "voice") {
       const step = Object.hasOwn(ladderById, activeStepId) ? ladderById[activeStepId] : undefined;
       if (step) applyLadderStep(step);
     } else if (activeTrackKey) {
@@ -987,8 +989,18 @@
    * each exercise takes the rhythms of the meter drawn), the largest interval,
    * fi and si at Level IV. Its length follows the meter drawn and its first
    * bar is all beat notes, while it is the active preset.
+   *
+   * `id` is a level ("tmea-voice-2"); the part is the one it names (a link
+   * of the first form, "tmea-voice-2-alto"), else the instrument pill's, else
+   * a plain voice's by clef (bass clef the Bass, else the Soprano). The pill
+   * is then set to that part.
    */
-  function applyTmeaLevel(level: TmeaLevel) {
+  function applyTmeaLevel(id: string) {
+    const found = tmeaLevelOf(id);
+    if (!found) return;
+    const voice = readerNow();
+    const part: TmeaPart = found.part ?? voice?.tmeaPart ?? (voice?.clef === "bass" ? "Bass" : "Soprano");
+    const level = tmeaPartLevel(found.level.level, part);
     rhythmOnly = false;
     chooseMeter(level.meters[0]);
     selectedRhythms = resolveSelectedRhythms(level.rhythms, level.meters[0]);
@@ -1011,16 +1023,16 @@
     rangeLimit = null;
     selectedRange = { ...level.range };
     rangeAnchor = level.range.min;
-    activePresetLabel = level.label;
-    activeTmeaId = level.id;
+    activePresetLabel = `${found.level.label} · ${part}`;
+    activeTmeaId = found.level.id;
     activeNyssmaId = null;
     activeSavedId = null;
     activeStepId = null;
     activeTrackKey = null;
-    revertPreset = () => applyTmeaLevel(level);
-    // A part's level is that part reading: the pill says so (a plain voice too).
-    const part = readerForTmeaPart(level.part);
-    if (part && readerId !== part.id) setReader(part.id);
+    revertPreset = () => applyTmeaLevel(found.level.id);
+    // The part reading is on the pill (a plain voice becomes its part).
+    const reading = readerForTmeaPart(part);
+    if (reading && readerId !== reading.id) setReader(reading.id);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
@@ -3987,7 +3999,7 @@
     if (linkedTrack) applyTrackStep(linkedTrack);
     const linkedLevel = !linkedStep && !linkedTrack && linkedNyssmaId && Object.hasOwn(nyssmaById, linkedNyssmaId) ? nyssmaById[linkedNyssmaId] : null;
     if (linkedLevel) applyNyssmaLevel(linkedLevel);
-    const linkedTmea = !linkedStep && !linkedTrack && !linkedLevel && linkedTmeaId && Object.hasOwn(tmeaById, linkedTmeaId) ? tmeaById[linkedTmeaId] : null;
+    const linkedTmea = !linkedStep && !linkedTrack && !linkedLevel && linkedTmeaId && tmeaLevelOf(linkedTmeaId) ? linkedTmeaId : null;
     if (linkedTmea) applyTmeaLevel(linkedTmea);
     loadTrackPrefs()
       .then(() => { if (linkedTrack && activeTrackKey === linkedTrack && $trackPrefs.overrides[linkedTrack]) applyTrackStep(linkedTrack); })
@@ -4761,9 +4773,10 @@
       activeSavedId = null;
       activeStepId = null;
       revertPreset = () => applyNyssmaLevel(level);
-    } else if (rec.level && Object.hasOwn(tmeaById, rec.level)) {
-      const level = tmeaById[rec.level];
-      activeTmeaId = level.id;
+    } else if (rec.level && tmeaLevelOf(rec.level)) {
+      const found = tmeaLevelOf(rec.level)!;
+      const level = tmeaPartLevel(found.level.level, found.part ?? readerNow()?.tmeaPart ?? "Soprano");
+      activeTmeaId = found.level.id;
       // Its meter pool mixes simple and 6/8, which the saved settings keep to
       // one kind: put the level's back, and 6/8's rhythms where it finds them.
       selectedTimeSignatures = new Set(level.meters);
@@ -4771,7 +4784,7 @@
       activeNyssmaId = null;
       activeSavedId = null;
       activeStepId = null;
-      revertPreset = () => applyTmeaLevel(level);
+      revertPreset = () => applyTmeaLevel(found.level.id);
     } else {
       return;
     }
@@ -4913,9 +4926,9 @@
       nyssmaLevels={nyssmaVoiceLevels}
       {activeNyssmaId}
       onSelectNyssma={(id) => { if (Object.hasOwn(nyssmaById, id)) applyNyssmaLevel(nyssmaById[id]); }}
-      tmeaLevels={tmeaVoiceLevels}
+      tmeaLevels={TMEA_LEVELS}
       {activeTmeaId}
-      onSelectTmea={(id) => { if (Object.hasOwn(tmeaById, id)) applyTmeaLevel(tmeaById[id]); }}
+      onSelectTmea={(id) => applyTmeaLevel(id)}
       {activeTrackKey}
       ownVersion={!!activeTrackKey && !!$trackPrefs.overrides[activeTrackKey]}
       onSelectTrack={(key) => applyTrackStep(key)}
