@@ -60,7 +60,7 @@
   {#if open}
     <div
       bind:this={panel}
-      class="absolute left-0 top-full mt-2 z-40 w-[min(22rem,calc(100vw-2rem))] bg-sr-raise rounded-[24px] shadow-[0_24px_60px_-20px_rgba(30,27,58,0.45)] p-3 max-h-[70vh] overflow-y-auto"
+      class="reader-panel absolute left-0 top-full mt-2 z-40 w-[22rem] bg-sr-raise rounded-[24px] shadow-[0_24px_60px_-20px_rgba(30,27,58,0.45)] p-3 max-h-[70vh] overflow-y-auto"
       role="dialog"
       aria-label="Who is reading"
     >
@@ -89,3 +89,23 @@
     </div>
   {/if}
 </div>
+
+<style>
+  /* A phone: a sheet from the bottom, as the settings' popovers are, since
+     the pill sits mid-row and a panel under it ran off the screen. */
+  @media (max-width: 640px) {
+    .reader-panel {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      width: auto;
+      margin: 0;
+      border-radius: 24px 24px 0 0;
+      max-height: 75vh;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+      z-index: 60;
+    }
+  }
+</style>
