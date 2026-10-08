@@ -90,18 +90,20 @@ const feedbackConfigured = !!readFeedbackEmail(
     <meta name="robots" content={robots} />
     <meta name="theme-color" content="#2f6fe0" />
     <link rel="manifest" href="/site.webmanifest" />
-    <!-- Fredoka for headings, Nunito for everything else (globals.css). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <!-- Fredoka for headings, Nunito for everything else, from our own
+         domain (@font-face in globals.css): fetched at once, before the CSS
+         that names them is read. -->
+    <link rel="preload" href="/fonts/nunito-v32-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/fredoka-v17-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- The Analysis tool's IPA vowels, which Fredoka and Nunito lack: just
+         those characters, a few hundred bytes. Not render-blocking (it is
+         applied once loaded): nothing on first paint uses it. -->
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;500;600;700;800&display=swap"
-    />
-    <!-- The Analysis tool's IPA vowels, which Fredoka and Nunito lack: just
-         those characters, a few hundred bytes. -->
-    <link
-      rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@600&text=%5B%5Di%C9%9B%C9%91ou&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="abcSightReading" />

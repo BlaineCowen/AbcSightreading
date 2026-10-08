@@ -131,7 +131,7 @@
     metronomeClickFor,
     newMetronomeBeatState,
   } from "../lib/metronome-beats";
-  import * as Tone from "tone";
+  import type * as ToneLib from "tone";
   import MetronomeIcon from "./ui/metronomeIcon.svelte";
   import {
     MAJOR_KEYS, MINOR_KEYS, MINOR_DEGREES, MINOR_SHARPS, MINOR_FLATS, DEFAULT_MINOR_DEGREES,
@@ -294,13 +294,6 @@
       metronomeGainNode.connect(audioContext.destination);
       // The Tools metronome's samples, so the click here sounds like it.
       void clickBank.load(audioContext);
-
-      // To Tone's own output, not gainNode: toneSynth lives in Tone's
-      // AudioContext and gainNode in this one, and connecting across contexts
-      // throws. It threw on every load - leaving the note you click on the
-      // score silent, and stopping this component's later onMount callbacks
-      // (the reflow on resize, opening a linked exercise) from ever running.
-      toneSynth.toDestination();
     }
   });
 
@@ -467,7 +460,13 @@
     return Object.keys(options).length > 0 ? options : null;
   }
 
-  const toneSynth = new Tone.Synth();
+  // Tone.js is fetched with the first sound it makes (a clicked note, the
+  // drone, a drill run), never with the page: importing it builds its
+  // AudioContext at once, which cost a phone a few hundred ms as the page
+  // loaded, and it is a good part of the page's script.
+  let tone: typeof ToneLib | null = null;
+  const loadTone = async () => (tone ??= await import("tone"));
+  let toneSynth: ToneLib.Synth | null = null;
 
   // let audioContext: AudioContext | null = null;
   // let analyser: AnalyserNode | null = null;
@@ -518,7 +517,14 @@
     }
     const midi = abcElem.midiPitches?.[0]?.pitch;
     if (typeof midi !== "number") return;
+    const Tone = await loadTone();
     await Tone.start();
+    // To Tone's own output, not gainNode: toneSynth lives in Tone's
+    // AudioContext and gainNode in this one, and connecting across contexts
+    // throws. It threw on every load - leaving the note you click on the
+    // score silent, and stopping this component's later onMount callbacks
+    // (the reflow on resize, opening a linked exercise) from ever running.
+    toneSynth ??= new Tone.Synth().toDestination();
     toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n");
   };
 
@@ -3292,7 +3298,7 @@
     // Tone only starts inside a click, and this is one. A repeat that brings in
     // a drone the reader never switched on starts it from a pass boundary,
     // where there is no click to start Tone with.
-    void Tone.start();
+    void loadTone().then((Tone) => Tone.start());
     // Built fresh each time so a run uses the settings as they are at Start,
     // and cannot be half-reconfigured while it is going.
     runner = makeRunner();
@@ -3439,8 +3445,9 @@
 
   // Add state variables
   let dronePlaying = false;
-  let droneOscillator: Tone.Oscillator | null = null;
-  let droneVolume = new Tone.Volume(-12).toDestination(); // Default volume at -12dB
+  let droneOscillator: ToneLib.Oscillator | null = null;
+  let droneVolume: ToneLib.Volume | null = null; // made with the first drone (see loadTone)
+  let droneStarting = false;
   let currentDroneVolume = -12; // Track current volume for the slider
 
   /**
@@ -3508,10 +3515,15 @@
    * button, unless this pass says otherwise. Safe to call at every pass
    * boundary - it only acts when the two disagree.
    */
-  function syncDrone() {
+  async function syncDrone() {
     const wanted = passDroneOverride ?? dronePlaying;
-    if (wanted && !droneOscillator) {
+    if (wanted && !droneOscillator && !droneStarting) {
+      droneStarting = true;
+      const Tone = await loadTone().finally(() => (droneStarting = false));
+      // Switched off, or started, while Tone.js was loading.
+      if (!(passDroneOverride ?? dronePlaying) || droneOscillator) return;
       Tone.start();
+      droneVolume ??= new Tone.Volume(currentDroneVolume).toDestination();
       const rootNote = getRootNoteFrequency(selectedKey);
       droneOscillator = new Tone.Oscillator({
         frequency: rootNote,
@@ -3532,7 +3544,7 @@
   function handleDroneVolumeChange(event: Event) {
     const value = Number((event.target as HTMLInputElement).value);
     currentDroneVolume = value;
-    droneVolume.volume.value = value;
+    if (droneVolume) droneVolume.volume.value = value;
   }
 
   /**
@@ -3557,7 +3569,7 @@
       Ab: 56,
       Db: 61,
     };
-    return Tone.Frequency(keyMap[key.trim().replace(/m$/, "")] ?? 60, "midi").toFrequency();
+    return 440 * 2 ** (((keyMap[key.trim().replace(/m$/, "")] ?? 60) - 69) / 12);
   }
 
   // ── PlaybackBar handlers ───────────────────────────────────────────────────
@@ -4626,7 +4638,8 @@
       droneOscillator.stop();
       droneOscillator = null;
     }
-    Tone.Transport.stop();
+    // Only once Tone.js is loaded: importing it to stop it would build its context.
+    tone?.Transport.stop();
   });
 
   // Add this function to validate selected rhythms

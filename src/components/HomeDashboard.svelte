@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { usage, loadUsage } from "../lib/usage";
   import { whenLabel, type RecentExercise } from "../lib/recent-exercises";
   import { BUILTIN_SETS } from "../lib/curriculum/catalogue";
   import { trackById, TRACK_COLOR_CLASS, iconFor } from "../lib/curriculum/tracks";
@@ -12,49 +11,47 @@
    * everyone else): back into practice in one tap, the exercises they wrote
    * last, the tracks they follow, and the way to their account. Tracks used to
    * be a link in the navbar.
+   *
+   * Everything it shows comes from the server with the page (index.astro), and
+   * the page is drawn there too: it used to fetch each list after loading, so
+   * the page drew "Loading…" and then jumped as each arrived.
    */
   export let name = "";
   export let accountType: "standard" | "educator" | "student" = "standard";
+  export let recent: RecentExercise[] = [];
+  export let tracks: string[] = [];
+  /** The month's allowance; limit null is unlimited. */
+  export let allowance: { limit: number | null; remaining: number | null } | null = null;
+  export let assignments: { enrolled: boolean; assignments: any[] } | null = null;
+  /** The server's clock, so the times read the same drawn there and here. */
+  export let now = Date.now();
 
-  let recent: RecentExercise[] | null = null;
-  let tracks: string[] | null = null;
   let showAll = false;
-  let now = Date.now();
 
   const firstName = (name || "").trim().split(/\s+/)[0] ?? "";
 
   onMount(() => {
-    loadUsage();
-    fetch("/api/recent")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: RecentExercise[]) => (recent = rows))
-      .catch(() => (recent = []));
-    if (accountType !== "student") {
-      fetch("/api/tracks")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((s: { tracks?: string[] } | null) => (tracks = s?.tracks ?? []))
-        .catch(() => (tracks = []));
-    }
+    now = Date.now();
     const tickTimer = setInterval(() => (now = Date.now()), 60_000);
     return () => clearInterval(tickTimer);
   });
 
   async function forget(id: string) {
-    recent = (recent ?? []).filter((r) => r.id !== id);
+    recent = recent.filter((r) => r.id !== id);
     await fetch(`/api/recent?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
   }
 
-  $: shown = showAll ? recent ?? [] : (recent ?? []).slice(0, 6);
-  $: last = recent?.[0] ?? null;
-  $: planLine = !$usage
+  $: shown = showAll ? recent : recent.slice(0, 6);
+  $: last = recent[0] ?? null;
+  $: planLine = !allowance
     ? ""
-    : $usage.limit === null
+    : allowance.limit === null
       ? "Unlimited exercises"
-      : `${$usage.remaining ?? 0} of ${$usage.limit} exercises left this month`;
+      : `${allowance.remaining ?? 0} of ${allowance.limit} exercises left this month`;
 
   /** A subscribed set or track as a card: where it opens, its name and colour, and a drawing for an instrument. */
   type Card = { id: string; name: string; level: string; href: string; color: string; icon: string | null };
-  $: cards = (tracks ?? []).flatMap((id): Card[] => {
+  $: cards = tracks.flatMap((id): Card[] => {
     const set = BUILTIN_SETS.find((s) => s.id === id);
     if (set) return [{ id, name: set.name, level: set.level, href: set.href, color: TRACK_COLOR_CLASS[set.color], icon: null }];
     const t = trackById[id];
@@ -95,20 +92,18 @@
   </section>
 
   {#if accountType === "student"}
-    <StudentAssignments />
+    <StudentAssignments initial={assignments} />
   {/if}
 
   <!-- The exercises they wrote last, each reopening exactly as it was. -->
   <section class="sr-panel p-5" aria-labelledby="recent-h">
     <div class="flex items-baseline justify-between gap-3 mb-3">
       <h2 id="recent-h" class="text-xl font-bold text-sr-ink">Recent exercises</h2>
-      {#if (recent?.length ?? 0) > 6}
-        <button class="sr-link text-sm" on:click={() => (showAll = !showAll)}>{showAll ? "Show fewer" : `Show all ${recent?.length}`}</button>
+      {#if recent.length > 6}
+        <button class="sr-link text-sm" on:click={() => (showAll = !showAll)}>{showAll ? "Show fewer" : `Show all ${recent.length}`}</button>
       {/if}
     </div>
-    {#if recent === null}
-      <p class="text-sm text-sr-muted">Loading…</p>
-    {:else if recent.length === 0}
+    {#if recent.length === 0}
       <p class="text-sm text-sr-muted">
         Nothing yet. Press New exercise on <a class="sr-link" href="/sightreading">Unison</a> or
         <a class="sr-link" href="/choral-sightreading">Choral</a> and it shows up here, ready to open again.
@@ -137,9 +132,7 @@
         <h2 id="tracks-h" class="text-xl font-bold text-sr-ink">My courses</h2>
         <a class="sr-link text-sm" href="/curriculum">Choose courses</a>
       </div>
-      {#if tracks === null}
-        <p class="text-sm text-sr-muted">Loading…</p>
-      {:else if cards.length === 0}
+      {#if cards.length === 0}
         <p class="text-sm text-sr-muted">No courses yet. <a class="sr-link" href="/curriculum">Choose one</a> and its steps appear in the preset menu.</p>
       {:else}
         <ul class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(13rem,1fr))]">

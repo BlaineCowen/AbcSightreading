@@ -4,6 +4,11 @@ import Landing from "../components/Landing.astro";
 import HomeDashboard from "../components/HomeDashboard.svelte";
 import { currentUser } from "../lib/server/api";
 import { accountTypeFor } from "../lib/server/students";
+import { prisma } from "../lib/server/db";
+import { generationStatus } from "../lib/server/plan";
+import { myAssignments } from "../lib/server/practice";
+import { subscriptionsFrom } from "../lib/curriculum/catalogue";
+import { MAX_RECENT, type RecentExercise } from "../lib/recent-exercises";
 
 /**
  * The site's root: the landing page for anyone signed out (and every crawler),
@@ -15,12 +20,31 @@ const viewer = await currentUser(Astro.request).catch(() => null);
 // From the database: the session cookie can be five minutes behind a change.
 const accountType = viewer ? await accountTypeFor(viewer) : "standard";
 if (viewer) Astro.response.headers.set("Cache-Control", "private, no-store");
+
+// Everything the home shows, read here so the page arrives whole (it used to
+// fetch each list after loading, and jumped as each came in). The same reads
+// as /api/recent, /api/tracks, /api/usage and /api/assignments.
+const home = viewer
+  ? await Promise.all([
+      prisma.recentExercise.findMany({ where: { userId: viewer.id }, orderBy: { createdAt: "desc" }, take: MAX_RECENT }),
+      accountType === "student" ? null : prisma.userPreference.findUnique({ where: { userId: viewer.id }, select: { curriculumTracks: true } }),
+      generationStatus(viewer.id).catch(() => null),
+      accountType === "student" ? myAssignments(viewer.id) : null,
+    ]).then(([rows, pref, allowance, assignments]) => ({
+      recent: rows.map((r): RecentExercise => ({
+        id: r.id, page: r.page as RecentExercise["page"], title: r.title, detail: r.detail, link: r.link, createdAt: r.createdAt.getTime(),
+      })),
+      tracks: accountType === "student" ? [] : subscriptionsFrom(pref?.curriculumTracks),
+      allowance: allowance && { limit: allowance.limit, remaining: allowance.remaining },
+      assignments,
+    }))
+  : null;
 ---
 
 {
   viewer ? (
     <Layout title="Home | abcSightReading" noindex themable>
-      <HomeDashboard client:only="svelte" name={viewer.name ?? ""} accountType={accountType} />
+      <HomeDashboard client:load name={viewer.name ?? ""} accountType={accountType} {...home} now={Date.now()} />
     </Layout>
   ) : (
     <Landing />

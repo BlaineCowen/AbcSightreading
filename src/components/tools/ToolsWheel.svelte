@@ -7,12 +7,7 @@
   import { toolSettings, setTool, type ToolId } from "../../lib/tools/settings";
   import { droneOn, initDrone } from "../../lib/tools/state";
   import { timer } from "../../lib/tools/timer";
-  import ToolTuner from "./ToolTuner.svelte";
-  import ToolMetronome from "./ToolMetronome.svelte";
-  import ToolDrone from "./ToolDrone.svelte";
-  import ToolPitches from "./ToolPitches.svelte";
-  import ToolAnalysis from "./ToolAnalysis.svelte";
-  import ToolTimer from "./ToolTimer.svelte";
+  import type { ComponentType } from "svelte";
   import Icon from "./ToolIcon.svelte";
 
   /**
@@ -41,6 +36,28 @@
     { id: "analysis", label: "Analysis", x: 24, y: 62, w: 72 },
   ];
   const LISTENING: ToolId[] = ["tuner", "analysis"];
+
+  /**
+   * The cards are fetched when the wheel first opens, not with the page: about
+   * 100 KB of script every practice page loaded and almost nobody used on a
+   * given visit. What keeps sounding with a card closed (the drone, the
+   * metronome, the timer) lives in the stores imported above, not in these.
+   */
+  const CARDS: Record<ToolId, () => Promise<{ default: ComponentType }>> = {
+    tuner: () => import("./ToolTuner.svelte"),
+    metronome: () => import("./ToolMetronome.svelte"),
+    drone: () => import("./ToolDrone.svelte"),
+    pitches: () => import("./ToolPitches.svelte"),
+    analysis: () => import("./ToolAnalysis.svelte"),
+    timer: () => import("./ToolTimer.svelte"),
+  };
+  let cards: Partial<Record<ToolId, ComponentType>> = {};
+  function loadCard(id: ToolId) {
+    if (cards[id]) return;
+    CARDS[id]().then((m) => (cards = { ...cards, [id]: m.default })).catch(() => {});
+  }
+  $: if (wheelOpen) (Object.keys(CARDS) as ToolId[]).forEach(loadCard);
+  $: if (tool) loadCard(tool);
 
   /**
    * The wheel's slices, all from one set of measurements: a disc, six slices
@@ -192,18 +209,10 @@
           {/if}
         {:else if allowed === null}
           <p class="text-sm text-sr-muted">…</p>
-        {:else if tool === "tuner"}
-          <ToolTuner />
-        {:else if tool === "metronome"}
-          <ToolMetronome />
-        {:else if tool === "drone"}
-          <ToolDrone />
-        {:else if tool === "pitches"}
-          <ToolPitches />
-        {:else if tool === "analysis"}
-          <ToolAnalysis />
-        {:else if tool === "timer"}
-          <ToolTimer />
+        {:else if cards[tool]}
+          <svelte:component this={cards[tool]} />
+        {:else}
+          <p class="text-sm text-sr-muted">…</p>
         {/if}
       </div>
     </div>
