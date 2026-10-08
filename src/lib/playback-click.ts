@@ -97,3 +97,42 @@ export function scheduleClick(
   osc.stop(time + 0.04);
   osc.onended = () => { osc.disconnect(); gain.disconnect(); };
 }
+
+/**
+ * The tune Choral plays with its click changing bar by bar (the practice
+ * assistant's silent bars and dropped beats): each bar of the first voice
+ * opens with its own drum pattern, or the drum off for a silent bar. abcjs
+ * lays the global drum pattern down at every barline, and a pattern spanning
+ * several bars overlaps itself there, so the change is written into the bars.
+ * Only the played copy carries this; the drawn and exported ABC never do.
+ * `patternFor(bar)` is drumPatternFor's string for that bar, "" for silence.
+ */
+export function withClickByBar(abc: string, patternFor: (bar: number) => string): string {
+  const lines = abc.split("\n");
+  const body = lines.findIndex((l) => /^K:/.test(l));
+  if (body < 0) return abc;
+  const first = lines.slice(body + 1).map((l) => /^\[V:([^\]]+)\]/.exec(l)?.[1]).find(Boolean);
+  let bar = 0;
+  return lines
+    .map((line, i) => {
+      if (i <= body) return line;
+      const tag = /^\[V:([^\]]+)\]/.exec(line);
+      // The first voice's lines, or a tune without voices.
+      if (first ? tag?.[1] !== first : /^[A-Za-z%]:|^%/.test(line)) return line;
+      const head = tag ? tag[0] : "";
+      const parts = line.slice(head.length).split(/(\|\]|\|\||:\|\||\|:|:\||\|)/);
+      return (
+        head +
+        parts
+          .map((part, k) => {
+            if (k % 2 === 1 || !part.trim()) return part;
+            const pattern = patternFor(bar++);
+            const directive = pattern ? `[I:MIDI=drumon][I:MIDI=drum ${pattern}]` : "[I:MIDI=drumoff]";
+            const lead = part.match(/^\s*/)![0];
+            return lead + directive + part.slice(lead.length);
+          })
+          .join("")
+      );
+    })
+    .join("\n");
+}

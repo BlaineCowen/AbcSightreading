@@ -6,6 +6,7 @@
   import { meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
   import MeterControls from "./MeterControls.svelte";
   import BeatTiles from "./BeatTiles.svelte";
+  import AssistantPanel from "./AssistantPanel.svelte";
 
   onMount(() => {
     initTuner();
@@ -90,6 +91,8 @@
   </div>
 
   <MeterControls />
+
+  <AssistantPanel />
 
   <label class="flex items-center gap-3 text-sm text-sr-ink-2">
     <span class="shrink-0">Volume</span>

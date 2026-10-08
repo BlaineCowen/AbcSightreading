@@ -9,7 +9,8 @@
   import { tuner } from "../lib/tuner/store";
   import { SampleBank, type ClickLevel } from "../lib/tuner/click-sounds";
   import { scheduleClick } from "../lib/playback-click";
-  import { beatEvents, type BeatLevel } from "../lib/tuner/click-pattern";
+  import { beatEvents, beatLevelsFor, type BeatLevel } from "../lib/tuner/click-pattern";
+  import { assistedLevels } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
@@ -2089,6 +2090,8 @@
     // every call.
     metronomeBeats = newMetronomeBeatState();
     cursorBeats = newMetronomeBeatState();
+    // Which beats the practice assistant drops, new each time it plays.
+    clickSeed = Math.floor(Math.random() * 2 ** 31);
 
     timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
       beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
@@ -2105,9 +2108,12 @@
         );
         // A Grade run with the click off still counts in.
         const gradeQuiet = gradeTimeline && gradeClickChoice === "off" && beatNumber >= countInBeats(playedMeter());
-        // The count-in clicks plainly; the music's beats take their levels.
-        const musicBeat = beatNumber >= countInBeats(playedMeter()) ? beat.beatInBar : undefined;
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure);
+        // The count-in clicks plainly; the music's beats take their levels,
+        // and the practice assistant's silent bars and dropped beats.
+        const inCount = countInBeats(playedMeter());
+        const musicBeat = beatNumber >= inCount ? beat.beatInBar : undefined;
+        const musicBar = Math.floor((metronomeBeats.lastClickedBeat - inCount) / Math.max(1, beatsPerMeasure));
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -2585,6 +2591,8 @@
    *   sample-accurate rather than drifting with the timer that queues them.
    */
   const clickBank = new SampleBank();
+  /** Which beats the practice assistant drops this playback. */
+  let clickSeed = 0;
   /**
    * One beat of the click, as the Tools metronome sets it: its sound, its
    * accent on the downbeat, and its subdivisions after the beat, at exact
@@ -2597,14 +2605,19 @@
     when: number = audioContext ? audioContext.currentTime : 0,
     /** The beat of the bar, for its level (click-pattern.ts); unset in a count-in. */
     beatInBar?: number,
-    beatsInBar?: number
+    beatsInBar?: number,
+    /** The music's bar, from 0, for the practice assistant (practice-assistant.ts). */
+    bar?: number
   ) {
     if (!audioContext || metronomeGainNode.gain.value === 0) return;
-    const { clickSound, accent, subdivision, beatLevels, subMask } = tuner.get();
-    // Levels set for this many beats, else beat 1 accented as always.
+    const { clickSound, accent, subdivision, beatLevels, subMask, assistant } = tuner.get();
+    // Levels set for this many beats, else beat 1 accented as always; then the
+    // assistant's silent bars and dropped beats. A Grade run keeps its own click.
     const level: BeatLevel =
-      beatInBar !== undefined && beatLevels && beatLevels.length === beatsInBar
-        ? beatLevels[beatInBar]
+      beatInBar !== undefined && beatsInBar
+        ? (gradeSubdivision == null && bar !== undefined
+            ? assistedLevels(beatLevelsFor({ beats: beatsInBar, accent, beatLevels }), bar, assistant, clickSeed)
+            : beatLevelsFor({ beats: beatsInBar, accent, beatLevels }))[beatInBar]
         : isDownbeat && accent ? "accent" : "normal";
     // A Grade run in time sets its own: beats, or beats with their subdivision.
     const grid = gradeSubdivision ?? subdivision;

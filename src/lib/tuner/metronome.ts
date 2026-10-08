@@ -9,6 +9,7 @@ import {
   type ClickSound,
 } from "./click-sounds";
 import { beatEvents, beatLevelsFor, type BeatLevel } from "./click-pattern";
+import { assistedLevels, barIsSilent, rampBpm, timeIsUp, type AssistantSettings } from "./practice-assistant";
 
 export interface MetronomeSettings {
   bpm: number;
@@ -18,6 +19,8 @@ export interface MetronomeSettings {
   /** Each beat's level, and which slots of a beat sound (click-pattern.ts). */
   beatLevels?: BeatLevel[] | null;
   subMask?: string | null;
+  /** Ramp, silent bars, dropped beats, time limit, count-in (practice-assistant.ts). */
+  assistant?: AssistantSettings;
   /**
    * Beats that start a group after the first - the 4 of 12/8's second half,
    * 5/8's 3. They get a lighter accent than the downbeat. Optional, so a
@@ -50,6 +53,13 @@ export class Metronome {
   /** Every click goes through this, so the level can change while it ticks. */
   private out: GainNode | null = null;
   onBeat: ((beatInBar: number) => void) | null = null;
+  /** Each bar as it starts: its number (negative in the count-in), the tempo, whether it is silent, seconds since Start. */
+  onBar: ((live: { bar: number; bpm: number; silent: boolean; seconds: number }) => void) | null = null;
+  /** The time limit ran out; the metronome has stopped. */
+  onTimeUp: (() => void) | null = null;
+  private startedAt = 0;
+  /** Which beats drop, for this run. */
+  private seed = 0;
 
   get running() {
     return this.timer !== null;
@@ -78,6 +88,8 @@ export class Metronome {
     void this.bank.load(ctx);
     this.beat = 0;
     this.nextBeatTime = ctx.currentTime + 0.05;
+    this.startedAt = this.nextBeatTime;
+    this.seed = Math.floor(Math.random() * 2 ** 31);
     this.timer = setInterval(() => this.schedule(), LOOKAHEAD_MS);
   }
 
@@ -116,14 +128,29 @@ export class Metronome {
 
   private schedule() {
     const ctx = this.ctx!;
-    const { bpm, beatsPerBar, subdivision, accent, beatLevels, subMask } = this.settings;
-    const beatDur = 60 / bpm;
+    const { bpm, beatsPerBar, subdivision, accent, beatLevels, subMask, assistant } = this.settings;
     // Beat 1 accented unless the levels say otherwise. Accenting each group's
     // first beat too (4/4's 3, 12/8's 4) put a third pitch in the bar - A F E
     // F - which drew the ear more than it helped; a teacher can now set it.
-    const levels = beatLevelsFor({ beats: beatsPerBar, accent, beatLevels });
+    const base = beatLevelsFor({ beats: beatsPerBar, accent, beatLevels });
+    const countIn = assistant?.countIn.on ? assistant.countIn.bars : 0;
     while (this.nextBeatTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
       const beatInBar = this.beat % beatsPerBar;
+      // Bars count from the first after the count-in, which clicks plainly at the set tempo.
+      const bar = Math.floor(this.beat / beatsPerBar) - countIn;
+      if (beatInBar === 0 && assistant && timeIsUp(this.nextBeatTime - this.startedAt, assistant.limit)) {
+        const at = Math.max(0, (this.nextBeatTime - ctx.currentTime) * 1000);
+        this.stop();
+        setTimeout(() => this.onTimeUp?.(), at);
+        return;
+      }
+      const bpmNow = assistant ? rampBpm(bpm, bar, assistant.ramp) : bpm;
+      const beatDur = 60 / bpmNow;
+      const levels = assistant && bar >= 0 ? assistedLevels(base, bar, assistant, this.seed) : base;
+      if (beatInBar === 0) {
+        const live = { bar, bpm: bpmNow, silent: !!assistant && barIsSilent(bar, assistant.silent), seconds: this.nextBeatTime - this.startedAt };
+        setTimeout(() => this.onBar?.(live), Math.max(0, (this.nextBeatTime - ctx.currentTime) * 1000));
+      }
       for (const e of beatEvents(levels[beatInBar], subdivision, subMask)) {
         this.click(this.nextBeatTime + e.at * beatDur, e.level, undefined, e.gain);
       }

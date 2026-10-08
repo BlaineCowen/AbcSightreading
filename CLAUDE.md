@@ -662,6 +662,17 @@ track each file has a drum note of its own from MIDI 60 up (`drumNoteFor`,
 since abcjs caches samples by note), and the soundfont proxy redirects those
 notes to the files. Old sound names in settings and presets map across
 (`toClickSound`).
+Every click (the metronome, Unison's click, Choral's drum track) reads one bar
+model (`src/lib/tuner/click-pattern.ts`, tests `click-pattern.test.ts`; plan in
+notes/metronome-plan.md): a level per beat (accent, normal, soft, off; the
+beat tiles, tap to cycle) and a subdivision pattern (a grid and the slots that
+sound: off-beats, swing, 1 e &..., drawn as notation in the picker). Unset
+(`beatLevels`, `subMask` null) it clicks exactly as before. The practice
+assistant (`practice-assistant.ts`, the metronome's Practice panel): count-in,
+tempo ramp, silent bars, dropped beats (never beat 1), time limit; silent bars
+and dropped beats also reach the exercise click (Unison per beat, Choral by a
+drum directive written into each bar of the played copy, `withClickByBar`,
+since abcjs lays a multi-bar drum pattern down again at every barline).
 Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the

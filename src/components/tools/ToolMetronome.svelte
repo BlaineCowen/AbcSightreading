@@ -8,6 +8,7 @@
   import { METERS, meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
   import MeterControls from "../tuner/MeterControls.svelte";
   import BeatTiles from "../tuner/BeatTiles.svelte";
+  import AssistantPanel from "../tuner/AssistantPanel.svelte";
   import { linkedToPage, metronomeSounding, toggleMetronome } from "../../lib/tools/metronome-link";
 
   /**
@@ -60,6 +61,8 @@
 </div>
 
 <MeterControls compact lockedMeter={linked} onManual={() => { if (!linked) setTool({ followExercise: false }); }} />
+
+<AssistantPanel compact />
 
 {#if linked}
   <label class="flex items-center gap-2 text-sm text-sr-ink-2">

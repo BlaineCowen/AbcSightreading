@@ -7,6 +7,7 @@ import type { Difficulty, Direction } from "./scale-challenge";
 import { carrySubdivision, meterById } from "./meters";
 import { DEFAULT_CLICK_SOUND, toClickSound, type ClickSound } from "./click-sounds";
 import { BEAT_LEVELS, beatLevelsFor, beatLevelsFrom, subMaskFrom, type BeatLevel } from "./click-pattern";
+import { DEFAULT_ASSISTANT, assistantFrom, type AssistantSettings } from "./practice-assistant";
 
 /**
  * abcTuner's state: the settings a singer chooses (kept in this browser) and
@@ -47,6 +48,8 @@ export interface TunerState {
   beatLevels: BeatLevel[] | null;
   /** Which slots of each beat sound, "01" the off-beat; null: every slot. */
   subMask: string | null;
+  /** The practice assistant: ramp, silent bars, dropped beats, time limit, count-in (practice-assistant.ts). */
+  assistant: AssistantSettings;
   challengeDirection: Direction;
   challengeOctave: number;
   challengeShowTuner: boolean;
@@ -102,11 +105,13 @@ export interface TunerState {
   musicClick: boolean;
   /** 0-based beat within the bar, -1 when stopped. */
   metronomeBeat: number;
+  /** While the metronome runs (not saved): its bar (negative in the count-in), tempo now, whether the bar is silent, seconds run. */
+  metronomeLive: { bar: number; bpm: number; silent: boolean; seconds: number } | null;
 }
 
 const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
-  "beatsPerBar", "subdivision", "accent", "beatLevels", "subMask", "challengeDirection", "challengeOctave",
+  "beatsPerBar", "subdivision", "accent", "beatLevels", "subMask", "assistant", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
   "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs",
 ] as const;
@@ -127,6 +132,7 @@ const initial: TunerState = {
   accent: true,
   beatLevels: null,
   subMask: null,
+  assistant: DEFAULT_ASSISTANT,
   challengeDirection: "up",
   challengeOctave: 3,
   challengeShowTuner: true,
@@ -164,6 +170,7 @@ const initial: TunerState = {
   exercisePlaying: false,
   musicClick: false,
   metronomeBeat: -1,
+  metronomeLive: null,
 };
 
 function restored(): Partial<TunerState> {
@@ -184,6 +191,7 @@ start.beatsPerBar = meterById(start.meter).beats;
 // Kept only while they fit the bar and the grid.
 start.beatLevels = beatLevelsFrom(start.beatLevels, start.beatsPerBar);
 start.subMask = subMaskFrom(start.subMask, start.subdivision);
+start.assistant = assistantFrom(start.assistant);
 // Sounds saved before the samples changed map to the nearest new one.
 start.clickSound = toClickSound(start.clickSound) ?? DEFAULT_CLICK_SOUND;
 // Once: the release that brought the new sounds sent the old woodblock default
@@ -295,6 +303,9 @@ export const tuner = {
     }),
   /** Every beat's level at once (a preset's), kept only when it fits the bar. */
   setBeatLevels: (levels: BeatLevel[] | null) => state.update((s) => ({ ...s, beatLevels: beatLevelsFrom(levels, s.beatsPerBar) })),
+  /** Change part of the practice assistant: setAssistant("ramp", { on: true }). */
+  setAssistant: <K extends keyof AssistantSettings>(part: K, patch: Partial<AssistantSettings[K]>) =>
+    state.update((s) => ({ ...s, assistant: assistantFrom({ ...s.assistant, [part]: { ...s.assistant[part], ...patch } }) })),
   /** Tap a beat: accent, normal, soft, off, and round. */
   cycleBeatLevel: (i: number) =>
     state.update((s) => {
@@ -315,7 +326,8 @@ export const tuner = {
   setClickWithMusic: (clickWithMusic: boolean) => set({ clickWithMusic }),
   setPlayback: (exercisePlaying: boolean, musicClick: boolean) => set({ exercisePlaying, musicClick }),
   setMetronomeVolume: (v: number) => set({ metronomeVolume: clamp(Number.isFinite(v) ? v : 0.5, 0, 1) }),
-  setMetronomeRunning: (metronomeRunning: boolean) => set({ metronomeRunning, metronomeBeat: -1 }),
+  setMetronomeRunning: (metronomeRunning: boolean) => set({ metronomeRunning, metronomeBeat: -1, metronomeLive: null }),
+  setMetronomeLive: (metronomeLive: TunerState["metronomeLive"]) => set({ metronomeLive }),
   setMetronomeBeat: (metronomeBeat: number) => set({ metronomeBeat }),
   setChallengeDirection: (challengeDirection: Direction) => set({ challengeDirection }),
   setChallengeOctave: (octave: number) =>
