@@ -5,7 +5,9 @@
     customSyllableSystem,
     syllableTemplates,
     NAMED_FIGURES,
+    MIXED_FIGURES,
     type CustomSyllables,
+    type MixedFigure,
     type NamedFigure,
   } from "../resources/rhythm-syllables";
   import { syllablesForFigure } from "../lib/generateUnison";
@@ -31,12 +33,27 @@
   };
 
   type CompoundRow = [string, string, string, string, string, string];
-  type Draft = Omit<CustomSyllables, "compoundSlots"> & { compoundSlots: CompoundRow };
+  /**
+   * The optional rows are always present while editing, empty where unused:
+   * the checker drops an empty row, so an empty one saves as "work it out".
+   */
+  type Draft = Omit<CustomSyllables, "compoundSlots" | "eighths" | "named"> & {
+    compoundSlots: CompoundRow;
+    eighths: [string, string];
+    named: Record<NamedFigure | MixedFigure, string[]>;
+  };
   /** Counting's compound words, shown in the empty fields. */
   const COUNTING_COMPOUND = ["1", "ta", "la", "ta", "li", "ta"];
   const withCompoundRow = (c: CustomSyllables): Draft => ({
     ...c,
     compoundSlots: c.compoundSlots ? ([...c.compoundSlots] as CompoundRow) : ["", "", "", "", "", ""],
+    eighths: c.eighths ? [...c.eighths] : ["", ""],
+    named: {
+      ...(c.named as Record<NamedFigure, string[]>),
+      ...(Object.fromEntries(
+        (Object.entries(MIXED_FIGURES) as [MixedFigure, number][]).map(([f, n]) => [f, c.named[f] ? [...c.named[f]!] : Array(n).fill("")])
+      ) as Record<MixedFigure, string[]>),
+    },
   });
 
   let draft: Draft = withCompoundRow(clone(syllableTemplates[0].syllables));
@@ -54,6 +71,12 @@
     ["dotEighthSixteenth", "Dotted eighth, sixteenth"],
   ];
 
+  const MIXED_ROWS: [MixedFigure, string][] = [
+    ["eighthSixteenthSixteenth", "Eighth, two sixteenths"],
+    ["sixteenthSixteenthEighth", "Two sixteenths, eighth"],
+    ["sixteenthEighthSixteenth", "Sixteenth, eighth, sixteenth"],
+  ];
+
   onMount(async () => {
     try {
       await loadMySyllables();
@@ -67,6 +90,16 @@
 
   $: checked = checkCustomSyllables(draft);
   $: system = checked.ok ? customSyllableSystem(checked.value) : null;
+  /** What each mixed figure reads as when left empty: the set without its mixed names. */
+  $: worked = (() => {
+    if (!checked.ok) return {} as Record<string, string[]>;
+    const named = { ...checked.value.named };
+    for (const f of Object.keys(MIXED_FIGURES)) delete (named as Record<string, unknown>)[f];
+    const plain = customSyllableSystem({ ...checked.value, named });
+    return Object.fromEntries(
+      selectableRhythms.filter((r) => r.name in MIXED_FIGURES).map((r) => [r.name, syllablesForFigure(r, plain)])
+    ) as Record<string, string[]>;
+  })();
   $: preview = system
     ? selectableRhythms.map((r) => ({ name: r.name, label: rhythmLabel(r.name), syllables: syllablesForFigure(r, system!) }))
     : [];
@@ -160,9 +193,36 @@
               <input class={input} bind:value={draft.slots[i]} aria-label="Sixteenth {i + 1} of a beat" />
             {/each}
           </div>
+          <p class="text-xs text-sr-muted">The four sixteenths of a beat (wa-ter-mel-on, say).</p>
+          <div class="flex flex-wrap items-center gap-1 mt-2 text-sm text-sr-ink-2">
+            <input class={input} bind:value={draft.eighths[0]} placeholder={draft.slots[0]} aria-label="Eighth on the beat" />
+            <input class={input} bind:value={draft.eighths[1]} placeholder={draft.slots[2]} aria-label="Eighth off the beat" />
+            two eighths
+          </div>
           <p class="text-xs text-sr-muted">
-            The four sixteenths of a beat. Eighths take the first and third
-            ({draft.slots[0]}-{draft.slots[2]}), and the mixed figures take theirs from here too.
+            Words of their own for eighths (ap-ple, say). Leave both empty and eighths take the first and third
+            sixteenth ({draft.slots[0]}-{draft.slots[2]}).
+          </p>
+        </fieldset>
+
+        <fieldset class="flex flex-col gap-2">
+          <legend class="sr-label mb-1">Eighths and sixteenths mixed</legend>
+          {#each MIXED_ROWS as [figure, label]}
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rhythm-icon !w-12 !h-8 shrink-0 text-sr-ink" aria-hidden="true">{@html svgFor(figure)}</span>
+              <span class="text-xs text-sr-muted w-32">{label}</span>
+              {#each Array(MIXED_FIGURES[figure]) as _, i}
+                <input
+                  class="{input} !w-16"
+                  bind:value={draft.named[figure][i]}
+                  placeholder={worked[figure]?.[i] ?? ""}
+                  aria-label="{label}, note {i + 1}"
+                />
+              {/each}
+            </div>
+          {/each}
+          <p class="text-xs text-sr-muted">
+            Leave a figure empty and each note takes its eighth or sixteenth word, as shown faintly.
           </p>
         </fieldset>
 

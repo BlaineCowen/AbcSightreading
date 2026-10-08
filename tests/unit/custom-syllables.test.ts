@@ -54,4 +54,35 @@ describe("custom syllables", () => {
     // An empty held beat is fine: Takadimi and Gordon do not voice them.
     expect(bad({ holdEach: "" })).toBe(true);
   });
+
+  test("eighths and the mixed figures can have words of their own (ap-ple, wa-ter-mel-on)", () => {
+    const base = template("kodaly-ta-a");
+    const fruit = { ...base, slots: ["wa", "ter", "mel", "on"], eighths: ["ap", "ple"] };
+    const checked = checkCustomSyllables(fruit);
+    expect(checked.ok).toBe(true);
+    const mine = customSyllableSystem(checked.ok ? checked.value : base);
+    const by = (name: string) => syllablesForFigure(selectableRhythms.find((r) => r.name === name)!, mine);
+    expect(by("eighthEighth")).toEqual(["ap", "ple"]);
+    expect(by("fourSixteenths")).toEqual(["wa", "ter", "mel", "on"]);
+    // Worked out note by note: the eighth off the beat is "ple", on it "ap".
+    expect(by("sixteenthSixteenthEighth")).toEqual(["wa", "ter", "ple"]);
+    expect(by("eighthSixteenthSixteenth")).toEqual(["ap", "mel", "on"]);
+    // Named whole, a figure reads as the teacher wrote it.
+    const named = checkCustomSyllables({ ...fruit, named: { ...base.named, sixteenthSixteenthEighth: ["wa", "ter", "ap"] } });
+    expect(named.ok).toBe(true);
+    const mine2 = customSyllableSystem(named.ok ? named.value : base);
+    expect(syllablesForFigure(selectableRhythms.find((r) => r.name === "sixteenthSixteenthEighth")!, mine2)).toEqual(["wa", "ter", "ap"]);
+  });
+
+  test("the new rows are optional: empty means worked out, half-filled is refused", () => {
+    const base = template("kodaly");
+    const empty = checkCustomSyllables({ ...base, eighths: ["", ""], named: { ...base.named, eighthSixteenthSixteenth: ["", "", ""] } });
+    expect(empty.ok).toBe(true);
+    if (empty.ok) {
+      expect(empty.value.eighths).toBeUndefined();
+      expect(empty.value.named.eighthSixteenthSixteenth).toBeUndefined();
+    }
+    expect(checkCustomSyllables({ ...base, eighths: ["ap", ""] }).ok).toBe(false);
+    expect(checkCustomSyllables({ ...base, named: { ...base.named, sixteenthEighthSixteenth: ["a", "", "c"] } }).ok).toBe(false);
+  });
 });

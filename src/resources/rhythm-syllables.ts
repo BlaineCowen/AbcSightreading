@@ -64,6 +64,12 @@ export type SyllableSystem = {
   /** Syllables for the sixteenth-note slots within one beat. */
   slots: PositionSyllable[];
   /**
+   * Simple meter's eighths, on the beat and off it, when they are words of
+   * their own (a teacher's "ap-ple" against "wa-ter-mel-on"). Absent: an
+   * eighth takes the first or third sixteenth slot.
+   */
+  eighths?: PositionSyllable[];
+  /**
    * Compound meter: the six sixteenth slots of a dotted-quarter beat. Eighths
    * take the first, third and fifth. A system without them - a teacher's own
    * set from before compound meter - is read in Counting there.
@@ -173,11 +179,25 @@ export const NAMED_FIGURES = {
 } as const;
 export type NamedFigure = keyof typeof NAMED_FIGURES;
 
+/**
+ * The beat-long figures that mix eighths and sixteenths. A set may name them
+ * whole (Blaine: "wa-ter-ap" for 16-16-8); left out, each note takes its eighth
+ * or sixteenth word by where it falls in the beat.
+ */
+export const MIXED_FIGURES = {
+  eighthSixteenthSixteenth: 3,
+  sixteenthSixteenthEighth: 3,
+  sixteenthEighthSixteenth: 3,
+} as const;
+export type MixedFigure = keyof typeof MIXED_FIGURES;
+
 export type CustomSyllables = {
   /** A note that starts on a beat and fills it: the quarter. */
   beat: string;
-  /** The four sixteenth positions of a beat. Eighths take the first and third. */
+  /** The four sixteenth positions of a beat. Eighths take the first and third, unless `eighths` says otherwise. */
   slots: [string, string, string, string];
+  /** Eighths' own words, on the beat and off it ("ap", "ple"). Absent: the first and third sixteenth. */
+  eighths?: [string, string];
   /** Compound meter's six sixteenths of a dotted-quarter beat. Absent: read in Counting. */
   compoundSlots?: [string, string, string, string, string, string];
   /** A held note: this, then `holdEach` once per further beat it runs through. */
@@ -185,7 +205,8 @@ export type CustomSyllables = {
   /** May be empty, for systems that do not voice the held beats. */
   holdEach: string;
   rest: string;
-  named: Record<NamedFigure, string[]>;
+  /** The named figures, and any mixed ones the teacher has named too (absent: worked out note by note). */
+  named: Record<NamedFigure, string[]> & Partial<Record<MixedFigure, string[]>>;
 };
 
 export const MAX_SYLLABLE_LENGTH = 12;
@@ -235,6 +256,25 @@ export function checkCustomSyllables(value: unknown): Checked<CustomSyllables> {
     slots.push(c.value);
   }
   out.slots = slots as CustomSyllables["slots"];
+  // Optional, like the compound row: both empty (or none) means "the first
+  // and third sixteenth", as before eighths had words of their own.
+  const eighthsRaw = v.eighths;
+  if (eighthsRaw !== undefined && eighthsRaw !== null) {
+    if (!Array.isArray(eighthsRaw) || eighthsRaw.length !== 2 || eighthsRaw.some((s) => typeof s !== "string")) {
+      return { ok: false, error: "Expected two eighth-note syllables." };
+    }
+    if (eighthsRaw.some((s) => s.trim() !== "")) {
+      const eighths: string[] = [];
+      for (let i = 0; i < 2; i++) {
+        const c = checkSyllable(eighthsRaw[i], i === 0 ? "The eighth on the beat" : "The eighth off the beat");
+        if (!c.ok) {
+          return { ok: false, error: eighthsRaw[i].trim() === "" ? `${c.error} Fill both eighths, or leave both empty.` : c.error };
+        }
+        eighths.push(c.value);
+      }
+      out.eighths = eighths as CustomSyllables["eighths"];
+    }
+  }
   // Optional. Six empty fields, or none at all, mean "read compound meter in
   // Counting"; a row is used only when all six are filled.
   const compoundRaw = v.compoundSlots;
@@ -278,6 +318,23 @@ export function checkCustomSyllables(value: unknown): Checked<CustomSyllables> {
       named[figure].push(c.value);
     }
   }
+  // The mixed figures: each optional, all of its notes or none.
+  for (const [figure, count] of Object.entries(MIXED_FIGURES) as [MixedFigure, number][]) {
+    const list = v.named?.[figure];
+    if (list === undefined || list === null) continue;
+    if (!Array.isArray(list) || list.length !== count || list.some((s) => typeof s !== "string")) {
+      return { ok: false, error: `Expected ${count} syllables for ${figure}.` };
+    }
+    if (list.every((s: string) => s.trim() === "")) continue;
+    named[figure] = [];
+    for (let i = 0; i < count; i++) {
+      const c = checkSyllable(list[i], `Note ${i + 1} of ${figure}`);
+      if (!c.ok) {
+        return { ok: false, error: list[i].trim() === "" ? `${c.error} Fill all ${count}, or leave them all empty.` : c.error };
+      }
+      named[figure]!.push(c.value);
+    }
+  }
   out.named = named;
   return { ok: true, value: out as CustomSyllables };
 }
@@ -287,9 +344,10 @@ export function customSyllableSystem(c: CustomSyllables): SyllableSystem {
   return {
     id: CUSTOM_SYLLABLE_ID,
     label: "Mine",
-    hint: `${c.beat}, ${c.slots[0]}-${c.slots[2]}, ${c.slots.join("-")}`,
-    byName: { ...c.named },
+    hint: `${c.beat}, ${(c.eighths ?? [c.slots[0], c.slots[2]]).join("-")}, ${c.slots.join("-")}`,
+    byName: { ...c.named } as Record<string, string[]>,
     slots: [...c.slots],
+    ...(c.eighths ? { eighths: [...c.eighths] } : {}),
     ...(c.compoundSlots ? { compoundSlots: [...c.compoundSlots] } : {}),
     beat: c.beat,
     sustain: (ctx) => c.holdStart + c.holdEach.repeat(ctx.crossedBeats.length),
