@@ -997,7 +997,11 @@ clapped in time; the strays sank them (53-82). Three causes, three rules:
   matching (one child alone is about a fifth and still counts); for Just me,
   under `QUIET_SHARE` (25%) of its claps, from the strays only, since one
   person's quiet clap is still a clap.
-Those four runs went 53/61/67/82 -> 77/97/98/99 as The class. Two had been
+Those four runs went 53/61/67/82 -> 77/97/98/99 as The class.
+A class chanting on its claps also fills the low band, so a room's clap can
+peak with only 8-20% of its power above 1.5 kHz; The class needs 8% there
+(`CLASS_HI_SHARE`), Just me still 15%. At 15% the 8 October run lost a
+clean clap on beat 2 as missed (89; now 100, no other sent run worse). Two had been
 left on Just me; a Just me run whose claps come in clusters now says it
 sounded like a class (`soundedLikeClass`). The result lists what was not
 counted (chanted syllables, late claps folded in).
