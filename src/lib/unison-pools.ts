@@ -89,8 +89,22 @@ export const parseLimit = (raw: string | null | undefined): RangeLimit | null =>
 export function placeSpan(span: Span, key: string, anchor: number, limit?: RangeLimit | null) {
   const r = rangeForSpan(span, key, anchor);
   if (!r || !limit) return r;
-  const cut = { min: Math.max(r.min, limit.min), max: Math.min(r.max, limit.max) };
-  return cut.max > cut.min ? cut : r;
+  const cutAt = (x: { min: number; max: number }) => ({ min: Math.max(x.min, limit.min), max: Math.min(x.max, limit.max) });
+  let best = cutAt(r);
+  // Cut short (a level's octave on a tenor's tenth, in a key whose do sits
+  // high in it): the octave below or above may keep more of the span. Only
+  // with a do still in range, since the line ends on one. A placement that
+  // fits whole, as every course step's does, is never moved.
+  if (best.max - best.min < r.max - r.min) {
+    const doAt = r.min - span[0];
+    const hasDo = (x: { min: number; max: number }) => [doAt - 14, doAt - 7, doAt, doAt + 7, doAt + 14].some((d) => d >= x.min && d <= x.max);
+    for (const shift of [-7, 7]) {
+      if (r.min + shift < 0) continue;
+      const other = cutAt({ min: r.min + shift, max: r.max + shift });
+      if (other.max - other.min > best.max - best.min && hasDo(other)) best = other;
+    }
+  }
+  return best.max > best.min ? best : r;
 }
 
 /** The pool in picker order; anything the order does not know goes last, as it was. */

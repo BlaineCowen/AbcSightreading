@@ -56,6 +56,8 @@
   } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
+  import ReaderPill from "./ReaderPill.svelte";
+  import { loadReaderId, readerById, readerForTmeaPart, readerForTrack, saveReaderId, stepOnReader, type Reader } from "../lib/readers";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
   import { setPracticeContext } from "../lib/tools/context";
   import SignupHint from "./SignupHint.svelte";
@@ -667,6 +669,53 @@
   $: activeTmea = activeTmeaId ? tmeaById[activeTmeaId] ?? null : null;
   /** The curriculum track step (and half) the settings came from: "track:band-trumpet-03:notes". */
   let activeTrackKey: string | null = null;
+  /**
+   * Who is reading (readers.ts, the pill beside Preset), remembered in this
+   * browser. It is applied when chosen, never on load, so a link or a saved
+   * page keeps its own clef and range; a level chosen after it takes its range.
+   */
+  let readerId: string | null = typeof window !== "undefined" ? loadReaderId() : null;
+  $: reader = readerId ? readerById[readerId] ?? null : null;
+  /** The reader as chosen this moment: `reader` above only catches up after the update, too late for a level re-applied in the same call. */
+  const readerNow = (): Reader | null => (readerId ? readerById[readerId] ?? null : null);
+  function setReader(id: string | null) {
+    readerId = id;
+    saveReaderId(id);
+  }
+
+  /**
+   * Choose who is reading: its clef, range, transposition and sound, and the
+   * level on the page again for it, so a level stays the level (not edited):
+   * NYSSMA places its span in the new range, TMEA takes the new part, a
+   * course step moves to the same step of the new instrument's course. A saved
+   * preset of the teacher's own shows as edited, as any change does.
+   */
+  async function chooseReader(id: string | null) {
+    setReader(id);
+    const r = id ? readerById[id] : null;
+    if (!r) return;
+    selectedClef = r.clef;
+    rangeAnchor = r.anchor;
+    rangeLimit = { ...r.range };
+    selectedRange = (rangeSpan && placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit)) || { ...r.range };
+    if (r.instrumentProgram !== undefined && r.instrumentProgram !== instrumentProgram) await handleSoundChange(r.instrumentProgram);
+    else if (r.family === "voice" && !VOICE_PROGRAMS.has(instrumentProgram)) await handleSoundChange(DEFAULT_INSTRUMENT);
+    if (r.transposeSemitones !== transposeSemitones) await handleTransposeChange(r.transposeSemitones);
+    if (activeNyssmaId && r.family === "voice" && Object.hasOwn(nyssmaById, activeNyssmaId)) applyNyssmaLevel(nyssmaById[activeNyssmaId]);
+    else if (activeTmeaId && r.family === "voice" && Object.hasOwn(tmeaById, activeTmeaId)) {
+      const now = tmeaById[activeTmeaId];
+      const part = r.tmeaPart ? tmeaVoiceLevels.find((l) => l.level === now.level && l.part === r.tmeaPart) : now;
+      applyTmeaLevel(part ?? now);
+    } else if (activeStepId && r.family === "voice") {
+      const step = Object.hasOwn(ladderById, activeStepId) ? ladderById[activeStepId] : undefined;
+      if (step) applyLadderStep(step);
+    } else if (activeTrackKey) {
+      const found = stepOfKey(activeTrackKey);
+      const moved = found && stepOnReader(found.step.id, found.track.id, r);
+      if (found && moved) applyTrackStep(trackPresetKey(moved, found.part));
+    }
+    updateUrlFromState();
+  }
   /** Loads the active preset or step again, for Revert. */
   let revertPreset: (() => void) | undefined = undefined;
   /**
@@ -805,6 +854,9 @@
     activeSavedPreset = null;
     activeTrackKey = key;
     revertPreset = () => applyTrackStep(key, options);
+    // A course is its instrument's: the pill follows it.
+    const player = readerForTrack(found.track.id);
+    if (player && readerId !== player.id) setReader(player.id);
   }
 
   /** Keep these settings as the teacher's own version of the active step, or (null) go back to the track's. */
@@ -909,9 +961,15 @@
     // a range a level (or a preset with a span) already placed, or choosing a
     // level twice would walk it. A range set by hand cleared the span
     // (handleRangeChange), so it is read afresh.
-    if (!rangeSpan) rangeAnchor = selectedRange.min;
+    // A voice on the instrument pill gives the clef, the anchor and the range
+    // the span is kept inside.
+    const voice = readerNow()?.family === "voice" ? readerNow()! : null;
+    if (voice) {
+      selectedClef = voice.clef;
+      rangeAnchor = voice.anchor;
+    } else if (!rangeSpan) rangeAnchor = selectedRange.min;
     rangeSpan = [...level.span] as Span;
-    rangeLimit = null;
+    rangeLimit = voice ? { ...voice.range } : null;
     selectedRange = placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit) ?? selectedRange;
     activePresetLabel = level.label;
     activeNyssmaId = level.id;
@@ -960,6 +1018,9 @@
     activeStepId = null;
     activeTrackKey = null;
     revertPreset = () => applyTmeaLevel(level);
+    // A part's level is that part reading: the pill says so (a plain voice too).
+    const part = readerForTmeaPart(level.part);
+    if (part && readerId !== part.id) setReader(part.id);
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
@@ -4839,6 +4900,7 @@
 
     {#if !assignment}
     <PresetDropdown
+      {reader}
       store={UNISON_PRESET_STORE}
       showBuiltins={false}
       activeLabel={activePresetLabel}
@@ -4863,6 +4925,7 @@
       onRenamed={(p) => { if (p.id === activeSavedId) { activePresetLabel = p.name; activeSavedPreset = p; revertPreset = () => applySavedPreset(p); } }}
       onDelete={(id) => { if (id === activeSavedId) { activePresetLabel = ''; activeSavedId = null; revertPreset = undefined; } }}
     >
+      <ReaderPill slot="beside" {readerId} onChoose={chooseReader} />
       <GenerationLimit slot="end" part="counter" />
     </PresetDropdown>
     {/if}

@@ -305,6 +305,35 @@ assignment key; an assignment copies the teacher's version in). Links:
 `placeMissingChromatics` now stays inside the exercise's range (it wrote a
 written F♯ under a clarinet's lowest note).
 
+### Who is reading (the instrument pill)
+
+Beside Preset on the Unison page, **Reading as** (`ReaderPill.svelte`, rules
+`src/lib/readers.ts`, tests `readers.test.ts`; 8 October 2026): an
+instrument sets the clef, range, transposition and sound, and a level sets
+everything else, so nobody walks a menu per standard (SRF asks for the
+instrument, then the level). Voices (treble and bass clef as the page's
+clef defaults, and Soprano, Alto, Tenor, Bass on TMEA's Level I-II
+ranges), every band and string instrument of the courses (their own clef,
+range, transposition, sound). Remembered in this browser (`sr-reader`),
+applied when chosen and never on load, so links keep their settings. Any
+(nothing chosen) is the page as before.
+
+The preset menu keeps to the reader's family (`sectionAllowed`,
+`tracksFor`): a voice sees abcStepByStep, NYSSMA and TMEA, and TMEA's part
+buttons only its own part; a band or string player only its own course.
+Changing the reader re-applies the level on the page, so it stays the
+level, not edited: NYSSMA places its span in the voice's range (clef and
+anchor the voice's), TMEA moves to the same level for the new part, a
+course step to the same step of the new instrument's course
+(`stepOnReader`, band to band, strings to strings). A TMEA level or a
+course step chosen sets the pill. A saved preset of the teacher's shows as
+edited. `placeSpan` with a limit now tries the octave below or above when
+the anchored span is cut short and keeps the one with more notes, a do
+still in range (a tenor's NYSSMA Level IV in C was C4 to G4, five notes;
+now E3 to C4); a placement that fits whole, as every course step's does,
+never moves. Every voice x NYSSMA level x key x meter generates (282
+cells). Next: TMEA's sixteen presets as four levels on the pill.
+
 ### Chord progressions (Unison)
 
 `src/lib/unison-progressions.ts` (tests `unison-progressions.test.ts`):
