@@ -10,8 +10,11 @@
     newMetronomeBeatState,
   } from "../lib/metronome-beats";
   import { onMount, onDestroy, tick } from "svelte";
+  import { fade, fly } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
   import GenerationLimit from "./GenerationLimit.svelte";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
+  import UpgradeNotice from "./UpgradeNotice.svelte";
   import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import CountInBadge from "./CountInBadge.svelte";
   import { revealNextLine, scrollToReadingPosition, systemAt, systemOf } from "../lib/scroll-to-system";
@@ -21,6 +24,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
+  import { rememberExercise } from "../lib/recent-client";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset } from "../lib/active-preset";
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
@@ -82,6 +86,9 @@
   import { canFillExercise } from "../lib/rhythm-feasibility";
   import { unisonProbabilityFor } from "../lib/unison-spans";
   import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
+  import { melodyFirstFor } from "../lib/two-part-treble";
+  import { skipLevelFor } from "../lib/uil-skips";
+  import { ssaLevelFor } from "../lib/three-part-treble";
   import {
     clampTranspose,
     transposeLabel,
@@ -299,7 +306,17 @@
     const mine = ++packing;
     if (!source) return;
     packExercise({ kind: "choral", result: source })
-      .then((value) => { if (mine === packing) exercisePacked = value; })
+      .then((value) => {
+        if (mine !== packing) return;
+        exercisePacked = value;
+        // For the home page's Recent exercises (signed in only).
+        void rememberExercise({
+          page: "choral",
+          title: activePresetLabel || "Choral exercise",
+          detail: [selectedVoicing, keyName(selectedKey), selectedTimeSignature, fullLength ? "Full length" : `${measures} bars`].join(" · "),
+          href: settingsLink() + exerciseFragment(value),
+        });
+      })
       .catch((error) => console.error("Could not pack the exercise for a link:", error));
   }
   /**
@@ -1188,12 +1205,17 @@
     const arrivedBare = !window.location.search && !exerciseParam(window.location.hash);
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[new URLSearchParams(window.location.search).get(STEP_PARAM) ?? ""];
+    // A UIL level by name, from a class's checklist (class-course.ts uilHref).
+    const linkedUIL = (() => {
+      const k = new URLSearchParams(window.location.search).get("uil");
+      return k && Object.hasOwn(uilPresets, k) ? k : null;
+    })();
     const linked = exerciseParam(window.location.hash);
     // On a reload, the preset the settings came from (active-preset.ts). Not
     // over a step, an assignment or an exercise the address brings.
     // A saved preset chosen on the Unison page's picker (preset-link.ts).
-    const presetId = linkedStep || assignmentId || linked ? null : linkedPresetId();
-    const remembered = linkedStep || assignmentId || linked || presetId ? null : activePresetToRestore("choral");
+    const presetId = linkedStep || linkedUIL || assignmentId || linked ? null : linkedPresetId();
+    const remembered = linkedStep || linkedUIL || assignmentId || linked || presetId ? null : activePresetToRestore("choral");
     loadParams();
     if (remembered) {
       restoreActivePreset(remembered, !arrivedBare);
@@ -1203,6 +1225,7 @@
       selectedKey = "F";
     }
     if (linkedStep) applyLadderStep(linkedStep);
+    else if (linkedUIL) applyUILPreset(linkedUIL);
     if (presetId) void openLinkedPreset<PresetParams>("choral", presetId, (p) => applySavedPreset(p));
     // Practice time, for a student in a class; and an assignment, if the address names one.
     startPractice({ page: "choral", assignmentId, isBusy: () => isPlaying });
@@ -1284,7 +1307,9 @@
       formPlanError = null;
     } else {
       const [lo, hi] = fullLengthRange;
-      const want = Math.min(hi, Math.max(lo, fullLengthMeasures || lo));
+      // The longer version unless another length is picked (Blaine: Level 5's
+      // 6A, and the long end of "approximately 24" at Levels 1-2).
+      const want = Math.min(hi, Math.max(lo, fullLengthMeasures || hi));
       try {
         formPlan = planForm({
           level: fullLengthLevel,
@@ -1393,6 +1418,14 @@
   const POP_WIDTH = 420;
   /** The button that opened the popover, for focus to return to. */
   let popOpener: HTMLElement | null = null;
+  /**
+   * The boxes ease in and out: down from their pill, or up from the bottom
+   * as a sheet on a phone. Nothing moves for anyone who asks for less motion.
+   */
+  const reduceMotion = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const asSheet = () => typeof matchMedia !== "undefined" && matchMedia("(max-width: 640px)").matches;
+  const popIn = (node: Element) => fly(node, { y: asSheet() ? 40 : -8, duration: reduceMotion ? 0 : 170, easing: cubicOut });
+  const popOut = (node: Element) => fly(node, { y: asSheet() ? 40 : -8, duration: reduceMotion ? 0 : 110 });
   function closePops(returnFocus = true) {
     const opener = popOpener;
     settingPop = null;
@@ -2436,6 +2469,17 @@
       // unison: repetition is what the beginner repertoire is made of, and it
       // thins as the writing is meant to become continuous.
       rhymeProbability: rhymeProbabilityFor(activeLevelKey),
+      // Two treble parts at the beginning levels: a tune with a harmony part
+      // under it (two-part-treble.ts). Ignored for any other voicing.
+      melodyFirst: melodyFirstFor(activeLevelKey),
+      skipLevel: skipLevelFor(activeLevelKey),
+      cadenceTypes: activeLevelKey ? uilPresets[activeLevelKey]?.allowedCadenceTypes : undefined,
+      dottedOnStrongBeats: !!(activeLevelKey && uilPresets[activeLevelKey]?.dottedOnStrongBeats),
+      breathRests: !(activeLevelKey && uilPresets[activeLevelKey]?.noRests),
+      // Three treble parts at Levels 2-3: each part its job (three-part-treble.ts).
+      ssaLevel: ssaLevelFor(activeLevelKey),
+      // Every other voicing at a UIL level: each part its job (part-writer.ts).
+      partWriterLevel: activeLevelKey ? Number(activeLevelKey.replace("UIL ", "")) : null,
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames
@@ -2593,7 +2637,7 @@
     {#if assignment}<AssignmentBanner {assignment} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
-    {#if !assignment}<PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
+    {#if !assignment}<UpgradeNotice /><PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
     {#if generationError}
       <div
         class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"
@@ -2655,23 +2699,21 @@
             role="group"
             aria-label="Exercise history"
           >
+            <!-- Back to the exercise before; and, while looking back, straight to the newest. -->
             <button
-              class="sr-icon-btn flex items-center justify-center h-8 w-8"
+              class="sr-tok flex items-center gap-1 min-h-10"
               on:click={() => goToHistory(historyIndex - 1)}
               disabled={historyIndex <= 0 || isGenerating}
-              aria-label="Previous exercise"
               title={historyIndex > 0 ? history[historyIndex - 1].label : "No earlier exercise"}
-            ><ChevronLeft size={18} /></button>
-            <span class="text-xs text-sr-muted tabular-nums whitespace-nowrap" aria-live="polite">
-              {historyIndex + 1} of {history.length}
-            </span>
-            <button
-              class="sr-icon-btn flex items-center justify-center h-8 w-8"
-              on:click={() => goToHistory(historyIndex + 1)}
-              disabled={historyIndex >= history.length - 1 || isGenerating}
-              aria-label="Next exercise"
-              title={historyIndex < history.length - 1 ? history[historyIndex + 1].label : "No later exercise"}
-            ><ChevronRight size={18} /></button>
+            ><ChevronLeft size={16} aria-hidden="true" />Previous</button>
+            {#if historyIndex < history.length - 1}
+              <button
+                class="sr-tok flex items-center gap-1 min-h-10"
+                on:click={() => goToHistory(history.length - 1)}
+                disabled={isGenerating}
+                title={history[history.length - 1].label}
+              >Latest<ChevronRight size={16} aria-hidden="true" /></button>
+            {/if}
           </div>
         {/if}
         <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
@@ -2689,8 +2731,10 @@
       </div>
 
       {#if settingPop}
-        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
         <div
+          in:popIn
+          out:popOut
           class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'more' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
           role="dialog"
@@ -2810,7 +2854,7 @@
                   aria-pressed={fullLength}
                   on:click={() => {
                     fullLength = !fullLength;
-                    if (fullLength && fullLengthRange) fullLengthMeasures = fullLengthRange[0];
+                    if (fullLength && fullLengthRange) fullLengthMeasures = fullLengthRange[1];
                   }}
                 >Full length piece</button>
               </div>
@@ -3214,8 +3258,8 @@
           <Eye size={16} aria-hidden="true" />Display
         </button>
         {#if toolPop}
-          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
-          <div class="set-pop set-pop-tools" role="dialog" aria-label="Display">
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
+          <div in:popIn out:popOut class="set-pop set-pop-tools" role="dialog" aria-label="Display">
             <p class="set-pop-title">Display</p>
             <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -3411,6 +3455,7 @@
 
   <!-- Sticky playback bar -->
   <PlaybackBar
+    tools
     hideGenerate={setbarInView}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
@@ -3466,11 +3511,11 @@
           type="range" min="0" max="1" step="0.05"
           value={$tuner.metronomeVolume}
           on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
-          class="w-16 accent-sr-bar-on"
+          class="w-16 h-10 xl:h-auto accent-sr-bar-on"
           aria-label="Metronome volume"
         />
         <button
-          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+          class="rounded-full px-3 min-h-11 xl:min-h-0 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
           on:click={toggleMetronome}
           aria-pressed={metronomeSounding($tuner)}
           title="The metronome, the same one as in Tools: on its own, or with the music while it plays"

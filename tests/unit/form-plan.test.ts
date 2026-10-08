@@ -32,11 +32,13 @@ function everyPlan(level: number): FormPlan[] {
 
 describe("how long a level's example has to be", () => {
   test("the 4/4 lengths are the ones the criteria state", () => {
+    // UIL's current criteria (7 October 2026): about 24 at Levels 1-2, 32-36
+    // at Level 3, about 32 at Level 4, 32-36 for 5A plus 12-16 for 6A.
     expect(requiredMeasures(1)).toEqual([24, 28]);
-    expect(requiredMeasures(2)).toEqual([28, 32]);
+    expect(requiredMeasures(2)).toEqual([24, 28]);
     expect(requiredMeasures(3)).toEqual([32, 36]);
-    expect(requiredMeasures(4)).toEqual([36, 48]);
-    expect(requiredMeasures(5)).toEqual([48, 56]);
+    expect(requiredMeasures(4)).toEqual([32, 34]);
+    expect(requiredMeasures(5)).toEqual([32, 52]);
   });
 
   test("3/4 is the same amount of music, not the same number of barlines", () => {
@@ -47,7 +49,7 @@ describe("how long a level's example has to be", () => {
   });
 
   test("2/4 needs twice the bars of 4/4", () => {
-    expect(requiredMeasures(1, "2/4")).toEqual([48, 56]);
+    expect(requiredMeasures(4, "2/4")).toEqual([64, 68]);
   });
 
   test("an unknown level or meter is refused rather than guessed at", () => {
@@ -90,7 +92,7 @@ describe("the plan adds up", () => {
 
   test("a length outside the level's range is refused", () => {
     expect(() => planForm({ level: 1, measures: 8 })).toThrow(/24-28/);
-    expect(() => planForm({ level: 5, measures: 100 })).toThrow(/48-56/);
+    expect(() => planForm({ level: 5, measures: 100 })).toThrow(/32-52/);
   });
 });
 
@@ -179,29 +181,20 @@ describe("polyphony stays inside what the level allows", () => {
 });
 
 describe("where the harmony goes", () => {
-  test("levels 4 and 5 lean away from home somewhere", () => {
-    // "Sections that move toward the V chord or the minor vi."
-    for (const level of [4, 5]) {
-      for (const plan of everyPlan(level)) {
-        const away = plan.sections.filter((s) => s.keyArea !== "tonic");
-        expect(away.length).toBeGreaterThan(0);
-        expect(away.some((s) => s.keyArea === "dominant")).toBe(true);
-      }
-    }
-  });
-
-  test("level 5 takes the relative minor as well as the dominant", () => {
+  test("level 5's B section turns to the relative minor, and nowhere else", () => {
+    // UIL: "possible modulation to relative minor keys"; Blaine: an 8-bar or so
+    // B section in the relative minor.
     for (const plan of everyPlan(5)) {
-      const areas = new Set(plan.sections.map((s) => s.keyArea));
-      expect(areas.has("dominant")).toBe(true);
-      expect(areas.has("relative-minor")).toBe(true);
+      const away = plan.sections.filter((s) => s.keyArea !== "tonic");
+      expect(away.map((s) => s.label)).toEqual(["B"]);
+      expect(away[0].keyArea).toBe("relative-minor");
     }
   });
 
-  test("levels 1 to 3 stay at home", () => {
-    // Their harmony is I, IV, V, V7 with ii and vi as chords, not as places the
-    // music goes and cadences.
-    for (const level of [1, 2, 3]) {
+  test("levels 1 to 4 stay at home", () => {
+    // UIL names no modulation below Level 5; ii and vi are chords, not places
+    // the music goes and cadences.
+    for (const level of [1, 2, 3, 4]) {
       for (const plan of everyPlan(level)) {
         for (const s of plan.sections) expect(s.keyArea).toBe("tonic");
       }
@@ -234,22 +227,23 @@ describe("a full-length example is in major", () => {
   });
 });
 
-describe("one example, two levels", () => {
-  test("levels 4 and 5 reach a full cadence before the coda", () => {
-    // Standard practice: the lower level stops at the cadence, the higher one
-    // carries on. forgotten.abc does exactly this at bar 34 of 44.
-    for (const level of [4, 5]) {
-      for (const plan of everyPlan(level)) {
-        const close = plan.sections.find((s) => s.style === "close");
-        expect(close).toBeDefined();
-        expect(plan.shortEndingBar).toBe(close!.startsAtBar + close!.measures - 1);
-        expect(plan.shortEndingBar!).toBeLessThan(plan.measures);
-      }
+describe("one example, 5A and 6A", () => {
+  test("a Level 5 piece past the 5A length stops for 5A at a full cadence, 6A going on", () => {
+    // Both of Blaine's Level 5 pieces "stop at m32" for 5A and run on for 6A.
+    for (const plan of everyPlan(5)) {
+      const fiveAMax = Math.floor((36 * 4) / ({ "4/4": 4, "3/4": 3, "2/4": 2 } as Record<string, number>)[plan.meter]);
+      if (plan.measures <= fiveAMax) continue;
+      const close = plan.sections.find((s) => s.style === "close")!;
+      expect(plan.shortEndingBar).toBe(close.startsAtBar + close.measures - 1);
+      expect(plan.shortEndingBar!).toBeLessThan(plan.measures);
+      expect(plan.sections.at(-1)!.style).toBe("coda");
     }
+    expect(planForm({ level: 5, measures: 48 }).shortEndingBar).toBe(32);
   });
 
-  test("shorter levels have no second ending to report", () => {
-    for (const level of [1, 2, 3]) {
+  test("other levels, and a 5A-length piece, have no second ending to report", () => {
+    expect(planForm({ level: 5, measures: 32 }).shortEndingBar).toBeUndefined();
+    for (const level of [1, 2, 3, 4]) {
       for (const plan of everyPlan(level)) {
         expect(plan.shortEndingBar).toBeUndefined();
       }
@@ -261,10 +255,9 @@ describe("describeForm", () => {
   test("names every section, its bars and where it leans", () => {
     const lines = describeForm(planForm({ level: 5, measures: 48, key: "C" }));
     expect(lines[0]).toMatch(/Level 5, C major, 4\/4, 48 bars/);
-    expect(lines.join("\n")).toMatch(/toward V/);
     expect(lines.join("\n")).toMatch(/toward vi/);
     expect(lines.join("\n")).toMatch(/staggered entrances/);
-    expect(lines.join("\n")).toMatch(/may stop at bar/);
+    expect(lines.join("\n")).toMatch(/5A stops at bar 32/);
   });
 });
 

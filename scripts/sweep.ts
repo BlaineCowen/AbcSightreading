@@ -13,6 +13,9 @@
  * sweep that walked the real space found 55%. A cell here is a thing a choir
  * director can select, so a cell that fails is an exercise someone cannot get.
  */
+import { melodyFirstFor } from "../src/lib/two-part-treble";
+import { skipLevelFor } from "../src/lib/uil-skips";
+import { ssaLevelFor } from "../src/lib/three-part-treble";
 import { MINOR_KEYS } from "../src/lib/minor-degrees";
 import { generateChoralExercise } from "../src/lib/generateChoral";
 import { createNewSr } from "../src/lib/generateUnison";
@@ -24,6 +27,7 @@ import { canFillExercise } from "../src/lib/rhythm-feasibility";
 import { COMPOUND_METER_NAMES, timeSignatureFor } from "../src/lib/meter";
 import { DEFAULT_RHYTHM_NAMES } from "../src/lib/selectable-rhythms";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "./generation-fixtures";
+import { progressionsFromEnv } from "../src/lib/skip-settings";
 
 const RUNS = Number(process.env.RUNS ?? 12);
 
@@ -38,11 +42,13 @@ const RUNS = Number(process.env.RUNS ?? 12);
  */
 const STEPWISE = process.env.STEPWISE_EIGHTHS !== "0";
 /**
- * PROGRESSIONS=1: Unison and NYSSMA cells written over chord progressions
- * (unison-progressions.ts), as the Unison page writes them by default.
- * ONLY_UNISON=1 skips the Choral cells.
+ * Unison and NYSSMA cells decide chord progressions as the page does
+ * (skip-settings `progressionForPolicy`: over a progression whenever the line
+ * may skip). It was off unless PROGRESSIONS=1, so after the page made it
+ * always on the gate swept exercises nobody got. PROGRESSIONS=1 or 0 still
+ * forces it either way, to compare. ONLY_UNISON=1 skips the Choral cells.
  */
-const PROGRESSIONS = process.env.PROGRESSIONS === "1";
+const PROGRESSIONS = process.env.PROGRESSIONS;
 const ONLY_UNISON = process.env.ONLY_UNISON === "1";
 
 /**
@@ -122,6 +128,8 @@ for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
               chords: fullChordSet, accidentalsByStep: true, nctProbability: 0.25,
               chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames,
               voiceTexture: "full", stepwiseEighths: STEPWISE,
+              // As the page asks: two treble parts at Levels 1-2 are written melody first.
+              melodyFirst: melodyFirstFor(levelName), skipLevel: skipLevelFor(levelName), breathRests: !preset.noRests, cadenceTypes: preset.allowedCadenceTypes, dottedOnStrongBeats: !!preset.dottedOnStrongBeats, ssaLevel: ssaLevelFor(levelName), partWriterLevel: preset.level,
             } as any).voiceNotes);
           });
         }
@@ -177,7 +185,7 @@ for (const rhythmOnly of [false, true]) {
             rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
             scaleDegrees: new Set([1, 2, 3, 4, 5, 6, 7]),
             key: "C", chords: ["1", "2", "3", "4", "5", "6", "7"],
-            showSolfege: !rhythmOnly, rhythmOnly, progressions: PROGRESSIONS,
+            showSolfege: !rhythmOnly, rhythmOnly, progressions: progressionsFromEnv(PROGRESSIONS, 4),
             showRhythmSyllables: true, syllableSystemId,
             partsObject: { numofParts: 1, parts: { Unison: {
               chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
@@ -213,7 +221,7 @@ if (process.env.MINOR !== "0") {
                 selectedRhythms: rhythmNames,
                 rhythms: allRhythms.filter((r) => rhythmNames.includes(r.name)),
                 scaleDegrees: degrees, selectedSharpDegrees: scale.sharps, selectedFlatDegrees: [],
-                key, showSolfege: true, rhythmOnly: false, progressions: PROGRESSIONS,
+                key, showSolfege: true, rhythmOnly: false, progressions: progressionsFromEnv(PROGRESSIONS, 4),
                 showRhythmSyllables: false, syllableSystemId: "kodaly",
                 partsObject: { numofParts: 1, parts: { Unison: {
                   chordNoteObject: [], order: 0, smallName: "U", selectedRange: [14, 21] } } },
@@ -236,10 +244,8 @@ for (const level of nyssmaVoiceLevels) {
       for (const clef of ["treble", "bass"]) {
         for (const measures of [4, 8, 16]) {
           run(`nyssma ${level.short} | ${key} | ${meter} | ${clef} | ${measures}m`, () => {
-            createNewSr({
-              ...nyssmaGenerationParams(level, { key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures }),
-              progressions: PROGRESSIONS,
-            } as any);
+            const params = nyssmaGenerationParams(level, { key, meter, clef, anchor: clef === "bass" ? 7 : 14, measures });
+            createNewSr({ ...params, progressions: progressionsFromEnv(PROGRESSIONS, params.maxSkip) } as any);
           });
         }
       }

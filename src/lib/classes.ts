@@ -63,10 +63,10 @@ export function selectClass(id: string | null) {
 const replace = (c: ClassWithProgress) =>
   classes.update((list) => list.map((x) => (x.id === c.id ? c : x)));
 
-export async function createClass(name: string): Promise<ClassWithProgress> {
+export async function createClass(name: string, course: string | null = null): Promise<ClassWithProgress> {
   const created = await api<ClassWithProgress>("/api/classes", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, course }),
   });
   classes.update((list) => [...list, created]);
   return created;
@@ -74,6 +74,16 @@ export async function createClass(name: string): Promise<ClassWithProgress> {
 
 export async function renameClass(id: string, name: string) {
   replace(await api<ClassWithProgress>(`/api/classes/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }));
+}
+
+/** The course a class follows (class-course.ts); its own list starts over as the course is written. */
+export async function setCourse(id: string, course: string | null) {
+  replace(await api<ClassWithProgress>(`/api/classes/${id}`, { method: "PATCH", body: JSON.stringify({ course }) }));
+}
+
+/** A class's own list of its course's steps (preset keys), or null for the course as written. */
+export async function setCourseSteps(id: string, courseSteps: string[] | null) {
+  replace(await api<ClassWithProgress>(`/api/classes/${id}`, { method: "PATCH", body: JSON.stringify({ courseSteps }) }));
 }
 
 /** Moves a class one place up (-1) or down (+1), renumbering the list. */

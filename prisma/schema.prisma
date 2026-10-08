@@ -32,6 +32,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   presets       Preset[]
+  recentExercises RecentExercise[]
   classes       Class[]
   preference    UserPreference?
   enrollments   Enrollment[]
@@ -127,6 +128,27 @@ model Preset {
 // id>" - so built-in presets, which have no row of their own, can be checked
 // off too. A saved preset's key also sets `presetId`, so deleting the preset
 // takes its checkmarks with it.
+// The exercises a signed-in person generated most recently, for the home
+// page (src/lib/recent-exercises.ts, /api/recent): the last MAX_RECENT, each
+// a link that reopens that exact exercise with the settings it was shown in.
+model RecentExercise {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// "unison" or "choral": the page it opens on.
+  page      String
+  /// The preset it came from, or what kind of exercise it is.
+  title     String
+  /// What it is: "F major · 4/4 · 8 bars · do re mi".
+  detail    String
+  /// Path, query and #ex= fragment on this site: /sightreading?...#ex=...
+  link      String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("recent_exercise")
+}
+
 model Class {
   id        String          @id @default(cuid())
   userId    String
@@ -135,6 +157,10 @@ model Class {
   position  Int             @default(0)
   /// What students type to join: "KTZ482" (shown KTZ-482). Educator classes only.
   joinCode  String?         @unique
+  /// The course it follows (src/lib/class-course.ts): a set or instrument course id, or "own".
+  course      String?
+  /// Its own list of the course's steps as preset keys (hidden, reordered, presets added); null is the course as written.
+  courseSteps Json?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]

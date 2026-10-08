@@ -1,3 +1,7 @@
+import { textureFor, voicingKind, writeParts } from "./part-writer";
+import { listedSkip, type SkipLevel } from "./uil-skips";
+import { isThreePartTreble, ssaTexture, writeThreePartTreble, type SsaLevel } from "./three-part-treble";
+import { barShapeWeight, twoPartKind, writeTwoPartTreble, type TwoPartKind } from "./two-part-treble";
 import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
@@ -81,6 +85,30 @@ export interface GenerateChoralParams {
    * cadence. See rhymeProbabilityFor in rhyming-phrases.ts; 0 disables it.
    */
   rhymeProbability?: number;
+  /**
+   * The pairs of parts written melody first: the upper as a tune, the lower
+   * as a harmony part under it in thirds and sixths (two-part-treble.ts).
+   * Takes effect only when the voicing is one of them. See melodyFirstFor.
+   */
+  melodyFirst?: TwoPartKind[];
+  /** Written melody first, leap only as UIL lists for this level (uil-skips.ts). See skipLevelFor. */
+  skipLevel?: SkipLevel | null;
+  /**
+   * Three treble parts (SSA) written melody first, in the texture of that
+   * level's pieces (three-part-treble.ts). See ssaLevelFor.
+   */
+  ssaLevel?: SsaLevel | null;
+  /**
+   * The UIL level, for writing every other voicing melody first, each part
+   * its job (part-writer.ts): SATB, SAB, TTB/TBB, and SSA outside Levels 2-3.
+   */
+  partWriterLevel?: number | null;
+  /** The cadence types the level allows (UILPreset.allowedCadenceTypes); every one when left out. */
+  cadenceTypes?: string[];
+  /** A dotted quarter and eighth only on a strong beat (UIL Level 2). */
+  dottedOnStrongBeats?: boolean;
+  /** False: no rest as an inner phrase's breath (the level avoids rests). See rhythm-generation. */
+  breathRests?: boolean;
   /**
    * Restrict decoration to particular non-chord-tone types by name - the names
    * in the library in non-chord-tone-gen: "Suspension", "Passing Tone",
@@ -202,6 +230,9 @@ export function generateChoralExercise(params: GenerateChoralParams): ChoralExer
   return best!;
 }
 
+/** How often a melody-first exercise's inner cadences pair as question and answer (half, then authentic). */
+const PHRASE_PAIR_RATE = 0.85;
+
 function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercise {
 
   const {
@@ -279,6 +310,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     partsObject
   );
 
+  const pairKind = twoPartKind(voiceParts);
+  const melodyFirst = !!pairKind && !!params.melodyFirst?.includes(pairKind);
+  const ssa = params.ssaLevel && isThreePartTreble(voiceParts) ? params.ssaLevel : null;
+  const ssaTextureHere = ssa ? ssaTexture(ssa) : null;
+  const kindHere = !ssaTextureHere && params.partWriterLevel ? voicingKind(voiceParts) : null;
+  const partTexture = kindHere ? textureFor(kindHere, params.partWriterLevel!) : null;
+
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
     // A figure shorter than a quarter is excluded as a *standalone* rhythm,
@@ -336,6 +374,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   const compatibleCadences = allCadences.filter((cadence) => {
     if (cadence.mode && cadence.mode !== (isMinor ? "minor" : "major")) return false;
     if (!cadence.mode && isMinor) return false; // exclude legacy major-only cadences in minor
+    // The level's own list: Levels 1-4 are "authentic, half, and plagal cadences only".
+    if (params.cadenceTypes && !params.cadenceTypes.includes(cadence.type)) return false;
     return cadence.progression.every(
       (step) => !step.requiredChord || chordSymbols.has(step.requiredChord)
     );
@@ -352,7 +392,16 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       const pool = intermediaryCadences.length > 0 ? intermediaryCadences : compatibleCadences;
       const randomIndex = Math.floor(Math.random() * pool.length);
       const randomCadence = pool[randomIndex];
-      selectedCadences.push(randomCadence);
+      // Written melody first, the phrases pair as Blaine's pieces do: every
+      // one asks at bar 4 (a half cadence) and answers at bar 8 (authentic),
+      // where drawing from the pool made bar 4 a half cadence only now and
+      // then - and the suspension that half cadence carries with it.
+      const half = pool.find((c) => c.type === "Half");
+      const planned =
+        (melodyFirst || ssa || partTexture) && Math.random() < PHRASE_PAIR_RATE
+          ? i % 2 === 0 ? half ?? randomCadence : perfectAuthenticCadence
+          : randomCadence;
+      selectedCadences.push(planned);
     }
   }
 
@@ -371,7 +420,16 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     // A choral exercise is sung, not drilled: quarters and halves carry it and
     // the fast figures are punctuation. A unison rhythm exercise is the
     // opposite, so this is not the generator's default.
-    { favorLongerNotes: true, weightBias: params.rhythmBias }
+    {
+      favorLongerNotes: true,
+      weightBias: params.rhythmBias,
+      // Melody first, the bars take the shapes of the beginning repertoire: a half on the downbeat.
+      breathRests: params.breathRests,
+      positionWeight: (r, pos) =>
+        (melodyFirst ? barShapeWeight(r, pos, timeSig.tsPerMeasure, pairKind ?? "SA") : 1) *
+        // Level 2: "a dotted quarter note followed by an eighth on strong beats only".
+        (params.dottedOnStrongBeats && r.name === "dotQuarterEighth" && pos % (timeSig.tsPerMeasure === 32 ? 16 : timeSig.tsPerMeasure) !== 0 ? 0.0001 : 1),
+    }
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
 
@@ -423,6 +481,25 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
     // 5. Build Chord Notes for All Voices
     try {
+      if (melodyFirst || ssaTextureHere || partTexture) {
+        if (partTexture) {
+          const written = writeParts({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: partTexture, skipLevel: params.skipLevel });
+          voiceNotes = written.voiceNotes;
+          chordProgression = written.progression;
+          break;
+        }
+        if (ssaTextureHere) {
+          const written = writeThreePartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: ssaTextureHere, skipLevel: params.skipLevel });
+          voiceNotes = written.voiceNotes;
+          chordProgression = written.progression;
+          break;
+        }
+        // The tune chooses its chords; the planned ones are kept into each cadence.
+        const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, kind: pairKind!, skipLevel: params.skipLevel, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
+        voiceNotes = written.voiceNotes;
+        chordProgression = written.progression;
+        break;
+      }
       voiceNotes = buildChordNotes(
         key,
         finalRhythms,
@@ -452,6 +529,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     tsPerMeasure: timeSig.tsPerMeasure,
   });
 
+  // At a level that lists its skips (1-2), decoration keeps to the figures
+  // that move by step: an escape tone or appoggiatura leaps, and slipped an
+  // unlisted skip past the writers (1 in 744 at Level 2, do up to sol).
+  const nctTypes =
+    params.enabledNctTypes ??
+    (params.skipLevel ? ["Suspension", "Passing Tone", "Neighbor Tone", "Rearticulation", "Anticipation"] : undefined);
+
   // 5. Apply Non-Chord Tone Generation
   // Voices are decorated in turn, each seeing the voices already decorated
   // rather than the original chord tones. Passing the undecorated set to every
@@ -467,7 +551,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       index,
       nctProbability,
       key,
-      params.enabledNctTypes,
+      nctTypes,
       // Decoration has to stay inside the singer's range like everything else.
       voiceParts[index]?.range,
       // ...and needs to know where in the bar it is, for the suspension rule.
@@ -496,7 +580,9 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     tsPerMeasure: timeSig.tsPerMeasure,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     maxSkip,
-    probability: params.unisonProbability ?? 0,
+    // Written melody first, the parts sing in harmony from the start (Blaine's
+    // Level 1 SA piece does), meeting in unison only where a phrase ends.
+    probability: melodyFirst ? 0 : params.unisonProbability ?? 0,
   });
 
   // The consequent phrase rhymes the antecedent, making the exercise a parallel
@@ -510,6 +596,16 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     maxSkip,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     probability: params.rhymeProbability ?? 0,
+    // Every join and swapped note keeps the exercise's own leap rules: an
+    // eighth reached and left by step (it checked maxSkip alone, and 6% of
+    // short notes in SSA restatements were leapt to - "too much skip in 8th
+    // notes", Blaine, 7 October 2026), and Level 1's list of skips.
+    leapOk: (from, to) =>
+      (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
+      (!((melodyFirst || ssa || partTexture) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)) &&
+      // An altered note is reached by step (accidentals by step); a restated
+      // phrase's seam leapt to one now and then.
+      (!accidentalsByStep || !to.accidental || Math.abs(to.pitchValue - from.pitchValue) <= 1),
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 
@@ -528,7 +624,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
                 topIndex,
                 1,
                 key,
-                params.enabledNctTypes,
+                nctTypes,
                 voiceParts[topIndex]?.range,
                 timeSig.tsPerMeasure,
                 params.stepwiseEighths ?? false,

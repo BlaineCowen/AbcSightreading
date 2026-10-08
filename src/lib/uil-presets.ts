@@ -33,6 +33,14 @@ export interface UILPreset {
   maxSkip: number;
   /** UIL level number */
   level: number;
+  /** The cadences the level allows, by type (types.ts allCadences); all when left out. */
+  allowedCadenceTypes?: string[];
+  /** A dotted quarter and eighth only on a strong beat (Level 2: "on strong beats only"). */
+  dottedOnStrongBeats?: boolean;
+  /** Level 5's 6A version: the 5A length plus 12-16 measures (measureRange is the 5A one). */
+  longVersion?: [number, number];
+  /** The level says to avoid rests: none in the rhythm list, and no rest as a phrase's breath. */
+  noRests?: boolean;
   /** Voice ranges by part name → [min, max] noteArray indices */
   voiceRanges?: Record<string, [number, number]>;
 }
@@ -41,25 +49,33 @@ export const uilPresets: Record<string, UILPreset> = {
   "UIL 1": {
     label: "UIL Level 1",
     level: 1,
-    // C, F, G major
-    allowedKeys: ["C", "F", "G"],
-    // I, IV, V only
-    allowedChordNames: ["1", "4", "5"],
-    // Whole, half, quarter notes and rests
-    allowedRhythmNames: ["whole", "half", "quarter", "wholeRest", "halfRest", "quarterRest"],
-    // Treble: SA, Tenor-Bass: TB
-    // The doc's level 1 is "Treble: SA" and "Tenor-Bass: TB" - two parts either
-    // way. Both are offered now. The three-part tenor-bass voicing
-    // cannot be written at this level: three men inside these ranges, moving by
-    // no more than a third (maxSkip 2) on I, IV and V alone, failed 100% of the
-    // time - before any of this session's range work as well. An option that
-    // never produces an exercise is worse than one that is not offered.
-    // No "Unison": single-line practice is its own page, and a one-part voicing
-    // inside the choral generator only duplicated it. The Unison entry in
-    // voiceRanges below stays - the range calibration page reads it for that
-    // page's voice.
-    allowedMeters: ["4/4", "3/4", "2/4"],
-    allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass"],
+    // UIL's current criteria (uiltexas.org, read 7 October 2026; the level now
+    // covers 1C varsity and all middle-school and 3A/2A/1A non-varsity
+    // choirs): F and G major, I IV V or V7, authentic, half and plagal cadences.
+    allowedKeys: ["F", "G"],
+    allowedChordNames: ["1", "4", "5", "5-7"],
+    allowedCadenceTypes: ["Perfect Authentic", "Perfect Authentic 6/4", "Imperfect Authentic", "Half", "Plagal"],
+    // Whole, dotted half, half and quarter notes and a few eighth pairs; no
+    // rests ("avoid using rests"): UIL's current Level 1 wording, which Blaine
+    // quoted on 7 October 2026 (notes/uil-criteria.md). His Level 1 pieces
+    // agree: an eighth pair in one bar in twelve (SA) to one in five (TB),
+    // dotted half and quarter at phrase ends (TB). The rhythm draw keeps the
+    // eighths rare (favorLongerNotes; barShapeWeight for two parts).
+    allowedRhythmNames: ["whole", "dotHalf", "half", "quarter", "eighthEighth"],
+    noRests: true,
+    // UIL lists SATB, SAB, SSA/SA and TTB/TBB/TB here; all are offered, each
+    // written melody first (two-part-treble.ts, part-writer.ts). The three-part
+    // men's voicing failed every time under the general writer here (three men
+    // moving by no more than a third on I, IV and V); it is offered again
+    // because the part writer holds the inner part on do - if the sweep finds
+    // it failing, it comes out.
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
+    // No "Unison": single-line practice is its own page. The Unison entry in
+    // voiceRanges stays - the range calibration page reads it.
+    // 3/4 and 4/4 only (UIL dropped 2/4 at this level).
+    allowedMeters: ["4/4", "3/4"],
+    // "Approximately 24 measures in 4/4" (32 in 3/4); a full-length piece takes
+    // the long end (Blaine: "do the longer version").
     measureRange: [24, 28],
     maxSkip: 2,
     // Hand-calibrated by Blaine against UIL's own range staves on
@@ -80,20 +96,16 @@ export const uilPresets: Record<string, UILPreset> = {
   "UIL 2": {
     label: "UIL Level 2",
     level: 2,
-    // C, F, G, D major
-    allowedKeys: ["C", "F", "G", "D"],
-    // I, IV, V, V7
-    allowedChordNames: ["1", "4", "5", "5-7"],
-    // Whole, half, quarter, eighth; dotted quarter-eighth
-    allowedRhythmNames: [
-      "whole",
-      "half",
-      "quarter",
-      "dotQuarterEighth",
-      "wholeRest",
-      "halfRest",
-      "quarterRest",
-    ],
+    // F and G major, no modulation; I IV V V7 and an occasional ii or vi;
+    // authentic, half and plagal cadences ("no use of the deceptive cadence").
+    allowedKeys: ["F", "G"],
+    allowedChordNames: ["1", "2", "4", "5", "6", "5-7"],
+    allowedCadenceTypes: ["Perfect Authentic", "Perfect Authentic 6/4", "Imperfect Authentic", "Half", "Plagal"],
+    // Whole, dotted half, half, quarter, some eighth pairs; a dotted quarter and
+    // eighth on strong beats only; avoid rests.
+    allowedRhythmNames: ["whole", "dotHalf", "half", "quarter", "eighthEighth", "dotQuarterEighth"],
+    noRests: true,
+    dottedOnStrongBeats: true,
     // Mixed: SATB, SAB; Treble: SSA/SA; Tenor-Bass: TBB/TB
     // The doc names TB beside TBB here, and the three-part voicing fails 18% of
     // the time at this level's maxSkip, so the two-part one is the usable half.
@@ -105,10 +117,13 @@ export const uilPresets: Record<string, UILPreset> = {
     // an exercise is worse than one that is not offered - the same call as
     // level 1.
     allowedMeters: ["4/4", "3/4"],
+    // 3 Part Treble (SSA) is written melody first here (three-part-treble.ts),
+    // in the texture of Blaine's Level 2 SSA piece.
     allowedVoicings: [
-      "4 Part Mixed", "3 Part Mixed", "2 Part Treble", "2 Part Tenor/Bass",
+      "4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass",
     ],
-    measureRange: [28, 32],
+    // "Approximately 24 measures in 4/4" (32 in 3/4); full length takes the long end.
+    measureRange: [24, 28],
     maxSkip: 3,
     // Hand-calibrated by Blaine against UIL's own range staves on
     // /range-calibration (April 2026), and confirmed correct again in
@@ -132,6 +147,7 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedKeys: ["Bb", "F", "C", "G", "D"],
     // I, IV, V, V7, ii, vi
     allowedChordNames: ["1", "2", "4", "5", "6", "5-7"],
+    allowedCadenceTypes: ["Perfect Authentic", "Perfect Authentic 6/4", "Imperfect Authentic", "Half", "Plagal"],
     // Whole, dotted half, half, quarter, eighth in pairs; dotted quarter-eighth
     allowedRhythmNames: [
       "whole",
@@ -145,7 +161,8 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarterRest",
     ],
     allowedMeters: ["4/4", "3/4"],
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
+    // 3 Part Treble: melody first, as his two Level 3 SSA pieces (three-part-treble.ts).
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
     // Hand-calibrated by Blaine against UIL's own range staves on
@@ -168,17 +185,15 @@ export const uilPresets: Record<string, UILPreset> = {
   "UIL 4": {
     label: "UIL Level 4",
     level: 4,
-    // Major keys up to 3 sharps or flats: Ab, Eb, Bb, F, C, G, D, A
-    allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A"],
-    // I, IV, V, V7, ii, vi, secondary dominants
-    allowedChordNames: ["1", "2", "3", "4", "5", "6", "5-7", "5/5", "5/5-6",
-      "5/6-6",
-      "5/2-6", "5/6", "5/2"],
-    // Simple rhythms and dotted patterns, but not the two reversed-dot figures:
-    // an eighth then a dotted quarter, and a dotted eighth then a sixteenth.
-    // Both put the short note on the beat and the long one off it, which is a
-    // different reading skill from the rest of this list. Level 5 excludes them
-    // too, and level 3 never had them.
+    // B flat, E flat, F, C, G, D, A major; no modulation and no altered tones
+    // (UIL names none at this level - the secondary dominants are Level 5's);
+    // I IV V V7 ii iii vi; authentic, half and plagal cadences.
+    allowedKeys: ["Bb", "Eb", "F", "C", "G", "D", "A"],
+    allowedChordNames: ["1", "2", "3", "4", "5", "6", "5-7"],
+    allowedCadenceTypes: ["Perfect Authentic", "Perfect Authentic 6/4", "Imperfect Authentic", "Half", "Plagal"],
+    // Eighth, quarter, half and whole notes and their rests; "dotted values
+    // using eighths or longer" (so no dotted eighth and sixteenth, which UIL
+    // keeps for Level 5); no sixteenths, no triplets.
     allowedRhythmNames: [
       "whole",
       "dotHalf",
@@ -191,9 +206,10 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarterRest",
       "eighthRest",
     ],
-    allowedMeters: ["4/4", "3/4"],
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
-    measureRange: [36, 48],
+    allowedMeters: ["4/4", "3/4", "2/4"],
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
+    // About 32 measures in 4/4, 42 in 3/4.
+    measureRange: [32, 34],
     maxSkip: 5,
     // Hand-calibrated by Blaine against UIL's own range staves on
     // /range-calibration (April 2026), and confirmed correct again in
@@ -213,18 +229,20 @@ export const uilPresets: Record<string, UILPreset> = {
   "UIL 5": {
     label: "UIL Level 5",
     level: 5,
-    // Major and minor keys up to 4 sharps or flats
-    allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E", "Fm", "Cm", "Gm", "Dm", "Am", "Em", "Bm", "F#m", "C#m"],
-    // Full harmonic range including secondary dominants, seventh chords, and minor mode
+    // Major keys up through four sharps and four flats, with a possible
+    // modulation to the relative minor - no minor keys of their own (Blaine:
+    // UIL pieces are major; minor is practice outside the levels).
+    allowedKeys: ["Ab", "Eb", "Bb", "F", "C", "G", "D", "A", "E"],
+    // The altered tones UIL names: fi (V/V), si (V/vi), di (V/ii), te (V7/IV,
+    // as I7); "other altered tones are discouraged".
     allowedChordNames: [
       "1", "2", "3", "4", "5", "6", "7",
-      "5-7", "5/5", "5/5-6",
-      "5/6-6",
-      "5/2-6", "5/6", "5/2", "m4", "1-7", "2-6", "4-64", "6-6",
-      "m_i", "m_i6", "m_iv", "m_iid", "m_V", "m_V7", "m_VI", "m_VII", "m_III", "m_viid",
+      "5-7", "5/5", "5/5-6", "5/6-6", "5/2-6", "5/6", "5/2", "1-7",
+      "2-6", "4-64", "6-6",
     ],
-    // Everything except the two reversed-dot figures - see level 4. Sixteenths
-    // in a row are still here; they are only fast, not turned around.
+    // Simple syncopation and ties across barlines; dotted patterns including an
+    // occasional dotted eighth and sixteenth; "other sixteenth note patterns
+    // and triplets are forbidden".
     allowedRhythmNames: [
       "whole",
       "dotHalf",
@@ -232,15 +250,19 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarter",
       "eighthEighth",
       "dotQuarterEighth",
-      "fourSixteenths",
+      "eighthQuarterEighth",
+      "dotEighthSixteenth",
       "wholeRest",
       "halfRest",
       "quarterRest",
       "eighthRest",
     ],
     allowedMeters: ["4/4", "3/4", "2/4"],
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
-    measureRange: [48, 56],
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
+    // 32-36 measures for 5A; 6A adds 12-16 more (longVersion). Blaine's Level 5
+    // pieces stop at bar 32 for 5A and run on for 6A.
+    measureRange: [32, 36],
+    longVersion: [44, 52],
     maxSkip: 6,
     // Hand-calibrated by Blaine against UIL's own range staves on
     // /range-calibration (April 2026), and confirmed correct again in

@@ -73,8 +73,9 @@ export type FormPlan = {
   measures: number;
   sections: PlannedSection[];
   /**
-   * The bar a lower level may stop on, where the piece reaches a full cadence
-   * before the coda. One example serving two levels is standard practice.
+   * Where a Level 5 piece's 5A version stops: its full cadence, before 6A's
+   * extension. Set only when the plan runs past it (Blaine's Level 5 pieces
+   * "stop at m32" for 5A; UIL: 32-36 bars for 5A, 12-16 more for 6A).
    */
   shortEndingBar?: number;
   /** Share of bars in a polyphonic texture, against the level's ceiling. */
@@ -105,8 +106,9 @@ export const POLYPHONY_CEILING: Record<number, number> = {
   1: 0,
   2: 0,
   3: 0.2,
-  4: 0.3,
-  5: 0.5,
+  // UIL: "no more than 20% polyphony" at Levels 3 and 4, 25% at Level 5.
+  4: 0.2,
+  5: 0.25,
 };
 
 /** Beats in a bar, from the meter model; any other meter by its top number. */
@@ -132,7 +134,8 @@ function beatsPerMeasure(meter: string): number {
 export function requiredMeasures(level: number, meter = "4/4"): [number, number] {
   const preset = uilPresets[`UIL ${level}` as keyof typeof uilPresets];
   if (!preset) throw new Error(`No such level: ${level}.`);
-  const [min, max] = preset.measureRange;
+  // Level 5's range runs on to its 6A length, the 5A piece ending at its close.
+  const [min, max] = [preset.measureRange[0], preset.longVersion?.[1] ?? preset.measureRange[1]];
   const beats = beatsPerMeasure(meter);
   return [Math.floor((min * 4) / beats), Math.floor((max * 4) / beats)];
 }
@@ -167,22 +170,18 @@ type TemplateSection = {
  * full cadence a level-4 choir could stop on, and a coda.
  */
 function template(level: number): TemplateSection[] {
-  if (level <= 1) {
+  // Levels 1 and 2: A B A', about 24 bars (Blaine's Level 1 and 2 pieces are
+  // all A B A, the last section restating the first).
+  if (level <= 2) {
     return [
       { label: "A", style: "statement", base: 8 },
       { label: "B", style: "departure", base: 8, grow: 1 },
       { label: "A'", style: "return", base: 8, restates: "A" },
     ];
   }
-  if (level === 2) {
-    return [
-      { label: "A", style: "statement", base: 8 },
-      { label: "B", style: "departure", base: 8, grow: 1 },
-      { label: "A'", style: "return", base: 8, restates: "A" },
-      { label: "coda", style: "coda", base: 4, grow: 1 },
-    ];
-  }
-  if (level === 3) {
+  // Levels 3 and 4: 32 bars at home - UIL names no modulation below Level 5 -
+  // with a short polyphonic passage inside the 20% ceiling.
+  if (level <= 4) {
     return [
       { label: "A", style: "statement", base: 8 },
       { label: "B", style: "departure", base: 8, grow: 1 },
@@ -191,25 +190,18 @@ function template(level: number): TemplateSection[] {
       { label: "coda", style: "coda", base: 4, grow: 1 },
     ];
   }
-  // Levels 4 and 5, after forgotten.abc. The bases sum to 36, which is level
-  // 4's minimum; level 5 starts 12 bars above it and grows into them.
+  // Level 5: the 5A piece is 32 bars and ends on a full cadence; 6A runs on
+  // 12-16 bars past it (both of Blaine's Level 5 pieces "stop at m32" for 5A).
+  // The B section turns to the relative minor for 8 bars or so (Blaine, and
+  // UIL's "possible modulation to relative minor keys").
   return [
     { label: "A", style: "statement", base: 8 },
-    { label: "B", style: "departure", base: 4, keyArea: "dominant", grow: 2 },
-    {
-      label: "C",
-      style: "episode",
-      base: 4,
-      // The other place the harmony is asked to leave home. Level 5 takes the
-      // relative minor as well as the dominant; level 4 takes the dominant and
-      // stays there.
-      keyArea: level >= 5 ? "relative-minor" : "tonic",
-      grow: 1,
-    },
-    { label: "D", style: "imitative", base: 4, grow: 3 },
+    { label: "B", style: "departure", base: 8, keyArea: "relative-minor" },
+    { label: "C", style: "imitative", base: 4 },
     { label: "A'", style: "return", base: 8, restates: "A" },
-    { label: "close", style: "close", base: 4 },
-    { label: "coda", style: "coda", base: 4, grow: 1 },
+    { label: "close", style: "close", base: 4, grow: 1 },
+    // 6A's extension: whatever lies past the 5A length (planForm).
+    { label: "coda", style: "coda", base: 0 },
   ];
 }
 
@@ -286,7 +278,20 @@ export function planForm(opts: FormPlanOptions): FormPlan {
 
   const spec = template(level);
   const base = spec.reduce((n, s) => n + s.base, 0);
-  const lengths = absorb(spec, measures - base);
+  // A Level 5 piece longer than 5A is 5A and then 6A's extension: the 5A
+  // sections take up to the 5A length, the coda the rest.
+  const preset = uilPresets[`UIL ${level}` as keyof typeof uilPresets];
+  const extensionAt = spec.findIndex((s) => s.style === "coda" && s.base === 0);
+  // 6A adds 12-16 bars: as many as that (so 5A keeps its 32 where it can),
+  // more only if 5A could not hold the rest.
+  const toBars = (n: number) => Math.floor((n * 4) / beatsPerMeasure(meter));
+  const [mainMin, mainMax] = [toBars(preset.measureRange[0]), toBars(preset.measureRange[1])];
+  const extension =
+    extensionAt >= 0 && measures > mainMax
+      ? Math.max(measures - mainMax, Math.min(toBars(16), measures - mainMin))
+      : 0;
+  const lengths = absorb(spec, measures - extension - base);
+  if (extensionAt >= 0) lengths[extensionAt] = extension;
   // A return is the same music as its statement, so it is the same length.
   spec.forEach((s, i) => {
     if (!s.restates) return;
@@ -345,8 +350,8 @@ export function planForm(opts: FormPlanOptions): FormPlan {
     bar += lengths[i];
   }
 
-  // Where a lower level stops: the full cadence before the coda.
-  const closing = sections.find((s) => s.style === "close");
+  // Where 5A stops: the full cadence before 6A's extension.
+  const closing = extension > 0 ? sections.find((s) => s.style === "close") : undefined;
   const shortEndingBar = closing
     ? closing.startsAtBar + closing.measures - 1
     : undefined;
@@ -384,7 +389,7 @@ export function describeForm(plan: FormPlan): string[] {
     );
   }
   if (plan.shortEndingBar) {
-    lines.push(`  a lower level may stop at bar ${plan.shortEndingBar}`);
+    lines.push(`  5A stops at bar ${plan.shortEndingBar}; 6A goes on`);
   }
   lines.push(
     `  polyphony ${(100 * plan.polyphony.share).toFixed(0)}% of ${(100 * plan.polyphony.ceiling).toFixed(0)}% allowed`

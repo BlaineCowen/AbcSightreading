@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
+  import { fade, fly } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
   import abcjs from "abcjs";
   import type { TimingCallbacks } from "abcjs";
   import RangeSelector from "./ui/rangeSelector.svelte";
@@ -60,6 +62,7 @@
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
+  import UpgradeNotice from "./UpgradeNotice.svelte";
   import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import CountInBadge from "./CountInBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
@@ -68,6 +71,7 @@
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
   import { countGeneration, mayGenerate, usage } from "../lib/usage";
+  import { rememberExercise } from "../lib/recent-client";
   import { revealScore } from "../lib/reveal-score";
   import { activePresetToRestore, rememberActivePreset, restoredSignature, type ActivePresetRecord } from "../lib/active-preset";
   import { stepOfKey, trackById, trackPresetKey, trackStepLabel } from "../lib/curriculum/tracks";
@@ -1304,7 +1308,19 @@
     const mine = ++packing;
     if (!score) return;
     packExercise({ kind: "unison", score })
-      .then((value) => { if (mine === packing) exercisePacked = value; })
+      .then((value) => {
+        if (mine !== packing) return;
+        exercisePacked = value;
+        // For the home page's Recent exercises (signed in only).
+        void rememberExercise({
+          page: "unison",
+          title: activePresetLabel || (rhythmOnly ? "Rhythm exercise" : "Unison exercise"),
+          detail: (rhythmOnly
+            ? [selectedTimeSignature, pillText.length, pillText.rhythm]
+            : [keyName(selectedKey), selectedTimeSignature, pillText.length, pillText.notes]).join(" · "),
+          href: settingsLink() + exerciseFragment(value),
+        });
+      })
       .catch((err) => console.error("Could not pack the exercise for a link:", err));
   }
   /**
@@ -2893,6 +2909,8 @@
         currentScore = (result.data[2] as UnisonScore) ?? null;
         writtenSyllableSystem = syllableSystemId;
         writtenLyricSystem = lyricSystem;
+        // Grade's strip and its marks were about the last exercise: put them away.
+        if (gradeOpen) closeGrade();
         // A new exercise is not the one a link opened: the URL stops pointing at it.
         useExerciseScore(currentScore);
         exerciseHash = "";
@@ -4184,6 +4202,14 @@
   const POP_WIDTH = 420;
   /** The button that opened the popover, for focus to return to. */
   let popOpener: HTMLElement | null = null;
+  /**
+   * The boxes ease in and out: down from their pill, or up from the bottom
+   * as a sheet on a phone. Nothing moves for anyone who asks for less motion.
+   */
+  const reduceMotion = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const asSheet = () => typeof matchMedia !== "undefined" && matchMedia("(max-width: 640px)").matches;
+  const popIn = (node: Element) => fly(node, { y: asSheet() ? 40 : -8, duration: reduceMotion ? 0 : 170, easing: cubicOut });
+  const popOut = (node: Element) => fly(node, { y: asSheet() ? 40 : -8, duration: reduceMotion ? 0 : 110 });
   function closePops(returnFocus = true) {
     const opener = popOpener;
     settingPop = null;
@@ -4745,7 +4771,7 @@
     {#if assignment}<AssignmentBanner {assignment} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
-    {#if !assignment}<PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
+    {#if !assignment}<UpgradeNotice /><PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
     {#if error}
       <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">
         <p class="text-sm text-sr-brass">{error}</p>
@@ -4789,8 +4815,10 @@
       </button>
 
       {#if settingPop}
-        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
+        <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
         <div
+          in:popIn
+          out:popOut
           class="set-pop {settingPop === 'notes' || settingPop === 'rhythm' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
           role="dialog"
@@ -5344,8 +5372,8 @@
         </button>
 
         {#if toolPop}
-          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()}></button>
-          <div class="set-pop set-pop-tools no-print" role="dialog" aria-label={toolPop === 'display' ? 'Display' : 'Drill'}>
+          <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
+          <div in:popIn out:popOut class="set-pop set-pop-tools no-print" role="dialog" aria-label={toolPop === 'display' ? 'Display' : 'Drill'}>
             {#if toolPop === 'display'}
               <p class="set-pop-title">Display</p>
               <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
@@ -5791,6 +5819,7 @@
        compiled in this component's scope, so every handler below still binds
        directly to local state. -->
   <PlaybackBar
+    tools
     hideGenerate={setbarInView}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
@@ -5837,7 +5866,7 @@
           type="range" min="0" max="1" step="0.05"
           bind:value={masterVolume}
           on:input={handleVolumeChange}
-          class="w-16 accent-sr-bar-on"
+          class="w-16 h-10 xl:h-auto accent-sr-bar-on"
           aria-label={rhythmOnly ? 'Percussion volume' : 'Piano volume'}
         />
       </div>
@@ -5857,11 +5886,11 @@
           type="range" min="0" max="1" step="0.05"
           value={$tuner.metronomeVolume}
           on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
-          class="w-16 accent-sr-bar-on"
+          class="w-16 h-10 xl:h-auto accent-sr-bar-on"
           aria-label="Metronome volume"
         />
         <button
-          class="rounded-full px-3 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+          class="rounded-full px-3 min-h-11 xl:min-h-0 py-2 xl:py-0.5 text-xs font-semibold {metronomeSounding($tuner) ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
           on:click={toggleMetronome}
           aria-pressed={metronomeSounding($tuner)}
           title="The metronome, the same one as in Tools: on its own, or with the music while it plays"

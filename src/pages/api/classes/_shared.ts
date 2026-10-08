@@ -9,6 +9,8 @@ type Row = {
   id: string;
   name: string;
   position: number;
+  course: string | null;
+  courseSteps: unknown;
   progress: { presetKey: string; passedAt: Date }[];
 };
 
@@ -16,6 +18,8 @@ export const toClass = (c: Row): ClassWithProgress => ({
   id: c.id,
   name: c.name,
   position: c.position,
+  course: c.course,
+  courseSteps: Array.isArray(c.courseSteps) ? (c.courseSteps as string[]) : null,
   passed: Object.fromEntries(c.progress.map((p) => [p.presetKey, p.passedAt.getTime()])),
 });
 
@@ -23,6 +27,8 @@ export const withProgress = {
   id: true,
   name: true,
   position: true,
+  course: true,
+  courseSteps: true,
   progress: { select: { presetKey: true, passedAt: true } },
 } as const;
 
@@ -35,3 +41,11 @@ export const listClasses = async (userId: string) =>
       select: withProgress,
     })
   ).map(toClass);
+
+/** Every saved preset a course list names must be the caller's own. */
+export async function ownsSavedKeys(userId: string, keys: string[]): Promise<boolean> {
+  const ids = keys.filter((k) => k.startsWith("saved:")).map((k) => k.slice(6));
+  if (!ids.length) return true;
+  const n = await prisma.preset.count({ where: { userId, id: { in: ids } } });
+  return n === new Set(ids).size;
+}

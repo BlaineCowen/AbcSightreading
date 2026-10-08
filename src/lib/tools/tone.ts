@@ -47,6 +47,60 @@ export function playNotes(midis: number[], seconds = 1.6, a4 = 440, volume = 0.5
   setTimeout(() => out.disconnect(), (seconds + 0.2) * 1000);
 }
 
+/**
+ * A piano for Grade's reference (the key and the first note): the same
+ * grand piano samples abcjs plays the exercise on, through the page's own
+ * proxy (/api/soundfont). Loaded ahead (`preloadPiano`) so the reference can
+ * start on time; a note not loaded yet falls back to the soft tone.
+ */
+const PIANO_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const pianoReady = new Map<number, AudioBuffer>();
+const pianoLoading = new Map<number, Promise<AudioBuffer | null>>();
+function loadPiano(midi: number): Promise<AudioBuffer | null> {
+  const known = pianoLoading.get(midi);
+  if (known) return known;
+  const name = `${PIANO_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+  const p = fetch(`/api/soundfont/acoustic_grand_piano-mp3/${name}.mp3`)
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+    .then((bytes) => audio().decodeAudioData(bytes))
+    .then((buf) => (pianoReady.set(midi, buf), buf))
+    .catch(() => null);
+  pianoLoading.set(midi, p);
+  return p;
+}
+
+/** Fetch these piano notes now; true once every one of them is ready. */
+export async function preloadPiano(midis: number[]): Promise<boolean> {
+  const bufs = await Promise.all([...new Set(midis)].map(loadPiano));
+  return bufs.every(Boolean);
+}
+
+/** Sound these notes on the piano together for `seconds`, then let them go. */
+export function playPiano(midis: number[], seconds = 1.2, a4 = 440, volume = 0.5) {
+  if (!midis.every((m) => pianoReady.has(m))) {
+    midis.forEach((m) => void loadPiano(m));
+    return playNotes(midis, seconds, a4, volume);
+  }
+  const c = audio();
+  const now = c.currentTime;
+  const out = c.createGain();
+  const level = volume / Math.max(1, Math.sqrt(midis.length));
+  out.gain.setValueAtTime(level, now);
+  out.gain.setValueAtTime(level, now + seconds);
+  out.gain.linearRampToValueAtTime(0, now + seconds + 0.18);
+  out.connect(c.destination);
+  for (const m of midis) {
+    const src = c.createBufferSource();
+    src.buffer = pianoReady.get(m)!;
+    // The samples are tuned to A440; the singer's A follows the tuner's setting.
+    src.playbackRate.value = a4 / 440;
+    src.connect(out);
+    src.start(now);
+    src.stop(now + seconds + 0.25);
+  }
+  setTimeout(() => out.disconnect(), (seconds + 0.5) * 1000);
+}
+
 /** Notes one after another - the timer's chime. */
 export function playArpeggio(midis: number[], step = 0.18, a4 = 440) {
   midis.forEach((m, i) => setTimeout(() => playNotes([m], 0.6, a4, 0.4), i * step * 1000));

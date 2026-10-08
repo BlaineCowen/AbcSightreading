@@ -40,7 +40,7 @@ const voicesFor = (section: PlannedSection) => [
   Array.from({ length: section.measures }, () => ({ ...note(14), order: 0 })),
 ];
 
-function build(plan = planForm({ level: 2, key: "C" }), onSection?: (s: PlannedSection) => void) {
+function build(plan = planForm({ level: 2, key: "G" }), onSection?: (s: PlannedSection) => void) {
   const asked: PlannedSection[] = [];
   const piece = buildFullLengthPiece(
     (section) => {
@@ -59,7 +59,7 @@ function build(plan = planForm({ level: 2, key: "C" }), onSection?: (s: PlannedS
 
 describe("building the piece a plan describes", () => {
   test("every section that is not a restatement is generated", () => {
-    const plan = planForm({ level: 2, key: "C" });
+    const plan = planForm({ level: 2, key: "G" });
     const { asked } = build(plan);
     const wanted = plan.sections.filter((s) => !s.restates).map((s) => s.label);
     expect([...new Set(asked.map((s) => s.label))].sort()).toEqual(wanted.sort());
@@ -68,7 +68,7 @@ describe("building the piece a plan describes", () => {
   test("a restatement is never generated again", () => {
     // It has to be the SAME music to be heard as a return, so asking the
     // generator for it a second time would defeat the point.
-    const plan = planForm({ level: 2, key: "C" });
+    const plan = planForm({ level: 2, key: "G" });
     const { asked } = build(plan);
     expect(asked.some((s) => s.label === "A'")).toBe(false);
     expect(plan.sections.some((s) => s.label === "A'")).toBe(true);
@@ -83,12 +83,13 @@ describe("building the piece a plan describes", () => {
     const imitative = seen.find((s) => s.style === "imitative");
     expect(imitative).toBeDefined();
     expect(imitative!.texture).toBe("staggered");
-    expect(seen.some((s) => s.keyArea === "dominant")).toBe(true);
+    // Level 5's B section turns to the relative minor (form-plan).
+    expect(seen.some((s) => s.keyArea === "relative-minor")).toBe(true);
   });
 
   test("the piece is as long as the plan says", () => {
     for (const level of [1, 2, 3, 4, 5]) {
-      const plan = planForm({ level, key: "C" });
+      const plan = planForm({ level, key: "G" });
       const { piece } = build(plan);
       const bars = (piece.abc.match(/\|/g) ?? []).length / 2; // two voices
       expect(bars).toBe(plan.measures);
@@ -103,7 +104,7 @@ describe("building the piece a plan describes", () => {
   });
 
   test("a rough seam is reported rather than thrown", () => {
-    const plan = planForm({ level: 2, key: "C" });
+    const plan = planForm({ level: 2, key: "G" });
     const { piece } = build(plan);
     expect(Array.isArray(piece.roughSeams)).toBe(true);
     expect(piece.abc.length).toBeGreaterThan(0); // the piece exists either way

@@ -23,19 +23,19 @@ const demo = band[0].steps.slice(0, 6);
 ---
 
 <Layout
-  title="Curriculum Tracks | Choir, Band and Orchestra Sight Reading"
-  description="Choose the sight-reading sequences you teach from: abcStepByStep, UIL and NYSSMA Voice levels, and step by step tracks for every beginning band and orchestra instrument. Subscribe and they appear in your presets."
+  title="Sight-Reading Courses | Choir, Band and Orchestra"
+  description="Choose the sight-reading sequences you teach from: abcStepByStep, UIL and NYSSMA Voice levels, and step-by-step courses for every beginning band and orchestra instrument. Subscribe and they appear in your presets."
   themable
 >
   <div class="max-w-6xl mx-auto px-4 pb-16 flex flex-col gap-10">
     <!-- Hero -->
     <section class="sr-panel bg-sr-raise p-6 sm:p-10 flex flex-col gap-5 overflow-hidden relative">
-      <p class="text-xs font-extrabold uppercase tracking-widest text-sr-action-fg">Curriculum tracks</p>
+      <p class="text-xs font-extrabold uppercase tracking-widest text-sr-action-fg">Courses</p>
       <h1 class="font-display text-3xl sm:text-5xl font-bold text-sr-ink max-w-3xl leading-tight">
         A sequence for every instrument, ready to teach.
       </h1>
       <p class="text-lg text-sr-ink-2 max-w-2xl">
-        Your preset menu lists what you subscribe to here, so it holds only what you teach from. An instrument track
+        Your preset menu lists what you subscribe to here, so it holds only what you teach from. An instrument course
         sets up each step for the instrument: its sound, its transposition, its clef and a range a first-year player
         can reach. Change any step and keep it as your version.
       </p>
@@ -47,7 +47,7 @@ const demo = band[0].steps.slice(0, 6);
     </section>
 
     <!-- Families -->
-    <nav aria-label="Track families" class="flex flex-wrap gap-2 -mb-4">
+    <nav aria-label="Course families" class="flex flex-wrap gap-2 -mb-4">
       {FAMILIES.map((f) => (
         f.live ? (
           <a href={`#${f.id}`} class="rounded-full px-4 py-2 text-sm font-extrabold bg-sr-action text-sr-action-ink hover:brightness-95">{f.label}</a>
@@ -131,7 +131,7 @@ const demo = band[0].steps.slice(0, 6);
           four keys and the whole range.
         </p>
       </div>
-      <ol class="grid gap-2" aria-label="The first six steps of the trumpet track">
+      <ol class="grid gap-2" aria-label="The first six steps of the trumpet course">
         <li class="grid grid-cols-[2.5rem_1fr_1fr] gap-2 text-[11px] font-extrabold uppercase tracking-wide text-sr-faint">
           <span>Step</span><span>Rhythm drill</span><span>Notes</span>
         </li>

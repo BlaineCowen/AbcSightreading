@@ -170,6 +170,13 @@ function checkClashesWithOtherVoices(
           const other = pitchAtTimeLocal(allNotes[v], at);
           if (other === null) continue;
           if (Math.abs(other - nct.pitchValue) === 1) return true;
+          // Nor may a decoration cross the voice above or below it: two
+          // treble parts written melody first sit a third apart, and a
+          // passing eighth in the lower one stepped over the tune (2 in 100
+          // Level 1 SA exercises, the writer itself never crossing).
+          const mine = currentVoice[noteIndex]?.order;
+          const theirs = allNotes[v].find((n) => !n.rest)?.order;
+          if (mine !== undefined && theirs !== undefined && (theirs > mine ? nct.pitchValue > other : theirs < mine && nct.pitchValue < other)) return true;
         }
       }
     }

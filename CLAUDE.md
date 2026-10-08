@@ -255,7 +255,13 @@ any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
-### Curriculum tracks
+### Curriculum tracks ("courses" on the site)
+
+On the page they are **courses** (My courses, Choose courses, Instrument
+courses, /curriculum's heading): "tracks" read as music tracks beside the
+play-along's backing tracks (8 October 2026). The code, the API
+(`/api/tracks`), the stored fields and every id keep "track"; only the words
+a teacher reads changed, so nothing saved moved.
 
 The preset menu's Levels tab lists only what the teacher subscribes to on
 `/curriculum` (`src/lib/curriculum/catalogue.ts`, its "Choose tracks" link
@@ -354,6 +360,15 @@ general settings in four meters, eight keys and do re mi in steps;
 0 failures in 5,184 Unison and NYSSMA sweep exercises
 (`PROGRESSIONS=1 ONLY_UNISON=1 bun run sweep`); the NYSSMA chart clean
 (`PROGRESSIONS=1 bun run check:nyssma`).
+
+The sweep and the NYSSMA check now decide progressions per exercise as the
+page does (`progressionForPolicy`, which a test holds to agree with
+`writeOverProgression`), with no setting needed; they had stayed off unless
+`PROGRESSIONS=1` after the page made them always on, so the gate swept
+exercises nobody got. `PROGRESSIONS=1` or `0` forces either way, to compare.
+As shipped, 8 October 2026: 0 failures in 12,960 Unison and NYSSMA sweep
+exercises, the NYSSMA chart clean. The ladder and course checks already
+matched (their steps carry `progressions: maxSkip > 1`).
 
 ### Minor keys (Unison)
 
@@ -623,7 +638,9 @@ the scale challenge. The mic stays on across tabs. The Drone (on `/tuner`; on a 
 the practice pages reach it from their tools.
 
 The practice pages carry a Tools button in the bottom-right corner
-(`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
+(on a phone, 640 px and under, it is in the playback bar's More controls
+instead, since it sat over the music: PlaybackBar `tools`, the
+`sr-tools-toggle` event) (`src/components/tools/ToolsWheel.svelte`): a wheel of six tools - tuner,
 metronome, drone, starting pitches, analysis, timer - each opening as a card.
 A practice page has one metronome (`src/lib/tools/metronome-link.ts`, tests
 `metronome-link.test.ts`): the Tools card, the transport's metronome icon,
@@ -696,6 +713,15 @@ subdivided when it does; it kept a click of its own, on every beat, until
   moving on in time and counting pitch sung ahead toward the next note -
   and a singer following the cursor in time had short notes marked missed
   and attempts counted against the wrong notes (Blaine's saved run).
+The key's reference (do mi so mi do, so below, do, then the first note) plays
+on the grand piano the exercise plays on (`playPiano` in tools/tone.ts, the
+/api/soundfont samples, fetched as the run starts and waited on for at most
+`PIANO_WAIT_MS`), at 0.8 of the exercise's beat, held 0.3 to 0.6 s (8 October
+2026; it was a soft tone at the exercise's own beat). The first note alone
+(the other reference) and the help buttons' note and do play on the piano
+too; every pitch of the run is fetched as it starts. A new exercise closes
+Grade's strip and its marks.
+
 - **Pitch & rhythm** (`gradeMode: "performance"`): a reference, then the
   exercise runs in time on the page's own TimingCallbacks with no synth (the
   melody never sounds): its count-in, the chosen cursor (off, smooth, beat,
@@ -785,6 +811,17 @@ store there) unless `PUBLIC_GRADE_SEND=1` and `BLOB_READ_WRITE_TOKEN` are in
 the environment; with `BETTER_AUTH_URL` and `COMP_EMAILS` set too, a second
 dev server on another port can test Send end to end with a throwaway account
 (done 6 October 2026; delete the account and the upload after).
+
+Does the click cost the singer? Grading keeps echo cancellation, which turns
+the microphone down while the speakers sound. Measured on Blaine's two sent
+runs (7 October 2026, half and whole notes at 72, speakers, click on and
+off; `bun run scripts/check-click-dips.ts <runs>`, tests
+`click-dips.test.ts`): inside held notes, the frames just after a click were
+as loud and as pitched as those just before (+0.1 dB, 100% voiced; click off
+-0.7 dB), and the scores matched (96 on, 94 off). The duck is shorter than a
+detection frame (~46 ms), so grading does not feel it; only a recording
+played back did, which is why the take skips echo cancellation and grading
+keeps it.
 
 Runs can also be saved for review: on the dev server, or with `?gradeDebug=1`,
 the microphone is recorded over each run (a second stream, `grade-recording.ts`,
@@ -901,8 +938,19 @@ Auth endpoints live under `/api/auth/*`; pages are `/login` (also
 
 Classes (`Class`, `ClassProgress`; `/api/classes`, `src/lib/classes.ts`) are
 signed-in only: a director's choirs and which presets each has passed, keyed
-`step:<id>`, `uil:UIL n` or `saved:<preset id>`. Picked beside the preset on
-the practice pages ("Mark passed"), and shown as a grid on `/account`.
+`step:<id>`, `uil:UIL n`, `nyssma:<level id>`, `track:<step id>:<part>` or
+`saved:<preset id>`. Picked beside the preset on the practice pages ("Mark
+passed"). Since 8 October 2026 each class follows one course
+(`Class.course`, `src/lib/class-course.ts`, tests `class-course.test.ts`):
+abcStepByStep, an instrument course, or "own" (built from the teacher's
+presets). UIL and NYSSMA are levels by grade, not courses (Blaine), so they
+are never a class's course, but any level can be added to a checklist. On
+`/account` each class is a card: its course's checklist with dates, how far
+through, and Next with a Practice link (`?step=`, `?track=`, `?nyssma=`,
+`?preset=`, and Choral's `?uil=`). Customize hides, reorders and adds steps
+for that class only (`Class.courseSteps`, a list of preset keys; null is the
+course as written; a new course starts over). Ticks are keyed by preset, so
+no change to the list loses one.
 
 A teacher's own rhythm syllables live in `UserPreference.rhythmSyllables`
 (`/api/preferences`, `src/lib/syllable-prefs.ts`), edited on `/account` and
@@ -1057,6 +1105,25 @@ presets once; the server dedupes by name + creation time.
   is drawn, so an exercise that could not be written costs nothing; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
 
+## Home page (signed in)
+
+`/` is two pages (8 October 2026): the landing page for anyone signed out
+and every crawler (`src/components/Landing.astro`, unchanged), and for
+someone signed in their home (`HomeDashboard.svelte`, sent `private,
+no-store`): Continue (the last exercise), Unison and Choral, Recent
+exercises, My courses (the subscribed sets and instrument courses, with
+Choose courses; the navbar's Tracks left for here and the footer's Courses), a student's
+assignments, an educator's classes, and Account and settings.
+
+Recent exercises are kept on the account (`RecentExercise`, the last
+`MAX_RECENT` = 20; `/api/recent`; rules in `src/lib/recent-exercises.ts`,
+tests `recent-exercises.test.ts`). Both practice pages remember each
+exercise once its link is packed (`rememberExercise`, signed in only): the
+preset's name or the kind of exercise, a line of what it is, and the same
+link Share gives, so it reopens exactly. The same link again moves to the
+top. A stored link must be a path to the page it names (`checkRecent`), since
+the home page shows it as a link.
+
 ## SEO
 
 `site` in astro.config.mjs is https://www.abc-sightreading.com, and every page's
@@ -1133,6 +1200,88 @@ quarter + eighth is the same length as two quarters, so no pitch or other voice
 changes. A pattern's chord starts on its first sung note
 (`rhythm-generation.ts`): eighth rest + eighth used to start on the rest and
 failed 29 exercises in 40.
+
+**Two parts at the beginning levels are written melody first**
+(`src/lib/two-part-treble.ts`, tests `two-part-treble.test.ts`;
+`melodyFirstFor`: SA at Levels 1-2, TB at Level 1, each only where Blaine has
+written a piece to measure against; the page and the sweep pass it). It
+replaces buildChordNotes for those pairs: on each strong beat it picks a chord
+from the level's own (I, IV, V, V7) together with the tune's note and the
+lower part's; the chord holds through the weak beats, where both parts may
+pass or neighbour by step; the planned progression is kept only into each
+cadence. At Level 1 it follows UIL's current wording (Blaine quoted it 7
+October 2026; notes/uil-criteria.md): skips only within the chord sounding
+(thirds do-mi, mi-sol, fa-la, do-la below, ti-re, sol-ti, and do down to
+the sol below), both parts (`chordSkipsFor`, `leapOk`; the restatement's
+seams and varied notes keep to it through `levelOneLeapOk`); it begins on do
+with mi or a unison do above; dotted halves, no rests (`noRests` on the
+preset: an inner phrase's breath is a sung pickup, never a rest,
+rhythm-generation `breathRests`). The new rhythm list moved four UIL 1
+meter-regression snapshots, updated deliberately. Each pair has a profile (degree shares,
+moves, intervals, bar shapes in `barShapeWeight`) from its piece in
+`notes/reference-pieces/`; `scripts/sample-choral.ts` writes samples to
+compare. SA against "Silence and Tears": alto on do 63% (his 59, before 38),
+soprano by step 66% of moves (79, before 49), thirds and sixths 80% (78,
+before 61). TB against "The Frog": tenor steps 63% (62, before 31), repeats
+25% (28, before 60), bare fifths 15% (13, before 40). No unison opening there
+any more (his pieces start in harmony). UIL 1 allows a rare eighth pair; that
+alone moved the six UIL 1 meter-regression snapshots, updated deliberately.
+Two guards came with it, for every voicing: a decoration may not cross the
+voice above or below it (non-chord-tone-gen), and the restatement's varied
+note is checked against every lower note sounding under it, not just at its
+start (rhyming-phrases `soundingWithin`); neither moved a snapshot.
+
+**Three treble parts (SSA) at Levels 2-3 are written melody first** too
+(`src/lib/three-part-treble.ts`, tests `three-part-treble.test.ts`; the page
+and the sweep pass `ssaLevelFor`), and 3 Part Treble is now offered at both
+levels (UIL lists SSA there; the general writer's SSA was why it was not).
+Each part has the job it has in Blaine's pieces: Level 2 ("Oh Lovely
+Spring") soprano 1 the tune, soprano 2 holding do, the alto a bass on do and
+the sol below; Level 3 draws one of two textures, "The Rainbird" (the same
+jobs) or "By the Cradle" (a duet a third under the tune over an alto holding
+do). All three notes are chosen together with the chord; no crossing, no
+seconds or sevenths between parts, no parallels, the leading tone never
+doubled, complete triads preferred but not forced (his are 72-73%).
+Level 2 against Spring: soprano 2 on do 59% (59; the general writer 12%),
+the alto on do 32% and low sol 50% (his 43 and 41), soprano 2 to alto
+unison 28% (25). It still leans on V a little (the tune on re 31%,
+his 20%). SATB ("Our Hero", Level 3) shows the same jobs with a tenor filling
+the chord; not built yet.
+
+**Every voicing at every UIL level is written melody first now** (Blaine,
+7 October 2026: "build out the other voicings and levels. We will clean
+them up later"). SA and TB use two-part-treble.ts at all five levels (the
+Level 1-2 profiles above Level 2, for now); SSA at Levels 2-3 its own writer;
+everything else `src/lib/part-writer.ts` (tests `part-writer.test.ts`),
+the SSA method for 2-4 parts, each part a job from his pieces: SATB Levels
+1-3 as "Our Hero" (tune, alto holding do, tenor filling, bass on roots),
+Levels 4-5 as "A Demon in My View" (alto and tenor moving), SAB the same
+without the tenor, TTB/TBB with the Frog's tenor tune over a part holding
+do and a bass, SSA at Levels 1, 4, 5 (Level 5 as "Give Me More Love"). The
+page passes `partWriterLevel`. All six voicings are offered at every level.
+Measured: SATB Level 3 against Our Hero, alto on do 62% (62), chords
+complete 83% (83), bass leaping 32% of moves (38). Known: it leans on V
+(the tune on re 28%, his 15%), the planned cadences' doing more than chord
+choice. Chromatic practice works at every level (Focus on a chord, chromatic
+chords ticked, Chromatic frequency): the new writers keep the plan's
+chromatic chords and the chord each resolves to (`keepPlan`), and lead the
+altered note by step in, by step out the way it leans, never doubled,
+costing a voicing without it (`MISSING_ALTERED`). Focus on V/V: 87-100% of
+exercises carry fi across the writers; V7/IV 77-100% (the general writer
+managed 0% at Levels 2-3). Tests `chromatic-drill.test.ts`.
+
+**The UIL levels follow UIL's current criteria** (read from uiltexas.org on
+7 October 2026 and checked with Blaine; notes/uil-criteria.md, which ends
+with what is not applied yet). Levels 1-2 are F and G major only, 3/4 and
+4/4, no rests, authentic/half/plagal cadences; Levels 1-3 skip only as UIL
+lists by chord (`uil-skips.ts`, for the melody-first writers); Level 4 is
+diatonic with no modulation; Level 5 is major (no minor keys of its own)
+with fi, si, di, te, an occasional dotted eighth and sixteenth, and 32-36
+bars for 5A plus 12-16 for 6A (`longVersion`; form-plan puts 5A's full
+cadence at bar 32 and a B section in the relative minor). Blaine's "Level
+4/5" pieces are Level 5, stopping at bar 32 for 5A. Each preset change that
+moved a meter-regression snapshot was checked by restoring the old list
+first.
 
 The Choral page opens at UIL Level 3 in F major when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
@@ -1241,7 +1390,10 @@ usage banner beside Preset shows only at 3 or fewer left
 (GenerationLimit `LOW_LEFT`). With a preset active, a pill changed since it
 was chosen has a dot (`pillChanged`). Focus moves into a popover as it
 opens and back to its pill on Done or Esc; while one is open, Tools and
-Feedback step aside (`html.sr-pop-open`).
+Feedback step aside (`html.sr-pop-open`). The boxes ease in and out (down
+from their pill, up as a sheet on a phone; none with reduced motion), and on
+touch screens every control in the playback bar is at least 44 px tall.
+Choral's history is Previous, and Latest while looking back.
 
 The score has its own toolbar above it: Display (the old Score options:
 sound, transpose, annotations, cursor; Unison's Dynamics there is Off or On,

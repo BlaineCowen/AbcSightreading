@@ -30,6 +30,7 @@
 import { createNewSr } from "../src/lib/generateUnison";
 import { nyssmaGenerationParams, nyssmaVoiceLevels } from "../src/lib/nyssma-presets";
 import { rangeForSpan } from "../src/lib/ladder";
+import { progressionsFromEnv } from "../src/lib/skip-settings";
 
 const RUNS = Number(process.env.RUNS ?? 40);
 const ONLY = process.env.LEVEL;
@@ -101,9 +102,11 @@ for (const level of nyssmaVoiceLevels.filter((l) => !ONLY || l.short === `Level 
     for (let run = 0; run < RUNS; run++) {
       let result: any;
       try {
-        // PROGRESSIONS=1: over chord progressions, as the Unison page writes them by default.
+        // Over a chord progression exactly when the page writes one (skip-settings
+        // `progressionForPolicy`); PROGRESSIONS=1 or 0 forces it, to compare.
+        const params = nyssmaGenerationParams(level, { key, meter, clef, anchor: ANCHOR[clef] });
         result = silenced(() =>
-          createNewSr({ ...nyssmaGenerationParams(level, { key, meter, clef, anchor: ANCHOR[clef] }), progressions: process.env.PROGRESSIONS === "1" } as any),
+          createNewSr({ ...params, progressions: progressionsFromEnv(process.env.PROGRESSIONS, params.maxSkip) } as any),
         );
       } catch (e: any) {
         row.failed++;

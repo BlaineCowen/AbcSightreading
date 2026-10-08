@@ -91,6 +91,7 @@ export function assignmentPage(presetKey: string, savedStore?: string): LadderPa
   if (key?.kind === "step") return ladderById[key.id].page;
   if (key?.kind === "saved") return savedStore === UNISON_PRESET_STORE ? "unison" : "choral";
   if (key?.kind === "track") return "unison";
+  if (key?.kind === "nyssma") return "unison";
   return "choral";
 }
 

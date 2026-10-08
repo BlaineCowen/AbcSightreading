@@ -59,6 +59,19 @@ export type RhythmOptions = {
    * judgement about the exercise, not something the generator can guess.
    */
   weightBias?: Record<string, number>;
+  /**
+   * A multiplier by where in the bar a figure would start (in 32nds from the
+   * downbeat): how a writer asks for a bar's shape - a half on the downbeat,
+   * say - without a template. 1 leaves it alone; see barShapeWeight in
+   * two-part-treble.ts.
+   */
+  positionWeight?: (rhythm: Rhythm, measurePosition: number) => number;
+  /**
+   * False: an inner phrase's breath is never a rest, only the pickup note -
+   * a level that says to avoid rests (UIL Level 1). Rests are otherwise
+   * drawn for the breath even when none are selected; see interiorCadenceFigure.
+   */
+  breathRests?: boolean;
 };
 
 /** The shortest note inside a figure, in 32nd units. */
@@ -288,7 +301,7 @@ export function generateRandomRhythm(
       // the phrase is written, the same way the cadence note is - so it should
       // not disappear when someone turns rests off to stop them appearing
       // mid-phrase. That is precisely the setting that wants it most.
-      const breath =
+      const breath = options.breathRests === false ? null :
         rhythmCatalogue.find(
           (r) => !r.pattern && r.rest && r.totalValue === BEAT_UNIT
         ) ?? null;
@@ -572,7 +585,7 @@ export function generateRandomRhythm(
       const weights = possibleRhythms.map((r) => {
         const variety = Math.max(1, 5 - measuresUsedBy(r.name));
         const speed = options.favorLongerNotes ? speedFactorFor(r) : 1;
-        const bias = options.weightBias?.[r.name] ?? 1;
+        const bias = (options.weightBias?.[r.name] ?? 1) * (options.positionWeight?.(r, currentMeasurePosition) ?? 1);
         // Never zero: a rhythm turned all the way down still has to be
         // placeable, or a selection of nothing else has no way to fill a bar.
         const biased = Math.max(0.001, bias);
