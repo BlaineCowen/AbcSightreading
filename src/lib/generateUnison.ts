@@ -480,7 +480,13 @@ function generateChordProgression(
    * measured between sung notes: TMEA's "intervals no greater than a 4th"
    * are the intervals sung (tmea-presets.ts). Exact skips always do.
    */
-  restHoldsLine = false
+  restHoldsLine = false,
+  /**
+   * End on do (when it is selected), heading there as it would for any home
+   * note: a NYSSMA level's line ends on do, as the sight-reading examples do.
+   * Otherwise do, mi or so, whichever are selected (isHome).
+   */
+  endOnDo = false
 ) {
   /**
    * Is this the altered note the chord carries, and one the reader asked for?
@@ -623,6 +629,8 @@ function generateChordProgression(
    * left so and la a tenth of the line each.
    */
   const isHome = (note: Note) => [0, 2, 4].includes(note.degree) && scaleDegrees.includes(note.degree);
+  /** Where the line ends: home, or do alone with `endOnDo`. */
+  const isEnd = endOnDo && scaleDegrees.includes(0) ? (note: Note) => note.degree === 0 : isHome;
   /**
    * How many notes early a line starts heading home: the notes it needs to
    * walk there, plus this. Measured on "up to so" (by step, do to so) when
@@ -642,13 +650,13 @@ function generateChordProgression(
   const distanceHome = (note: Note) =>
     Math.min(
       Infinity,
-      ...bassRangeNoteList.filter(isHome).map((n) => Math.abs(n.pitchValue - note.pitchValue))
+      ...bassRangeNoteList.filter(isEnd).map((n) => Math.abs(n.pitchValue - note.pitchValue))
     );
   /** Whether a home note other than this one is within a skip of it. */
   const leadsHome = (note: Note, chord: Chord | undefined) =>
     bassRangeNoteList.some(
       (n) =>
-        isHome(n) &&
+        isEnd(n) &&
         n.pitchValue !== note.pitchValue &&
         isAllowedMove(
           sungNote(note, chord),
@@ -1199,9 +1207,10 @@ function generateChordProgression(
         let bassNoteToAdd = bassDegrees
           .filter((note) => usable(chords[0], note))
           .filter((note) => reaches(note, chords[0], i));
-        // End on do, mi or so, whichever are selected and in reach.
-        const home = bassNoteToAdd.filter(isHome);
-        if (home.length > 0) bassNoteToAdd = home;
+        // End on do, mi or so, whichever are selected and in reach (do alone with endOnDo).
+        const home = bassNoteToAdd.filter(isEnd);
+        // With endOnDo a line that cannot reach do fails here, and is walked again.
+        if (home.length > 0 || isEnd !== isHome) bassNoteToAdd = home;
         if (bassNoteToAdd.length > 0) {
           bassNoteArray.push(
             pickBass(bassNoteToAdd, nextChord.chord)
@@ -3088,7 +3097,8 @@ function createNewSrOnce(params: any) {
         rhythm,
         params.accidentalsFollowStep,
         { sharps: sharpScaleDegrees, flats: flatScaleDegrees },
-        params.restHoldsLine === true
+        params.restHoldsLine === true,
+        params.endOnDo === true
       );
 
     // With exact skips listed, a line that sang none of them is drawn again

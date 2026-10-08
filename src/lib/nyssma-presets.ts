@@ -161,6 +161,8 @@ export function nyssmaGenerationParams(
     // No cap of their own: Skips between keeps eighths to steps, as the page does.
     ...capsFor({ onePitch: false }),
     accidentalsFollowStep: true,
+    // Without a progression (Level I only steps) the line still ends on do.
+    endOnDo: true,
     dynamics: level.dynamics,
     partsObject: { numofParts: 1, parts: { Unison: { order: 0, smallName: "U" } } },
   };
