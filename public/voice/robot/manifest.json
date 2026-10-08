@@ -1,0 +1,127 @@
+{
+ "1": {
+  "file": "1.mp3",
+  "leadIn": 0.07,
+  "seconds": 0.833
+ },
+ "2": {
+  "file": "2.mp3",
+  "leadIn": 0.06,
+  "seconds": 0.713
+ },
+ "3": {
+  "file": "3.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.767
+ },
+ "4": {
+  "file": "4.mp3",
+  "leadIn": 0.12,
+  "seconds": 0.82
+ },
+ "5": {
+  "file": "5.mp3",
+  "leadIn": 0.11,
+  "seconds": 0.898
+ },
+ "6": {
+  "file": "6.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.873
+ },
+ "7": {
+  "file": "7.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.911
+ },
+ "8": {
+  "file": "8.mp3",
+  "leadIn": 0.02,
+  "seconds": 0.731
+ },
+ "9": {
+  "file": "9.mp3",
+  "leadIn": 0.14,
+  "seconds": 0.901
+ },
+ "10": {
+  "file": "10.mp3",
+  "leadIn": 0.06,
+  "seconds": 0.79
+ },
+ "11": {
+  "file": "11.mp3",
+  "leadIn": 0.02,
+  "seconds": 0.934
+ },
+ "12": {
+  "file": "12.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.935
+ },
+ "e": {
+  "file": "e.mp3",
+  "leadIn": 0.02,
+  "seconds": 0.671
+ },
+ "and": {
+  "file": "and.mp3",
+  "leadIn": 0.02,
+  "seconds": 0.8
+ },
+ "a": {
+  "file": "a.mp3",
+  "leadIn": 0.02,
+  "seconds": 0.659
+ },
+ "trip": {
+  "file": "trip.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.825
+ },
+ "let": {
+  "file": "let.mp3",
+  "leadIn": 0.08,
+  "seconds": 0.773
+ },
+ "la": {
+  "file": "la.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.799
+ },
+ "li": {
+  "file": "li.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.761
+ },
+ "ta": {
+  "file": "ta.mp3",
+  "leadIn": 0.07,
+  "seconds": 0.746
+ },
+ "ti": {
+  "file": "ti.mp3",
+  "leadIn": 0.06,
+  "seconds": 0.701
+ },
+ "ki": {
+  "file": "ki.mp3",
+  "leadIn": 0.08,
+  "seconds": 0.72
+ },
+ "ri": {
+  "file": "ri.mp3",
+  "leadIn": 0.08,
+  "seconds": 0.763
+ },
+ "tri": {
+  "file": "tri.mp3",
+  "leadIn": 0.1,
+  "seconds": 0.769
+ },
+ "o": {
+  "file": "o.mp3",
+  "leadIn": 0.02,
+  "seconds": 0.726
+ }
+}

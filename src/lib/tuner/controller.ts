@@ -50,6 +50,7 @@ export function initTuner() {
       s.beatLevels !== last.beatLevels ||
       s.subMask !== last.subMask ||
       s.assistant !== last.assistant ||
+      s.voice !== last.voice ||
       s.clickSound !== last.clickSound ||
       s.metronomeVolume !== last.metronomeVolume
     ) {
@@ -72,6 +73,8 @@ const metronomeSettings = (s: TunerState) => ({
   beatLevels: s.beatLevels,
   subMask: s.subMask,
   assistant: s.assistant,
+  voice: s.voice,
+  compound: meterById(s.meter).kind === "compound",
   groupStarts: meterById(s.meter).groupStarts,
   sound: s.clickSound,
   // The store's 0.5 middle is the level the metronome always had.

@@ -1,0 +1,2 @@
+Made with espeak-ng (https://github.com/espeak-ng/espeak-ng), voice en-us, rate 150, by scripts/voice/build.ts.
+Generated speech: no licence attaches to it.
