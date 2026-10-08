@@ -57,3 +57,6 @@ scripts/guitar/.render/
 
 # Grade runs pulled from the store (scripts/grade-runs.ts)
 grade-runs/
+
+# Printed book proofs (scripts/make-book.ts); the data behind their QR codes is src/data/books/
+marketing/books/
