@@ -16,6 +16,7 @@
   import { levelSections, sectionToOpen, type LevelSectionId } from '../lib/preset-sections';
   import { TRACK_DOT_CLASS, trackById, trackHref, trackPresetKey } from '../lib/curriculum/tracks';
   import { loadTrackPrefs, trackPrefs } from '../lib/track-prefs';
+  import { sectionAllowed, tracksFor, type Reader } from '../lib/readers';
 
   /** The name of the preset the settings came from, or '' for none. */
   export let activeLabel: string = '';
@@ -63,7 +64,13 @@
    * (src/lib/curriculum/catalogue.ts, chosen on /curriculum): the built-in
    * sets, abcStepByStep by default, and the instrument tracks.
    */
-  $: tracks = $trackPrefs.tracks.map((id) => trackById[id]).filter(Boolean);
+  $: tracks = tracksFor(reader, $trackPrefs.tracks.map((id) => trackById[id]).filter(Boolean));
+  /**
+   * Who is reading (the page's instrument pill, readers.ts): the menu keeps
+   * to what that reader can use, a voice its standards, a band or string
+   * player its own course. Null, as on the Choral page, shows everything.
+   */
+  export let reader: Reader | null = null;
   /** The track step half loaded: "track:band-trumpet-03:notes". */
   export let activeTrackKey: string | null = null;
   /** A track step; a page that cannot apply one (Choral) sends it to the Unison page. */
@@ -281,7 +288,8 @@
   let panel: HTMLElement;
 
   $: uilOffered = showBuiltins && !hideUILLevels;
-  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tmea: tmeaLevels.length > 0, tracks: tracks.length, subscribed: $trackPrefs.tracks });
+  $: sections = levelSections({ uil: uilOffered, nyssma: nyssmaLevels.length > 0, tmea: tmeaLevels.length > 0, tracks: tracks.length, subscribed: $trackPrefs.tracks })
+    .filter((section) => sectionAllowed(reader, section.id));
   /** Where each subscribed track's class goes next: the half after the furthest one passed. */
   $: trackNext = Object.fromEntries((tracks ?? []).map((t) => {
     const halves = t.steps.flatMap((s) => [trackPresetKey(s.id, 'rhythm'), ...(s.notes ? [trackPresetKey(s.id, 'notes')] : [])]);
@@ -391,6 +399,8 @@
     {#if edited}<span class="text-xs font-bold rounded-full bg-sr-butter text-sr-butter-ink px-2 py-0.5">edited</span>{/if}
     <ChevronDown size={14} class="shrink-0" />
   </button>
+  <!-- Beside Preset: the Unison page's instrument pill. -->
+  <slot name="beside" />
 
   {#if $classesAvailable}
     <!-- The class being taught. Its passes show in the picker, and the loaded
@@ -531,7 +541,11 @@
             <span class="font-semibold text-xs text-sr-muted truncate">UIL, NYSSMA, band instruments and more</span>
           </a>
           {#if $trackPrefs.ready && sections.length === 0}
-            <p class="text-sm text-sr-muted px-2 py-3">Nothing subscribed yet. Choose the courses you teach from and they will be listed here.</p>
+            {#if reader && reader.family !== 'voice'}
+              <p class="text-sm text-sr-muted px-2 py-3">Nothing for {reader.name} yet. Subscribe to its course and its steps will be listed here, or choose a voice to see the sung levels.</p>
+            {:else}
+              <p class="text-sm text-sr-muted px-2 py-3">Nothing subscribed yet. Choose the courses you teach from and they will be listed here.</p>
+            {/if}
           {/if}
           {#each sections as section, i (section.id)}
             <!-- The whole header row opens and shuts its section. It sticks to
@@ -690,8 +704,8 @@
                   </ul>
                   <p class="text-xs text-sr-muted px-2 pt-2">
                     NYSSMA solo voice sight-reading criteria (Manual, Edition 33). Each level sets keys,
-                    meters, skips, rhythms, tempo and dynamics. Your clef stays, and the level's range
-                    is placed from your low note. Level VI comes later.
+                    meters, skips, rhythms, tempo and dynamics. Its range is placed inside your
+                    instrument's (the pill beside Preset), or from your low note. Level VI comes later.
                   </p>
                 {:else}
                   {#each [1, 2, 3, 4] as n}
@@ -699,7 +713,8 @@
                     <div class="px-2 pt-2">
                       <p class="text-xs text-sr-muted">{row[0]?.summary.split(' · ')[0] ?? ''} · Level {['I', 'II', 'III', 'IV'][n - 1]}</p>
                       <div class="flex flex-wrap gap-1.5 pt-1" role="group" aria-label={`Level ${n}`}>
-                        {#each row as level}
+                        <!-- A voice part on the instrument pill is the part: its levels alone. -->
+                        {#each row.filter((l) => !reader?.tmeaPart || l.part === reader.tmeaPart) as level}
                           <button
                             type="button"
                             class="sr-tok text-sm {level.id === activeTmeaId ? 'sr-on' : ''}"
