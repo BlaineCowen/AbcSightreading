@@ -3,7 +3,7 @@ import { generateChoralExercise } from "../../src/lib/generateChoral";
 import { uilPresets } from "../../src/lib/uil-presets";
 import { chords } from "../../src/resources/chords";
 import { rhythms } from "../../src/resources/rhythms";
-import { barShapeWeight, isTwoPartTreble, melodyFirstFor } from "../../src/lib/two-part-treble";
+import { barShapeWeight, melodyFirstFor, twoPartKind } from "../../src/lib/two-part-treble";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "../../scripts/generation-fixtures";
 import type { VoiceNote } from "../../src/lib/types";
 
@@ -18,16 +18,16 @@ import type { VoiceNote } from "../../src/lib/types";
 const level = uilPresets["UIL 1"];
 const quiet = () => {};
 
-function write(n: number, melodyFirst = true, nctProbability = 0.1) {
+function write(n: number, melodyFirst: ("SA" | "TB")[] = ["SA"], nctProbability = 0.1, voicing = "2 Part Treble") {
   const saved = { log: console.log, warn: console.warn };
   Object.assign(console, { log: quiet, warn: quiet });
   try {
     return Array.from({ length: n }, () =>
       generateChoralExercise({
-        key: "F", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing("2 Part Treble", level)!, measures: 16,
+        key: "F", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing(voicing, level)!, measures: 16,
         maxSkip: level.maxSkip, bpm: 72, nctProbability, stepwiseEighths: true, accidentalsByStep: true,
         selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
-        chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0.85, unisonProbability: 1, melodyFirst,
+        chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0.85, unisonProbability: 1, melodyFirst, chordSkips: true,
       } as any),
     );
   } finally {
@@ -48,16 +48,17 @@ function pairs(voices: VoiceNote[][], names: string[]) {
   return onsets.map((t) => [at(S, t), at(A, t)] as const).filter(([s, a]) => s && a && !s.rest && !a.rest) as [VoiceNote, VoiceNote][];
 }
 
-test("only two treble parts, at Levels 1 and 2, are written melody first", () => {
-  expect(melodyFirstFor("UIL 1")).toBe(true);
-  expect(melodyFirstFor("UIL 2")).toBe(true);
-  expect(melodyFirstFor("UIL 3")).toBe(false);
-  expect(melodyFirstFor(undefined)).toBe(false);
+test("SA at Levels 1 and 2, and TB at Level 1, are written melody first", () => {
+  expect(melodyFirstFor("UIL 1")).toEqual(["SA", "TB"]);
+  expect(melodyFirstFor("UIL 2")).toEqual(["SA"]);
+  expect(melodyFirstFor("UIL 3")).toEqual([]);
+  expect(melodyFirstFor(undefined)).toEqual([]);
   const sa = presetVoicing("2 Part Treble", level)!;
   const tb = presetVoicing("2 Part Tenor/Bass", level)!;
   const parts = (o: any) => Object.entries(o.parts).map(([name, p]: [string, any]) => ({ name, ...p }));
-  expect(isTwoPartTreble(parts(sa) as any)).toBe(true);
-  expect(isTwoPartTreble(parts(tb) as any)).toBe(false);
+  expect(twoPartKind(parts(sa))).toBe("SA");
+  expect(twoPartKind(parts(tb))).toBe("TB");
+  expect(twoPartKind(parts(presetVoicing("3 Part Treble", level)!))).toBe(null);
 });
 
 test("the alto holds do under a tune in thirds and sixths, moving by step, never crossing", () => {
@@ -101,7 +102,7 @@ function parallels(ex: ReturnType<typeof write>[number]) {
 }
 
 test("the writer itself writes no parallel fifths, octaves or unisons", () => {
-  for (const ex of write(15, true, 0)) expect(parallels(ex)).toBe(0);
+  for (const ex of write(15, ["SA"], 0)) expect(parallels(ex)).toBe(0);
 }, 60_000);
 
 // The decoration pass, run after, now and then splits a note into a pair of
@@ -129,4 +130,62 @@ test("bars open on a half, never put one across the middle, and keep eighths off
     }
   }
   expect(openHalf / bars).toBeGreaterThan(0.55);
+}, 60_000);
+
+// "The Frog" (TB, Level 1): the bass holds do (51%) with ti, the tenor moves
+// by step (62% of moves) and repeats (28%); so over ti a sixth, 26%. The old
+// writer: tenor repeating 60%, bass on do 42%, bare fifths 40%.
+test("tenor and bass at Level 1: a tune over a bass holding do", () => {
+  const exercises = write(20, ["TB"], 0.1, "2 Part Tenor/Bass");
+  let doTime = 0, bassTime = 0, fifths = 0, all = 0, steps = 0, moves = 0, crossed = 0;
+  for (const ex of exercises) {
+    const names = ex.voiceNames;
+    for (const n of ex.voiceNotes[names.indexOf("Bass")]) if (!n.rest) { bassTime += n.length; if (n.degree === 0) doTime += n.length; }
+    const tenor = ex.voiceNotes[names.indexOf("Tenor")].filter((n) => !n.rest);
+    for (let i = 1; i < tenor.length; i++) {
+      moves++;
+      if (Math.abs(tenor[i].pitchValue - tenor[i - 1].pitchValue) === 1) steps++;
+    }
+    const ps = pairs([ex.voiceNotes[names.indexOf("Tenor")], ex.voiceNotes[names.indexOf("Bass")]], ["Soprano", "Alto"]);
+    for (const [t, b] of ps) {
+      all++;
+      if (t.pitchValue - b.pitchValue === 4) fifths++;
+      if (t.pitchValue < b.pitchValue) crossed++;
+    }
+  }
+  expect(crossed).toBe(0);
+  expect(doTime / bassTime).toBeGreaterThan(0.48);
+  expect(steps / moves).toBeGreaterThan(0.5);
+  expect(fifths / all).toBeLessThan(0.3);
+}, 60_000);
+
+// UIL Level 1's current wording (notes/uil-criteria.md): skips only within the
+// chord - thirds (do-mi, mi-sol, fa-la, do-la below, ti-re, sol-ti) and do
+// down to the sol below - and begin on do under mi, or a unison do. Re-fa is
+// the one diatonic third not listed (it is in no Level 1 chord).
+test("Level 1 leaps only as UIL lists them, and begins on do with mi or do above", () => {
+  for (const voicing of ["2 Part Treble", "2 Part Tenor/Bass"]) {
+    for (const ex of write(15, ["SA", "TB"], 0, voicing)) {
+      const [upper, lower] = ex.voiceNames[0] === "Alto" || ex.voiceNames[0] === "Bass" ? [1, 0] : [0, 1];
+      const lo = ex.voiceNotes[lower].find((n) => !n.rest)!;
+      const hi = ex.voiceNotes[upper].find((n) => !n.rest)!;
+      expect(lo.degree).toBe(0);
+      expect([0, 2]).toContain(hi.degree);
+      for (const v of ex.voiceNotes) {
+        const sung = v.filter((n) => !n.rest);
+        for (let i = 1; i < sung.length; i++) {
+          const [a, b] = [sung[i - 1], sung[i]];
+          const d = Math.abs(b.pitchValue - a.pitchValue);
+          if (d <= 1) continue;
+          const pair = [a.degree, b.degree].sort().join("-");
+          if (d === 2) expect(pair).not.toBe("1-3");
+          else {
+            expect(d).toBe(3);
+            expect(pair).toBe("0-4");
+            expect(Math.min(a.pitchValue, b.pitchValue)).toBe((a.degree === 4 ? a : b).pitchValue); // the sol below
+          }
+        }
+      }
+    }
+  }
 }, 60_000);

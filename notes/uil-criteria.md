@@ -34,12 +34,18 @@ Other general considerations for composers are:
 - Homophonic only
 
 ### Harmony
-- I, IV, and V chords only
-- Stepwise melodic motion, with occasional skips within the tonic chord
+(Current wording, from Blaine, 7 October 2026; it replaced "stepwise
+melodic motion, with occasional skips within the tonic chord".)
+- I, IV, and V or V7 chords
+- Melodic skips in the I chord: 3rds - do-mi-do; mi-sol-mi; 4th - do-sol1-do
+  (sol1: the sol below)
+- Melodic skips in the IV chord: 3rds - fa-la-fa; do-la1-do
+- Melodic skips in the V chord: 3rds - ti-re-ti; sol-ti-sol
+- Begin on the tonic triad with voices on do-mi-sol, do-mi, or unison do
 
 ### Rhythm
-- Whole, half, quarter notes, and corresponding rests
-- Eighth notes appear only in pairs or as part of simple patterns
+- Basic patterns using whole, dotted half, half, quarter notes and a few
+  eighth notes in pairs; avoid using rests
 
 ### Length
 - Approximately 24-28 measures in 4/4, or equivalent in 3/4

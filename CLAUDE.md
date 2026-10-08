@@ -1201,24 +1201,37 @@ changes. A pattern's chord starts on its first sung note
 (`rhythm-generation.ts`): eighth rest + eighth used to start on the rest and
 failed 29 exercises in 40.
 
-**Two treble parts at Levels 1-2 are written melody first**
-(`src/lib/two-part-treble.ts`, tests `two-part-treble.test.ts`; the page's
-`melodyFirstFor`, the sweep passes it too). It replaces buildChordNotes for
-SA only: on each strong beat it picks a chord from the level's own (I, IV,
-V, V7) together with the soprano note and the alto under it; the chord holds
-through the weak beats, where both parts may pass or neighbour by step; the
-planned progression is kept only into each cadence. Scored toward Blaine's
-Level 1 SA piece (7 October 2026, F major; `scripts/sample-choral.ts` writes
-samples to compare): alto on do 63% (his 59, before 38), soprano by step 66%
-of moves (79, before 49), thirds and sixths 80% (78, before 61, a third of it
-so over ti), oblique motion 34% (37). No unison opening there any more (his
-piece starts in harmony), and the bars take his shapes (`barShapeWeight`: a
-half on the downbeat). UIL 1 now allows an eighth pair, rare (his piece has
-one bar in twelve); that alone moved the six UIL 1 meter-regression
-snapshots, updated deliberately. Tenor/Bass keeps the old writer until there
-is a TB example.
+**Two parts at the beginning levels are written melody first**
+(`src/lib/two-part-treble.ts`, tests `two-part-treble.test.ts`;
+`melodyFirstFor`: SA at Levels 1-2, TB at Level 1, each only where Blaine has
+written a piece to measure against; the page and the sweep pass it). It
+replaces buildChordNotes for those pairs: on each strong beat it picks a chord
+from the level's own (I, IV, V, V7) together with the tune's note and the
+lower part's; the chord holds through the weak beats, where both parts may
+pass or neighbour by step; the planned progression is kept only into each
+cadence. At Level 1 it follows UIL's current wording (Blaine quoted it 7
+October 2026; notes/uil-criteria.md): skips only within the chord sounding
+(thirds do-mi, mi-sol, fa-la, do-la below, ti-re, sol-ti, and do down to
+the sol below), both parts (`chordSkipsFor`, `leapOk`; the restatement's
+seams and varied notes keep to it through `levelOneLeapOk`); it begins on do
+with mi or a unison do above; dotted halves, no rests (`noRests` on the
+preset: an inner phrase's breath is a sung pickup, never a rest,
+rhythm-generation `breathRests`). The new rhythm list moved four UIL 1
+meter-regression snapshots, updated deliberately. Each pair has a profile (degree shares,
+moves, intervals, bar shapes in `barShapeWeight`) from its piece in
+`notes/reference-pieces/`; `scripts/sample-choral.ts` writes samples to
+compare. SA against "Silence and Tears": alto on do 63% (his 59, before 38),
+soprano by step 66% of moves (79, before 49), thirds and sixths 80% (78,
+before 61). TB against "The Frog": tenor steps 63% (62, before 31), repeats
+25% (28, before 60), bare fifths 15% (13, before 40). No unison opening there
+any more (his pieces start in harmony). UIL 1 allows a rare eighth pair; that
+alone moved the six UIL 1 meter-regression snapshots, updated deliberately.
+Two guards came with it, for every voicing: a decoration may not cross the
+voice above or below it (non-chord-tone-gen), and the restatement's varied
+note is checked against every lower note sounding under it, not just at its
+start (rhyming-phrases `soundingWithin`); neither moved a snapshot.
 
- when the address carries no
+The Choral page opens at UIL Level 3 in F major when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
 active preset was chosen.
 

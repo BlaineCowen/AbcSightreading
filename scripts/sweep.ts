@@ -13,7 +13,7 @@
  * sweep that walked the real space found 55%. A cell here is a thing a choir
  * director can select, so a cell that fails is an exercise someone cannot get.
  */
-import { melodyFirstFor } from "../src/lib/two-part-treble";
+import { chordSkipsFor, melodyFirstFor } from "../src/lib/two-part-treble";
 import { MINOR_KEYS } from "../src/lib/minor-degrees";
 import { generateChoralExercise } from "../src/lib/generateChoral";
 import { createNewSr } from "../src/lib/generateUnison";
@@ -127,7 +127,7 @@ for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
               chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames,
               voiceTexture: "full", stepwiseEighths: STEPWISE,
               // As the page asks: two treble parts at Levels 1-2 are written melody first.
-              melodyFirst: melodyFirstFor(levelName),
+              melodyFirst: melodyFirstFor(levelName), chordSkips: chordSkipsFor(levelName), breathRests: !preset.noRests,
             } as any).voiceNotes);
           });
         }

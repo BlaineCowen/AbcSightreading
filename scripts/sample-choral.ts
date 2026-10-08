@@ -15,7 +15,7 @@ import { noteArray } from "../src/resources/noteArray";
 import { keySignatures } from "../src/resources/key-signatures";
 import { unisonProbabilityFor } from "../src/lib/unison-spans";
 import { rhymeProbabilityFor } from "../src/lib/rhyming-phrases";
-import { melodyFirstFor } from "../src/lib/two-part-treble";
+import { chordSkipsFor, melodyFirstFor } from "../src/lib/two-part-treble";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "./generation-fixtures";
 
 const LEVEL = process.env.LEVEL ?? "UIL 1";
@@ -63,14 +63,14 @@ for (let i = 0; i < N; i++) {
       key: KEY, timeSig, partsObject, measures: BARS, maxSkip: preset.maxSkip, bpm: 72,
       selectedRhythms: rhythms, chords: fullChordSet, accidentalsByStep: true, nctProbability: Number(process.env.NCT ?? 0.1),
       chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames, voiceTexture: "full", stepwiseEighths: true,
-      unisonProbability: unisonProbabilityFor(LEVEL), rhymeProbability: process.env.RHYME ? Number(process.env.RHYME) : rhymeProbabilityFor(LEVEL), melodyFirst: process.env.MELODY_FIRST === "0" ? false : melodyFirstFor(LEVEL),
+      unisonProbability: unisonProbabilityFor(LEVEL), rhymeProbability: process.env.RHYME ? Number(process.env.RHYME) : rhymeProbabilityFor(LEVEL), melodyFirst: process.env.MELODY_FIRST === "0" ? [] : melodyFirstFor(LEVEL), chordSkips: chordSkipsFor(LEVEL), breathRests: !preset.noRests,
     } as any);
     samples.push({
       voices: ex.voiceNames,
       parts: ex.voiceNotes.map((voice: any[], v: number) => {
-        // A voice's clef may sound an octave from where it is written ("treble octave=-1").
+        // A voice's clef may sound an octave from where it is written ("treble octave=-1", "treble transpose=-12").
         const clef = String((partsObject.parts as any)[ex.voiceNames[v]]?.clef ?? "");
-        const shift = 12 * Number(/octave=(-?\d+)/.exec(clef)?.[1] ?? 0);
+        const shift = 12 * Number(/octave=(-?\d+)/.exec(clef)?.[1] ?? 0) + Number(/transpose=(-?\d+)/.exec(clef)?.[1] ?? 0);
         let t = 0;
         const notes: [number, number, number][] = [];
         for (const n of voice) {

@@ -85,7 +85,7 @@
   import { canFillExercise } from "../lib/rhythm-feasibility";
   import { unisonProbabilityFor } from "../lib/unison-spans";
   import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
-  import { melodyFirstFor } from "../lib/two-part-treble";
+  import { chordSkipsFor, melodyFirstFor } from "../lib/two-part-treble";
   import {
     clampTranspose,
     transposeLabel,
@@ -2465,6 +2465,8 @@
       // Two treble parts at the beginning levels: a tune with a harmony part
       // under it (two-part-treble.ts). Ignored for any other voicing.
       melodyFirst: melodyFirstFor(activeLevelKey),
+      chordSkips: chordSkipsFor(activeLevelKey),
+      breathRests: !(activeLevelKey && uilPresets[activeLevelKey]?.noRests),
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames

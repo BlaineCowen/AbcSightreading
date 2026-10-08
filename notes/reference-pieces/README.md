@@ -17,6 +17,16 @@ pitch. A piece with a pickup starts at its pickup.
   inside the chord, soprano 2 a third under it, alto holding do; soprano 1
   rests bars 17-20 while soprano 2 carries the tune.
 
+- `the-rainbird-SSA-L3`: F, pickup and 32 bars, the second half restating
+  the first. Tune (fa mi so), soprano 2 holding do, alto a bass on do, so
+  and la (36% leaps) as in Spring: Level 3's other lower texture.
+
+- `give-me-more-love-SSA-L4-L5`: E flat, 42 bars; Level 4 ends at bar 32,
+  Level 5 is all of it. The tune higher (so la ti do), soprano 2 a moving
+  part around mi, the alto moving around do and re (half its moves repeat);
+  close triads (80% complete), eighths as common as quarters in the tune,
+  secondary dominants (fi, si) and a turn to the relative minor (bars 25-28).
+
 Ableton projects are read with `python3 scripts/read-als.py <project dir>
 <out.json>` (arrangement clips only; notes released early are held to the
 next note, so check any real rest by hand).

@@ -33,6 +33,8 @@ export interface UILPreset {
   maxSkip: number;
   /** UIL level number */
   level: number;
+  /** The level says to avoid rests: none in the rhythm list, and no rest as a phrase's breath. */
+  noRests?: boolean;
   /** Voice ranges by part name → [min, max] noteArray indices */
   voiceRanges?: Record<string, [number, number]>;
 }
@@ -45,11 +47,14 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedKeys: ["C", "F", "G"],
     // I, IV, V only
     allowedChordNames: ["1", "4", "5"],
-    // Whole, half, quarter notes and rests, and now and then an eighth pair:
-    // Blaine's Level 1 SA piece (October 2026), "very typical" of the level,
-    // has one in about one bar in twelve, by step. The rhythm draw keeps it
-    // that rare (favorLongerNotes; barShapeWeight for two treble parts).
-    allowedRhythmNames: ["whole", "half", "quarter", "eighthEighth", "wholeRest", "halfRest", "quarterRest"],
+    // Whole, dotted half, half and quarter notes and a few eighth pairs; no
+    // rests ("avoid using rests"): UIL's current Level 1 wording, which Blaine
+    // quoted on 7 October 2026 (notes/uil-criteria.md). His Level 1 pieces
+    // agree: an eighth pair in one bar in twelve (SA) to one in five (TB),
+    // dotted half and quarter at phrase ends (TB). The rhythm draw keeps the
+    // eighths rare (favorLongerNotes; barShapeWeight for two parts).
+    allowedRhythmNames: ["whole", "dotHalf", "half", "quarter", "eighthEighth"],
+    noRests: true,
     // Treble: SA, Tenor-Bass: TB
     // The doc's level 1 is "Treble: SA" and "Tenor-Bass: TB" - two parts either
     // way. Both are offered now. The three-part tenor-bass voicing

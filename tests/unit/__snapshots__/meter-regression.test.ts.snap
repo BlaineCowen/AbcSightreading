@@ -49,8 +49,8 @@ V:S clef=treble octave=-1 name="Soprano" snm="S"
 V:A clef=treble octave=-1 name="Alto" snm="A"
 K:C
 % End of header, start of tune body:
-[V:S] e'8 c'8 b8 | c'16 b8 | c'16 c'8 | b16 z8 | c'8 b8 c'8 | c'8 b8 b8 | c'16 c'4c'4 | b8 c'16 |]
-[V:A] c'8 a8 g8 | e16 g8 | e8 e8 f8 | g16 z8 | e8 g8 e8 | f8 g16 | e16 f4f4 | g8 e16 |]
+[V:S] e'8 e'8 c'8 | b8 b8 c'8 | b16 c'8 | b16 z8 | c'8 c'8 b8 | c'8 c'16 | c'16 b4b4 | c'24 |]
+[V:A] c'8 c'8 a8 | g16 e8 | g16 e8 | g16 z8 | e8 f8 g8 | e8 e16 | f8 f8 g4g4 | e24 |]
 "
 `;
 
@@ -67,8 +67,8 @@ V:S clef=treble octave=-1 name="Soprano" snm="S"
 V:A clef=treble octave=-1 name="Alto" snm="A"
 K:C
 % End of header, start of tune body:
-[V:S] e'4e'4 d'8 e'8 | d'4d'4 d'8 e'8 | c'8 d'8 e'8 | d'16 b8 | c'16 c'8 | b4b4 c'4d'4 c'4d'4 | c'4c'4 b8 c'8 | b8 c'16 |]
-[V:A] c'4c'4 b8 c'8 | b4b4 b8 c'8 | a16 c'8 | b16 g8 | e8 e8 f8 | g4g4 e8 f8 | e4e4 g8 f8 | g8 e16 |]
+[V:S] e'4e'4 d'8 c'8 | b4b4 c'8 b8 | c'16 c'8 | b16 c'8 | b8 b8 c'8 | c'4c'4 b8 c'8 | c'4c'4 c'8 b8 | c'24 |]
+[V:A] c'4c'4 b8 a8 | g4g4 e8 g8 | e16 f8 | g16 e8 | g16 f4e4 | f4f4 g4f4 e8 | e4e4 f8 g8 | e24 |]
 "
 `;
 
@@ -85,8 +85,8 @@ V:S clef=treble octave=-1 name="Soprano" snm="S"
 V:A clef=treble octave=-1 name="Alto" snm="A"
 K:C
 % End of header, start of tune body:
-[V:S] e'8 c'8 e'8 c'8 | b8 c'16 c'8 | b16 c'8 c'8 | c'16 b16 | b8 c'8 c'16 | b16 b8 c'8 | b8 c'16 b8 | c'32 |]
-[V:A] c'8 a8 c'8 a8 | g8 e12 d4 f8 | g16 e8 e8 | f16 g16 | g8 e8 e12 f4 | g16 g8 e8 | g8 f16 g8 | e32 |]
+[V:S] e'16 c'8 b8 | c'24 b8 | c'16 c'8 c'8 | b24 z8 | c'8 c'16 c'8 | b8 b8 c'16 | c'24 b8 | c'32 |]
+[V:A] c'16 a8 g8 | e24 g8 | e16 f8 e8 | g24 z8 | e8 e16 f8 | g16 e8 e8 | f24 g8 | e32 |]
 "
 `;
 
@@ -103,8 +103,8 @@ V:S clef=treble octave=-1 name="Soprano" snm="S"
 V:A clef=treble octave=-1 name="Alto" snm="A"
 K:C
 % End of header, start of tune body:
-[V:S] e'4e'4 d'8 e'16 | d'4d'4 e'8 d'8 d'8 | e'16 c'8 c'8 | b4b4 c'8 b16 | c'8 c'4c'4 b8 c'8 | c'4c'4 b8 c'16 | b8 b8 c'4c'4 b8 | c'32 |]
-[V:A] c'4c'4 b8 c'16 | b4b4 c'8 b8 b8 | c'16 a8 a8 | g4g4 e8 g16 | e8 f4f4 g8 e8 | f4f4 g8 f8 f8 | g8 g8 f4f4 g8 | e32 |]
+[V:S] e'4e'4 d'8 c'16 | b4b4 c'8 b16 | c'24 c'8 | b24 c'8 | b24 c'8 | c'4c'4 b8 c'16 | c'4c'4 c'8 b16 | c'32 |]
+[V:A] c'4c'4 b8 a8 a8 | g4g4 e8 g8 g8 | e24 f8 | g24 e8 | g24 f4e4 | f4f4 g4f4 e16 | e4e4 f8 g16 | e32 |]
 "
 `;
 

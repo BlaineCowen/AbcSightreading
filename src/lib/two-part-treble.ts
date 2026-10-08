@@ -35,31 +35,62 @@ import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
 
-/** Share of the soprano's time on each degree in the reference piece (do re mi fa so la ti). */
-const SOPRANO_DEGREES = [4, 11, 42, 22, 15, 6, 2];
-/** The alto's: do held, its neighbours around it. */
-const ALTO_DEGREES = [59, 8, 2, 1, 10, 7, 15];
-/** How strongly those shares steer each choice. */
+/**
+ * What each voicing's pair of parts is like, from Blaine's pieces
+ * (notes/reference-pieces): SA from "Silence and Tears", TB from "The Frog"
+ * (G, Level 1) - the same texture an octave down, the tune a little higher
+ * in its range (so 28% of the tenor's time), the bass more often on ti (32%),
+ * so over ti a sixth 26% of the time, and mostly four quarters to a bar.
+ */
+type Profile = {
+  /** Share of the upper part's time on each degree (do re mi fa so la ti). */
+  upper: number[];
+  /** The lower part's: do held, its neighbours around it. */
+  lower: number[];
+  /** Cost of the upper part's move, in diatonic steps: repeat, step, third. */
+  upperMove: number[];
+  /** Between the parts, in diatonic steps apart. */
+  vertical: Record<number, number>;
+  /** How far the tune rises over each phrase, in diatonic steps above its centre. */
+  arch: number;
+};
+const PROFILES: Record<TwoPartKind, Profile> = {
+  SA: {
+    upper: [4, 11, 42, 22, 15, 6, 2],
+    lower: [59, 8, 2, 1, 10, 7, 15],
+    upperMove: [1.2, 0, 2.2],
+    // Thirds first, sixths next, fifths sometimes, fourths rarely.
+    vertical: { 2: 0, 5: 0.3, 4: 1.3, 3: 2.8, 7: 3, 0: 3.5 },
+    arch: 3.5,
+  },
+  TB: {
+    upper: [0, 10, 38, 18, 28, 6, 0],
+    lower: [51, 4, 0, 0, 7, 6, 32],
+    // The tenor repeats more (28% of its moves, against 17%).
+    upperMove: [0.8, 0, 2.2],
+    // Sixths nearly as often as thirds, fifths more than in SA.
+    vertical: { 2: 0, 5: 0.15, 4: 0.9, 3: 2.8, 7: 3, 0: 3.5 },
+    // Its tune spans only a fifth (the Level 1 tenor range).
+    arch: 1.5,
+  },
+};
+export type TwoPartKind = "SA" | "TB";
+/** How strongly the degree shares steer each choice. */
 const DEGREE_WEIGHT = 0.9;
 
-/** Cost of the soprano's move, in diatonic steps: a step is the tune, a repeat now and then, a third sometimes. */
-const SOPRANO_MOVE = [1.2, 0, 2.2];
-/** The alto holds more than the tune does. */
-const ALTO_MOVE = [0, 0.3, 2.0];
-/** Between the parts, in diatonic steps: thirds first, sixths next, fifths sometimes, fourths rarely. */
-const VERTICAL: Record<number, number> = { 2: 0, 5: 0.3, 4: 1.3, 3: 2.8, 7: 3, 0: 3.5 };
+/** The lower part holds more than the tune does; a third is rarer, and do down to low so (a fourth) costs about as much. */
+const LOWER_MOVE = [0, 0.3, 2.0, 2.2];
 /** Pull toward each part's centre, per diatonic step away. */
 const TESSITURA_PULL = 0.25;
 /** A third note on one pitch in a row: the line has stopped. */
 const STUCK = 2.5;
 /** Back and forth between two notes, A B A B: a tune going nowhere. */
 const SEESAW = 2;
-/**
+/*
  * The tune's shape: each four-bar phrase rises toward a high point about
- * two-thirds through and falls to its cadence (his rises to la in bar 6).
- * In diatonic steps above the part's centre at the peak.
+ * two-thirds through and falls to its cadence (his SA rises to la in bar 6);
+ * how far is the profile's `arch`.
  */
-const ARCH = 3.5;
 /** Each time a pitch was sung in the soprano's last six notes: spread the tune over its range. */
 const FRESH = 0.35;
 /** A third move in a row with both parts going the same way: let the alto hold instead. */
@@ -96,12 +127,42 @@ function pick<T extends { cost: number }>(scored: T[], rand: () => number): T | 
   return scored[scored.length - 1];
 }
 
-/** Two voices, both treble: soprano and alto parts (2 Part Treble, SA). */
-export const isTwoPartTreble = (voiceParts: VoicePart[]) =>
-  voiceParts.length === 2 && voiceParts.every((v) => /^(Soprano|Alto)/.test(v.name));
+/** Which pair of parts this is: soprano and alto (2 Part Treble), tenor and bass (2 Part Tenor/Bass), or neither. */
+export function twoPartKind(voiceParts: { name: string }[]): TwoPartKind | null {
+  if (voiceParts.length !== 2) return null;
+  if (voiceParts.every((v) => /^(Soprano|Alto)/.test(v.name))) return "SA";
+  if (voiceParts.some((v) => v.name === "Tenor") && voiceParts.some((v) => v.name === "Bass")) return "TB";
+  return null;
+}
+export const isTwoPartTreble = (voiceParts: { name: string }[]) => twoPartKind(voiceParts) === "SA";
 
-/** The levels written melody first: the beginning ones, where the alto is a harmony part, not a bass. */
-export const melodyFirstFor = (uilLevel: string | undefined) => uilLevel === "UIL 1" || uilLevel === "UIL 2";
+/**
+ * The pairs written melody first at a level: the beginning ones, where the
+ * lower part is a harmony part, not a bass - each only where Blaine has
+ * written a piece to measure it against (SA at Level 1; TB at Level 1).
+ */
+/**
+ * UIL Level 1's skips, judged from two notes alone (where the chord is not
+ * known): any third but re-fa, which lies in no Level 1 chord, and the fourth
+ * only between do and the sol below it. Used on the restatement's seams.
+ */
+export function levelOneLeapOk(from: Note, to: Note): boolean {
+  const d = Math.abs(to.pitchValue - from.pitchValue);
+  if (d <= 1) return true;
+  const pair = [from.degree, to.degree].sort().join();
+  if (d === 2) return pair !== "1,3";
+  const sol = from.degree === 4 ? from : to;
+  return d === 3 && pair === "0,4" && sol.pitchValue < (sol === from ? to : from).pitchValue;
+}
+
+/** The levels whose skips are UIL's list of skips within each chord, not a largest skip. */
+export const chordSkipsFor = (uilLevel: string | undefined) => uilLevel === "UIL 1";
+
+export function melodyFirstFor(uilLevel: string | undefined): TwoPartKind[] {
+  if (uilLevel === "UIL 1") return ["SA", "TB"];
+  if (uilLevel === "UIL 2") return ["SA"];
+  return [];
+}
 
 export type TwoPartOptions = {
   key: string;
@@ -111,6 +172,10 @@ export type TwoPartOptions = {
   /** The level's chords, to harmonize the tune from. */
   chords: Chord[];
   voiceParts: VoicePart[];
+  /** Skips only within the chord, as UIL Level 1 lists them (see leapOk); else up to maxSkip. */
+  chordSkips?: boolean;
+  /** Which pair; SA when left out. */
+  kind?: TwoPartKind;
   maxSkip: number;
   /** One bar, in 32nds: which notes fall on a strong beat. */
   tsPerMeasure: number;
@@ -141,6 +206,7 @@ export function writeTwoPartTreble(o: TwoPartOptions): TwoPartResult {
 
 function writeOnce(o: TwoPartOptions): TwoPartResult {
   const rand = o.rand ?? Math.random;
+  const pf = PROFILES[o.kind ?? "SA"];
   const sopIx = o.voiceParts.reduce((best, v, i) => (v.order > o.voiceParts[best].order ? i : best), 0);
   const altIx = sopIx === 0 ? 1 : 0;
   const sop = o.voiceParts[sopIx];
@@ -195,7 +261,6 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
     const weak = (!strong || continuing) && !cadence;
     // An eighth is reached and left by step, in both parts (stepwise eighths).
     const short = rhythm.totalValue < 8 || (step > 0 && o.rhythms[step - 1].totalValue < 8 && !o.rhythms[step - 1].rest);
-    const reach = short ? 1 : o.maxSkip;
 
     // Which chords this note may carry: the plan's into a cadence, the one
     // held through a weak beat or a pattern, the tonic to open a phrase, else
@@ -217,7 +282,7 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
     // Where the tune is headed: up through the phrase, down to its cadence.
     const p = (onset % phraseLength) / Math.min(phraseLength, total);
     const rise = p < 0.65 ? Math.sin((Math.PI / 2) * (p / 0.65)) : Math.cos((Math.PI / 2) * ((p - 0.65) / 0.35));
-    const target = sopCentre - 1 + ARCH * rise;
+    const target = sopCentre - 1 + pf.arch * rise;
     const recent = S.slice(-6);
     const sameWay = S.length >= 3 && [1, 2].every((k) => {
       const ws = way(S.at(-k - 1), S.at(-k)!);
@@ -238,18 +303,38 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
         if (!weak || !prev || Math.abs(n.pitchValue - prev.pitchValue) !== 1 || !leaves(n)) return null;
         return NCT_COST;
       };
+      /**
+       * A leap this part may take into `n`. Never beside an eighth. With the
+       * chord's skips (UIL Level 1's wording): a third between two tones of
+       * the chord sounding - do-mi, mi-sol in I; fa-la, do-la below in IV;
+       * ti-re, sol-ti in V - or do down to the sol below and back, in I.
+       * Otherwise anything up to maxSkip, and that same do-sol.
+       */
+      const leapOk = (prev: Note | null, n: Note) => {
+        if (!prev) return true;
+        const d = Math.abs(n.pitchValue - prev.pitchValue);
+        if (d <= 1) return true;
+        if (short) return false;
+        const doSol =
+          d === 3 && tones.has(0) && tones.has(4) &&
+          ((n.degree === 4 && prev.degree === 0 && n.pitchValue < prev.pitchValue) ||
+            (n.degree === 0 && prev.degree === 4 && n.pitchValue > prev.pitchValue));
+        if (o.chordSkips) return (d === 2 && tones.has(prev.degree) && tones.has(n.degree)) || doSol;
+        return d <= o.maxSkip || doSol;
+      };
       const altScored = (s: Note, sExtra: number) =>
         alt.possibleNotes.flatMap((a) => {
           const extra = allowed(a, pA, aNct);
           if (extra === null) return [];
           const apart = s.pitchValue - a.pitchValue;
-          if (apart < 0 || !(apart in VERTICAL)) return []; // no crossing, no 2nds or 7ths, nothing past an octave
-          if (apart === 0 && !cadence) return []; // unison only where a phrase ends
+          if (apart < 0 || !(apart in pf.vertical)) return []; // no crossing, no 2nds or 7ths, nothing past an octave
+          if (apart === 0 && !cadence && pS) return []; // unison only where a phrase ends, or to begin
+          if (!pA && a.degree !== 0) return []; // begin on do (UIL: "voices on do-mi-sol, do-mi, or unison do")
           if (extra && sExtra && apart !== 2 && apart !== 5) return []; // two passing notes at once move in thirds or sixths
-          if (pA && Math.abs(a.pitchValue - pA.pitchValue) > reach) return [];
+          if (!leapOk(pA, a)) return [];
           if (pA && pS && isPerfect(apart) && apart === pS.pitchValue - pA.pitchValue && (a.pitchValue !== pA.pitchValue || s.pitchValue !== pS.pitchValue)) return []; // parallel 5ths, 8ves, unisons
-          let cost = extra + VERTICAL[apart] + degreeCost(ALTO_DEGREES, a.degree) + TESSITURA_PULL * Math.abs(a.pitchValue - altCentre);
-          if (pA) cost += ALTO_MOVE[Math.abs(a.pitchValue - pA.pitchValue)] ?? 3;
+          let cost = extra + pf.vertical[apart] + degreeCost(pf.lower, a.degree) + TESSITURA_PULL * Math.abs(a.pitchValue - altCentre);
+          if (pA) cost += LOWER_MOVE[Math.abs(a.pitchValue - pA.pitchValue)] ?? 3;
           if (sameWay && pA && pS && Math.sign(a.pitchValue - pA.pitchValue) !== 0 && Math.sign(a.pitchValue - pA.pitchValue) === Math.sign(s.pitchValue - pS.pitchValue)) cost += SAME_WAY_RUN;
           if (pA && A.at(-2)?.pitchValue === pA.pitchValue && a.pitchValue === pA.pitchValue) cost += STUCK / 2; // the alto may hold do longer
           if (cadence && tonic && a.degree !== 0) cost += 4; // home on do
@@ -259,11 +344,11 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
       return sop.possibleNotes.flatMap((s) => {
         const sExtra = allowed(s, pS, sNct);
         if (sExtra === null) return [];
-        if (pS && Math.abs(s.pitchValue - pS.pitchValue) > reach) return [];
-        let cost = chordCost + sExtra + degreeCost(SOPRANO_DEGREES, s.degree) + TESSITURA_PULL * Math.abs(s.pitchValue - target);
+        if (!leapOk(pS, s)) return [];
+        if (!pS && s.degree !== 2 && s.degree !== 0) return []; // over do: mi, or a unison do
+        let cost = chordCost + sExtra + degreeCost(pf.upper, s.degree) + TESSITURA_PULL * Math.abs(s.pitchValue - target);
         cost += FRESH * recent.filter((r) => r.pitchValue === s.pitchValue).length;
-        if (pS) cost += SOPRANO_MOVE[Math.abs(s.pitchValue - pS.pitchValue)] ?? 4;
-        else if (s.degree !== 2 && s.degree !== 0 && s.degree !== 4) cost += 3; // open on mi, do or so
+        if (pS) cost += pf.upperMove[Math.abs(s.pitchValue - pS.pitchValue)] ?? 4;
         if (pS && S.at(-2)?.pitchValue === pS.pitchValue && s.pitchValue === pS.pitchValue) cost += STUCK;
         if (pS && S.at(-2)?.pitchValue === s.pitchValue && S.at(-3)?.pitchValue === pS.pitchValue && s.pitchValue !== pS.pitchValue) cost += SEESAW;
         if (cadence && tonic) cost += final ? (s.degree === 0 ? 0 : s.degree === 2 ? 0.8 : 5) : s.degree === 2 || s.degree === 0 ? 0 : 3;
@@ -326,10 +411,18 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
  * 15% drawn), half half rarely (4%), and an eighth pair now and then
  * off the downbeat, mostly on beat 4 (8% of his bars), never on it. 1 elsewhere; never 0, so any bar can still be filled.
  */
-export function barShapeWeight(r: Rhythm, pos: number, tsPerMeasure: number): number {
+export function barShapeWeight(r: Rhythm, pos: number, tsPerMeasure: number, kind: TwoPartKind = "SA"): number {
   if (r.rest) return 1;
   const strong = tsPerMeasure === 32 ? 16 : tsPerMeasure;
   const eighths = r.pattern && r.abcValue.every((v) => v === "4");
+  // "The Frog" (TB): four quarters in 54% of bars, a long note only where a
+  // phrase ends, and an eighth pair in one bar in five, on beat 3 or 4.
+  if (kind === "TB") {
+    if (eighths) return pos === 0 ? 0.01 : pos >= strong ? 1.2 : 0.3;
+    if (pos % strong !== 0 && r.totalValue >= 16) return 0.05;
+    if (r.totalValue >= 16) return 0.35;
+    return 1;
+  }
   // His pair is on beat 4, leading into the next bar.
   if (eighths) return pos === 0 ? 0.01 : pos === tsPerMeasure - 8 ? 0.5 : 0.15;
   if (pos === 0) return r.totalValue === 16 ? 4 : r.totalValue === 8 ? 0.6 : 1;

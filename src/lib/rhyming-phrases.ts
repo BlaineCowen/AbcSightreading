@@ -45,7 +45,20 @@ export type RhymingPhraseOptions = {
   random?: () => number;
   /** Told where each restatement landed: its start and length, in 32nds. */
   onRestatement?: (start: number, length: number) => void;
+  /**
+   * A further rule on every leap a seam or a varied note makes, beyond
+   * maxSkip: UIL Level 1's list of skips (two-part-treble `levelOneLeapOk`).
+   */
+  leapOk?: (from: VoiceNote, to: VoiceNote) => boolean;
 };
+
+/** The leap across a seam passes `rule`, when there is one. */
+function seamRuleOk(before: VoiceNote[], after: VoiceNote[], rule?: (from: VoiceNote, to: VoiceNote) => boolean): boolean {
+  if (!rule) return true;
+  const a = lastSounding(before);
+  const b = firstSounding(after);
+  return !a || !b || rule(a, b);
+}
 
 /** The cadence logic works in four-measure blocks, and so does this. */
 export const PHRASE_MEASURES = 4;
@@ -96,7 +109,8 @@ function rhymeOnce(
   sourceStart: number,
   targetStart: number,
   rhymeLength: number,
-  maxSkip: number
+  maxSkip: number,
+  leapOk?: (from: VoiceNote, to: VoiceNote) => boolean
 ): boolean {
   const sources = voices.map((v) =>
     sliceByTime(v, sourceStart, sourceStart + rhymeLength)
@@ -120,11 +134,13 @@ function rhymeOnce(
     // the exercise, and then there is no seam to vet at all.
     const beforeTarget = voices[i].slice(0, tgt.startIndex);
     if (!seamLeapOk(beforeTarget, src.notes, maxSkip)) return false;
+    if (!seamRuleOk(beforeTarget, src.notes, leapOk)) return false;
     if (!seamResolutionOk(beforeTarget, src.notes)) return false;
     // Seam two: out of the borrowed material and into the target phrase's own
     // cadence, which is the part deliberately left alone.
     const afterTarget = voices[i].slice(tgt.endIndex + 1);
     if (!seamLeapOk(src.notes, afterTarget, maxSkip)) return false;
+    if (!seamRuleOk(src.notes, afterTarget, leapOk)) return false;
     if (!seamResolutionOk(src.notes, afterTarget)) return false;
   }
 
@@ -228,6 +244,18 @@ function sharedOnsets(
 }
 
 /** The note sounding in a voice at a given time, if any. */
+/** Every pitch `voice` sounds between `from` and `to`. */
+function soundingWithin(voice: VoiceNote[], from: number, to: number): number[] {
+  const out: number[] = [];
+  let t = 0;
+  for (const n of voice) {
+    if (t >= to) break;
+    if (t + n.length > from && !n.rest) out.push(n.pitchValue);
+    t += n.length;
+  }
+  return out;
+}
+
 function noteAt(voice: VoiceNote[], at: number): VoiceNote | undefined {
   let t = 0;
   for (const n of voice) {
@@ -261,7 +289,8 @@ function varyRestatement(
   length: number,
   ranges: [number, number][],
   maxSkip: number,
-  random: () => number
+  random: () => number,
+  leapOk?: (from: VoiceNote, to: VoiceNote) => boolean
 ): number {
   const topIndex = voices.reduce(
     (best, v, i) => ((v[0]?.order ?? 0) > (voices[best][0]?.order ?? 0) ? i : best),
@@ -298,9 +327,13 @@ function varyRestatement(
 
     const candidates = chordToneAlternatives(voices, topIndex, at, note, range)
       .filter((pitch) => {
-        const trial = { ...note, pitchValue: pitch };
+        // Its degree moves with its pitch (a diatonic index), or a rule that
+        // reads syllables - leapOk - judges the note it replaced.
+        const trial = { ...note, pitchValue: pitch, degree: (((note.degree + pitch - note.pitchValue) % 7) + 7) % 7 };
         if (prev && !seamLeapOk([prev], [trial], maxSkip)) return false;
         if (next && !seamLeapOk([trial], [next], maxSkip)) return false;
+        if (prev && !seamRuleOk([prev], [trial], leapOk)) return false;
+        if (next && !seamRuleOk([trial], [next], leapOk)) return false;
         if (prev && !seamResolutionOk([prev], [trial])) return false;
         // The note after must still resolve whatever IT owes, unchanged - but a
         // trial note carries no accidental, so only the approach side matters.
@@ -313,6 +346,11 @@ function varyRestatement(
         const nextOthers = voices.map((v, vi) =>
           vi === topIndex ? undefined : noteAt(v, at + note.length)
         );
+        // Never below a lower voice at any moment it sounds - not just where it
+        // starts. A half note varied down to do over an alto moving do re put
+        // the re above the tune (two treble parts written melody first sit a
+        // third apart, so the nearest alternative is often the alto's own note).
+        if (voices.some((v, vi) => vi !== topIndex && soundingWithin(v, at, at + note.length).some((p) => p > pitch))) return false;
         if (prev) {
           const a = [...prevOthers]; a[topIndex] = prev;
           const b = [...others]; b[topIndex] = trial;
@@ -422,11 +460,11 @@ export function applyRhymingPhrases(
         // of them.
         for (const skip of sharedOnsets(out, from, to, tsPerMeasure)) {
           const length = rhymeMeasures * tsPerMeasure - skip;
-          if (!rhymeOnce(out, from + skip, to + skip, length, maxSkip)) continue;
+          if (!rhymeOnce(out, from + skip, to + skip, length, maxSkip, opts.leapOk)) continue;
           // Vary the phrase that comes second, whichever way the material moved:
           // the ear wants a statement and then an answer to it, and the answer
           // is the later one.
-          varyRestatement(out, consequentStart + skip, length, ranges, maxSkip, random);
+          varyRestatement(out, consequentStart + skip, length, ranges, maxSkip, random, opts.leapOk);
           opts.onRestatement?.(consequentStart + skip, length);
           done = true;
           break;

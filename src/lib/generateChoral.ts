@@ -1,4 +1,4 @@
-import { barShapeWeight, isTwoPartTreble, writeTwoPartTreble } from "./two-part-treble";
+import { barShapeWeight, levelOneLeapOk, twoPartKind, writeTwoPartTreble, type TwoPartKind } from "./two-part-treble";
 import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
@@ -83,11 +83,15 @@ export interface GenerateChoralParams {
    */
   rhymeProbability?: number;
   /**
-   * Write two treble parts melody first: the soprano as a tune, the alto as a
-   * harmony part under it in thirds and sixths (two-part-treble.ts). Only
-   * takes effect with two treble voices. See melodyFirstFor.
+   * The pairs of parts written melody first: the upper as a tune, the lower
+   * as a harmony part under it in thirds and sixths (two-part-treble.ts).
+   * Takes effect only when the voicing is one of them. See melodyFirstFor.
    */
-  melodyFirst?: boolean;
+  melodyFirst?: TwoPartKind[];
+  /** Melody first, leap only as UIL Level 1 lists (a third within the chord, do down to sol). See chordSkipsFor. */
+  chordSkips?: boolean;
+  /** False: no rest as an inner phrase's breath (the level avoids rests). See rhythm-generation. */
+  breathRests?: boolean;
   /**
    * Restrict decoration to particular non-chord-tone types by name - the names
    * in the library in non-chord-tone-gen: "Suspension", "Passing Tone",
@@ -286,7 +290,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     partsObject
   );
 
-  const melodyFirst = !!params.melodyFirst && isTwoPartTreble(voiceParts);
+  const pairKind = twoPartKind(voiceParts);
+  const melodyFirst = !!pairKind && !!params.melodyFirst?.includes(pairKind);
 
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
@@ -384,7 +389,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       favorLongerNotes: true,
       weightBias: params.rhythmBias,
       // Melody first, the bars take the shapes of the beginning repertoire: a half on the downbeat.
-      positionWeight: melodyFirst ? (r, pos) => barShapeWeight(r, pos, timeSig.tsPerMeasure) : undefined,
+      breathRests: params.breathRests,
+      positionWeight: melodyFirst ? (r, pos) => barShapeWeight(r, pos, timeSig.tsPerMeasure, pairKind ?? "SA") : undefined,
     }
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
@@ -439,7 +445,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     try {
       if (melodyFirst) {
         // The tune chooses its chords; the planned ones are kept into each cadence.
-        const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
+        const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, kind: pairKind!, chordSkips: params.chordSkips, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
         voiceNotes = written.voiceNotes;
         chordProgression = written.progression;
         break;
@@ -533,6 +539,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     maxSkip,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     probability: params.rhymeProbability ?? 0,
+    leapOk: melodyFirst && params.chordSkips ? levelOneLeapOk : undefined,
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 
