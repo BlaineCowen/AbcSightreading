@@ -91,7 +91,7 @@ describe("a choral job", () => {
   });
 
   test("a full-length piece survives the trip, and re-renders every section", () => {
-    const job: ChoralJob = { kind: "piece", params, plan: planForm({ level: 2, key: "C" }), maxSkip: 4 };
+    const job: ChoralJob = { kind: "piece", params, plan: planForm({ level: 2, key: "G" }), maxSkip: 4 };
     const result = quietly(() => runChoralJob(job));
     const cloned = structuredClone(result);
     expect(cloned.sections?.length).toBeGreaterThan(1);

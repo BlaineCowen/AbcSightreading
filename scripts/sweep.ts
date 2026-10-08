@@ -129,7 +129,7 @@ for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
               chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames,
               voiceTexture: "full", stepwiseEighths: STEPWISE,
               // As the page asks: two treble parts at Levels 1-2 are written melody first.
-              melodyFirst: melodyFirstFor(levelName), skipLevel: skipLevelFor(levelName), breathRests: !preset.noRests, ssaLevel: ssaLevelFor(levelName),
+              melodyFirst: melodyFirstFor(levelName), skipLevel: skipLevelFor(levelName), breathRests: !preset.noRests, cadenceTypes: preset.allowedCadenceTypes, dottedOnStrongBeats: !!preset.dottedOnStrongBeats, ssaLevel: ssaLevelFor(levelName),
             } as any).voiceNotes);
           });
         }

@@ -2468,6 +2468,8 @@
       // under it (two-part-treble.ts). Ignored for any other voicing.
       melodyFirst: melodyFirstFor(activeLevelKey),
       skipLevel: skipLevelFor(activeLevelKey),
+      cadenceTypes: activeLevelKey ? uilPresets[activeLevelKey]?.allowedCadenceTypes : undefined,
+      dottedOnStrongBeats: !!(activeLevelKey && uilPresets[activeLevelKey]?.dottedOnStrongBeats),
       breathRests: !(activeLevelKey && uilPresets[activeLevelKey]?.noRests),
       // Three treble parts at Levels 2-3: each part its job (three-part-treble.ts).
       ssaLevel: ssaLevelFor(activeLevelKey),

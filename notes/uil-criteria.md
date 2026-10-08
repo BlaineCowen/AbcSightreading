@@ -21,194 +21,109 @@ Other general considerations for composers are:
 - Avoid introducing more than one rhythmic or harmonic problem at a time.
 - Remember that it is unnecessary to employ all of the allowed elements in a single piece.
 
-## Level 1 - Conference MS Varsity Treble, Varsity Tenor-Bass
+## Level 1 - Conference 1C Varsity; all MS non-varsity; 3A/2A/1A non-varsity
 
-### Meter
-- 2/4, 3/4, 4/4
-- No meter changes
+(UIL's current criteria, read from uiltexas.org on 7 October 2026 and checked
+with Blaine. The app: `src/lib/uil-presets.ts`, skips `src/lib/uil-skips.ts`.)
 
-### Key
-- Major keys: C (MIDI 60), F (MIDI 53), G (MIDI 55)
+- **Meter:** 3/4, 4/4; no meter changes. (2/4 was dropped at this level.)
+- **Key:** F and G major. (C was dropped.)
+- **Texture:** homophonic, with unison passages allowed.
+- **Harmony:** I, IV, and V or V7.
+- **Skips, by chord:** I - 3rds do-mi-do, mi-sol-mi; 4th do-sol1-do (the sol
+  below). IV - 3rds fa-la-fa, do-la1-do (the la below). V - 3rds ti-re-ti,
+  sol-ti-sol. Nothing else skips.
+- **Begin** on the tonic triad, voices on do-mi-sol, do-mi, or unison do.
+- **Cadences:** authentic, half and plagal only.
+- **Rhythm:** whole, dotted half, half, quarter and a few eighth pairs; avoid
+  rests.
+- **Length:** about 24 measures in 4/4, 32 in 3/4.
+- **Voicings:** SATB and SAB; SSA/SA; TTB (middle school), TBB (high school),
+  TB. *The app offers SA and TB so far, written melody first; the others join
+  as each gets its own writer (Blaine, 7 October 2026).*
+- **Text:** printed text or the choir's own reading method, both readings.
 
-### Texture
-- Homophonic only
+## Level 2 - Conference 2C/3C Varsity; 4A non-varsity
 
-### Harmony
-(Current wording, from Blaine, 7 October 2026; it replaced "stepwise
-melodic motion, with occasional skips within the tonic chord".)
-- I, IV, and V or V7 chords
-- Melodic skips in the I chord: 3rds - do-mi-do; mi-sol-mi; 4th - do-sol1-do
-  (sol1: the sol below)
-- Melodic skips in the IV chord: 3rds - fa-la-fa; do-la1-do
-- Melodic skips in the V chord: 3rds - ti-re-ti; sol-ti-sol
-- Begin on the tonic triad with voices on do-mi-sol, do-mi, or unison do
+- **Meter:** 3/4, 4/4; no meter changes.
+- **Key:** F and G major; no modulation. (C and D were dropped.)
+- **Texture:** homophonic, with unison passages allowed.
+- **Harmony:** I, IV, and V or V7; an occasional ii or vi "for harmonic
+  interest". No altered tones.
+- **Skips, by chord:** Level 1's, and 4ths do-fa-do in IV ("expected") and
+  sol-re-sol in V (the re below sol). None listed for ii or vi.
+- **Cadences:** authentic, half and plagal only; "no use of the deceptive
+  cadence".
+- **Rhythm:** whole, dotted half, half, quarter and some eighth pairs; a
+  dotted quarter followed by an eighth "on strong beats only"; avoid rests.
+- **Length:** about 24 measures in 4/4, 32 in 3/4.
+- **Voicings:** SATB, SAB; SSA/SA; TTB/TBB/TB. *The app offers SATB, SAB,
+  SSA, SA and TB; SA and SSA written melody first.*
 
-### Rhythm
-- Basic patterns using whole, dotted half, half, quarter notes and a few
-  eighth notes in pairs; avoid using rests
+## Level 3 - Conference 1A/2A/3A Varsity; 5A/6A non-varsity
 
-### Length
-- Approximately 24-28 measures in 4/4, or equivalent in 3/4
+- **Meter:** 3/4, 4/4; no meter changes.
+- **Key:** B flat, F, C, G, D major.
+- **Texture:** homophonic, with polyphonic sections; no more than 20%
+  polyphony.
+- **Harmony:** I, IV, V or V7; ii and vi "desirable where harmonically
+  appropriate".
+- **Skips, by chord:** Level 2's, and 5ths do-sol-do (I), do-fa1-do (IV, "in
+  bass lines"), sol-re-sol (V, the re above); re-fa-re in V7 ("expected").
+  *Applied to SSA, written melody first; the general writer, which writes
+  the mixed and men's voicings, still uses a largest skip.*
+- **Begin** on the tonic triad (do-mi-sol, do-mi, or unison do).
+- **Cadences:** authentic, half and plagal only.
+- **Rhythm:** whole, dotted half, half, quarter and eighth pairs, "a greater
+  use of eighth notes"; a dotted quarter on strong beats is desired; whole,
+  half and quarter rests may be used.
+- **Length:** 32-36 measures in 4/4, 42-48 in 3/4.
+- **Voicings:** SATB, SAB; SSA/SA; TBB/TB.
 
-### Voicings
-- Treble: SA
-- Tenor-Bass: TB
+## Level 4 - Conference 4A Varsity
 
-### Text
-- Choir may use the printed text or their preferred method of reading on both readings.
-
-### Ranges
-| Sop. I (MIDI 72-78) | Alto (MIDI 65-72) |
-|---------------------|------------------|
-| Ten. I (MIDI 60-67) | Bass (MIDI 52-60) |
-
-## Level 2 - Conference MS Varsity Mixed
-
-### Meter
-- 3/4, 4/4
-- No meter changes
-
-### Key
-- Major keys: C (MIDI 60), F (MIDI 53), G (MIDI 55), D (MIDI 62)
-
-### Texture
-- Homophonic, with a few simple parallel motion lines
-
-### Harmony
-(Current wording, from Blaine, 7 October 2026; src/lib/uil-skips.ts.)
-- I, IV, and V or V7 chords; an occasional ii or vi chord may be used for
-  harmonic interest
-- Melodic skips in the I chord: 3rds - do-mi-do; mi-sol-mi; 4th - do-sol1-do
-- Melodic skips in the IV chord: 3rds - fa-la-fa; do-la1-do; 4th - do-fa-do
-  (expected)
-- Melodic skips in the V chord: 3rds - ti-re-ti; sol-ti-sol; 4th - sol-re-sol
-- No altered tones
-
-### Rhythm
-- Whole, half, quarter, and eighth notes
-- Simple dotted quarter and eighth-note patterns
-
-### Length
-- Approximately 28-32 measures in 4/4, or equivalent in 3/4
-
-### Voicings
-- Mixed: SATB, SAB
-- Treble: SSA/SA
-- Tenor-Bass: TBB/TB
-
-### Text
-- Choir may use the printed text or their preferred method of reading on both readings.
-
-### Ranges
-| Sop. I (MIDI 72-80) | Sop. II (MIDI 69-77) | Alto (MIDI 65-74) |
-|---------------------|---------------------|------------------|
-| Ten. I (MIDI 60-68) | Baritone (MIDI 57-65) | Bass (MIDI 52-60) |
-
-## Level 3 - Conference 1A/2A/3A Varsity; 5A/6A NV
-
-### Meter
-- 3/4, 4/4
-- No meter changes
-
-### Key
-- Major keys: B-flat (MIDI 58), F (MIDI 53), C (MIDI 60), G (MIDI 55), D (MIDI 62)
-
-### Texture
-- Homophonic, with polyphonic sections
-- No more than 20% polyphony
-
-### Harmony
-- I, IV, V or V7 chords; ii and vi chords are desirable where harmonically appropriate
-- **Melodic skips in the I chord:** 3rds (C-E-C), 4ths (C-G1-C), 5ths (C-G-C)
-- **Melodic skips in the IV chord:** 3rds (F-A-F), 4ths (C-F-C), 5ths (C-F1-C) in bass lines
-- **Melodic skips in the V chord:** 3rds (B-D-B), 4ths (G-D1-G), 5ths (G-D1-G)
-- **Melodic skips in the V7 chord:** Expected movement (D-F-D)
-
-### Cadences
-- Authentic, half, and plagal cadences only
-
-### Rhythm
-- Whole, dotted half, half, quarter notes, and eighth notes in pairs
-- A greater use of eighth notes is expected
-- Dotted quarter notes on strong beats are desired
-- Whole, half, and quarter rests may be used
-
-### Length
-- Approximately 32 to 36 measures in 4/4 meter or equivalent in 3/4 (42-48 measures)
-
-### Voicings
-- Mixed: SATB and SAB
-- Treble: SSA/SA
-- Tenor-Bass: TBB /TB
-
-### Text
-- Choir may use the printed text or their preferred method of reading on both readings.
-
-### Ranges
-| Sop. I (MIDI 72-80) | Sop. II (MIDI 69-77) | Alto (MIDI 65-74) |
-|---------------------|---------------------|------------------|
-| Ten. I (MIDI 60-68) | Baritone (MIDI 57-65) | Bass (MIDI 52-60) |
-
-## Level 4 - Conference 4A Varsity; 5A/6A Non-Varsity
-
-### Meter
-> UIL choir sight-reading does not use compound meter. This page once listed 6/8 here and "all simple and compound meters" at level 5, which was wrong for choir.
-
-- 3/4, 4/4
-- Simple meter changes
-
-### Key
-- Major keys up to three sharps or flats
-
-### Texture
-- Primarily homophonic with up to 30% polyphony
-
-### Harmony
-- I, IV, V, V7, ii, vi, and occasional secondary dominants
-
-### Rhythm
-- Whole, half, quarter, and eighth notes in various patterns
-- Syncopation and dotted rhythms
-
-### Length
-- 36-48 measures
-
-### Voicings
-- SATB, SAB, SSA, TBB
-
-### Text
-- Choir may use printed text or preferred reading method
-
-### Ranges
-- Expands slightly beyond Level 3
+- **Meter:** 2/4, 3/4, 4/4; no meter changes.
+- **Key:** B flat, E flat, F, C, G, D, A major; no modulation.
+- **Texture:** homophonic with polyphonic sections; no more than 20%
+  polyphony.
+- **Harmony:** I, IV, V, V7, ii, iii, vi. No altered tones are named at this
+  level (they are Level 5's). Dissonance with proper resolution, for no more
+  than two chords in succession. Skips within I, IV, V, V7 and vi, including
+  6ths and octaves; "leaps of a tritone or 7th are forbidden".
+- **Cadences:** authentic, half and plagal only.
+- **Rhythm:** eighth, quarter, half and whole notes and their rests; dotted
+  values using eighths or longer. No sixteenths, no triplets.
+- **Length:** about 32 measures in 4/4, 42 in 3/4.
+- **Voicings:** SATB, SAB; SSA/SA; TBB/TB.
 
 ## Level 5 - Conference 5A/6A Varsity
 
-### Meter
-- All simple meters
-- Frequent meter changes
+- **Meter:** 2/4, 3/4, 4/4; no meter changes.
+- **Key:** major keys up through four sharps and four flats; "possible
+  modulation to relative minor keys". No minor keys of its own - Blaine: the
+  B section turns to the relative minor for 8 bars or so (`form-plan.ts`).
+  Minor-key practice is the app's own, outside the levels.
+- **Texture:** homophonic with polyphonic sections; no more than 25%
+  polyphony.
+- **Harmony:** altered tones fi (V/V), si (V/vi), di (V/ii) and te (V7/IV);
+  other altered tones discouraged. Dissonance with proper resolution.
+  Tritone and 7th leaps forbidden.
+- **Rhythm:** simple syncopation and ties across barlines; dotted patterns,
+  including an occasional dotted eighth and sixteenth; other sixteenth
+  patterns and triplets forbidden.
+- **Length:** 32-36 measures for 5A; 6A adds 12-16 more. One piece serves
+  both: 5A stops at its full cadence (bar 32 in both of Blaine's Level 5
+  pieces), 6A goes on.
+- **Voicings:** SATB, SAB; SSA/SA; TBB/TB.
 
-### Key
-- Major and minor keys up to four sharps or flats
+## Not yet applied (known gaps)
 
-### Texture
-- Homophonic and polyphonic balance (up to 50% polyphony)
-
-### Harmony
-- Full harmonic range including secondary dominants and modulations
-
-### Rhythm
-- Complex syncopation and mixed rhythmic patterns
-
-### Length
-- 48+ measures
-
-### Voicings
-- SATB, SSAA, TTBB
-
-### Text
-- Choir may use printed text or preferred reading method
-
-### Ranges
-- Fully extended vocal ranges
-
+- Leap rules at Levels 3-5 for the general writer (SATB, SAB, TBB): it uses
+  a largest skip, and does not yet forbid the tritone.
+- Level 4-5 two-part voicings (SA, TB) and Level 1's SATB, SAB, SSA and TTB:
+  each joins when it has a writer.
+- Level 5's ties across barlines and syncopation are allowed but not sought;
+  the relative-minor B section is planned (`form-plan.ts`) but the
+  generator does not yet modulate.
+- Level 4 dissonance "for no more than two chords in succession" is not
+  checked.

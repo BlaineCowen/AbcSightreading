@@ -292,7 +292,7 @@ function writeOnce(o: ThreePartOptions) {
           if (prev) {
             const d = Math.abs(n.pitchValue - prev.pitchValue);
             if (d > (short ? 1 : o.maxSkip)) return [];
-            if (o.skipLevel && !listedSkip(o.skipLevel, prev, n, held ? [chord.root, held.root] : [chord.root])) return [];
+            if (o.skipLevel && !listedSkip(o.skipLevel, prev, n, [chord, held], v === 2)) return [];
           }
           if (first && v === 2 && n.degree !== 0 && n.degree !== 4) return []; // begin on do (or the sol below, a bass)
           let cost = extra + degreeCost(job.degrees, n.degree) + TESSITURA_PULL * Math.abs(n.pitchValue - target);

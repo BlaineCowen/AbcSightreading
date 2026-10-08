@@ -1248,6 +1248,19 @@ unison 28% (25). It still leans on V a little (the tune on re 31%,
 his 20%). SATB ("Our Hero", Level 3) shows the same jobs with a tenor filling
 the chord; not built yet.
 
+**The UIL levels follow UIL's current criteria** (read from uiltexas.org on
+7 October 2026 and checked with Blaine; notes/uil-criteria.md, which ends
+with what is not applied yet). Levels 1-2 are F and G major only, 3/4 and
+4/4, no rests, authentic/half/plagal cadences; Levels 1-3 skip only as UIL
+lists by chord (`uil-skips.ts`, for the melody-first writers); Level 4 is
+diatonic with no modulation; Level 5 is major (no minor keys of its own)
+with fi, si, di, te, an occasional dotted eighth and sixteenth, and 32-36
+bars for 5A plus 12-16 for 6A (`longVersion`; form-plan puts 5A's full
+cadence at bar 32 and a B section in the relative minor). Blaine's "Level
+4/5" pieces are Level 5, stopping at bar 32 for 5A. Each preset change that
+moved a meter-regression snapshot was checked by restoring the old list
+first.
+
 The Choral page opens at UIL Level 3 in F major when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
 active preset was chosen.

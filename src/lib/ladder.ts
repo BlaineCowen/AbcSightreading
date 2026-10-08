@@ -406,10 +406,12 @@ const STEPS: StepDef[] = [
     stage: FOUR,
     title: "Secondary dominants",
     newThing: "V/V, V/vi and V/ii: the first chromatic notes",
-    uil: 4,
+    // UIL keeps altered tones for Level 5 (fi, si, di, te); Level 4 has none.
+    uil: 5,
     page: "choral",
     choral: choral({
       ...pick(U["UIL 4"]),
+      allowedChordNames: U["UIL 5"].allowedChordNames,
       level: 4,
       selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth"],
       allowedRhythmNames: U["UIL 4"].allowedRhythmNames,
@@ -439,14 +441,16 @@ const STEPS: StepDef[] = [
     id: "rhythm-sixteenths",
     stage: FOUR,
     title: "Ti-ki-ti-ki",
-    newThing: "Four sixteenths, and 2/4: all of UIL 5",
+    // Past UIL: Level 5 allows only an occasional dotted eighth and sixteenth
+    // ("other sixteenth note patterns and triplets are forbidden").
+    newThing: "Four sixteenths, and 2/4",
     uil: 5,
     page: "choral",
     choral: choral({
       ...pick(U["UIL 5"]),
       level: 5,
       selectedRhythmNames: ["quarter", "half", "dotHalf", "whole", "eighthEighth", "dotQuarterEighth", "fourSixteenths"],
-      allowedRhythmNames: U["UIL 5"].allowedRhythmNames,
+      allowedRhythmNames: [...U["UIL 5"].allowedRhythmNames, "fourSixteenths"],
       measures: 8,
     }),
   },
@@ -466,8 +470,7 @@ const STEPS: StepDef[] = [
         "eighthQuarterEighth", "eighthDotQuarter", "dotEighthSixteenth",
       ],
       allowedRhythmNames: [
-        ...U["UIL 5"].allowedRhythmNames,
-        "eighthQuarterEighth", "eighthDotQuarter", "dotEighthSixteenth",
+        ...new Set([...U["UIL 5"].allowedRhythmNames, "eighthQuarterEighth", "eighthDotQuarter", "dotEighthSixteenth"]),
       ],
       measures: 8,
     }),

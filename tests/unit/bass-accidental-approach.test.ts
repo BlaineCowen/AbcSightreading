@@ -59,7 +59,9 @@ function bassAccidentalApproach(runs = 60, mode: "minor" | "major" = "minor") {
     mode === "minor"
       ? [
           ...new Set([
-            ...(preset.allowedChordNames as string[]).filter((n) => n.startsWith("m_")),
+            // Minor's own chords: UIL 5 no longer lists minor keys (they are
+            // practice outside the levels), so they are named here.
+            "m_i", "m_i6", "m_iv", "m_iid", "m_V", "m_V7", "m_VI", "m_VII", "m_III", "m_viid",
             ...MINOR_INV,
           ]),
         ]

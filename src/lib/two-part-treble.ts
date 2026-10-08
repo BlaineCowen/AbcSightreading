@@ -302,7 +302,7 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
           d === 3 && tones.has(0) && tones.has(4) &&
           ((n.degree === 4 && prev.degree === 0 && n.pitchValue < prev.pitchValue) ||
             (n.degree === 0 && prev.degree === 4 && n.pitchValue > prev.pitchValue));
-        if (o.skipLevel) return listedSkip(o.skipLevel, prev, n, held ? [chord.root, held.root] : [chord.root]);
+        if (o.skipLevel) return listedSkip(o.skipLevel, prev, n, [chord, held], prev === pA);
         return d <= o.maxSkip || doSol;
       };
       const altScored = (s: Note, sExtra: number) =>

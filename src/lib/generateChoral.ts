@@ -97,6 +97,10 @@ export interface GenerateChoralParams {
    * level's pieces (three-part-treble.ts). See ssaLevelFor.
    */
   ssaLevel?: SsaLevel | null;
+  /** The cadence types the level allows (UILPreset.allowedCadenceTypes); every one when left out. */
+  cadenceTypes?: string[];
+  /** A dotted quarter and eighth only on a strong beat (UIL Level 2). */
+  dottedOnStrongBeats?: boolean;
   /** False: no rest as an inner phrase's breath (the level avoids rests). See rhythm-generation. */
   breathRests?: boolean;
   /**
@@ -362,6 +366,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   const compatibleCadences = allCadences.filter((cadence) => {
     if (cadence.mode && cadence.mode !== (isMinor ? "minor" : "major")) return false;
     if (!cadence.mode && isMinor) return false; // exclude legacy major-only cadences in minor
+    // The level's own list: Levels 1-4 are "authentic, half, and plagal cadences only".
+    if (params.cadenceTypes && !params.cadenceTypes.includes(cadence.type)) return false;
     return cadence.progression.every(
       (step) => !step.requiredChord || chordSymbols.has(step.requiredChord)
     );
@@ -411,7 +417,10 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       weightBias: params.rhythmBias,
       // Melody first, the bars take the shapes of the beginning repertoire: a half on the downbeat.
       breathRests: params.breathRests,
-      positionWeight: melodyFirst ? (r, pos) => barShapeWeight(r, pos, timeSig.tsPerMeasure, pairKind ?? "SA") : undefined,
+      positionWeight: (r, pos) =>
+        (melodyFirst ? barShapeWeight(r, pos, timeSig.tsPerMeasure, pairKind ?? "SA") : 1) *
+        // Level 2: "a dotted quarter note followed by an eighth on strong beats only".
+        (params.dottedOnStrongBeats && r.name === "dotQuarterEighth" && pos % (timeSig.tsPerMeasure === 32 ? 16 : timeSig.tsPerMeasure) !== 0 ? 0.0001 : 1),
     }
   );
   const finalRhythms: Rhythm[] = generatedRhythms as Rhythm[];
