@@ -129,3 +129,11 @@ export function readSamples() {
   return engine?.readSamples() ?? null;
 }
 
+/**
+ * The notes that should be sounding now, so the detector hears them on less
+ * clarity (PitchTracker.setExpected). Grade sets it while it listens and
+ * clears it with null.
+ */
+export function setExpectedNotes(midis: number[] | null) {
+  engine?.setExpected(midis);
+}

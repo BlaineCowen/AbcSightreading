@@ -849,7 +849,22 @@ narrow step and the in-tune line after it all lost points; each note is now
 judged against the closest of the reference, the singer's settled tuning,
 and the interval from the last good note or the note just sung (within the
 drift allowance), and credit falls off gradually to nothing at a semitone.
-The drift is reported, not scored. The beat is also moved by the audio
+The drift is reported, not scored.
+
+Grade tells the detector which note should be sounding (grade-runner
+`setExpectedNotes`, PitchTracker `setExpected`): in Pitch & rhythm the
+note written at the moment the frame was sung, the next from a quarter beat
+early; in Note by note the note shown. A pitch within 60 cents of it, any
+octave, needs clarity 0.65 (`EXPECTED_CLARITY`) where a new note otherwise
+needs 0.85; any other pitch keeps the usual bar, so a wrong note is heard
+exactly as before. Blaine's run of 8 October (quarters at 60, beat click)
+lost two whole notes sung in tune: under the click the voice read 0.7-0.8,
+never confirmed, and the tracker learned the singing as noise while it
+waited. `bun run scripts/replay-grade-detect.ts grade-runs/<dir>...` replays
+sent runs through the detector and grades them again (`EXPECT=0` without
+the hint): that run 32% of its notes heard and 55 overall -> 89% and 100,
+the two runs of 7 October unchanged (97 and 91-92). check-grade still finds
+exactly the planted faults in both modes, with and without the click. The beat is also moved by the audio
 output's own delay (`baseLatency` + `outputLatency`), since a singer sings
 with the click as heard. Replayed with these, that run grades 97 pitch,
 99 rhythm.
