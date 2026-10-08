@@ -693,6 +693,17 @@ tempo ramp, silent bars, dropped beats (never beat 1), time limit; silent bars
 and dropped beats also reach the exercise click (Unison per beat, Choral by a
 drum directive written into each bar of the played copy, `withClickByBar`,
 since abcjs lays a multi-bar drum pattern down again at every barline).
+The counting voice (`voice-count.ts`, tests `voice-count.test.ts`; Off,
+Voice + click, Voice only; Counting 1 e & a / 1 trip let / 1 la li, or Kodály
+ta, ti-ti, ti ki ti ki, tri o la) is espeak-ng's plain robot (Blaine's pick),
+built by `bun run scripts/voice/build.ts` into public/voice/robot/ with each
+word's lead-in (loudness to half its peak) in manifest.json; a word starts that
+early so its vowel lands on the beat, and the word before is cut as it comes
+in. Subdivisions are said only when a slot is 0.15 s or longer. On Unison the
+beat's word is said a beat ahead (`sayNextBeat`), since its click is placed as
+abcjs reaches each beat; Choral's click is abcjs's drum track and has no voice
+yet. The metronome times beat 1 on its first tick, once the context runs: the
+page is busy for most of a second loading samples as it starts.
 Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the

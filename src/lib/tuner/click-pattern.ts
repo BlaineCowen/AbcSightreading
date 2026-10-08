@@ -39,6 +39,8 @@ export interface ClickEvent {
   level: ClickLevel;
   /** Against the sample's own gain (LEVEL_GAIN). */
   gain: number;
+  /** Which slot of its beat, from 0 (the counting voice says a word per slot). */
+  slot: number;
 }
 
 export const isBeatLevel = (v: unknown): v is BeatLevel => BEAT_LEVELS.includes(v as BeatLevel);
@@ -72,7 +74,7 @@ export function beatEvents(level: BeatLevel, subdivision: number, subMask?: stri
   mask.forEach((on, slot) => {
     if (!on) return;
     const level_: ClickLevel = slot > 0 ? "sub" : level === "accent" ? "downbeat" : "beat";
-    out.push({ at: slot / grid, level: level_, gain });
+    out.push({ at: slot / grid, level: level_, gain, slot });
   });
   return out;
 }

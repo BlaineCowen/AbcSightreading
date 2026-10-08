@@ -9,7 +9,9 @@
   import { tuner } from "../lib/tuner/store";
   import { SampleBank, type ClickLevel } from "../lib/tuner/click-sounds";
   import { scheduleClick } from "../lib/playback-click";
-  import { beatEvents, beatLevelsFor, type BeatLevel } from "../lib/tuner/click-pattern";
+  import { beatEvents, beatLevelsFor, gridOf, type BeatLevel } from "../lib/tuner/click-pattern";
+  import { VoiceBank, wordAt } from "../lib/tuner/voice-count";
+  import { VOICE_GAIN } from "../lib/tuner/metronome";
   import { assistedLevels } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
@@ -2171,7 +2173,15 @@
         const inCount = countInBeats(playedMeter());
         const musicBeat = beatNumber >= inCount ? beat.beatInBar : undefined;
         const musicBar = Math.floor((metronomeBeats.lastClickedBeat - inCount) / Math.max(1, beatsPerMeasure));
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) {
+          playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
+          // The next beat's word, a beat ahead, while there is a next beat of music.
+          const next = metronomeBeats.lastClickedBeat + 1;
+          if (next >= inCount && next < totalBeats) {
+            const per = Math.max(1, beatsPerMeasure);
+            sayNextBeat((next - inCount) % per, per, Math.floor((next - inCount) / per));
+          }
+        }
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -2651,6 +2661,8 @@
   const clickBank = new SampleBank();
   /** Which beats the practice assistant drops this playback. */
   let clickSeed = 0;
+  /** The counting voice's words (voice-count.ts), loaded when it is on. */
+  const voiceBank = new VoiceBank();
   /**
    * One beat of the click, as the Tools metronome sets it: its sound, its
    * accent on the downbeat, and its subdivisions after the beat, at exact
@@ -2658,6 +2670,25 @@
    * the exercise and under the Click button alike; those two only turn it
    * on and off.
    */
+  /**
+   * The counting voice's word for the next beat, said now so it can start
+   * before the beat by its lead-in (voice-count.ts): the click here is placed
+   * as abcjs reaches each beat, too late to start a word early.
+   */
+  function sayNextBeat(nextBeatInBar: number, beatsInBar: number, nextBar: number) {
+    if (!audioContext || metronomeGainNode.gain.value === 0 || gradeSubdivision != null) return;
+    const { accent, subdivision, beatLevels, subMask, assistant, voice } = tuner.get();
+    if (voice.mode === "off") return;
+    void voiceBank.load(audioContext).catch(() => {});
+    const level = assistedLevels(beatLevelsFor({ beats: beatsInBar, accent, beatLevels }), nextBar, assistant, clickSeed)[nextBeatInBar];
+    const first = beatEvents(level, subdivision, subMask).find((e) => e.slot === 0);
+    if (!first) return;
+    const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
+    const compound = meterKindOf(playedMeter()) === "compound";
+    const word = wordAt(voice.system, gridOf(subdivision), 0, nextBeatInBar, compound, secondsPerBeat / gridOf(subdivision));
+    if (word) voiceBank.say(audioContext, metronomeGainNode, word, audioContext.currentTime + secondsPerBeat, first.gain * voice.volume * VOICE_GAIN);
+  }
+
   function playMetronomeClick(
     isDownbeat: boolean,
     when: number = audioContext ? audioContext.currentTime : 0,
@@ -2668,7 +2699,7 @@
     bar?: number
   ) {
     if (!audioContext || metronomeGainNode.gain.value === 0) return;
-    const { clickSound, accent, subdivision, beatLevels, subMask, assistant } = tuner.get();
+    const { clickSound, accent, subdivision, beatLevels, subMask, assistant, voice } = tuner.get();
     // Levels set for this many beats, else beat 1 accented as always; then the
     // assistant's silent bars and dropped beats. A Grade run keeps its own click.
     const level: BeatLevel =
@@ -2680,8 +2711,20 @@
     // A Grade run in time sets its own: beats, or beats with their subdivision.
     const grid = gradeSubdivision ?? subdivision;
     const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
+    // The counting voice says the music's beats (never the count-in, and not
+    // under a Grade run, which keeps its plain click); voice alone drops the click there.
+    const speak = voice.mode !== "off" && gradeSubdivision == null && beatInBar !== undefined;
+    if (speak) void voiceBank.load(audioContext).catch(() => {});
+    const compound = meterKindOf(playedMeter()) === "compound";
+    const slotSeconds = secondsPerBeat / gridOf(grid);
     for (const e of beatEvents(level, grid, gradeSubdivision ? null : subMask)) {
-      scheduleClick(audioContext, clickBank, metronomeGainNode, when + e.at * secondsPerBeat, clickSound, e.level, e.gain);
+      const at = when + e.at * secondsPerBeat;
+      if (!speak || voice.mode === "both") scheduleClick(audioContext, clickBank, metronomeGainNode, at, clickSound, e.level, e.gain);
+      // The beat's own word was said a beat ahead (sayNextBeat), so it could start early.
+      if (speak && e.slot > 0) {
+        const word = wordAt(voice.system, gridOf(grid), e.slot, beatInBar!, compound, slotSeconds);
+        if (word) voiceBank.say(audioContext, metronomeGainNode, word, at, e.gain * voice.volume * VOICE_GAIN);
+      }
     }
   }
 

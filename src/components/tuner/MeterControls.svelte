@@ -2,6 +2,7 @@
   import { tuner } from "../../lib/tuner/store";
   import { METERS, meterById } from "../../lib/tuner/meters";
   import SubdivisionPicker from "./SubdivisionPicker.svelte";
+  import type { VoiceMode, VoiceSystem } from "../../lib/tuner/voice-count";
   import { CLICK_SOUNDS, type ClickSound } from "../../lib/tuner/click-sounds";
   import { metronome } from "../../lib/tuner/metronome";
   import { metronomeSounding } from "../../lib/tools/metronome-link";
@@ -36,6 +37,10 @@
    * metronome is already sounding, where the new sound is heard on the next
    * beat and a preview on top of it was a burst of extra clicks.
    */
+  // The counting voice's choices (voice-count.ts).
+  const pickVoiceMode = (mode: string) => tuner.setVoice({ mode: mode as VoiceMode });
+  const pickVoiceSystem = (system: string) => tuner.setVoice({ system: system as VoiceSystem });
+
   function pickSound(id: ClickSound) {
     tuner.setClickSound(id);
     if (!metronomeSounding($tuner)) void metronome.preview(id);
@@ -88,5 +93,40 @@
         >{snd.label}</button>
       {/each}
     </div>
+  </div>
+
+  <!-- The counting voice (voice-count.ts): a robot saying the count with the
+       click or instead of it, in Counting or Kodály. -->
+  <div class="flex flex-col gap-1.5" role="group" aria-label="Counting voice">
+    <span class="text-xs text-sr-muted">Counting voice</span>
+    <div class="flex flex-wrap items-center gap-1">
+      {#each [["off", "Off"], ["both", "Voice + click"], ["voice", "Voice only"]] as [mode, label]}
+        <button
+          type="button"
+          class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.voice.mode === mode ? 'sr-on' : ''}"
+          aria-pressed={$tuner.voice.mode === mode}
+          on:click={() => pickVoiceMode(mode)}
+        >{label}</button>
+      {/each}
+      {#if $tuner.voice.mode !== "off"}
+        <span class="w-px h-6 bg-sr-hairline mx-1" aria-hidden="true"></span>
+        {#each [["counting", "1 e & a"], ["kodaly", "Kodály"]] as [system, label]}
+          <button
+            type="button"
+            class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.voice.system === system ? 'sr-on' : ''}"
+            aria-pressed={$tuner.voice.system === system}
+            on:click={() => pickVoiceSystem(system)}
+          >{label}</button>
+        {/each}
+      {/if}
+    </div>
+    {#if $tuner.voice.mode !== "off"}
+      <label class="flex items-center gap-2 text-xs text-sr-muted">
+        <span class="shrink-0">Voice level</span>
+        <input type="range" min="0" max="1" step="0.05" class="flex-1 sr-range" aria-label="Counting voice level"
+          value={$tuner.voice.volume} on:input={(e) => tuner.setVoice({ volume: Number(e.currentTarget.value) })} />
+      </label>
+      <p class="text-[11px] text-sr-faint">Subdivisions are counted when there is time to say them; faster, only the beats.</p>
+    {/if}
   </div>
 </div>

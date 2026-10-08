@@ -8,7 +8,8 @@ import {
   type ClickLevel,
   type ClickSound,
 } from "./click-sounds";
-import { beatEvents, beatLevelsFor, type BeatLevel } from "./click-pattern";
+import { beatEvents, beatLevelsFor, gridOf, type BeatLevel } from "./click-pattern";
+import { VoiceBank, wordAt, type VoiceSettings } from "./voice-count";
 import { assistedLevels, barIsSilent, rampBpm, timeIsUp, type AssistantSettings } from "./practice-assistant";
 
 export interface MetronomeSettings {
@@ -21,6 +22,9 @@ export interface MetronomeSettings {
   subMask?: string | null;
   /** Ramp, silent bars, dropped beats, time limit, count-in (practice-assistant.ts). */
   assistant?: AssistantSettings;
+  /** The counting voice (voice-count.ts), and whether the beat is a dotted quarter. */
+  voice?: VoiceSettings;
+  compound?: boolean;
   /**
    * Beats that start a group after the first - the 4 of 12/8's second half,
    * 5/8's 3. They get a lighter accent than the downbeat. Optional, so a
@@ -34,6 +38,8 @@ export interface MetronomeSettings {
 }
 
 export const BPM_MIN = 30;
+/** The voice's level against the click's, at the voice slider's top. */
+export const VOICE_GAIN = 1.6;
 export const BPM_MAX = 300;
 
 const LOOKAHEAD_MS = 25;
@@ -50,6 +56,7 @@ export class Metronome {
   private beat = 0;
   private settings: MetronomeSettings = { bpm: 90, beatsPerBar: 4, subdivision: 1, accent: true };
   private bank = new SampleBank();
+  private voices = new VoiceBank();
   /** Every click goes through this, so the level can change while it ticks. */
   private out: GainNode | null = null;
   onBeat: ((beatInBar: number) => void) | null = null;
@@ -58,6 +65,8 @@ export class Metronome {
   /** The time limit ran out; the metronome has stopped. */
   onTimeUp: (() => void) | null = null;
   private startedAt = 0;
+  /** Started, with the first beat not yet timed. */
+  private fresh = false;
   /** Which beats drop, for this run. */
   private seed = 0;
 
@@ -67,6 +76,7 @@ export class Metronome {
 
   configure(settings: MetronomeSettings) {
     this.settings = settings;
+    if (this.ctx && settings.voice && settings.voice.mode !== "off") void this.voices.load(this.ctx).catch(() => {});
     if (this.out) this.out.gain.value = settings.volume ?? 1;
   }
 
@@ -86,10 +96,13 @@ export class Metronome {
     const ctx = this.context();
     void ctx.resume();
     void this.bank.load(ctx);
+    if (this.settings.voice && this.settings.voice.mode !== "off") void this.voices.load(ctx).catch(() => {});
     this.beat = 0;
-    this.nextBeatTime = ctx.currentTime + 0.05;
-    this.startedAt = this.nextBeatTime;
     this.seed = Math.floor(Math.random() * 2 ** 31);
+    // Timed from the first schedule, not now: a context that was asleep takes
+    // most of a second to resume, and a first beat timed before that played
+    // late, squashed against the second.
+    this.fresh = true;
     this.timer = setInterval(() => this.schedule(), LOOKAHEAD_MS);
   }
 
@@ -128,13 +141,25 @@ export class Metronome {
 
   private schedule() {
     const ctx = this.ctx!;
+    if (ctx.state !== "running") return;
+    // How far ahead this tick schedules: further on the first, so beat 1 is
+    // handed to the audio clock now. Starting, the page is busy for most of a
+    // second loading the samples, and the next tick came that much later.
+    let ahead = SCHEDULE_AHEAD_S;
+    if (this.fresh) {
+      this.fresh = false;
+      // Room for the counting voice's longest lead-in (about 0.15 s) before beat 1.
+      this.nextBeatTime = ctx.currentTime + 0.2;
+      this.startedAt = this.nextBeatTime;
+      ahead = 0.25;
+    }
     const { bpm, beatsPerBar, subdivision, accent, beatLevels, subMask, assistant } = this.settings;
     // Beat 1 accented unless the levels say otherwise. Accenting each group's
     // first beat too (4/4's 3, 12/8's 4) put a third pitch in the bar - A F E
     // F - which drew the ear more than it helped; a teacher can now set it.
     const base = beatLevelsFor({ beats: beatsPerBar, accent, beatLevels });
     const countIn = assistant?.countIn.on ? assistant.countIn.bars : 0;
-    while (this.nextBeatTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
+    while (this.nextBeatTime < ctx.currentTime + ahead) {
       const beatInBar = this.beat % beatsPerBar;
       // Bars count from the first after the count-in, which clicks plainly at the set tempo.
       const bar = Math.floor(this.beat / beatsPerBar) - countIn;
@@ -151,8 +176,15 @@ export class Metronome {
         const live = { bar, bpm: bpmNow, silent: !!assistant && barIsSilent(bar, assistant.silent), seconds: this.nextBeatTime - this.startedAt };
         setTimeout(() => this.onBar?.(live), Math.max(0, (this.nextBeatTime - ctx.currentTime) * 1000));
       }
+      const voice = this.settings.voice;
+      const slotSeconds = beatDur / gridOf(subdivision);
       for (const e of beatEvents(levels[beatInBar], subdivision, subMask)) {
-        this.click(this.nextBeatTime + e.at * beatDur, e.level, undefined, e.gain);
+        const at = this.nextBeatTime + e.at * beatDur;
+        if (voice?.mode !== "voice") this.click(at, e.level, undefined, e.gain);
+        if (voice && voice.mode !== "off") {
+          const word = wordAt(voice.system, gridOf(subdivision), e.slot, beatInBar, !!this.settings.compound, slotSeconds);
+          if (word) this.voices.say(ctx, this.out!, word, at, e.gain * voice.volume * VOICE_GAIN);
+        }
       }
       const delay = Math.max(0, (this.nextBeatTime - ctx.currentTime) * 1000);
       setTimeout(() => this.onBeat?.(beatInBar), delay);
