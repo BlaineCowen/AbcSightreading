@@ -2,7 +2,8 @@
  * A printed sight-reading book: exercises written by the site's own
  * generators, engraved by abcjs in headless Chrome, each with a QR code that
  * opens it on the site (/b/<book>/<n>, src/pages/b/[book]/[n].ts) to show on
- * screen, play, label with solfège or note names, and sing and grade.
+ * screen, play any part, and label with solfège or note names. (Not grade:
+ * Listen and grade is the Unison page's; a Choral book must not promise it.)
  *
  *   BOOK=satb-sample VOICING="4 Part Mixed" LEVELS=1 PER_LEVEL=10 bun run scripts/make-book.ts
  *
@@ -126,7 +127,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8">
   <h2>How to use this book</h2>
   <p>Each exercise is new music, written for sight-reading: read it once, the way you would at contest. The exercises in a level grow a little harder as you go.</p>
   <p>Give the key, the starting pitches and the tempo, then sing on solfège, numbers or a neutral syllable.</p>
-  <div class="qrnote"><div id="qr-demo" class="qr" style="width:auto"></div><div><strong>Scan any exercise's code</strong> to open it on screen at abcSightReading: show it to the whole room, play it or any one part, add solfège or note names, slow it down, and have the choir sing it and get graded.</div></div>
+  <div class="qrnote"><div id="qr-demo" class="qr" style="width:auto"></div><div><strong>Scan any exercise's code</strong> to open it on screen at abcSightReading: show it to the whole room, play it or any one part, add solfège or note names, and slow it down.</div></div>
 </section>
 ${LEVELS.map((level) => `<section class="level"><h2>Level ${level}</h2>
 ${entries.filter((e) => e.level === level).map((e) => `<div class="ex">
@@ -142,7 +143,7 @@ ${entries.filter((e) => e.level === level).map((e) => `<div class="ex">
     const q = qrcode(0, "M"); q.addData(url); q.make();
     el.innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true }) + (caption ? "<span>" + caption + "</span>" : "");
   }
-  for (const el of document.querySelectorAll(".exhead .qr")) qr(el, el.dataset.url, "Scan: show on screen, play, add solfège or note names, sing and grade");
+  for (const el of document.querySelectorAll(".exhead .qr")) qr(el, el.dataset.url, "Scan: show on screen, play any part, add solfège or note names");
   qr(document.getElementById("qr-demo"), "${BASE_URL}/b/${BOOK}/1", "");
   window.__ready = true;
 </script>

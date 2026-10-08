@@ -3,7 +3,8 @@ import type { APIRoute } from "astro";
 /**
  * A printed book's exercise, from its QR code: /b/<book>/<n> opens that exact
  * exercise on its practice page, where it can be shown on screen, played,
- * labelled with solfège or note names, slowed down, and sung and graded.
+ * labelled with solfège or note names and slowed down (and, on the Unison
+ * page, sung and graded).
  * The exercises are written once, by scripts/make-book.ts, into
  * src/data/books/<book>.json, so a book always opens what it printed.
  */
