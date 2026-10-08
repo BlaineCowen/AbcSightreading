@@ -5,9 +5,9 @@
  */
 
 import { STEP_COUNT, ladder } from "./ladder";
-import { NYSSMA_VOICE, STEP_BY_STEP, UIL_CHOIR } from "./curriculum/catalogue";
+import { NYSSMA_VOICE, STEP_BY_STEP, TMEA_ALLSTATE, UIL_CHOIR } from "./curriculum/catalogue";
 
-export type LevelSectionId = "steps" | "tracks" | "uil" | "nyssma";
+export type LevelSectionId = "steps" | "tracks" | "uil" | "nyssma" | "tmea";
 
 export interface LevelSection {
   id: LevelSectionId;
@@ -21,13 +21,14 @@ export interface LevelSection {
  * to the ones the teacher subscribes to; without it every one the page
  * offers shows. `tracks` is how many instrument tracks are subscribed.
  */
-export function levelSections(offered: { uil: boolean; nyssma: boolean; tracks?: number; subscribed?: string[] }): LevelSection[] {
+export function levelSections(offered: { uil: boolean; nyssma: boolean; tmea?: boolean; tracks?: number; subscribed?: string[] }): LevelSection[] {
   const has = (id: string) => !offered.subscribed || offered.subscribed.includes(id);
   return [
     ...(has(STEP_BY_STEP) ? [{ id: "steps" as const, label: "abcStepByStep", note: `${STEP_COUNT} steps` }] : []),
     ...(offered.tracks ? [{ id: "tracks" as const, label: "Instrument courses", note: `${offered.tracks} subscribed` }] : []),
     ...(offered.uil && has(UIL_CHOIR) ? [{ id: "uil" as const, label: "UIL", note: "Levels 1–5" }] : []),
     ...(offered.nyssma && has(NYSSMA_VOICE) ? [{ id: "nyssma" as const, label: "NYSSMA Voice", note: "Levels I–V" }] : []),
+    ...(offered.tmea && has(TMEA_ALLSTATE) ? [{ id: "tmea" as const, label: "TMEA All-State", note: "Levels I–IV, S A T B" }] : []),
   ];
 }
 
@@ -37,8 +38,8 @@ export function levelSections(offered: { uil: boolean; nyssma: boolean; tracks?:
  */
 export function sectionToOpen(
   sections: LevelSection[],
-  active: { step: boolean; nyssma: boolean; uil: boolean; track?: boolean },
+  active: { step: boolean; nyssma: boolean; uil: boolean; track?: boolean; tmea?: boolean },
 ): LevelSectionId | null {
-  const want: LevelSectionId | null = active.step ? "steps" : active.track ? "tracks" : active.nyssma ? "nyssma" : active.uil ? "uil" : null;
+  const want: LevelSectionId | null = active.step ? "steps" : active.track ? "tracks" : active.nyssma ? "nyssma" : active.tmea ? "tmea" : active.uil ? "uil" : null;
   return sections.find((s) => s.id === want)?.id ?? null;
 }

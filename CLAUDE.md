@@ -470,6 +470,26 @@ nothing moves off the beat. Before, Levels III-V ran past four in 36-48% of
 exercises, up to fourteen in a row; now never. Max skip mode is untouched
 (its snapshots pin it).
 
+### TMEA All-State Voice levels
+
+`src/lib/tmea-presets.ts` (tests `tmea-presets.test.ts`, every cell
+`bun run scripts/check-tmea.ts`): TMEA's "Path to All-State" sight-reading
+Levels I-IV (Sightreading Levels, July 2025), a set teachers subscribe to on
+/curriculum (`TMEA_ALLSTATE`) and the Unison page's presets
+(`?tmea=<id>`, class keys `tmea:<id>`). The chart sets keys and range per
+voice part, so each level is four presets (Soprano, Alto, Tenor, Bass): the
+part's keys, exact range and clef (tenor on a new treble-8 clef, written an
+octave up and played with transpose=-12, generateUnison `clefFor`/`octaveUp`),
+meters (simple and 6/8 together from Level III: each exercise takes the
+rhythms of the meter drawn, AbcjsSingle `rhythmsForMeter`), the length each
+meter takes (`measuresByMeter`), the largest interval (a 4th, a 5th, then an
+octave; measured across rests, generateUnison `restHoldsLine`), fi and si at
+Level IV. The first bar is all quarters, all eighths in 6/8
+(`firstBarBeats`, first-bar.ts). Tied notes are off (Blaine: never used in an
+audition); a compound dotted-eighth figure is not in the catalogue yet.
+Matches Sight Reading Factory's Texas All-State levels (checked 8 October
+2026). All 180 level x part x key x meter cells clean.
+
 ### Play-along videos
 
 Pro, rhythm only: the Video button on the score's toolbar on the Unison page
