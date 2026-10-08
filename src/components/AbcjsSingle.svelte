@@ -244,7 +244,7 @@
   let error: string | null = null;
 
   // --- NEW WEB AUDIO API STATE ---
-  let audioContext: AudioContext;
+  let audioContext: AudioContext | undefined;
   let gainNode: GainNode; // For the main instrument
   let metronomeGainNode: GainNode; // For the metronome
   let sourceNode: AudioBufferSourceNode | null = null;
@@ -282,20 +282,33 @@
     // hydrates - it is not swapped out - so the skeleton would sit on top of the
     // real UI forever. Take it down as soon as there is something to replace it.
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
-    if (typeof window !== "undefined") {
-      audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-      gainNode = audioContext.createGain();
-      applyInstrumentGain();
-      gainNode.connect(audioContext.destination);
-
-      metronomeGainNode = audioContext.createGain();
-      metronomeGainNode.gain.value = tuner.get().metronomeVolume * 2;
-      metronomeGainNode.connect(audioContext.destination);
-      // The Tools metronome's samples, so the click here sounds like it.
-      void clickBank.load(audioContext);
-    }
+    // The audio waits for the first tap or key: nothing can sound before one,
+    // and making the context and fetching the click samples at load was most
+    // of the page's start-up work on a phone.
+    const first = () => {
+      ensureAudio();
+      for (const e of FIRST_GESTURES) window.removeEventListener(e, first, true);
+    };
+    for (const e of FIRST_GESTURES) window.addEventListener(e, first, true);
+    return () => { for (const e of FIRST_GESTURES) window.removeEventListener(e, first, true); };
   });
+  const FIRST_GESTURES = ["pointerdown", "keydown", "touchstart"] as const;
+
+  /** The page's audio, made on first use. */
+  function ensureAudio(): AudioContext {
+    if (audioContext) return audioContext;
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    gainNode = audioContext.createGain();
+    applyInstrumentGain();
+    gainNode.connect(audioContext.destination);
+
+    metronomeGainNode = audioContext.createGain();
+    metronomeGainNode.gain.value = tuner.get().metronomeVolume * 2;
+    metronomeGainNode.connect(audioContext.destination);
+    // The Tools metronome's samples, so the click here sounds like it.
+    void clickBank.load(audioContext);
+    return audioContext;
+  }
 
   function loadStateFromUrl() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1686,6 +1699,7 @@
     if (!currentTune) {
       return false;
     }
+    ensureAudio();
     // Ensure AudioContext is running. resume() never settles while the browser
     // is still withholding autoplay permission, so awaiting it bare hangs
     // playMusic forever and Play just appears dead. Time it out and say so.
@@ -2387,7 +2401,7 @@
     if (!audioBuffer) return false;
 
     const countIn = getCountInDuration();
-    const node = audioContext.createBufferSource();
+    const node = ensureAudio().createBufferSource();
     node.buffer = audioBuffer;
     node.connect(gainNode);
     node.onended = () => {
