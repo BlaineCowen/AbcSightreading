@@ -1,5 +1,6 @@
+import { listedSkip, type SkipLevel } from "./uil-skips";
 import { isThreePartTreble, ssaTexture, writeThreePartTreble, type SsaLevel } from "./three-part-treble";
-import { barShapeWeight, levelOneLeapOk, twoPartKind, writeTwoPartTreble, type TwoPartKind } from "./two-part-treble";
+import { barShapeWeight, twoPartKind, writeTwoPartTreble, type TwoPartKind } from "./two-part-treble";
 import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
 import { generateChordProgression } from "./chord-generation";
@@ -89,8 +90,8 @@ export interface GenerateChoralParams {
    * Takes effect only when the voicing is one of them. See melodyFirstFor.
    */
   melodyFirst?: TwoPartKind[];
-  /** Melody first, leap only as UIL Level 1 lists (a third within the chord, do down to sol). See chordSkipsFor. */
-  chordSkips?: boolean;
+  /** Written melody first, leap only as UIL lists for this level (uil-skips.ts). See skipLevelFor. */
+  skipLevel?: SkipLevel | null;
   /**
    * Three treble parts (SSA) written melody first, in the texture of that
    * level's pieces (three-part-treble.ts). See ssaLevelFor.
@@ -465,13 +466,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     try {
       if (melodyFirst || ssaTextureHere) {
         if (ssaTextureHere) {
-          const written = writeThreePartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: ssaTextureHere });
+          const written = writeThreePartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: ssaTextureHere, skipLevel: params.skipLevel });
           voiceNotes = written.voiceNotes;
           chordProgression = written.progression;
           break;
         }
         // The tune chooses its chords; the planned ones are kept into each cadence.
-        const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, kind: pairKind!, chordSkips: params.chordSkips, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
+        const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, kind: pairKind!, skipLevel: params.skipLevel, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
         voiceNotes = written.voiceNotes;
         chordProgression = written.progression;
         break;
@@ -505,6 +506,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     tsPerMeasure: timeSig.tsPerMeasure,
   });
 
+  // At a level that lists its skips (1-2), decoration keeps to the figures
+  // that move by step: an escape tone or appoggiatura leaps, and slipped an
+  // unlisted skip past the writers (1 in 744 at Level 2, do up to sol).
+  const nctTypes =
+    params.enabledNctTypes ??
+    (params.skipLevel ? ["Suspension", "Passing Tone", "Neighbor Tone", "Rearticulation", "Anticipation"] : undefined);
+
   // 5. Apply Non-Chord Tone Generation
   // Voices are decorated in turn, each seeing the voices already decorated
   // rather than the original chord tones. Passing the undecorated set to every
@@ -520,7 +528,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       index,
       nctProbability,
       key,
-      params.enabledNctTypes,
+      nctTypes,
       // Decoration has to stay inside the singer's range like everything else.
       voiceParts[index]?.range,
       // ...and needs to know where in the bar it is, for the suspension rule.
@@ -571,7 +579,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     // notes", Blaine, 7 October 2026), and Level 1's list of skips.
     leapOk: (from, to) =>
       (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
-      (!(melodyFirst && params.chordSkips) || levelOneLeapOk(from, to)),
+      (!((melodyFirst || ssa) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)),
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 
@@ -590,7 +598,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
                 topIndex,
                 1,
                 key,
-                params.enabledNctTypes,
+                nctTypes,
                 voiceParts[topIndex]?.range,
                 timeSig.tsPerMeasure,
                 params.stepwiseEighths ?? false,

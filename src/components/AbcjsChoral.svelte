@@ -85,7 +85,8 @@
   import { canFillExercise } from "../lib/rhythm-feasibility";
   import { unisonProbabilityFor } from "../lib/unison-spans";
   import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
-  import { chordSkipsFor, melodyFirstFor } from "../lib/two-part-treble";
+  import { melodyFirstFor } from "../lib/two-part-treble";
+  import { skipLevelFor } from "../lib/uil-skips";
   import { ssaLevelFor } from "../lib/three-part-treble";
   import {
     clampTranspose,
@@ -2466,7 +2467,7 @@
       // Two treble parts at the beginning levels: a tune with a harmony part
       // under it (two-part-treble.ts). Ignored for any other voicing.
       melodyFirst: melodyFirstFor(activeLevelKey),
-      chordSkips: chordSkipsFor(activeLevelKey),
+      skipLevel: skipLevelFor(activeLevelKey),
       breathRests: !(activeLevelKey && uilPresets[activeLevelKey]?.noRests),
       // Three treble parts at Levels 2-3: each part its job (three-part-treble.ts).
       ssaLevel: ssaLevelFor(activeLevelKey),

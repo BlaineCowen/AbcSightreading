@@ -34,6 +34,7 @@
 import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
+import { listedSkip, type SkipLevel } from "./uil-skips";
 
 /**
  * What each voicing's pair of parts is like, from Blaine's pieces
@@ -139,25 +140,8 @@ export const isTwoPartTreble = (voiceParts: { name: string }[]) => twoPartKind(v
 /**
  * The pairs written melody first at a level: the beginning ones, where the
  * lower part is a harmony part, not a bass - each only where Blaine has
- * written a piece to measure it against (SA at Level 1; TB at Level 1).
+ * written a piece to measure it against (SA at Levels 1-2, TB at Level 1).
  */
-/**
- * UIL Level 1's skips, judged from two notes alone (where the chord is not
- * known): any third but re-fa, which lies in no Level 1 chord, and the fourth
- * only between do and the sol below it. Used on the restatement's seams.
- */
-export function levelOneLeapOk(from: Note, to: Note): boolean {
-  const d = Math.abs(to.pitchValue - from.pitchValue);
-  if (d <= 1) return true;
-  const pair = [from.degree, to.degree].sort().join();
-  if (d === 2) return pair !== "1,3";
-  const sol = from.degree === 4 ? from : to;
-  return d === 3 && pair === "0,4" && sol.pitchValue < (sol === from ? to : from).pitchValue;
-}
-
-/** The levels whose skips are UIL's list of skips within each chord, not a largest skip. */
-export const chordSkipsFor = (uilLevel: string | undefined) => uilLevel === "UIL 1";
-
 export function melodyFirstFor(uilLevel: string | undefined): TwoPartKind[] {
   if (uilLevel === "UIL 1") return ["SA", "TB"];
   if (uilLevel === "UIL 2") return ["SA"];
@@ -172,8 +156,8 @@ export type TwoPartOptions = {
   /** The level's chords, to harmonize the tune from. */
   chords: Chord[];
   voiceParts: VoicePart[];
-  /** Skips only within the chord, as UIL Level 1 lists them (see leapOk); else up to maxSkip. */
-  chordSkips?: boolean;
+  /** Skips only as UIL lists them for this level (uil-skips.ts); else up to maxSkip. */
+  skipLevel?: SkipLevel | null;
   /** Which pair; SA when left out. */
   kind?: TwoPartKind;
   maxSkip: number;
@@ -304,11 +288,10 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
         return NCT_COST;
       };
       /**
-       * A leap this part may take into `n`. Never beside an eighth. With the
-       * chord's skips (UIL Level 1's wording): a third between two tones of
-       * the chord sounding - do-mi, mi-sol in I; fa-la, do-la below in IV;
-       * ti-re, sol-ti in V - or do down to the sol below and back, in I.
-       * Otherwise anything up to maxSkip, and that same do-sol.
+       * A leap this part may take into `n`. Never beside an eighth. At Levels
+       * 1-2, only the skips UIL lists for the chord sounding or the one just
+       * left (uil-skips.ts). Otherwise anything up to maxSkip, and do down to
+       * the sol below in I.
        */
       const leapOk = (prev: Note | null, n: Note) => {
         if (!prev) return true;
@@ -319,7 +302,7 @@ function writeOnce(o: TwoPartOptions): TwoPartResult {
           d === 3 && tones.has(0) && tones.has(4) &&
           ((n.degree === 4 && prev.degree === 0 && n.pitchValue < prev.pitchValue) ||
             (n.degree === 0 && prev.degree === 4 && n.pitchValue > prev.pitchValue));
-        if (o.chordSkips) return (d === 2 && tones.has(prev.degree) && tones.has(n.degree)) || doSol;
+        if (o.skipLevel) return listedSkip(o.skipLevel, prev, n, held ? [chord.root, held.root] : [chord.root]);
         return d <= o.maxSkip || doSol;
       };
       const altScored = (s: Note, sExtra: number) =>

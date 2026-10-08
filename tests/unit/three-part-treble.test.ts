@@ -4,6 +4,7 @@ import { uilPresets } from "../../src/lib/uil-presets";
 import { chords } from "../../src/resources/chords";
 import { rhythms } from "../../src/resources/rhythms";
 import { isThreePartTreble, ssaLevelFor } from "../../src/lib/three-part-treble";
+import { listedSkip, skipLevelFor } from "../../src/lib/uil-skips";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "../../scripts/generation-fixtures";
 import type { VoiceNote } from "../../src/lib/types";
 
@@ -27,7 +28,7 @@ function write(n: number, levelKey: "UIL 2" | "UIL 3", nctProbability = 0.1, rhy
         key: "G", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing("3 Part Treble", level)!, measures: 16,
         maxSkip: level.maxSkip, bpm: 72, nctProbability, stepwiseEighths: true, accidentalsByStep: true,
         selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
-        chords, allowedChordNames: level.allowedChordNames, rhymeProbability, ssaLevel: ssaLevelFor(levelKey),
+        chords, allowedChordNames: level.allowedChordNames, rhymeProbability, ssaLevel: ssaLevelFor(levelKey), skipLevel: skipLevelFor(levelKey),
       } as any),
     );
   } finally {
@@ -147,7 +148,7 @@ test("Level 2's half cadence at bar 4 holds do over the V, then falls to ti", ()
       key: "G", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing("3 Part Treble", level)!, measures: 8,
       maxSkip: level.maxSkip, bpm: 72, nctProbability: 0, stepwiseEighths: true, accidentalsByStep: true,
       selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
-      chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0, ssaLevel: 2,
+      chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0, ssaLevel: 2, skipLevel: 2,
     } as any),
   );
   Object.assign(console, saved);
@@ -157,4 +158,15 @@ test("Level 2's half cadence at bar 4 holds do over the V, then falls to ti", ()
     if (s2.some(({ n, t }, i) => t >= 96 && t < 128 && n.ornament && n.degree === 0 && s2[i + 1]?.n.degree === 6 && s2[i + 1].n.pitchValue === n.pitchValue - 1)) found++;
   }
   expect(found / exercises.length).toBeGreaterThan(0.6);
+}, 120_000);
+
+// "LVL 2 should not be jumping la to mi" (Blaine, 7 October 2026): every part,
+// decoration and restatements on, skips only as UIL lists for Level 2.
+test("Level 2 SSA skips only as UIL lists, in every part", () => {
+  for (const ex of write(15, "UIL 2", 0.1, 0.85)) {
+    for (const v of ex.voiceNotes) {
+      const sung = v.filter((n) => !n.rest);
+      for (let i = 1; i < sung.length; i++) expect(listedSkip(2, sung[i - 1], sung[i])).toBe(true);
+    }
+  }
 }, 120_000);

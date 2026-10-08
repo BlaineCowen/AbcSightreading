@@ -47,7 +47,7 @@ export type RhymingPhraseOptions = {
   onRestatement?: (start: number, length: number) => void;
   /**
    * A further rule on every leap a seam or a varied note makes, beyond
-   * maxSkip: UIL Level 1's list of skips (two-part-treble `levelOneLeapOk`).
+   * maxSkip: the skips UIL lists for Levels 1-2 (uil-skips `listedSkip`).
    */
   leapOk?: (from: VoiceNote, to: VoiceNote) => boolean;
 };

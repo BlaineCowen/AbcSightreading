@@ -15,7 +15,8 @@ import { noteArray } from "../src/resources/noteArray";
 import { keySignatures } from "../src/resources/key-signatures";
 import { unisonProbabilityFor } from "../src/lib/unison-spans";
 import { rhymeProbabilityFor } from "../src/lib/rhyming-phrases";
-import { chordSkipsFor, melodyFirstFor } from "../src/lib/two-part-treble";
+import { melodyFirstFor } from "../src/lib/two-part-treble";
+import { skipLevelFor } from "../src/lib/uil-skips";
 import { ssaLevelFor } from "../src/lib/three-part-treble";
 import { TIME_SIGS, choralSelectable, presetVoicing } from "./generation-fixtures";
 
@@ -64,7 +65,7 @@ for (let i = 0; i < N; i++) {
       key: KEY, timeSig, partsObject, measures: BARS, maxSkip: preset.maxSkip, bpm: 72,
       selectedRhythms: rhythms, chords: fullChordSet, accidentalsByStep: true, nctProbability: Number(process.env.NCT ?? 0.1),
       chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames, voiceTexture: "full", stepwiseEighths: true,
-      unisonProbability: unisonProbabilityFor(LEVEL), rhymeProbability: process.env.RHYME ? Number(process.env.RHYME) : rhymeProbabilityFor(LEVEL), melodyFirst: process.env.MELODY_FIRST === "0" ? [] : melodyFirstFor(LEVEL), chordSkips: chordSkipsFor(LEVEL), breathRests: !preset.noRests, ssaLevel: process.env.MELODY_FIRST === "0" ? null : ssaLevelFor(LEVEL),
+      unisonProbability: unisonProbabilityFor(LEVEL), rhymeProbability: process.env.RHYME ? Number(process.env.RHYME) : rhymeProbabilityFor(LEVEL), melodyFirst: process.env.MELODY_FIRST === "0" ? [] : melodyFirstFor(LEVEL), skipLevel: skipLevelFor(LEVEL), breathRests: !preset.noRests, ssaLevel: process.env.MELODY_FIRST === "0" ? null : ssaLevelFor(LEVEL),
     } as any);
     samples.push({
       voices: ex.voiceNames,

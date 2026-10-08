@@ -33,6 +33,7 @@
 import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
+import { listedSkip, type SkipLevel } from "./uil-skips";
 
 /** What a part does: its share of time on each degree (do re mi fa so la ti) and the cost of each move, in diatonic steps. */
 type Job = { degrees: number[]; move: number[]; bass?: boolean };
@@ -142,6 +143,8 @@ export type ThreePartOptions = {
   maxSkip: number;
   tsPerMeasure: number;
   texture: SsaTexture;
+  /** Skips only as UIL lists them for this level (uil-skips.ts), every part; else up to maxSkip. */
+  skipLevel?: SkipLevel | null;
   rand?: () => number;
 };
 
@@ -289,6 +292,7 @@ function writeOnce(o: ThreePartOptions) {
           if (prev) {
             const d = Math.abs(n.pitchValue - prev.pitchValue);
             if (d > (short ? 1 : o.maxSkip)) return [];
+            if (o.skipLevel && !listedSkip(o.skipLevel, prev, n, held ? [chord.root, held.root] : [chord.root])) return [];
           }
           if (first && v === 2 && n.degree !== 0 && n.degree !== 4) return []; // begin on do (or the sol below, a bass)
           let cost = extra + degreeCost(job.degrees, n.degree) + TESSITURA_PULL * Math.abs(n.pitchValue - target);

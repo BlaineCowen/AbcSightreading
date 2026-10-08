@@ -27,7 +27,7 @@ function write(n: number, melodyFirst: ("SA" | "TB")[] = ["SA"], nctProbability 
         key: "F", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing(voicing, level)!, measures: 16,
         maxSkip: level.maxSkip, bpm: 72, nctProbability, stepwiseEighths: true, accidentalsByStep: true,
         selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
-        chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0.85, unisonProbability: 1, melodyFirst, chordSkips: true,
+        chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0.85, unisonProbability: 1, melodyFirst, skipLevel: 1,
       } as any),
     );
   } finally {

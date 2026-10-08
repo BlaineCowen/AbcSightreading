@@ -75,8 +75,13 @@ melodic motion, with occasional skips within the tonic chord".)
 - Homophonic, with a few simple parallel motion lines
 
 ### Harmony
-- I, IV, V, and V7 chords
-- Stepwise motion with occasional skips within the I, IV, and V chords
+(Current wording, from Blaine, 7 October 2026; src/lib/uil-skips.ts.)
+- I, IV, and V or V7 chords; an occasional ii or vi chord may be used for
+  harmonic interest
+- Melodic skips in the I chord: 3rds - do-mi-do; mi-sol-mi; 4th - do-sol1-do
+- Melodic skips in the IV chord: 3rds - fa-la-fa; do-la1-do; 4th - do-fa-do
+  (expected)
+- Melodic skips in the V chord: 3rds - ti-re-ti; sol-ti-sol; 4th - sol-re-sol
 - No altered tones
 
 ### Rhythm
