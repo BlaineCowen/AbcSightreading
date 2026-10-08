@@ -62,23 +62,43 @@ const lv = {
   crash: s.toLevel(part.crash, -25), roll: s.toLevel(part.roll, -24),
 };
 
+/**
+ * Played by hand, not by a machine (Blaine: "too robotic and same volume"):
+ * each hit a little early or late (up to 7 ms) and a little louder or softer,
+ * the same every render (a seeded generator).
+ */
+let seed = 86;
+const rand = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32);
+const human = (src: (typeof part)[keyof typeof part], bar: number, at: number, gain: number, spread = 0.15) =>
+  s.lay(src, { atSec: s.at(bar, at) + (rand() - 0.5) * 0.014, gain: gain * (1 - spread / 2 + rand() * spread) });
+
+/**
+ * The hi-hats a drummer plays: the beat strongest, the "and" lighter, the
+ * second and fourth beats a touch under the first and third; open on the last
+ * "and" of every second bar only, and of a phrase's last bar.
+ */
+function hats(bar: number, gain: number) {
+  const shape = [1, 0.55, 0.8, 0.5, 0.95, 0.6, 0.8, 0.5];
+  for (let e = 0; e < 8; e++) {
+    const open = e === 7 && (bar % 2 === 1 || bar % 4 === 3);
+    if (open) human(part.hatOpen, bar, 3.5, lv.hatOpen * (gain / lv.hat) * 0.9);
+    else human(part.hat, bar, e / 2, gain * shape[e]);
+  }
+}
+
 /** Bars `from`..`to` of a plain beat; `top` is the hi-hats or the ride, `backbeat` the kick and snare. */
 function beat(from: number, to: number, o: { top: "hat" | "ride"; backbeat: boolean }) {
   for (let b = from; b < to; b++) {
     if (o.backbeat) {
-      s.hit(part.kick, b, 0, lv.kick);
-      s.hit(part.kick, b, 2, lv.kick);
-      s.hit(part.snare, b, 1, lv.snare);
-      s.hit(part.snare, b, 3, lv.snare);
+      human(part.kick, b, 0, lv.kick, 0.08);
+      human(part.kick, b, 2, lv.kick * 0.92, 0.08);
+      human(part.snare, b, 1, lv.snare, 0.1);
+      human(part.snare, b, 3, lv.snare, 0.1);
     }
     if (o.top === "ride") {
-      for (let q = 0; q < 4; q++) s.hit(part.ride, b, q, lv.ride * (q % 2 ? 0.8 : 1));
+      for (let q = 0; q < 4; q++) human(part.ride, b, q, lv.ride * (q % 2 ? 0.75 : 1));
     } else {
-      // Eighths, the off-beats a touch softer; the last "and" opens up.
-      for (let e = 0; e < 8; e++) {
-        if (e === 7) s.hit(part.hatOpen, b, 3.5, lv.hatOpen);
-        else s.hit(part.hat, b, e / 2, lv.hat * (e % 2 ? 0.7 : 1));
-      }
+      hats(b, lv.hat);
     }
   }
 }
@@ -86,9 +106,13 @@ function beat(from: number, to: number, o: { top: "hat" | "ride"; backbeat: bool
 // Count-in: four hi-hat quarters.
 for (let q = 0; q < 4; q++) s.hit(part.hat, -1, q, lv.hat * 1.3);
 
-// The piano straight through; the bass from 5.
+// The piano straight through; the bass from 5. Bar 1 is not the piano alone
+// (Blaine: "needs something in the first measure"): a soft crash lands it and
+// the hats come in quietly under the piano, growing to full at bar 5.
 s.loop(part.keys, 0, 32, lv.keys);
 s.loop(part.bass, 4, 32, lv.bass);
+human(part.crash, 0, 0, lv.crash * 0.6, 0.05);
+for (let b = 0; b < 4; b++) hats(b, lv.hat * (0.45 + b * 0.12));
 
 beat(4, 8, { top: "hat", backbeat: false });
 s.hit(part.crash, 8, 0, lv.crash);
