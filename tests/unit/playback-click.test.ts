@@ -62,3 +62,28 @@ describe("sounds saved before the samples changed", () => {
     expect(toClickSound("cowbell")).toBeNull();
   });
 });
+
+import { metronomeClickFor, newMetronomeBeatState } from "../../src/lib/metronome-beats";
+
+describe("the click's bar model under an exercise", () => {
+  test("the drum pattern rests where a slot or a beat is silent, and lists only the hits", () => {
+    // Off-beats in 2/4: a rest then a hit, each beat.
+    const off = drumPatternFor({ beats: 2, subdivision: 2, accent: true, sound: "quartz", subMask: "01" }).split(" ");
+    expect(off[0]).toBe("zdzd");
+    expect(off.length).toBe(1 + 2 * 2);
+    // Backbeat: 1 and 3 silent.
+    const back = drumPatternFor({ beats: 4, subdivision: 1, accent: true, sound: "quartz", beatLevels: ["off", "normal", "off", "normal"] }).split(" ");
+    expect(back[0]).toBe("zdzd");
+    // A soft beat is quieter than a normal one.
+    const soft = drumPatternFor({ beats: 2, subdivision: 1, accent: false, sound: "quartz", beatLevels: ["normal", "soft"] }).split(" ");
+    expect(Number(soft[4])).toBeLessThan(Number(soft[3]));
+    // Nothing to play: no drum track at all.
+    expect(drumPatternFor({ beats: 2, subdivision: 1, accent: true, sound: "quartz", beatLevels: ["off", "off"] })).toBe("");
+  });
+
+  test("the beat tracker says which beat of the bar each click is", () => {
+    const state = newMetronomeBeatState();
+    const seen = [0, 0.5, 1, 2, 3, 4, 5].map((b) => metronomeClickFor(state, b, 3)).filter((c) => c.click).map((c) => c.beatInBar);
+    expect(seen).toEqual([0, 1, 2, 0, 1, 2]);
+  });
+});

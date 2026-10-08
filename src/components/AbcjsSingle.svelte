@@ -7,6 +7,7 @@
   import { tuner } from "../lib/tuner/store";
   import { SampleBank, type ClickLevel } from "../lib/tuner/click-sounds";
   import { scheduleClick } from "../lib/playback-click";
+  import { beatEvents, type BeatLevel } from "../lib/tuner/click-pattern";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
@@ -1561,6 +1562,8 @@
       click: {
         subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
         withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
+        ...($tuner.beatLevels ? { beatLevels: [...$tuner.beatLevels] } : {}),
+        ...($tuner.subMask ? { subMask: $tuner.subMask } : {}),
       },
       run: {
         exercises: drillExercises,
@@ -2086,7 +2089,9 @@
         );
         // A Grade run with the click off still counts in.
         const gradeQuiet = gradeTimeline && gradeClickChoice === "off" && beatNumber >= countInBeats(playedMeter());
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat);
+        // The count-in clicks plainly; the music's beats take their levels.
+        const musicBeat = beatNumber >= countInBeats(playedMeter()) ? beat.beatInBar : undefined;
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure);
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -2573,17 +2578,23 @@
    */
   function playMetronomeClick(
     isDownbeat: boolean,
-    when: number = audioContext ? audioContext.currentTime : 0
+    when: number = audioContext ? audioContext.currentTime : 0,
+    /** The beat of the bar, for its level (click-pattern.ts); unset in a count-in. */
+    beatInBar?: number,
+    beatsInBar?: number
   ) {
     if (!audioContext || metronomeGainNode.gain.value === 0) return;
-    const { clickSound, accent, subdivision } = tuner.get();
-    const level: ClickLevel = isDownbeat && accent ? "downbeat" : "beat";
-    scheduleClick(audioContext, clickBank, metronomeGainNode, when, clickSound, level);
+    const { clickSound, accent, subdivision, beatLevels, subMask } = tuner.get();
+    // Levels set for this many beats, else beat 1 accented as always.
+    const level: BeatLevel =
+      beatInBar !== undefined && beatLevels && beatLevels.length === beatsInBar
+        ? beatLevels[beatInBar]
+        : isDownbeat && accent ? "accent" : "normal";
     // A Grade run in time sets its own: beats, or beats with their subdivision.
-    const sub = Math.max(1, Math.round(gradeSubdivision ?? subdivision));
+    const grid = gradeSubdivision ?? subdivision;
     const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
-    for (let k = 1; k < sub; k++) {
-      scheduleClick(audioContext, clickBank, metronomeGainNode, when + (k * secondsPerBeat) / sub, clickSound, "sub");
+    for (const e of beatEvents(level, grid, gradeSubdivision ? null : subMask)) {
+      scheduleClick(audioContext, clickBank, metronomeGainNode, when + e.at * secondsPerBeat, clickSound, e.level, e.gain);
     }
   }
 

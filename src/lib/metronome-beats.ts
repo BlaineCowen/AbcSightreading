@@ -30,6 +30,8 @@ export type MetronomeClick = {
   click: boolean;
   /** True on beat one of the measure, which is accented. */
   isDownbeat: boolean;
+  /** Which beat of the bar, from 0 (the count-in's bars count too). */
+  beatInBar: number;
 };
 
 /**
@@ -59,11 +61,13 @@ export function metronomeClickFor(
   beatsPerMeasure: number
 ): MetronomeClick {
   if (!crossedWholeBeat(state, beatNumber)) {
-    return { click: false, isDownbeat: false };
+    return { click: false, isDownbeat: false, beatInBar: -1 };
   }
   const wholeBeat = state.lastClickedBeat;
+  const beatInBar = beatsPerMeasure > 0 ? ((wholeBeat % beatsPerMeasure) + beatsPerMeasure) % beatsPerMeasure : 0;
   return {
     click: true,
-    isDownbeat: beatsPerMeasure > 0 && wholeBeat % beatsPerMeasure === 0,
+    isDownbeat: beatsPerMeasure > 0 && beatInBar === 0,
+    beatInBar,
   };
 }

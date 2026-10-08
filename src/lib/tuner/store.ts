@@ -6,6 +6,7 @@ import type { Sensitivity } from "./pitch-tracker";
 import type { Difficulty, Direction } from "./scale-challenge";
 import { carrySubdivision, meterById } from "./meters";
 import { DEFAULT_CLICK_SOUND, toClickSound, type ClickSound } from "./click-sounds";
+import { BEAT_LEVELS, beatLevelsFor, beatLevelsFrom, subMaskFrom, type BeatLevel } from "./click-pattern";
 
 /**
  * abcTuner's state: the settings a singer chooses (kept in this browser) and
@@ -42,6 +43,10 @@ export interface TunerState {
   beatsPerBar: number;
   subdivision: number;
   accent: boolean;
+  /** Each beat's level (click-pattern.ts); null: beat 1 by `accent`, the rest normal. */
+  beatLevels: BeatLevel[] | null;
+  /** Which slots of each beat sound, "01" the off-beat; null: every slot. */
+  subMask: string | null;
   challengeDirection: Direction;
   challengeOctave: number;
   challengeShowTuner: boolean;
@@ -101,7 +106,7 @@ export interface TunerState {
 
 const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
-  "beatsPerBar", "subdivision", "accent", "challengeDirection", "challengeOctave",
+  "beatsPerBar", "subdivision", "accent", "beatLevels", "subMask", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
   "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs",
 ] as const;
@@ -120,6 +125,8 @@ const initial: TunerState = {
   beatsPerBar: 4,
   subdivision: 1,
   accent: true,
+  beatLevels: null,
+  subMask: null,
   challengeDirection: "up",
   challengeOctave: 3,
   challengeShowTuner: true,
@@ -174,6 +181,9 @@ const start: TunerState = { ...initial, ...(typeof window !== "undefined" ? rest
 // Settings saved before meters existed carry a beat count and no meter: the
 // meter decides, so the two cannot disagree.
 start.beatsPerBar = meterById(start.meter).beats;
+// Kept only while they fit the bar and the grid.
+start.beatLevels = beatLevelsFrom(start.beatLevels, start.beatsPerBar);
+start.subMask = subMaskFrom(start.subMask, start.subdivision);
 // Sounds saved before the samples changed map to the nearest new one.
 start.clickSound = toClickSound(start.clickSound) ?? DEFAULT_CLICK_SOUND;
 // Once: the release that brought the new sounds sent the old woodblock default
@@ -260,15 +270,48 @@ export const tuner = {
     state.update((s) => {
       const m = meterById(id);
       const kept = carrySubdivision(meterById(s.meter), m, s.subdivision);
+      const subdivision = m.subdivisions.includes(kept) ? kept : m.defaultSubdivision;
       return {
         ...s,
         meter: m.id,
         beatsPerBar: m.beats,
-        subdivision: m.subdivisions.includes(kept) ? kept : m.defaultSubdivision,
+        subdivision,
+        // Levels belong to a bar's beats, a mask to its grid: kept while they fit.
+        beatLevels: beatLevelsFrom(s.beatLevels, m.beats),
+        subMask: subMaskFrom(s.subMask, subdivision),
       };
     }),
-  setSubdivision: (subdivision: number) => set({ subdivision }),
-  toggleAccent: () => state.update((s) => ({ ...s, accent: !s.accent })),
+  setSubdivision: (subdivision: number) => state.update((s) => ({ ...s, subdivision, subMask: subMaskFrom(s.subMask, subdivision) })),
+  /** A rhythm for each beat: a grid and the slots that sound (click-pattern.ts SUB_PATTERNS). */
+  setSubPattern: (subdivision: number, mask: string | null) => set({ subdivision, subMask: subMaskFrom(mask, subdivision) }),
+  /** Beat `i`'s level; a bar back at beat 1 accented and the rest normal goes back to null. */
+  setBeatLevel: (i: number, level: BeatLevel) =>
+    state.update((s) => {
+      const levels = beatLevelsFor({ beats: s.beatsPerBar, accent: s.accent, beatLevels: s.beatLevels });
+      if (i < 0 || i >= levels.length) return s;
+      levels[i] = level;
+      const plain = levels.every((l, j) => l === (j === 0 ? "accent" : "normal"));
+      return { ...s, beatLevels: plain ? null : levels, accent: plain ? true : s.accent };
+    }),
+  /** Every beat's level at once (a preset's), kept only when it fits the bar. */
+  setBeatLevels: (levels: BeatLevel[] | null) => state.update((s) => ({ ...s, beatLevels: beatLevelsFrom(levels, s.beatsPerBar) })),
+  /** Tap a beat: accent, normal, soft, off, and round. */
+  cycleBeatLevel: (i: number) =>
+    state.update((s) => {
+      const levels = beatLevelsFor({ beats: s.beatsPerBar, accent: s.accent, beatLevels: s.beatLevels });
+      if (i < 0 || i >= levels.length) return s;
+      levels[i] = BEAT_LEVELS[(BEAT_LEVELS.indexOf(levels[i]) + 1) % BEAT_LEVELS.length];
+      return { ...s, beatLevels: levels };
+    }),
+  // The accent switch speaks for beat 1: with levels set, it sets beat 1's.
+  toggleAccent: () =>
+    state.update((s) => {
+      const accent = !s.accent;
+      if (!s.beatLevels) return { ...s, accent };
+      const levels = [...s.beatLevels];
+      levels[0] = accent ? "accent" : "normal";
+      return { ...s, accent, beatLevels: levels };
+    }),
   setClickWithMusic: (clickWithMusic: boolean) => set({ clickWithMusic }),
   setPlayback: (exercisePlaying: boolean, musicClick: boolean) => set({ exercisePlaying, musicClick }),
   setMetronomeVolume: (v: number) => set({ metronomeVolume: clamp(Number.isFinite(v) ? v : 0.5, 0, 1) }),
