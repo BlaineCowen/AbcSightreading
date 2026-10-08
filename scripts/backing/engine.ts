@@ -57,6 +57,8 @@ export function song(o: {
   const at = (bar: number, beat = 0) => (o.loop ? bar : bar + 1) * barSec + beat * beatSec;
 
   function file(name: string): string {
+    // An absolute path is a file from outside the packs (a soundfont note, scripts/backing/soundfont.ts).
+    if (name.startsWith("/")) return name;
     for (const pack of PACKS) {
       const out = execFileSync("find", [pack, "-name", name]).toString().trim().split("\n")[0];
       if (out) return out;
