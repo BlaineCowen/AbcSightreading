@@ -82,7 +82,7 @@ test("the writer never crosses, sings no seconds or sevenths between parts but a
 
 test("Level 2: the tune moves by step, soprano 2 holds do, the alto sings a bass on do and low sol", () => {
   let s2Do = 0, s2 = 0, aRoot = 0, a = 0, steps = 0, moves = 0;
-  for (const ex of write(15, "UIL 2")) {
+  for (const ex of write(25, "UIL 2")) {
     const v = (name: string) => ex.voiceNotes[ex.voiceNames.indexOf(name)].filter((n) => !n.rest);
     for (const n of v("Soprano2")) { s2 += n.length; if (n.degree === 0) s2Do += n.length; }
     for (const n of v("Alto")) { a += n.length; if (n.degree === 0 || n.degree === 4) aRoot += n.length; }
@@ -95,7 +95,9 @@ test("Level 2: the tune moves by step, soprano 2 holds do, the alto sings a bass
     }
   }
   expect(s2Do / s2).toBeGreaterThan(0.45);
-  expect(aRoot / a).toBeGreaterThan(0.7);
+  // 76% measured once IV was priced up (the alto sings la under it, unable to
+  // reach fa); Spring 84%, the general writer 57%.
+  expect(aRoot / a).toBeGreaterThan(0.65);
   expect(steps / moves).toBeGreaterThan(0.6);
 }, 60_000);
 

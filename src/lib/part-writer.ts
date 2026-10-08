@@ -40,8 +40,10 @@ export type Job = { degrees: number[]; move: number[]; bass?: boolean; holdsDo?:
 
 const TUNE_SA: Job = { degrees: [4, 11, 42, 22, 15, 6, 2], move: [1.2, 0, 2.2, 3] };
 const TUNE_SPRING: Job = { degrees: [14, 20, 33, 20, 9, 4, 0], move: [1.2, 0, 2.0, 3] };
-const TUNE_HERO: Job = { degrees: [13, 15, 27, 18, 19, 8, 0], move: [1.4, 0, 1.8, 2.4, 3] };
-const TUNE_DEMON: Job = { degrees: [13, 14, 39, 16, 13, 4, 1], move: [1.4, 0, 1.8, 2.4, 3] };
+// Our Hero's tune skips a fifth of its moves (do mi so inside the chord) and
+// reaches so and la; made with the same costs as the SA tune it rocked mi re mi.
+const TUNE_HERO: Job = { degrees: [13, 15, 27, 18, 19, 8, 0], move: [1.6, 0, 1.0, 1.6, 2.4] };
+const TUNE_DEMON: Job = { degrees: [13, 14, 39, 16, 13, 4, 1], move: [1.6, 0, 1.4, 2.0, 2.6] };
 const TUNE_LOVE: Job = { degrees: [15, 9, 13, 5, 20, 19, 15], move: [1.4, 0, 1.6, 2.0, 2.4] };
 const TUNE_FROG: Job = { degrees: [1, 10, 38, 18, 28, 6, 0], move: [0.8, 0, 2.2, 3] };
 const HOLD_HERO: Job = { degrees: [62, 7, 1, 1, 1, 9, 21], move: [0, 0.3, 2.0, 3], holdsDo: true };
@@ -67,11 +69,11 @@ export function textureFor(kind: VoicingKind, level: number): Texture {
     case "SATB":
       return upper
         ? { name: "SATB upper", parts: [TUNE_DEMON, INNER_DEMON, FILL_DEMON, BASS_DEMON], arch: 3 }
-        : { name: "SATB", parts: [TUNE_HERO, HOLD_HERO, FILL_HERO, BASS_HERO], arch: 2.5 };
+        : { name: "SATB", parts: [TUNE_HERO, HOLD_HERO, FILL_HERO, BASS_HERO], arch: 3.5 };
     case "SAB":
       return upper
         ? { name: "SAB upper", parts: [TUNE_DEMON, INNER_DEMON, BASS_DEMON], arch: 3 }
-        : { name: "SAB", parts: [TUNE_HERO, HOLD_HERO, BASS_HERO], arch: 2.5 };
+        : { name: "SAB", parts: [TUNE_HERO, HOLD_HERO, BASS_HERO], arch: 3.5 };
     case "TBB":
       return upper
         ? { name: "TBB upper", parts: [TUNE_DEMON, INNER_DEMON, BASS_DEMON], arch: 2 }
@@ -98,10 +100,15 @@ const DEGREE_WEIGHT = 0.9;
 const TESSITURA_PULL = 0.25;
 const STUCK = 2.5;
 const SEESAW = 2;
-const FRESH = 0.3;
+const FRESH = 0.5;
 const NCT_COST = 0.4;
 const INCOMPLETE = 1.1;
-const CHORD_COST: Record<string, number> = { I: 0, IV: 0.2, V: 1.6, "V⁷": 1.7, ii: 0.8, vi: 0.9, iii: 1.6 };
+// Priced so the chords come out as "Our Hero"'s bass has them: I about half
+// the time, V and V7 a quarter, IV 15%, ii and vi now and then. The parts'
+// own degree shares lean to V (sol, ti, re recur in every part of every piece),
+// so IV is favoured here and V7 held back. Measured, SATB Level 3: I 53%, V
+// 23%, IV 14%, V7 6%, ii and vi 5% (before: V and V7 37%, IV 7%).
+const CHORD_COST: Record<string, number> = { I: 0, IV: -0.6, V: 1.8, "V⁷": 2.6, ii: 0.8, vi: 0.9, iii: 1.6 };
 const RETROGRESSION = 2;
 const CHANGE_MID_BAR = 0.4;
 const TEMPERATURE = 0.55;
@@ -133,6 +140,21 @@ function pick<T extends { cost: number }>(scored: T[], rand: () => number): T | 
     if (r <= 0) return scored[i];
   }
   return scored[scored.length - 1];
+}
+
+/**
+ * The chord first, by its best voicing; then the voicing. Drawn from every
+ * voicing of every chord at once, a chord won by how many ways it could be
+ * spelled: V7, with four notes, has far more than IV, and took 26% of the
+ * time to IV's 7% in SATB at Level 3 whatever V was made to cost (Our Hero:
+ * the bass on fa and la, IV's, 17% of its time, on sol 23%).
+ */
+export function pickByChord<T extends { chord: Chord; cost: number }>(options: T[], rand: () => number): T | null {
+  const byChord = new Map<Chord, T[]>();
+  for (const o of options) (byChord.get(o.chord) ?? byChord.set(o.chord, []).get(o.chord)!).push(o);
+  const best = [...byChord.entries()].map(([chord, os]) => ({ chord, cost: Math.min(...os.map((x) => x.cost)) }));
+  const chosen = pick(best, rand);
+  return chosen ? pick(byChord.get(chosen.chord)!, rand) : null;
 }
 
 export type PartWriterOptions = {
@@ -348,7 +370,7 @@ function writeOnce(o: PartWriterOptions) {
       walk(0);
     }
 
-    const choice = pick(options, rand);
+    const choice = pickByChord(options, rand);
     if (!choice) throw new Error(`No ${N}-part chord fits here.`);
     const { chord, tones, notes } = choice;
     const placed = notes.map((n, v) => {

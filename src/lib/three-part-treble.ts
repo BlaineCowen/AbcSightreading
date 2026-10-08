@@ -34,6 +34,7 @@ import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
 import { listedSkip, type SkipLevel } from "./uil-skips";
+import { pickByChord } from "./part-writer";
 
 /** What a part does: its share of time on each degree (do re mi fa so la ti) and the cost of each move, in diatonic steps. */
 type Job = { degrees: number[]; move: number[]; bass?: boolean };
@@ -83,7 +84,10 @@ const FRESH = 0.3;
 const NCT_COST = 0.4;
 /** A chord with only two pitch classes, away from a cadence or the opening. */
 const INCOMPLETE = 1.1;
-const CHORD_COST: Record<string, number> = { I: 0, IV: 0.3, V: 1.1, "V⁷": 1.3, ii: 0.9, vi: 0.8 };
+// IV favoured and V7 held back, as in part-writer.ts: the parts' degree shares
+// lean to V. Level 2 against Spring: the tune on re 25% (his 20, before 29),
+// the alto on sol 43% (41, before 46).
+const CHORD_COST: Record<string, number> = { I: 0, IV: 0, V: 1.4, "V⁷": 2.0, ii: 0.9, vi: 0.8 };
 const RETROGRESSION = 2;
 const CHANGE_MID_BAR = 0.4;
 const TEMPERATURE = 0.55;
@@ -343,7 +347,9 @@ function writeOnce(o: ThreePartOptions) {
       return combos;
     });
 
-    const choice = pick(options, rand);
+    // The chord first, then its voicing: drawn from every voicing at once, a
+    // chord won by how many it had (part-writer pickByChord).
+    const choice = pickByChord(options, rand);
     if (!choice) throw new Error("No three-part chord fits here.");
     const { chord, tones, notes } = choice;
     const placed = notes.map((n, v) => {
