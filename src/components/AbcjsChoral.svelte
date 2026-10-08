@@ -1304,7 +1304,9 @@
       formPlanError = null;
     } else {
       const [lo, hi] = fullLengthRange;
-      const want = Math.min(hi, Math.max(lo, fullLengthMeasures || lo));
+      // The longer version unless another length is picked (Blaine: Level 5's
+      // 6A, and the long end of "approximately 24" at Levels 1-2).
+      const want = Math.min(hi, Math.max(lo, fullLengthMeasures || hi));
       try {
         formPlan = planForm({
           level: fullLengthLevel,
@@ -2847,7 +2849,7 @@
                   aria-pressed={fullLength}
                   on:click={() => {
                     fullLength = !fullLength;
-                    if (fullLength && fullLengthRange) fullLengthMeasures = fullLengthRange[0];
+                    if (fullLength && fullLengthRange) fullLengthMeasures = fullLengthRange[1];
                   }}
                 >Full length piece</button>
               </div>

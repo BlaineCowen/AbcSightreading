@@ -77,8 +77,9 @@ export const uilPresets: Record<string, UILPreset> = {
     // 3/4 and 4/4 only (UIL dropped 2/4 at this level).
     allowedMeters: ["4/4", "3/4"],
     allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass"],
-    // About 24 measures in 4/4, 32 in 3/4 (requiredMeasures converts by beats).
-    measureRange: [24, 26],
+    // "Approximately 24 measures in 4/4" (32 in 3/4); a full-length piece takes
+    // the long end (Blaine: "do the longer version").
+    measureRange: [24, 28],
     maxSkip: 2,
     // Hand-calibrated by Blaine against UIL's own range staves on
     // /range-calibration (April 2026), and confirmed correct again in
@@ -124,8 +125,8 @@ export const uilPresets: Record<string, UILPreset> = {
     allowedVoicings: [
       "4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "2 Part Tenor/Bass",
     ],
-    // About 24 measures in 4/4, 32 in 3/4.
-    measureRange: [24, 26],
+    // "Approximately 24 measures in 4/4" (32 in 3/4); full length takes the long end.
+    measureRange: [24, 28],
     maxSkip: 3,
     // Hand-calibrated by Blaine against UIL's own range staves on
     // /range-calibration (April 2026), and confirmed correct again in

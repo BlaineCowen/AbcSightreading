@@ -34,8 +34,8 @@ describe("how long a level's example has to be", () => {
   test("the 4/4 lengths are the ones the criteria state", () => {
     // UIL's current criteria (7 October 2026): about 24 at Levels 1-2, 32-36
     // at Level 3, about 32 at Level 4, 32-36 for 5A plus 12-16 for 6A.
-    expect(requiredMeasures(1)).toEqual([24, 26]);
-    expect(requiredMeasures(2)).toEqual([24, 26]);
+    expect(requiredMeasures(1)).toEqual([24, 28]);
+    expect(requiredMeasures(2)).toEqual([24, 28]);
     expect(requiredMeasures(3)).toEqual([32, 36]);
     expect(requiredMeasures(4)).toEqual([32, 34]);
     expect(requiredMeasures(5)).toEqual([32, 52]);
@@ -91,7 +91,7 @@ describe("the plan adds up", () => {
   });
 
   test("a length outside the level's range is refused", () => {
-    expect(() => planForm({ level: 1, measures: 8 })).toThrow(/24-26/);
+    expect(() => planForm({ level: 1, measures: 8 })).toThrow(/24-28/);
     expect(() => planForm({ level: 5, measures: 100 })).toThrow(/32-52/);
   });
 });

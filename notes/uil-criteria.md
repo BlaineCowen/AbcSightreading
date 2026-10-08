@@ -37,7 +37,7 @@ with Blaine. The app: `src/lib/uil-presets.ts`, skips `src/lib/uil-skips.ts`.)
 - **Cadences:** authentic, half and plagal only.
 - **Rhythm:** whole, dotted half, half, quarter and a few eighth pairs; avoid
   rests.
-- **Length:** about 24 measures in 4/4, 32 in 3/4.
+- **Length:** about 24 measures in 4/4, 32 in 3/4. *The app: 24-28, a full-length piece the long end.*
 - **Voicings:** SATB and SAB; SSA/SA; TTB (middle school), TBB (high school),
   TB. *The app offers SA and TB so far, written melody first; the others join
   as each gets its own writer (Blaine, 7 October 2026).*
@@ -56,7 +56,7 @@ with Blaine. The app: `src/lib/uil-presets.ts`, skips `src/lib/uil-skips.ts`.)
   cadence".
 - **Rhythm:** whole, dotted half, half, quarter and some eighth pairs; a
   dotted quarter followed by an eighth "on strong beats only"; avoid rests.
-- **Length:** about 24 measures in 4/4, 32 in 3/4.
+- **Length:** about 24 measures in 4/4, 32 in 3/4. *The app: 24-28, a full-length piece the long end.*
 - **Voicings:** SATB, SAB; SSA/SA; TTB/TBB/TB. *The app offers SATB, SAB,
   SSA, SA and TB; SA and SSA written melody first.*
 
@@ -113,7 +113,7 @@ with Blaine. The app: `src/lib/uil-presets.ts`, skips `src/lib/uil-skips.ts`.)
   patterns and triplets forbidden.
 - **Length:** 32-36 measures for 5A; 6A adds 12-16 more. One piece serves
   both: 5A stops at its full cadence (bar 32 in both of Blaine's Level 5
-  pieces), 6A goes on.
+  pieces), 6A goes on. *The app's full-length piece is the 6A version.*
 - **Voicings:** SATB, SAB; SSA/SA; TBB/TB.
 
 ## Not yet applied (known gaps)
