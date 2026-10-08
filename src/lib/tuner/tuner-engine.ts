@@ -39,6 +39,11 @@ export class TunerEngine {
     this.a4 = clampA4(hz);
   }
 
+  /** The MIDI notes Grade expects now (PitchTracker.setExpected), or none. */
+  setExpected(midis: number[] | null) {
+    this.tracker.setExpected(midis?.map((m) => this.a4 * 2 ** ((m - 69) / 12)) ?? null);
+  }
+
   setSensitivity(sensitivity: Sensitivity) {
     this.tracker.setSensitivity(sensitivity);
   }

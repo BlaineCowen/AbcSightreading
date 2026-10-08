@@ -50,6 +50,23 @@ const HOLD_MS = 120;
 const HISTORY = 3;
 /** A candidate this close to the strongest one wins if it comes first. */
 const KEY_MAX_RATIO = 0.9;
+/**
+ * While Grade listens it says which note should be sung (`setExpected`); a
+ * candidate on that note, in any octave, needs only this clarity, for a new
+ * note as for one held. A real voice under a room's sound (a click, its
+ * echo, breath) often reads 0.7-0.8, short of the 0.85 a new note needs:
+ * Blaine's run of 8 October lost two whole notes in tune that way, and the
+ * tracker learned the singing as noise while it waited. Any other pitch is
+ * still held to the usual bar, so a wrong note is not made easier to hear
+ * as right; it is just as audible as before.
+ */
+export const EXPECTED_CLARITY = 0.65;
+/**
+ * "On the expected note": within this of it, in any octave. Well short of a
+ * half step, so the note a half step away is never helped; a singer whose
+ * tuning has drifted further is heard by the usual rule, as before.
+ */
+const EXPECTED_CENTS = 60;
 
 const centsBetween = (a: number, b: number) => 1200 * Math.log2(a / b);
 const isOctaveRelated = (cents: number) => {
@@ -76,6 +93,8 @@ export class PitchTracker {
   private hasDetected = false;
   /** True while the app itself is sounding a note through the speaker. */
   private selfPlaying = false;
+  /** The note(s) Grade expects now, in Hz; empty when nothing is expected. */
+  private expected: number[] = [];
 
   /** Diagnostics for the UI: why nothing is showing, and the levels involved. */
   lastReason: BlockReason = null;
@@ -97,6 +116,18 @@ export class PitchTracker {
   setSelfPlaying(playing: boolean) {
     this.selfPlaying = playing;
     if (playing) this.pending = null;
+  }
+
+  /** The notes that should be sounding now (Hz), or none. See EXPECTED_CLARITY. */
+  setExpected(hz: number[] | null) {
+    this.expected = hz ?? [];
+  }
+
+  private onExpected(freq: number) {
+    return this.expected.some((e) => {
+      const r = ((centsBetween(freq, e) % 1200) + 1200) % 1200;
+      return r < EXPECTED_CENTS || r > 1200 - EXPECTED_CENTS;
+    });
   }
 
   setSensitivity(sensitivity: Sensitivity) {
@@ -133,7 +164,7 @@ export class PitchTracker {
 
   /** @returns the smoothed frequency to display, or null for silence. */
   update(candidates: RawPitch[], dbfs: number, now: number): number | null {
-    const raw = this.choose(candidates);
+    let raw = this.choose(candidates);
     const { absMinDb, peakMarginDb, onsetClarity } = this.profile;
     const dt = this.lastT ? (now - this.lastT) / 1000 : 0;
     this.lastT = now;
@@ -159,14 +190,26 @@ export class PitchTracker {
       return null;
     }
 
+    // The expected note, if it is among the candidates and clear enough for
+    // it, unless something else is clearly sounding.
+    let expectedOk = false;
+    if (this.expected.length && loudEnough) {
+      const on = candidates.filter((c) => this.onExpected(c.frequency) && c.clarity >= EXPECTED_CLARITY);
+      const best = on.reduce<RawPitch | null>((a, c) => (!a || c.clarity > a.clarity ? c : a), null);
+      if (best && (!raw || raw.clarity < neededClarity || this.onExpected(raw.frequency))) {
+        raw = best;
+        expectedOk = true;
+      }
+    }
+
     let accepted: number | null = null;
     if (raw && loudEnough) {
       const continuing =
         this.held !== null && Math.abs(centsBetween(raw.frequency, this.held)) < SAME_NOTE_CENTS;
-      if (continuing && raw.clarity >= CONTINUE_CLARITY) {
+      if (continuing && (raw.clarity >= CONTINUE_CLARITY || expectedOk)) {
         accepted = raw.frequency;
         this.pending = null;
-      } else if (raw.clarity >= neededClarity) {
+      } else if (raw.clarity >= neededClarity || expectedOk) {
         this.lastReason = "confirming";
         if (
           this.pending &&

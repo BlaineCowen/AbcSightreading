@@ -1,6 +1,7 @@
 import { writable, type Readable } from "svelte/store";
 import { tuner } from "./tuner/store";
 import { pitchHistory } from "./tuner/pitch-history";
+import { setExpectedNotes } from "./tuner/controller";
 import type { HistoryPoint } from "./tuner/pitch-history";
 import { playPiano, preloadPiano } from "./tools/tone";
 import { detectBursts, detectClaps, markVoiced, withoutClickEcho, type Clap, type ClapBlock } from "./clap-detect";
@@ -8,6 +9,7 @@ import type { ClapListener } from "./clap-listener";
 import { gradeClaps, type ClapResult, type ClapWho } from "./grade-rhythm";
 import {
   ATTEMPT_MS,
+  DETECT_LATENCY_MS,
   CONFIRM_MS,
   CREDIT_MS,
   HOLD_GRACE_MS,
@@ -178,6 +180,7 @@ export class GradeRunner {
     this.timeouts.forEach(clearTimeout);
     this.timeouts = [];
     tuner.setPlaying(null);
+    setExpectedNotes(null);
   }
 
   /**
@@ -301,6 +304,18 @@ export class GradeRunner {
       let i = -1;
       while (i + 1 < this.notes.length && t0 + this.notes[i + 1].startUnits * unitMs <= now) i++;
       const v = { phase: "sing" as const, index: Math.max(0, i), target: this.notes[Math.max(0, i)]?.midi ?? null };
+      // What the detector is hearing now was sung DETECT_LATENCY_MS ago: the
+      // note written there, the next one from a quarter beat early (a singer a
+      // little ahead), the last one until a tenth of a second after it ends.
+      if (this.mode === "performance") {
+        const at = now - DETECT_LATENCY_MS - t0;
+        const early = 0.25 * this.beatUnits * unitMs;
+        setExpectedNotes(
+          this.notes
+            .filter((n) => at >= n.startUnits * unitMs - early && at < (n.startUnits + n.lengthUnits) * unitMs + 100)
+            .map((n) => n.midi),
+        );
+      }
       const s = tuner.get();
       const sung = s.pitch !== null ? midiOfHz(s.pitch, s.a4) : null;
       const cents = sung !== null && v.target !== null ? centsOffAnyOctave(sung, v.target) : null;
@@ -428,6 +443,8 @@ export class GradeRunner {
     this.presentedAt = this.lastTickAt = performance.now();
     this.spans[i] = { from: this.presentedAt + SETTLE_MS, to: this.presentedAt + SETTLE_MS };
     this.hooks.moveTo(i);
+    // Note by note: the note shown is the one to listen for.
+    setExpectedNotes([this.notes[i].midi]);
     this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false, credited: false });
   }
 
