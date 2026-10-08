@@ -29,6 +29,7 @@ function write(n: number, levelKey: "UIL 2" | "UIL 3", nctProbability = 0.1, rhy
         maxSkip: level.maxSkip, bpm: 72, nctProbability, stepwiseEighths: true, accidentalsByStep: true,
         selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
         chords, allowedChordNames: level.allowedChordNames, rhymeProbability, ssaLevel: ssaLevelFor(levelKey), skipLevel: skipLevelFor(levelKey),
+        breathRests: !level.noRests, cadenceTypes: level.allowedCadenceTypes, dottedOnStrongBeats: !!level.dottedOnStrongBeats,
       } as any),
     );
   } finally {
@@ -149,6 +150,8 @@ test("Level 2's half cadence at bar 4 holds do over the V, then falls to ti", ()
       maxSkip: level.maxSkip, bpm: 72, nctProbability: 0, stepwiseEighths: true, accidentalsByStep: true,
       selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
       chords, allowedChordNames: level.allowedChordNames, rhymeProbability: 0, ssaLevel: 2, skipLevel: 2,
+      // As the page asks for Level 2 (UIL: no rests, no deceptive cadence).
+      breathRests: false, cadenceTypes: level.allowedCadenceTypes, dottedOnStrongBeats: true,
     } as any),
   );
   Object.assign(console, saved);
