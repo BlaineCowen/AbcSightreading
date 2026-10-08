@@ -191,6 +191,8 @@ export function tmeaGenerationParams(l: TmeaLevel, opts: { key: string; meter: s
     firstBarBeats: true,
     // The chart's largest interval is the one sung, across a rest too.
     restHoldsLine: true,
+    // Every exercise ends on do, as every one in TMEA's examples does (Blaine, 8 October 2026).
+    endOnDo: true,
     ...capsFor({ onePitch: false }),
     accidentalsFollowStep: true,
     dynamics: [],

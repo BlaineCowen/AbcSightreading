@@ -2864,8 +2864,8 @@
       measures: activeTmea ? tmeaMeasures(activeTmea, drawnMeter) : measures,
       firstBarBeats: !!activeTmea,
       restHoldsLine: !!activeTmea,
-      // A NYSSMA level ends on do, with or without a progression (generateUnison endOnDo).
-      endOnDo: !!activeNyssmaId,
+      // A NYSSMA or TMEA level ends on do, with or without a progression (generateUnison endOnDo).
+      endOnDo: !!activeNyssmaId || !!activeTmea,
       // A number in Max skip mode's form or the custom list - the generator takes either (skip-policy.ts).
       maxSkip: skipPolicy,
       tempo: tempo,
