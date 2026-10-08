@@ -107,29 +107,31 @@ export interface SubPattern {
   mask: string;
   label: string;
   meter: "simple" | "compound";
+  /** The beat as notation, ABC at L:1/16 (a quarter is 4, a dotted quarter 6), for the picker. */
+  abc: string;
 }
 
 export const SUB_PATTERNS: SubPattern[] = [
-  { id: "q", grid: 1, mask: "1", label: "Beats", meter: "simple" },
-  { id: "8", grid: 2, mask: "11", label: "Eighths", meter: "simple" },
-  { id: "8-off", grid: 2, mask: "01", label: "Off-beats (the &)", meter: "simple" },
-  { id: "3", grid: 3, mask: "111", label: "Triplets", meter: "simple" },
-  { id: "3-swing", grid: 3, mask: "101", label: "Swing (1 _ a)", meter: "simple" },
-  { id: "3-rest-first", grid: 3, mask: "011", label: "Triplet, first silent", meter: "simple" },
-  { id: "3-rest-last", grid: 3, mask: "110", label: "Triplet, last silent", meter: "simple" },
-  { id: "16", grid: 4, mask: "1111", label: "Sixteenths", meter: "simple" },
-  { id: "16-1e&", grid: 4, mask: "1110", label: "1 e &", meter: "simple" },
-  { id: "16-1&a", grid: 4, mask: "1011", label: "1 & a", meter: "simple" },
-  { id: "16-1ea", grid: 4, mask: "1101", label: "1 e _ a", meter: "simple" },
-  { id: "16-1a", grid: 4, mask: "1001", label: "1 _ _ a (dotted eighth, sixteenth)", meter: "simple" },
-  { id: "16-e&a", grid: 4, mask: "0111", label: "_ e & a", meter: "simple" },
-  { id: "32", grid: 8, mask: "11111111", label: "Thirty-seconds", meter: "simple" },
-  { id: "c-q", grid: 1, mask: "1", label: "Beats", meter: "compound" },
-  { id: "c-8", grid: 3, mask: "111", label: "Eighths", meter: "compound" },
-  { id: "c-q8", grid: 3, mask: "101", label: "Quarter, eighth", meter: "compound" },
-  { id: "c-8q", grid: 3, mask: "110", label: "Eighth, quarter", meter: "compound" },
-  { id: "c-off", grid: 3, mask: "011", label: "Off-beat eighths", meter: "compound" },
-  { id: "c-16", grid: 6, mask: "111111", label: "Sixteenths", meter: "compound" },
+  { id: "q", grid: 1, mask: "1", label: "Beats", meter: "simple", abc: "B4" },
+  { id: "8", grid: 2, mask: "11", label: "Eighths", meter: "simple", abc: "B2B2" },
+  { id: "8-off", grid: 2, mask: "01", label: "Off-beats (the &)", meter: "simple", abc: "z2B2" },
+  { id: "3", grid: 3, mask: "111", label: "Triplets", meter: "simple", abc: "(3B2B2B2" },
+  { id: "3-swing", grid: 3, mask: "101", label: "Swing (1 _ a)", meter: "simple", abc: "(3:2:2B4B2" },
+  { id: "3-rest-first", grid: 3, mask: "011", label: "Triplet, first silent", meter: "simple", abc: "(3z2B2B2" },
+  { id: "3-rest-last", grid: 3, mask: "110", label: "Triplet, last silent", meter: "simple", abc: "(3B2B2z2" },
+  { id: "16", grid: 4, mask: "1111", label: "Sixteenths", meter: "simple", abc: "BBBB" },
+  { id: "16-1e&", grid: 4, mask: "1110", label: "1 e &", meter: "simple", abc: "BBB2" },
+  { id: "16-1&a", grid: 4, mask: "1011", label: "1 & a", meter: "simple", abc: "B2BB" },
+  { id: "16-1ea", grid: 4, mask: "1101", label: "1 e _ a", meter: "simple", abc: "BB2B" },
+  { id: "16-1a", grid: 4, mask: "1001", label: "1 _ _ a (dotted eighth, sixteenth)", meter: "simple", abc: "B3B" },
+  { id: "16-e&a", grid: 4, mask: "0111", label: "_ e & a", meter: "simple", abc: "zBBB" },
+  { id: "32", grid: 8, mask: "11111111", label: "Thirty-seconds", meter: "simple", abc: "B/B/B/B/B/B/B/B/" },
+  { id: "c-q", grid: 1, mask: "1", label: "Beats", meter: "compound", abc: "B6" },
+  { id: "c-8", grid: 3, mask: "111", label: "Eighths", meter: "compound", abc: "B2B2B2" },
+  { id: "c-q8", grid: 3, mask: "101", label: "Quarter, eighth", meter: "compound", abc: "B4B2" },
+  { id: "c-8q", grid: 3, mask: "110", label: "Eighth, quarter", meter: "compound", abc: "B2B4" },
+  { id: "c-off", grid: 3, mask: "011", label: "Off-beat eighths", meter: "compound", abc: "z2B2B2" },
+  { id: "c-16", grid: 6, mask: "111111", label: "Sixteenths", meter: "compound", abc: "BBBBBB" },
 ];
 
 /** The picker's entry for a grid and mask (a full mask when unset). */

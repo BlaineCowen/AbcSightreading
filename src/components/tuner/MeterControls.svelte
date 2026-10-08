@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tuner } from "../../lib/tuner/store";
-  import { METERS, meterById, subdivisionLabel } from "../../lib/tuner/meters";
+  import { METERS, meterById } from "../../lib/tuner/meters";
+  import SubdivisionPicker from "./SubdivisionPicker.svelte";
   import { CLICK_SOUNDS, type ClickSound } from "../../lib/tuner/click-sounds";
   import { metronome } from "../../lib/tuner/metronome";
   import { metronomeSounding } from "../../lib/tools/metronome-link";
@@ -39,10 +40,6 @@
     tuner.setClickSound(id);
     if (!metronomeSounding($tuner)) void metronome.preview(id);
   }
-  function pickSubdivision(n: number) {
-    onManual();
-    tuner.setSubdivision(n);
-  }
 </script>
 
 <div class="flex flex-col gap-2 text-sm">
@@ -75,23 +72,8 @@
     <span class="text-xs text-sr-muted">
       {meter.grouping ? `Subdivide · felt ${meter.grouping}` : "Subdivide"}
     </span>
-    <div class="flex flex-wrap items-center gap-1">
-      {#each meter.subdivisions as n}
-        <button
-          type="button"
-          class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.subdivision === n ? 'sr-on' : ''}"
-          on:click={() => pickSubdivision(n)}
-          aria-pressed={$tuner.subdivision === n}
-        >{subdivisionLabel(meter, n)}</button>
-      {/each}
-      <button
-        type="button"
-        class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.accent ? 'sr-on' : ''}"
-        on:click={tuner.toggleAccent}
-        aria-pressed={$tuner.accent}
-        title="Accent beat 1"
-      >Accent</button>
-    </div>
+    <!-- Each beat's accent is set on its tile now (BeatTiles). -->
+    <SubdivisionPicker {compact} {onManual} />
   </div>
 
   <div class="flex flex-col gap-1.5" role="group" aria-label="Sound">
