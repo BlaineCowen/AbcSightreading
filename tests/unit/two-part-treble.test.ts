@@ -48,10 +48,8 @@ function pairs(voices: VoiceNote[][], names: string[]) {
   return onsets.map((t) => [at(S, t), at(A, t)] as const).filter(([s, a]) => s && a && !s.rest && !a.rest) as [VoiceNote, VoiceNote][];
 }
 
-test("SA at Levels 1 and 2, and TB at Level 1, are written melody first", () => {
-  expect(melodyFirstFor("UIL 1")).toEqual(["SA", "TB"]);
-  expect(melodyFirstFor("UIL 2")).toEqual(["SA"]);
-  expect(melodyFirstFor("UIL 3")).toEqual([]);
+test("SA and TB are written melody first at every UIL level, never without one", () => {
+  for (const l of [1, 2, 3, 4, 5]) expect(melodyFirstFor(`UIL ${l}`)).toEqual(["SA", "TB"]);
   expect(melodyFirstFor(undefined)).toEqual([]);
   const sa = presetVoicing("2 Part Treble", level)!;
   const tb = presetVoicing("2 Part Tenor/Bass", level)!;

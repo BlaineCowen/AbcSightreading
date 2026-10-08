@@ -1248,6 +1248,22 @@ unison 28% (25). It still leans on V a little (the tune on re 31%,
 his 20%). SATB ("Our Hero", Level 3) shows the same jobs with a tenor filling
 the chord; not built yet.
 
+**Every voicing at every UIL level is written melody first now** (Blaine,
+7 October 2026: "build out the other voicings and levels. We will clean
+them up later"). SA and TB use two-part-treble.ts at all five levels (the
+Level 1-2 profiles above Level 2, for now); SSA at Levels 2-3 its own writer;
+everything else `src/lib/part-writer.ts` (tests `part-writer.test.ts`),
+the SSA method for 2-4 parts, each part a job from his pieces: SATB Levels
+1-3 as "Our Hero" (tune, alto holding do, tenor filling, bass on roots),
+Levels 4-5 as "A Demon in My View" (alto and tenor moving), SAB the same
+without the tenor, TTB/TBB with the Frog's tenor tune over a part holding
+do and a bass, SSA at Levels 1, 4, 5 (Level 5 as "Give Me More Love"). The
+page passes `partWriterLevel`. All six voicings are offered at every level.
+Measured: SATB Level 3 against Our Hero, alto on do 62% (62), chords
+complete 83% (83), bass leaping 32% of moves (38). Known: it leans on V
+(the tune on re 28%, his 15%), the planned cadences' doing more than chord
+choice; Level 5's chromatic chords appear only where the plan puts them.
+
 **The UIL levels follow UIL's current criteria** (read from uiltexas.org on
 7 October 2026 and checked with Blaine; notes/uil-criteria.md, which ends
 with what is not applied yet). Levels 1-2 are F and G major only, 3/4 and

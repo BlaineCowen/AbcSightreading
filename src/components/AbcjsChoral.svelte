@@ -2475,6 +2475,8 @@
       breathRests: !(activeLevelKey && uilPresets[activeLevelKey]?.noRests),
       // Three treble parts at Levels 2-3: each part its job (three-part-treble.ts).
       ssaLevel: ssaLevelFor(activeLevelKey),
+      // Every other voicing at a UIL level: each part its job (part-writer.ts).
+      partWriterLevel: activeLevelKey ? Number(activeLevelKey.replace("UIL ", "")) : null,
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames

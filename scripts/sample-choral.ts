@@ -65,7 +65,7 @@ for (let i = 0; i < N; i++) {
       key: KEY, timeSig, partsObject, measures: BARS, maxSkip: preset.maxSkip, bpm: 72,
       selectedRhythms: rhythms, chords: fullChordSet, accidentalsByStep: true, nctProbability: Number(process.env.NCT ?? 0.1),
       chromaticFrequency: 1, allowedChordNames: preset.allowedChordNames, voiceTexture: "full", stepwiseEighths: true,
-      unisonProbability: unisonProbabilityFor(LEVEL), rhymeProbability: process.env.RHYME ? Number(process.env.RHYME) : rhymeProbabilityFor(LEVEL), melodyFirst: process.env.MELODY_FIRST === "0" ? [] : melodyFirstFor(LEVEL), skipLevel: skipLevelFor(LEVEL), breathRests: !preset.noRests, cadenceTypes: preset.allowedCadenceTypes, dottedOnStrongBeats: !!preset.dottedOnStrongBeats, ssaLevel: process.env.MELODY_FIRST === "0" ? null : ssaLevelFor(LEVEL),
+      unisonProbability: unisonProbabilityFor(LEVEL), rhymeProbability: process.env.RHYME ? Number(process.env.RHYME) : rhymeProbabilityFor(LEVEL), melodyFirst: process.env.MELODY_FIRST === "0" ? [] : melodyFirstFor(LEVEL), skipLevel: skipLevelFor(LEVEL), breathRests: !preset.noRests, cadenceTypes: preset.allowedCadenceTypes, dottedOnStrongBeats: !!preset.dottedOnStrongBeats, ssaLevel: process.env.MELODY_FIRST === "0" ? null : ssaLevelFor(LEVEL), partWriterLevel: process.env.MELODY_FIRST === "0" ? null : preset.level,
     } as any);
     samples.push({
       voices: ex.voiceNames,

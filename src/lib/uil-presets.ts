@@ -63,20 +63,17 @@ export const uilPresets: Record<string, UILPreset> = {
     // eighths rare (favorLongerNotes; barShapeWeight for two parts).
     allowedRhythmNames: ["whole", "dotHalf", "half", "quarter", "eighthEighth"],
     noRests: true,
-    // UIL now lists SATB, SAB, SSA/SA and TTB/TBB/TB here. Offered: SA and TB,
-    // written melody first; the others join as each gets a writer of its own
-    // (Blaine, 7 October 2026), rather than the general one. The three-part tenor-bass voicing
-    // cannot be written at this level: three men inside these ranges, moving by
-    // no more than a third (maxSkip 2) on I, IV and V alone, failed 100% of the
-    // time - before any of this session's range work as well. An option that
-    // never produces an exercise is worse than one that is not offered.
-    // No "Unison": single-line practice is its own page, and a one-part voicing
-    // inside the choral generator only duplicated it. The Unison entry in
-    // voiceRanges below stays - the range calibration page reads it for that
-    // page's voice.
+    // UIL lists SATB, SAB, SSA/SA and TTB/TBB/TB here; all are offered, each
+    // written melody first (two-part-treble.ts, part-writer.ts). The three-part
+    // men's voicing failed every time under the general writer here (three men
+    // moving by no more than a third on I, IV and V); it is offered again
+    // because the part writer holds the inner part on do - if the sweep finds
+    // it failing, it comes out.
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
+    // No "Unison": single-line practice is its own page. The Unison entry in
+    // voiceRanges stays - the range calibration page reads it.
     // 3/4 and 4/4 only (UIL dropped 2/4 at this level).
     allowedMeters: ["4/4", "3/4"],
-    allowedVoicings: ["2 Part Treble", "2 Part Tenor/Bass"],
     // "Approximately 24 measures in 4/4" (32 in 3/4); a full-length piece takes
     // the long end (Blaine: "do the longer version").
     measureRange: [24, 28],
@@ -123,7 +120,7 @@ export const uilPresets: Record<string, UILPreset> = {
     // 3 Part Treble (SSA) is written melody first here (three-part-treble.ts),
     // in the texture of Blaine's Level 2 SSA piece.
     allowedVoicings: [
-      "4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "2 Part Tenor/Bass",
+      "4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass",
     ],
     // "Approximately 24 measures in 4/4" (32 in 3/4); full length takes the long end.
     measureRange: [24, 28],
@@ -165,7 +162,7 @@ export const uilPresets: Record<string, UILPreset> = {
     ],
     allowedMeters: ["4/4", "3/4"],
     // 3 Part Treble: melody first, as his two Level 3 SSA pieces (three-part-treble.ts).
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass"],
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
     // Hand-calibrated by Blaine against UIL's own range staves on
@@ -210,7 +207,7 @@ export const uilPresets: Record<string, UILPreset> = {
       "eighthRest",
     ],
     allowedMeters: ["4/4", "3/4", "2/4"],
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
     // About 32 measures in 4/4, 42 in 3/4.
     measureRange: [32, 34],
     maxSkip: 5,
@@ -261,7 +258,7 @@ export const uilPresets: Record<string, UILPreset> = {
       "eighthRest",
     ],
     allowedMeters: ["4/4", "3/4", "2/4"],
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "3 Part Tenor/Bass"],
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass", "2 Part Tenor/Bass"],
     // 32-36 measures for 5A; 6A adds 12-16 more (longVersion). Blaine's Level 5
     // pieces stop at bar 32 for 5A and run on for 6A.
     measureRange: [32, 36],

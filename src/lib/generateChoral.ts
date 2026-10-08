@@ -1,3 +1,4 @@
+import { textureFor, voicingKind, writeParts } from "./part-writer";
 import { listedSkip, type SkipLevel } from "./uil-skips";
 import { isThreePartTreble, ssaTexture, writeThreePartTreble, type SsaLevel } from "./three-part-treble";
 import { barShapeWeight, twoPartKind, writeTwoPartTreble, type TwoPartKind } from "./two-part-treble";
@@ -97,6 +98,11 @@ export interface GenerateChoralParams {
    * level's pieces (three-part-treble.ts). See ssaLevelFor.
    */
   ssaLevel?: SsaLevel | null;
+  /**
+   * The UIL level, for writing every other voicing melody first, each part
+   * its job (part-writer.ts): SATB, SAB, TTB/TBB, and SSA outside Levels 2-3.
+   */
+  partWriterLevel?: number | null;
   /** The cadence types the level allows (UILPreset.allowedCadenceTypes); every one when left out. */
   cadenceTypes?: string[];
   /** A dotted quarter and eighth only on a strong beat (UIL Level 2). */
@@ -308,6 +314,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   const melodyFirst = !!pairKind && !!params.melodyFirst?.includes(pairKind);
   const ssa = params.ssaLevel && isThreePartTreble(voiceParts) ? params.ssaLevel : null;
   const ssaTextureHere = ssa ? ssaTexture(ssa) : null;
+  const kindHere = !ssaTextureHere && params.partWriterLevel ? voicingKind(voiceParts) : null;
+  const partTexture = kindHere ? textureFor(kindHere, params.partWriterLevel!) : null;
 
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
@@ -390,7 +398,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
       // then - and the suspension that half cadence carries with it.
       const half = pool.find((c) => c.type === "Half");
       const planned =
-        (melodyFirst || ssa) && Math.random() < PHRASE_PAIR_RATE
+        (melodyFirst || ssa || partTexture) && Math.random() < PHRASE_PAIR_RATE
           ? i % 2 === 0 ? half ?? randomCadence : perfectAuthenticCadence
           : randomCadence;
       selectedCadences.push(planned);
@@ -473,7 +481,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
     // 5. Build Chord Notes for All Voices
     try {
-      if (melodyFirst || ssaTextureHere) {
+      if (melodyFirst || ssaTextureHere || partTexture) {
+        if (partTexture) {
+          const written = writeParts({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: partTexture, skipLevel: params.skipLevel });
+          voiceNotes = written.voiceNotes;
+          chordProgression = written.progression;
+          break;
+        }
         if (ssaTextureHere) {
           const written = writeThreePartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: ssaTextureHere, skipLevel: params.skipLevel });
           voiceNotes = written.voiceNotes;
@@ -588,7 +602,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     // notes", Blaine, 7 October 2026), and Level 1's list of skips.
     leapOk: (from, to) =>
       (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
-      (!((melodyFirst || ssa) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)),
+      (!((melodyFirst || ssa || partTexture) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)),
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 

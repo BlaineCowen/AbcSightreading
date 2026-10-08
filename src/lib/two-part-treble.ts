@@ -143,9 +143,9 @@ export const isTwoPartTreble = (voiceParts: { name: string }[]) => twoPartKind(v
  * written a piece to measure it against (SA at Levels 1-2, TB at Level 1).
  */
 export function melodyFirstFor(uilLevel: string | undefined): TwoPartKind[] {
-  if (uilLevel === "UIL 1") return ["SA", "TB"];
-  if (uilLevel === "UIL 2") return ["SA"];
-  return [];
+  // Every level now (Blaine, 7 October 2026: "build out the other voicings
+  // and levels"); above Level 2 on the Level 1-2 profiles, to be refined.
+  return /^UIL [1-5]$/.test(uilLevel ?? "") ? ["SA", "TB"] : [];
 }
 
 export type TwoPartOptions = {
