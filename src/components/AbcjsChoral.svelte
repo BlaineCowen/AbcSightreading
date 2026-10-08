@@ -3,7 +3,9 @@
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { tuner } from "../lib/tuner/store";
-  import { drumPatternFor } from "../lib/playback-click";
+  import { drumPatternFor, withClickByBar } from "../lib/playback-click";
+  import { beatLevelsFor } from "../lib/tuner/click-pattern";
+  import { assistedLevels, assistsTheClick } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
   import {
     crossedWholeBeat,
@@ -770,7 +772,7 @@
    */
   const clickOnFor = (t: typeof $tuner) => (t.exercisePlaying ? t.musicClick : t.clickWithMusic || t.metronomeRunning);
   const clickKeyFor = (t: typeof $tuner) =>
-    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}|${t.beatLevels?.join(",") ?? ""}|${t.subMask ?? ""}`;
+    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}|${t.beatLevels?.join(",") ?? ""}|${t.subMask ?? ""}|${JSON.stringify([t.assistant.silent, t.assistant.drop])}`;
   $: clickOn = clickOnFor($tuner);
   /** The click the synth was last built with, to notice when the metronome changes it. */
   let builtClick = "";
@@ -2193,10 +2195,24 @@
     // which is barVoices' order. Done on every build, so a copy from before a
     // transpose change never outlives it.
     if (renderCurrent) {
-      const audio = withPlaybackTranspose(
+      let audio = withPlaybackTranspose(
         renderCurrent({ ...displayOptions(), hiddenVoices: [] }),
         transposeSemitones
       );
+      // The practice assistant's silent bars and dropped beats, bar by bar
+      // (practice-assistant.ts). A new draw of dropped beats each build.
+      const t = tuner.get();
+      if (clickOnFor(t) && assistsTheClick(t.assistant)) {
+        const beats = beatsOf(selectedTimeSignature);
+        const base = beatLevelsFor({ beats, accent: t.accent, beatLevels: t.beatLevels });
+        const seed = Math.floor(Math.random() * 2 ** 31);
+        audio = withClickByBar(audio, (bar) =>
+          drumPatternFor({
+            beats, subdivision: t.subdivision, accent: t.accent, sound: t.clickSound, subMask: t.subMask,
+            beatLevels: assistedLevels(base, bar, t.assistant, seed),
+          })
+        );
+      }
       const [full] = abcjs.parseOnly(audio);
       tune.setUpAudio = (params: any) => full.setUpAudio(params);
     }

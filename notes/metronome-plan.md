@@ -46,7 +46,9 @@ A bar is a list of beats, each with a **level** and a **subdivision pattern**:
 ## Phase 5: spoken counting
 - **Modes:** off, voice only, voice with the click; voice level.
 - **Counts in the page's own syllables:** Counting (1 e & a, 1 la li in compound), Kodály (ta ti-ti, tika-tika), or the teacher's own. The words come from the same tables as the score's syllables (`rhythm-syllables.ts`), so the voice and the page never disagree.
-- **Recordings:** short dry samples in `public/voice/<voice>/` (the numbers 1-12, e, and, a, la, li, ta, ti, ka, ri, trip, let...), trimmed to their onset so they land on the beat; two voices. Recorded by Blaine, or made with a TTS service offline and checked by ear: his call.
+- **The voice (Blaine, 8 October 2026):** espeak-ng's plain robot voice (`espeak-ng -v en-us -s 150`, its default pitch), generated here, so any word can be made and no licence attaches. Women's voices and robotized recordings were tried and passed over.
+- **Timing:** each word is started early by its own lead-in, the time its loudness takes to reach half its peak (10 ms windows), so the vowel lands on the beat. Measured at build time into a manifest. Without it "four" landed about 120 ms after "eight".
+- **Recordings (superseded by the two lines above):** short dry samples in `public/voice/<voice>/` (the numbers 1-12, e, and, a, la, li, ta, ti, ka, ri, trip, let...), trimmed to their onset so they land on the beat; two voices. Recorded by Blaine, or made with a TTS service offline and checked by ear: his call.
 - Under an exercise it counts what the music is doing, beat by beat.
 
 ## Order and size
