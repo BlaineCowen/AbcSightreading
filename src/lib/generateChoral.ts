@@ -1,3 +1,4 @@
+import { isThreePartTreble, ssaTexture, writeThreePartTreble, type SsaLevel } from "./three-part-treble";
 import { barShapeWeight, levelOneLeapOk, twoPartKind, writeTwoPartTreble, type TwoPartKind } from "./two-part-treble";
 import { prepareVoiceParts } from "./prep-params";
 import { generateRandomRhythm } from "./rhythm-generation";
@@ -90,6 +91,11 @@ export interface GenerateChoralParams {
   melodyFirst?: TwoPartKind[];
   /** Melody first, leap only as UIL Level 1 lists (a third within the chord, do down to sol). See chordSkipsFor. */
   chordSkips?: boolean;
+  /**
+   * Three treble parts (SSA) written melody first, in the texture of that
+   * level's pieces (three-part-treble.ts). See ssaLevelFor.
+   */
+  ssaLevel?: SsaLevel | null;
   /** False: no rest as an inner phrase's breath (the level avoids rests). See rhythm-generation. */
   breathRests?: boolean;
   /**
@@ -292,6 +298,8 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
   const pairKind = twoPartKind(voiceParts);
   const melodyFirst = !!pairKind && !!params.melodyFirst?.includes(pairKind);
+  const ssa = params.ssaLevel && isThreePartTreble(voiceParts) ? params.ssaLevel : null;
+  const ssaTextureHere = ssa ? ssaTexture(ssa) : null;
 
   // Separate the input rhythms into main generation rhythms and potential NCT patterns
   const mainRhythms = params.selectedRhythms.filter((r) => {
@@ -443,7 +451,13 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
 
     // 5. Build Chord Notes for All Voices
     try {
-      if (melodyFirst) {
+      if (melodyFirst || ssaTextureHere) {
+        if (ssaTextureHere) {
+          const written = writeThreePartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: ssaTextureHere });
+          voiceNotes = written.voiceNotes;
+          chordProgression = written.progression;
+          break;
+        }
         // The tune chooses its chords; the planned ones are kept into each cadence.
         const written = writeTwoPartTreble({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, kind: pairKind!, chordSkips: params.chordSkips, maxSkip, tsPerMeasure: timeSig.tsPerMeasure });
         voiceNotes = written.voiceNotes;

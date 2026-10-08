@@ -1,0 +1,97 @@
+import { expect, test } from "bun:test";
+import { generateChoralExercise } from "../../src/lib/generateChoral";
+import { uilPresets } from "../../src/lib/uil-presets";
+import { chords } from "../../src/resources/chords";
+import { rhythms } from "../../src/resources/rhythms";
+import { isThreePartTreble, ssaLevelFor } from "../../src/lib/three-part-treble";
+import { TIME_SIGS, choralSelectable, presetVoicing } from "../../scripts/generation-fixtures";
+import type { VoiceNote } from "../../src/lib/types";
+
+/**
+ * Three treble parts at Levels 2 and 3, each part doing its job in Blaine's
+ * SSA pieces (three-part-treble.ts). Floors well under the writer's measured
+ * rates (Level 2: soprano 2 on do 59% of its time, the alto on do or low sol
+ * 82%) and well over the general writer's (soprano 2 on do 12%, the alto 57%,
+ * its tune on so 78%), so a randomised run does not flake and losing the
+ * writer fails.
+ */
+const quiet = () => {};
+
+function write(n: number, levelKey: "UIL 2" | "UIL 3", nctProbability = 0.1, rhymeProbability = 0.7) {
+  const level = uilPresets[levelKey];
+  const saved = { log: console.log, warn: console.warn };
+  Object.assign(console, { log: quiet, warn: quiet });
+  try {
+    return Array.from({ length: n }, () =>
+      generateChoralExercise({
+        key: "G", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing("3 Part Treble", level)!, measures: 16,
+        maxSkip: level.maxSkip, bpm: 72, nctProbability, stepwiseEighths: true, accidentalsByStep: true,
+        selectedRhythms: rhythms.filter((r) => level.allowedRhythmNames.includes(r.name) && choralSelectable(r) && !r.rest),
+        chords, allowedChordNames: level.allowedChordNames, rhymeProbability, ssaLevel: ssaLevelFor(levelKey),
+      } as any),
+    );
+  } finally {
+    Object.assign(console, saved);
+  }
+}
+
+/** The sounding notes at every onset, top part first. */
+function sonorities(ex: { voiceNotes: VoiceNote[][]; voiceNames: string[] }) {
+  const order = ["Soprano1", "Soprano2", "Alto"].map((n) => ex.voiceNames.indexOf(n));
+  const lines = order.map((i) => {
+    let t = 0;
+    return ex.voiceNotes[i].map((n) => ({ t: (t += n.length) - n.length, end: t, n }));
+  });
+  const onsets = [...new Set(lines.flat().map((x) => x.t))].sort((a, b) => a - b);
+  return onsets
+    .map((t) => lines.map((l) => l.find((x) => x.t <= t && t < x.end)?.n))
+    .filter((ns) => ns.every((n) => n && !n.rest)) as VoiceNote[][];
+}
+
+test("SSA is written melody first at Levels 2 and 3 only", () => {
+  expect(ssaLevelFor("UIL 2")).toBe(2);
+  expect(ssaLevelFor("UIL 3")).toBe(3);
+  expect(ssaLevelFor("UIL 4")).toBe(null);
+  const parts = (o: any) => Object.keys(o.parts).map((name) => ({ name }));
+  expect(isThreePartTreble(parts(presetVoicing("3 Part Treble", uilPresets["UIL 2"])!))).toBe(true);
+  expect(isThreePartTreble(parts(presetVoicing("3 Part Mixed", uilPresets["UIL 2"])!))).toBe(false);
+  expect(uilPresets["UIL 2"].allowedVoicings).toContain("3 Part Treble");
+  expect(uilPresets["UIL 3"].allowedVoicings).toContain("3 Part Treble");
+});
+
+test("the writer never crosses, sings no seconds or sevenths between parts, and no parallel fifths or octaves", () => {
+  for (const levelKey of ["UIL 2", "UIL 3"] as const) {
+    for (const ex of write(12, levelKey, 0, 0)) {
+      const ss = sonorities(ex);
+      ss.forEach((ns, k) => {
+        for (const [x, y] of [[0, 1], [1, 2], [0, 2]]) {
+          const apart = ns[x].pitchValue - ns[y].pitchValue;
+          expect(apart).toBeGreaterThanOrEqual(0);
+          expect([1, 6]).not.toContain(apart % 7);
+          const prev = ss[k - 1];
+          if (prev && prev[x].pitchValue !== ns[x].pitchValue && prev[y].pitchValue !== ns[y].pitchValue && [0, 4, 7].includes(apart))
+            expect(prev[x].pitchValue - prev[y].pitchValue).not.toBe(apart);
+        }
+      });
+    }
+  }
+}, 60_000);
+
+test("Level 2: the tune moves by step, soprano 2 holds do, the alto sings a bass on do and low sol", () => {
+  let s2Do = 0, s2 = 0, aRoot = 0, a = 0, steps = 0, moves = 0;
+  for (const ex of write(15, "UIL 2")) {
+    const v = (name: string) => ex.voiceNotes[ex.voiceNames.indexOf(name)].filter((n) => !n.rest);
+    for (const n of v("Soprano2")) { s2 += n.length; if (n.degree === 0) s2Do += n.length; }
+    for (const n of v("Alto")) { a += n.length; if (n.degree === 0 || n.degree === 4) aRoot += n.length; }
+    const tune = v("Soprano1");
+    for (let i = 1; i < tune.length; i++) {
+      const d = Math.abs(tune[i].pitchValue - tune[i - 1].pitchValue);
+      if (d === 0) continue;
+      moves++;
+      if (d === 1) steps++;
+    }
+  }
+  expect(s2Do / s2).toBeGreaterThan(0.45);
+  expect(aRoot / a).toBeGreaterThan(0.7);
+  expect(steps / moves).toBeGreaterThan(0.6);
+}, 60_000);

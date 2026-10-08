@@ -27,6 +27,17 @@ pitch. A piece with a pickup starts at its pickup.
   close triads (80% complete), eighths as common as quarters in the tune,
   secondary dominants (fi, si) and a turn to the relative minor (bars 25-28).
 
+- `our-hero-SATB-L3`: G, pickup and 32 bars. Soprano the tune (mi so fa
+  re), alto holding do (62%) with ti and la, tenor filling the chord (so mi
+  fa, 26% leaps), bass on the roots (do and so, 39% leaps); 83% complete
+  triads, do doubled most. Women alone bars 10-12 and 26-28, men 13-16.
+
+- `a-demon-in-my-view-SATB-L4-L5`: F, 3/4, pickup and 48 bars; Level 4
+  ends at bar 32. Soprano the tune (mi 39% at Level 4, 70% steps); the alto
+  no longer holding do (38%; la 22, so 19), an inner part like the tenor (mi
+  do so); bass on the roots (do 48%, a third of its moves leaps); 90%
+  complete triads; a turn to D minor, secondary dominants.
+
 Ableton projects are read with `python3 scripts/read-als.py <project dir>
 <out.json>` (arrangement clips only; notes released early are held to the
 next note, so check any real rest by hand).

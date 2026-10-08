@@ -86,6 +86,7 @@
   import { unisonProbabilityFor } from "../lib/unison-spans";
   import { rhymeProbabilityFor } from "../lib/rhyming-phrases";
   import { chordSkipsFor, melodyFirstFor } from "../lib/two-part-treble";
+  import { ssaLevelFor } from "../lib/three-part-treble";
   import {
     clampTranspose,
     transposeLabel,
@@ -2467,6 +2468,8 @@
       melodyFirst: melodyFirstFor(activeLevelKey),
       chordSkips: chordSkipsFor(activeLevelKey),
       breathRests: !(activeLevelKey && uilPresets[activeLevelKey]?.noRests),
+      // Three treble parts at Levels 2-3: each part its job (three-part-treble.ts).
+      ssaLevel: ssaLevelFor(activeLevelKey),
       allowedChordNames:
         effectiveChordNames.length < drawnModeChordNames.length
           ? effectiveChordNames

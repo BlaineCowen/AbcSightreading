@@ -113,8 +113,10 @@ export const uilPresets: Record<string, UILPreset> = {
     // an exercise is worse than one that is not offered - the same call as
     // level 1.
     allowedMeters: ["4/4", "3/4"],
+    // 3 Part Treble (SSA) is written melody first here (three-part-treble.ts),
+    // in the texture of Blaine's Level 2 SSA piece.
     allowedVoicings: [
-      "4 Part Mixed", "3 Part Mixed", "2 Part Treble", "2 Part Tenor/Bass",
+      "4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "2 Part Tenor/Bass",
     ],
     measureRange: [28, 32],
     maxSkip: 3,
@@ -153,7 +155,8 @@ export const uilPresets: Record<string, UILPreset> = {
       "quarterRest",
     ],
     allowedMeters: ["4/4", "3/4"],
-    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "2 Part Treble", "3 Part Tenor/Bass"],
+    // 3 Part Treble: melody first, as his two Level 3 SSA pieces (three-part-treble.ts).
+    allowedVoicings: ["4 Part Mixed", "3 Part Mixed", "3 Part Treble", "2 Part Treble", "3 Part Tenor/Bass"],
     measureRange: [32, 36],
     maxSkip: 4,
     // Hand-calibrated by Blaine against UIL's own range staves on

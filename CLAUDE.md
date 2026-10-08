@@ -1231,6 +1231,23 @@ voice above or below it (non-chord-tone-gen), and the restatement's varied
 note is checked against every lower note sounding under it, not just at its
 start (rhyming-phrases `soundingWithin`); neither moved a snapshot.
 
+**Three treble parts (SSA) at Levels 2-3 are written melody first** too
+(`src/lib/three-part-treble.ts`, tests `three-part-treble.test.ts`; the page
+and the sweep pass `ssaLevelFor`), and 3 Part Treble is now offered at both
+levels (UIL lists SSA there; the general writer's SSA was why it was not).
+Each part has the job it has in Blaine's pieces: Level 2 ("Oh Lovely
+Spring") soprano 1 the tune, soprano 2 holding do, the alto a bass on do and
+the sol below; Level 3 draws one of two textures, "The Rainbird" (the same
+jobs) or "By the Cradle" (a duet a third under the tune over an alto holding
+do). All three notes are chosen together with the chord; no crossing, no
+seconds or sevenths between parts, no parallels, the leading tone never
+doubled, complete triads preferred but not forced (his are 72-73%).
+Level 2 against Spring: soprano 2 on do 59% (59; the general writer 12%),
+the alto on do 32% and low sol 50% (his 43 and 41), soprano 2 to alto
+unison 28% (25). It still leans on V a little (the tune on re 31%,
+his 20%). SATB ("Our Hero", Level 3) shows the same jobs with a tenor filling
+the chord; not built yet.
+
 The Choral page opens at UIL Level 3 in F major when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
 active preset was chosen.
