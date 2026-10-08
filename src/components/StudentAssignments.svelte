@@ -12,11 +12,14 @@
     id: string; title: string; page: string; minutes: number; dueAt: number | null; note: string;
     className: string; seconds: number; status: "not-started" | "in-progress" | "done"; percent: number;
   };
-  let items: Item[] = [];
-  let enrolled = false;
+  /** Given by the server (the home page), so it arrives with the page; otherwise fetched. */
+  export let initial: { enrolled: boolean; assignments: Item[] } | null = null;
+  let items: Item[] = initial?.assignments ?? [];
+  let enrolled = initial?.enrolled ?? false;
   let showDone = false;
 
   onMount(async () => {
+    if (initial) return;
     const res = await fetch("/api/assignments");
     if (res.ok) ({ enrolled, assignments: items } = await res.json());
   });

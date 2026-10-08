@@ -1219,6 +1219,30 @@ link Share gives, so it reopens exactly. The same link again moves to the
 top. A stored link must be a path to the page it names (`checkRecent`), since
 the home page shows it as a link.
 
+The home is drawn on the server with its data (index.astro reads what
+/api/recent, /api/tracks, /api/usage and /api/assignments would, and passes
+it in; `client:load`, not `client:only`): it used to fetch each list after
+loading and jump as each arrived. Keep it that way; a new section brings its
+data from index.astro too.
+
+## Load times
+
+Measured with Lighthouse at phone settings (8 October 2026, production):
+landing, pricing and the guides 86-89, Unison 69, Choral 73, SEO 100 on all.
+What was fixed then, and should stay fixed:
+- **Fonts are ours** (`public/fonts`, `@font-face` in globals.css, the two
+  Latin files preloaded in Layout, cached a year by vercel.json, so a new
+  font file needs a new name). Google's stylesheet held up every page's first
+  paint by about 0.85 s. Only the Analysis tool's IPA vowels still come from
+  Google, loaded without blocking.
+- **Nothing that appears after load may push the page down.** The landing's
+  free-month strip was drawn in the browser (CLS 0.108, over Google's 0.1
+  line); it now comes with the page (`initial` on FreeMonthPromo).
+- **Tone.js loads on the first sound** (AbcjsSingle `loadTone`): importing it
+  builds an AudioContext at once, and it is 81 KB compressed. The Unison
+  page's script went from 188 to 129 KB.
+- **The Tools cards load when the wheel opens** (ToolsWheel `CARDS`).
+
 ## SEO
 
 `site` in astro.config.mjs is https://www.abc-sightreading.com, and every page's

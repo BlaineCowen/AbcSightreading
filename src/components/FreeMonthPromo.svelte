@@ -11,7 +11,13 @@
   export let variant: "strip" | "note" | "signup" = "strip";
 
   type Status = { ok: boolean; reason?: string; quiet?: boolean; signedIn: boolean; offer: boolean; until: number | null };
-  let s: Status | null = null;
+  /**
+   * What the server already knows (the landing page, for someone signed out:
+   * whether the offer is on). Given, the strip is drawn with the page rather
+   * than appearing after it and pushing the page down.
+   */
+  export let initial: Status | null = null;
+  let s: Status | null = initial;
   let dismissed = false;
   const NOTE_KEY = "sr-free-month-note";
 
@@ -19,6 +25,7 @@
     try {
       dismissed = variant === "note" && localStorage.getItem(NOTE_KEY) === "1";
     } catch {}
+    if (initial) return;
     const res = await fetch("/api/free-month").catch(() => null);
     s = res?.ok ? await res.json() : null;
   });

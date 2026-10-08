@@ -7,6 +7,7 @@ import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 // the generator or spending a visitor's free exercises.
 import heroExercise from "../assets/hero-exercise.svg?raw";
 import FreeMonthPromo from "../components/FreeMonthPromo.svelte";
+import { enabled as freeMonthOn, offerUntil } from "../lib/server/free-month";
 
 /**
  * The landing page.
@@ -110,9 +111,10 @@ const jsonLd = [
   jsonLd={jsonLd}
 >
   <div class="w-full max-w-5xl mx-auto px-2 md:px-4">
-    <!-- The free month of Pro, while it is on offer (drawn in the browser: it
-         asks whether this visitor can claim it). -->
-    <div class="pt-2"><FreeMonthPromo client:only="svelte" variant="strip" /></div>
+    <!-- The free month of Pro, while it is on offer. This page is only for
+         someone signed out, so the server knows what it says, and it is drawn
+         with the page (asked for in the browser, it pushed the page down). -->
+    <div class="pt-2"><FreeMonthPromo client:load variant="strip" initial={{ ok: false, signedIn: false, offer: freeMonthOn(), until: offerUntil() }} /></div>
     <!-- Hero: the pitch on the left, a real exercise on the right that counts
          itself in and plays through (a cursor sweep, CSS only). Stacked on a
          phone, the exercise under the buttons. -->
