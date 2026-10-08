@@ -2069,7 +2069,7 @@ export function assembleUnisonAbc(
  * tenors (types.ts ClefType.TrebleOctaveUp). The range and the generator stay
  * in sounding pitch.
  */
-const clefFor = (clef: string) => (clef === "treble-8" ? "treble-8 transpose=-12" : clef);
+const clefFor = (clef: string | undefined) => (clef === "treble-8" ? "treble-8 transpose=-12" : clef);
 
 /** Every note of an ABC tune body an octave higher; annotations ("..."), decorations (!mf!), inline fields and lyric lines (w:) untouched. */
 export function octaveUp(body: string): string {
