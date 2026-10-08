@@ -1,116 +1,144 @@
 /**
- * "Daydream" (4/4, 90): the second singalong track, lo-fi. Loops that
- * splice-graph matched across three packs:
+ * "Daydream" (lo-fi, 4/4, 90): the major singalong track, take two. The first
+ * take was the floaty synth pads over busy tape drums; Blaine wanted "simple
+ * drums and a keyboard part instead of just dominant pads" (as Matinee does).
  *
- *   harmony   "lofi on purpose... Indie Alt Reveries": the floaty synth chords,
- *             C major, 90 BPM, 8 bars, every change on a barline:
- *             C Am Dm Dm | C Am F F  (I vi ii, I vi IV).
- *   bass      one note from "superbloom"'s electric bass loop (its opening C2,
- *             held 1.7 s, pitch clear), played on each chord's root the way a
- *             sampler would - so the bass is a real bass guitar and always on
- *             the harmony (the loop itself plays its own line, nearer F minor).
- *   drums     "Tape Drums by Tamuz": two boom-bap loops at 90, clean and
- *             trashy.
+ *   keys      a lo-fi piano comping the chords, played by hand: a stab on 1,
+ *             a lighter one on 3. No piano loop in the library plays these
+ *             chords, so they are built from two clean chords of "lofi on
+ *             purpose"'s synthi piano (92 BPM): its Cmaj7, and its Em7 moved
+ *             by SoundTouch - Am7 (up 5), Dm7 (down 2), and Fmaj7 is the Cmaj7
+ *             up 5. C Am Dm Dm | C Am F F (I vi ii, I vi IV), a chord a bar.
+ *   pad       the same pack's floaty synth chords (the first take's lead), now
+ *             quiet underneath, in the fuller sections only.
+ *   bass      one electric bass note ("superbloom"), played on each root.
+ *   drums     the Madlib pack's dusty one-shots - kick, snare, closed hat - a
+ *             simple beat with a little swing, varied by hand like Matinee's.
  *
- *   count-in   the drums' cymbals
- *   1-8        the chords opening from a low-pass; cymbals from 5
- *   9-16       the clean tape drums and the bass
- *   17-24      the trashy drums
- *   25-28      the drums drop out: chords and bass
+ *   count-in   hat quarters
+ *   1-4        the piano, quiet hats under it
+ *   5-8        + bass and kick
+ *   9-16       the full beat, the pad under it
+ *   17-24      the same, the hats ringing longer
+ *   25-28      kick and snare out: piano, bass, pad, hats
  *   29-32      everything
- *   33         C, ringing
+ *   33         Cmaj7, ringing
  *
- * Keys as Barefoot: SHIFT=<semitones> moves the chords (SoundTouch) and the
- * bass (its notes, resampled); OUT=<path, no extension>.
- *
- *   SHIFT=2 OUT=/tmp/daydream-D bun run scripts/backing/daydream-4-4-90.ts
+ * SHIFT=<semitones> for the other keys (C is 0); OUT=<path, no extension>.
  */
-import { song } from "./engine";
+import { song, RATE } from "./engine";
+import { shiftChannels } from "../../src/lib/play-along/stretch";
 
 const SHIFT = Number(process.env.SHIFT ?? 0);
 const BARS = 33;
 const s = song({
   pack: "lofi on purpose…Indie Alt Reveries",
-  packs: ["superbloom by Bennett Littlejohn", "Tape Drums by Tamuz", "Lavish Lofi & Hip Hop"],
+  packs: ["superbloom by Bennett Littlejohn", "Madlib Sample Pack"],
   bpm: 90,
   beats: 4,
   bars: BARS,
   tailSec: 3,
   out: process.env.OUT ?? "public/backing/daydream-4-4-90",
   drive: 1.0,
-  // As Barefoot: about -15 LUFS, every key under -1 dBFS true peak on the MP3.
   loudness: { lufs: -15, truePeak: -3 },
 });
 
+// ── The piano's chords, from two clean stabs of the synthi loop (92 BPM) ──────
+const synthi = s.load("NH_IAR_92_piano_synthi_Cmaj.wav");
+const beat92 = 60 / 92;
+/** Its Cmaj7 (beats 0-2) and Em7 (beats 4-8), each with its ring. */
+const cmaj7 = s.slice(synthi, 0, 2 * beat92);
+const em7 = s.slice(synthi, 4 * beat92, 4 * beat92);
+/** A shape moved to a chord, then to the key: whichever octave of the move is smaller. */
+const moved = (shape: typeof cmaj7, semis: number) => {
+  const total = semis + SHIFT;
+  const best = [total, total - 12, total + 12].reduce((a, b) => (Math.abs(b) < Math.abs(a) ? b : a));
+  return shiftChannels(shape, best, RATE);
+};
+const CHORD = { C: moved(cmaj7, 0), A: moved(em7, 5), D: moved(em7, -2), F: moved(cmaj7, 5) };
+const ROOTS = ["C", "A", "D", "D", "C", "A", "F", "F"] as const;
+
 const part = {
-  chords: s.load("NH_IAR_90_synth_chords_floaty_Cmaj.wav", { shift: SHIFT }),
+  pad: s.load("NH_IAR_90_synth_chords_floaty_Cmaj.wav", { shift: SHIFT }),
   bassLoop: s.load("NH_BL_90_bass_electric_liverleaf_Cmaj.wav"),
-  clean: s.load("TAMUZ_TD_90_drum_clean_loose.wav"),
-  trashy: s.load("TAMUZ_TD_90_drum_best_simple_trashy.wav"),
-  tents: s.load("BOS_LL_90_Drum_Full_Loop_Tents.wav"),
+  kick: s.load("MADLIB_kick_dusted_punch.wav", { trim: true }),
+  snare: s.load("MADLIB_snare_otis_reddy.wav", { trim: true }),
+  hat: s.load("MADLIB_hihat_big_bar_closed.wav", { trim: true }),
 };
-/** The bass note: the loop's first 1.68 s, a C2 (65.4 Hz). */
-const bassNote = s.slice(part.bassLoop, 0, 1.68);
-const C2 = 65.41;
-
+const bassNote = s.slice(part.bassLoop, 0, 1.68); // a C2, 65.4 Hz
 const lv = {
-  // Measured per section: the bass sat above the low mids at -19, so -21.
-  chords: s.toLevel(part.chords, -18), bass: s.toLevel(bassNote, -21),
-  clean: s.toLevel(part.clean, -18), trashy: s.toLevel(part.trashy, -18), tents: s.toLevel(part.tents, -18),
+  piano: s.toLevel(CHORD.C, -17), pad: s.toLevel(part.pad, -27), bass: s.toLevel(bassNote, -20),
+  kick: s.toLevel(part.kick, -17), snare: s.toLevel(part.snare, -18), hat: s.toLevel(part.hat, -24),
 };
 
-/** The chords' bars: the loop's own 8, so bar n is chord n mod 8. */
-const CHORD_ROOTS = ["C", "A", "D", "D", "C", "A", "F", "F"];
-/** Each root's bass note and the fifth below it (Hz, in C; SHIFT moves them). */
-const BASS: Record<string, [number, number]> = {
-  C: [65.41, 49.0], // C2, G1
-  A: [55.0, 82.41], // A1, E2 (the fifth above: E1 is too low to speak)
-  D: [73.42, 55.0], // D2, A1
-  F: [87.31, 65.41], // F2, C2
-};
-const shifted = (hz: number) => hz * Math.pow(2, SHIFT / 12);
+/** Played by hand: each hit a little early or late, a little louder or softer, the same every render. */
+let seed = 90;
+const rand = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32);
+const human = (src: typeof cmaj7, bar: number, at: number, gain: number, spread = 0.15, lenSec?: number) =>
+  s.lay(src, { atSec: s.at(bar, at) + (rand() - 0.5) * 0.014, gain: gain * (1 - spread / 2 + rand() * spread), lenSec, fadeOut: lenSec ? 0.08 : undefined });
 
-/**
- * The bass line, a bar at a time: the root on 1, held; the fifth on the "and"
- * of 3, short; the root again on 4 - the loop's own lazy shape, on the chord.
- */
-function bassBars(from: number, to: number, gain: number) {
-  const notes: { at: number; len: number; hz: number }[] = [];
+const chordAt = (bar: number) => ROOTS[((bar % 8) + 8) % 8];
+
+/** The piano: the bar's chord on 1, ringing to 3; again on 3, lighter. */
+function piano(from: number, to: number) {
   for (let b = from; b < to; b++) {
-    const [root, fifth] = BASS[CHORD_ROOTS[((b % 8) + 8) % 8]];
-    notes.push({ at: s.at(b), len: 2.4 * s.beatSec, hz: shifted(root) });
-    notes.push({ at: s.at(b, 2.5), len: 0.4 * s.beatSec, hz: shifted(fifth) });
-    notes.push({ at: s.at(b, 3), len: 0.9 * s.beatSec, hz: shifted(root) });
+    const c = CHORD[chordAt(b)];
+    human(c, b, 0, lv.piano, 0.12, 2 * s.beatSec);
+    human(c, b, 2, lv.piano * 0.72, 0.12, 2 * s.beatSec + 0.4);
   }
-  s.pitched(bassNote, C2, gain, notes);
 }
-const cymbals = (from: number, to: number) => s.loop(part.clean, from, to, lv.clean * 0.8, {}, { startBar: from, highpass: 3000 });
-const drums = (k: "clean" | "trashy", from: number, to: number) => s.loop(part[k], from, to, lv[k], {}, { startBar: from });
 
-// Count-in, and the chords opening up from a muffled low-pass over the first 8 bars.
-cymbals(-1, 0);
-s.lay(part.chords, { atSec: s.at(0), lenSec: 8 * s.barSec, gain: lv.chords, lowpass: [900, 16000] });
-cymbals(4, 8);
+/** The bass on the root: 1 held, a short one on the "and" of 3. In C; SHIFT moves it. */
+const ROOT_HZ = { C: 65.41, A: 55.0, D: 73.42, F: 87.31 };
+function bass(from: number, to: number) {
+  const k = Math.pow(2, SHIFT / 12);
+  const notes: { at: number; len: number; hz: number; v?: number }[] = [];
+  for (let b = from; b < to; b++) {
+    const hz = ROOT_HZ[chordAt(b)] * k;
+    notes.push({ at: s.at(b), len: 2.6 * s.beatSec, hz });
+    notes.push({ at: s.at(b, 2.5), len: 1.2 * s.beatSec, hz, v: 0.75 });
+  }
+  s.pitched(bassNote, 65.41, lv.bass, notes);
+}
 
-// 9-32: the chords straight on.
-s.loop(part.chords, 8, 32, lv.chords);
+/** Lo-fi swing: the off-beat eighths a little late. */
+const SWING = 0.07;
+/** The beat. `kick`/`snare` on or off; `open` lets the hats ring on the off-beats. */
+function drums(from: number, to: number, o: { kick: boolean; snare: boolean; hatGain?: number; open?: boolean }) {
+  const shape = [1, 0.5, 0.8, 0.45, 0.95, 0.55, 0.8, 0.5];
+  for (let b = from; b < to; b++) {
+    if (o.kick) {
+      human(part.kick, b, 0, lv.kick, 0.08);
+      human(part.kick, b, 2.5 + SWING, lv.kick * 0.7, 0.1);
+    }
+    if (o.snare) {
+      human(part.snare, b, 1, lv.snare, 0.1);
+      human(part.snare, b, 3, lv.snare, 0.1);
+    }
+    for (let e = 0; e < 8; e++) {
+      const at = e / 2 + (e % 2 ? SWING : 0);
+      human(part.hat, b, at, lv.hat * (o.hatGain ?? 1) * shape[e], 0.15, o.open && e % 2 ? undefined : 0.12);
+    }
+  }
+}
 
-// 9-16 clean drums and the bass; 17-24 the trashy loop; 25-28 out; 29-32 back.
-drums("clean", 8, 16);
-drums("trashy", 16, 24);
-drums("trashy", 28, 32);
-// Air: the synth chords have almost nothing above 3 kHz and the tape drums are
-// dull (those sections measured -37 dB up there, against Barefoot's -28), so
-// the top of a lo-fi kit from a third pack (Lavish Lofi's "Tents") rides
-// over the drum sections (-30.5 dB above 3 kHz, warmer than Barefoot's -28);
-// the tape loops' own cymbals were too dull to.
-s.loop(part.tents, 8, 24, lv.tents * 2.0, {}, { startBar: 8, highpass: 3500 });
-s.loop(part.tents, 28, 32, lv.tents * 2.0, {}, { startBar: 28, highpass: 3500 });
-bassBars(8, 32, lv.bass);
+// Count-in: hat quarters.
+for (let q = 0; q < 4; q++) human(part.hat, -1, q, lv.hat * 1.2, 0.05);
 
-// 33: C, the chords' first bar ringing, the bass's C held, a last hit.
-s.lay(part.chords, { atSec: s.at(32), lenSec: s.barSec + 2.5, gain: lv.chords, fadeOut: 2.5 });
-s.pitched(bassNote, C2, lv.bass, [{ at: s.at(32), len: 1.68 * 0.99, hz: shifted(65.41) }]);
-s.lay(part.trashy, { atSec: s.at(32), lenSec: s.beatSec, gain: lv.trashy, fadeOut: 0.3 });
+piano(0, 32);
+drums(0, 4, { kick: false, snare: false, hatGain: 0.55 });
+bass(4, 32);
+drums(4, 8, { kick: true, snare: false });
+drums(8, 16, { kick: true, snare: true });
+s.loop(part.pad, 8, 28, lv.pad);
+drums(16, 24, { kick: true, snare: true, open: true });
+drums(24, 28, { kick: false, snare: false });
+drums(28, 32, { kick: true, snare: true });
+s.loop(part.pad, 28, 32, lv.pad);
+
+// 33: Cmaj7, after the F. The piano's chord ringing, the bass's C, a last kick.
+s.lay(CHORD.C, { atSec: s.at(32), gain: lv.piano, fadeOut: 1.2 });
+s.pitched(bassNote, 65.41, lv.bass, [{ at: s.at(32), len: 1.6, hz: 65.41 * Math.pow(2, SHIFT / 12) }]);
+human(part.kick, 32, 0, lv.kick, 0.05);
 
 s.write();
