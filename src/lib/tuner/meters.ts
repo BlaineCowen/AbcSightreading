@@ -29,10 +29,10 @@ export interface Meter {
 }
 
 export const METERS: Meter[] = [
-  { id: "2/4", beats: 2, beatNote: "quarter", subdivisions: [1, 2, 3, 4], defaultSubdivision: 1, groupStarts: [], kind: "simple" },
-  { id: "3/4", beats: 3, beatNote: "quarter", subdivisions: [1, 2, 3, 4], defaultSubdivision: 1, groupStarts: [], kind: "simple" },
-  { id: "4/4", beats: 4, beatNote: "quarter", subdivisions: [1, 2, 3, 4], defaultSubdivision: 1, groupStarts: [2], kind: "simple" },
-  { id: "5/4", beats: 5, beatNote: "quarter", subdivisions: [1, 2, 3, 4], defaultSubdivision: 1, groupStarts: [3], kind: "simple", grouping: "3+2" },
+  { id: "2/4", beats: 2, beatNote: "quarter", subdivisions: [1, 2, 3, 4, 8], defaultSubdivision: 1, groupStarts: [], kind: "simple" },
+  { id: "3/4", beats: 3, beatNote: "quarter", subdivisions: [1, 2, 3, 4, 8], defaultSubdivision: 1, groupStarts: [], kind: "simple" },
+  { id: "4/4", beats: 4, beatNote: "quarter", subdivisions: [1, 2, 3, 4, 8], defaultSubdivision: 1, groupStarts: [2], kind: "simple" },
+  { id: "5/4", beats: 5, beatNote: "quarter", subdivisions: [1, 2, 3, 4, 8], defaultSubdivision: 1, groupStarts: [3], kind: "simple", grouping: "3+2" },
   { id: "2/2", beats: 2, beatNote: "half", subdivisions: [1, 2, 4], defaultSubdivision: 1, groupStarts: [], kind: "simple" },
   { id: "6/8", beats: 2, beatNote: "dottedQuarter", subdivisions: [1, 3, 6], defaultSubdivision: 3, groupStarts: [], kind: "compound" },
   { id: "9/8", beats: 3, beatNote: "dottedQuarter", subdivisions: [1, 3, 6], defaultSubdivision: 3, groupStarts: [], kind: "compound" },
@@ -68,5 +68,5 @@ export function subdivisionLabel(meter: Meter, perBeat: number): string {
   if (perBeat === 3 && meter.beatNote !== "dottedQuarter") return "Triplets";
   const beatInSixteenths = { half: 8, quarter: 4, dottedQuarter: 6, eighth: 2 }[meter.beatNote];
   const each = beatInSixteenths / perBeat;
-  return each === 2 ? "Eighths" : each === 1 ? "Sixteenths" : each === 4 ? "Quarters" : `${perBeat} per beat`;
+  return each === 2 ? "Eighths" : each === 1 ? "Sixteenths" : each === 0.5 ? "Thirty-seconds" : each === 4 ? "Quarters" : `${perBeat} per beat`;
 }

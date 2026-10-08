@@ -7,7 +7,7 @@
   import { toolSettings, setTool } from "../../lib/tools/settings";
   import { METERS, meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
   import MeterControls from "../tuner/MeterControls.svelte";
-  import BeatDots from "../tuner/BeatDots.svelte";
+  import BeatTiles from "../tuner/BeatTiles.svelte";
   import { linkedToPage, metronomeSounding, toggleMetronome } from "../../lib/tools/metronome-link";
 
   /**
@@ -48,7 +48,7 @@
 
 <h3 class="text-[15px] font-semibold text-sr-ink">Metronome</h3>
 
-<BeatDots size="sm" />
+<BeatTiles size="sm" />
 
 <div class="flex items-center justify-center gap-4">
   <button class={step} on:click={() => nudge(-1)} disabled={$tuner.bpm <= BPM_MIN} aria-label="Slower">−</button>

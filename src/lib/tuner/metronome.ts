@@ -8,12 +8,16 @@ import {
   type ClickLevel,
   type ClickSound,
 } from "./click-sounds";
+import { beatEvents, beatLevelsFor, type BeatLevel } from "./click-pattern";
 
 export interface MetronomeSettings {
   bpm: number;
   beatsPerBar: number;
   subdivision: number; // clicks per beat, 1 = none
   accent: boolean;
+  /** Each beat's level, and which slots of a beat sound (click-pattern.ts). */
+  beatLevels?: BeatLevel[] | null;
+  subMask?: string | null;
   /**
    * Beats that start a group after the first - the 4 of 12/8's second half,
    * 5/8's 3. They get a lighter accent than the downbeat. Optional, so a
@@ -112,17 +116,16 @@ export class Metronome {
 
   private schedule() {
     const ctx = this.ctx!;
-    const { bpm, beatsPerBar, subdivision, accent } = this.settings;
+    const { bpm, beatsPerBar, subdivision, accent, beatLevels, subMask } = this.settings;
     const beatDur = 60 / bpm;
+    // Beat 1 accented unless the levels say otherwise. Accenting each group's
+    // first beat too (4/4's 3, 12/8's 4) put a third pitch in the bar - A F E
+    // F - which drew the ear more than it helped; a teacher can now set it.
+    const levels = beatLevelsFor({ beats: beatsPerBar, accent, beatLevels });
     while (this.nextBeatTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
       const beatInBar = this.beat % beatsPerBar;
-      // Beat 1 only. Accenting each group's first beat too (4/4's 3, 12/8's
-      // 4) put a third pitch in the bar - A F E F - which drew the ear more
-      // than it helped, and the click under an exercise never did it.
-      const isAccent = accent && beatInBar === 0;
-      this.click(this.nextBeatTime, isAccent ? "downbeat" : "beat");
-      for (let s = 1; s < subdivision; s++) {
-        this.click(this.nextBeatTime + (s * beatDur) / subdivision, "sub");
+      for (const e of beatEvents(levels[beatInBar], subdivision, subMask)) {
+        this.click(this.nextBeatTime + e.at * beatDur, e.level, undefined, e.gain);
       }
       const delay = Math.max(0, (this.nextBeatTime - ctx.currentTime) * 1000);
       setTimeout(() => this.onBeat?.(beatInBar), delay);
@@ -132,7 +135,7 @@ export class Metronome {
   }
 
   /** One click: its sample if loaded, else the synthesized tick. */
-  private click(time: number, level: ClickLevel, sound = this.settings.sound ?? DEFAULT_CLICK_SOUND) {
+  private click(time: number, level: ClickLevel, sound = this.settings.sound ?? DEFAULT_CLICK_SOUND, scale = 1) {
     const ctx = this.ctx!;
     const voice = voiceFor(sound, level);
     const buffer = voice ? this.bank.get(voice.sample) : undefined;
@@ -141,7 +144,7 @@ export class Metronome {
       src.buffer = buffer;
       src.playbackRate.value = voice.rate;
       const gain = ctx.createGain();
-      gain.gain.value = voice.gain * SAMPLE_BOOST;
+      gain.gain.value = voice.gain * SAMPLE_BOOST * scale;
       src.connect(gain).connect(this.out!);
       src.start(time);
       // The files run 2.4 s; nothing here needs more than the bell's ring.
@@ -152,7 +155,7 @@ export class Metronome {
       };
       return;
     }
-    this.tick(time, level);
+    this.tick(time, level, scale);
   }
 
   /**
@@ -160,14 +163,14 @@ export class Metronome {
    * The old one was a square held for 40 ms - its odd harmonics are what made
    * it buzz.
    */
-  private tick(time: number, level: ClickLevel) {
+  private tick(time: number, level: ClickLevel, scale = 1) {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
     osc.frequency.setValueAtTime(TICK_HZ[level], time);
     gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(TICK_GAIN[level] * 0.6, time + 0.001);
+    gain.gain.exponentialRampToValueAtTime(TICK_GAIN[level] * 0.6 * scale, time + 0.001);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
     osc.connect(gain).connect(this.out!);
     osc.start(time);

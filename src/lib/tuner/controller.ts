@@ -44,6 +44,8 @@ export function initTuner() {
       s.beatsPerBar !== last.beatsPerBar ||
       s.subdivision !== last.subdivision ||
       s.accent !== last.accent ||
+      s.beatLevels !== last.beatLevels ||
+      s.subMask !== last.subMask ||
       s.clickSound !== last.clickSound ||
       s.metronomeVolume !== last.metronomeVolume
     ) {
@@ -63,6 +65,8 @@ const metronomeSettings = (s: TunerState) => ({
   beatsPerBar: s.beatsPerBar,
   subdivision: s.subdivision,
   accent: s.accent,
+  beatLevels: s.beatLevels,
+  subMask: s.subMask,
   groupStarts: meterById(s.meter).groupStarts,
   sound: s.clickSound,
   // The store's 0.5 middle is the level the metronome always had.

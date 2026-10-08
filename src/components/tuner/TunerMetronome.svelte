@@ -5,7 +5,7 @@
   import { initTuner } from "../../lib/tuner/controller";
   import { meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
   import MeterControls from "./MeterControls.svelte";
-  import BeatDots from "./BeatDots.svelte";
+  import BeatTiles from "./BeatTiles.svelte";
 
   onMount(() => {
     initTuner();
@@ -33,7 +33,7 @@
 </script>
 
 <div class="flex flex-col gap-4 bg-sr-panel border border-sr-hairline rounded-lg p-4">
-  <BeatDots />
+  <BeatTiles />
 
   <!-- BPM -->
   <div class="flex items-center justify-center gap-3">

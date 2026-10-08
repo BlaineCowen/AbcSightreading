@@ -713,7 +713,7 @@
     lyricSystem, minorSolfege, showChords, cursorMode, instrumentProgram, transposeSemitones,
     [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','),
     playbackVolume, $tuner.metronomeVolume, $tuner.clickWithMusic,
-    $tuner.subdivision, $tuner.accent, $tuner.clickSound,
+    $tuner.subdivision, $tuner.accent, $tuner.clickSound, $tuner.beatLevels?.join(',') ?? '', $tuner.subMask ?? '',
   ].join('|');
 
   /**
@@ -759,6 +759,8 @@
       subdivision: $tuner.subdivision,
       accent: $tuner.accent,
       sound: $tuner.clickSound,
+      beatLevels: $tuner.beatLevels,
+      subMask: $tuner.subMask,
     });
   /**
    * Whether the synth is built with the click. Playing, it is whether this
@@ -768,7 +770,7 @@
    */
   const clickOnFor = (t: typeof $tuner) => (t.exercisePlaying ? t.musicClick : t.clickWithMusic || t.metronomeRunning);
   const clickKeyFor = (t: typeof $tuner) =>
-    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}`;
+    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}|${t.beatLevels?.join(",") ?? ""}|${t.subMask ?? ""}`;
   $: clickOn = clickOnFor($tuner);
   /** The click the synth was last built with, to notice when the metronome changes it. */
   let builtClick = "";
@@ -987,7 +989,7 @@
     const t = tuner.get();
     builtClick = clickKeyFor(t);
     return {
-      ...(clickOnFor(t) ? { drum: drumFor(selectedTimeSignature), drumBars: 1 } : {}),
+      ...(clickOnFor(t) && drumFor(selectedTimeSignature) ? { drum: drumFor(selectedTimeSignature), drumBars: 1 } : {}),
       // The count-in: two bars in 2/4, so "1, 2, Ready, Go" fits (count-in.ts).
       drumIntro: countInMeasures(playedMeter),
       // Samples come through our own origin: abcjs otherwise fetches them from
