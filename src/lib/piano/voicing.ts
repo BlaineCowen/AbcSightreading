@@ -97,18 +97,19 @@ const motion = (a: number[], b: number[]) => a.reduce((s, x, i) => s + Math.abs(
 
 /**
  * A block chord for the left hand, close and inside [low, high], moving as
- * little as it can from the last one; the first is in root position, near C3.
+ * little as it can from the last one; the first is in root position, near
+ * `home` (C3 for the left hand).
  * So I, IV and V7 come out C-E-G, C-F-A and B-F-G, the shapes a method book
  * teaches.
  */
-export function blockChord(key: string, name: string, previous: number[] | null, low: number, high: number): number[] {
+export function blockChord(key: string, name: string, previous: number[] | null, low: number, high: number, home = 7): number[] {
   const degrees = playedDegrees(name);
   const all = closeVoicings(key, degrees, low, high);
   if (!all.length) throw new Error(`No voicing of ${name} in ${key} between ${low} and ${high}`);
   if (!previous) {
     const rootPos = all.filter((v) => degreeOf(key, v[0]) === degrees[0]);
     const pool = rootPos.length ? rootPos : all;
-    return pool.reduce((best, v) => (Math.abs(v[0] - 7) < Math.abs(best[0] - 7) ? v : best));
+    return pool.reduce((best, v) => (Math.abs(v[0] - home) < Math.abs(best[0] - home) ? v : best));
   }
   return all.reduce((best, v) => (motion(v, previous) < motion(best, previous) ? v : best));
 }

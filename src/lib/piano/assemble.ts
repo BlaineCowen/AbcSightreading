@@ -25,6 +25,40 @@ function token(n: PianoNote): string {
   return names.length === 1 ? `${names[0]}${n.length}` : `[${names.join("")}]${n.length}`;
 }
 
+/**
+ * How far a beam may reach: a half bar in 4/4 and 2/4 (four eighths under one
+ * beam, as an Alberti or broken-chord bass is printed), a beat in 3/4.
+ */
+export function beamGroup(meter: string, barUnits: number): number {
+  return meter === "3/4" ? barUnits / 3 : barUnits >= 32 ? barUnits / 2 : barUnits;
+}
+
+/**
+ * A bar's notes as ABC, beamed: ABC beams notes written with no space between
+ * them, so two notes shorter than a quarter, side by side in one beam group,
+ * are joined. A rest, or anything a quarter or longer, breaks the beam. It
+ * used to join every note with a space, and every eighth printed with its
+ * own flag.
+ */
+export function beamed(bar: PianoNote[], group: number): string {
+  let out = "";
+  let t = 0;
+  bar.forEach((n, i) => {
+    const prev = bar[i - 1];
+    const prevStart = t - (prev?.length ?? 0);
+    const join =
+      prev &&
+      !prev.rest &&
+      !n.rest &&
+      prev.length < 8 &&
+      n.length < 8 &&
+      Math.floor(prevStart / group) === Math.floor(t / group);
+    out += (i === 0 || join ? "" : " ") + token(n);
+    t += n.length;
+  });
+  return out;
+}
+
 /** A hand's notes, bar by bar. A note never crosses a barline (the writers keep ties off). */
 export function barsOf(notes: PianoNote[], barUnits: number): PianoNote[][] {
   const bars: PianoNote[][] = [];
@@ -61,7 +95,7 @@ export function assemblePianoAbc(input: PianoAbcInput): string {
     const row = (bars: PianoNote[][]) =>
       bars
         .slice(start, end)
-        .map((b) => b.map(token).join(" "))
+        .map((b) => beamed(b, beamGroup(input.meter, barUnits)))
         .join(" | ") + (end === count ? " |]" : " |");
     lines.push(`[V:RH] ${row(rh)}`);
     lines.push(`[V:LH] ${row(lh)}`);

@@ -39,16 +39,27 @@ function rootShape(key: string, name: string): { root: number; third: number; fi
   return { root, third, fifth, upper };
 }
 
+/** Where the right hand plays the chords when the tune is in the left: C4 to D5, the first chord near middle C. */
+export const RIGHT_HAND_CHORD_RANGE = { low: 14, high: 22, home: 14 };
+
 /**
- * The left hand for a whole exercise: each span in the pattern, the last held
- * as the piece's final chord (a broken or Alberti figure stops on it).
+ * The accompaniment for a whole exercise: each span in the pattern, the last
+ * held as the piece's final chord (a moving figure stops on it). The left
+ * hand's by default; `range` puts block chords in the right hand instead,
+ * when the tune is in the left.
  */
-export function writeLeftHand(key: string, spans: ChordSpan[], pattern: LeftHandPattern, beatUnits: number): PianoNote[] {
+export function writeLeftHand(
+  key: string,
+  spans: ChordSpan[],
+  pattern: LeftHandPattern,
+  beatUnits: number,
+  range: { low: number; high: number; home: number } = { low: LEFT_HAND_BOTTOM, high: LEFT_HAND_TOP, home: 7 },
+): PianoNote[] {
   const out: PianoNote[] = [];
   let previous: number[] | null = null;
   spans.forEach((span, i) => {
     const last = i === spans.length - 1;
-    const block = blockChord(key, span.name, previous, LEFT_HAND_BOTTOM, LEFT_HAND_TOP);
+    const block = blockChord(key, span.name, previous, range.low, range.high, range.home);
     previous = block;
     const shape = rootShape(key, span.name);
     const beats = Math.max(1, Math.round(span.length / beatUnits));
@@ -58,7 +69,7 @@ export function writeLeftHand(key: string, spans: ChordSpan[], pattern: LeftHand
     };
     const held = (pitches: number[]) => out.push({ pitches, length: span.length });
     // The final chord is held, whatever the pattern: the piece ends on it.
-    const p: LeftHandPattern = last && pattern !== "root" && pattern !== "fifth" ? "block" : pattern;
+    const p: LeftHandPattern = last && pattern !== "root" && pattern !== "fifth" ? (pattern === "rocking" ? "fifth" : "block") : pattern;
     switch (p) {
       case "root":
         held([shape.root]);
@@ -72,9 +83,24 @@ export function writeLeftHand(key: string, spans: ChordSpan[], pattern: LeftHand
       case "blockBeats":
         each([block], beatUnits);
         break;
+      case "rocking":
+        // Root and fifth in turn, one a beat: the first moving bass a beginner plays.
+        each([[shape.root], [shape.fifth]], beatUnits);
+        break;
+      case "oompah":
+        // Root, chord, fifth, chord: the bass on the strong beats, the chord between.
+        each([[shape.root], shape.upper, [shape.fifth], shape.upper], beatUnits);
+        break;
       case "broken":
         // Root, fifth, third, fifth: one note a beat.
         each([[shape.root], [shape.fifth], [shape.third], [shape.fifth]], beatUnits);
+        break;
+      case "arpeggio":
+        // Up the chord and back: root, third, fifth, third.
+        each([[shape.root], [shape.third], [shape.fifth], [shape.third]], beatUnits);
+        break;
+      case "brokenEighths":
+        each([[shape.root], [shape.fifth], [shape.third], [shape.fifth]], beatUnits / 2);
         break;
       case "waltz":
         // Root, then the chord on the other beats.

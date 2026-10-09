@@ -21,9 +21,9 @@ import { noteArray } from "../../resources/noteArray";
 import { beatUnitOf, timeSignatureFor } from "../meter";
 import { parallelFaults } from "../parallel-check";
 import type { RhythmWithPattern, VoiceNote } from "../types";
-import { PIANO_PROGRESSIONS, patternsFor, pianoLevelById, PIANO_LEVELS, type LeftHandPattern, type PianoLevel } from "./levels";
-import { writeLeftHand, type ChordSpan, type PianoNote } from "./left-hand";
-import { chordDegrees, degreeOf, leftHandPosition, rightHandPosition } from "./voicing";
+import { PIANO_PROGRESSIONS, patternsFor, pianoLevelById, PIANO_LEVELS, RIGHT_HAND_CHORDS, type LeftHandPattern, type PianoLevel } from "./levels";
+import { writeLeftHand, RIGHT_HAND_CHORD_RANGE, type ChordSpan, type PianoNote } from "./left-hand";
+import { bassRoot, chordDegrees, degreeOf, leftHandPosition, rightHandPosition } from "./voicing";
 import { assemblePianoAbc, barsOf } from "./assemble";
 
 export interface PianoParams {
@@ -33,9 +33,13 @@ export interface PianoParams {
   measures?: number;
   /** A left-hand pattern of the level's, instead of a drawn one. */
   pattern?: LeftHandPattern;
+  /** Which hand has the tune, where the level lets it move (`leftHandTune`): right by default. */
+  tuneHand?: TuneHand | "either";
   bpm?: number;
   barsPerLine?: number;
 }
+
+export type TuneHand = "right" | "left";
 
 export interface PianoExercise {
   level: PianoLevel;
@@ -47,7 +51,8 @@ export interface PianoExercise {
   /** Chord names, bar by bar (one or two a bar). */
   harmony: string[][];
   pattern: LeftHandPattern;
-  /** The chords as the left hand plays them, one span a chord (none when the hands take turns). */
+  tuneHand: TuneHand;
+  /** The chords as the accompaniment plays them, one span a chord (none when the hands take turns). */
   spans: ChordSpan[];
   rh: PianoNote[];
   lh: PianoNote[];
@@ -56,6 +61,8 @@ export interface PianoExercise {
 
 /** Draws of a whole exercise before giving up (a rhythm no line fits, or a fault). */
 const ATTEMPTS = 12;
+/** Rhythms and lines drawn for one tune before the exercise is drawn again. */
+const LINE_DRAWS = 12;
 /** How often a level's first left-hand pattern is drawn, the rest sharing what is left. */
 const FIRST_PATTERN = 0.6;
 /** How often an eligible long note at a cadence takes a third or sixth under it (level 8). */
@@ -87,11 +94,13 @@ function tune(
   low: number,
   high: number,
   progressionId?: string,
+  /** A test the line must pass, or another rhythm and line are drawn. */
+  accept: (rhythm: RhythmWithPattern[], line: ProgressionLine) => boolean = () => true,
 ): { rhythm: RhythmWithPattern[]; line: ProgressionLine } | null {
   const ts = timeSignatureFor(meter);
   const rhythms = rhythmsFor(level, ts.tsPerMeasure);
   const chords = chordTable.filter((c) => level.chords.includes(c.name));
-  for (let a = 0; a < 6; a++) {
+  for (let a = 0; a < LINE_DRAWS; a++) {
     let rhythm: RhythmWithPattern[];
     try {
       rhythm = generateRandomRhythm(ts as any, measures, rhythms, Array(Math.ceil(measures / 4)).fill({ type: "V-I" }), true, false);
@@ -113,9 +122,23 @@ function tune(
       progressions: PIANO_PROGRESSIONS,
       progressionId,
     });
-    if (line) return { rhythm, line };
+    if (line && accept(rhythm, line)) return { rhythm, line };
   }
   return null;
+}
+
+/**
+ * Does a tune move in fifths or octaves with the chords' roots? Checked as
+ * soon as the line is written, before any left hand is built: the progression
+ * writer knows the chords but not where the bass is, so a tune stepping from
+ * chord note to chord note can shadow the roots (in F, C over F to F over B
+ * flat), and it was drawing a whole exercise again, twelve times, and
+ * sometimes failing.
+ */
+function shadowsRoots(key: string, rhythm: RhythmWithPattern[], line: ProgressionLine, barUnits: number, beatUnits: number): boolean {
+  const spans = spansOf(line.harmony, barUnits, beatUnits);
+  const roots: PianoNote[] = spans.map((s) => ({ pitches: [bassRoot(key, chordDegrees(s.name)[0])], length: s.length }));
+  return parallelFaults([asVoice(asNotes(rhythm, line), "top"), asVoice(roots, "bottom")], key) > 0;
 }
 
 /** One note per rhythm slot. */
@@ -187,28 +210,37 @@ export function mergeRests(notes: PianoNote[], barUnits: number): PianoNote[] {
   });
 }
 
-/**
- * The bass the ear follows: under a pattern, each chord's lowest note held for
- * the chord (an Alberti or broken figure's other notes are the chord, not a
- * line); when the hands take turns, the left hand's tune itself.
- */
-function bassLine(ex: PianoExercise): VoiceNote[] {
-  if (!ex.spans.length) return asVoice(ex.lh, "bottom");
-  const lh: { start: number; end: number; pitches: number[] }[] = [];
+/** Each chord's lowest (or highest) note in a hand, held for the chord: what the ear follows of an accompaniment figure. */
+function spanLine(notes: PianoNote[], spans: ChordSpan[], which: "top" | "bottom"): VoiceNote[] {
+  const evs: { start: number; pitches: number[] }[] = [];
   let t = 0;
-  for (const n of ex.lh) {
-    lh.push({ start: t, end: t + n.length, pitches: n.rest ? [] : n.pitches });
+  for (const n of notes) {
+    evs.push({ start: t, pitches: n.rest ? [] : n.pitches });
     t += n.length;
   }
   let at = 0;
   return asVoice(
-    ex.spans.map((span) => {
-      const inSpan = lh.filter((e) => e.start >= at && e.start < at + span.length).flatMap((e) => e.pitches);
+    spans.map((span) => {
+      const inSpan = evs.filter((e) => e.start >= at && e.start < at + span.length).flatMap((e) => e.pitches);
       at += span.length;
-      return inSpan.length ? { pitches: [Math.min(...inSpan)], length: span.length } : { pitches: [], length: span.length, rest: true };
+      if (!inSpan.length) return { pitches: [], length: span.length, rest: true };
+      return { pitches: [which === "top" ? Math.max(...inSpan) : Math.min(...inSpan)], length: span.length };
     }),
-    "bottom",
+    which,
   );
+}
+
+/**
+ * The two lines parallels are judged between: the tune and the bass the ear
+ * follows. Under a pattern that is each chord's lowest note (an Alberti or
+ * broken figure's other notes are the chord, not a line); with the tune in
+ * the left hand, the tune against the right hand's top note; when the hands
+ * take turns, the two tunes as written.
+ */
+function outerLines(ex: PianoExercise): VoiceNote[][] {
+  if (!ex.spans.length) return [asVoice(ex.rh, "top"), asVoice(ex.lh, "bottom")];
+  if (ex.tuneHand === "left") return [spanLine(ex.rh, ex.spans, "top"), asVoice(ex.lh, "bottom")];
+  return [asVoice(ex.rh, "top"), spanLine(ex.lh, ex.spans, "bottom")];
 }
 
 const total = (notes: PianoNote[]) => notes.reduce((s, n) => s + n.length, 0);
@@ -218,16 +250,22 @@ export function pianoFault(ex: PianoExercise, barUnits: number): string | null {
   const want = ex.measures * barUnits;
   if (total(ex.rh) !== want || total(ex.lh) !== want) return "a hand does not fill its bars";
   for (const hand of [ex.rh, ex.lh]) if (barsOf(hand, barUnits).some((b) => total(b) !== barUnits)) return "a bar is not full";
-  if (parallelFaults([asVoice(ex.rh, "top"), bassLine(ex)], ex.key) > 0) return "parallel fifths or octaves between the tune and the bass";
+  if (parallelFaults(outerLines(ex), ex.key) > 0) return "parallel fifths or octaves between the tune and the bass";
   return null;
 }
 
-function writeOnce(level: PianoLevel, key: string, meter: string, measures: number, pattern: LeftHandPattern, bpm: number, barsPerLine?: number): PianoExercise | null {
+function writeOnce(level: PianoLevel, key: string, meter: string, measures: number, pattern: LeftHandPattern, tuneHand: TuneHand, bpm: number, barsPerLine?: number): PianoExercise | null {
   const ts = timeSignatureFor(meter);
   const barUnits = ts.tsPerMeasure;
   const beatUnits = beatUnitOf(meter);
   const right = rightHandPosition(key, level.reach);
-  const main = tune(level, key, meter, measures, right.low, right.high);
+  // The tune in the left hand reads in its own position, thumb up from the tonic in the bass.
+  const leftTune = leftHandPosition(key);
+  const main =
+    tuneHand === "left"
+      ? tune(level, key, meter, measures, leftTune.low, leftTune.low + level.reach)
+      : tune(level, key, meter, measures, right.low, right.high, undefined, (r, l) =>
+          !level.together || !shadowsRoots(key, r, l, barUnits, beatUnits));
   if (!main) return null;
   let rh = mergeRests(asNotes(main.rhythm, main.line), barUnits);
   let lh: PianoNote[];
@@ -248,6 +286,11 @@ function writeOnce(level: PianoLevel, key: string, meter: string, measures: numb
     }
     rh = rhOut;
     lh = lhOut;
+  } else if (tuneHand === "left") {
+    // The right hand plays the chords above middle C, the left hand the tune.
+    spans = spansOf(main.line.harmony, barUnits, beatUnits);
+    lh = rh;
+    rh = writeLeftHand(key, spans, pattern, beatUnits, RIGHT_HAND_CHORD_RANGE);
   } else {
     spans = spansOf(main.line.harmony, barUnits, beatUnits);
     lh = writeLeftHand(key, spans, pattern, beatUnits);
@@ -262,6 +305,7 @@ function writeOnce(level: PianoLevel, key: string, meter: string, measures: numb
     progression: main.line.progression.label,
     harmony: main.line.harmony,
     pattern,
+    tuneHand,
     spans,
     rh,
     lh,
@@ -288,8 +332,13 @@ export function generatePianoExercise(params: PianoParams): PianoExercise {
   const barUnits = timeSignatureFor(meter).tsPerMeasure;
   let lastFault = "no line fits";
   for (let a = 0; a < ATTEMPTS; a++) {
-    const pattern = params.pattern && patternsFor(level, meter).includes(params.pattern) ? params.pattern : drawPattern(level, meter);
-    const ex = writeOnce(level, key, meter, measures, level.together ? pattern : "tune", bpm, params.barsPerLine);
+    const asked = params.tuneHand ?? "right";
+    const tuneHand: TuneHand = !level.leftHandTune ? "right" : asked === "either" ? (Math.random() < 0.5 ? "left" : "right") : asked;
+    // With the tune in the left hand the right hand holds the chords, or plays them on each beat.
+    const offered = tuneHand === "left" ? RIGHT_HAND_CHORDS : patternsFor(level, meter);
+    const pattern =
+      params.pattern && offered.includes(params.pattern) ? params.pattern : tuneHand === "left" ? pick(RIGHT_HAND_CHORDS) : drawPattern(level, meter);
+    const ex = writeOnce(level, key, meter, measures, level.together ? pattern : "tune", tuneHand, bpm, params.barsPerLine);
     if (!ex) continue;
     const fault = pianoFault(ex, barUnits);
     if (!fault) return ex;

@@ -15,26 +15,36 @@
   import { drumPatternFor } from "../lib/playback-click";
   import { DEFAULT_CLICK_SOUND } from "../lib/tuner/click-sounds";
   import { beatsOf, beatSymbolOf } from "../lib/meter";
-  import { PIANO_LEVELS, pianoLevelById, patternsFor, type LeftHandPattern } from "../lib/piano/levels";
-  import { generatePianoExercise, type PianoExercise } from "../lib/piano/generatePiano";
+  import { PIANO_LEVELS, pianoLevelById, patternsFor, RIGHT_HAND_CHORDS, type LeftHandPattern } from "../lib/piano/levels";
+  import { generatePianoExercise, type PianoExercise, type TuneHand } from "../lib/piano/generatePiano";
 
   const HANDS = ["Right hand", "Left hand"];
   const PATTERN_NAMES: Record<LeftHandPattern, string> = {
     tune: "Taking turns",
     root: "Held root",
     fifth: "Open fifths",
+    rocking: "Rocking fifths",
     block: "Block chords",
     blockBeats: "Chords on each beat",
+    oompah: "Oom-pah",
     broken: "Broken chords",
+    arpeggio: "Arpeggios",
     waltz: "Waltz bass",
+    brokenEighths: "Broken chords in eighths",
     alberti: "Alberti bass",
   };
+  const TUNE_HANDS: { id: TuneHand | "either"; label: string }[] = [
+    { id: "right", label: "Right hand" },
+    { id: "left", label: "Left hand" },
+    { id: "either", label: "Either" },
+  ];
 
   let levelId = PIANO_LEVELS[2].id;
   let key = "any";
   let meter = "4/4";
   let measures = 8;
   let pattern: LeftHandPattern | "any" = "any";
+  let tuneHand: TuneHand | "either" = "right";
   let bpm = 72;
   let clickOn = true;
   let looping = false;
@@ -50,7 +60,9 @@
   let narrow = false;
 
   $: level = pianoLevelById[levelId] ?? PIANO_LEVELS[0];
-  $: patterns = level.together ? patternsFor(level, meter) : [];
+  $: if (!level.leftHandTune) tuneHand = "right";
+  // With the tune in the left hand, the right hand's chords are the choice.
+  $: patterns = !level.together ? [] : tuneHand === "left" ? RIGHT_HAND_CHORDS : patternsFor(level, meter);
   // A choice the level does not offer goes back to Any, rather than sticking.
   $: if (key !== "any" && !level.keys.includes(key)) key = "any";
   $: if (!level.meters.includes(meter)) meter = level.meters[0];
@@ -60,6 +72,7 @@
     const p = new URLSearchParams({ level: levelId, meter, measures: String(measures), bpm: String(bpm) });
     if (key !== "any") p.set("key", key);
     if (pattern !== "any") p.set("lh", pattern);
+    if (tuneHand !== "right") p.set("tune", tuneHand);
     return p.toString();
   }
   const settingsLink = () => `${location.origin}/piano-sightreading?${settingsQuery()}`;
@@ -80,8 +93,10 @@
     if ([4, 8, 16].includes(n)) measures = n;
     const b = Number(p.get("bpm"));
     if (b >= 30 && b <= 200) bpm = b;
+    const t = p.get("tune");
+    if (lv.leftHandTune && (t === "left" || t === "either")) tuneHand = t;
     const lh = p.get("lh") as LeftHandPattern | null;
-    if (lh && patternsFor(lv, meter).includes(lh)) pattern = lh;
+    if (lh && (tuneHand === "left" ? RIGHT_HAND_CHORDS : patternsFor(lv, meter)).includes(lh)) pattern = lh;
   }
 
   function chooseLevel(id: string) {
@@ -105,6 +120,7 @@
         meter,
         measures,
         pattern: pattern === "any" ? undefined : pattern,
+        tuneHand,
         bpm,
         barsPerLine: narrow ? 2 : 4,
       });
@@ -275,10 +291,20 @@
       </div>
     </div>
 
+    {#if level.leftHandTune}
+      <div class="flex flex-col gap-2">
+        <span class="sr-label">Tune in</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Tune in">
+          {#each TUNE_HANDS as h}
+            <button type="button" class="sr-tok {tuneHand === h.id ? 'sr-on' : ''}" aria-pressed={tuneHand === h.id} on:click={() => (tuneHand = h.id)}>{h.label}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
     {#if level.together}
       <div class="flex flex-col gap-2">
-        <span class="sr-label">Left hand</span>
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Left hand">
+        <span class="sr-label">{tuneHand === "left" ? "Right hand" : "Left hand"}</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label={tuneHand === "left" ? "Right hand" : "Left hand"}>
           <button type="button" class="sr-tok {pattern === 'any' ? 'sr-on' : ''}" aria-pressed={pattern === "any"} on:click={() => (pattern = "any")}>Any of the level's</button>
           {#each patterns as p}
             <button type="button" class="sr-tok {pattern === p ? 'sr-on' : ''}" aria-pressed={pattern === p} on:click={() => (pattern = p)}>{PATTERN_NAMES[p]}</button>
@@ -302,7 +328,8 @@
 
   {#if exercise}
     <p class="text-sm text-sr-muted px-1">
-      {exercise.key.replace("b", "♭")} major · {exercise.meter} · {exercise.progression} · left hand: {PATTERN_NAMES[exercise.pattern]}
+      {exercise.key.replace("b", "♭")} major · {exercise.meter} · {exercise.progression} ·
+      {#if exercise.tuneHand === "left"}tune in the left hand, right hand: {PATTERN_NAMES[exercise.pattern]}{:else}left hand: {PATTERN_NAMES[exercise.pattern]}{/if}
     </p>
   {/if}
   <CountInBadge />

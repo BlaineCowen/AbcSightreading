@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import abcjs from "abcjs";
 import { blockChord, bassRoot, rightHandPosition, leftHandPosition, degreeOf, chordDegrees } from "../../src/lib/piano/voicing";
 import { writeLeftHand, LEFT_HAND_BOTTOM, LEFT_HAND_TOP } from "../../src/lib/piano/left-hand";
-import { assemblePianoAbc } from "../../src/lib/piano/assemble";
+import { assemblePianoAbc, beamed } from "../../src/lib/piano/assemble";
 import { generatePianoExercise, pianoFault, mergeRests } from "../../src/lib/piano/generatePiano";
 import { PIANO_LEVELS, patternsFor, type LeftHandPattern } from "../../src/lib/piano/levels";
 import { timeSignatureFor } from "../../src/lib/meter";
@@ -34,7 +34,7 @@ test("every left-hand pattern fills each chord's length with that chord's notes,
     { name: "5-7", length: 16, barStart: false },
     { name: "1", length: 32, barStart: true },
   ];
-  const patterns: LeftHandPattern[] = ["root", "fifth", "block", "blockBeats", "broken", "waltz", "alberti"];
+  const patterns: LeftHandPattern[] = ["root", "fifth", "rocking", "block", "blockBeats", "oompah", "broken", "arpeggio", "waltz", "brokenEighths", "alberti"];
   for (const p of patterns) {
     const notes = writeLeftHand("C", spans, p, 8);
     expect(notes.reduce((s, n) => s + n.length, 0)).toBe(96);
@@ -90,3 +90,33 @@ test("every level writes in each key and meter it offers, without a fault, and i
     Object.assign(console, quiet);
   }
 }, 120000);
+
+test("eighths are beamed in their group, and a quarter or a rest breaks the beam", () => {
+  const n = (p: number, l: number) => ({ pitches: [p], length: l });
+  // 4/4: four eighths under one beam a half bar.
+  expect(beamed([n(14, 4), n(15, 4), n(16, 4), n(17, 4), n(18, 4), n(17, 4), n(16, 8)], 16)).toBe("C4D4E4F4 G4F4 E8");
+  // 3/4: a beat; a rest between breaks it.
+  expect(beamed([n(14, 8), n(15, 4), n(16, 4), { pitches: [], length: 4, rest: true }, n(17, 4), n(18, 8)], 8)).toBe("C8 D4E4 z4 F4 G8");
+});
+
+test("with the tune in the left hand, the right hand plays the chords above middle C and the tune stays in the left hand's position", () => {
+  const quiet = { log: console.log, warn: console.warn };
+  Object.assign(console, { log() {}, warn() {} });
+  try {
+    for (let i = 0; i < 20; i++) {
+      const ex = generatePianoExercise({ levelId: "piano-06", key: "C", meter: "4/4", tuneHand: "left" });
+      expect(ex.tuneHand).toBe("left");
+      expect(["block", "blockBeats"]).toContain(ex.pattern);
+      for (const n of ex.rh) for (const p of n.pitches) expect(p).toBeGreaterThanOrEqual(14);
+      for (const n of ex.lh) for (const p of n.pitches) {
+        expect(p).toBeGreaterThanOrEqual(7);
+        expect(p).toBeLessThanOrEqual(11);
+      }
+      expect(pianoFault(ex, 32)).toBeNull();
+    }
+    // A level that does not move the tune keeps it in the right hand.
+    expect(generatePianoExercise({ levelId: "piano-05", key: "C", meter: "4/4", tuneHand: "left" }).tuneHand).toBe("right");
+  } finally {
+    Object.assign(console, quiet);
+  }
+});

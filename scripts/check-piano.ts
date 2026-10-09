@@ -17,7 +17,7 @@
  */
 import { generatePianoExercise, type PianoExercise } from "../src/lib/piano/generatePiano";
 import { PIANO_LEVELS } from "../src/lib/piano/levels";
-import { chordDegrees, degreeOf, rightHandPosition } from "../src/lib/piano/voicing";
+import { chordDegrees, degreeOf, leftHandPosition, rightHandPosition } from "../src/lib/piano/voicing";
 import { splitAt } from "../src/lib/unison-progressions";
 import { beatUnitOf, timeSignatureFor } from "../src/lib/meter";
 import { keySignatures } from "../src/resources/key-signatures";
@@ -49,7 +49,7 @@ let failures = 0;
 let problems = 0;
 for (const level of PIANO_LEVELS) {
   if (ONLY && level.id !== ONLY) continue;
-  const stat = { n: 0, spans: 0, root: 0, moments: 0, clash: 0, beats: 0, beatClash: 0, thirds: 0 };
+  const stat = { leftTunes: 0, n: 0, spans: 0, root: 0, moments: 0, clash: 0, beats: 0, beatClash: 0, thirds: 0 };
   for (const key of level.keys) for (const meter of level.meters) for (const measures of [4, 8, 16]) {
     const barUnits = timeSignatureFor(meter).tsPerMeasure;
     const beat = beatUnitOf(meter);
@@ -58,7 +58,8 @@ for (const level of PIANO_LEVELS) {
       let ex: PianoExercise;
       Object.assign(console, { log() {}, warn() {} });
       try {
-        ex = generatePianoExercise({ levelId: level.id, key, meter, measures });
+        // Where the level lets the tune move, half the runs have it in the left hand.
+        ex = generatePianoExercise({ levelId: level.id, key, meter, measures, tuneHand: "either" });
       } catch (e) {
         Object.assign(console, quiet);
         failures++;
@@ -73,12 +74,17 @@ for (const level of PIANO_LEVELS) {
         if (problems <= 30) console.log(`${level.id} ${key} ${meter} ${measures}: ${what}\n${ex.abc}`);
       };
       const rh = events(ex.rh), lh = events(ex.lh);
-      for (const e of rh) {
+      // The tune and the accompaniment, whichever hand each is in.
+      const left = ex.tuneHand === "left";
+      const tuneEvs = left ? lh : rh, accEvs = left ? rh : lh;
+      const where = left ? { low: leftHandPosition(key).low, high: leftHandPosition(key).low + level.reach } : pos;
+      for (const e of tuneEvs) {
         if (!e.pitches.length) continue;
         const top = Math.max(...e.pitches);
-        if (top < pos.low || top > pos.high) say(`tune outside its position at ${e.start}`);
-        if (e.pitches.length > 1 && !level.rightHandThirds) say(`a right-hand chord at level ${level.number}`);
+        if (top < where.low || top > where.high) say(`tune outside its position at ${e.start}`);
+        if (e.pitches.length > 1 && !level.rightHandThirds) say(`a chord in the tune at level ${level.number}`);
       }
+      if (left && level.together) stat.leftTunes++;
       // Chord spans: where each starts, the tune is on a chord note and the left hand plays only chord notes.
       const first = splitAt(barUnits, beat);
       let t = 0;
@@ -86,11 +92,11 @@ for (const level of PIANO_LEVELS) {
         const spans = bar.length === 1 ? [[bar[0], 0, barUnits]] : [[bar[0], 0, first], [bar[1], first, barUnits]];
         for (const [name, from, to] of spans as [string, number, number][]) {
           const tones = chordDegrees(name);
-          const r = at(rh, t + from);
+          const r = at(tuneEvs, t + from);
           if (r && r.pitches.length && r.start === t + from && !r.pitches.every((p) => tones.includes(degreeOf(key, p)))) say(`tune off ${name} where it starts, bar ${t / barUnits + 1}`);
-          if (level.together) for (const e of lh) if (e.start >= t + from && e.start < t + to && !e.pitches.every((p) => tones.includes(degreeOf(key, p)))) say(`left hand off ${name}, bar ${t / barUnits + 1}`);
+          if (level.together) for (const e of accEvs) if (e.start >= t + from && e.start < t + to && !e.pitches.every((p) => tones.includes(degreeOf(key, p)))) say(`accompaniment off ${name}, bar ${t / barUnits + 1}`);
           const l = at(lh, t + from);
-          if (l && l.pitches.length && level.together) {
+          if (l && l.pitches.length && level.together && !left) {
             stat.spans++;
             if (degreeOf(key, Math.min(...l.pitches)) === tones[0]) stat.root++;
           }
@@ -107,12 +113,12 @@ for (const level of PIANO_LEVELS) {
         if (clash) stat.clash++;
         if (s % beat === 0) { stat.beats++; if (clash) stat.beatClash++; }
       }
-      stat.thirds += ex.rh.filter((n) => n.pitches.length > 1).length;
+      if (!left) stat.thirds += ex.rh.filter((n) => n.pitches.length > 1).length;
     }
   }
   const pct = (a: number, b: number) => (b ? `${Math.round((100 * a) / b)}%` : "-");
   console.log(
-    `${level.id} ${String(stat.n).padStart(5)} exercises | bass on the root where a chord starts ${pct(stat.root, stat.spans)} | a 2nd or 7th between the hands ${pct(stat.clash, stat.moments)}, on a beat ${pct(stat.beatClash, stat.beats)} | right-hand thirds ${(stat.thirds / Math.max(1, stat.n)).toFixed(1)} an exercise`,
+    `${level.id} ${String(stat.n).padStart(5)} exercises | bass on the root where a chord starts ${pct(stat.root, stat.spans)} | a 2nd or 7th between the hands ${pct(stat.clash, stat.moments)}, on a beat ${pct(stat.beatClash, stat.beats)} | right-hand thirds ${(stat.thirds / Math.max(1, stat.n)).toFixed(1)} an exercise | tune in the left hand ${stat.leftTunes}`,
   );
 }
 console.log(`\nfailures: ${failures}   rule breaks: ${problems}`);

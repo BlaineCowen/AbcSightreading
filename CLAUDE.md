@@ -707,29 +707,38 @@ sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 
 `/piano-sightreading` (`AbcjsPiano.svelte`, `src/lib/piano/`, tests
 `piano.test.ts`, every level x key x meter x length `bun run
-scripts/check-piano.ts`): a grand staff (`%%score {RH | LH}`), the right
-hand's tune over the left hand's accompaniment, a separate system from
-Choral and Unison (8 October 2026). Harmony first: the tune is the Unison
-page's progression writer (`writeProgressionLine`, now taking a
-`progressions` table of its own) inside the right hand's position
-(`rightHandPosition`: thumb on the tonic at or above middle C, `reach` steps
-up), over `PIANO_PROGRESSIONS`; the left hand plays the same chords in the
-level's pattern (`left-hand.ts`: held root, open fifth, block, on each beat,
-broken, waltz in 3/4, Alberti), the bass root at one place a letter (F2 to
-E3, `bassRoot`) and block chords in the shapes a beginner learns (C-E-G,
-C-F-A, B-F-G; `blockChord` moves as little as it can). The last chord is
-held. Levels 1-2 the hands take turns, two bars each, one tune passed
-between them (the left hand's bars the same notes in its five-finger
-position). Eight levels in method-book order (`levels.ts` `PIANO_LEVELS`,
-ids `piano-01`... permanent): hands together at 3, IV at 4, block chords
-and eighths at 5, F major and ii/vi at 6, broken and waltz at 7, Alberti,
-a third or sixth under the tune at cadences and an octave's reach at 8. A
-finished exercise is checked (`pianoFault`: bars full, no parallel fifths
-or octaves between the tune and each chord's lowest note) and drawn again.
-Measured against Sight Reading Factory's piano levels:
-notes/srf-piano-study.md. Not yet: exact-notes share links and recent
-exercises (exercise-link.ts and recent-exercises.ts know two pages), the
-Tools wheel, presets and class progress, grading.
+scripts/check-piano.ts`): a grand staff (`%%score {RH | LH}`), a tune over
+an accompaniment, a separate system from Choral and Unison (8 October
+2026). Harmony first: the tune is the Unison page's progression writer
+(`writeProgressionLine`, now taking a `progressions` table of its own)
+inside the hand's position (`rightHandPosition`: thumb on the tonic at or
+above middle C, `reach` steps up; `leftHandPosition` for a tune in the bass),
+over `PIANO_PROGRESSIONS`, redrawn if it shadows the chords' roots in fifths
+or octaves (`shadowsRoots`: the writer knows the chords, not the bass). The
+accompaniment plays the same chords in the level's pattern (`left-hand.ts`:
+held root, open fifth, rocking fifths, block, on each beat, oom-pah, broken,
+arpeggio, waltz in 3/4, broken in eighths, Alberti), the bass root at one
+place a letter (F2 to E3, `bassRoot`) and block chords in the shapes a
+beginner learns (C-E-G, C-F-A, B-F-G; `blockChord` moves as little as it
+can). The last chord is held. Eighths are beamed by beat group (`beamed`: a
+half bar in 4/4 and 2/4, a beat in 3/4; ABC beams notes written with no
+space, and every eighth had its own flag).
+
+Eight levels in method-book order (`levels.ts` `PIANO_LEVELS`, ids
+`piano-01`... permanent; Faber, Alfred and Bastien agree on the order): 1-2
+the hands take turns, two bars each, one tune passed between them (C, then
+G position, 3rds); 3 hands together over a held root; 4 fifths held and
+rocking, IV, 4ths; 5 the chord shapes held and on each beat, eighths; 6 the
+tune in the left hand with the chords in the right (`leftHandTune`,
+`tuneHand`), oom-pah, F major, ii and vi; 7 broken chords, arpeggios, the
+waltz; 8 Alberti and broken eighths, a third or sixth under the tune at
+cadences, an octave's reach, D and B flat. A finished exercise is checked
+(`pianoFault`: bars full, no parallel fifths or octaves between the tune
+and each chord's outer note, `outerLines`) and drawn again. Measured against
+Sight Reading Factory's piano levels: notes/srf-piano-study.md. Not yet:
+exact-notes share links and recent exercises (exercise-link.ts and
+recent-exercises.ts know two pages), the Tools wheel, presets and class
+progress, grading.
 
 ## abcTuner
 
