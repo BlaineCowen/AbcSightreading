@@ -5172,30 +5172,28 @@
             {#if majorInPool}
             <div class="space-y-2">
               <p class="sr-label">Scale Degrees{minorInPool ? " (major)" : ""}</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
+              <!-- Laid out as a keyboard from C: each note two half-columns wide,
+                   each sharp or flat one half-column over, between the notes it
+                   falls between (♯1 and ♭2 between 1 and 2), as the black keys sit. -->
+              <div class="degree-grid" style="--cols: 14" role="group" aria-label="Scale Degrees">
                 {#each sharpScaleDegrees as degree}
                   <button
-                    class="sr-tok px-2
-                      {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
+                    class="sr-tok px-0 {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}"
+                    style="grid-column: {2 * degree.value} / span 2; grid-row: 1"
                     on:click={() => toggleSharpDegree(degree.value)}
                   >{degree.display}</button>
                 {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
                 {#each scaleDegrees as degree}
                   <button
-                    class="sr-tok {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
+                    class="sr-tok px-0 {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
+                    style="grid-column: {2 * degree - 1} / span 2; grid-row: 2"
                     on:click={() => toggleScaleDegree(degree)}
                   >{degree}</button>
                 {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
                 {#each flatScaleDegrees as degree}
                   <button
-                    class="sr-tok px-2
-                      {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
+                    class="sr-tok px-0 {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}"
+                    style="grid-column: {2 * degree.value - 2} / span 2; grid-row: 3"
                     on:click={() => toggleFlatDegree(degree.value)}
                   >{degree.display}</button>
                 {/each}
@@ -5208,26 +5206,27 @@
                  melodic and harmonic minor), lowered under it. -->
             <div class="space-y-2">
               <p class="sr-label">Scale Degrees (minor)</p>
-              <div class="grid grid-cols-[repeat(7,2.6rem)] sm:grid-cols-[repeat(7,3rem)] gap-1.5 sm:gap-2 w-max" role="group" aria-label="Minor scale degrees">
+              <!-- From A, the same way: ♯1 and ♭2 between 1 and 2, ♯3 between 3 and 4, ♯7 past 7. -->
+              <div class="degree-grid" style="--cols: 15" role="group" aria-label="Minor scale degrees">
                 {#each MINOR_DEGREES as d}
                   {#if MINOR_SHARPS.includes(d)}
                     <button
                       class="sr-tok px-0 flex flex-col items-center leading-tight {minorSharpDegrees.has(d) ? 'sr-on' : ''} {d >= 6 ? 'ring-1 ring-sr-action/40' : ''}"
-                      style="grid-column: {d}; grid-row: 1"
+                      style="grid-column: {2 * d} / span 2; grid-row: 1"
                       aria-pressed={minorSharpDegrees.has(d)}
                       on:click={() => (minorSharpDegrees = toggleIn(minorSharpDegrees, d))}
                     >♯{d}<span class="text-[10px] opacity-70">{minorLabel(d, "sharp", minorSolfege)}</span></button>
                   {/if}
                   <button
                     class="sr-tok px-0 flex flex-col items-center leading-tight {minorScaleDegrees.has(d) ? 'sr-on' : ''}"
-                    style="grid-column: {d}; grid-row: 2"
+                    style="grid-column: {2 * d - 1} / span 2; grid-row: 2"
                     aria-pressed={minorScaleDegrees.has(d)}
                     on:click={() => (minorScaleDegrees = toggleIn(minorScaleDegrees, d))}
                   >{d}<span class="text-[10px] opacity-70">{minorLabel(d, null, minorSolfege)}</span></button>
                   {#if MINOR_FLATS.includes(d)}
                     <button
                       class="sr-tok px-0 flex flex-col items-center leading-tight {minorFlatDegrees.has(d) ? 'sr-on' : ''}"
-                      style="grid-column: {d}; grid-row: 3"
+                      style="grid-column: {2 * d - 2} / span 2; grid-row: 3"
                       aria-pressed={minorFlatDegrees.has(d)}
                       on:click={() => (minorFlatDegrees = toggleIn(minorFlatDegrees, d))}
                     >♭{d}<span class="text-[10px] opacity-70">{minorLabel(d, "flat", minorSolfege)}</span></button>
@@ -6269,6 +6268,17 @@
   .set-pill-more { background: transparent; color: var(--sr-action-fg); padding-inline: 0.6rem; }
   .set-pill-more[aria-expanded="true"] { background: var(--sr-tint); color: var(--sr-action-fg); }
   .setbar-new { margin-left: auto; min-height: 2.75rem; }
+  /* Scale degrees on half-columns, so a sharp or flat sits between its two notes. */
+  .degree-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), 1.3rem);
+    gap: 0.375rem 0;
+    width: max-content;
+  }
+  .degree-grid > button { margin: 0 2px; justify-content: center; }
+  @media (min-width: 640px) {
+    .degree-grid { grid-template-columns: repeat(var(--cols), 1.5rem); gap: 0.5rem 0; }
+  }
 
   /* One popover at a time: under its pill, or a bottom sheet on a phone. */
   .set-pop {
