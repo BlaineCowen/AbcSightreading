@@ -1,3 +1,4 @@
+import { degreeLetter, keyLabel } from "../note-names";
 import type { Span } from "../unison-pools";
 import type { Track, TrackPart, TrackStep } from "./types";
 
@@ -59,8 +60,21 @@ export const RHYTHM_THREAD: RhythmStepDef[] = [
 const COMPOUND = new Set(["dotQuarter", "threeEighths", "quarterEighth", "eighthQuarter", "dotQuarterRest", "dotHalfCompound", "quarterEighthRest"]);
 const isCompoundMeter = (m: string) => m === "6/8" || m === "9/8" || m === "12/8";
 
+/**
+ * How a step names its notes: by letter, in the key the instrument reads
+ * (Blaine: the instrument courses use note names, not solfège). `n` names a
+ * degree in the step's first written key; `each` names degrees in every key
+ * the step reads ("A in C, D in F"); `key` is the first key's name.
+ */
+export interface StepNames {
+  n: (degree: number, alter?: number) => string;
+  each: (degrees: number[]) => string;
+  key: string;
+}
+export type NewNotes = string | ((names: StepNames) => string);
+
 export interface NoteStepDef {
-  newNotes: string;
+  newNotes: NewNotes;
   /** Concert keys (band), or the keys read (orchestra, at pitch). */
   keys: string[];
   degrees: number[];
@@ -79,18 +93,18 @@ export const D7 = [1, 2, 3, 4, 5, 6, 7];
  * are the concert key's; every instrument sings them in its written key.
  */
 export const NOTES_THREAD: Record<number, NoteStepDef> = {
-  3: { newNotes: "do, re, mi: the first three notes, by step", keys: ["Bb"], degrees: [1, 2, 3], span: [0, 2], maxSkip: 1 },
-  4: { newNotes: "fa and so: the first five notes", keys: ["Bb"], degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 1 },
-  5: { newNotes: "Skips: do, mi, so", keys: ["Bb"], degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 2 },
+  3: { newNotes: ({ n }) => `${n(1)}, ${n(2)}, ${n(3)}: the first three notes, by step`, keys: ["Bb"], degrees: [1, 2, 3], span: [0, 2], maxSkip: 1 },
+  4: { newNotes: ({ n }) => `${n(4)} and ${n(5)}: the first five notes`, keys: ["Bb"], degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 1 },
+  5: { newNotes: ({ n }) => `Skips: ${n(1)}, ${n(3)}, ${n(5)}`, keys: ["Bb"], degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 2 },
   6: { newNotes: "A new key: concert E♭", keys: ["Eb"], degrees: [1, 2, 3, 4, 5], span: [0, 4], maxSkip: 2 },
-  7: { newNotes: "la", keys: ["Bb", "Eb"], degrees: [1, 2, 3, 4, 5, 6], span: [0, 5], maxSkip: 2 },
-  8: { newNotes: "ti and high do: the whole scale", keys: ["Bb"], degrees: D7, span: [0, 7], maxSkip: 2 },
+  7: { newNotes: ({ each }) => `A new note: ${each([6])}`, keys: ["Bb", "Eb"], degrees: [1, 2, 3, 4, 5, 6], span: [0, 5], maxSkip: 2 },
+  8: { newNotes: ({ n, key }) => `${n(7)} and high ${n(1)}: the whole ${key} scale`, keys: ["Bb"], degrees: D7, span: [0, 7], maxSkip: 2 },
   9: { newNotes: "A third key: concert F", keys: ["F"], degrees: [1, 2, 3, 4, 5, 6], span: [0, 5], maxSkip: 2 },
-  10: { newNotes: "Below do: low so, la, ti", keys: ["Bb", "Eb"], degrees: D7, span: [-3, 5], maxSkip: 2 },
+  10: { newNotes: ({ each }) => `Below the tonic: low ${each([5, 6, 7])}`, keys: ["Bb", "Eb"], degrees: D7, span: [-3, 5], maxSkip: 2 },
   11: { newNotes: "Wider skips: fourths and fifths", keys: ["Bb", "Eb", "F"], degrees: D7, span: [-3, 5], maxSkip: 4 },
   12: { newNotes: "All three keys, the whole range", keys: ["Bb", "Eb", "F"], degrees: D7, span: [-3, 7], maxSkip: 4 },
-  13: { newNotes: "Accidentals: te and fi, by step", keys: ["Bb"], degrees: D7, sharps: [4], flats: [7], span: [-3, 7], maxSkip: 2 },
-  14: { newNotes: "Higher: up to re and mi above high do", keys: ["Bb"], degrees: D7, span: [-3, 9], maxSkip: 4 },
+  13: { newNotes: ({ n }) => `Accidentals: ${n(7, -1)} and ${n(4, 1)}, by step`, keys: ["Bb"], degrees: D7, sharps: [4], flats: [7], span: [-3, 7], maxSkip: 2 },
+  14: { newNotes: ({ n }) => `Higher: up to ${n(2)} and ${n(3)} above high ${n(1)}`, keys: ["Bb"], degrees: D7, span: [-3, 9], maxSkip: 4 },
   15: { newNotes: "A fourth key: concert C", keys: ["C"], degrees: D7, span: [-3, 5], maxSkip: 2 },
   16: { newNotes: "6/8 on the notes you know", keys: ["Bb", "Eb", "F"], degrees: D7, span: [-3, 7], maxSkip: 2, compound: true },
   17: { newNotes: "Everything: four keys, every meter, accidentals", keys: ["Bb", "Eb", "F", "C"], degrees: D7, sharps: [4], flats: [7], span: [-3, 7], maxSkip: 4 },
@@ -346,13 +360,28 @@ function notesPart(n: number, inst: InstrumentDef, fam: FamilyDef): TrackPart | 
 
 const flat = (k: string) => k.replace("b", "♭");
 
-/** The new-notes line as the instrument reads it: a concert key named with its written key. */
+/**
+ * The new-notes line as the instrument reads it: its notes by letter in the
+ * written key, and a concert key named with its written key.
+ */
 function notesLine(n: number, inst: InstrumentDef, fam: FamilyDef): string | undefined {
   const def = { ...fam.thread[n], ...(inst.notes?.[n] ?? {}) };
   if (!def?.newNotes) return undefined;
-  if (!fam.concertKeys) return def.newNotes;
-  if (inst.transposeSemitones % 12 === 0) return def.newNotes.replace(/concert /, "");
-  return def.newNotes.replace(/concert ([A-G]♭?)/, (_, k) => `concert ${k} (written ${flat(writtenKey(k.replace("♭", "b"), inst.transposeSemitones))})`);
+  const keys = def.keys.map((k) => (fam.concertKeys ? writtenKey(k, inst.transposeSemitones) : k));
+  const text =
+    typeof def.newNotes === "string"
+      ? def.newNotes
+      : def.newNotes({
+          n: (d, alter = 0) => degreeLetter(keys[0], d, alter),
+          each: (ds) =>
+            keys.length === 1
+              ? ds.map((d) => degreeLetter(keys[0], d)).join(", ")
+              : keys.map((k) => `${ds.map((d) => degreeLetter(k, d)).join(", ")} in ${keyLabel(k)}`).join(ds.length > 1 ? "; " : ", "),
+          key: keyLabel(keys[0]),
+        });
+  if (!fam.concertKeys) return text;
+  if (inst.transposeSemitones % 12 === 0) return text.replace(/concert /, "");
+  return text.replace(/concert ([A-G]♭?)/, (_, k) => `concert ${k} (written ${flat(writtenKey(k.replace("♭", "b"), inst.transposeSemitones))})`);
 }
 
 export function instrumentTrack(inst: InstrumentDef, fam: FamilyDef): Track {

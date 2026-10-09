@@ -117,15 +117,23 @@ const STEP_NAMES = ["", "a half step", "a step", "a third", "a third", "a fourth
  * and how far to the one asked for, in solfège. "A little high" said nothing
  * about a singer who was a third away.
  */
-export function guidance(o: { sung: number | null; target: number; doPc: number; onTarget: boolean }): string {
-  const want = solfegeOf(o.target, o.doPc);
+export function guidance(o: {
+  sung: number | null;
+  target: number;
+  doPc: number;
+  onTarget: boolean;
+  /** An instrument's notes by letter (note-names.ts); the card then says play, not sing. */
+  nameOf?: ((midi: number) => string) | null;
+}): string {
+  const name = (m: number) => (o.nameOf ? o.nameOf(m) : solfegeOf(m, o.doPc));
+  const want = name(o.target);
   if (o.onTarget) return "That's it, hold it";
-  if (o.sung === null) return `Sing ${want}`;
+  if (o.sung === null) return `${o.nameOf ? "Play" : "Sing"} ${want}`;
   const cents = centsOffAnyOctave(o.sung, o.target);
   if (Math.abs(cents) < 100) return cents > 0 ? `Close: a little high for ${want}` : `Close: a little low for ${want}`;
   const semis = Math.round(-cents / 100);
   const way = semis > 0 ? "up" : "down";
-  return `You're singing ${solfegeOf(o.sung, o.doPc)}. Go ${way} ${STEP_NAMES[Math.abs(semis)]} to ${want}`;
+  return `You're ${o.nameOf ? "playing" : "singing"} ${name(o.sung)}. Go ${way} ${STEP_NAMES[Math.abs(semis)]} to ${want}`;
 }
 
 export type Help = { heardNote: boolean; heardKey: boolean };

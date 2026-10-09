@@ -98,6 +98,7 @@
   import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
   import { solfegeOf } from "../lib/grade";
+  import { degreeLetter, pitchLetter } from "../lib/note-names";
   import { billingStatus } from "../lib/billing-client";
   import { signedInUser } from "../lib/auth-client";
   import { initTuner, micInput, startTuner, stopTuner } from "../lib/tuner/controller";
@@ -1152,14 +1153,23 @@
    * a pool of minor keys names them as the minor is sung: la ti do... la-based,
    * do re me... do-based. A mixed pool keeps the major names.
    */
-  $: degreeNames = minorInPool && !majorInPool
+  /**
+   * An instrument reads note names, not solfège (Blaine, 9 October 2026): with
+   * a band or string reader the panels name each degree by its letter in the
+   * key, or by its number while the pool holds more than one key.
+   */
+  $: byLetter = reader?.family === "band" || reader?.family === "strings";
+  $: letterKey = byLetter && selectedKeys.size === 1 ? [...selectedKeys][0] : null;
+  $: degreeNames = byLetter
+    ? [1, 2, 3, 4, 5, 6, 7].map((d) => (letterKey ? degreeLetter(letterKey, d) : String(d)))
+    : minorInPool && !majorInPool
     ? MINOR_DEGREES.map((d) => minorLabel(d, null, minorSolfege))
     : [...DEGREE_NAMES];
   $: chipLabel = (label: string) =>
-    minorInPool && !majorInPool
+    byLetter || (minorInPool && !majorInPool)
       ? label.replace(/\b(Do|Re|Mi|Fa|Sol|La|Ti)\b/g, (w) => {
           const name = degreeNames[["do", "re", "mi", "fa", "sol", "la", "ti"].indexOf(w.toLowerCase())];
-          return name.charAt(0).toUpperCase() + name.slice(1);
+          return byLetter ? name : name.charAt(0).toUpperCase() + name.slice(1);
         })
       : label;
   $: majorInPool = [...selectedKeys].some((k) => !isMinorKey(k));
@@ -4285,6 +4295,7 @@
       perf: $gradeRunner.perf,
       claps: $gradeRunner.claps,
       doPc: gradeDoPc,
+      nameOf: noteNameOf,
       onsetBeats: STRICTNESS[$tuner.gradeStrictness].onsetBeats,
       bpm: tempo,
     });
@@ -4305,12 +4316,13 @@
         return `Note ${i + 1}: ${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`;
       return `Note ${i + 1}: on time`;
     }
-    const want = solfegeOf(n.midi, gradeDoPc);
+    const want = noteNameOf(n.midi);
+    const sang = byLetter ? "you played" : "you sang";
     if (v.perf) {
       const r = v.perf.notes[i];
       if (!r) return null;
       if (r.missed) return `Note ${i + 1} (${want}): not heard`;
-      const parts = [r.pitchOk ? `${want}, ${r.cents === 0 ? "in tune" : `${Math.abs(r.cents ?? 0)} cents ${(r.cents ?? 0) > 0 ? "sharp" : "flat"}`}` : `you sang ${solfegeOf(r.sung ?? n.midi, gradeDoPc)}, the note is ${want}`];
+      const parts = [r.pitchOk ? `${want}, ${r.cents === 0 ? "in tune" : `${Math.abs(r.cents ?? 0)} cents ${(r.cents ?? 0) > 0 ? "sharp" : "flat"}`}` : `${sang} ${noteNameOf(r.sung ?? n.midi)}, the note is ${want}`];
       if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > STRICTNESS[$tuner.gradeStrictness].onsetBeats)
         parts.push(`${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`);
       else if (r.onsetBeats !== null) parts.push("on time");
@@ -4319,7 +4331,7 @@
     }
     const r = v.result?.notes[i];
     if (!r) return null;
-    const first = r.firstTry !== null ? `, you first sang ${solfegeOf(r.firstTry, gradeDoPc)}` : "";
+    const first = r.firstTry !== null ? `, ${sang.replace("you ", "you first ")} ${noteNameOf(r.firstTry)}` : "";
     if (r.outcome === "skipped") return `Note ${i + 1} (${want}): skipped${first}`;
     const how = r.outcome === "first" ? "right first time" : r.outcome === "corrected" ? `corrected${first}` : "after hearing it";
     const tune = r.cents !== null && Math.abs(r.cents) >= 10 ? ` · ${Math.abs(r.cents)} cents ${r.cents > 0 ? "sharp" : "flat"}` : "";
@@ -4335,6 +4347,14 @@
     const doBased = !!info?.minor && minorSolfege === "do" ? 9 : 0;
     return (((info ? NOTES.indexOf(info.doNote) : 0) + doBased + transposeSemitones) % 12 + 12) % 12;
   })();
+
+  /**
+   * A graded note's name: solfège for a singer, the written letter for an
+   * instrument (its pitches are heard sounding, so the transposition comes off).
+   */
+  $: noteNameOf = byLetter
+    ? (midi: number) => pitchLetter(selectedKey, midi - transposeSemitones)
+    : (midi: number) => solfegeOf(midi, gradeDoPc);
 
   /** After a run, colour each note on the score as the card does. */
   let gradeMarked: Element[] = [];
@@ -4520,7 +4540,7 @@
     length: `${measures} ${measures === 1 ? "bar" : "bars"}`,
     notes: (() => {
       const degs = (minorInPool && !majorInPool ? [...minorScaleDegrees] : [...selectedScaleDegrees]).sort((x, y) => x - y);
-      const names = minorInPool && !majorInPool ? degreeNames : SOLFA;
+      const names = byLetter || (minorInPool && !majorInPool) ? degreeNames : SOLFA;
       const chroma = selectedSharpDegrees.size + selectedFlatDegrees.size;
       const base = degs.length === 7 ? "all 7" : degs.map((d) => names[d - 1]).join(" ");
       return chroma ? `${base} +${chroma}` : base;
@@ -4944,6 +4964,7 @@
       onClose={closeGrade}
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
+      nameOf={byLetter ? noteNameOf : null}
       detail={gradeDetail}
       onSave={gradeDebugOn && !gradeShareOn ? saveGradeRunNow : null}
       onSend={gradeShareOn ? sendGradeRunNow : null}
@@ -5215,21 +5236,21 @@
                       style="grid-column: {2 * d} / span 2; grid-row: 1"
                       aria-pressed={minorSharpDegrees.has(d)}
                       on:click={() => (minorSharpDegrees = toggleIn(minorSharpDegrees, d))}
-                    >♯{d}<span class="text-[10px] opacity-70">{minorLabel(d, "sharp", minorSolfege)}</span></button>
+                    >♯{d}<span class="text-[10px] opacity-70">{byLetter ? (letterKey ? degreeLetter(letterKey, d, 1) : "") : minorLabel(d, "sharp", minorSolfege)}</span></button>
                   {/if}
                   <button
                     class="sr-tok px-0 flex flex-col items-center leading-tight {minorScaleDegrees.has(d) ? 'sr-on' : ''}"
                     style="grid-column: {2 * d - 1} / span 2; grid-row: 2"
                     aria-pressed={minorScaleDegrees.has(d)}
                     on:click={() => (minorScaleDegrees = toggleIn(minorScaleDegrees, d))}
-                  >{d}<span class="text-[10px] opacity-70">{minorLabel(d, null, minorSolfege)}</span></button>
+                  >{d}<span class="text-[10px] opacity-70">{byLetter ? (letterKey ? degreeLetter(letterKey, d, 0) : "") : minorLabel(d, null, minorSolfege)}</span></button>
                   {#if MINOR_FLATS.includes(d)}
                     <button
                       class="sr-tok px-0 flex flex-col items-center leading-tight {minorFlatDegrees.has(d) ? 'sr-on' : ''}"
                       style="grid-column: {2 * d - 2} / span 2; grid-row: 3"
                       aria-pressed={minorFlatDegrees.has(d)}
                       on:click={() => (minorFlatDegrees = toggleIn(minorFlatDegrees, d))}
-                    >♭{d}<span class="text-[10px] opacity-70">{minorLabel(d, "flat", minorSolfege)}</span></button>
+                    >♭{d}<span class="text-[10px] opacity-70">{byLetter ? (letterKey ? degreeLetter(letterKey, d, -1) : "") : minorLabel(d, "flat", minorSolfege)}</span></button>
                   {/if}
                 {/each}
               </div>
@@ -5459,7 +5480,7 @@
             />
             {#if rangeSpan}
               <p class="text-xs text-sr-faint">
-                This range follows the key: it is placed around do for each key drawn. Change it
+                This range follows the key: it is placed around {byLetter ? "the tonic" : "do"} for each key drawn. Change it
                 here and it becomes your own.
               </p>
             {/if}

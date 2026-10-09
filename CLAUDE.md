@@ -289,6 +289,13 @@ ties), and a note exercise that only uses rhythms from `RHYTHM_LEAD` (2) or
 more steps before - Blaine's rule, "rhythm two steps ahead of the notes". The
 rhythm thread ends at step 15 and the notes catch up in 16-17. Ids
 (`band-trumpet-03`) are permanent, like ladder ids.
+An instrument reads note names, never solfège (Blaine, 9 October 2026): each
+step's new notes are written as a template (`StepNames` in band.ts) and named
+by letter in that instrument's written key (`src/lib/note-names.ts`, tests
+`note-names.test.ts`), so the same step reads "C, D, E" on trumpet and
+"B♭, C, D" on flute. On the Unison page a band or string reader (`byLetter`)
+names the notes pill, the skip panel and Grade's notes the same way (in one
+key by letter, across several by degree number), and Grade says played.
 
 A step half is applied as a saved preset is (`trackStepOptions` ->
 AbcjsSingle `applyTrackStep`): instrument, transpose, clef, keys, rhythms,
