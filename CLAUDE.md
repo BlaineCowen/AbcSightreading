@@ -747,9 +747,32 @@ Alberti, 3rds and 6ths at cadences, an octave's reach, sixteenths; 9 6/8,
 chromatic chords; 10 Alberti in sixteenths, syncopation, dotted eighths,
 four sharps or flats, 12 bars. Ids `piano-01`... are permanent. Measured
 against Sight Reading Factory's piano levels: notes/srf-piano-study.md.
+**Play and grade** (`PianoGrade.svelte`; rules `grade-piano.ts`, the
+keyboard `midi.ts`; tests in `piano.test.ts`): a MIDI keyboard through Web
+MIDI (Chrome, Edge, Firefox; not Safari), every key stamped on the
+performance.now() clock by the event's own timeStamp. Pro, as Unison's
+Grade (open on the dev server, which has no billing). Two ways, as Unison
+grades: **In time** - a count-in and a click (throughout or count-in only)
+on the page's own AudioContext, beat 1 moved by the output's latency since
+the player plays with the click as heard; afterwards each written note
+(`expectedNotes`, both hands, MIDI with the key's and its own accidentals)
+is matched to a key of the same pitch nearest in time, nearest pairs first,
+within three onset windows (Easy, Standard, Strict: a quarter, an eighth, a
+sixteenth of a beat; full credit inside it); a key that matches nothing is
+an extra and counts as a note scored 0; a missed note names the key played
+near it instead. The run ends on a timer, not the frame loop (a page out of
+sight draws no frames). **Note by note** - untimed: the score waits on each
+moment's notes (`NoteByNote`; a chord's in any order, either hand), a wrong
+key counted against the moment. Marks on the score by abcjs's own note
+elements (staff 0 the right hand, staff 1 the left, in order): green right,
+orange early or late (or after a wrong key), red missed, blue waiting.
+`window.__pianoMidi` (dev only) presses keys from the console or a test;
+checked end to end with it on 9 October 2026: a planted late note (0.30
+beats) and a wrong key found exactly, on-time keys within 1-6 ms.
+
 Not yet: exact-notes share links and recent exercises (exercise-link.ts and
 recent-exercises.ts know two pages), the Tools wheel, saved presets and
-class progress, grading.
+class progress, hearing the take back, holding notes for their length.
 
 ## abcTuner
 

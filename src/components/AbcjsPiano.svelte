@@ -34,6 +34,7 @@
   } from "../lib/piano/levels";
   import { generatePianoExercise, keyName, type PianoExercise } from "../lib/piano/generatePiano";
   import { settingsFromQuery, settingsQuery } from "../lib/piano/settings-link";
+  import PianoGrade from "./PianoGrade.svelte";
 
   const HANDS = ["Right hand", "Left hand"];
   const PATTERN_NAMES: Record<Accompaniment, string> = {
@@ -391,6 +392,9 @@
       {keyName(exercise.key)} · {exercise.meter} · {exercise.progression} ·
       {#if exercise.pattern === "tune"}hands taking turns{:else if exercise.tuneHand === "left"}tune in the left hand, right hand: {PATTERN_NAMES[exercise.pattern]}{:else}left hand: {PATTERN_NAMES[exercise.pattern]}{/if}
     </p>
+  {/if}
+  {#if exercise}
+    <PianoGrade {exercise} tune={renderedTune} bpm={settings.bpm} onStart={pausePlayback} />
   {/if}
   <CountInBadge />
   <div id="paper" class="sr-sheet w-full" class:hidden={!exercise}></div>
