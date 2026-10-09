@@ -765,6 +765,20 @@ an eighth, a sixteenth of a beat; full credit inside it); a key that
 matches nothing is an extra and counts as a note scored 0; a missed note
 names the key played near it instead. The marking and the end of the run
 are on timers, not the frame loop (a page out of sight draws no frames).
+The keys sound through the grand piano the exercise plays on
+(`piano-voice.ts`: the FluidR3 samples through /api/soundfont, a key-up
+letting the note go over 0.25 s, velocity as loudness), with **Piano sound
+on/off** beside the keyboard's name for a digital piano that makes its own
+(remembered, `piano-key-sound`). Every run keeps its take (keys down and
+up), and **Hear it back** plays it from the count-in on a second voice
+(so muting the keys leaves the take), with the click or without, the score
+marking the written notes as it reaches them and following them, then the
+grade's marks back. Stop silences everything: the run, every click still
+scheduled (each is kept), the take; the page's Play, Pause and Stop stop
+the panel too (`stopRun`, through `bind:this`). Checked 9 October 2026:
+Stop with 20 clicks scheduled left none, a take of 46 key events played
+back on 20 fetched samples and ended with the grade's 18 green marks back.
+
 **Display: Layout** (the page's Display button; remembered in this browser,
 `piano-layout`): Lines, or One scrolling line - the whole exercise drawn as
 one line (`withBarsPerLine`, each bar as wide as its busier hand needs,

@@ -7,6 +7,12 @@
    * following them line by line. In time only: a pianist reads at a tempo,
    * and Note by note was taken off (Blaine, 9 October 2026). Pro, as grading
    * is on the Unison page.
+   *
+   * The keys sound through the grand piano the exercise plays on (piano-voice.ts;
+   * Piano sound on or off beside the keyboard, for a digital piano that makes
+   * its own), every take is kept (keys down and up), and Hear it back plays it
+   * with or without the click, the score marking and following as it goes.
+   * Stop silences everything: the click, the piano and the run.
    */
   import { onDestroy } from "svelte";
   import { beatsOf, beatUnitOf } from "../lib/meter";
@@ -26,6 +32,7 @@
     type PlayedNote,
   } from "../lib/piano/grade-piano";
   import type { PianoExercise } from "../lib/piano/generatePiano";
+  import { PianoVoice } from "../lib/piano/piano-voice";
 
   export let exercise: PianoExercise | null = null;
   /** The drawn score (abcjs's tune object), to find each note on the page. */
@@ -43,7 +50,7 @@
   let midi: MidiConnection | null = null;
   let keyboards: string[] = [];
   let midiError = "";
-  let running: "" | "countin" | "playing" = "";
+  let running: "" | "countin" | "playing" | "replay" = "";
   let status = "";
   let result: PianoResult | null = null;
   let down = new Set<number>();
@@ -57,9 +64,36 @@
   let raf = 0;
   let finishTimer: ReturnType<typeof setTimeout> | undefined;
   let audio: AudioContext | null = null;
+  /** The keys as they are pressed, and the take played back: two voices, so muting the keys leaves the take. */
+  let keysVoice: PianoVoice | null = null;
+  let takeVoice: PianoVoice | null = null;
+  /** Every click scheduled, so Stop can silence the ones still to come. */
+  let clicks: OscillatorNode[] = [];
+  /** The run's keys, down and up, on the performance.now() clock. */
+  let take: { midi: number; velocity: number; down: boolean; t: number }[] = [];
+  let takeClick = true;
+  let countInMs = 0;
+  const SOUND_KEY = "piano-key-sound";
+  let keySound = true;
+  try { keySound = localStorage.getItem(SOUND_KEY) !== "off"; } catch {}
+  function setKeySound(on: boolean) {
+    keySound = on;
+    if (keysVoice) keysVoice.muted = !on;
+    try { localStorage.setItem(SOUND_KEY, on ? "on" : "off"); } catch {}
+  }
+
+  /** The page's sound: made on a click (a browser starts sound only then), shared by the click, the keys and the take. */
+  async function ensureAudio(): Promise<boolean> {
+    audio ??= new AudioContext();
+    keysVoice ??= new PianoVoice(audio);
+    takeVoice ??= new PianoVoice(audio);
+    keysVoice.muted = !keySound;
+    await Promise.race([audio.resume(), new Promise((r) => setTimeout(r, 1500))]);
+    return audio.state === "running";
+  }
 
   // A new exercise clears the marks and any run.
-  $: exercise, stopRun(), clearMarks(), (result = null);
+  $: exercise, stopRun(), clearMarks(), (result = null), (take = []);
 
   // ── The notes on the page ─────────────────────────────────────────────────
   /** Each hand's notes as abcjs drew them, in order: staff 0 the right hand, staff 1 the left. */
@@ -102,6 +136,11 @@
     if (k.down) down.add(k.midi);
     else down.delete(k.midi);
     down = down;
+    if (keysVoice && audio?.state === "running") {
+      if (k.down) keysVoice.noteOn(k.midi, k.velocity);
+      else keysVoice.noteOff(k.midi);
+    }
+    if (running === "countin" || running === "playing") take.push(k);
     if (!k.down) return;
     if (running === "countin" || running === "playing") played.push({ midi: k.midi, t: k.t });
   }
@@ -118,6 +157,8 @@
       }
     }
     if (allowed && !midi && !problem) await connect();
+    // Opened with a click: the time to start the page's sound, so the keys play at once.
+    if (allowed && (await ensureAudio()) && exercise) void keysVoice?.preload(expectedNotes(exercise).map((n) => n.midi));
   }
 
   // ── In time ───────────────────────────────────────────────────────────────
@@ -132,6 +173,7 @@
     o.connect(g).connect(audio.destination);
     o.start(at);
     o.stop(at + 0.08);
+    clicks.push(o);
   }
 
   async function startInTime() {
@@ -142,10 +184,8 @@
     const countIn = countInMeasures(meter) * perBar;
     const beatSec = 60 / bpm;
     const beats = countIn + exercise.measures * perBar;
-    audio ??= new AudioContext();
     // The browser starts sound only after a click on the page; capped, so a refusal is said rather than waited on.
-    await Promise.race([audio.resume(), new Promise((r) => setTimeout(r, 1500))]);
-    if (audio.state !== "running") {
+    if (!(await ensureAudio()) || !audio) {
       status = "The browser kept the sound off. Press Start again.";
       return;
     }
@@ -155,7 +195,9 @@
     const outMs = ((audio.baseLatency ?? 0) + ((audio as any).outputLatency ?? 0)) * 1000;
     t0 = performance.now() + (startAt - audio.currentTime) * 1000 + countIn * beatSec * 1000 + outMs;
     endAt = t0 + exercise.measures * perBar * beatSec * 1000 + beatSec * 1000;
+    countInMs = countIn * beatSec * 1000;
     played = [];
+    take = [];
     running = "countin";
     status = "";
     const unitMs = (beatSec * 1000) / beatUnits;
@@ -195,11 +237,65 @@
     hideCountIn();
     if (!exercise) return;
     result = gradeInTime(expected, played, { t0, bpm, beatUnits, strictness });
+    showResultMarks();
+  }
+
+  function showResultMarks() {
+    if (!result) return;
     for (const n of result.notes) {
       // A chord's notes share one notehead group: missed beats off, off beats right.
       const worst = result.notes.filter((m) => m.hand === n.hand && m.index === n.index).reduce((w, m) => (rank(m.verdict) > rank(w) ? m.verdict : w), n.verdict);
       mark(n, worst === "right" ? "pg-right" : worst === "missed" ? "pg-miss" : "pg-off");
     }
+  }
+
+  // ── Hear it back ──────────────────────────────────────────────────────────
+  /**
+   * The take as it was played, from the count-in: every key down and up on
+   * the page's piano at its own time, the click with it if chosen, the score
+   * marking the written notes as they come and following them.
+   */
+  async function hearItBack() {
+    if (!exercise || !take.length) return;
+    stopRun();
+    if (!(await ensureAudio()) || !audio || !takeVoice) {
+      status = "The browser kept the sound off. Press Hear it back again.";
+      return;
+    }
+    await takeVoice.preload(take.map((k) => k.midi));
+    const meter = exercise.meter;
+    const perBar = beatsOf(meter);
+    const beatSec = 60 / bpm;
+    const countIn = countInMeasures(meter) * perBar;
+    const from = t0 - countInMs; // the take's clock at the count-in's first beat
+    const startAt = audio.currentTime + 0.25;
+    const at = (t: number) => startAt + (t - from) / 1000;
+    for (const k of take) {
+      if (k.t < from - 500) continue;
+      if (k.down) takeVoice.noteOn(k.midi, k.velocity, at(k.t));
+      else takeVoice.noteOff(k.midi, at(k.t));
+    }
+    const beats = countIn + exercise.measures * perBar;
+    for (let b = 0; b < beats; b++) if (b < countIn || takeClick) tick(startAt + b * beatSec, b % perBar === 0);
+    // The written notes marked as the take reaches them, on the take's own clock.
+    const perfStart = performance.now() + (startAt - audio.currentTime) * 1000;
+    const unitMs = (beatSec * 1000) / beatUnitOf(meter);
+    const end = endAt;
+    running = "replay";
+    follower.reset();
+    document.getElementById("paper")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    raf = setInterval(() => {
+      const now = from + (performance.now() - perfStart);
+      const u = (now - t0) / unitMs;
+      const sounding: Element[] = [];
+      for (const n of expected) {
+        const on = u >= n.start && u < n.start + n.length;
+        mark(n, on ? "pg-now" : "");
+        if (on) sounding.push(...(els[n.hand][n.index] ?? []));
+      }
+      follower.follow(sounding);
+      if (now >= end) stopRun();
+    }, 30) as unknown as number;
   }
   const rank = (v: string) => (v === "missed" ? 2 : v === "right" ? 0 : 1);
 
@@ -218,12 +314,24 @@
     await startInTime();
   }
 
-  function stopRun() {
+  /** Stop whatever is going: the run or the take, its clicks still to come, and the take's piano. */
+  export function stopRun() {
     clearInterval(raf);
     clearTimeout(finishTimer);
+    for (const o of clicks) {
+      try { o.stop(); } catch {}
+    }
+    clicks = [];
+    takeVoice?.stopAll();
     if (running) hideCountIn();
+    const wasReplay = running === "replay";
     running = "";
     status = "";
+    // After hearing it back, the marks go back to the grade.
+    if (wasReplay) {
+      for (const n of expected) mark(n, "");
+      showResultMarks();
+    }
   }
 
   // Dev only: keys from the console or a test, as a keyboard would send them.
@@ -231,12 +339,13 @@
     (window as any).__pianoMidi = {
       press: (m: number) => onKey({ midi: m, velocity: 80, down: true, t: performance.now() }),
       release: (m: number) => onKey({ midi: m, velocity: 0, down: false, t: performance.now() }),
-      state: () => ({ running, t0, bpm, expected, played: played.length, result }),
+      state: () => ({ running, t0, bpm, expected, played: played.length, take: take.length, clicks: clicks.length, result }),
     };
   }
 
   onDestroy(() => {
     stopRun();
+    keysVoice?.stopAll();
     midi?.stop();
     void audio?.close();
   });
@@ -264,6 +373,13 @@
   <button type="button" class="sr-btn" on:click={open ? () => (open = false) : openGrade} aria-expanded={open}>Play and grade</button>
   {#if keyboards.length}
     <span class="text-sm text-sr-muted">Keyboard: {keyboards.join(", ")}</span>
+    <button
+      type="button"
+      class="sr-tok text-sm {keySound ? 'sr-on' : ''}"
+      aria-pressed={keySound}
+      title="The page plays your keys on a piano. Turn it off if your keyboard makes its own sound."
+      on:click={() => setKeySound(!keySound)}
+    >Piano sound {keySound ? "on" : "off"}</button>
   {/if}
   {#if down.size}
     <span class="text-sm font-bold" aria-live="polite">{[...down].sort((a, b) => a - b).map(midiName).join(" ")}</span>
@@ -308,6 +424,10 @@
           <button type="button" class="sr-btn" on:click={stopRun}>Stop</button>
         {:else}
           <button type="button" class="sr-btn" on:click={start} disabled={!exercise}>{result ? "Again" : "Start"}</button>
+          {#if result && take.length}
+            <button type="button" class="sr-btn-quiet" on:click={hearItBack}>Hear it back</button>
+            <button type="button" class="sr-tok text-sm {takeClick ? 'sr-on' : ''}" aria-pressed={takeClick} on:click={() => (takeClick = !takeClick)}>With the click</button>
+          {/if}
         {/if}
         {#if status}<span class="text-sm" aria-live="polite">{status}</span>{/if}
       </div>

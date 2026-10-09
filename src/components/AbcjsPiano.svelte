@@ -101,6 +101,8 @@
   let renderedTune: any = null;
   let generatedBpm = 72;
   let narrow = false;
+  /** The grade panel: the page's own transport stops its run or its take too. */
+  let grade: PianoGrade | null = null;
   /** The score as lines down the page, or one line scrolling sideways (Display). Remembered in this browser. */
   type Layout = "lines" | "scroll";
   const LAYOUT_KEY = "piano-layout";
@@ -258,6 +260,7 @@
 
   async function handlePlay() {
     if (!synthControl || isPreparing) return;
+    grade?.stopRun();
     isPreparing = true;
     try {
       const abcjs = (await import("abcjs")).default;
@@ -279,6 +282,7 @@
   }
 
   function rewind() {
+    grade?.stopRun();
     if (!synthControl) return;
     pausePlayback();
     synthControl.seek(0);
@@ -487,7 +491,7 @@
         </section>
       {/if}
     </div>
-    <PianoGrade {exercise} tune={renderedTune} bpm={settings.bpm} onStart={pausePlayback} />
+    <PianoGrade bind:this={grade} {exercise} tune={renderedTune} bpm={settings.bpm} onStart={pausePlayback} />
   {/if}
   <CountInBadge />
   <!-- The scrolling line scrolls in this box: abcjs sets its own overflow on #paper. -->
@@ -508,7 +512,7 @@
   {isPreparing}
   {isGenerating}
   onPlay={handlePlay}
-  onPause={pausePlayback}
+  onPause={() => { grade?.stopRun(); pausePlayback(); }}
   onStop={rewind}
   onRestart={rewind}
   onBpmChange={(b) => { settings = { ...settings, bpm: b }; setWarp(); }}
