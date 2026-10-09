@@ -22,8 +22,29 @@
   import { loadPiece, updatePiece } from "../../lib/pieces/client";
   import type { PieceScore } from "../../lib/pieces/model";
   import { partSettingsFor, type PartSettings, type PieceSummary } from "../../lib/pieces/rules";
+  import type { PieceAssignment } from "../../lib/pieces/assign";
+  import { startPractice } from "../../lib/practice-tracker";
+  import AssignPieceForm from "./AssignPieceForm.svelte";
+  import Music from "lucide-svelte/icons/music";
+  import Send from "lucide-svelte/icons/send";
 
   export let id: string;
+  /**
+   * Opened from an assignment (?assignment=): the assigned bars only, the
+   * student's part marked and the parts the teacher chose playing along;
+   * nothing here changes the piece.
+   */
+  export let assignment: {
+    id: string; title: string; note: string; dueAt: number | null; minutes: number;
+    role: "teacher" | "student"; settings: PieceAssignment;
+  } | null = null;
+  /** The owner has Educator: Assign to a class. */
+  export let canAssign = false;
+
+  /** Assignment mode: the student's own part sounds (to learn it) or not (to perform it). */
+  let hearMine = true;
+  let assignOpen = false;
+  let assignedTo: { id: string; className: string } | null = null;
 
   let piece: PieceSummary | null = null;
   let score: PieceScore | null = null;
@@ -58,6 +79,12 @@
       const firstTempo = score.measures.find((m) => m.tempo)?.tempo;
       scoreBpm = bpm = firstTempo ?? 100;
       to = score.measures.length - 1;
+      if (assignment) {
+        ({ from, to } = assignment.settings);
+        excerpt = true;
+        bpm = assignment.settings.tempo;
+        if (assignment.role === "student") startPractice({ page: "piece", assignmentId: assignment.id, isBusy: () => isPlaying });
+      }
       await tick();
       await render();
     } catch (e) {
@@ -70,14 +97,29 @@
   });
 
   $: partOrder = score ? score.parts.map((p, i) => ({ p, i, s: parts[p.id] })).filter((x) => x.s) : [];
-  $: shownParts = partOrder.filter((x) => !x.s.hidden).map((x) => x.i);
+  $: shownParts = partOrder.filter((x) => !hiddenPart(x.p.id)).map((x) => x.i);
+  $: mine = assignment ? partOrder.find((x) => x.p.id === assignment!.settings.partId) : null;
+
+  /** In an assignment the teacher's choice decides what shows and sounds; otherwise the piece's settings. */
+  function hiddenPart(pid: string): boolean {
+    if (!assignment) return !!parts[pid]?.hidden;
+    return pid !== assignment.settings.partId && !assignment.settings.accompaniment.includes(pid);
+  }
+  function mutedPart(pid: string): boolean {
+    if (!assignment) return !!parts[pid]?.muted;
+    if (pid === assignment.settings.partId) return !hearMine;
+    return !assignment.settings.accompaniment.includes(pid);
+  }
   $: barChoices = score ? score.measures.map((m, i) => ({ i, label: m.label })) : [];
 
   function abcOptions(partIdx: number[]) {
     const programs = Object.fromEntries(partOrder.map((x) => [x.i, x.s.program]));
+    const names = Object.fromEntries(
+      partOrder.map((x) => [x.i, assignment?.settings.partId === x.p.id ? `${x.s.name} (you)` : x.s.name]),
+    );
     const range = excerpt ? { from, to } : {};
     const perLine = narrow ? 2 : score && score.parts.length > 6 ? 3 : 4;
-    return { parts: partIdx, programs, barsPerLine: perLine, tempo: scoreBpm, ...range };
+    return { parts: partIdx, programs, names, barsPerLine: perLine, tempo: scoreBpm, ...range };
   }
 
   async function render() {
@@ -108,8 +150,9 @@
     const [full] = abcjs.parseOnly(all.abc) as any[];
     renderedTune.setUpAudio = (params: any) => full.setUpAudio(params);
     const levels = all.voices.map((v) => {
-      const s = parts[score!.parts[v.part].id];
-      return !s || s.muted ? 0 : s.volume / 80;
+      const pid = score!.parts[v.part].id;
+      const s = parts[pid];
+      return !s || mutedPart(pid) ? 0 : s.volume / 80;
     });
     synthControl = new abcjs.synth.SynthController();
     let lit: Element[] = [];
@@ -225,6 +268,12 @@
   }
 
   /** Shown at once; put back if the server refuses it. (Enter and the blur that follows both land here.) */
+  async function toggleHearMine() {
+    hearMine = !hearMine;
+    pause();
+    await buildSynth();
+  }
+
   async function saveTitle() {
     if (!piece || !renaming) return;
     renaming = false;
@@ -253,6 +302,25 @@
   {:else if !piece || !score}
     <p class="text-sr-muted">Loading the music…</p>
   {:else}
+    {#if assignment}
+      <header class="assign-card flex flex-col gap-2">
+        <a class="sr-link text-sm self-start" href={assignment.role === "teacher" ? "/account" : "/"}>{assignment.role === "teacher" ? "Classes" : "Home"}</a>
+        <span class="kind"><Music size={12} aria-hidden="true" /> Assignment · a piece</span>
+        <h1 class="text-2xl sm:text-3xl font-bold">{piece.title}</h1>
+        <p class="font-bold">
+          Your part: {mine?.s.name ?? "?"}, bars {score.measures[from].label} to {score.measures[to].label}{assignment.settings.accompaniment.length ? ", with the other parts playing along" : ""}.
+        </p>
+        {#if assignment.note}<p class="text-sm">{assignment.note}</p>{/if}
+        <p class="text-sm">
+          {[
+            assignment.dueAt ? `Due ${new Date(assignment.dueAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}` : null,
+            assignment.minutes ? `${assignment.minutes} minutes of practice` : null,
+            assignment.settings.maxAttempts ? `${assignment.settings.maxAttempts} graded attempt${assignment.settings.maxAttempts === 1 ? "" : "s"}` : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+        {#if assignment.role === "teacher"}<p class="text-xs">You are seeing what your students see.</p>{/if}
+      </header>
+    {:else}
     <header class="flex flex-wrap items-end justify-between gap-3">
       <div class="min-w-0">
         <a class="sr-link text-sm" href="/pieces">My music</a>
@@ -272,12 +340,53 @@
         {/if}
         <p class="text-sm text-sr-muted">{piece.composer ? `${piece.composer} · ` : ""}{score.parts.length} part{score.parts.length === 1 ? "" : "s"} · {score.measures.length} bars</p>
       </div>
+      {#if canAssign}
+        <button type="button" class="sr-btn inline-flex items-center gap-2" aria-expanded={assignOpen} on:click={() => ((assignOpen = !assignOpen), (assignedTo = null))}>
+          <Send size={16} aria-hidden="true" /> Assign to a class
+        </button>
+      {/if}
     </header>
+
+    {#if assignedTo}
+      <p class="rounded-2xl bg-sr-mint text-sr-mint-ink p-4 font-bold" role="status">
+        Assigned to {assignedTo.className || "the class"}. <a class="underline" href="/pieces/{id}?assignment={assignedTo.id}">See it as students will</a>
+      </p>
+    {/if}
+
+    {#if assignOpen}
+      <section class="sr-panel p-4 flex flex-col gap-3" aria-label="Assign to a class">
+        <h2 class="font-bold text-sr-ink">Assign bars of one part</h2>
+        <AssignPieceForm
+          pieceId={id}
+          initial={{ from, to: excerpt ? to : Math.min(to, from + 7), tempo: bpm }}
+          onDone={(r) => ((assignOpen = false), (assignedTo = { id: r.id, className: r.className }))}
+          onCancel={() => (assignOpen = false)}
+        />
+      </section>
+    {/if}
 
     {#if piece.warnings.length}
       <p class="text-sm text-sr-muted">{piece.warnings.join(". ")}.</p>
     {/if}
+    {/if}
 
+    {#if assignment}
+      <section class="sr-panel p-4 flex flex-wrap items-end gap-4" aria-label="Practice">
+        <button type="button" class="sr-tok" class:sr-on={hearMine} aria-pressed={hearMine} on:click={toggleHearMine}>
+          {hearMine ? "Hearing my part" : "My part is silent"}
+        </button>
+        <label class="field">
+          <span>Tempo</span>
+          <span class="flex items-center gap-2">
+            <input type="range" min="30" max="220" step="1" bind:value={bpm} on:change={setWarp} aria-label="Tempo" />
+            <span class="tabular-nums font-bold text-sr-ink w-16">{bpm} bpm</span>
+          </span>
+        </label>
+        <label class="flex items-center gap-2 text-sm text-sr-ink">
+          <input type="checkbox" bind:checked={looping} /> Loop
+        </label>
+      </section>
+    {:else}
     <section class="sr-panel p-4 flex flex-col gap-2" aria-labelledby="parts-h">
       <h2 id="parts-h" class="font-bold text-sr-ink">Parts</h2>
       <ul class="flex flex-col divide-y divide-sr-hairline">
@@ -334,6 +443,7 @@
         <input type="checkbox" bind:checked={looping} /> Loop
       </label>
     </section>
+    {/if}
 
     <div id="piece-box" class="score-paper">
       <div id="piece-paper"></div>
@@ -353,6 +463,22 @@
 </div>
 
 <style>
+  .assign-card {
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+    border-radius: 28px;
+    padding: 1.25rem 1.5rem;
+  }
+  .assign-card .kind {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
   .score-paper {
     background: #fff;
     border-radius: 28px;

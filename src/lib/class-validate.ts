@@ -9,6 +9,7 @@
  *   saved:<preset id>       one of the director's own saved presets
  *   track:<step id>:<part>  half of a curriculum track's step (src/lib/curriculum)
  *   nyssma:<level id>       a NYSSMA Voice level ("nyssma:nyssma-voice-3")
+ *   piece:<piece id>        a piece from the teacher's own music (assignments only; src/lib/pieces/assign.ts)
  *   tmea:<level id>         a TMEA All-State level ("tmea:tmea-voice-2"; "tmea-voice-2-alto" from before the part moved to the instrument pill)
  *
  * Built-in presets have no database row, so they are named rather than
@@ -40,7 +41,8 @@ export type PresetKey =
   | { kind: "saved"; id: string }
   | { kind: "track"; stepId: string; part: "rhythm" | "notes" }
   | { kind: "nyssma"; id: string }
-  | { kind: "tmea"; id: string };
+  | { kind: "tmea"; id: string }
+  | { kind: "piece"; id: string };
 
 /**
  * A preset key the API will store, or null. Steps and levels must exist; a
@@ -57,6 +59,7 @@ export function parsePresetKey(value: unknown): PresetKey | null {
   if (kind === "uil" && uilPresets[rest]) return { kind, level: rest };
   if (kind === "saved" && /^[A-Za-z0-9_-]{1,64}$/.test(rest)) return { kind, id: rest };
   if (kind === "nyssma" && Object.hasOwn(nyssmaById, rest)) return { kind, id: rest };
+  if (kind === "piece" && /^[A-Za-z0-9_-]{1,64}$/.test(rest)) return { kind, id: rest };
   // A level ("tmea-voice-2"), or a part's level of the first form ("tmea-voice-2-alto"), kept so its check marks still read.
   if (kind === "tmea" && tmeaLevelOf(rest)) return { kind, id: rest };
   if (kind === "track") {
@@ -73,6 +76,7 @@ export const presetKeyOf = {
   track: (stepId: string, part: "rhythm" | "notes") => `track:${stepId}:${part}`,
   nyssma: (id: string) => `nyssma:${id}`,
   tmea: (id: string) => `tmea:${id}`,
+  piece: (id: string) => `piece:${id}`,
 };
 
 /** The most items a class's own course list may hold (a course is at most about 40). */

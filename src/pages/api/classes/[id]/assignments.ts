@@ -26,8 +26,9 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (!(await hasEducatorPlan(user))) return json({ error: "Assignments are part of the Educator plan." }, 403);
   const checked = checkAssignmentRequest(await readJson(request));
   if (!checked.ok) return json({ error: checked.error }, 400);
-  const preset = await describePreset(user.id, checked.value.presetKey);
+  const preset = await describePreset(user.id, checked.value.presetKey, checked.value.piece);
   if (!preset) return json({ error: "That preset is not one of yours." }, 400);
+  if ("error" in preset) return json({ error: preset.error }, 400);
   const a = await prisma.assignment.create({
     data: {
       classId: params.id!,

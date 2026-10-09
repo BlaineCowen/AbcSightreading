@@ -17,7 +17,8 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (!user) return notSignedIn();
   const body = ((await readJson(request)) ?? {}) as { presetKey?: unknown; passed?: unknown };
   const key = parsePresetKey(body.presetKey);
-  if (!key) return json({ error: "Unknown preset." }, 400);
+  // A piece is assigned, not passed off on the class's checklist (yet).
+  if (!key || key.kind === "piece") return json({ error: "Unknown preset." }, 400);
   if (typeof body.passed !== "boolean") return json({ error: "Say whether it was passed." }, 400);
   const presetKey = body.presetKey as string;
 

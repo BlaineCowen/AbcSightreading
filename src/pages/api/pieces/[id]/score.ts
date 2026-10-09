@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { currentUser, json } from "../../../../lib/server/api";
-import { PieceError, pieceFor, scoreBytes } from "../../../../lib/server/pieces";
+import { PieceError, pieceForReader, scoreBytes } from "../../../../lib/server/pieces";
 
 /**
  * The piece's music: the stored model, sent gzipped as it is kept, which the
@@ -9,7 +9,7 @@ import { PieceError, pieceFor, scoreBytes } from "../../../../lib/server/pieces"
 export const GET: APIRoute = async ({ request, params }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
-  const piece = await pieceFor(user.id, params.id!);
+  const piece = await pieceForReader(user.id, params.id!);
   if (!piece) return json({ error: "No such piece." }, 404);
   try {
     const bytes = await scoreBytes(piece.scorePath);

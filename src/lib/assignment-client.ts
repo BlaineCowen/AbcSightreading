@@ -1,4 +1,4 @@
-import { ASSIGNMENT_PARAM, pagePath } from "./practice";
+import { ASSIGNMENT_PARAM, assignmentPath } from "./practice";
 
 /**
  * The practice pages' side of assignments: which one the address names, and
@@ -8,7 +8,7 @@ import { ASSIGNMENT_PARAM, pagePath } from "./practice";
 export type OpenAssignment = {
   id: string;
   title: string;
-  page: "unison" | "choral";
+  page: "unison" | "choral" | "piece";
   presetKey: string;
   /** A saved preset as it was assigned: { id, name, params }. */
   params: unknown;
@@ -29,7 +29,7 @@ export async function fetchAssignment(id: string, here: "unison" | "choral"): Pr
     if (!res.ok) return null;
     const a = (await res.json()) as OpenAssignment;
     if (a.page !== here) {
-      location.href = `${pagePath(a.page)}?${ASSIGNMENT_PARAM}=${encodeURIComponent(id)}`;
+      location.href = `${assignmentPath(a)}?${ASSIGNMENT_PARAM}=${encodeURIComponent(id)}`;
       return null;
     }
     return a;
@@ -38,5 +38,5 @@ export async function fetchAssignment(id: string, here: "unison" | "choral"): Pr
   }
 }
 
-export const assignmentHref = (a: { id: string; page: string }) =>
-  `${pagePath(a.page === "unison" ? "unison" : "choral")}?${ASSIGNMENT_PARAM}=${encodeURIComponent(a.id)}`;
+export const assignmentHref = (a: { id: string; page: string; presetKey?: string }) =>
+  `${assignmentPath(a)}?${ASSIGNMENT_PARAM}=${encodeURIComponent(a.id)}`;

@@ -7,16 +7,35 @@ import { stepOfKey, trackStepLabel } from "../curriculum/tracks";
 import { trackStepOptions } from "../curriculum/options";
 import { overridesFrom } from "../curriculum/subscriptions";
 import { RETENTION_DAYS, assignmentPage, assignmentProgress, creditSeconds, practiceDay } from "../practice";
+import { loadScore } from "./pieces";
+import { checkPieceAssignment, excerptLabel, pieceAssignmentOf } from "../pieces/assign";
 
 /**
  * Assignments and the practice log, against the database. The rules are in
  * src/lib/practice.ts; this applies them.
  */
 
-/** What an assignment shows and opens, from the teacher's preset key. Null if it is not theirs to assign. */
-export async function describePreset(teacherId: string, presetKey: string) {
+/**
+ * What an assignment shows and opens, from the teacher's preset key. Null if
+ * it is not theirs to assign; `{ error }` when a piece's part or bars cannot
+ * be assigned (checked against the piece's score).
+ */
+export async function describePreset(teacherId: string, presetKey: string, pieceRequest?: unknown) {
   const key = parsePresetKey(presetKey);
   if (!key) return null;
+  if (key.kind === "piece") {
+    const piece = await prisma.piece.findFirst({ where: { id: key.id, userId: teacherId } });
+    if (!piece) return null;
+    const score = await loadScore(piece.scorePath);
+    const checked = checkPieceAssignment(pieceRequest, piece.id, score);
+    if (!checked.ok) return { error: checked.error };
+    const names = (piece.parts ?? {}) as Record<string, { name?: string }>;
+    const label = excerptLabel(
+      { ...score, parts: score.parts.map((p) => ({ ...p, name: names[p.id]?.name ?? p.name })) },
+      checked.value,
+    );
+    return { title: `${piece.title}: ${label}`, page: "piece" as const, params: checked.value as unknown as Prisma.InputJsonObject };
+  }
   if (key.kind === "step") return { title: stepLabel(ladderById[key.id]), page: assignmentPage(presetKey), params: null };
   if (key.kind === "uil") return { title: uilPresets[key.level].label ?? key.level, page: "choral" as const, params: null };
   if (key.kind === "track") {
@@ -73,7 +92,7 @@ export async function recordPractice(
   }
 
   const day = practiceDay(r.day, now);
-  const page = r.page === "unison" ? "unison" : "choral";
+  const page = r.page === "unison" || r.page === "piece" ? r.page : "choral";
   const row = await prisma.practiceTime.findFirst({ where: { studentId: userId, day, assignmentId, page }, select: { id: true } });
   if (row) {
     await prisma.practiceTime.update({
@@ -111,16 +130,21 @@ async function totalsFor(assignmentIds: string[], studentIds?: string[]) {
   return map;
 }
 
-const assignmentView = (a: { id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: Date | null; note: string; createdAt: Date }) => ({
-  id: a.id,
-  title: a.title,
-  page: a.page,
-  presetKey: a.presetKey,
-  minutes: a.minutes,
-  dueAt: a.dueAt?.getTime() ?? null,
-  note: a.note,
-  createdAt: a.createdAt.getTime(),
-});
+const assignmentView = (a: { id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: Date | null; note: string; createdAt: Date; params?: unknown }) => {
+  const piece = a.page === "piece" ? pieceAssignmentOf(a.params) : null;
+  return {
+    id: a.id,
+    title: a.title,
+    page: a.page,
+    presetKey: a.presetKey,
+    minutes: a.minutes,
+    dueAt: a.dueAt?.getTime() ?? null,
+    note: a.note,
+    createdAt: a.createdAt.getTime(),
+    // A piece's graded attempts: null for as many as they like.
+    ...(piece ? { maxAttempts: piece.maxAttempts } : {}),
+  };
+};
 
 /** A class's assignments with every student's progress, and each student's last week of practice. */
 export async function classAssignments(classId: string) {

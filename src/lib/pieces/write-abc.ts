@@ -45,6 +45,8 @@ export type AbcOptions = {
   title?: boolean;
   /** Quarter notes a minute, over the score's own tempo. */
   tempo?: number;
+  /** Part names over the score's own, per part index (a teacher's renames, "Soprano (you)"). */
+  names?: Record<number, string>;
   /** Write the score's tempo changes (default true). */
   tempoChanges?: boolean;
   /** MIDI program per part index, over the part's own. */
@@ -169,7 +171,7 @@ export function abcForPiece(score: PieceScore, opts: AbcOptions = {}): PieceAbc 
         const named = s === 1 && k === 0;
         defs.push(
           `V:${id} clef=${clef}` +
-            (named ? ` name="${quote(part.name)}" snm="${quote(part.abbreviation ?? "")}"` : "") +
+            (named ? ` name="${quote(opts.names?.[pi] ?? part.name)}" snm="${quote(opts.names?.[pi] ? "" : (part.abbreviation ?? ""))}"` : "") +
             (part.transpose ? ` transpose=${part.transpose}` : ""),
         );
       });

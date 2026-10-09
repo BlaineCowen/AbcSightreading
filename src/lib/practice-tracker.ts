@@ -18,7 +18,7 @@ import { droneOn } from "./tools/state";
 /** Seconds counted on this page so far, for the assignment banner. */
 export const sessionSeconds = writable(0);
 
-type Options = { page: "unison" | "choral"; assignmentId: string | null; isBusy: () => boolean };
+type Options = { page: "unison" | "choral" | "piece"; assignmentId: string | null; isBusy: () => boolean };
 
 let options: Options | null = null;
 let lastActivity = new Date();

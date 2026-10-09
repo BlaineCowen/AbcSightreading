@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { assignmentHref } from "../lib/assignment-client";
+  import { assignmentKind } from "../lib/practice";
 
   /**
    * A student's assignments from every class they are in: what, how long, by
@@ -9,7 +10,7 @@
    */
 
   type Item = {
-    id: string; title: string; page: string; minutes: number; dueAt: number | null; note: string;
+    id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: number | null; note: string; maxAttempts?: number | null;
     className: string; seconds: number; status: "not-started" | "in-progress" | "done"; percent: number;
   };
   /** Given by the server (the home page), so it arrives with the page; otherwise fetched. */
@@ -38,11 +39,12 @@
     {/if}
     {#each todo as a (a.id)}
       <a href={assignmentHref(a)} class="block rounded-md border border-sr-hairline bg-sr-raise p-3 hover:border-sr-action no-underline">
-        <div class="flex justify-between gap-2 text-sm">
+        <span class="kind {assignmentKind(a) === 'piece' ? 'kind-piece' : 'kind-sr'}">{assignmentKind(a) === "piece" ? "Piece" : "Sight reading"}</span>
+        <div class="flex justify-between gap-2 text-sm mt-1">
           <span class="font-medium text-sr-ink">{a.title}</span>
-          <span class="tabular-nums text-sr-ink-2 shrink-0">{Math.floor(a.seconds / 60)} of {a.minutes} min</span>
+          {#if a.minutes}<span class="tabular-nums text-sr-ink-2 shrink-0">{Math.floor(a.seconds / 60)} of {a.minutes} min</span>{/if}
         </div>
-        <div class="h-1.5 rounded bg-sr-track overflow-hidden mt-2"><div class="h-full bg-sr-action" style="width: {a.percent}%"></div></div>
+        {#if a.minutes}<div class="h-1.5 rounded bg-sr-track overflow-hidden mt-2"><div class="h-full bg-sr-action" style="width: {a.percent}%"></div></div>{/if}
         <p class="text-xs mt-1.5 {overdue(a) ? 'text-sr-danger' : 'text-sr-muted'}">
           {a.className}{a.dueAt ? ` · ${overdue(a) ? "was due" : "due"} ${day(a.dueAt)}` : ""} · {a.status === "not-started" ? "Start" : "Keep going"} →
         </p>
@@ -59,3 +61,21 @@
     {/if}
   </section>
 {/if}
+
+<style>
+  .kind {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+  }
+  .kind-sr {
+    background: var(--sr-sky);
+    color: var(--sr-sky-ink);
+  }
+  .kind-piece {
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+  }
+</style>

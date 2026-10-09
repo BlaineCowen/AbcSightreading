@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../../lib/server/api";
 import { prisma } from "../../../../lib/server/db";
-import { deletePiece, pieceFor, summaryOf } from "../../../../lib/server/pieces";
+import { PieceError, deletePiece, pieceFor, pieceForReader, summaryOf } from "../../../../lib/server/pieces";
 import { checkPieceUpdate } from "../../../../lib/pieces/rules";
 
 /**
@@ -20,7 +20,8 @@ const missing = () => json({ error: "No such piece." }, 404);
 export const GET: APIRoute = async ({ request, params }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
-  const piece = await pieceFor(user.id, params.id!);
+  // Its owner, or a student it is assigned to.
+  const piece = await pieceForReader(user.id, params.id!);
   if (!piece) return missing();
   return json({ piece: summaryOf(piece), parts: piece.parts });
 };
@@ -42,5 +43,10 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 export const DELETE: APIRoute = async ({ request, params }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
-  return (await deletePiece(user.id, params.id!)) ? json({ ok: true }) : missing();
+  try {
+    return (await deletePiece(user.id, params.id!)) ? json({ ok: true }) : missing();
+  } catch (e) {
+    if (e instanceof PieceError) return json({ error: e.message }, e.status);
+    throw e;
+  }
 };

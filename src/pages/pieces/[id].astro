@@ -3,17 +3,34 @@ import Layout from "../../layouts/Layout.astro";
 import PieceViewer from "../../components/pieces/PieceViewer.svelte";
 import PiecesPitch from "../../components/pieces/PiecesPitch.astro";
 import { currentUser } from "../../lib/server/api";
-import { hasPremium } from "../../lib/server/plan";
+import { hasEducatorPlan, hasPremium } from "../../lib/server/plan";
 import { pieceFor } from "../../lib/server/pieces";
+import { openAssignment } from "../../lib/server/practice";
+import { pieceAssignmentOf } from "../../lib/pieces/assign";
+import { prisma } from "../../lib/server/db";
 
-// One of my pieces. Someone else's answers as a missing one does.
+// One of my pieces (Pro), or, with ?assignment=, a piece assigned to a class
+// I am in or teach. Anything else answers as a missing piece does.
 const user = await currentUser(Astro.request);
 const id = Astro.params.id ?? "";
-const allowed = !!user && (await hasPremium(user));
-const piece = allowed && user ? await pieceFor(user.id, id) : null;
+const assignmentId = Astro.url.searchParams.get("assignment");
+
+let assignment = null;
+let piece = null;
+if (user && assignmentId) {
+  const a = await openAssignment(user.id, assignmentId);
+  const settings = a && a.page === "piece" && a.presetKey === `piece:${id}` ? pieceAssignmentOf(a.params) : null;
+  if (a && settings) {
+    piece = await prisma.piece.findUnique({ where: { id } });
+    if (piece) assignment = { id: a.id, title: a.title, note: a.note, dueAt: a.dueAt, minutes: a.minutes, role: a.role, settings };
+  }
+}
+const allowed = !!assignment || (!!user && (await hasPremium(user)));
+if (!assignment && allowed && user) piece = await pieceFor(user.id, id);
 if (allowed && !piece) return new Response(null, { status: 404 });
+const canAssign = !assignment && !!user && (await hasEducatorPlan(user));
 ---
 
 <Layout title={piece ? `${piece.title} | My music` : "My music | abcSightReading"} description="A piece in My music." noindex themable>
-  {piece ? <PieceViewer client:only="svelte" id={piece.id} /> : <PiecesPitch signedIn={!!user} next={`/pieces/${id}`} />}
+  {piece ? <PieceViewer client:only="svelte" id={piece.id} assignment={assignment} canAssign={canAssign} /> : <PiecesPitch signedIn={!!user} next={`/pieces/${id}`} />}
 </Layout>

@@ -62,15 +62,22 @@ export function practiceDay(local: unknown, now = new Date()): string {
 export const MAX_MINUTES = 120;
 const MAX_NOTE = 300;
 
-export type AssignmentRequest = { presetKey: string; minutes: number; dueAt: Date | null; note: string };
+/**
+ * `minutes` is a practice-time goal; a piece may have none (0), since its
+ * goal is the part sung or played. `piece` is the piece's settings as sent,
+ * checked against its score on the server (pieces/assign.ts).
+ */
+export type AssignmentRequest = { presetKey: string; minutes: number; dueAt: Date | null; note: string; piece?: unknown };
 
 export function checkAssignmentRequest(body: unknown, now = new Date()): Checked<AssignmentRequest> {
   if (typeof body !== "object" || body === null) return { ok: false, error: "Expected an assignment." };
   const b = body as Record<string, unknown>;
-  if (!parsePresetKey(b.presetKey)) return { ok: false, error: "Choose what to practice." };
-  const minutes = Number(b.minutes);
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_MINUTES) {
-    return { ok: false, error: `Minutes: a whole number from 1 to ${MAX_MINUTES}.` };
+  const key = parsePresetKey(b.presetKey);
+  if (!key) return { ok: false, error: "Choose what to practice." };
+  const isPiece = key.kind === "piece";
+  const minutes = b.minutes === undefined || b.minutes === null || b.minutes === "" ? (isPiece ? 0 : NaN) : Number(b.minutes);
+  if (!Number.isInteger(minutes) || minutes < (isPiece ? 0 : 1) || minutes > MAX_MINUTES) {
+    return { ok: false, error: `Minutes: a whole number from ${isPiece ? 0 : 1} to ${MAX_MINUTES}.` };
   }
   let dueAt: Date | null = null;
   if (b.dueAt !== undefined && b.dueAt !== null && b.dueAt !== "") {
@@ -82,12 +89,15 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   }
   const note = typeof b.note === "string" ? b.note.trim() : "";
   if (note.length > MAX_NOTE) return { ok: false, error: `Notes are at most ${MAX_NOTE} characters.` };
-  return { ok: true, value: { presetKey: b.presetKey as string, minutes, dueAt, note } };
+  return { ok: true, value: { presetKey: b.presetKey as string, minutes, dueAt, note, ...(isPiece ? { piece: b.piece } : {}) } };
 }
 
+export type AssignmentPage = LadderPage | "piece";
+
 /** The practice page an assignment opens on. A saved preset needs its store. */
-export function assignmentPage(presetKey: string, savedStore?: string): LadderPage {
+export function assignmentPage(presetKey: string, savedStore?: string): AssignmentPage {
   const key = parsePresetKey(presetKey);
+  if (key?.kind === "piece") return "piece";
   if (key?.kind === "step") return ladderById[key.id].page;
   if (key?.kind === "saved") return savedStore === UNISON_PRESET_STORE ? "unison" : "choral";
   if (key?.kind === "track") return "unison";
@@ -97,12 +107,23 @@ export function assignmentPage(presetKey: string, savedStore?: string): LadderPa
 
 export const pagePath = (page: LadderPage) => (page === "unison" ? "/sightreading" : "/choral-sightreading");
 
+/** Where an assignment opens: a practice page, or the piece it names. */
+export function assignmentPath(a: { page: string; presetKey?: string }): string {
+  if (a.page === "piece" && a.presetKey?.startsWith("piece:")) return `/pieces/${encodeURIComponent(a.presetKey.slice(6))}`;
+  return pagePath(a.page === "unison" ? "unison" : "choral");
+}
+
+/** Sight reading (a new exercise each time) or a piece from the teacher's own music. */
+export const assignmentKind = (a: { page: string }): "piece" | "sight-reading" => (a.page === "piece" ? "piece" : "sight-reading");
+
 /** The query parameter a practice page reads to open an assignment. */
 export const ASSIGNMENT_PARAM = "assignment";
 
 export type Progress = { status: "not-started" | "in-progress" | "done"; percent: number };
 
 export function assignmentProgress(seconds: number, minutes: number): Progress {
+  // No time goal (a piece): started or not; graded attempts say the rest.
+  if (minutes <= 0) return { status: seconds > 0 ? "in-progress" : "not-started", percent: 0 };
   const percent = Math.min(100, Math.floor((seconds / (minutes * 60)) * 100));
   return { status: percent >= 100 ? "done" : seconds > 0 ? "in-progress" : "not-started", percent };
 }

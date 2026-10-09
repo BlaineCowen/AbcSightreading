@@ -1,9 +1,10 @@
-import { gzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { del, get, put } from "@vercel/blob";
 import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { PieceReadError, readMusicXml } from "../pieces/read-musicxml";
 import { MAX_PIECES, MAX_UPLOAD_BYTES, defaultPartSettings, type PieceSummary } from "../pieces/rules";
+import type { PieceScore } from "../pieces/model";
 
 /**
  * A teacher's pieces on the server. The upload is read here (the same reader
@@ -103,9 +104,28 @@ export async function createPiece(userId: string, bytes: Uint8Array, fileName: s
   }
 }
 
-/** A piece this user may open: their own. (A student's, through an assignment, comes with assignments.) */
+/** A piece this user owns. */
 export async function pieceFor(userId: string, id: string) {
   return prisma.piece.findFirst({ where: { id, userId } });
+}
+
+/**
+ * A piece this user may read: their own, or one assigned to a class they are
+ * in (a student hears the parts as their teacher set them).
+ */
+export async function pieceForReader(userId: string, id: string) {
+  const own = await pieceFor(userId, id);
+  if (own) return own;
+  const assigned = await prisma.assignment.findFirst({
+    where: { presetKey: `piece:${id}`, class: { enrollments: { some: { studentId: userId } } } },
+    select: { id: true },
+  });
+  return assigned ? prisma.piece.findUnique({ where: { id } }) : null;
+}
+
+/** The stored model, read. */
+export async function loadScore(scorePath: string): Promise<PieceScore> {
+  return JSON.parse(gunzipSync(await scoreBytes(scorePath)).toString("utf8")) as PieceScore;
 }
 
 /** The stored model, still gzipped, to hand to the browser as it is. */
@@ -118,6 +138,10 @@ export async function scoreBytes(scorePath: string): Promise<Uint8Array> {
 export async function deletePiece(userId: string, id: string): Promise<boolean> {
   const piece = await prisma.piece.findFirst({ where: { id, userId }, select: { sourcePath: true, scorePath: true } });
   if (!piece) return false;
+  const assigned = await prisma.assignment.count({ where: { presetKey: `piece:${id}` } });
+  if (assigned) {
+    throw new PieceError(`This piece is assigned to a class${assigned > 1 ? ` (${assigned} assignments)` : ""}. Remove the assignment first, then delete the piece.`, 409);
+  }
   await prisma.piece.delete({ where: { id } });
   await del([piece.sourcePath, piece.scorePath], { token: token() }).catch(() => {});
   return true;
