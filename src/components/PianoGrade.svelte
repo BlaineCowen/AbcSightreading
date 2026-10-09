@@ -1,22 +1,23 @@
 <script lang="ts">
   /**
-   * Play and grade on a MIDI keyboard (src/lib/piano/grade-piano.ts, midi.ts).
-   * In time: a count-in and a click, the exercise played through, then each
-   * written note matched to a key. Note by note: the score waits on each
-   * moment's notes. Marks go on the score: green right, orange early or
-   * late, red missed; blue where it is waiting. Pro, as grading is on the
-   * Unison page.
+   * Play and grade on a MIDI keyboard (src/lib/piano/grade-piano.ts, midi.ts):
+   * a count-in and a click, the exercise played through in time, then each
+   * written note matched to a key. Marks go on the score: green right, orange
+   * early or late, red missed; blue the notes sounding now, the page
+   * following them line by line. In time only: a pianist reads at a tempo,
+   * and Note by note was taken off (Blaine, 9 October 2026). Pro, as grading
+   * is on the Unison page.
    */
   import { onDestroy } from "svelte";
   import { beatsOf, beatUnitOf } from "../lib/meter";
   import { countInMeasures, showCountIn, hideCountIn } from "../lib/count-in";
   import { billingStatus } from "../lib/billing-client";
-  import { connectMidi, midiSupported, type MidiConnection, type MidiKey } from "../lib/piano/midi";
+  import { connectMidi, midiProblem, type MidiConnection, type MidiKey } from "../lib/piano/midi";
+  import { createFollower } from "../lib/piano/follow";
   import {
     expectedNotes,
     gradeInTime,
     midiName,
-    NoteByNote,
     PIANO_STRICTNESS,
     type ExpectedNote,
     type Hand,
@@ -34,25 +35,23 @@
   /** Stop the page's own playback before a run. */
   export let onStart: () => void = () => {};
 
-  type Mode = "time" | "wait";
   const STRICT_CHOICES = Object.entries(PIANO_STRICTNESS) as [PianoStrictness, { label: string }][];
   let open = false;
-  let mode: Mode = "time";
   let strictness: PianoStrictness = "easy";
   let click = true;
   let allowed: boolean | null = null;
   let midi: MidiConnection | null = null;
   let keyboards: string[] = [];
   let midiError = "";
-  let running: "" | "countin" | "playing" | "waiting" = "";
+  let running: "" | "countin" | "playing" = "";
   let status = "";
   let result: PianoResult | null = null;
-  let waitScore: { score: number; moments: number; clean: number; wrongKeys: number } | null = null;
   let down = new Set<number>();
 
   let expected: ExpectedNote[] = [];
   let played: PlayedNote[] = [];
-  let nbn: NoteByNote | null = null;
+  const follower = createFollower();
+  const problem = midiProblem();
   let t0 = 0;
   let endAt = 0;
   let raf = 0;
@@ -60,7 +59,7 @@
   let audio: AudioContext | null = null;
 
   // A new exercise clears the marks and any run.
-  $: exercise, stopRun(), clearMarks(), (result = null), (waitScore = null);
+  $: exercise, stopRun(), clearMarks(), (result = null);
 
   // ── The notes on the page ─────────────────────────────────────────────────
   /** Each hand's notes as abcjs drew them, in order: staff 0 the right hand, staff 1 the left. */
@@ -105,7 +104,6 @@
     down = down;
     if (!k.down) return;
     if (running === "countin" || running === "playing") played.push({ midi: k.midi, t: k.t });
-    if (running === "waiting" && nbn) pressWaiting(k.midi);
   }
 
   // ── Opening ───────────────────────────────────────────────────────────────
@@ -119,7 +117,7 @@
         allowed = !!s && s.plan !== "free";
       }
     }
-    if (allowed && !midi && midiSupported()) await connect();
+    if (allowed && !midi && !problem) await connect();
   }
 
   // ── In time ───────────────────────────────────────────────────────────────
@@ -171,20 +169,26 @@
           running = "playing";
           hideCountIn();
         }
-        // The notes sounding now are shown, so the player can see where the beat is.
+        // The notes sounding now are shown, so the player can see where the beat is, and the page follows them.
         const u = (now - t0) / unitMs;
-        for (const n of expected) mark(n, u >= n.start && u < n.start + n.length ? "pg-now" : "");
+        const sounding: Element[] = [];
+        for (const n of expected) {
+          const on = u >= n.start && u < n.start + n.length;
+          mark(n, on ? "pg-now" : "");
+          if (on) sounding.push(...(els[n.hand][n.index] ?? []));
+        }
+        follower.follow(sounding);
       }
-      if (now >= endAt) return;
-      raf = requestAnimationFrame(loop);
+      if (now >= endAt) clearInterval(raf);
     };
-    raf = requestAnimationFrame(loop);
+    // A short timer rather than the frame loop: it keeps marking (and following) when the page is not being drawn.
+    raf = setInterval(loop, 30) as unknown as number;
     // Ended by a timer, not the frame loop: a browser stops drawing frames for a page out of sight.
     finishTimer = setTimeout(() => finishInTime(beatUnits), endAt - performance.now());
   }
 
   function finishInTime(beatUnits: number) {
-    cancelAnimationFrame(raf);
+    clearInterval(raf);
     if (running !== "countin" && running !== "playing") return;
     for (const n of expected) mark(n, "");
     running = "";
@@ -199,45 +203,6 @@
   }
   const rank = (v: string) => (v === "missed" ? 2 : v === "right" ? 0 : 1);
 
-  // ── Note by note ──────────────────────────────────────────────────────────
-  function startWaiting() {
-    nbn = new NoteByNote(expected);
-    running = "waiting";
-    status = "Play the notes marked in blue.";
-    showCurrent();
-  }
-  function showCurrent() {
-    for (const n of nbn?.current?.notes ?? []) mark(n, "pg-now");
-  }
-  function pressWaiting(m: number) {
-    if (!nbn) return;
-    const before = nbn.current;
-    const what = nbn.press(m);
-    if (what === "wrong") {
-      status = `${midiName(m)} is not one of these notes.`;
-      return;
-    }
-    if (what === "note") {
-      status = "";
-      return;
-    }
-    // A moment done: green if no wrong key on the way, orange if there was.
-    const last = nbn.done[nbn.done.length - 1];
-    for (const n of before?.notes ?? []) mark(n, last.wrong.length ? "pg-off" : "pg-right");
-    status = "";
-    if (what === "finished") {
-      running = "";
-      waitScore = {
-        score: nbn.score,
-        moments: nbn.done.length,
-        clean: nbn.done.filter((d) => !d.wrong.length).length,
-        wrongKeys: nbn.done.reduce((s, d) => s + d.wrong.length, 0),
-      };
-      return;
-    }
-    showCurrent();
-  }
-
   // ── Runs ──────────────────────────────────────────────────────────────────
   async function start() {
     if (!exercise || !tune) return;
@@ -246,18 +211,18 @@
     els = noteElements();
     clearMarks();
     result = null;
-    waitScore = null;
     expected = expectedNotes(exercise);
-    if (mode === "time") await startInTime();
-    else startWaiting();
+    follower.reset();
+    // Start with the score's first line in view: the count-in is the time to find it.
+    document.getElementById("paper")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    await startInTime();
   }
 
   function stopRun() {
-    cancelAnimationFrame(raf);
+    clearInterval(raf);
     clearTimeout(finishTimer);
     if (running) hideCountIn();
     running = "";
-    nbn = null;
     status = "";
   }
 
@@ -266,7 +231,7 @@
     (window as any).__pianoMidi = {
       press: (m: number) => onKey({ midi: m, velocity: 80, down: true, t: performance.now() }),
       release: (m: number) => onKey({ midi: m, velocity: 0, down: false, t: performance.now() }),
-      state: () => ({ running, t0, bpm, expected, played: played.length, result, waitScore }),
+      state: () => ({ running, t0, bpm, expected, played: played.length, result }),
     };
   }
 
@@ -310,8 +275,8 @@
     {#if allowed === false}
       <p class="text-sm">Grading is part of Pro. <a class="sr-link" href="/pricing">See plans</a></p>
     {:else}
-      {#if !midiSupported()}
-        <p class="text-sm">This browser cannot read a MIDI keyboard. Chrome or Edge on a computer can.</p>
+      {#if problem}
+        <p class="text-sm">{problem}</p>
       {:else if !keyboards.length}
         <div class="flex flex-wrap items-center gap-3">
           <button type="button" class="sr-btn-quiet" on:click={connect}>Connect a MIDI keyboard</button>
@@ -319,14 +284,6 @@
         </div>
       {/if}
       <div class="flex flex-wrap gap-x-8 gap-y-3">
-        <div class="flex flex-col gap-2">
-          <span class="sr-label">How</span>
-          <div class="flex flex-wrap gap-1.5" role="group" aria-label="How">
-            <button type="button" class="sr-tok {mode === 'time' ? 'sr-on' : ''}" aria-pressed={mode === "time"} on:click={() => (mode = "time")}>In time</button>
-            <button type="button" class="sr-tok {mode === 'wait' ? 'sr-on' : ''}" aria-pressed={mode === "wait"} on:click={() => (mode = "wait")}>Note by note</button>
-          </div>
-        </div>
-        {#if mode === "time"}
           <div class="flex flex-col gap-2">
             <span class="sr-label">Timing</span>
             <div class="flex flex-wrap gap-1.5" role="group" aria-label="Timing">
@@ -342,16 +299,15 @@
               <button type="button" class="sr-tok {!click ? 'sr-on' : ''}" aria-pressed={!click} on:click={() => (click = false)}>Count-in only</button>
             </div>
           </div>
-        {/if}
       </div>
       <p class="text-xs text-sr-faint">
-        {#if mode === "time"}A count-in, then play the exercise at {bpm}. Each note is graded for the right key and when it came in.{:else}No tempo: the notes in blue wait until you play them, a chord's notes in any order.{/if}
+        A count-in, then play the exercise at {bpm}. Each note is graded for the right key and when it came in; the notes in blue are the ones sounding now.
       </p>
       <div class="flex flex-wrap items-center gap-3">
         {#if running}
           <button type="button" class="sr-btn" on:click={stopRun}>Stop</button>
         {:else}
-          <button type="button" class="sr-btn" on:click={start} disabled={!exercise}>{result || waitScore ? "Again" : "Start"}</button>
+          <button type="button" class="sr-btn" on:click={start} disabled={!exercise}>{result ? "Again" : "Start"}</button>
         {/if}
         {#if status}<span class="text-sm" aria-live="polite">{status}</span>{/if}
       </div>
@@ -373,13 +329,7 @@
           <p class="text-xs text-sr-faint">On the score: green right, orange early or late, red missed.</p>
         </div>
       {/if}
-      {#if waitScore}
-        <div class="flex flex-col gap-1" aria-live="polite">
-          <p class="text-2xl font-extrabold">{waitScore.score}%</p>
-          <p class="text-sm">{waitScore.clean} of {waitScore.moments} played with no wrong key{#if waitScore.wrongKeys}{" · "}{waitScore.wrongKeys} wrong {waitScore.wrongKeys === 1 ? "key" : "keys"}{/if}</p>
-          <p class="text-xs text-sr-faint">On the score: green first time, orange after a wrong key.</p>
-        </div>
-      {/if}
+
     {/if}
   </section>
 {/if}

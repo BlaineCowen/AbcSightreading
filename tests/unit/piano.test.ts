@@ -166,7 +166,7 @@ test("a level's address carries only what was changed, and opens as it was left"
   expect(settingsFromQuery(q)).toEqual({ levelId: "piano-05", settings: changed });
 });
 
-import { expectedNotes, gradeInTime, midiOf, NoteByNote, onsetGroups } from "../../src/lib/piano/grade-piano";
+import { expectedNotes, gradeInTime, midiOf } from "../../src/lib/piano/grade-piano";
 
 test("pitches become MIDI with the key's and their own accidentals", () => {
   expect(midiOf("C", 14)).toBe(60); // middle C
@@ -185,7 +185,6 @@ test("graded in time: a note on time, one late, one missed, a wrong key and an e
   };
   const expected = expectedNotes(ex);
   expect(expected.length).toBe(7);
-  expect(onsetGroups(expected).map((g) => g.notes.length)).toEqual([4, 1, 1, 1]);
   const t0 = 10_000;
   const played = [
     { midi: 60, t: t0 + 20 }, { midi: 48, t: t0 }, { midi: 52, t: t0 + 10 }, { midi: 55, t: t0 + 5 }, // beat 1, right
@@ -205,16 +204,4 @@ test("graded in time: a note on time, one late, one missed, a wrong key and an e
   expect(r.extras.map((k) => k.midi)).toEqual([65]);
   expect(r.notesScore).toBe(86); // 6 of 7
   expect(r.byHand.lh).toEqual({ notes: 3, right: 3 });
-});
-
-test("note by note waits on each moment, a chord's notes in any order, and counts a wrong key against the moment", () => {
-  const ex = { key: "C", rh: [{ pitches: [14], length: 16 }, { pitches: [16], length: 16 }], lh: [{ pitches: [7, 11], length: 32 }] };
-  const g = new NoteByNote(expectedNotes(ex));
-  expect(g.press(55)).toBe("note"); // the left hand's G
-  expect(g.press(62)).toBe("wrong");
-  expect(g.press(48)).toBe("note");
-  expect(g.press(60)).toBe("moment");
-  expect(g.press(64)).toBe("finished");
-  expect(g.done.map((m) => m.wrong)).toEqual([[62], []]);
-  expect(g.score).toBe(50);
 });

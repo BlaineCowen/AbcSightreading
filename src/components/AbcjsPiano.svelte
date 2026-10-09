@@ -35,6 +35,7 @@
   import { generatePianoExercise, keyName, type PianoExercise } from "../lib/piano/generatePiano";
   import { settingsFromQuery, settingsQuery } from "../lib/piano/settings-link";
   import PianoGrade from "./PianoGrade.svelte";
+  import { createFollower } from "../lib/piano/follow";
 
   const HANDS = ["Right hand", "Left hand"];
   const PATTERN_NAMES: Record<Accompaniment, string> = {
@@ -157,10 +158,13 @@
 
   // ── Playback ──────────────────────────────────────────────────────────────
   let lit: Element[] = [];
+  // Playback keeps the line being played on screen (follow.ts).
+  const follower = createFollower();
   function light(els: Element[]) {
     for (const e of lit) e.classList.remove("piano-now");
     lit = els;
     for (const e of lit) e.classList.add("piano-now");
+    follower.follow(els);
   }
 
   async function buildSynth() {
@@ -176,6 +180,7 @@
       onEvent: (event: any) => light((event?.elements ?? []).flat()),
       onFinished: () => {
         isPlaying = false;
+        follower.reset();
         light([]);
         hideCountIn();
         if (looping && synthControl) synthControl.play().then(() => (isPlaying = true));
@@ -226,6 +231,7 @@
     if (!synthControl) return;
     pausePlayback();
     synthControl.seek(0);
+    follower.reset();
     light([]);
     hideCountIn();
   }

@@ -23,11 +23,26 @@ export interface MidiConnection {
 export const midiSupported = () => typeof navigator !== "undefined" && typeof (navigator as any).requestMIDIAccess === "function";
 
 /**
+ * Why MIDI cannot be used here, or null. Chrome offers MIDI only on a secure
+ * page (https, or localhost): on plain http, as on a Tailscale address to a
+ * dev server, `requestMIDIAccess` is simply missing, and blaming the browser
+ * sent a Chrome user looking for another one (Blaine, 9 October 2026).
+ */
+export function midiProblem(): string | null {
+  if (typeof window !== "undefined" && window.isSecureContext === false) {
+    return "A MIDI keyboard can only be used on a secure page (an address starting https). This one is not, so the browser keeps MIDI off.";
+  }
+  if (!midiSupported()) return "This browser cannot read a MIDI keyboard. Chrome or Edge on a computer can.";
+  return null;
+}
+
+/**
  * Ask for MIDI and listen. Throws with a reader's explanation when the
  * browser has none, or the person said no.
  */
 export async function connectMidi(onKey: (k: MidiKey) => void, onChange: (names: string[]) => void = () => {}): Promise<MidiConnection> {
-  if (!midiSupported()) throw new Error("This browser cannot read a MIDI keyboard. Chrome or Edge on a computer can.");
+  const problem = midiProblem();
+  if (problem) throw new Error(problem);
   let access: any;
   try {
     access = await (navigator as any).requestMIDIAccess({ sysex: false });

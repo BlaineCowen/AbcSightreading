@@ -750,25 +750,28 @@ against Sight Reading Factory's piano levels: notes/srf-piano-study.md.
 **Play and grade** (`PianoGrade.svelte`; rules `grade-piano.ts`, the
 keyboard `midi.ts`; tests in `piano.test.ts`): a MIDI keyboard through Web
 MIDI (Chrome, Edge, Firefox; not Safari), every key stamped on the
-performance.now() clock by the event's own timeStamp. Pro, as Unison's
-Grade (open on the dev server, which has no billing). Two ways, as Unison
-grades: **In time** - a count-in and a click (throughout or count-in only)
-on the page's own AudioContext, beat 1 moved by the output's latency since
-the player plays with the click as heard; afterwards each written note
-(`expectedNotes`, both hands, MIDI with the key's and its own accidentals)
-is matched to a key of the same pitch nearest in time, nearest pairs first,
-within three onset windows (Easy, Standard, Strict: a quarter, an eighth, a
-sixteenth of a beat; full credit inside it); a key that matches nothing is
-an extra and counts as a note scored 0; a missed note names the key played
-near it instead. The run ends on a timer, not the frame loop (a page out of
-sight draws no frames). **Note by note** - untimed: the score waits on each
-moment's notes (`NoteByNote`; a chord's in any order, either hand), a wrong
-key counted against the moment. Marks on the score by abcjs's own note
-elements (staff 0 the right hand, staff 1 the left, in order): green right,
-orange early or late (or after a wrong key), red missed, blue waiting.
-`window.__pianoMidi` (dev only) presses keys from the console or a test;
-checked end to end with it on 9 October 2026: a planted late note (0.30
-beats) and a wrong key found exactly, on-time keys within 1-6 ms.
+performance.now() clock by the event's own timeStamp. Chrome offers MIDI
+only on a secure page (https or localhost): on the Tailscale http address
+to a dev server it is missing, and the panel says so (`midiProblem`; it
+used to blame the browser). Pro, as Unison's Grade (open on the dev server,
+which has no billing). In time only (a Note by note mode was taken off,
+Blaine: a pianist reads at a tempo): a count-in and a click (throughout or
+count-in only) on the page's own AudioContext, beat 1 moved by the output's
+latency since the player plays with the click as heard; afterwards each
+written note (`expectedNotes`, both hands, MIDI with the key's and its own
+accidentals) is matched to a key of the same pitch nearest in time, nearest
+pairs first, within three onset windows (Easy, Standard, Strict: a quarter,
+an eighth, a sixteenth of a beat; full credit inside it); a key that
+matches nothing is an extra and counts as a note scored 0; a missed note
+names the key played near it instead. The marking and the end of the run
+are on timers, not the frame loop (a page out of sight draws no frames).
+Marks on the score by abcjs's own note elements (staff 0 the right hand,
+staff 1 the left, in order): green right, orange early or late, red
+missed, blue the notes sounding now. Playback and a run follow the score
+(`follow.ts`): each new line is scrolled to a third of the way down the
+window. `window.__pianoMidi` (dev only) presses keys from the console or a
+test; checked end to end with it on 9 October 2026: a planted late note
+(0.30 beats) and a wrong key found exactly, on-time keys within 1-6 ms.
 
 Not yet: exact-notes share links and recent exercises (exercise-link.ts and
 recent-exercises.ts know two pages), the Tools wheel, saved presets and

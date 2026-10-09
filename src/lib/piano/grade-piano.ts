@@ -3,16 +3,13 @@
  *
  * A keyboard says exactly which key went down and when, so unlike singing
  * (grade.ts) there is no pitch to estimate: a note is right or it is not, and
- * the question is when. Two ways, as the Unison page grades:
- *
- *  - In time (`gradeInTime`): a count-in and a click, the exercise played
- *    through, and afterwards each written note matched to a key pressed with
- *    the same pitch nearest its time. Full credit within the onset window,
- *    falling to nothing at three times it. A key pressed that matches no note
- *    is an extra (a wrong note, or one too many) and costs a note.
- *  - Note by note (`NoteByNote`): untimed. The score waits on each moment's
- *    notes (a chord is all of them, either hand) until they are played; a
- *    wrong key on the way is counted against that moment.
+ * the question is when. In time (`gradeInTime`): a count-in and a click,
+ * the exercise played through, and afterwards each written note matched to
+ * a key pressed with the same pitch nearest its time. Full credit within the
+ * onset window, falling to nothing at three times it. A key pressed that
+ * matches no note is an extra (a wrong note, or one too many) and costs a
+ * note. (A Note by note mode, the score waiting on each note, was taken off:
+ * a pianist reads at a tempo. Blaine, 9 October 2026.)
  */
 import { keyAlter } from "./assemble";
 import type { PianoExercise } from "./generatePiano";
@@ -53,17 +50,6 @@ export function expectedNotes(ex: Pick<PianoExercise, "key" | "rh" | "lh">): Exp
     });
   }
   return out.sort((a, b) => a.start - b.start || a.midi - b.midi);
-}
-
-/** The notes that start together, moment by moment: what Note by note waits on. */
-export function onsetGroups(expected: ExpectedNote[]): { start: number; notes: ExpectedNote[] }[] {
-  const groups: { start: number; notes: ExpectedNote[] }[] = [];
-  for (const n of expected) {
-    const last = groups[groups.length - 1];
-    if (last && last.start === n.start) last.notes.push(n);
-    else groups.push({ start: n.start, notes: [n] });
-  }
-  return groups;
 }
 
 export type PianoStrictness = "easy" | "standard" | "strict";
@@ -164,62 +150,6 @@ export function gradeInTime(
     overall: expected.length ? Math.round((100 * sum) / (expected.length + extras.length)) : 0,
     byHand,
   };
-}
-
-export interface MomentResult {
-  start: number;
-  notes: ExpectedNote[];
-  /** Keys pressed while waiting on it that are not among its notes. */
-  wrong: number[];
-}
-
-/**
- * Note by note: the score waits on each moment until all its notes have been
- * played (in any order, held or not: a beginner may play a chord a note at a
- * time). A key that is not one of the moment's notes is a wrong note there.
- */
-export class NoteByNote {
-  readonly groups: { start: number; notes: ExpectedNote[] }[];
-  private pending: Set<number>;
-  readonly done: MomentResult[] = [];
-  private wrong: number[] = [];
-  at = 0;
-
-  constructor(expected: ExpectedNote[]) {
-    this.groups = onsetGroups(expected);
-    this.pending = new Set(this.groups[0]?.notes.map((n) => n.midi) ?? []);
-  }
-
-  get finished(): boolean {
-    return this.at >= this.groups.length;
-  }
-
-  get current(): { start: number; notes: ExpectedNote[] } | null {
-    return this.groups[this.at] ?? null;
-  }
-
-  /** A key went down. What it was: one of the notes waited on, the last of them (the moment is done), or wrong. */
-  press(midi: number): "note" | "moment" | "wrong" | "finished" {
-    if (this.finished) return "finished";
-    if (!this.pending.has(midi)) {
-      this.wrong.push(midi);
-      return "wrong";
-    }
-    this.pending.delete(midi);
-    if (this.pending.size) return "note";
-    const g = this.groups[this.at];
-    this.done.push({ start: g.start, notes: g.notes, wrong: this.wrong });
-    this.wrong = [];
-    this.at++;
-    this.pending = new Set(this.groups[this.at]?.notes.map((n) => n.midi) ?? []);
-    return this.finished ? "finished" : "moment";
-  }
-
-  /** 0-100: moments played with no wrong key on the way. */
-  get score(): number {
-    if (!this.done.length) return 0;
-    return Math.round((100 * this.done.filter((m) => !m.wrong.length).length) / this.done.length);
-  }
 }
 
 const NAMES = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
