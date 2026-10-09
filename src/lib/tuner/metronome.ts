@@ -9,7 +9,7 @@ import {
   type ClickSound,
 } from "./click-sounds";
 import { beatEvents, beatLevelsFor, gridOf, type BeatLevel } from "./click-pattern";
-import { VoiceBank, wordAt, type VoiceSettings } from "./voice-count";
+import { VoiceBank, spokenBeat, wordAt, type VoiceSettings } from "./voice-count";
 import { assistedLevels, barIsSilent, rampBpm, timeIsUp, type AssistantSettings } from "./practice-assistant";
 
 export interface MetronomeSettings {
@@ -182,7 +182,8 @@ export class Metronome {
         const at = this.nextBeatTime + e.at * beatDur;
         if (voice?.mode !== "voice") this.click(at, e.level, undefined, e.gain);
         if (voice && voice.mode !== "off") {
-          const word = wordAt(voice.system, gridOf(subdivision), e.slot, beatInBar, !!this.settings.compound, slotSeconds);
+          const said = spokenBeat(beatInBar, levels.length, this.settings.groupStarts);
+          const word = wordAt(voice.system, gridOf(subdivision), e.slot, said, !!this.settings.compound, slotSeconds);
           if (word) this.voices.say(ctx, this.out!, word, at, e.gain * voice.volume * VOICE_GAIN);
         }
       }

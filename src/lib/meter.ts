@@ -39,7 +39,9 @@ export type MeterRef =
   | string
   | { name: string; tsPerMeasure?: number; beatUnits?: number; beamGroupSize?: number };
 
-const BEAT_UNITS: Record<BeatNote, number> = { half: 16, quarter: 8, dottedQuarter: 12, eighth: 4 };
+const BEAT_UNITS: Record<BeatNote, number> = {
+  whole: 32, dottedHalf: 24, half: 16, quarter: 8, dottedQuarter: 12, eighth: 4, dottedEighth: 6, sixteenth: 2,
+};
 
 function fromMetronomeMeter(name: string): ExerciseMeter | undefined {
   const m = METERS.find((x) => x.id === name);

@@ -747,6 +747,21 @@ tempo ramp, silent bars, dropped beats (never beat 1), time limit; silent bars
 and dropped beats also reach the exercise click (Unison per beat, Choral by a
 drum directive written into each bar of the played copy, `withClickByBar`,
 since abcjs lays a multi-bar drum pattern down again at every barline).
+Custom time signatures (`customMeter` in meters.ts, tests
+`metronome-custom-meters.test.ts`; Custom… on the metronome, `CustomMeter.svelte`):
+any top number to 32 over 1, 2, 4, 8 or 16, with a grouping in units of the
+bottom number ("7/8:3+2+2" is the stored id; plain "11/8" is 2+2+2+2+3).
+Multiples of three over 4, 8, 16 are compound (dotted beats), odd tops over 8
+or 16 and any grouping are uneven, the rest simple. An uneven meter's groups
+are heard by volume, not a third pitch (`groupLevels`: beat 1 accented, each
+group's first beat normal, the rest soft), set when the meter is chosen and
+put back by the tiles' Reset. Past twelve beats the counting voice counts
+each group from 1 (`spokenBeat`). Exercises never see a custom meter
+(metronome-link only takes the table's). Presets (`metronome-presets.ts`,
+`MetronomePresets.svelte`, not on a practice page's linked card): Swing,
+Backbeat, Off-beats and 3+3+2 keep the tempo; Save this keeps everything
+(meter, tempo, levels, subdivision, sound, voice, assistant) in this browser
+(`metronomePresets` in the tuner store), up to 24.
 The counting voice (`voice-count.ts`, tests `voice-count.test.ts`; Off,
 Voice + click, Voice only; Counting 1 e & a / 1 trip let / 1 la li, or Kodály
 ta, ti-ti, ti ki ti ki, tri o la) is espeak-ng's plain robot (Blaine's pick),

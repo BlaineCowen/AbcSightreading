@@ -1,7 +1,8 @@
 <script lang="ts">
   import { tuner } from "../../lib/tuner/store";
-  import { METERS, meterById } from "../../lib/tuner/meters";
+  import { METERS, isTableMeter, meterById, meterName } from "../../lib/tuner/meters";
   import SubdivisionPicker from "./SubdivisionPicker.svelte";
+  import CustomMeter from "./CustomMeter.svelte";
   import type { VoiceMode, VoiceSystem } from "../../lib/tuner/voice-count";
   import { CLICK_SOUNDS, type ClickSound } from "../../lib/tuner/click-sounds";
   import { metronome } from "../../lib/tuner/metronome";
@@ -27,9 +28,15 @@
   ];
 
   $: meter = meterById($tuner.meter);
+  $: custom = !isTableMeter(meter.id);
+  /** The custom editor: open by itself while a custom meter is on. */
+  let customOpen = false;
+  $: showCustom = customOpen || custom;
+  $: meterLabel = meter.kind === "uneven" && meter.grouping ? `${meterName(meter)} (${meter.grouping})` : meterName(meter);
 
   function pickMeter(id: string) {
     onManual();
+    customOpen = false;
     tuner.setMeter(id);
   }
   /**
@@ -52,7 +59,7 @@
     <span class="text-xs text-sr-muted">Time signature</span>
     {#if lockedMeter}
       <div class="flex items-center gap-2">
-        <span class="sr-tok sr-on tabular-nums {compact ? 'px-2 text-xs' : ''}">{meter.id}</span>
+        <span class="sr-tok sr-on tabular-nums {compact ? 'px-2 text-xs' : ''}">{meterLabel}</span>
         <span class="text-xs text-sr-muted">the exercise's</span>
       </div>
     {:else}
@@ -69,7 +76,15 @@
           >{m.id}</button>
         {/each}
       {/each}
+      <span class="w-px h-6 bg-sr-hairline mx-1" aria-hidden="true"></span>
+      <button
+        type="button"
+        class="sr-tok tabular-nums {compact ? 'px-2 text-xs' : ''} {custom ? 'sr-on' : ''}"
+        aria-expanded={showCustom}
+        on:click={() => (customOpen = custom ? true : !customOpen)}
+      >{custom ? meterLabel : "Custom…"}</button>
     </div>
+    {#if showCustom}<CustomMeter {compact} {onManual} />{/if}
     {/if}
   </div>
 

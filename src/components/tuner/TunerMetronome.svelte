@@ -3,8 +3,9 @@
   import { tuner } from "../../lib/tuner/store";
   import { BPM_MAX, BPM_MIN } from "../../lib/tuner/metronome";
   import { initTuner } from "../../lib/tuner/controller";
-  import { meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
+  import { meterById, meterName, BEAT_SYMBOL } from "../../lib/tuner/meters";
   import MeterControls from "./MeterControls.svelte";
+  import MetronomePresets from "./MetronomePresets.svelte";
   import BeatTiles from "./BeatTiles.svelte";
   import AssistantPanel from "./AssistantPanel.svelte";
 
@@ -49,7 +50,7 @@
     </button>
     <div class="text-center w-32">
       <div class="text-5xl font-semibold tabular-nums leading-none text-sr-ink">{bpm}</div>
-      <div class="text-xs text-sr-muted mt-1 whitespace-nowrap">bpm ({BEAT_SYMBOL[meter.beatNote]}) · {meter.id}</div>
+      <div class="text-xs text-sr-muted mt-1 whitespace-nowrap">bpm ({BEAT_SYMBOL[meter.beatNote]}) · {meterName(meter)}</div>
     </div>
     <button
       type="button"
@@ -89,6 +90,8 @@
       {running ? "Stop" : "Start"}
     </button>
   </div>
+
+  <MetronomePresets />
 
   <MeterControls />
 

@@ -75,6 +75,19 @@ export function wordAt(system: VoiceSystem, grid: number, slot: number, beat: nu
   return countWords(system, grid, beat, compound)[slot] ?? null;
 }
 
+/**
+ * The number said on beat `beat` (from 0) of a bar of `beats`. Up to twelve
+ * every beat has its number; a longer custom bar (13/8, 15/16) counts each
+ * group from 1 (2+2+3+3+3: 1 2 1 2 1 2 3 1 2 3 1 2 3), or round from 1 every
+ * twelve when it has no groups, since "thirteen" takes longer to say than a
+ * fast beat lasts.
+ */
+export function spokenBeat(beat: number, beats: number, groupStarts: number[] = []): number {
+  if (beats <= 12) return beat;
+  const start = [0, ...groupStarts].filter((g) => g <= beat).pop() ?? 0;
+  return groupStarts.length ? beat - start : beat % 12;
+}
+
 interface Word {
   buffer: AudioBuffer;
   leadIn: number;

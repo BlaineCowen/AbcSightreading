@@ -4,13 +4,15 @@
      beat dots. -->
 <script lang="ts">
   import { tuner } from "../../lib/tuner/store";
-  import { meterById } from "../../lib/tuner/meters";
+  import { groupLevels, meterById } from "../../lib/tuner/meters";
   import { beatLevelsFor, type BeatLevel } from "../../lib/tuner/click-pattern";
 
   export let size: "sm" | "md" = "md";
 
   $: meter = meterById($tuner.meter);
   $: levels = beatLevelsFor({ beats: meter.beats, accent: $tuner.accent, beatLevels: $tuner.beatLevels });
+  // Reset shows only once the levels are not the meter's own.
+  $: own = JSON.stringify($tuner.beatLevels) === JSON.stringify(groupLevels(meter));
   $: lit = $tuner.metronomeRunning ? $tuner.metronomeBeat : -1;
   $: box = size === "md" ? "h-24" : "h-14";
 
@@ -41,8 +43,8 @@
   </div>
   <p class="text-[11px] text-sr-faint text-center">
     Tap a beat to accent it, soften it or silence it.
-    {#if $tuner.beatLevels}
-      <button type="button" class="underline" on:click={() => tuner.setBeatLevels(null)}>Reset</button>
+    {#if !own}
+      <button type="button" class="underline" on:click={() => tuner.resetBeatLevels()}>Reset</button>
     {/if}
   </p>
 </div>

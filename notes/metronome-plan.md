@@ -39,7 +39,7 @@ A bar is a list of beats, each with a **level** and a **subdivision pattern**:
 - **Under an exercise:** silent bars and dropped beats apply to the click as the music plays (Unison: skip the scheduled clicks; Choral: per-bar `%%MIDI drumoff`/`drumon` written into the tune as it is played, never into the exported ABC).
 - The rules are pure functions over (bar number, beat, seed), unit tested, so a run is repeatable.
 
-## Phase 4: presets
+## Phase 4: presets (done 8 October 2026, with custom time signatures; own presets in this browser only for now)
 - Quick buttons: 2/4, 3/4, 4/4, 6/8, swing, backbeat (2 and 4), 5/8, 7/8.
 - Own presets: meter, tempo, levels, pattern, sound, assistant settings. Saved like page presets (account when signed in, this browser when not), with a "presets set the tempo" switch.
 
