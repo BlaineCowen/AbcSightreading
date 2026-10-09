@@ -126,7 +126,7 @@
   let layout: Layout = "lines";
 
   // ── The settings row (as the Unison page's) ────────────────────────────────
-  type SettingPop = "level" | "keys" | "meter" | "rhythm" | "notes" | "hands" | "chords";
+  type SettingPop = "level" | "keys" | "meter" | "rhythm" | "notes" | "hands" | "accomp" | "chords";
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | null = null;
   let popLeft = 0;
@@ -169,16 +169,17 @@
   }
 
   // What each pill says, and which have changed since the level was chosen.
-  const SKIP_WORD: Record<number, string> = { 1: "Steps", 2: "a 3rd", 3: "a 4th", 4: "a 5th", 5: "a 6th", 7: "an octave" };
-  const REACH_WORD: Record<number, string> = { 4: "five-finger", 5: "a 6th's reach", 7: "an octave's reach" };
+  const SKIP_WORD: Record<number, string> = { 1: "Steps", 2: "3rd", 3: "4th", 4: "5th", 5: "6th", 7: "octave" };
+  const REACH_WORD: Record<number, string> = { 4: "five-finger", 5: "6th reach", 7: "octave reach" };
   const short = (xs: string[], n = 3) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} +${xs.length - n}`);
   $: pillText = {
     level: level.label,
-    keys: short(settings.keys.map(keyLabel)),
+    keys: short(settings.keys.map(keyLabel), 2),
     meter: `${short(settings.meters, 2)} · ${settings.measures} bars`,
     rhythm: `${settings.rhythms.length} rhythms`,
-    notes: `${settings.maxSkip === 1 ? "Steps" : `To ${SKIP_WORD[settings.maxSkip] ?? "a skip"}`} · ${REACH_WORD[settings.reach] ?? ""}`,
-    hands: !settings.together ? "Taking turns" : settings.tuneHand === "right" ? `Together · ${short(settings.patterns.map((p) => PATTERN_NAMES[p]), 1)}` : `Tune ${settings.tuneHand === "left" ? "in the left hand" : "in either hand"}`,
+    notes: `${settings.maxSkip === 1 ? "Steps" : `Skips to ${SKIP_WORD[settings.maxSkip] ?? "a skip"}`} · ${REACH_WORD[settings.reach] ?? ""}`,
+    hands: !settings.together ? "Taking turns" : settings.tuneHand === "right" ? "Together" : `Together · tune ${settings.tuneHand === "left" ? "left" : "either"}`,
+    accomp: !settings.together ? "None" : short(settings.patterns.map((p) => PATTERN_NAMES[p]), 1),
     chords: `${settings.chords.join(" ")}${settings.chromatic ? " · V of V" : ""}`,
   };
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -186,15 +187,29 @@
   $: pillChanged = {
     level: false,
     keys: !same(settings.keys, base.keys),
-    meter: !same(settings.meters, base.meters) || settings.measures !== base.measures,
+    meter: !same(settings.meters, base.meters) || settings.measures !== base.measures || settings.dynamics !== base.dynamics,
     rhythm: !same(settings.rhythms, base.rhythms),
-    notes: settings.maxSkip !== base.maxSkip || settings.reach !== base.reach,
-    hands: settings.together !== base.together || settings.tuneHand !== base.tuneHand || !same(settings.patterns, base.patterns),
-    chords: !same(settings.chords, base.chords) || settings.chromatic !== base.chromatic || settings.dynamics !== base.dynamics || settings.doubleNotes !== base.doubleNotes,
+    notes: settings.maxSkip !== base.maxSkip || settings.reach !== base.reach || settings.doubleNotes !== base.doubleNotes,
+    hands: settings.together !== base.together || settings.tuneHand !== base.tuneHand,
+    accomp: !same(settings.patterns, base.patterns),
+    chords: !same(settings.chords, base.chords) || settings.chromatic !== base.chromatic,
   };
   const POP_TITLE: Record<SettingPop, string> = {
-    level: "Level", keys: "Keys", meter: "Meter and length", rhythm: "Rhythms", notes: "Skips and reach", hands: "Hands and accompaniment", chords: "Chords and more",
+    level: "Level", keys: "Keys", meter: "Meter, length and dynamics", rhythm: "Rhythms", notes: "The tune's notes", hands: "Hands", accomp: "Accompaniment", chords: "Chords",
   };
+  /**
+   * The pills in groups, each under a small label, so the row reads as what
+   * it sets: the level, then the music, the tune, the hands and the harmony.
+   * Each group has a pastel dot of its own, repeated on its popover's title.
+   */
+  const PILL_GROUPS: { label: string; tone: string; ids: SettingPop[] }[] = [
+    { label: "Level", tone: "action", ids: ["level"] },
+    { label: "Music", tone: "sky", ids: ["keys", "meter"] },
+    { label: "Tune", tone: "mint", ids: ["rhythm", "notes"] },
+    { label: "Hands", tone: "peach", ids: ["hands", "accomp"] },
+    { label: "Harmony", tone: "butter", ids: ["chords"] },
+  ];
+  const toneOf = (id: SettingPop) => PILL_GROUPS.find((g) => g.ids.includes(id))?.tone ?? "action";
 
   // ── Display (as the Unison page's): measure numbers, cursor, layout; the bar's Layout menu ──
   let scoreView: ScoreView = loadScoreView("piano", { scale: 1.2, bars: null, spacing: "normal" });
@@ -531,18 +546,25 @@
   <!-- The settings, as the Unison page's: a pill each, opening its own popover. -->
   <section class="setbar sr-panel w-full no-print" aria-label="Exercise settings" bind:this={setbarEl}>
     <div class="setbar-pills">
-      {#each [["level", pillText.level], ["keys", pillText.keys], ["meter", pillText.meter], ["rhythm", pillText.rhythm], ["notes", pillText.notes], ["hands", pillText.hands], ["chords", pillText.chords]] as [id, text]}
-        <button
-          type="button"
-          class="set-pill"
-          aria-expanded={settingPop === id}
-          aria-label="{POP_TITLE[id]}: {text}"
-          on:click={(e) => togglePop(id, e)}
-        >
-          {text}
-          {#if id === "level" ? edited : pillChanged[id]}<span class="set-pill-dot" title={id === "level" ? "Changed from the level" : "Changed from the level"}></span>{/if}
-          <ChevronDown size={14} class="set-pill-chev" aria-hidden="true" />
-        </button>
+      {#each PILL_GROUPS as g}
+        <div class="set-group" role="group" aria-label={g.label}>
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-{g.tone}"></span>{g.label}</span>
+          <div class="set-group-pills">
+            {#each g.ids as id}
+              <button
+                type="button"
+                class="set-pill {id === 'level' ? 'set-pill-level' : ''}"
+                aria-expanded={settingPop === id}
+                aria-label="{POP_TITLE[id]}: {pillText[id]}"
+                on:click={(e) => togglePop(id, e)}
+              >
+                {pillText[id]}
+                {#if id === "level" ? edited : pillChanged[id]}<span class="set-pill-dot" title={id === "level" ? "Changed from the level" : "Changed from the level"}></span>{/if}
+                <ChevronDown size={14} class="set-pill-chev" aria-hidden="true" />
+              </button>
+            {/each}
+          </div>
+        </div>
       {/each}
     </div>
     <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={generate} disabled={isGenerating}>
@@ -554,8 +576,8 @@
 
     {#if settingPop}
       <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
-      <div in:popIn out:popOut class="set-pop {settingPop === 'rhythm' || settingPop === 'hands' || settingPop === 'keys' ? 'set-pop-wide' : ''}" style="--pop-left: {popLeft}px" role="dialog" aria-label={POP_TITLE[settingPop]}>
-        <p class="set-pop-title">{POP_TITLE[settingPop]}</p>
+      <div in:popIn out:popOut class="set-pop {settingPop === 'rhythm' || settingPop === 'accomp' || settingPop === 'keys' ? 'set-pop-wide' : ''}" style="--pop-left: {popLeft}px" role="dialog" aria-label={POP_TITLE[settingPop]}>
+        <p class="set-pop-title"><span class="set-group-dot tone-{toneOf(settingPop)}"></span>{POP_TITLE[settingPop]}</p>
         {#if settingPop === "level"}
           <div class="flex flex-wrap gap-1.5" role="group" aria-label="Level">
             {#each PIANO_LEVELS as l (l.id)}
@@ -590,6 +612,10 @@
               {#each ALL_LENGTHS as n}
                 <button type="button" class="sr-tok chip {settings.measures === n ? 'sr-on' : ''}" aria-pressed={settings.measures === n} on:click={() => (settings = { ...settings, measures: n })}>{n}<sup>{at.bars(n) ?? ""}</sup></button>
               {/each}
+            </div>
+            <p class="sr-label">Dynamics</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" class="sr-tok chip {settings.dynamics ? 'sr-on' : ''}" aria-pressed={settings.dynamics} on:click={() => (settings = { ...settings, dynamics: !settings.dynamics })}>Dynamics<sup>{at.dynamics ?? ""}</sup></button>
             </div>
           </div>
         {:else if settingPop === "rhythm"}
@@ -629,6 +655,10 @@
                 <button type="button" class="sr-tok chip {settings.reach === r.n ? 'sr-on' : ''}" aria-pressed={settings.reach === r.n} on:click={() => (settings = { ...settings, reach: r.n })}>{r.label}<sup>{at.reach(r.n) ?? ""}</sup></button>
               {/each}
             </div>
+            <p class="sr-label">Two notes at once</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button type="button" class="sr-tok chip {settings.doubleNotes ? 'sr-on' : ''}" aria-pressed={settings.doubleNotes} on:click={() => (settings = { ...settings, doubleNotes: !settings.doubleNotes })}>3rds and 6ths at cadences<sup>{at.doubleNotes ?? ""}</sup></button>
+            </div>
           </div>
         {:else if settingPop === "hands"}
           <div class="flex flex-col gap-3">
@@ -649,14 +679,19 @@
                 </div>
               </div>
             </div>
-            <p class="sr-label">Accompaniment</p>
+            <p class="text-xs text-sr-faint">
+              {#if settings.together}With the tune in the left hand, the right hand holds the chords or plays them on each beat.{:else}Taking turns, one tune passes between the hands and there is no accompaniment.{/if}
+            </p>
+          </div>
+        {:else if settingPop === "accomp"}
+          <div class="flex flex-col gap-3">
             <div class="flex flex-wrap gap-1.5" role="group" aria-label="Accompaniment patterns">
               {#each ALL_PATTERNS as p}
                 <button type="button" class="sr-tok chip {settings.patterns.includes(p) ? 'sr-on' : ''}" aria-pressed={settings.patterns.includes(p)} disabled={!settings.together} on:click={() => (settings = { ...settings, patterns: toggle(settings.patterns, p) })}>{PATTERN_NAMES[p]}<sup>{at.pattern(p) ?? ""}</sup></button>
               {/each}
             </div>
             <p class="text-xs text-sr-faint">
-              {#if settings.together}Each exercise draws one, from those that suit its meter. With the tune in the left hand, the right hand holds the chords or plays them on each beat.{:else}With the hands taking turns there is no accompaniment: one tune passes between the hands.{/if}
+              {#if settings.together}Each exercise draws one, from those that suit its meter.{:else}The hands are taking turns, so there is no accompaniment. Choose Together under Hands to use these.{/if}
             </p>
           </div>
         {:else if settingPop === "chords"}
@@ -666,11 +701,6 @@
                 <button type="button" class="sr-tok chip {settings.chords.includes(c) ? 'sr-on' : ''}" aria-pressed={settings.chords.includes(c)} on:click={() => (settings = { ...settings, chords: toggle(settings.chords, c) })}>{c}<sup>{at.chord(c) ?? ""}</sup></button>
               {/each}
               <button type="button" class="sr-tok chip {settings.chromatic ? 'sr-on' : ''}" aria-pressed={settings.chromatic} on:click={() => (settings = { ...settings, chromatic: !settings.chromatic })}>V of V, vi, ii<sup>{at.chromatic ?? ""}</sup></button>
-            </div>
-            <p class="sr-label">Also</p>
-            <div class="flex flex-wrap gap-1.5" role="group" aria-label="Also">
-              <button type="button" class="sr-tok chip {settings.dynamics ? 'sr-on' : ''}" aria-pressed={settings.dynamics} on:click={() => (settings = { ...settings, dynamics: !settings.dynamics })}>Dynamics<sup>{at.dynamics ?? ""}</sup></button>
-              <button type="button" class="sr-tok chip {settings.doubleNotes ? 'sr-on' : ''}" aria-pressed={settings.doubleNotes} on:click={() => (settings = { ...settings, doubleNotes: !settings.doubleNotes })}>3rds and 6ths at cadences<sup>{at.doubleNotes ?? ""}</sup></button>
             </div>
           </div>
         {/if}
@@ -797,7 +827,33 @@
     gap: 0.5rem;
     padding: 0.625rem;
   }
-  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 26rem; min-width: 0; }
+  /* Clipped sideways so the hairline before a group that starts a row falls outside and is not drawn. */
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.6rem 1.3rem; flex: 1 1 26rem; min-width: 0; overflow-x: clip; padding-left: 3px; }
+  /* A group of pills under its label; groups set apart by space and a hairline between them. */
+  .set-group { position: relative; display: flex; flex-direction: column; gap: 0.2rem; }
+  .set-group::before { content: ""; position: absolute; left: -0.65rem; top: 0.25rem; bottom: 0.25rem; border-left: 1px solid var(--sr-hairline); }
+  .set-group-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .set-group-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-left: 0.4rem;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sr-muted);
+  }
+  .set-group-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; display: inline-block; }
+  .set-pop-title .set-group-dot { margin-right: 0.5rem; vertical-align: 0.1em; }
+  /* The pastel, ringed in its own ink so it shows on white and in the dark theme. */
+  .tone-action { background: var(--sr-action); }
+  .tone-sky { background: var(--sr-sky); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-sky-ink) 45%, transparent); }
+  .tone-mint { background: var(--sr-mint); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-mint-ink) 45%, transparent); }
+  .tone-peach { background: var(--sr-peach); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-peach-ink) 45%, transparent); }
+  .tone-butter { background: var(--sr-butter); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-butter-ink) 45%, transparent); }
+  /* The level leads: it fills in everything after it. */
+  .set-pill-level { background: var(--sr-tint); color: var(--sr-action-fg); }
   .set-pill {
     display: inline-flex;
     align-items: center;
@@ -918,6 +974,8 @@
 
   @media (max-width: 640px) {
     .setbar-new { flex: 1; justify-content: center; }
+    /* A phone: each group a row of its own, no hairlines. */
+    .set-group { width: 100%; }
     .set-pop,
     .set-pop-wide,
     .set-pop-tools {
