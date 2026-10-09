@@ -1,15 +1,16 @@
 <script lang="ts">
   /**
-   * Assign bars of one part of a piece from My music to a class: which part,
-   * which bars, what plays along, the tempo, how many attempts. The same form
-   * on a class's card (the piece is chosen here) and in the piece's viewer
-   * (the class is). It says why a part cannot be assigned before anyone
-   * presses Assign, and shows the excerpt as students will see it.
+   * Assign bars of a piece from My music to a class: which bars, what
+   * students hear with their part, the tempo, how many attempts. Each student
+   * chooses their own part when they open it. The same form on a class's
+   * card (the piece is chosen here) and in the piece's viewer (the class is).
+   * It says why bars cannot be assigned before anyone presses Assign, and
+   * shows the excerpt.
    */
   import { onMount, tick } from "svelte";
   import { loadPiece, listPieces } from "../../lib/pieces/client";
   import { abcForPiece } from "../../lib/pieces/write-abc";
-  import { MAX_ATTEMPTS, excerptLabel, partProblem, singleLineParts, type Strictness } from "../../lib/pieces/assign";
+  import { HEARING, HEARING_LABEL, MAX_ATTEMPTS, barsLabel, barsProblem, partsFor, type Hearing, type Strictness } from "../../lib/pieces/assign";
   import { partSettingsFor, type PartSettings, type PieceSummary } from "../../lib/pieces/rules";
   import { MAX_MINUTES } from "../../lib/practice";
   import type { PieceScore } from "../../lib/pieces/model";
@@ -33,10 +34,10 @@
   let problem = "";
   let busy = false;
 
-  let partId = "";
   let from = 0;
   let to = 0;
-  let accompaniment = new Set<string>();
+  let hearing: Hearing = "others";
+  let playing = new Set<string>();
   let tempo = 100;
   let limitAttempts = false;
   let maxAttempts = 3;
@@ -70,12 +71,12 @@
       const loaded = await loadPiece(id);
       score = loaded.score;
       settings = partSettingsFor(loaded.score, loaded.parts);
-      const lines = singleLineParts(score);
-      partId = lines[0] ?? score.parts[0].id;
       from = Math.min(initial.from ?? 0, score.measures.length - 1);
       to = Math.min(initial.to ?? Math.min(score.measures.length - 1, from + 7), score.measures.length - 1);
       tempo = Math.round(initial.tempo ?? score.measures.find((m) => m.tempo)?.tempo ?? 100);
-      resetAccompaniment();
+      // "Only what you choose" starts on a piano or organ part, if the piece has one.
+      const keys = score.parts.filter((p) => /piano|organ|keyboard|accomp/i.test(nameOf(p.id))).map((p) => p.id);
+      playing = new Set(keys);
     } catch (e) {
       problem = (e as Error).message;
     } finally {
@@ -83,31 +84,25 @@
     }
   }
 
-  /** Every other part the teacher has not muted plays along. */
-  function resetAccompaniment() {
-    if (!score) return;
-    accompaniment = new Set(score.parts.filter((p) => p.id !== partId && !settings[p.id]?.muted).map((p) => p.id));
-  }
-
-  function choosePart(id: string) {
-    partId = id;
-    resetAccompaniment();
-  }
-
-  function toggleAccompaniment(id: string) {
-    const next = new Set(accompaniment);
+  function togglePlaying(id: string) {
+    const next = new Set(playing);
     next.has(id) ? next.delete(id) : next.add(id);
-    accompaniment = next;
+    playing = next;
   }
 
   const nameOf = (id: string) => settings[id]?.name ?? score?.parts.find((p) => p.id === id)?.name ?? "Part";
-  $: lineParts = score ? new Set(singleLineParts(score)) : new Set<string>();
-  $: why = score ? partProblem(score, partId, from, to) : null;
-  $: playing = score ? score.parts.filter((p) => accompaniment.has(p.id) && p.id !== partId) : [];
+  $: why = score ? barsProblem(score, from, to) ?? (hearing === "selected" && playing.size === 0 ? "Choose the parts that play along." : null) : null;
+  $: choosable = score ? partsFor(score, from, to) : [];
+  $: notChoosable = score ? score.parts.filter((p) => !choosable.includes(p.id)) : [];
   $: summary = score && !why
-    ? `Students sing or play ${excerptLabel({ ...score, parts: score.parts.map((p) => ({ ...p, name: nameOf(p.id) })) }, { partId, from, to })}` +
-      (playing.length ? `, with ${listOf(playing.map((p) => nameOf(p.id)))} playing along` : ", on their own") +
-      `, at ${tempo} bpm. ${limitAttempts ? `${maxAttempts} graded attempt${maxAttempts === 1 ? "" : "s"}.` : "As many attempts as they like."}`
+    ? `Each student chooses their part (${listOf(choosable.map(nameOf))}) and sings or plays ${barsLabel(score, { from, to })} at ${tempo} bpm, hearing ` +
+      {
+        others: "the other parts with their own silent",
+        quiet: "every part, their own softly",
+        selected: `only ${listOf([...playing].map(nameOf))}`,
+        acappella: "nothing but a click",
+      }[hearing] +
+      `. ${limitAttempts ? `${maxAttempts} graded attempt${maxAttempts === 1 ? "" : "s"}.` : "As many attempts as they like."}`
     : "";
 
   function listOf(names: string[]): string {
@@ -116,7 +111,7 @@
 
   // The excerpt as students will see it: their part and what plays along.
   let drawTimer: ReturnType<typeof setTimeout> | null = null;
-  $: if (score && previewEl && !why) schedulePreview(partId, from, to, accompaniment);
+  $: if (score && previewEl && !why) schedulePreview(from, to);
   function schedulePreview(..._deps: unknown[]) {
     if (drawTimer) clearTimeout(drawTimer);
     drawTimer = setTimeout(drawPreview, 150);
@@ -125,8 +120,8 @@
     if (!score || !previewEl) return;
     await tick();
     const abcjs = (await import("abcjs")).default;
-    const idx = score.parts.map((p, i) => (p.id === partId || accompaniment.has(p.id) ? i : -1)).filter((i) => i >= 0);
-    const names = Object.fromEntries(score.parts.map((p, i) => [i, p.id === partId ? `${nameOf(p.id)} (students)` : nameOf(p.id)]));
+    const idx = score.parts.map((p, i) => (settings[p.id]?.hidden ? -1 : i)).filter((i) => i >= 0);
+    const names = Object.fromEntries(score.parts.map((p, i) => [i, nameOf(p.id)]));
     const { abc } = abcForPiece(score, { parts: idx, from, to, names, barsPerLine: 4, tempoChanges: false });
     abcjs.renderAbc(previewEl, abc, { responsive: "resize", staffwidth: 700, scale: 0.8 });
   }
@@ -143,7 +138,7 @@
         minutes,
         dueAt,
         note,
-        piece: { partId, from, to, accompaniment: [...accompaniment], tempo, maxAttempts: limitAttempts ? maxAttempts : null, strictness },
+        piece: { from, to, hearing, playing: [...playing], tempo, maxAttempts: limitAttempts ? maxAttempts : null, strictness },
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -190,23 +185,6 @@
   {#if loadingPiece}
     <p class="text-sm text-sr-muted">Loading the piece…</p>
   {:else if score}
-    <fieldset class="flex flex-col gap-2">
-      <legend class="legend">Their part</legend>
-      <div class="chips">
-        {#each score.parts as p (p.id)}
-          <button
-            type="button"
-            class="chip"
-            class:on={partId === p.id}
-            disabled={!lineParts.has(p.id)}
-            title={lineParts.has(p.id) ? "" : "More than one note at a time throughout: it can play along, but not be graded"}
-            aria-pressed={partId === p.id}
-            on:click={() => choosePart(p.id)}>{nameOf(p.id)}</button
-          >
-        {/each}
-      </div>
-    </fieldset>
-
     <div class="flex flex-wrap gap-4">
       <label class="field">
         <span>From bar</span>
@@ -226,18 +204,31 @@
       </label>
     </div>
 
-    {#if score.parts.length > 1}
-      <fieldset class="flex flex-col gap-2">
-        <legend class="legend">Playing along</legend>
-        <div class="chips">
-          {#each score.parts.filter((p) => p.id !== partId) as p (p.id)}
-            <button type="button" class="chip" class:on={accompaniment.has(p.id)} aria-pressed={accompaniment.has(p.id)} on:click={() => toggleAccompaniment(p.id)}>
-              {nameOf(p.id)}
-            </button>
+    <p class="text-sm text-sr-ink-2">
+      Each student chooses their part when they open it{choosable.length ? `: ${listOf(choosable.map(nameOf))}` : ""}.
+      {#if notChoosable.length}<span class="text-sr-muted">{listOf(notChoosable.map(nameOf))} {notChoosable.length === 1 ? "plays" : "play"} more than one note at a time here, so {notChoosable.length === 1 ? "it can" : "they can"} play along but not be graded.</span>{/if}
+    </p>
+
+    <fieldset class="flex flex-col gap-2">
+      <legend class="legend">What they hear with their part</legend>
+      <div class="hearing">
+        {#each HEARING as h}
+          <label class="hear" class:on={hearing === h}>
+            <input class="sr-only" type="radio" name="hearing" value={h} bind:group={hearing} />
+            <span class="font-bold text-sr-ink">{HEARING_LABEL[h].title}</span>
+            <span class="text-xs text-sr-muted">{HEARING_LABEL[h].detail}</span>
+          </label>
+        {/each}
+      </div>
+      {#if hearing === "selected"}
+        <div class="chips" role="group" aria-label="Parts that play along">
+          {#each score.parts as p (p.id)}
+            <button type="button" class="chip" class:on={playing.has(p.id)} aria-pressed={playing.has(p.id)} on:click={() => togglePlaying(p.id)}>{nameOf(p.id)}</button>
           {/each}
         </div>
-      </fieldset>
-    {/if}
+        <p class="text-xs text-sr-muted">A student's own part stays silent even if it is picked here.</p>
+      {/if}
+    </fieldset>
 
     {#if why}
       <p class="text-sm text-sr-brass" role="alert">{why}</p>
@@ -342,6 +333,28 @@
   .chip:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+  .hearing {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  }
+  .hear {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 16px;
+    border: 2px solid var(--sr-hairline);
+    cursor: pointer;
+  }
+  .hear.on {
+    border-color: var(--sr-action);
+    background: var(--sr-tint);
+  }
+  .hear:focus-within {
+    outline: 2px solid var(--sr-action);
+    outline-offset: 2px;
   }
   .preview {
     background: #fff;

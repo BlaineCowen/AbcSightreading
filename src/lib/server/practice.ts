@@ -8,7 +8,7 @@ import { trackStepOptions } from "../curriculum/options";
 import { overridesFrom } from "../curriculum/subscriptions";
 import { RETENTION_DAYS, assignmentPage, assignmentProgress, creditSeconds, practiceDay } from "../practice";
 import { loadScore } from "./pieces";
-import { checkPieceAssignment, excerptLabel, pieceAssignmentOf } from "../pieces/assign";
+import { barsLabel, checkPieceAssignment, pieceAssignmentOf } from "../pieces/assign";
 
 /**
  * Assignments and the practice log, against the database. The rules are in
@@ -29,11 +29,7 @@ export async function describePreset(teacherId: string, presetKey: string, piece
     const score = await loadScore(piece.scorePath);
     const checked = checkPieceAssignment(pieceRequest, piece.id, score);
     if (!checked.ok) return { error: checked.error };
-    const names = (piece.parts ?? {}) as Record<string, { name?: string }>;
-    const label = excerptLabel(
-      { ...score, parts: score.parts.map((p) => ({ ...p, name: names[p.id]?.name ?? p.name })) },
-      checked.value,
-    );
+    const label = barsLabel(score, checked.value);
     return { title: `${piece.title}: ${label}`, page: "piece" as const, params: checked.value as unknown as Prisma.InputJsonObject };
   }
   if (key.kind === "step") return { title: stepLabel(ladderById[key.id]), page: assignmentPage(presetKey), params: null };

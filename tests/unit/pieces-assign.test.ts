@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { strToU8 } from "fflate";
 import { readMusicXml } from "../../src/lib/pieces/read-musicxml";
-import { checkPieceAssignment, excerptLabel, partProblem, pieceAssignmentOf, singleLineParts } from "../../src/lib/pieces/assign";
+import { QUIET_LEVEL, barsLabel, barsProblem, checkPieceAssignment, levelFor, partProblem, partsFor, pieceAssignmentOf, type Hearing } from "../../src/lib/pieces/assign";
 import { assignmentPath, assignmentProgress, checkAssignmentRequest } from "../../src/lib/practice";
 import { parsePresetKey } from "../../src/lib/class-validate";
 import { attrs, note, scoreXml } from "./fixtures/musicxml-pieces";
@@ -34,28 +34,40 @@ const score = readMusicXml(
 );
 
 describe("what can be assigned", () => {
-  test("one line can; chords and a meter change say why not", () => {
+  test("a part a student may take is one line; bars need one meter and at least one such part", () => {
     expect(partProblem(score, "P1", 0, 1)).toBeNull();
     expect(partProblem(score, "P2", 0, 1)).toMatch(/more than one note at a time in bar 1/);
-    expect(partProblem(score, "P2", 1, 1)).toBeNull();
-    expect(partProblem(score, "P1", 0, 2)).toMatch(/meter changes in bar 3/);
-    expect(partProblem(score, "nope", 0, 0)).toBe("Choose a part.");
-    expect(singleLineParts(score)).toEqual(["P1", "P2"]);
+    expect(partsFor(score, 0, 1)).toEqual(["P1"]);
+    expect(partsFor(score, 1, 1)).toEqual(["P1", "P2"]);
+    expect(barsProblem(score, 0, 1)).toBeNull();
+    expect(barsProblem(score, 0, 2)).toMatch(/meter changes in bar 3/);
+    expect(barsProblem(score, 2, 0)).toBe("Choose the bars.");
   });
 
-  test("the request is checked and tidied: the part never plays along with itself", () => {
-    const ok = checkPieceAssignment({ partId: "P1", from: 0, to: 1, accompaniment: ["P2", "P1", "P9"], tempo: 92.4, maxAttempts: 3, strictness: "strict" }, "pc1", score);
-    expect(ok).toEqual({ ok: true, value: { pieceId: "pc1", partId: "P1", from: 0, to: 1, accompaniment: ["P2"], tempo: 92, maxAttempts: 3, strictness: "strict" } });
-    const open = checkPieceAssignment({ partId: "P1", from: 0, to: 0, accompaniment: [], tempo: 100, maxAttempts: null }, "pc1", score);
-    expect(open.ok && open.value.maxAttempts).toBeNull();
-    expect(checkPieceAssignment({ partId: "P1", from: 0, to: 0, tempo: 100, maxAttempts: 99 }, "pc1", score).ok).toBe(false);
-    expect(checkPieceAssignment({ partId: "P1", from: 0, to: 0, tempo: 5 }, "pc1", score).ok).toBe(false);
+  test("the request is checked and tidied", () => {
+    const ok = checkPieceAssignment({ from: 0, to: 1, hearing: "selected", playing: ["P2", "P2", "P9"], tempo: 92.4, maxAttempts: 3, strictness: "strict" }, "pc1", score);
+    expect(ok).toEqual({ ok: true, value: { pieceId: "pc1", from: 0, to: 1, hearing: "selected", playing: ["P2"], tempo: 92, maxAttempts: 3, strictness: "strict" } });
+    // Only "selected" keeps a list; an unknown choice is "the other parts".
+    const others = checkPieceAssignment({ from: 0, to: 0, hearing: "loud", playing: ["P2"], tempo: 100 }, "pc1", score);
+    expect(others.ok && [others.value.hearing, others.value.playing, others.value.maxAttempts]).toEqual(["others", [], null]);
+    expect(checkPieceAssignment({ from: 0, to: 0, hearing: "selected", playing: [], tempo: 100 }, "pc1", score).ok).toBe(false);
+    expect(checkPieceAssignment({ from: 0, to: 0, tempo: 100, maxAttempts: 99 }, "pc1", score).ok).toBe(false);
+    expect(checkPieceAssignment({ from: 0, to: 0, tempo: 5 }, "pc1", score).ok).toBe(false);
     if (ok.ok) expect(pieceAssignmentOf(JSON.parse(JSON.stringify(ok.value)))).toEqual(ok.value);
   });
 
-  test("labels name the part and the printed bars", () => {
-    expect(excerptLabel(score, { partId: "P1", from: 0, to: 1 })).toBe("Soprano, bars 1 to 2");
-    expect(excerptLabel(score, { partId: "P1", from: 2, to: 2 })).toBe("Soprano, bar 3");
+  test("what each student hears, by the teacher's choice and their own part", () => {
+    const a = (hearing: Hearing, playing: string[] = []) => ({ hearing, playing });
+    expect([levelFor(a("others"), "P1", "P1"), levelFor(a("others"), "P2", "P1")]).toEqual([0, 1]);
+    expect([levelFor(a("quiet"), "P1", "P1"), levelFor(a("quiet"), "P2", "P1")]).toEqual([QUIET_LEVEL, 1]);
+    expect([levelFor(a("selected", ["P2"]), "P2", "P1"), levelFor(a("selected", ["P1"]), "P1", "P1")]).toEqual([1, 0]);
+    expect(levelFor(a("selected", ["P2"]), "P3", "P1")).toBe(0);
+    expect([levelFor(a("acappella"), "P1", "P1"), levelFor(a("acappella"), "P2", "P1")]).toEqual([0, 0]);
+  });
+
+  test("labels name the printed bars", () => {
+    expect(barsLabel(score, { from: 0, to: 1 })).toBe("bars 1 to 2");
+    expect(barsLabel(score, { from: 2, to: 2 })).toBe("bar 3");
   });
 });
 
@@ -63,9 +75,9 @@ describe("a piece as an assignment", () => {
   test("its key, its minutes (none needed), where it opens and its progress", () => {
     expect(parsePresetKey("piece:abc123")).toEqual({ kind: "piece", id: "abc123" });
     expect(parsePresetKey("piece:../x")).toBeNull();
-    const req = checkAssignmentRequest({ presetKey: "piece:abc123", piece: { partId: "P1" } });
+    const req = checkAssignmentRequest({ presetKey: "piece:abc123", piece: { from: 0 } });
     expect(req.ok && req.value.minutes).toBe(0);
-    expect(req.ok && req.value.piece).toEqual({ partId: "P1" });
+    expect(req.ok && req.value.piece).toEqual({ from: 0 });
     // Sight reading still needs minutes.
     expect(checkAssignmentRequest({ presetKey: "step:sbs-01-rhythm", minutes: 0 }).ok).toBe(false);
     expect(assignmentPath({ page: "piece", presetKey: "piece:abc123" })).toBe("/pieces/abc123");

@@ -1403,17 +1403,23 @@ kinds, kept apart wherever they show (Blaine: "a clear distinction between
 generated sight reading and my library"): **Sight reading** (sky; a step, a
 level or a saved preset, written new each time, for minutes) and **My
 music** (peach; `piece:<id>` keys, `page: "piece"`). Assign practice asks
-which first. A piece assignment is bars of one part (`src/lib/pieces/assign.ts`,
-tests `pieces-assign.test.ts`): the part must be one line over those bars (no
-chords, no second voice: one microphone hears one note) and the bars one
-meter; which parts play along, the tempo, attempts (as many as they like, or
-up to 20), strictness; minutes optional (0 is no time goal). The form
-(`AssignPieceForm.svelte`) is on a class's card and in the viewer (Assign to
-a class), says why a part cannot be assigned, and draws the excerpt as
-students will see it. `/pieces/<id>?assignment=<id>` opens it for a student
-or the teacher: those bars only, their part marked "(you)", the chosen parts
-playing, Hearing my part on or off; practice time counts (page "piece"). A
-student reads the piece through the assignment (`pieceForReader`); a piece
+which first. A piece assignment is bars of a piece (`src/lib/pieces/assign.ts`,
+tests `pieces-assign.test.ts`); each student chooses their own part when
+they open it (Blaine, so one assignment serves every section; kept in their
+browser, `abc-piece-part-<assignment>`). A part they may choose is one line
+over those bars (no chords, no second voice: one microphone hears one note),
+and the bars keep one meter. The teacher chooses what students hear with
+their part (`hearing`, `levelFor`): the other parts with their own silent;
+every part with theirs quietly (`QUIET_LEVEL`); only the parts the teacher
+picks (a piano); or a cappella, a click only. Every student has Starting
+note, a Click, and can tap any note to hear it (abcjs `clickListener`, the
+drawn element mapped to its model notes). Also the tempo, attempts (as many
+as they like, or up to 20), strictness; minutes optional (0 is no time
+goal). The form (`AssignPieceForm.svelte`) is on a class's card and in the
+viewer (Assign to a class), says why bars cannot be assigned, and draws the
+excerpt. `/pieces/<id>?assignment=<id>` opens it for a student or the
+teacher: those bars only, their part marked "(you)"; practice time counts
+(page "piece"). A student reads the piece through the assignment (`pieceForReader`); a piece
 cannot be deleted while assigned.
 
 - `src/lib/pieces/read-musicxml.ts` reads the file into `PieceScore`

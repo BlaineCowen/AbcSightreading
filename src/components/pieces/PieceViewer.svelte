@@ -22,7 +22,13 @@
   import { loadPiece, updatePiece } from "../../lib/pieces/client";
   import type { PieceScore } from "../../lib/pieces/model";
   import { partSettingsFor, type PartSettings, type PieceSummary } from "../../lib/pieces/rules";
-  import type { PieceAssignment } from "../../lib/pieces/assign";
+  import { HEARING_LABEL, levelFor, partsFor, type PieceAssignment } from "../../lib/pieces/assign";
+  import { drawnElements } from "../../lib/pieces/write-abc";
+  import { playPiano, preloadPiano } from "../../lib/tools/tone";
+  import { drumPatternFor } from "../../lib/playback-click";
+  import { DEFAULT_CLICK_SOUND } from "../../lib/tuner/click-sounds";
+  import { countInMeasures } from "../../lib/count-in";
+  import Ear from "lucide-svelte/icons/ear";
   import { startPractice } from "../../lib/practice-tracker";
   import AssignPieceForm from "./AssignPieceForm.svelte";
   import Music from "lucide-svelte/icons/music";
@@ -41,8 +47,12 @@
   /** The owner has Educator: Assign to a class. */
   export let canAssign = false;
 
-  /** Assignment mode: the student's own part sounds (to learn it) or not (to perform it). */
-  let hearMine = true;
+  /** Assignment mode: the part this student sings or plays, their own choice, kept in this browser. */
+  let myPart: string | null = null;
+  let choosingPart = false;
+  /** A click under the music (always offered; on by itself a cappella). */
+  let clickOn = false;
+  const partKey = () => `abc-piece-part-${assignment?.id}`;
   let assignOpen = false;
   let assignedTo: { id: string; className: string } | null = null;
 
@@ -83,6 +93,14 @@
         ({ from, to } = assignment.settings);
         excerpt = true;
         bpm = assignment.settings.tempo;
+        clickOn = assignment.settings.hearing === "acappella";
+        const allowed = partsFor(score, from, to);
+        try {
+          const kept = localStorage.getItem(partKey());
+          if (kept && allowed.includes(kept)) myPart = kept;
+        } catch {}
+        if (!myPart && allowed.length === 1) myPart = allowed[0];
+        choosingPart = !myPart;
         if (assignment.role === "student") startPractice({ page: "piece", assignmentId: assignment.id, isBusy: () => isPlaying });
       }
       await tick();
@@ -98,24 +116,66 @@
 
   $: partOrder = score ? score.parts.map((p, i) => ({ p, i, s: parts[p.id] })).filter((x) => x.s) : [];
   $: shownParts = partOrder.filter((x) => !hiddenPart(x.p.id)).map((x) => x.i);
-  $: mine = assignment ? partOrder.find((x) => x.p.id === assignment!.settings.partId) : null;
+  $: mine = assignment && myPart ? partOrder.find((x) => x.p.id === myPart) : null;
+  $: choosable = assignment && score ? partOrder.filter((x) => partsFor(score!, from, to).includes(x.p.id)) : [];
 
-  /** In an assignment the teacher's choice decides what shows and sounds; otherwise the piece's settings. */
+  /** What shows: the piece's settings, and in an assignment always the student's own part. */
   function hiddenPart(pid: string): boolean {
-    if (!assignment) return !!parts[pid]?.hidden;
-    return pid !== assignment.settings.partId && !assignment.settings.accompaniment.includes(pid);
+    if (assignment && pid === myPart) return false;
+    return !!parts[pid]?.hidden;
   }
-  function mutedPart(pid: string): boolean {
-    if (!assignment) return !!parts[pid]?.muted;
-    if (pid === assignment.settings.partId) return !hearMine;
-    return !assignment.settings.accompaniment.includes(pid);
+  /** How loud a part plays, 0 to 1: in an assignment the teacher's choice of what students hear decides. */
+  function levelOf(pid: string): number {
+    if (!assignment) return parts[pid]?.muted ? 0 : 1;
+    return levelFor(assignment.settings, pid, myPart);
+  }
+
+  async function choosePart(pid: string) {
+    myPart = pid;
+    choosingPart = false;
+    try { localStorage.setItem(partKey(), pid); } catch {}
+    void preloadPiano(firstNotes(pid));
+    await render();
+  }
+
+  /** The student's part in the assigned bars, as sounding MIDI. */
+  function firstNotes(pid: string): number[] {
+    const part = score?.parts.find((p) => p.id === pid);
+    return (part?.notes ?? []).filter((n) => !n.rest && n.measure >= from && n.measure <= to).map((n) => n.midi!);
+  }
+  function startingNote() {
+    if (!myPart) return;
+    const [first] = firstNotes(myPart);
+    if (first !== undefined) playPiano([first], 1.4);
+  }
+
+  /** Tap a note to hear it (a chord, all of it): the drawn element's model notes. */
+  let noteAt = new Map<unknown, number[]>();
+  function mapNotes() {
+    noteAt = new Map();
+    if (!drawn || !renderedTune || !score) return;
+    const els = drawnElements(renderedTune, drawn.staves);
+    for (const v of drawn.voices) {
+      const notes = score.parts[v.part].notes;
+      (els.get(v.id) ?? []).forEach((el, k) => {
+        const i = v.elements[k];
+        if (i === undefined || i < 0 || notes[i].rest) return;
+        const head = notes[i];
+        const chord = notes.filter((n) => !n.rest && n.start === head.start && n.staff === head.staff && n.voice === head.voice).map((n) => n.midi!);
+        noteAt.set(el, chord);
+      });
+    }
+  }
+  function onNoteClick(abcElem: unknown) {
+    const midis = noteAt.get(abcElem);
+    if (midis?.length) playPiano(midis, 1);
   }
   $: barChoices = score ? score.measures.map((m, i) => ({ i, label: m.label })) : [];
 
   function abcOptions(partIdx: number[]) {
     const programs = Object.fromEntries(partOrder.map((x) => [x.i, x.s.program]));
     const names = Object.fromEntries(
-      partOrder.map((x) => [x.i, assignment?.settings.partId === x.p.id ? `${x.s.name} (you)` : x.s.name]),
+      partOrder.map((x) => [x.i, assignment && myPart === x.p.id ? `${x.s.name} (you)` : x.s.name]),
     );
     const range = excerpt ? { from, to } : {};
     const perLine = narrow ? 2 : score && score.parts.length > 6 ? 3 : 4;
@@ -133,11 +193,13 @@
     document.getElementById("piece-paper")?.removeAttribute("style");
     const [tune] = abcjs.renderAbc("piece-paper", drawn.abc, {
       add_classes: true,
+      clickListener: (abcElem: unknown) => onNoteClick(abcElem),
       responsive: "resize",
       staffwidth,
       scale: score.parts.length > 6 ? 0.8 : 1,
     });
     renderedTune = tune;
+    mapNotes();
     await buildSynth();
   }
 
@@ -152,8 +214,13 @@
     const levels = all.voices.map((v) => {
       const pid = score!.parts[v.part].id;
       const s = parts[pid];
-      return !s || mutedPart(pid) ? 0 : s.volume / 80;
+      return s ? levelOf(pid) * (s.volume / 80) : 0;
     });
+    const meter = score.measures[from]?.time ?? { beats: 4, beatType: 4 };
+    const meterName = `${meter.beats}/${meter.beatType}`;
+    const drum = clickOn
+      ? drumPatternFor({ beats: meter.beatType === 8 && meter.beats % 3 === 0 ? meter.beats / 3 : meter.beats, subdivision: 1, accent: true, sound: DEFAULT_CLICK_SOUND })
+      : "";
     synthControl = new abcjs.synth.SynthController();
     let lit: Element[] = [];
     const cursorControl = {
@@ -174,10 +241,13 @@
     await synthControl.setTune(renderedTune, false, {
       soundFontUrl: "/api/soundfont/",
       soundFontVolumeMultiplier: 3.0,
+      ...(drum ? { drum, drumBars: 1, drumIntro: countInMeasures(meterName) } : {}),
       // One track a voice, in the order the ABC lists them.
       sequenceCallback: (tracks: any[]) => {
         tracks.forEach((track, t) => {
-          const level = levels[t] ?? 1;
+          // The click's own track (after the voices) keeps its level.
+          if (t >= levels.length) return;
+          const level = levels[t];
           for (const note of track) note.volume = Math.max(0, Math.min(127, Math.round(note.volume * level)));
         });
         return tracks;
@@ -268,8 +338,8 @@
   }
 
   /** Shown at once; put back if the server refuses it. (Enter and the blur that follows both land here.) */
-  async function toggleHearMine() {
-    hearMine = !hearMine;
+  async function toggleClick() {
+    clickOn = !clickOn;
     pause();
     await buildSynth();
   }
@@ -308,7 +378,7 @@
         <span class="kind"><Music size={12} aria-hidden="true" /> Assignment · a piece</span>
         <h1 class="text-2xl sm:text-3xl font-bold">{piece.title}</h1>
         <p class="font-bold">
-          Your part: {mine?.s.name ?? "?"}, bars {score.measures[from].label} to {score.measures[to].label}{assignment.settings.accompaniment.length ? ", with the other parts playing along" : ""}.
+          Bars {score.measures[from].label} to {score.measures[to].label}{mine ? `, your part: ${mine.s.name}` : ""}. You hear: {HEARING_LABEL[assignment.settings.hearing].title.toLowerCase()}.
         </p>
         {#if assignment.note}<p class="text-sm">{assignment.note}</p>{/if}
         <p class="text-sm">
@@ -370,11 +440,25 @@
     {/if}
     {/if}
 
+    {#if assignment && choosingPart}
+      <section class="sr-panel p-4 flex flex-col gap-3" aria-labelledby="choose-h">
+        <h2 id="choose-h" class="font-bold text-sr-ink">Which part do you sing or play?</h2>
+        <div class="flex flex-wrap gap-2">
+          {#each choosable as { p, s } (p.id)}
+            <button type="button" class="sr-tok" class:sr-on={myPart === p.id} on:click={() => choosePart(p.id)}>{s.name}</button>
+          {/each}
+        </div>
+        {#if myPart}<button type="button" class="text-sm text-sr-muted underline self-start" on:click={() => (choosingPart = false)}>Keep {mine?.s.name}</button>{/if}
+      </section>
+    {/if}
+
     {#if assignment}
       <section class="sr-panel p-4 flex flex-wrap items-end gap-4" aria-label="Practice">
-        <button type="button" class="sr-tok" class:sr-on={hearMine} aria-pressed={hearMine} on:click={toggleHearMine}>
-          {hearMine ? "Hearing my part" : "My part is silent"}
-        </button>
+        {#if myPart}
+          <button type="button" class="sr-btn inline-flex items-center gap-2" on:click={startingNote}><Ear size={16} aria-hidden="true" /> Starting note</button>
+          <button type="button" class="sr-tok" on:click={() => (choosingPart = true)}>Part: {mine?.s.name}</button>
+        {/if}
+        <button type="button" class="sr-tok" class:sr-on={clickOn} aria-pressed={clickOn} on:click={toggleClick}>Click</button>
         <label class="field">
           <span>Tempo</span>
           <span class="flex items-center gap-2">
@@ -385,6 +469,7 @@
         <label class="flex items-center gap-2 text-sm text-sr-ink">
           <input type="checkbox" bind:checked={looping} /> Loop
         </label>
+        <p class="w-full text-xs text-sr-muted">Tap any note in the music to hear it.</p>
       </section>
     {:else}
     <section class="sr-panel p-4 flex flex-col gap-2" aria-labelledby="parts-h">
