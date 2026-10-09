@@ -10,6 +10,7 @@ import { assembleAbcString, type AbcDisplayOptions, type AbcMetadata } from "./a
 import { applyUnisonSpans } from "./unison-spans";
 import { applyRhymingPhrases, decorateRestatement } from "./rhyming-phrases";
 import { bassChromaticFaults } from "./bass-chromatic-check";
+import { parallelFaults } from "./parallel-check";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { chordOnsets, varyVoiceRhythms } from "./voice-rhythm";
 
@@ -194,9 +195,10 @@ const FAILED_DRAW_RETRIES = 3;
 /**
  * Orchestrates the generation of a choral sight-reading exercise.
  *
- * Generates, checks the bass against the chromatic-note rule, and generates
- * again on a fault - see BASS_RULE_ATTEMPTS. Only when accidentalsByStep is
- * on, since that is the option the rule belongs to.
+ * Generates, checks the result for parallel fifths and octaves
+ * (parallel-check.ts) and, when accidentalsByStep is on, the bass against the
+ * chromatic-note rule, and generates again on a fault - see
+ * BASS_RULE_ATTEMPTS. The draw with the fewest faults is kept.
  *
  * @param params - The parameters for generation.
  * @returns An object containing the final ABC string and the generated chord progression.
@@ -205,7 +207,7 @@ export function generateChoralExercise(params: GenerateChoralParams): ChoralExer
   let best: ChoralExercise | undefined;
   let bestFaults = Infinity;
   let failedDraws = 0;
-  const attempts = params.accidentalsByStep ? BASS_RULE_ATTEMPTS : 1;
+  const attempts = BASS_RULE_ATTEMPTS;
   for (let attempt = 0; attempt < attempts; attempt++) {
     let out: ChoralExercise;
     try {
@@ -220,7 +222,7 @@ export function generateChoralExercise(params: GenerateChoralParams): ChoralExer
       }
       throw e;
     }
-    const faults = params.accidentalsByStep ? bassChromaticFaults(out.voiceNotes) : 0;
+    const faults = (params.accidentalsByStep ? bassChromaticFaults(out.voiceNotes) : 0) + parallelFaults(out.voiceNotes, params.key);
     if (faults < bestFaults) {
       best = { ...out, regenerated: attempt };
       bestFaults = faults;

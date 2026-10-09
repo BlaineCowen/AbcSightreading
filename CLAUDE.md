@@ -1426,6 +1426,25 @@ The Choral page opens at UIL Level 3 in F major when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
 active preset was chosen.
 
+**No parallel fifths or octaves** (8 October 2026). The writers already
+avoided them chord to chord, but decoration made them: with it off, 240 SATB
+exercises across UIL 1-5 had none; with it on, one in ten had a fifth,
+nearly all a passing note moving against another part (counted as a theory
+teacher would: both parts straight from note to note, the same way, perfect
+fifth or octave to another, in semitones). Decoration's own check compared
+only a figure's first and last notes; `parallelInFigure`
+(non-chord-tone-gen) now checks every move a figure makes against every
+part. The few left came from later passes (a restated phrase's varied note,
+a dotted figure in one part), so `generateChoralExercise` also counts
+parallels in the finished exercise (`parallel-check.ts`, tests
+`parallel-check.test.ts`; unisons are left out, a shared line is a texture)
+and draws again, keeping the draw with the fewest faults. 480 exercises
+after: none. Passing notes per exercise unchanged (about 89-90 notes either
+way). It moved four Choral meter-regression snapshots, updated deliberately:
+three had a parallel fifth, and none of the new ones does. Sight Reading
+Factory's choir exercises, counted the same way: 14 of 50 with a parallel
+fifth and about 14 parallel octaves or unisons each.
+
 With `accidentalsByStep` on, `generateChoralExercise` also checks the finished
 bass against the chromatic-note rule (`bass-chromatic-check.ts`: approached by
 step, resolved by step) and draws the exercise again on a fault, up to three

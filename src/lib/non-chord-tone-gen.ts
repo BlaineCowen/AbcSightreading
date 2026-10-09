@@ -396,6 +396,73 @@ function checkParallelMotion(
 // ----------------------------
 
 /**
+ * Every move the figure makes, against every other part: into its first note,
+ * between its notes, and on to the note after it. checkParallelMotion compares
+ * only the figure's first and last notes across the whole span, so a passing
+ * note moving with another part's passing note, or a figure stepping into the
+ * next chord a fifth from the bass, went through; with decoration off the
+ * writers made no parallels at all, and with it on one exercise in ten had a
+ * fifth (8 October 2026, 240 SATB at UIL 1-5, counted as a theory teacher
+ * would: both parts moving straight from note to note, the same way, a perfect
+ * fifth or octave or unison to another, in semitones). This counts the same.
+ */
+function parallelInFigure(
+  figure: VoiceNote[],
+  noteIndex: number,
+  allNotes: VoiceNote[][],
+  currentPartIndex: number,
+  key: string,
+  before: VoiceNote | null,
+  nextNote: VoiceNote | null
+): boolean {
+  const keyInfo = keySignatures[key];
+  if (!keyInfo) return false;
+  type Ev = { start: number; end: number; note: VoiceNote };
+  const voice = allNotes[currentPartIndex];
+  const tStart = timeAtIndex(voice, noteIndex);
+  const tEnd = tStart + (voice[noteIndex]?.length ?? figure.reduce((sum, n) => sum + n.length, 0));
+  const mine: Ev[] = [];
+  if (before) mine.push({ start: tStart - before.length, end: tStart, note: before });
+  let t = tStart;
+  for (const n of figure) {
+    mine.push({ start: t, end: t + n.length, note: n });
+    t += n.length;
+  }
+  if (nextNote) mine.push({ start: tEnd, end: tEnd + nextNote.length, note: nextNote });
+  const at = (evs: Ev[], time: number) => evs.find((e) => e.start <= time && time < e.end) ?? null;
+  const from = mine[0]?.start ?? tStart;
+  for (let v = 0; v < allNotes.length; v++) {
+    if (v === currentPartIndex) continue;
+    const other: Ev[] = [];
+    let u = 0;
+    for (const n of allNotes[v]) {
+      if (u + n.length > from && u <= tEnd) other.push({ start: u, end: u + n.length, note: n });
+      u += n.length;
+    }
+    const times = [...new Set([...mine, ...other].map((e) => e.start))]
+      .filter((x) => x >= from && x <= tEnd)
+      .sort((a, b) => a - b);
+    for (let i = 1; i < times.length; i++) {
+      if (times[i] < tStart) continue;
+      const a0 = at(mine, times[i - 1]), a1 = at(mine, times[i]);
+      const b0 = at(other, times[i - 1]), b1 = at(other, times[i]);
+      if (!a0 || !a1 || !b0 || !b1 || a0 === a1 || b0 === b1) continue;
+      if (a0.note.rest || a1.note.rest || b0.note.rest || b1.note.rest) continue;
+      if (a0.end !== a1.start || b0.end !== b1.start) continue;
+      const da = a1.note.pitchValue - a0.note.pitchValue, db = b1.note.pitchValue - b0.note.pitchValue;
+      if (da === 0 || db === 0 || Math.sign(da) !== Math.sign(db)) continue;
+      const steps0 = Math.abs(a0.note.pitchValue - b0.note.pitchValue) % 7;
+      const steps1 = Math.abs(a1.note.pitchValue - b1.note.pitchValue) % 7;
+      const semi0 = Math.abs(semitoneOf(a0.note, keyInfo) - semitoneOf(b0.note, keyInfo)) % 12;
+      const semi1 = Math.abs(semitoneOf(a1.note, keyInfo) - semitoneOf(b1.note, keyInfo)) % 12;
+      if (steps0 === 4 && steps1 === 4 && semi0 === 7 && semi1 === 7) return true;
+      if (steps0 === 0 && steps1 === 0 && semi0 === 0 && semi1 === 0) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Takes an array of voice notes and introduces non-chord tone patterns by
  * subdividing existing notes based on probability.
  *
@@ -601,6 +668,9 @@ function figureRejection(
   }
   if (checkParallelMotion(figure, noteIndex, allNotes, currentPartIndex)) {
     return "parallel motion violation";
+  }
+  if (parallelInFigure(figure, noteIndex, allNotes, currentPartIndex, key, before ?? prevNote, nextNote)) {
+    return "parallel fifth or octave inside the figure";
   }
   if (checkClashesWithOtherVoices(figure, noteIndex, allNotes, currentPartIndex)) {
     return "second against another voice";
