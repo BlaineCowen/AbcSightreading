@@ -8,9 +8,7 @@ import { RHYTHM_LEAD, RHYTHM_THREAD } from "../../lib/curriculum/band";
 
 /**
  * The curriculum catalogue: everything the preset menu can list, and
- * subscribing to it (TrackSubscribe, /api/tracks). The site's own sets are
- * free; the instrument tracks are Pro. Public, so a teacher can read a track
- * before paying.
+ * subscribing to it (TrackSubscribe, /api/tracks). Everything here is free.
  */
 const band = TRACKS.filter((t) => t.family === "band");
 const orchestra = TRACKS.filter((t) => t.family === "strings");
@@ -84,11 +82,11 @@ const demo = band[0].steps.slice(0, 6);
       </div>
     </section>
 
-    <!-- Instrument tracks: Pro -->
+    <!-- Instrument courses: free, as the choir sets -->
     {groups.map((g) => (
       <section id={g.id} class="flex flex-col gap-4 scroll-mt-24">
         <div>
-          <h2 class="font-display text-2xl font-bold text-sr-ink">{g.title} <span class="ml-1 align-middle text-xs font-extrabold rounded-full bg-sr-action text-sr-action-ink px-2.5 py-1">Pro</span></h2>
+          <h2 class="font-display text-2xl font-bold text-sr-ink">{g.title}</h2>
           <p class="text-sr-ink-2">{g.note}</p>
         </div>
         <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -109,7 +107,7 @@ const demo = band[0].steps.slice(0, 6);
                 <dt class="font-bold opacity-75">Sounds</dt><dd>{soundsLabel(t)}</dd>
               </dl>
               <div class="mt-auto flex flex-col gap-3 pt-2 border-t border-current/15">
-                <TrackSubscribe client:only="svelte" trackId={t.id} tryHref={trackHref(t.steps[0].id, "rhythm")} />
+                <TrackSubscribe client:only="svelte" trackId={t.id} tryHref={trackHref(t.steps[0].id, "rhythm")} free />
                 <a class="text-sm font-extrabold" href={`/curriculum/${t.id}`}>See all {t.steps.length} steps →</a>
               </div>
             </article>

@@ -9,8 +9,9 @@ import { TRACKS, trackById } from "./tracks";
  * TMEA All-State Voice) and the instrument tracks (src/lib/curriculum/tracks.ts). abcStepByStep is
  * subscribed until the teacher chooses otherwise (DEFAULT_SUBSCRIPTIONS).
  *
- * The built-in sets are free to subscribe to, signed out too (kept in this
- * browser); the instrument tracks are Pro. Ids are stored: never rename one.
+ * Every set and course is free to subscribe to, signed out too (kept in this
+ * browser; Blaine, 9 October 2026: the courses are all free). Ids are stored:
+ * never rename one.
  */
 
 export const STEP_BY_STEP = "abc-step-by-step";
@@ -74,8 +75,8 @@ export const DEFAULT_SUBSCRIPTIONS = [STEP_BY_STEP];
 export const isBuiltinSet = (id: unknown): id is string => typeof id === "string" && BUILTIN_SETS.some((s) => s.id === id);
 /** Anything that can be subscribed to. */
 export const isSubscribable = (id: unknown): id is string => isBuiltinSet(id) || (typeof id === "string" && id in trackById);
-/** Whether subscribing needs Pro (the instrument tracks). */
-export const needsPro = (id: string) => id in trackById;
+/** Whether subscribing needs Pro: nothing does now (the courses are all free). */
+export const needsPro = (_id: string) => false;
 
 /** A stored list, or the default when none was ever chosen (null). Unknown ids dropped, order kept. */
 export function subscriptionsFrom(stored: unknown): string[] {

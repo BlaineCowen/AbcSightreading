@@ -268,7 +268,7 @@ The preset menu's Levels tab lists only what the teacher subscribes to on
 at the top): the site's own sets - abcStepByStep (subscribed by default,
 `DEFAULT_SUBSCRIPTIONS`), UIL, NYSSMA Voice - free to anyone and kept in this
 browser when signed out (`sr-subscriptions`, carried to the account on first
-sign-in), and the instrument tracks, Pro. `UserPreference.curriculumTracks`
+sign-in), and the instrument tracks, free too since 9 October 2026 (keeping your own version of a step is still Pro). `UserPreference.curriculumTracks`
 is null until the teacher chooses. `/sightreading?nyssma=<level id>` opens a
 level.
 
