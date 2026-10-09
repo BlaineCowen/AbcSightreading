@@ -26,7 +26,8 @@ export function levelSections(offered: { uil: boolean; nyssma: boolean; tmea?: b
   return [
     ...(has(STEP_BY_STEP) ? [{ id: "steps" as const, label: "abcStepByStep", note: `${STEP_COUNT} steps` }] : []),
     ...(offered.tracks ? [{ id: "tracks" as const, label: "Instrument courses", note: `${offered.tracks} subscribed` }] : []),
-    ...(offered.uil && has(UIL_CHOIR) ? [{ id: "uil" as const, label: "UIL", note: "Levels 1–5" }] : []),
+    // UIL's five levels are the Choral page's own: always there, subscribed or not (Blaine, 9 October 2026).
+    ...(offered.uil ? [{ id: "uil" as const, label: "UIL", note: "Levels 1–5" }] : []),
     ...(offered.nyssma && has(NYSSMA_VOICE) ? [{ id: "nyssma" as const, label: "NYSSMA Voice", note: "Levels I–V" }] : []),
     ...(offered.tmea && has(TMEA_ALLSTATE) ? [{ id: "tmea" as const, label: "TMEA All-State", note: "Levels I–IV, S A T B" }] : []),
   ];

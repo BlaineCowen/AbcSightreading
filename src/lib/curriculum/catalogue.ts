@@ -29,6 +29,8 @@ export interface BuiltinSet {
   /** Where it opens. */
   href: string;
   color: "sky" | "mint" | "peach" | "butter";
+  /** Always in its page's preset menu, so there is nothing to subscribe to: where it lives. */
+  always?: string;
 }
 
 export const BUILTIN_SETS: BuiltinSet[] = [
@@ -49,6 +51,7 @@ export const BUILTIN_SETS: BuiltinSet[] = [
     facts: [["Levels", "1 to 5"], ["Page", "Choral"], ["Voicings", "SATB, SSA, TTB and more"]],
     href: "/choral-sightreading",
     color: "sky",
+    always: "Always on the Choral page",
   },
   {
     id: NYSSMA_VOICE,
