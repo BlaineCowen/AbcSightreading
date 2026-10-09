@@ -709,36 +709,47 @@ sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 `piano.test.ts`, every level x key x meter x length `bun run
 scripts/check-piano.ts`): a grand staff (`%%score {RH | LH}`), a tune over
 an accompaniment, a separate system from Choral and Unison (8 October
-2026). Harmony first: the tune is the Unison page's progression writer
-(`writeProgressionLine`, now taking a `progressions` table of its own)
-inside the hand's position (`rightHandPosition`: thumb on the tonic at or
-above middle C, `reach` steps up; `leftHandPosition` for a tune in the bass),
-over `PIANO_PROGRESSIONS`, redrawn if it shadows the chords' roots in fifths
-or octaves (`shadowsRoots`: the writer knows the chords, not the bass). The
-accompaniment plays the same chords in the level's pattern (`left-hand.ts`:
-held root, open fifth, rocking fifths, block, on each beat, oom-pah, broken,
-arpeggio, waltz in 3/4, broken in eighths, Alberti), the bass root at one
-place a letter (F2 to E3, `bassRoot`) and block chords in the shapes a
-beginner learns (C-E-G, C-F-A, B-F-G; `blockChord` moves as little as it
-can). The last chord is held. Eighths are beamed by beat group (`beamed`: a
-half bar in 4/4 and 2/4, a beat in 3/4; ABC beams notes written with no
-space, and every eighth had its own flag).
+2026). Everything is asked for through `PianoSettings` (levels.ts: keys,
+meters, bars, rhythms, largest skip, reach, hands together or taking turns,
+tune hand, accompaniment patterns, chords, chromatic chords, 3rds and 6ths
+at cadences, dynamics, tempo); a level is only a set of them. The page shows
+every option at every level, each marked with the level that first uses it
+(`unlockedAt`; Blaine: no options appearing as levels go up, as much
+customization as possible), and the address carries the level and only what
+differs from it (`settings-link.ts`).
 
-Eight levels in method-book order (`levels.ts` `PIANO_LEVELS`, ids
-`piano-01`... permanent; Faber, Alfred and Bastien agree on the order): 1-2
-the hands take turns, two bars each, one tune passed between them (C, then
-G position, 3rds); 3 hands together over a held root; 4 fifths held and
-rocking, IV, 4ths; 5 the chord shapes held and on each beat, eighths; 6 the
-tune in the left hand with the chords in the right (`leftHandTune`,
-`tuneHand`), oom-pah, F major, ii and vi; 7 broken chords, arpeggios, the
-waltz; 8 Alberti and broken eighths, a third or sixth under the tune at
-cadences, an octave's reach, D and B flat. A finished exercise is checked
-(`pianoFault`: bars full, no parallel fifths or octaves between the tune
-and each chord's outer note, `outerLines`) and drawn again. Measured against
-Sight Reading Factory's piano levels: notes/srf-piano-study.md. Not yet:
-exact-notes share links and recent exercises (exercise-link.ts and
-recent-exercises.ts know two pages), the Tools wheel, presets and class
-progress, grading.
+Harmony first: the tune is the Unison page's progression writer
+(`writeProgressionLine`, taking a `progressions` table of its own) inside
+the hand's position (`rightHandPosition`: thumb on the tonic at or above
+middle C, `reach` steps up; `leftHandPosition` for a tune in the bass),
+over `PIANO_PROGRESSIONS` (major, minor with harmonic minor's V, and
+chromatic ones through V of V, vi and ii). The tune is accepted only if it
+makes no parallel fifths or octaves with the accompaniment it will have and
+no augmented second; a passing note a step under a raised one is raised too
+(the melodic minor's sixth). The accompaniment plays the same chords in a
+pattern (`left-hand.ts`: held root, open fifth, rocking fifths, block, on
+each beat, oom-pah, broken, arpeggio, waltz in 3/4, broken in eighths,
+Alberti, Alberti in sixteenths; 6/8 takes what fills a dotted-quarter
+beat, `patternFits`), the bass root at one place a letter (F2 to E3,
+`bassRoot`), block chords in the shapes a beginner learns (C-E-G, C-F-A,
+B-F-G). A chord's altered note carries its accidental (`chordAlter`;
+PianoNote `alters`), written once a bar per pitch with the natural written
+back (assemble.ts). Eighths are beamed by beat group (`beamed`).
+
+Ten levels, ending where a beginner's Mozart sonata sits (K. 545's first
+movement, ABRSM Grade 5, RCM Level 6-7), in method-book order checked
+against ABRSM's and RCM's published sight-reading parameters (levels.ts
+header): 1-2 hands taking turns (C, G position); 3 hands together, held
+root; 4 fifths, IV, F, 2/4; 5 chord shapes, eighths, A and D minor,
+dynamics; 6 the tune in the left hand, oom-pah, ii and vi, rests, a 6th's
+reach; 7 broken chords, arpeggios, waltz, dotted quarter, D, E minor; 8
+Alberti, 3rds and 6ths at cadences, an octave's reach, sixteenths; 9 6/8,
+chromatic chords; 10 Alberti in sixteenths, syncopation, dotted eighths,
+four sharps or flats, 12 bars. Ids `piano-01`... are permanent. Measured
+against Sight Reading Factory's piano levels: notes/srf-piano-study.md.
+Not yet: exact-notes share links and recent exercises (exercise-link.ts and
+recent-exercises.ts know two pages), the Tools wheel, saved presets and
+class progress, grading.
 
 ## abcTuner
 

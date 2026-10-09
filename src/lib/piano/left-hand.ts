@@ -1,17 +1,25 @@
 /**
- * The left hand's accompaniment: each chord of the progression played in the
- * level's pattern, for as long as the chord lasts. A chord's notes come from
- * voicing.ts, so the bass is the root (held, fifth, broken, waltz) or the
- * close shape a beginner learns (block, Alberti).
+ * The accompaniment: each chord of the progression played in a pattern for
+ * as long as the chord lasts. A chord's notes come from voicing.ts, so the
+ * bass is the root (held, fifth, rocking, broken, waltz) or the close shape a
+ * beginner learns (block, Alberti). A chord's altered note (harmonic minor's
+ * raised leading tone, a secondary dominant's third) carries its accidental.
  */
 import type { LeftHandPattern } from "./levels";
-import { bassRoot, blockChord, chordDegrees, atOrAbove, playedDegrees } from "./voicing";
+import { bassRoot, blockChord, chordAlter, chordDegrees, atOrAbove, degreeOf, playedDegrees } from "./voicing";
 
-/** One thing a hand plays: a note, a chord (several pitches) or a rest. Lengths in 32nds. */
+/**
+ * One thing a hand plays: a note, a chord (several pitches) or a rest.
+ * Lengths in 32nds. `alters` runs beside `pitches`: +1 a sharp, -1 a flat
+ * against the key signature (absent, as written in the key).
+ */
 export interface PianoNote {
   pitches: number[];
   length: number;
   rest?: boolean;
+  alters?: number[];
+  /** A dynamic marked on this note (p, mf, f). */
+  dynamic?: string;
 }
 
 /** The left hand's highest note: B3, under middle C, where the right hand begins. */
@@ -46,7 +54,9 @@ export const RIGHT_HAND_CHORD_RANGE = { low: 14, high: 22, home: 14 };
  * The accompaniment for a whole exercise: each span in the pattern, the last
  * held as the piece's final chord (a moving figure stops on it). The left
  * hand's by default; `range` puts block chords in the right hand instead,
- * when the tune is in the left.
+ * when the tune is in the left. In 6/8 (`beatUnits` 12) a beat's figure is
+ * three eighths: root, fifth, third, or Alberti's low, high, middle, high,
+ * middle, high across the bar.
  */
 export function writeLeftHand(
   key: string,
@@ -55,6 +65,7 @@ export function writeLeftHand(
   beatUnits: number,
   range: { low: number; high: number; home: number } = { low: LEFT_HAND_BOTTOM, high: LEFT_HAND_TOP, home: 7 },
 ): PianoNote[] {
+  const compound = beatUnits === 12;
   const out: PianoNote[] = [];
   let previous: number[] | null = null;
   spans.forEach((span, i) => {
@@ -62,14 +73,19 @@ export function writeLeftHand(
     const block = blockChord(key, span.name, previous, range.low, range.high, range.home);
     previous = block;
     const shape = rootShape(key, span.name);
+    const note = (pitches: number[], length: number): PianoNote => {
+      const alters = pitches.map((p) => chordAlter(span.name, degreeOf(key, p)));
+      return alters.some((a) => a !== 0) ? { pitches, length, alters } : { pitches, length };
+    };
     const beats = Math.max(1, Math.round(span.length / beatUnits));
     const each = (pitches: number[][], unit: number) => {
       const n = Math.round(span.length / unit);
-      for (let k = 0; k < n; k++) out.push({ pitches: pitches[k % pitches.length], length: unit });
+      for (let k = 0; k < n; k++) out.push(note(pitches[k % pitches.length], unit));
     };
-    const held = (pitches: number[]) => out.push({ pitches, length: span.length });
+    const held = (pitches: number[]) => out.push(note(pitches, span.length));
     // The final chord is held, whatever the pattern: the piece ends on it.
     const p: LeftHandPattern = last && pattern !== "root" && pattern !== "fifth" ? (pattern === "rocking" ? "fifth" : "block") : pattern;
+    const [lo, mid, hi] = block;
     switch (p) {
       case "root":
         held([shape.root]);
@@ -100,23 +116,22 @@ export function writeLeftHand(
         each([[shape.root], [shape.third], [shape.fifth], [shape.third]], beatUnits);
         break;
       case "brokenEighths":
-        each([[shape.root], [shape.fifth], [shape.third], [shape.fifth]], beatUnits / 2);
+        if (compound) each([[shape.root], [shape.fifth], [shape.third]], beatUnits / 3);
+        else each([[shape.root], [shape.fifth], [shape.third], [shape.fifth]], beatUnits / 2);
         break;
       case "waltz":
         // Root, then the chord on the other beats.
-        out.push({ pitches: [shape.root], length: beatUnits });
-        if (beats > 1) {
-          for (let k = 1; k < beats; k++) out.push({ pitches: shape.upper, length: beatUnits });
-        }
+        out.push(note([shape.root], beatUnits));
+        for (let k = 1; k < beats; k++) out.push(note(shape.upper, beatUnits));
         break;
-      case "alberti": {
+      case "alberti":
         // Low, high, middle, high, in eighths, on the close shape.
-        const [lo, mid, hi] = block;
-        each([[lo], [hi], [mid], [hi]], beatUnits / 2);
+        if (compound) each([[lo], [hi], [mid], [hi], [mid], [hi]], beatUnits / 3);
+        else each([[lo], [hi], [mid], [hi]], beatUnits / 2);
         break;
-      }
-      case "tune":
-        throw new Error("A tune is written by the line writer, not as a pattern");
+      case "albertiSixteenths":
+        each([[lo], [hi], [mid], [hi]], beatUnits / 4);
+        break;
     }
   });
   return out;

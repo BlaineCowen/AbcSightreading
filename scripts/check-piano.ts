@@ -50,16 +50,16 @@ let problems = 0;
 for (const level of PIANO_LEVELS) {
   if (ONLY && level.id !== ONLY) continue;
   const stat = { leftTunes: 0, n: 0, spans: 0, root: 0, moments: 0, clash: 0, beats: 0, beatClash: 0, thirds: 0 };
-  for (const key of level.keys) for (const meter of level.meters) for (const measures of [4, 8, 16]) {
+  for (const key of level.settings.keys) for (const meter of level.settings.meters) for (const measures of [4, 8, 12, 16]) {
     const barUnits = timeSignatureFor(meter).tsPerMeasure;
     const beat = beatUnitOf(meter);
-    const pos = rightHandPosition(key, level.reach);
+    const pos = rightHandPosition(key, level.settings.reach);
     for (let i = 0; i < RUNS; i++) {
       let ex: PianoExercise;
       Object.assign(console, { log() {}, warn() {} });
       try {
-        // Where the level lets the tune move, half the runs have it in the left hand.
-        ex = generatePianoExercise({ levelId: level.id, key, meter, measures, tuneHand: "either" });
+        // Where the level lets the tune move ("either"), about half the runs have it in the left hand.
+        ex = generatePianoExercise({ levelId: level.id, settings: { ...level.settings, measures }, key, meter });
       } catch (e) {
         Object.assign(console, quiet);
         failures++;
@@ -77,14 +77,14 @@ for (const level of PIANO_LEVELS) {
       // The tune and the accompaniment, whichever hand each is in.
       const left = ex.tuneHand === "left";
       const tuneEvs = left ? lh : rh, accEvs = left ? rh : lh;
-      const where = left ? { low: leftHandPosition(key).low, high: leftHandPosition(key).low + level.reach } : pos;
+      const where = left ? { low: leftHandPosition(key).low, high: leftHandPosition(key).low + level.settings.reach } : pos;
       for (const e of tuneEvs) {
         if (!e.pitches.length) continue;
         const top = Math.max(...e.pitches);
         if (top < where.low || top > where.high) say(`tune outside its position at ${e.start}`);
-        if (e.pitches.length > 1 && !level.rightHandThirds) say(`a chord in the tune at level ${level.number}`);
+        if (e.pitches.length > 1 && !level.settings.doubleNotes) say(`a chord in the tune at level ${level.number}`);
       }
-      if (left && level.together) stat.leftTunes++;
+      if (left) stat.leftTunes++;
       // Chord spans: where each starts, the tune is on a chord note and the left hand plays only chord notes.
       const first = splitAt(barUnits, beat);
       let t = 0;
@@ -94,9 +94,9 @@ for (const level of PIANO_LEVELS) {
           const tones = chordDegrees(name);
           const r = at(tuneEvs, t + from);
           if (r && r.pitches.length && r.start === t + from && !r.pitches.every((p) => tones.includes(degreeOf(key, p)))) say(`tune off ${name} where it starts, bar ${t / barUnits + 1}`);
-          if (level.together) for (const e of accEvs) if (e.start >= t + from && e.start < t + to && !e.pitches.every((p) => tones.includes(degreeOf(key, p)))) say(`accompaniment off ${name}, bar ${t / barUnits + 1}`);
+          if (level.settings.together) for (const e of accEvs) if (e.start >= t + from && e.start < t + to && !e.pitches.every((p) => tones.includes(degreeOf(key, p)))) say(`accompaniment off ${name}, bar ${t / barUnits + 1}`);
           const l = at(lh, t + from);
-          if (l && l.pitches.length && level.together && !left) {
+          if (l && l.pitches.length && level.settings.together && !left) {
             stat.spans++;
             if (degreeOf(key, Math.min(...l.pitches)) === tones[0]) stat.root++;
           }

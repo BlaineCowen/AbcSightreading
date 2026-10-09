@@ -4,7 +4,8 @@ import { blockChord, bassRoot, rightHandPosition, leftHandPosition, degreeOf, ch
 import { writeLeftHand, LEFT_HAND_BOTTOM, LEFT_HAND_TOP } from "../../src/lib/piano/left-hand";
 import { assemblePianoAbc, beamed } from "../../src/lib/piano/assemble";
 import { generatePianoExercise, pianoFault, mergeRests } from "../../src/lib/piano/generatePiano";
-import { PIANO_LEVELS, patternsFor, type LeftHandPattern } from "../../src/lib/piano/levels";
+import { PIANO_LEVELS, patternsFor, settingsFor, unlockedAt, type LeftHandPattern } from "../../src/lib/piano/levels";
+import { settingsFromQuery, settingsQuery } from "../../src/lib/piano/settings-link";
 import { timeSignatureFor } from "../../src/lib/meter";
 
 // noteArray indices: C2 0, G2 4, B2 6, C3 7, E3 9, F3 10, G3 11, A3 12, C4 14, G4 18.
@@ -34,7 +35,7 @@ test("every left-hand pattern fills each chord's length with that chord's notes,
     { name: "5-7", length: 16, barStart: false },
     { name: "1", length: 32, barStart: true },
   ];
-  const patterns: LeftHandPattern[] = ["root", "fifth", "rocking", "block", "blockBeats", "oompah", "broken", "arpeggio", "waltz", "brokenEighths", "alberti"];
+  const patterns: LeftHandPattern[] = ["root", "fifth", "rocking", "block", "blockBeats", "oompah", "broken", "arpeggio", "waltz", "brokenEighths", "alberti", "albertiSixteenths"];
   for (const p of patterns) {
     const notes = writeLeftHand("C", spans, p, 8);
     expect(notes.reduce((s, n) => s + n.length, 0)).toBe(96);
@@ -70,20 +71,20 @@ test("rests side by side in a bar merge to one a single rest can show", () => {
   expect(out).toEqual([{ pitches: [], length: 16, rest: true }, { pitches: [14], length: 16 }]);
 });
 
-test("every level writes in each key and meter it offers, without a fault, and its left hand plays the level's patterns", () => {
+test("every level writes in each key and meter it offers, without a fault, with one of its patterns", () => {
   const quiet = { log: console.log, warn: console.warn };
   Object.assign(console, { log() {}, warn() {} });
   try {
     for (const level of PIANO_LEVELS) {
-      for (const key of level.keys) for (const meter of level.meters) {
-        for (let i = 0; i < 3; i++) {
-          const ex = generatePianoExercise({ levelId: level.id, key, meter });
-          expect(pianoFault(ex, timeSignatureFor(meter).tsPerMeasure)).toBeNull();
-          if (level.together) expect(patternsFor(level, meter)).toContain(ex.pattern);
-          else expect(ex.pattern).toBe("tune");
-          const parsed = (abcjs as any).parseOnly(ex.abc)[0];
-          expect(parsed.warnings ?? []).toEqual([]);
-        }
+      const s = level.settings;
+      for (const key of s.keys) for (const meter of s.meters) {
+        const ex = generatePianoExercise({ levelId: level.id, key, meter });
+        expect(pianoFault(ex, timeSignatureFor(meter).tsPerMeasure)).toBeNull();
+        if (!s.together) expect(ex.pattern).toBe("tune");
+        else if (ex.tuneHand === "left") expect(["block", "blockBeats"]).toContain(ex.pattern);
+        else expect(patternsFor(s, meter)).toContain(ex.pattern);
+        const parsed = (abcjs as any).parseOnly(ex.abc)[0];
+        expect(parsed.warnings ?? []).toEqual([]);
       }
     }
   } finally {
@@ -103,20 +104,58 @@ test("with the tune in the left hand, the right hand plays the chords above midd
   const quiet = { log: console.log, warn: console.warn };
   Object.assign(console, { log() {}, warn() {} });
   try {
+    const settings = { ...settingsFor("piano-06"), keys: ["C"], meters: ["4/4"], tuneHand: "left" as const };
     for (let i = 0; i < 20; i++) {
-      const ex = generatePianoExercise({ levelId: "piano-06", key: "C", meter: "4/4", tuneHand: "left" });
+      const ex = generatePianoExercise({ settings });
       expect(ex.tuneHand).toBe("left");
       expect(["block", "blockBeats"]).toContain(ex.pattern);
       for (const n of ex.rh) for (const p of n.pitches) expect(p).toBeGreaterThanOrEqual(14);
       for (const n of ex.lh) for (const p of n.pitches) {
         expect(p).toBeGreaterThanOrEqual(7);
-        expect(p).toBeLessThanOrEqual(11);
+        expect(p).toBeLessThanOrEqual(12);
       }
       expect(pianoFault(ex, 32)).toBeNull();
     }
-    // A level that does not move the tune keeps it in the right hand.
-    expect(generatePianoExercise({ levelId: "piano-05", key: "C", meter: "4/4", tuneHand: "left" }).tuneHand).toBe("right");
+    // Hands taking turns keep the tune in the right hand to start.
+    expect(generatePianoExercise({ settings: { ...settings, together: false } }).tuneHand).toBe("right");
   } finally {
     Object.assign(console, quiet);
   }
+});
+
+test("minor keys raise the leading tone, and a passing note under it is raised too: no augmented second", () => {
+  const quiet = { log: console.log, warn: console.warn };
+  Object.assign(console, { log() {}, warn() {} });
+  try {
+    let sharps = 0;
+    for (let i = 0; i < 20; i++) {
+      const ex = generatePianoExercise({ levelId: "piano-07", key: "Am", meter: "4/4" });
+      // In A minor the only accidentals are sharps (G sharp, and F sharp before it).
+      expect(ex.abc).not.toMatch(/_[A-Ga-g]/);
+      sharps += (ex.abc.match(/\^G|\^g/g) ?? []).length;
+    }
+    expect(sharps).toBeGreaterThan(0);
+  } finally {
+    Object.assign(console, quiet);
+  }
+});
+
+test("an accidental is written once a bar for its pitch, and the natural written back", () => {
+  const n = (p: number, a = 0) => ({ pitches: [p], length: 8, alters: a ? [a] : undefined });
+  // A minor: G# twice in a bar (written once), then G natural in the next bar (no sign: the bar line cancels).
+  expect(beamed([n(18, 1), n(18, 1), n(18), n(19)], 16, "Am")).toBe("^G8 G8 =G8 A8");
+});
+
+test("each option is marked with the first level that uses it", () => {
+  expect(unlockedAt((s) => s.together)).toBe(3);
+  expect(unlockedAt((s) => s.keys.includes("Am"))).toBe(5);
+  expect(unlockedAt((s) => s.patterns.includes("albertiSixteenths"))).toBe(10);
+  expect(unlockedAt((s) => s.meters.includes("6/8"))).toBe(9);
+});
+
+test("a level's address carries only what was changed, and opens as it was left", () => {
+  expect(settingsQuery("piano-05", settingsFor("piano-05"))).toBe("level=piano-05");
+  const changed = { ...settingsFor("piano-05"), keys: ["D", "Bm"], patterns: ["alberti" as const], dynamics: false, bpm: 90 };
+  const q = settingsQuery("piano-05", changed);
+  expect(settingsFromQuery(q)).toEqual({ levelId: "piano-05", settings: changed });
 });

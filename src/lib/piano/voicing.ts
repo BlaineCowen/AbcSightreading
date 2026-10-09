@@ -37,11 +37,27 @@ export function atOrAbove(key: string, degree: number, from: number): number {
   return from + ((((letter - (from % 7)) % 7) + 7) % 7);
 }
 
-/** A chord's degrees by name (chords.ts, or the progression writer's extras). */
-export function chordDegrees(name: string): number[] {
+function chordByName(name: string) {
   const c = chordTable.find((x) => x.name === name) ?? chordNamed(name);
   if (!c) throw new Error(`No chord named ${name}`);
-  return c.triadNotes;
+  return c;
+}
+
+/** A chord's degrees by name (chords.ts, or the progression writer's extras). */
+export function chordDegrees(name: string): number[] {
+  return chordByName(name).triadNotes;
+}
+
+/**
+ * How a chord alters one of its degrees against the key: +1 for its raised
+ * note (harmonic minor's V raises the leading tone, V of V the fourth), -1
+ * for a lowered one, 0 otherwise.
+ */
+export function chordAlter(name: string, degree: number): number {
+  const c = chordByName(name);
+  if (c.sharpScaleDegree === degree) return 1;
+  if (c.flatScaleDegree === degree) return -1;
+  return 0;
 }
 
 /**

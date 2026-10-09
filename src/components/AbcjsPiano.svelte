@@ -1,9 +1,10 @@
 <script lang="ts">
   /**
-   * Piano sight reading (src/lib/piano/): a grand staff, the right hand's tune
-   * over the left hand's accompaniment, at eight levels in method-book order.
-   * Kept small on purpose: the shared playback bar, the monthly allowance and
-   * the copyright line, but none of the singing pages' tools yet.
+   * Piano sight reading (src/lib/piano/): a grand staff, a tune over an
+   * accompaniment. Every option is on the page at every level, each marked
+   * with the level that first uses it; a level only fills them in (Blaine:
+   * no options appearing as the levels go up). Kept small on purpose: the
+   * shared playback bar, the monthly allowance and the copyright line.
    */
   import { onDestroy, onMount, tick } from "svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
@@ -15,11 +16,27 @@
   import { drumPatternFor } from "../lib/playback-click";
   import { DEFAULT_CLICK_SOUND } from "../lib/tuner/click-sounds";
   import { beatsOf, beatSymbolOf } from "../lib/meter";
-  import { PIANO_LEVELS, pianoLevelById, patternsFor, RIGHT_HAND_CHORDS, type LeftHandPattern } from "../lib/piano/levels";
-  import { generatePianoExercise, type PianoExercise, type TuneHand } from "../lib/piano/generatePiano";
+  import {
+    ALL_KEYS,
+    ALL_LENGTHS,
+    ALL_METERS,
+    ALL_PATTERNS,
+    PIANO_LEVELS,
+    RHYTHM_CHOICES,
+    pianoLevelById,
+    settingsFor,
+    unlockedAt,
+    type Accompaniment,
+    type ChordChoice,
+    type LeftHandPattern,
+    type PianoSettings,
+    type TuneHand,
+  } from "../lib/piano/levels";
+  import { generatePianoExercise, keyName, type PianoExercise } from "../lib/piano/generatePiano";
+  import { settingsFromQuery, settingsQuery } from "../lib/piano/settings-link";
 
   const HANDS = ["Right hand", "Left hand"];
-  const PATTERN_NAMES: Record<LeftHandPattern, string> = {
+  const PATTERN_NAMES: Record<Accompaniment, string> = {
     tune: "Taking turns",
     root: "Held root",
     fifth: "Open fifths",
@@ -29,23 +46,42 @@
     oompah: "Oom-pah",
     broken: "Broken chords",
     arpeggio: "Arpeggios",
-    waltz: "Waltz bass",
+    waltz: "Waltz bass (3/4)",
     brokenEighths: "Broken chords in eighths",
     alberti: "Alberti bass",
+    albertiSixteenths: "Alberti in sixteenths",
   };
-  const TUNE_HANDS: { id: TuneHand | "either"; label: string }[] = [
+  const TUNE_HANDS: { id: TuneHand; label: string }[] = [
     { id: "right", label: "Right hand" },
     { id: "left", label: "Left hand" },
     { id: "either", label: "Either" },
   ];
+  const SKIPS = [
+    { n: 1, label: "Steps" }, { n: 2, label: "3rd" }, { n: 3, label: "4th" }, { n: 4, label: "5th" }, { n: 5, label: "6th" }, { n: 7, label: "Octave" },
+  ];
+  const REACHES = [{ n: 4, label: "Five-finger" }, { n: 5, label: "A 6th" }, { n: 7, label: "An octave" }];
+  const CHORD_CHOICES: ChordChoice[] = ["I", "V", "IV", "V7", "ii", "vi"];
+  const keyLabel = (k: string) => k.replace("b", "♭").replace("#", "♯").replace(/m$/, " min");
+
+  // The level each option first appears at, for its mark.
+  const at = {
+    key: (k: string) => unlockedAt((s) => s.keys.includes(k)),
+    meter: (m: string) => unlockedAt((s) => s.meters.includes(m)),
+    bars: (n: number) => unlockedAt((s) => s.measures >= n),
+    rhythm: (r: string) => unlockedAt((s) => s.rhythms.includes(r)),
+    skip: (n: number) => unlockedAt((s) => s.maxSkip >= n),
+    reach: (n: number) => unlockedAt((s) => s.reach >= n),
+    together: unlockedAt((s) => s.together),
+    tune: (t: TuneHand) => (t === "right" ? 1 : unlockedAt((s) => s.tuneHand === "either" || s.tuneHand === t)),
+    pattern: (p: LeftHandPattern) => unlockedAt((s) => s.together && s.patterns.includes(p)),
+    chord: (c: ChordChoice) => unlockedAt((s) => s.chords.includes(c)),
+    chromatic: unlockedAt((s) => s.chromatic),
+    doubleNotes: unlockedAt((s) => s.doubleNotes),
+    dynamics: unlockedAt((s) => s.dynamics),
+  };
 
   let levelId = PIANO_LEVELS[2].id;
-  let key = "any";
-  let meter = "4/4";
-  let measures = 8;
-  let pattern: LeftHandPattern | "any" = "any";
-  let tuneHand: TuneHand | "either" = "right";
-  let bpm = 72;
+  let settings: PianoSettings = settingsFor(levelId);
   let clickOn = true;
   let looping = false;
   let isPlaying = false;
@@ -60,48 +96,20 @@
   let narrow = false;
 
   $: level = pianoLevelById[levelId] ?? PIANO_LEVELS[0];
-  $: if (!level.leftHandTune) tuneHand = "right";
-  // With the tune in the left hand, the right hand's chords are the choice.
-  $: patterns = !level.together ? [] : tuneHand === "left" ? RIGHT_HAND_CHORDS : patternsFor(level, meter);
-  // A choice the level does not offer goes back to Any, rather than sticking.
-  $: if (key !== "any" && !level.keys.includes(key)) key = "any";
-  $: if (!level.meters.includes(meter)) meter = level.meters[0];
-  $: if (pattern !== "any" && !patterns.includes(pattern)) pattern = "any";
+  $: edited = JSON.stringify(settings) !== JSON.stringify(level.settings);
+  $: bpm = settings.bpm;
 
-  function settingsQuery(): string {
-    const p = new URLSearchParams({ level: levelId, meter, measures: String(measures), bpm: String(bpm) });
-    if (key !== "any") p.set("key", key);
-    if (pattern !== "any") p.set("lh", pattern);
-    if (tuneHand !== "right") p.set("tune", tuneHand);
-    return p.toString();
-  }
-  const settingsLink = () => `${location.origin}/piano-sightreading?${settingsQuery()}`;
-
-  function loadParams() {
-    const p = new URLSearchParams(location.search);
-    const l = p.get("level");
-    if (l && pianoLevelById[l]) {
-      levelId = l;
-      bpm = pianoLevelById[l].bpm;
-    }
-    const lv = pianoLevelById[levelId];
-    const k = p.get("key");
-    if (k && lv.keys.includes(k)) key = k;
-    const m = p.get("meter");
-    if (m && lv.meters.includes(m)) meter = m;
-    const n = Number(p.get("measures"));
-    if ([4, 8, 16].includes(n)) measures = n;
-    const b = Number(p.get("bpm"));
-    if (b >= 30 && b <= 200) bpm = b;
-    const t = p.get("tune");
-    if (lv.leftHandTune && (t === "left" || t === "either")) tuneHand = t;
-    const lh = p.get("lh") as LeftHandPattern | null;
-    if (lh && (tuneHand === "left" ? RIGHT_HAND_CHORDS : patternsFor(lv, meter)).includes(lh)) pattern = lh;
-  }
+  const settingsLink = () => `${location.origin}/piano-sightreading?${settingsQuery(levelId, settings)}`;
 
   function chooseLevel(id: string) {
     levelId = id;
-    bpm = pianoLevelById[id].bpm;
+    settings = settingsFor(id);
+  }
+
+  /** A choice in a list turned on or off; the last one cannot be turned off (nothing to draw from). */
+  function toggle<T>(items: T[], item: T): T[] {
+    if (items.includes(item)) return items.length > 1 ? items.filter((x) => x !== item) : items;
+    return [...items, item];
   }
 
   async function generate() {
@@ -114,18 +122,11 @@
       // Let the page paint "Writing…" before the main thread is busy.
       await tick();
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      exercise = generatePianoExercise({
-        levelId,
-        key: key === "any" ? undefined : key,
-        meter,
-        measures,
-        pattern: pattern === "any" ? undefined : pattern,
-        tuneHand,
-        bpm,
-        barsPerLine: narrow ? 2 : 4,
-      });
-      generatedBpm = bpm;
-      history.replaceState(null, "", `${location.pathname}?${settingsQuery()}`);
+      // A level's own settings title the score with the level; edited ones with the key alone.
+      const ex = generatePianoExercise({ settings, levelId: edited ? undefined : levelId, barsPerLine: narrow ? 2 : 4 });
+      exercise = ex;
+      generatedBpm = settings.bpm;
+      history.replaceState(null, "", `${location.pathname}?${settingsQuery(levelId, settings)}`);
       await tick();
       await render();
       void countGeneration();
@@ -187,11 +188,11 @@
       ...(voicesOff.length ? { voicesOff } : {}),
     });
     await synthControl.load("#piano-audio", cursorControl, { displayWarp: true });
-    if (bpm !== generatedBpm) setWarp();
+    if (settings.bpm !== generatedBpm) setWarp();
   }
 
   function setWarp() {
-    try { synthControl?.setWarp(Math.round((bpm / generatedBpm) * 100)); } catch {}
+    try { synthControl?.setWarp(Math.round((settings.bpm / generatedBpm) * 100)); } catch {}
   }
 
   async function handlePlay() {
@@ -242,7 +243,7 @@
     // The page's loading skeleton (AppSkeleton) is ours to take down, as the other practice pages do.
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     narrow = window.innerWidth <= 640;
-    loadParams();
+    ({ levelId, settings } = settingsFromQuery(location.search));
     void generate();
   });
   onDestroy(() => {
@@ -252,68 +253,127 @@
 </script>
 
 <div class="w-full max-w-5xl flex flex-col gap-4 pb-40">
-  <section class="sr-panel p-4 sm:p-5 flex flex-col gap-4" aria-label="Exercise settings">
+  <section class="sr-panel p-4 sm:p-5 flex flex-col gap-5" aria-label="Exercise settings">
     <div class="flex flex-col gap-2">
-      <span class="sr-label">Level</span>
+      <span class="sr-label">Level {#if edited}<span class="edited">edited</span>{/if}</span>
       <div class="flex flex-wrap gap-1.5" role="group" aria-label="Level">
         {#each PIANO_LEVELS as l (l.id)}
-          <button type="button" class="sr-tok {l.id === levelId ? 'sr-on' : ''}" aria-pressed={l.id === levelId} title={l.summary} on:click={() => chooseLevel(l.id)}>{l.number}</button>
+          <button type="button" class="sr-tok {l.id === levelId && !edited ? 'sr-on' : ''} {l.id === levelId && edited ? 'sr-was' : ''}" aria-pressed={l.id === levelId} title={l.summary} on:click={() => chooseLevel(l.id)}>{l.number}</button>
         {/each}
       </div>
-      <p class="text-sm text-sr-muted">{level.label}: {level.summary}.</p>
+      <p class="text-sm text-sr-muted">{level.label}: {level.summary}. <span class="text-sr-faint">About {level.compare}.</span></p>
+      <p class="text-xs text-sr-faint">A level fills in the choices below; every one can be changed. The small number on a choice is the level that first uses it.</p>
     </div>
 
-    <div class="flex flex-wrap gap-x-8 gap-y-4">
+    <div class="grid gap-5 md:grid-cols-2">
       <div class="flex flex-col gap-2">
-        <span class="sr-label">Key</span>
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Key">
-          <button type="button" class="sr-tok {key === 'any' ? 'sr-on' : ''}" aria-pressed={key === "any"} on:click={() => (key = "any")}>Any</button>
-          {#each level.keys as k}
-            <button type="button" class="sr-tok {key === k ? 'sr-on' : ''}" aria-pressed={key === k} on:click={() => (key = k)}>{k.replace("b", "♭")}</button>
+        <span class="sr-label">Keys</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Major keys">
+          {#each ALL_KEYS.major as k}
+            <button type="button" class="sr-tok chip {settings.keys.includes(k) ? 'sr-on' : ''}" aria-pressed={settings.keys.includes(k)} on:click={() => (settings = { ...settings, keys: toggle(settings.keys, k) })}>{keyLabel(k)}<sup>{at.key(k) ?? ""}</sup></button>
+          {/each}
+        </div>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Minor keys">
+          {#each ALL_KEYS.minor as k}
+            <button type="button" class="sr-tok chip {settings.keys.includes(k) ? 'sr-on' : ''}" aria-pressed={settings.keys.includes(k)} on:click={() => (settings = { ...settings, keys: toggle(settings.keys, k) })}>{keyLabel(k)}<sup>{at.key(k) ?? ""}</sup></button>
           {/each}
         </div>
       </div>
-      <div class="flex flex-col gap-2">
-        <span class="sr-label">Meter</span>
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Meter">
-          {#each level.meters as m}
-            <button type="button" class="sr-tok {meter === m ? 'sr-on' : ''}" aria-pressed={meter === m} on:click={() => (meter = m)}>{m}</button>
-          {/each}
+
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-2">
+          <span class="sr-label">Meters</span>
+          <div class="flex flex-wrap gap-1.5" role="group" aria-label="Meters">
+            {#each ALL_METERS as m}
+              <button type="button" class="sr-tok chip {settings.meters.includes(m) ? 'sr-on' : ''}" aria-pressed={settings.meters.includes(m)} on:click={() => (settings = { ...settings, meters: toggle(settings.meters, m) })}>{m}<sup>{at.meter(m) ?? ""}</sup></button>
+            {/each}
+          </div>
         </div>
-      </div>
-      <div class="flex flex-col gap-2">
-        <span class="sr-label">Bars</span>
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Bars">
-          {#each [4, 8, 16] as n}
-            <button type="button" class="sr-tok {measures === n ? 'sr-on' : ''}" aria-pressed={measures === n} on:click={() => (measures = n)}>{n}</button>
-          {/each}
+        <div class="flex flex-col gap-2">
+          <span class="sr-label">Bars</span>
+          <div class="flex flex-wrap gap-1.5" role="group" aria-label="Bars">
+            {#each ALL_LENGTHS as n}
+              <button type="button" class="sr-tok chip {settings.measures === n ? 'sr-on' : ''}" aria-pressed={settings.measures === n} on:click={() => (settings = { ...settings, measures: n })}>{n}<sup>{at.bars(n) ?? ""}</sup></button>
+            {/each}
+          </div>
         </div>
       </div>
     </div>
 
-    {#if level.leftHandTune}
+    <div class="flex flex-col gap-2">
+      <span class="sr-label">Rhythms</span>
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Rhythms">
+        {#each RHYTHM_CHOICES as r}
+          <button type="button" class="sr-tok chip {settings.rhythms.includes(r.name) ? 'sr-on' : ''}" aria-pressed={settings.rhythms.includes(r.name)} on:click={() => (settings = { ...settings, rhythms: toggle(settings.rhythms, r.name) })}>{r.label}<sup>{at.rhythm(r.name) ?? ""}</sup></button>
+        {/each}
+      </div>
+      <p class="text-xs text-sr-faint">6/8 uses its own figures to match: dotted quarters and three eighths, and sixteenths when sixteenths are chosen.</p>
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-2">
+      <div class="flex flex-col gap-2">
+        <span class="sr-label">Largest skip in the tune</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Largest skip">
+          {#each SKIPS as k}
+            <button type="button" class="sr-tok chip {settings.maxSkip === k.n ? 'sr-on' : ''}" aria-pressed={settings.maxSkip === k.n} on:click={() => (settings = { ...settings, maxSkip: k.n })}>{k.label}<sup>{at.skip(k.n) ?? ""}</sup></button>
+          {/each}
+        </div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <span class="sr-label">The tune's reach</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Reach">
+          {#each REACHES as r}
+            <button type="button" class="sr-tok chip {settings.reach === r.n ? 'sr-on' : ''}" aria-pressed={settings.reach === r.n} on:click={() => (settings = { ...settings, reach: r.n })}>{r.label}<sup>{at.reach(r.n) ?? ""}</sup></button>
+          {/each}
+        </div>
+      </div>
+      <div class="flex flex-col gap-2">
+        <span class="sr-label">Hands</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Hands">
+          <button type="button" class="sr-tok chip {!settings.together ? 'sr-on' : ''}" aria-pressed={!settings.together} on:click={() => (settings = { ...settings, together: false })}>Taking turns<sup>1</sup></button>
+          <button type="button" class="sr-tok chip {settings.together ? 'sr-on' : ''}" aria-pressed={settings.together} on:click={() => (settings = { ...settings, together: true })}>Together<sup>{at.together ?? ""}</sup></button>
+        </div>
+      </div>
       <div class="flex flex-col gap-2">
         <span class="sr-label">Tune in</span>
         <div class="flex flex-wrap gap-1.5" role="group" aria-label="Tune in">
           {#each TUNE_HANDS as h}
-            <button type="button" class="sr-tok {tuneHand === h.id ? 'sr-on' : ''}" aria-pressed={tuneHand === h.id} on:click={() => (tuneHand = h.id)}>{h.label}</button>
+            <button type="button" class="sr-tok chip {settings.tuneHand === h.id ? 'sr-on' : ''}" aria-pressed={settings.tuneHand === h.id} disabled={!settings.together && h.id !== "right"} on:click={() => (settings = { ...settings, tuneHand: h.id })}>{h.label}<sup>{at.tune(h.id) ?? ""}</sup></button>
           {/each}
         </div>
       </div>
-    {/if}
-    {#if level.together}
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="sr-label">Accompaniment</span>
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Accompaniment patterns">
+        {#each ALL_PATTERNS as p}
+          <button type="button" class="sr-tok chip {settings.patterns.includes(p) ? 'sr-on' : ''}" aria-pressed={settings.patterns.includes(p)} disabled={!settings.together} on:click={() => (settings = { ...settings, patterns: toggle(settings.patterns, p) })}>{PATTERN_NAMES[p]}<sup>{at.pattern(p) ?? ""}</sup></button>
+        {/each}
+      </div>
+      <p class="text-xs text-sr-faint">
+        {#if settings.together}Each exercise draws one, from those that suit its meter. With the tune in the left hand, the right hand holds the chords or plays them on each beat.{:else}With the hands taking turns there is no accompaniment: one tune passes between the hands.{/if}
+      </p>
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-2">
       <div class="flex flex-col gap-2">
-        <span class="sr-label">{tuneHand === "left" ? "Right hand" : "Left hand"}</span>
-        <div class="flex flex-wrap gap-1.5" role="group" aria-label={tuneHand === "left" ? "Right hand" : "Left hand"}>
-          <button type="button" class="sr-tok {pattern === 'any' ? 'sr-on' : ''}" aria-pressed={pattern === "any"} on:click={() => (pattern = "any")}>Any of the level's</button>
-          {#each patterns as p}
-            <button type="button" class="sr-tok {pattern === p ? 'sr-on' : ''}" aria-pressed={pattern === p} on:click={() => (pattern = p)}>{PATTERN_NAMES[p]}</button>
+        <span class="sr-label">Chords</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Chords">
+          {#each CHORD_CHOICES as c}
+            <button type="button" class="sr-tok chip {settings.chords.includes(c) ? 'sr-on' : ''}" aria-pressed={settings.chords.includes(c)} on:click={() => (settings = { ...settings, chords: toggle(settings.chords, c) })}>{c}<sup>{at.chord(c) ?? ""}</sup></button>
           {/each}
+          <button type="button" class="sr-tok chip {settings.chromatic ? 'sr-on' : ''}" aria-pressed={settings.chromatic} on:click={() => (settings = { ...settings, chromatic: !settings.chromatic })}>V of V, vi, ii<sup>{at.chromatic ?? ""}</sup></button>
         </div>
       </div>
-    {:else}
-      <p class="text-sm text-sr-muted">The hands take turns, two bars each: the right hand plays a phrase and the left hand answers it, each in its own five-finger position.</p>
-    {/if}
+      <div class="flex flex-col gap-2">
+        <span class="sr-label">Also</span>
+        <div class="flex flex-wrap gap-1.5" role="group" aria-label="Also">
+          <button type="button" class="sr-tok chip {settings.dynamics ? 'sr-on' : ''}" aria-pressed={settings.dynamics} on:click={() => (settings = { ...settings, dynamics: !settings.dynamics })}>Dynamics<sup>{at.dynamics ?? ""}</sup></button>
+          <button type="button" class="sr-tok chip {settings.doubleNotes ? 'sr-on' : ''}" aria-pressed={settings.doubleNotes} on:click={() => (settings = { ...settings, doubleNotes: !settings.doubleNotes })}>3rds and 6ths at cadences<sup>{at.doubleNotes ?? ""}</sup></button>
+        </div>
+      </div>
+    </div>
 
     <div class="flex flex-wrap items-center gap-3">
       <button type="button" class="sr-btn" on:click={generate} disabled={isGenerating}>{isGenerating ? "Writing…" : "New exercise"}</button>
@@ -328,8 +388,8 @@
 
   {#if exercise}
     <p class="text-sm text-sr-muted px-1">
-      {exercise.key.replace("b", "♭")} major · {exercise.meter} · {exercise.progression} ·
-      {#if exercise.tuneHand === "left"}tune in the left hand, right hand: {PATTERN_NAMES[exercise.pattern]}{:else}left hand: {PATTERN_NAMES[exercise.pattern]}{/if}
+      {keyName(exercise.key)} · {exercise.meter} · {exercise.progression} ·
+      {#if exercise.pattern === "tune"}hands taking turns{:else if exercise.tuneHand === "left"}tune in the left hand, right hand: {PATTERN_NAMES[exercise.pattern]}{:else}left hand: {PATTERN_NAMES[exercise.pattern]}{/if}
     </p>
   {/if}
   <CountInBadge />
@@ -340,7 +400,7 @@
 <PlaybackBar
   {isPlaying}
   {bpm}
-  beatSymbol={beatSymbolOf(meter)}
+  beatSymbol={beatSymbolOf(exercise?.meter ?? settings.meters[0])}
   {looping}
   voiceNames={HANDS}
   {mutedVoices}
@@ -351,7 +411,7 @@
   onPause={pausePlayback}
   onStop={rewind}
   onRestart={rewind}
-  onBpmChange={(b) => { bpm = b; setWarp(); }}
+  onBpmChange={(b) => { settings = { ...settings, bpm: b }; setWarp(); }}
   onToggleLoop={() => (looping = !looping)}
   onToggleMute={toggleMute}
   onGenerate={generate}
@@ -372,5 +432,26 @@
 <style>
   :global(#paper .piano-now) {
     fill: var(--sr-action);
+  }
+  /* The level a choice first appears at: small, beside its name. */
+  .chip sup {
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 4px;
+    opacity: 0.6;
+    top: -0.4em;
+  }
+  .edited {
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--sr-butter);
+    color: var(--sr-butter-ink);
+  }
+  /* The level the choices started from, once they have been changed. */
+  .sr-was {
+    border-color: var(--sr-action);
   }
 </style>
