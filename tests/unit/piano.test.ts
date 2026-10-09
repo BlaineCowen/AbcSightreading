@@ -215,3 +215,40 @@ test("the scrolling line moves between notes in proportion to time, held at the 
   expect(xAt(anchors, 24)).toBe(220); // half way across a whole note's space
   expect(xAt(anchors, 99)).toBe(300);
 });
+
+import { beatsWords } from "../../src/lib/piano/grade-piano";
+import { spell } from "../../src/lib/piano/piano-feedback";
+
+test("a wrong key is named against the note it replaced; a key with no note is a stray", () => {
+  // Two written quarters, C5 then D5, at 60 (a beat is 1000 ms, 8 units).
+  const expected = [
+    { hand: "rh" as const, index: 0, midi: 72, pitch: 21, start: 0, length: 8 },
+    { hand: "rh" as const, index: 1, midi: 74, pitch: 22, start: 8, length: 8 },
+  ];
+  // E5 where C5 is written, D5 a quarter beat late, and a G5 well after.
+  const played = [{ midi: 76, t: 1000 }, { midi: 74, t: 2250 }, { midi: 79, t: 5000 }];
+  const r = gradeInTime(expected, played, { t0: 1000, bpm: 60, beatUnits: 8, strictness: "standard" });
+  expect(r.notes[0]).toMatchObject({ verdict: "missed", playedInstead: 76 });
+  expect(r.notes[1].verdict).toBe("late");
+  expect(r.notes[1].offBeats).toBeCloseTo(0.25);
+  expect(r.extras.map((k) => k.midi)).toEqual([76, 79]);
+  expect(r.strays.map((k) => k.midi)).toEqual([79]);
+});
+
+test("timing is said as a fraction of a beat", () => {
+  expect(beatsWords(0.25)).toBe("¼ beat late");
+  expect(beatsWords(-0.3)).toBe("⅓ beat early");
+  expect(beatsWords(0.13)).toBe("⅛ beat late");
+  expect(beatsWords(-0.5)).toBe("½ beat early");
+});
+
+test("a played key is spelled in the key: in the scale plain, outside it sharp or flat by the key", () => {
+  // G major: F♯ is in the key; F natural is not, and is written on F with a natural.
+  expect(spell("G", midiOf("G", 24))).toEqual({ pitch: 24, accidental: null }); // F5 in G is F♯5
+  expect(spell("G", 77)).toEqual({ pitch: 24, accidental: "♮" });
+  // F major: B♭ in the key; B natural is written on B with a natural; C♯ as D♭.
+  expect(spell("F", 71)).toEqual({ pitch: 20, accidental: "♮" });
+  expect(spell("F", 73)).toEqual({ pitch: 22, accidental: "♭" });
+  // C major: C♯ as C sharp.
+  expect(spell("C", 61)).toEqual({ pitch: 14, accidental: "♯" });
+});

@@ -23,6 +23,7 @@
   import {
     expectedNotes,
     gradeInTime,
+    beatsWords,
     midiName,
     PIANO_STRICTNESS,
     type ExpectedNote,
@@ -34,6 +35,7 @@
   import type { PianoExercise } from "../lib/piano/generatePiano";
   import { PianoVoice } from "../lib/piano/piano-voice";
   import { noteElements } from "../lib/piano/score-elements";
+  import { clearPianoFeedback, drawPianoFeedback } from "../lib/piano/piano-feedback";
   import { anchorsFrom, createScroller, noteStarts } from "../lib/piano/scroller";
 
   export let exercise: PianoExercise | null = null;
@@ -118,6 +120,16 @@
   }
   function clearMarks() {
     for (const hand of ["rh", "lh"] as Hand[]) for (const set of els[hand]) for (const e of set) e.classList.remove(...MARKS);
+    clearPianoFeedback(document.querySelector("#paper svg"));
+  }
+  /** The grade's own strictness and clock, kept with the result so a redrawn score can draw it again. */
+  let graded: { t0: number; bpm: number; beatUnits: number; strictness: PianoStrictness } | null = null;
+  // The score redrawn (layout, size, a resize) loses its marks: put them back.
+  $: if (tune && result && !running) void redrawResult();
+  async function redrawResult() {
+    await Promise.resolve();
+    els = noteElements(tune);
+    showResultMarks();
   }
 
   // ── The keyboard ──────────────────────────────────────────────────────────
@@ -241,6 +253,7 @@
     hideCountIn();
     if (!exercise) return;
     result = gradeInTime(expected, played, { t0, bpm, beatUnits, strictness });
+    graded = { t0, bpm, beatUnits, strictness };
     showResultMarks();
   }
 
@@ -250,6 +263,18 @@
       // A chord's notes share one notehead group: missed beats off, off beats right.
       const worst = result.notes.filter((m) => m.hand === n.hand && m.index === n.index).reduce((w, m) => (rank(m.verdict) > rank(w) ? m.verdict : w), n.verdict);
       mark(n, worst === "right" ? "pg-right" : worst === "missed" ? "pg-miss" : "pg-off");
+    }
+    // What was played instead and how far off in time, drawn on the score (piano-feedback.ts).
+    const svg = document.querySelector<SVGSVGElement>("#paper svg");
+    if (svg && exercise && graded) {
+      drawPianoFeedback({
+        svg,
+        key: exercise.key,
+        result,
+        els,
+        lengths: { rh: exercise.rh.map((n) => n.length), lh: exercise.lh.map((n) => n.length) },
+        ...graded,
+      });
     }
   }
 
@@ -364,7 +389,7 @@
           const bar = Math.floor(n.start / barUnits()) + 1;
           const hand = n.hand === "rh" ? "right hand" : "left hand";
           if (n.verdict === "missed") return `Bar ${bar}, ${hand}: ${midiName(n.midi)} missed${n.playedInstead !== undefined ? ` (${midiName(n.playedInstead)} played)` : ""}`;
-          return `Bar ${bar}, ${hand}: ${midiName(n.midi)} ${Math.abs(n.offBeats ?? 0).toFixed(2)} beats ${n.verdict}`;
+          return `Bar ${bar}, ${hand}: ${midiName(n.midi)} ${beatsWords(n.offBeats ?? 0)}`;
         })
     : [];
   function barUnits(): number {
@@ -452,7 +477,10 @@
               {#each mistakes as m}<li>{m}</li>{/each}
             </ul>
           {/if}
-          <p class="text-xs text-sr-faint">On the score: green right, orange early or late, red missed.</p>
+          <p class="text-xs text-sr-faint">
+            On the score: green right, orange early or late (the arrow points to where you played it), red missed
+            (a ring round the note; a red note beside it is the key you played instead, an outlined one a key with no note to answer).
+          </p>
         </div>
       {/if}
 

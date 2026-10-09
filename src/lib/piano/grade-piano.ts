@@ -22,6 +22,8 @@ export interface ExpectedNote {
   /** Its place in that hand's notes (PianoExercise rh/lh), for marking the score. */
   index: number;
   midi: number;
+  /** The written pitch (noteArray index, C2 = 0), for placing marks by staff steps. */
+  pitch: number;
   start: number;
   length: number;
 }
@@ -45,7 +47,7 @@ export function expectedNotes(ex: Pick<PianoExercise, "key" | "rh" | "lh">): Exp
   for (const [hand, notes] of [["rh", ex.rh], ["lh", ex.lh]] as const) {
     let t = 0;
     notes.forEach((n, index) => {
-      if (!n.rest) n.pitches.forEach((p, i) => out.push({ hand, index, midi: midiOf(ex.key, p, n.alters?.[i] ?? 0), start: t, length: n.length }));
+      if (!n.rest) n.pitches.forEach((p, i) => out.push({ hand, index, midi: midiOf(ex.key, p, n.alters?.[i] ?? 0), pitch: p, start: t, length: n.length }));
       t += n.length;
     });
   }
@@ -76,12 +78,16 @@ export interface NoteResult extends ExpectedNote {
   offBeats?: number;
   /** A key pressed near it that it did not match: what was played instead. */
   playedInstead?: number;
+  /** When that key went down, against the written time, in beats. */
+  playedAt?: number;
 }
 
 export interface PianoResult {
   notes: NoteResult[];
   /** Keys pressed that matched no note. */
   extras: PlayedNote[];
+  /** The extras not already shown as a note's `playedInstead`: keys with no written note to answer. */
+  strays: PlayedNote[];
   /** 0-100: the share of written notes played, the right pitch. */
   notesScore: number;
   /** 0-100: how close in time the notes played were. */
@@ -123,12 +129,17 @@ export function gradeInTime(
     usedKey.add(pr.p);
   }
   const extras = played.filter((_, p) => !usedKey.has(p));
+  const instead = new Set<PlayedNote>();
   const notes: NoteResult[] = expected.map((n, e) => {
     const dt = byNote.get(e);
     if (dt === undefined) {
-      // What was played instead: an unmatched key nearest its time, within the window.
-      const near = extras.filter((k) => Math.abs(k.t - at(n)) <= 3 * win).sort((a, b) => Math.abs(a.t - at(n)) - Math.abs(b.t - at(n)))[0];
-      return { ...n, verdict: "missed", credit: 0, ...(near ? { playedInstead: near.midi } : {}) };
+      // What was played instead: an unmatched key nearest its time, within the window
+      // (not one another note of this chord already claimed).
+      const near = extras
+        .filter((k) => !instead.has(k) && Math.abs(k.t - at(n)) <= 3 * win)
+        .sort((a, b) => Math.abs(a.t - at(n)) - Math.abs(b.t - at(n)) || Math.abs(a.midi - n.midi) - Math.abs(b.midi - n.midi))[0];
+      if (near) instead.add(near);
+      return { ...n, verdict: "missed", credit: 0, ...(near ? { playedInstead: near.midi, playedAt: (near.t - at(n)) / beatMs } : {}) };
     }
     const off = Math.abs(dt);
     const credit = off <= win ? 1 : Math.max(0, 1 - (off - win) / (2 * win));
@@ -145,11 +156,20 @@ export function gradeInTime(
   return {
     notes,
     extras,
+    strays: extras.filter((k) => !instead.has(k)),
     notesScore: expected.length ? Math.round((100 * matched.length) / expected.length) : 0,
     timingScore: matched.length ? Math.round((100 * matched.reduce((s, n) => s + n.credit, 0)) / matched.length) : 0,
     overall: expected.length ? Math.round((100 * sum) / (expected.length + extras.length)) : 0,
     byHand,
   };
+}
+
+/** How far off, as a musician says it: the nearest everyday fraction of a beat ("¼ beat late"). */
+export function beatsWords(offBeats: number): string {
+  const FRACTIONS: [number, string][] = [[1 / 16, "1/16"], [1 / 8, "⅛"], [1 / 6, "⅙"], [1 / 4, "¼"], [1 / 3, "⅓"], [1 / 2, "½"], [2 / 3, "⅔"], [3 / 4, "¾"], [1, "1"]];
+  const a = Math.abs(offBeats);
+  const [, f] = FRACTIONS.reduce((best, c) => (Math.abs(c[0] - a) < Math.abs(best[0] - a) ? c : best));
+  return a > 1.25 ? `${a.toFixed(1)} beats ${offBeats < 0 ? "early" : "late"}` : `${f} beat ${offBeats < 0 ? "early" : "late"}`;
 }
 
 const NAMES = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
