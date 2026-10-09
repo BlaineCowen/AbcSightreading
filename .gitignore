@@ -60,3 +60,6 @@ grade-runs/
 
 # Printed book proofs (scripts/make-book.ts); the data behind their QR codes is src/data/books/
 marketing/books/
+
+# Real MusicXML exports for scripts/check-pieces.ts: other people's music, never committed
+pieces-samples/

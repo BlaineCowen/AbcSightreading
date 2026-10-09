@@ -1,0 +1,17 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PieceLibrary from "../../components/pieces/PieceLibrary.svelte";
+import PiecesPitch from "../../components/pieces/PiecesPitch.astro";
+import { currentUser } from "../../lib/server/api";
+import { hasPremium } from "../../lib/server/plan";
+import { accountTypeFor } from "../../lib/server/students";
+
+// My music: Pro, and never a student account (hasPremium decides the plan).
+const user = await currentUser(Astro.request);
+if (user && (await accountTypeFor(user)) === "student") return Astro.redirect("/account");
+const allowed = !!user && (await hasPremium(user));
+---
+
+<Layout title="My music | abcSightReading" description="Your own pieces from MuseScore, Sibelius, Finale or Dorico: play any part, loop the bars you are learning, at any tempo." noindex themable>
+  {allowed ? <PieceLibrary client:only="svelte" /> : <PiecesPitch signedIn={!!user} next="/pieces" />}
+</Layout>

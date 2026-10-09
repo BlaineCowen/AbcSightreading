@@ -1390,6 +1390,42 @@ settings shows the step, what it adds, All steps (`sr-open-presets`, which
 opens the menu at a section) and Next step (`nextStepAfter`); the landing
 page, the signed-in home (no exercise yet) and /how-to-use link step 1.
 
+## Your own music (pieces)
+
+`/pieces` (My music, Pro, never a student): a teacher uploads MusicXML from
+MuseScore, Sibelius, Finale or Dorico (.mxl, .musicxml, .xml) and plays it
+(`/pieces/<id>`): each part's instrument (any of `INSTRUMENTS`), volume,
+mute, solo and show or hide, saved to the piece; a run of bars; any tempo;
+loop. Plan: notes in the session plan; next, assigning bars of one part to a
+class (Educator), then graded attempts with the takes kept 90 days.
+
+- `src/lib/pieces/read-musicxml.ts` reads the file into `PieceScore`
+  (model.ts), the truth about the piece: 48 ticks a quarter, written order,
+  repeats and voltas kept as written (abcjs plays them), each bar keeping its
+  printed number. Grace and cue notes, drum parts and D.S./coda jumps are
+  left out and listed in `warnings`. A tie between different pitches (a
+  slur exported as a tie) is dropped. Parts map to the nearest instrument we
+  can play (`nearestProgram`).
+- `src/lib/pieces/write-abc.ts` writes ABC from it for abcjs only (L:1/192):
+  a voice per staff and MusicXML voice, `%%MIDI program` after each voice's
+  first body `V:` line (the only place abcjs takes it per voice),
+  `transpose=` for playback of a transposing part, which is drawn as
+  written. Two abcjs habits it writes around: a partly tied chord is tied as
+  a whole (`[Fca]72-`; abcjs holds only notes on the same staff place), and a
+  tied-over note's accidental does not carry (abcjs forgets it, as engravers
+  do). `voices[].elements` pairs each drawn note with its model note
+  (`drawnElements`), for grading marks later.
+- `bun run scripts/check-pieces.ts <files or folder>` imports real files
+  (put them in gitignored `pieces-samples/`) and checks every four-bar
+  excerpt plays exactly as the model says. Clean on 9 October 2026 over a
+  Bach chorale, string quartets by Beethoven, Mozart and Schumann, and the
+  Maple Leaf Rag (music21's public-domain corpus). Tests `pieces-read.test.ts`.
+- Storage: the server reads the upload (the page zips a plain file first so
+  it fits the 4.5 MB request limit, 4 MB compressed at most), keeps the file
+  and the model (gzipped JSON) as private Blobs under
+  `pieces/<user>/<piece>/` and a `Piece` row (`src/lib/server/pieces.ts`,
+  `/api/pieces`, rules in `src/lib/pieces/rules.ts`).
+
 ## Home page (signed in)
 
 `/` is two pages (8 October 2026): the landing page for anyone signed out

@@ -18,6 +18,8 @@
     "better-auth": "^1.7.6",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "fast-xml-parser": "^5.11.2",
+    "fflate": "^0.8.3",
     "lucide-svelte": "^1.0.1",
     "pg": "^8.23.0",
     "pitchy": "^4.1.0",

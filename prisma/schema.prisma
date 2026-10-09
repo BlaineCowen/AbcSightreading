@@ -44,6 +44,7 @@ model User {
   practice      PracticeTime[]
   practiceClock PracticeClock?
   grants        AccessGrant[]
+  pieces        Piece[]
 
   @@map("user")
 }
@@ -131,6 +132,32 @@ model Preset {
 // The exercises a signed-in person generated most recently, for the home
 // page (src/lib/recent-exercises.ts, /api/recent): the last MAX_RECENT, each
 // a link that reopens that exact exercise with the settings it was shown in.
+/// A teacher's own piece, uploaded as MusicXML (src/lib/pieces/). The file
+/// and the model read from it live in private Blob storage; this row says
+/// where, and holds the teacher's choices for each part.
+model Piece {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  composer   String   @default("")
+  /// The file's name as uploaded: "Shenandoah SATB.mxl".
+  sourceName String
+  /// Blob paths: the file (always compressed .mxl) and the model as gzipped JSON.
+  sourcePath String
+  scorePath  String
+  /// Per part id: { name, program, volume, muted, hidden } over the file's own.
+  parts      Json
+  bars       Int
+  /// What the import left out ("3 grace notes left out").
+  warnings   Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@map("piece")
+}
+
 model RecentExercise {
   id        String   @id @default(cuid())
   userId    String

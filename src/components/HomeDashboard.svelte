@@ -166,6 +166,17 @@
     </section>
   {/if}
 
+  {#if accountType !== "student"}
+    <!-- Their own pieces (src/lib/pieces/): Pro, and /pieces says so to anyone else. -->
+    <section class="sr-panel p-5 flex flex-wrap items-center justify-between gap-3" aria-label="My music">
+      <div>
+        <h2 class="text-xl font-bold text-sr-ink">My music</h2>
+        <p class="text-sm text-sr-muted">Your own pieces from MuseScore, Sibelius, Finale or Dorico. Play any part, loop the bars you are learning.</p>
+      </div>
+      <a class="sr-btn text-sm" href="/pieces">Open My music</a>
+    </section>
+  {/if}
+
   {#if accountType === "educator"}
     <section class="sr-panel p-5 flex flex-wrap items-center justify-between gap-3" aria-label="Classes">
       <div>

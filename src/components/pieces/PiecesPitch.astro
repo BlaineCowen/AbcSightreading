@@ -1,0 +1,24 @@
+---
+/** What someone without Pro sees on My music, the tuner page's way. */
+interface Props { signedIn: boolean; next: string }
+const { signedIn, next } = Astro.props;
+const back = encodeURIComponent(next);
+---
+<div class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3 mx-auto my-8">
+  <p class="text-xs uppercase tracking-wide text-sr-brass font-semibold">Pro</p>
+  <h2 class="text-lg font-semibold text-sr-ink">Your own music is part of Pro</h2>
+  <ul class="text-sm text-sr-ink-2 list-disc pl-5 flex flex-col gap-1">
+    <li>Upload pieces from MuseScore, Sibelius, Finale or Dorico (MusicXML)</li>
+    <li>Choose each part's instrument and volume, mute or hide any part</li>
+    <li>Play the whole piece, or loop the bars you are learning, at any tempo</li>
+  </ul>
+  <p class="text-sm text-sr-muted">$19.99 a year, with unlimited exercises.</p>
+  {signedIn ? (
+    <div class="flex flex-wrap gap-2"><a class="sr-btn" href="/account#plan">Get Pro</a></div>
+  ) : (
+    <div class="flex flex-wrap gap-2">
+      <a class="sr-btn" href={`/login?mode=signup&next=${back}`}>Create an account</a>
+      <a class="sr-btn-quiet" href={`/login?next=${back}`}>Sign in</a>
+    </div>
+  )}
+</div>
