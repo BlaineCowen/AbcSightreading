@@ -22,13 +22,13 @@
   const row = "flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-sr-ink-2";
 </script>
 
-<div class="flex flex-col gap-2 rounded-2xl border border-sr-hairline p-3">
+<div class="flex flex-col gap-2 rounded-[20px] bg-sr-track p-4">
   <button type="button" class="flex items-center gap-2 text-left" aria-expanded={open} on:click={() => (open = !open)}>
-    <span class="text-sm font-bold text-sr-ink">Practice</span>
-    <span class="text-xs text-sr-muted truncate">
+    <span class="text-[15px] font-bold text-sr-ink">Practice</span>
+    <span class="text-[13px] text-sr-muted truncate">
       {anyOn ? [a.countIn.on && "count-in", a.ramp.on && "ramp", a.silent.on && "silent bars", a.drop.on && "dropped beats", a.limit.on && "time limit"].filter(Boolean).join(", ") : "count-in, tempo ramp, silent bars, dropped beats, time limit"}
     </span>
-    <span class="ml-auto text-sr-muted text-xs">{open ? "Hide" : "Show"}</span>
+    <span class="ml-auto text-sr-action-fg text-[13px] font-bold">{open ? "Hide" : "Show"}</span>
   </button>
 
   {#if live}

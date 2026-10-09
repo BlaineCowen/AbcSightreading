@@ -8,6 +8,7 @@
   import MetronomePresets from "./MetronomePresets.svelte";
   import BeatTiles from "./BeatTiles.svelte";
   import AssistantPanel from "./AssistantPanel.svelte";
+  import SettingRow from "./SettingRow.svelte";
 
   onMount(() => {
     initTuner();
@@ -30,76 +31,80 @@
     }
   }
 
-  const stepBtn =
-    "w-10 h-10 rounded bg-sr-raise border border-sr-hairline text-sr-ink hover:border-sr-faint text-xl disabled:opacity-40";
+  // Common tempo names, so the number says something to a student.
+  const MARKS: [number, string][] = [[40, "Grave"], [60, "Largo"], [66, "Adagio"], [76, "Andante"], [108, "Moderato"], [120, "Allegro"], [168, "Presto"]];
+  $: mark = [...MARKS].reverse().find(([at]) => bpm >= at)?.[1] ?? "Grave";
+  $: meterLabel = meter.kind === "uneven" && meter.grouping ? `${meterName(meter)} (${meter.grouping})` : meterName(meter);
 </script>
 
-<div class="flex flex-col gap-4 bg-sr-panel border border-sr-hairline rounded-lg p-4">
-  <BeatTiles />
+<!-- The page's card is the frame: no second box inside it. The tiles, tempo
+     and Start are the stage; the settings follow as labelled rows. -->
+<div class="flex flex-col gap-7">
+  <section class="flex flex-col items-center gap-5" aria-label="Tempo">
+    <div class="w-full"><BeatTiles /></div>
 
-  <!-- BPM -->
-  <div class="flex items-center justify-center gap-3">
-    <button
-      type="button"
-      on:click={() => tuner.setBpm(bpm - 1)}
-      disabled={bpm <= BPM_MIN}
-      class={stepBtn}
-      aria-label="Slower"
-    >
-      −
-    </button>
-    <div class="text-center w-32">
-      <div class="text-5xl font-semibold tabular-nums leading-none text-sr-ink">{bpm}</div>
-      <div class="text-xs text-sr-muted mt-1 whitespace-nowrap">bpm ({BEAT_SYMBOL[meter.beatNote]}) · {meterName(meter)}</div>
+    <div class="flex items-center justify-center gap-3 sm:gap-8">
+      <button type="button" class="tempo-step" on:click={() => tuner.setBpm(bpm - 1)} disabled={bpm <= BPM_MIN} aria-label="Slower">−</button>
+      <div class="text-center min-w-[7.5rem] sm:min-w-[9rem]">
+        <div class="font-display font-bold text-6xl sm:text-7xl leading-none tabular-nums text-sr-ink">{bpm}</div>
+        <div class="mt-2 text-[13px] sm:text-sm font-semibold text-sr-muted">
+          <span class="text-sr-ink-2">{BEAT_SYMBOL[meter.beatNote]} = {bpm}</span> · {mark} · {meterLabel}
+        </div>
+      </div>
+      <button type="button" class="tempo-step" on:click={() => tuner.setBpm(bpm + 1)} disabled={bpm >= BPM_MAX} aria-label="Faster">+</button>
     </div>
-    <button
-      type="button"
-      on:click={() => tuner.setBpm(bpm + 1)}
-      disabled={bpm >= BPM_MAX}
-      class={stepBtn}
-      aria-label="Faster"
-    >
-      +
-    </button>
+
+    <input
+      type="range"
+      min={BPM_MIN}
+      max={BPM_MAX}
+      value={bpm}
+      on:input={(e) => tuner.setBpm(Number(e.currentTarget.value))}
+      class="w-full max-w-xl sr-range"
+      aria-label="Tempo"
+    />
+
+    <div class="flex w-full max-w-xl gap-3">
+      <button type="button" on:click={tapTempo} class="sr-btn-quiet flex-1 whitespace-nowrap !py-3.5 !text-base">Tap tempo</button>
+      <button
+        type="button"
+        on:click={() => tuner.setMetronomeRunning(!running)}
+        class="sr-btn flex-[2] !py-3.5 !text-lg {running ? 'stop' : ''}"
+        aria-pressed={running}
+      >{running ? "Stop" : "Start"}</button>
+    </div>
+  </section>
+
+  <div class="h-px bg-sr-hairline" aria-hidden="true"></div>
+
+  <div class="flex flex-col gap-5">
+    <MetronomePresets />
+    <MeterControls />
+    <SettingRow label="Volume">
+      <input type="range" min="0" max="1" step="0.05" class="w-full max-w-sm sr-range mt-2" aria-label="Metronome volume"
+        value={$tuner.metronomeVolume} on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))} />
+    </SettingRow>
   </div>
-  <input
-    type="range"
-    min={BPM_MIN}
-    max={BPM_MAX}
-    value={bpm}
-    on:input={(e) => tuner.setBpm(Number(e.currentTarget.value))}
-    class="w-full accent-[var(--sr-action)]"
-    aria-label="Tempo"
-  />
-
-  <div class="flex gap-2">
-    <button
-      type="button"
-      on:click={tapTempo}
-      class="flex-1 py-3 rounded-lg bg-sr-raise border border-sr-hairline text-sr-ink hover:border-sr-faint"
-    >
-      Tap tempo
-    </button>
-    <button
-      type="button"
-      on:click={() => tuner.setMetronomeRunning(!running)}
-      class="flex-1 py-3 text-lg font-medium {running
-        ? 'bg-sr-danger text-white rounded-lg hover:opacity-90'
-        : 'sr-btn rounded-lg'}"
-    >
-      {running ? "Stop" : "Start"}
-    </button>
-  </div>
-
-  <MetronomePresets />
-
-  <MeterControls />
 
   <AssistantPanel />
-
-  <label class="flex items-center gap-3 text-sm text-sr-ink-2">
-    <span class="shrink-0">Volume</span>
-    <input type="range" min="0" max="1" step="0.05" class="flex-1 sr-range" aria-label="Metronome volume"
-      value={$tuner.metronomeVolume} on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))} />
-  </label>
 </div>
+
+<style>
+  .tempo-step {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 999px;
+    background: var(--sr-track);
+    color: var(--sr-ink);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    transition: background 120ms ease;
+  }
+  @media (min-width: 640px) { .tempo-step { width: 56px; height: 56px; } }
+  .tempo-step:hover:not(:disabled) { background: var(--sr-tint); }
+  .tempo-step:disabled { opacity: 0.38; cursor: default; }
+  .stop { background: var(--sr-danger); color: var(--sr-danger-bg); }
+  .stop:hover:not(:disabled) { background: var(--sr-danger); filter: brightness(1.08); }
+</style>

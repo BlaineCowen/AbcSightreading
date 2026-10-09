@@ -49,28 +49,35 @@
     }
   }
 
-  $: tok = `sr-tok tabular-nums ${compact ? "px-2 text-xs" : ""}`;
+  $: tok = `sr-tok inline-flex ${compact ? "px-3 text-[13px]" : ""}`;
+  const NOTE_NAME: Record<number, string> = { 1: "Whole notes", 2: "Half notes", 4: "Quarter notes", 8: "Eighth notes", 16: "Sixteenth notes" };
 </script>
 
-<div class="flex flex-col gap-2 rounded-2xl bg-sr-raise border border-sr-hairline p-2.5">
-  <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-    <div class="flex items-center gap-1" role="group" aria-label="Beats in a bar">
-      <button type="button" class={tok} aria-label="One fewer" disabled={top <= 1} on:click={() => setTop(top - 1)}>−</button>
-      <span class="w-8 text-center font-display font-bold text-lg tabular-nums" aria-live="polite">{top}</span>
-      <button type="button" class={tok} aria-label="One more" disabled={top >= MAX_TOP} on:click={() => setTop(top + 1)}>+</button>
+<div class="flex flex-col gap-3 rounded-[20px] border-2 border-sr-tint bg-sr-panel p-3 {compact ? '' : 'sm:p-4'}">
+  <div class="flex flex-wrap items-end gap-x-5 gap-y-3">
+    <div class="flex flex-col gap-1">
+      <span class="text-xs font-bold text-sr-ink-2">Beats in a bar</span>
+      <div class="flex items-center gap-1.5" role="group" aria-label="Beats in a bar">
+        <button type="button" class="step" aria-label="One fewer" disabled={top <= 1} on:click={() => setTop(top - 1)}>−</button>
+        <span class="w-10 text-center font-display font-bold text-2xl tabular-nums text-sr-ink" aria-live="polite">{top}</span>
+        <button type="button" class="step" aria-label="One more" disabled={top >= MAX_TOP} on:click={() => setTop(top + 1)}>+</button>
+      </div>
     </div>
-    <span class="text-sr-faint text-lg" aria-hidden="true">/</span>
-    <div class="flex items-center gap-1" role="group" aria-label="The note that gets the count">
-      {#each BOTTOMS as b}
-        <button type="button" class="{tok} {bottom === b ? 'sr-on' : ''}" aria-pressed={bottom === b} on:click={() => setBottom(b)}>{b}</button>
-      {/each}
+    <div class="flex flex-col gap-1">
+      <span class="text-xs font-bold text-sr-ink-2">Counted in</span>
+      <div class="flex items-center gap-1.5" role="group" aria-label="The note that gets the count">
+        {#each BOTTOMS as b}
+          <button type="button" class="{tok} min-w-11 justify-center {bottom === b ? 'sr-on' : ''}" aria-pressed={bottom === b}
+            title={NOTE_NAME[b]} on:click={() => setBottom(b)}>{b}</button>
+        {/each}
+      </div>
     </div>
   </div>
 
   {#if choices.length || compoundOk}
-    <div class="flex flex-col gap-1">
-      <span class="text-xs text-sr-muted">Grouping</span>
-      <div class="flex flex-wrap items-center gap-1" role="group" aria-label="Grouping">
+    <div class="flex flex-col gap-1.5">
+      <span class="text-xs font-bold text-sr-ink-2">Grouping</span>
+      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Grouping">
         {#if compoundOk}
           <button type="button" class="{tok} {meter.kind === 'compound' ? 'sr-on' : ''}" aria-pressed={meter.kind === "compound"}
             title="Counted in {top / 3} dotted beats" on:click={() => apply(top, bottom)}>In threes</button>
@@ -79,29 +86,48 @@
             title="Every beat the same" on:click={() => apply(top, bottom)}>Even</button>
         {/if}
         {#each choices as g}
-          <button type="button" class="{tok} {grouping === g ? 'sr-on' : ''}" aria-pressed={grouping === g} on:click={() => apply(top, bottom, g)}>{g}</button>
+          <button type="button" class="{tok} tabular-nums {grouping === g ? 'sr-on' : ''}" aria-pressed={grouping === g} on:click={() => apply(top, bottom, g)}>{g}</button>
         {/each}
       </div>
-      <form class="flex items-center gap-1.5" on:submit|preventDefault={applyTyped}>
+      <form class="flex items-center gap-2" on:submit|preventDefault={applyTyped}>
+        <label class="sr-only" for="custom-grouping">Another grouping</label>
         <input
-          class="w-28 rounded-full border border-sr-hairline bg-sr-panel px-3 py-1 text-xs tabular-nums"
+          id="custom-grouping"
+          class="w-32 rounded-full border-2 border-sr-hairline bg-sr-panel px-3.5 py-1.5 text-base tabular-nums text-sr-ink focus:outline-none focus:border-sr-action"
           placeholder="Other: 4+3"
-          aria-label="Another grouping"
+          inputmode="text"
+          aria-describedby={typedError ? "custom-grouping-error" : undefined}
           bind:value={typed}
           on:input={() => (typedError = "")}
         />
-        <button type="submit" class="{tok}" disabled={!typed.trim()}>Use</button>
+        <button type="submit" class="sr-btn-quiet" disabled={!typed.trim()}>Use</button>
       </form>
-      {#if typedError}<p class="text-[11px] text-sr-danger">{typedError}</p>{/if}
+      {#if typedError}<p id="custom-grouping-error" class="text-xs font-semibold text-sr-danger" role="alert">{typedError}</p>{/if}
     </div>
   {/if}
-  <p class="text-[11px] text-sr-faint">
+  <p class="text-xs text-sr-muted">
     {#if meter.kind === "compound"}
-      Counted in {meter.beats} dotted beats, each of three.
+      Clicks {meter.beats} dotted beats a bar, each of three.
     {:else if meter.kind === "uneven"}
-      Counted in {meter.beats}, felt {meter.grouping}: each group's first beat is louder.
+      Clicks {meter.beats} a bar, felt {meter.grouping}: each group starts louder.
     {:else}
-      Counted in {meter.beats}.
+      Clicks {meter.beats} a bar.
     {/if}
   </p>
 </div>
+
+<style>
+  .step {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    background: var(--sr-panel);
+    border: 2px solid var(--sr-hairline);
+    color: var(--sr-ink);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .step:hover:not(:disabled) { border-color: var(--sr-action); }
+  .step:disabled { opacity: 0.38; cursor: default; }
+</style>

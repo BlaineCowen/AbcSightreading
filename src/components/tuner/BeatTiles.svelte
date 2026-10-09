@@ -20,8 +20,9 @@
   const LOOK: Record<BeatLevel, string> = {
     accent: "bg-sr-action text-sr-action-ink",
     normal: "bg-sr-sky text-sr-sky-ink",
-    soft: "bg-sr-sky text-sr-sky-ink opacity-55",
-    off: "border-2 border-dashed border-sr-hairline text-sr-faint bg-transparent",
+    // Soft is a lower, paler tile; its number keeps full contrast.
+    soft: "bg-sr-track text-sr-ink border-2 border-sr-sky",
+    off: "border-2 border-dashed border-sr-hairline text-sr-muted bg-transparent",
   };
   const SAY: Record<BeatLevel, string> = { accent: "accented", normal: "normal", soft: "soft", off: "silent" };
 </script>
@@ -41,7 +42,7 @@
       >{i + 1}</button>
     {/each}
   </div>
-  <p class="text-[11px] text-sr-faint text-center">
+  <p class="text-xs text-sr-muted text-center">
     Tap a beat to accent it, soften it or silence it.
     {#if !own}
       <button type="button" class="underline" on:click={() => tuner.resetBeatLevels()}>Reset</button>

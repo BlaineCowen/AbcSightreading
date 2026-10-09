@@ -3,6 +3,7 @@
   import { METERS, isTableMeter, meterById, meterName } from "../../lib/tuner/meters";
   import SubdivisionPicker from "./SubdivisionPicker.svelte";
   import CustomMeter from "./CustomMeter.svelte";
+  import SettingRow from "./SettingRow.svelte";
   import type { VoiceMode, VoiceSystem } from "../../lib/tuner/voice-count";
   import { CLICK_SOUNDS, type ClickSound } from "../../lib/tuner/click-sounds";
   import { metronome } from "../../lib/tuner/metronome";
@@ -21,13 +22,10 @@
   /** On a practice page the meter is the exercise's: shown, not chosen. */
   export let lockedMeter = false;
 
-  const GROUPS: [string, typeof METERS][] = [
-    ["Simple", METERS.filter((m) => m.kind === "simple")],
-    ["Compound", METERS.filter((m) => m.kind === "compound")],
-    ["Uneven", METERS.filter((m) => m.kind === "uneven")],
-  ];
 
   $: meter = meterById($tuner.meter);
+  $: tok = `sr-tok ${compact ? "px-3 text-[13px]" : ""}`;
+  const gap = "gap-2";
   $: custom = !isTableMeter(meter.id);
   /** The custom editor: open by itself while a custom meter is on. */
   let customOpen = false;
@@ -54,94 +52,94 @@
   }
 </script>
 
-<div class="flex flex-col gap-2 text-sm">
-  <div class="flex flex-col gap-1.5" role="group" aria-label="Time signature">
-    <span class="text-xs text-sr-muted">Time signature</span>
+<div class="flex flex-col {compact ? 'gap-4' : 'gap-5'} text-sm">
+  <SettingRow label="Time signature" note={meter.kind === "uneven" && meter.grouping ? `felt ${meter.grouping}` : meter.kind === "compound" ? `${meter.beats} dotted beats` : ""} {compact}>
     {#if lockedMeter}
       <div class="flex items-center gap-2">
-        <span class="sr-tok sr-on tabular-nums {compact ? 'px-2 text-xs' : ''}">{meterLabel}</span>
+        <span class="{tok} sr-on tabular-nums">{meterLabel}</span>
         <span class="text-xs text-sr-muted">the exercise's</span>
       </div>
     {:else}
-    <div class="flex flex-wrap items-center gap-1">
-      {#each GROUPS as [label, meters], g}
-        {#if g > 0}<span class="w-px h-6 bg-sr-hairline mx-1" aria-hidden="true"></span>{/if}
-        {#each meters as m}
+      <div class="flex flex-wrap items-center {gap}">
+        {#each METERS as m}
           <button
             type="button"
-            class="sr-tok tabular-nums {compact ? 'px-2 text-xs' : ''} {$tuner.meter === m.id ? 'sr-on' : ''}"
+            class="{tok} tabular-nums {$tuner.meter === m.id ? 'sr-on' : ''}"
             on:click={() => pickMeter(m.id)}
             aria-pressed={$tuner.meter === m.id}
-            title="{label}{m.grouping ? `, felt ${m.grouping}` : ''}"
+            title="{m.kind === 'simple' ? 'Simple' : m.kind === 'compound' ? 'Compound' : 'Uneven'}{m.grouping ? `, felt ${m.grouping}` : ''}"
           >{m.id}</button>
         {/each}
-      {/each}
-      <span class="w-px h-6 bg-sr-hairline mx-1" aria-hidden="true"></span>
-      <button
-        type="button"
-        class="sr-tok tabular-nums {compact ? 'px-2 text-xs' : ''} {custom ? 'sr-on' : ''}"
-        aria-expanded={showCustom}
-        on:click={() => (customOpen = custom ? true : !customOpen)}
-      >{custom ? meterLabel : "Custom…"}</button>
-    </div>
-    {#if showCustom}<CustomMeter {compact} {onManual} />{/if}
+        <!-- Custom is a different kind of button: it opens an editor. -->
+        <button
+          type="button"
+          class="{tok} tabular-nums {custom ? 'sr-on' : 'custom-off'}"
+          aria-expanded={showCustom}
+          on:click={() => (customOpen = custom ? true : !customOpen)}
+        >{custom ? meterLabel : "Custom…"}</button>
+      </div>
+      {#if showCustom}<CustomMeter {compact} {onManual} />{/if}
     {/if}
-  </div>
+  </SettingRow>
 
-  <div class="flex flex-col gap-1.5" role="group" aria-label="Subdivision">
-    <span class="text-xs text-sr-muted">
-      {meter.grouping ? `Subdivide · felt ${meter.grouping}` : "Subdivide"}
-    </span>
+  <SettingRow label="Subdivide" {compact}>
     <!-- Each beat's accent is set on its tile now (BeatTiles). -->
     <SubdivisionPicker {compact} {onManual} />
-  </div>
+  </SettingRow>
 
-  <div class="flex flex-col gap-1.5" role="group" aria-label="Sound">
-    <span class="text-xs text-sr-muted">Sound</span>
-    <div class="flex flex-wrap items-center gap-1">
+  <SettingRow label="Click sound" {compact}>
+    <div class="flex flex-wrap items-center {gap}">
       {#each CLICK_SOUNDS as snd}
         <button
           type="button"
-          class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.clickSound === snd.id ? 'sr-on' : ''}"
+          class="{tok} {$tuner.clickSound === snd.id ? 'sr-on' : ''}"
           on:click={() => pickSound(snd.id)}
           aria-pressed={$tuner.clickSound === snd.id}
         >{snd.label}</button>
       {/each}
     </div>
-  </div>
+  </SettingRow>
 
   <!-- The counting voice (voice-count.ts): a robot saying the count with the
        click or instead of it, in Counting or Kodály. -->
-  <div class="flex flex-col gap-1.5" role="group" aria-label="Counting voice">
-    <span class="text-xs text-sr-muted">Counting voice</span>
-    <div class="flex flex-wrap items-center gap-1">
+  <SettingRow label="Counting voice" {compact}>
+    <div class="flex flex-wrap items-center {gap}">
       {#each [["off", "Off"], ["both", "Voice + click"], ["voice", "Voice only"]] as [mode, label]}
         <button
           type="button"
-          class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.voice.mode === mode ? 'sr-on' : ''}"
+          class="{tok} {$tuner.voice.mode === mode ? 'sr-on' : ''}"
           aria-pressed={$tuner.voice.mode === mode}
           on:click={() => pickVoiceMode(mode)}
         >{label}</button>
       {/each}
-      {#if $tuner.voice.mode !== "off"}
-        <span class="w-px h-6 bg-sr-hairline mx-1" aria-hidden="true"></span>
+    </div>
+    {#if $tuner.voice.mode !== "off"}
+      <div class="flex flex-wrap items-center {gap}" role="group" aria-label="Counting in">
         {#each [["counting", "1 e & a"], ["kodaly", "Kodály"]] as [system, label]}
           <button
             type="button"
-            class="sr-tok {compact ? 'px-2 text-xs' : ''} {$tuner.voice.system === system ? 'sr-on' : ''}"
+            class="{tok} {$tuner.voice.system === system ? 'sr-on' : ''}"
             aria-pressed={$tuner.voice.system === system}
             on:click={() => pickVoiceSystem(system)}
           >{label}</button>
         {/each}
-      {/if}
-    </div>
+      </div>
+    {/if}
     {#if $tuner.voice.mode !== "off"}
-      <label class="flex items-center gap-2 text-xs text-sr-muted">
+      <label class="flex items-center gap-3 text-[13px] text-sr-ink-2 max-w-sm">
         <span class="shrink-0">Voice level</span>
         <input type="range" min="0" max="1" step="0.05" class="flex-1 sr-range" aria-label="Counting voice level"
           value={$tuner.voice.volume} on:input={(e) => tuner.setVoice({ volume: Number(e.currentTarget.value) })} />
       </label>
-      <p class="text-[11px] text-sr-faint">Subdivisions are counted when there is time to say them; faster, only the beats.</p>
+      <p class="text-xs text-sr-muted">Subdivisions are counted when there is time to say them; faster, only the beats.</p>
     {/if}
-  </div>
+  </SettingRow>
 </div>
+
+<style>
+  /* Custom… opens an editor, so it reads as an action, not one more meter. */
+  .custom-off {
+    background: transparent;
+    border: 2px dashed var(--sr-hairline);
+  }
+</style>
