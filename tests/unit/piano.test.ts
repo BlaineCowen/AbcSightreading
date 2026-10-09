@@ -205,3 +205,13 @@ test("graded in time: a note on time, one late, one missed, a wrong key and an e
   expect(r.notesScore).toBe(86); // 6 of 7
   expect(r.byHand.lh).toEqual({ notes: 3, right: 3 });
 });
+
+import { xAt } from "../../src/lib/piano/scroller";
+
+test("the scrolling line moves between notes in proportion to time, held at the ends", () => {
+  const anchors = [{ u: 0, x: 100 }, { u: 8, x: 140 }, { u: 40, x: 300 }];
+  expect(xAt(anchors, -10)).toBe(100); // the count-in: the first note
+  expect(xAt(anchors, 4)).toBe(120); // half way through the first beat
+  expect(xAt(anchors, 24)).toBe(220); // half way across a whole note's space
+  expect(xAt(anchors, 99)).toBe(300);
+});

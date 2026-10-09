@@ -33,6 +33,8 @@
   } from "../lib/piano/grade-piano";
   import type { PianoExercise } from "../lib/piano/generatePiano";
   import { PianoVoice } from "../lib/piano/piano-voice";
+  import { noteElements } from "../lib/piano/score-elements";
+  import { anchorsFrom, createScroller, noteStarts } from "../lib/piano/scroller";
 
   export let exercise: PianoExercise | null = null;
   /** The drawn score (abcjs's tune object), to find each note on the page. */
@@ -69,6 +71,16 @@
   let takeVoice: PianoVoice | null = null;
   /** Every click scheduled, so Stop can silence the ones still to come. */
   let clicks: OscillatorNode[] = [];
+  /** One scrolling line moves continuously with the run or the take (scroller.ts). */
+  let scroller: ReturnType<typeof createScroller> | null = null;
+  function scrollWith(clock: () => number | null) {
+    const box = document.getElementById("paper-box");
+    const svg = box?.querySelector("svg");
+    if (!exercise || !box || !svg || !box.classList.contains("scroll-line")) return;
+    scroller ??= createScroller(box);
+    const total = exercise.rh.reduce((s, n) => s + n.length, 0);
+    scroller.start(anchorsFrom(noteStarts({ rh: exercise.rh, lh: exercise.lh }), els, svg, total), clock);
+  }
   /** The run's keys, down and up, on the performance.now() clock. */
   let take: { midi: number; velocity: number; down: boolean; t: number }[] = [];
   let takeClick = true;
@@ -96,17 +108,6 @@
   $: exercise, stopRun(), clearMarks(), (result = null), (take = []);
 
   // ── The notes on the page ─────────────────────────────────────────────────
-  /** Each hand's notes as abcjs drew them, in order: staff 0 the right hand, staff 1 the left. */
-  function noteElements(): Record<Hand, Element[][]> {
-    const map: Record<Hand, Element[][]> = { rh: [], lh: [] };
-    for (const line of tune?.lines ?? []) {
-      (line.staff ?? []).forEach((staff: any, s: number) => {
-        const hand: Hand = s === 0 ? "rh" : "lh";
-        for (const voice of staff.voices ?? []) for (const el of voice) if (el.el_type === "note") map[hand].push(el.abselem?.elemset ?? []);
-      });
-    }
-    return map;
-  }
   let els: Record<Hand, Element[][]> = { rh: [], lh: [] };
   const MARKS = ["pg-right", "pg-off", "pg-miss", "pg-now"];
   function mark(n: { hand: Hand; index: number }, cls: string) {
@@ -225,12 +226,14 @@
     };
     // A short timer rather than the frame loop: it keeps marking (and following) when the page is not being drawn.
     raf = setInterval(loop, 30) as unknown as number;
+    scrollWith(() => (performance.now() - t0) / unitMs);
     // Ended by a timer, not the frame loop: a browser stops drawing frames for a page out of sight.
     finishTimer = setTimeout(() => finishInTime(beatUnits), endAt - performance.now());
   }
 
   function finishInTime(beatUnits: number) {
     clearInterval(raf);
+    scroller?.stop();
     if (running !== "countin" && running !== "playing") return;
     for (const n of expected) mark(n, "");
     running = "";
@@ -283,6 +286,7 @@
     const end = endAt;
     running = "replay";
     follower.reset();
+    scrollWith(() => (from + (performance.now() - perfStart) - t0) / unitMs);
     document.getElementById("paper")?.scrollIntoView({ behavior: "smooth", block: "start" });
     raf = setInterval(() => {
       const now = from + (performance.now() - perfStart);
@@ -304,7 +308,7 @@
     if (!exercise || !tune) return;
     onStart();
     stopRun();
-    els = noteElements();
+    els = noteElements(tune);
     clearMarks();
     result = null;
     expected = expectedNotes(exercise);
@@ -317,6 +321,7 @@
   /** Stop whatever is going: the run or the take, its clicks still to come, and the take's piano. */
   export function stopRun() {
     clearInterval(raf);
+    scroller?.stop();
     clearTimeout(finishTimer);
     for (const o of clicks) {
       try { o.stop(); } catch {}

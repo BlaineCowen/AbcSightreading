@@ -779,14 +779,27 @@ the panel too (`stopRun`, through `bind:this`). Checked 9 October 2026:
 Stop with 20 clicks scheduled left none, a take of 46 key events played
 back on 20 fetched samples and ended with the grade's 18 green marks back.
 
-**Display: Layout** (the page's Display button; remembered in this browser,
-`piano-layout`): Lines, or One scrolling line - the whole exercise drawn as
-one line (`withBarsPerLine`, each bar as wide as its busier hand needs,
-`lineWidth`, no resize) in a box that scrolls sideways (`#paper-box`;
-abcjs sets its own overflow on `#paper`), its title left off (it would sit
-mid-line, off screen), printed in lines. Playback and a graded run keep the
-notes being played about a third of the way in (`follow.ts`), moving only
-when they pass the middle, clamped to the line.
+**Laid out as the Unison page is** (Blaine, 9 October 2026: the layouts
+should match): the settings as a row of pills (Level, keys, meter and bars,
+rhythms, skips and reach, hands and accompaniment, chords and more), each
+opening its own popover (a sheet from the bottom on a phone) with Done and
+New exercise at its foot, a dot on a pill changed from the level, New
+exercise with the month's count ending the row (`hideGenerate` while it
+shows); above the score the toolbar's Display (layout, measure numbers,
+cursor: off, smooth, beat by beat, note by note) beside Play and grade; the
+playback bar's Layout menu (`score-view.ts`, kept as "piano": size, bars a
+line, spacing, measure numbers), full screen (`createFullscreen`, the
+`focus-*` classes) and its annotations. The pill, popover and toolbar CSS is
+the Unison page's, copied (AbcjsChoral copies it too).
+Layout is Lines, or One scrolling line - the whole exercise as one line
+(`withBarsPerLine`, each bar as wide as its busier hand needs, `lineWidth`,
+no resize) in a box that scrolls sideways (`#paper-box`; abcjs sets its own
+overflow on `#paper`), its title left off, printed in lines. The line
+scrolls continuously (`scroller.ts`, Blaine: not a jump a bar): every frame
+it is placed from where the moment being played sits on the line (anchors:
+each onset's leftmost notehead by its time) and a clock (a run's or a
+take's own; playback's resynced at every note abcjs reports), the moment
+held a third of the way in. Lines follow line by line (`follow.ts`).
 Marks on the score by abcjs's own note elements (staff 0 the right hand,
 staff 1 the left, in order): green right, orange early or late, red
 missed, blue the notes sounding now. Playback and a run follow the score
