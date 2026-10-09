@@ -1,0 +1,18 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AbcjsPiano from "../components/AbcjsPiano.svelte";
+import AppSkeleton from "../components/ui/AppSkeleton.astro";
+---
+
+<Layout
+  title="Piano Sight-Reading Practice: Both Hands, Eight Levels | abcSightReading"
+  description="Generate unlimited piano sight-reading exercises on the grand staff: a right-hand tune over a left-hand accompaniment, from five-finger position to Alberti bass, with playback for each hand."
+  themable
+>
+  <div class="flex flex-col w-full h-full items-center justify-center">
+    <h1 class="focus-hide text-2xl sm:text-3xl font-bold mb-3">Piano Sight Reading</h1>
+    <AbcjsPiano client:only="svelte">
+      <AppSkeleton slot="fallback" staves={2} rows={3} />
+    </AbcjsPiano>
+  </div>
+</Layout>

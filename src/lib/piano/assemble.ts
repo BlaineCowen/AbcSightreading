@@ -52,8 +52,8 @@ export function assemblePianoAbc(input: PianoAbcInput): string {
     tempoField(input.meter, input.bpm),
     "%%MIDI program 0",
     "%%score {RH | LH}",
-    'V:RH clef=treble name="RH" snm="RH"',
-    'V:LH clef=bass name="LH" snm="LH"',
+    "V:RH clef=treble",
+    "V:LH clef=bass",
     `K:${input.key}`,
   ];
   for (let start = 0; start < count; start += per) {

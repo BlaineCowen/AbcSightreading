@@ -703,6 +703,34 @@ no seam). MP3s live in `public/backing/` (served by the CDN; about 16 MB in
 all) - Vercel Blob is not worth it at this size. Chrome decodes them
 sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 
+## Piano sight reading
+
+`/piano-sightreading` (`AbcjsPiano.svelte`, `src/lib/piano/`, tests
+`piano.test.ts`, every level x key x meter x length `bun run
+scripts/check-piano.ts`): a grand staff (`%%score {RH | LH}`), the right
+hand's tune over the left hand's accompaniment, a separate system from
+Choral and Unison (8 October 2026). Harmony first: the tune is the Unison
+page's progression writer (`writeProgressionLine`, now taking a
+`progressions` table of its own) inside the right hand's position
+(`rightHandPosition`: thumb on the tonic at or above middle C, `reach` steps
+up), over `PIANO_PROGRESSIONS`; the left hand plays the same chords in the
+level's pattern (`left-hand.ts`: held root, open fifth, block, on each beat,
+broken, waltz in 3/4, Alberti), the bass root at one place a letter (F2 to
+E3, `bassRoot`) and block chords in the shapes a beginner learns (C-E-G,
+C-F-A, B-F-G; `blockChord` moves as little as it can). The last chord is
+held. Levels 1-2 the hands take turns, two bars each, one tune passed
+between them (the left hand's bars the same notes in its five-finger
+position). Eight levels in method-book order (`levels.ts` `PIANO_LEVELS`,
+ids `piano-01`... permanent): hands together at 3, IV at 4, block chords
+and eighths at 5, F major and ii/vi at 6, broken and waltz at 7, Alberti,
+a third or sixth under the tune at cadences and an octave's reach at 8. A
+finished exercise is checked (`pianoFault`: bars full, no parallel fifths
+or octaves between the tune and each chord's lowest note) and drawn again.
+Measured against Sight Reading Factory's piano levels:
+notes/srf-piano-study.md. Not yet: exact-notes share links and recent
+exercises (exercise-link.ts and recent-exercises.ts know two pages), the
+Tools wheel, presets and class progress, grading.
+
 ## abcTuner
 
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): every
