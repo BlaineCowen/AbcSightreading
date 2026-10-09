@@ -155,7 +155,9 @@
     if (settingPop === which) return closePops();
     const pill = e.currentTarget as HTMLElement;
     const room = setbarEl?.clientWidth ?? POP_WIDTH;
-    popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
+    // Measured against the row itself: a pill sits inside its group now, so offsetLeft would be from the group.
+    const fromLeft = setbarEl ? pill.getBoundingClientRect().left - setbarEl.getBoundingClientRect().left : 0;
+    popLeft = Math.max(0, Math.min(fromLeft, room - POP_WIDTH));
     popOpener = pill;
     settingPop = which;
     void focusPop();
