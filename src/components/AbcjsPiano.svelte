@@ -32,7 +32,8 @@
     type PianoSettings,
     type TuneHand,
   } from "../lib/piano/levels";
-  import { generatePianoExercise, keyName, type PianoExercise } from "../lib/piano/generatePiano";
+  import { generatePianoExercise, keyName, withBarsPerLine, type PianoExercise } from "../lib/piano/generatePiano";
+  import { barsOf } from "../lib/piano/assemble";
   import { settingsFromQuery, settingsQuery } from "../lib/piano/settings-link";
   import PianoGrade from "./PianoGrade.svelte";
   import { createFollower } from "../lib/piano/follow";
@@ -100,6 +101,11 @@
   let renderedTune: any = null;
   let generatedBpm = 72;
   let narrow = false;
+  /** The score as lines down the page, or one line scrolling sideways (Display). Remembered in this browser. */
+  type Layout = "lines" | "scroll";
+  const LAYOUT_KEY = "piano-layout";
+  let layout: Layout = "lines";
+  let displayOpen = false;
 
   $: level = pianoLevelById[levelId] ?? PIANO_LEVELS[0];
   $: edited = JSON.stringify(settings) !== JSON.stringify(level.settings);
@@ -129,7 +135,7 @@
       await tick();
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       // A level's own settings title the score with the level; edited ones with the key alone.
-      const ex = generatePianoExercise({ settings, levelId: edited ? undefined : levelId, barsPerLine: narrow ? 2 : 4 });
+      const ex = generatePianoExercise({ settings, levelId: edited ? undefined : levelId });
       exercise = ex;
       generatedBpm = settings.bpm;
       history.replaceState(null, "", `${location.pathname}?${settingsQuery(levelId, settings)}`);
@@ -143,17 +149,62 @@
     }
   }
 
+  /**
+   * One line's width: each bar as wide as its busier hand needs (a sixteenth
+   * run is wider than a whole note), so the music is spaced as it would be
+   * in lines, not squeezed or stretched to fit.
+   */
+  function lineWidth(ex: PianoExercise): number {
+    const barUnits = ex.rh.reduce((s, n) => s + n.length, 0) / ex.measures;
+    const rh = barsOf(ex.rh, barUnits), lh = barsOf(ex.lh, barUnits);
+    let w = 120;
+    for (let b = 0; b < ex.measures; b++) w += 50 + 30 * Math.max(rh[b]?.length ?? 1, lh[b]?.length ?? 1);
+    return w;
+  }
+
   async function render() {
     if (!exercise) return;
     const abcjs = (await import("abcjs")).default;
-    const tunes = abcjs.renderAbc("paper", withCopyright(exercise.abc), {
-      add_classes: true,
-      responsive: "resize",
-      staffwidth: 760,
-    });
+    const scroll = layout === "scroll";
+    // Its title would sit in the middle of one long line, off screen: the line above the score names the key.
+    const abc = scroll
+      ? withBarsPerLine(exercise, exercise.measures).replace(/^T:.*$/m, "T:")
+      : withBarsPerLine(exercise, narrow ? 2 : 4);
+    // abcjs's resize mode leaves its sizing on the box (a padding-bottom for the shape); drawn otherwise it must go.
+    document.getElementById("paper")?.removeAttribute("style");
+    // One scrolling line keeps its own width (no responsive resize, which would shrink it to the window).
+    const tunes = abcjs.renderAbc(
+      "paper",
+      withCopyright(abc),
+      scroll ? { add_classes: true, staffwidth: lineWidth(exercise) } : { add_classes: true, responsive: "resize", staffwidth: 760 },
+    );
     renderedTune = tunes[0];
     styleCopyright(document.getElementById("paper"));
+    const box = document.getElementById("paper-box");
+    if (box) box.scrollLeft = 0;
+    follower.reset();
     await buildSynth();
+  }
+
+  async function chooseLayout(l: Layout) {
+    if (l === layout) return;
+    layout = l;
+    try { localStorage.setItem(LAYOUT_KEY, l); } catch {}
+    pausePlayback();
+    await tick();
+    await render();
+  }
+
+  /** Print in lines: one long line would run off the paper. */
+  async function printScore() {
+    if (layout !== "scroll") return window.print();
+    layout = "lines";
+    await tick();
+    await render();
+    window.print();
+    layout = "scroll";
+    await tick();
+    await render();
   }
 
   // ── Playback ──────────────────────────────────────────────────────────────
@@ -254,6 +305,7 @@
     // The page's loading skeleton (AppSkeleton) is ours to take down, as the other practice pages do.
     document.querySelectorAll("[data-skeleton]").forEach((el) => el.remove());
     narrow = window.innerWidth <= 640;
+    try { if (localStorage.getItem(LAYOUT_KEY) === "scroll") layout = "scroll"; } catch {}
     ({ levelId, settings } = settingsFromQuery(location.search));
     void generate();
   });
@@ -420,10 +472,28 @@
     </p>
   {/if}
   {#if exercise}
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="sr-btn-quiet" aria-expanded={displayOpen} on:click={() => (displayOpen = !displayOpen)}>Display</button>
+      </div>
+      {#if displayOpen}
+        <section class="sr-panel p-4 flex flex-col gap-2" aria-label="Display">
+          <span class="sr-label">Layout</span>
+          <div class="flex flex-wrap gap-1.5" role="group" aria-label="Layout">
+            <button type="button" class="sr-tok {layout === 'lines' ? 'sr-on' : ''}" aria-pressed={layout === "lines"} on:click={() => chooseLayout("lines")}>Lines</button>
+            <button type="button" class="sr-tok {layout === 'scroll' ? 'sr-on' : ''}" aria-pressed={layout === "scroll"} on:click={() => chooseLayout("scroll")}>One scrolling line</button>
+          </div>
+          <p class="text-xs text-sr-faint">One scrolling line keeps the music in a single line that moves along as it plays, the next bars always in view. It prints in lines.</p>
+        </section>
+      {/if}
+    </div>
     <PianoGrade {exercise} tune={renderedTune} bpm={settings.bpm} onStart={pausePlayback} />
   {/if}
   <CountInBadge />
-  <div id="paper" class="sr-sheet w-full" class:hidden={!exercise}></div>
+  <!-- The scrolling line scrolls in this box: abcjs sets its own overflow on #paper. -->
+  <div class="sr-sheet w-full" class:hidden={!exercise} class:scroll-line={layout === "scroll"} id="paper-box">
+    <div id="paper"></div>
+  </div>
   <div id="piano-audio" class="hidden"></div>
 </div>
 
@@ -446,7 +516,7 @@
   onToggleMute={toggleMute}
   onGenerate={generate}
   {settingsLink}
-  onPrint={() => window.print()}
+  onPrint={printScore}
 >
   <svelte:fragment slot="extra">
     <button
@@ -470,6 +540,18 @@
     margin-left: 4px;
     opacity: 0.6;
     top: -0.4em;
+  }
+  /* One scrolling line: the score scrolls sideways in its box, the page does not. */
+  .scroll-line {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  /* Its full width: the site shrinks a picture to its box otherwise. */
+  .scroll-line :global(svg) {
+    max-width: none;
+  }
+  .scroll-line :global(#paper) {
+    width: max-content;
   }
   /* The level a rhythm is first used at, in the tile's corner. */
   .tile-level {

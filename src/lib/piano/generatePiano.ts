@@ -71,7 +71,15 @@ export interface PianoExercise {
   spans: ChordSpan[];
   rh: PianoNote[];
   lh: PianoNote[];
+  /** The score's title. */
+  title: string;
   abc: string;
+}
+
+/** The same exercise written again with a different number of bars a line (the page's layout), the notes untouched. */
+export function withBarsPerLine(ex: PianoExercise, barsPerLine: number): string {
+  const barUnits = timeSignatureFor(ex.meter).tsPerMeasure;
+  return assemblePianoAbc({ key: ex.key, meter: ex.meter, barUnits, bpm: ex.bpm, title: ex.title, rh: ex.rh, lh: ex.lh, barsPerLine });
 }
 
 /** Draws of a whole exercise before giving up (a rhythm no line fits, or a fault). */
@@ -422,6 +430,7 @@ function writeOnce(settings: PianoSettings, key: string, meter: string, pattern:
     spans,
     rh,
     lh,
+    title,
     abc: "",
   };
   ex.abc = assemblePianoAbc({ key, meter, barUnits, bpm: settings.bpm, title, rh, lh, barsPerLine });

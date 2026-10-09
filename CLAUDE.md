@@ -765,6 +765,14 @@ an eighth, a sixteenth of a beat; full credit inside it); a key that
 matches nothing is an extra and counts as a note scored 0; a missed note
 names the key played near it instead. The marking and the end of the run
 are on timers, not the frame loop (a page out of sight draws no frames).
+**Display: Layout** (the page's Display button; remembered in this browser,
+`piano-layout`): Lines, or One scrolling line - the whole exercise drawn as
+one line (`withBarsPerLine`, each bar as wide as its busier hand needs,
+`lineWidth`, no resize) in a box that scrolls sideways (`#paper-box`;
+abcjs sets its own overflow on `#paper`), its title left off (it would sit
+mid-line, off screen), printed in lines. Playback and a graded run keep the
+notes being played about a third of the way in (`follow.ts`), moving only
+when they pass the middle, clamped to the line.
 Marks on the score by abcjs's own note elements (staff 0 the right hand,
 staff 1 the left, in order): green right, orange early or late, red
 missed, blue the notes sounding now. Playback and a run follow the score
