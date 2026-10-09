@@ -83,6 +83,8 @@ export function createScroller(box: HTMLElement) {
   return {
     start(anchors: Anchor[], clock: () => number | null) {
       cancelAnimationFrame(frame);
+      // From the start of the line: the last run may have left it anywhere.
+      box.scrollLeft = 0;
       const step = () => {
         const u = clock();
         if (u !== null) {

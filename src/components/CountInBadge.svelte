@@ -24,6 +24,12 @@
     const obstacles = [...paper.querySelectorAll("text, .abcjs-tempo, .abcjs-title, .abcjs-subtitle")]
       .map((el) => rel(el.getBoundingClientRect()))
       .filter((r) => r.w > 0 && r.h > 0);
+    // A score that scrolls sideways (the piano page's one scrolling line) may
+    // be left anywhere along by the last run, its start far off to the left
+    // and the badge with it. A count-in leads into the first bar, so the line
+    // goes back to its start first.
+    const scroller = paper.closest<HTMLElement>(".scroll-line");
+    if (scroller) scroller.scrollLeft = 0;
     const p = rel(paper.getBoundingClientRect());
     // The top of the music is the staff, or a note in the first line reaching
     // above it - a high note's stem, a ledger line - whichever is higher.

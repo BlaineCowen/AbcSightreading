@@ -206,7 +206,8 @@
       const now = performance.now();
       if (now < t0) {
         const beat = Math.floor((now - (t0 - countIn * beatSec * 1000)) / (beatSec * 1000));
-        if (beat >= 0) showCountIn(meter, beat + 1);
+        // Beat 0 is the first click, which says "1" (it said each word a beat early).
+        if (beat >= 0) showCountIn(meter, beat);
       } else {
         if (running === "countin") {
           running = "playing";
