@@ -31,9 +31,15 @@ describe("the Levels tab's sections", () => {
 
 describe("subscriptions choose the sections", () => {
   test("only what is subscribed shows, and the page must offer it", () => {
-    expect(levelSections({ uil: true, nyssma: false, subscribed: ["abc-step-by-step"] }).map((s) => s.id)).toEqual(["steps"]);
     expect(levelSections({ uil: false, nyssma: true, subscribed: ["nyssma-voice", "uil-choir"] }).map((s) => s.id)).toEqual(["nyssma"]);
-    expect(levelSections({ uil: true, nyssma: false, subscribed: [] }).map((s) => s.id)).toEqual([]);
+    expect(levelSections({ uil: false, nyssma: true, subscribed: [] }).map((s) => s.id)).toEqual([]);
     expect(levelSections({ uil: false, nyssma: true, tracks: 2, subscribed: ["abc-step-by-step"] }).map((s) => s.id)).toEqual(["steps", "tracks"]);
+  });
+});
+
+describe("UIL on the Choral page", () => {
+  test("its five levels show whatever is subscribed", () => {
+    expect(levelSections({ uil: true, nyssma: false, subscribed: [] }).map((s) => s.id)).toEqual(["uil"]);
+    expect(levelSections({ uil: true, nyssma: false, subscribed: ["abc-step-by-step"] }).map((s) => s.id)).toEqual(["steps", "uil"]);
   });
 });

@@ -263,7 +263,7 @@ play-along's backing tracks (8 October 2026). The code, the API
 (`/api/tracks`), the stored fields and every id keep "track"; only the words
 a teacher reads changed, so nothing saved moved.
 
-The preset menu's Levels tab lists only what the teacher subscribes to on
+The preset menu's Levels tab lists only what the teacher subscribes to (UIL's five levels are always on Choral, 9 October 2026) on
 `/curriculum` (`src/lib/curriculum/catalogue.ts`, its "Choose tracks" link
 at the top): the site's own sets - abcStepByStep (subscribed by default,
 `DEFAULT_SUBSCRIPTIONS`), UIL, NYSSMA Voice - free to anyone and kept in this

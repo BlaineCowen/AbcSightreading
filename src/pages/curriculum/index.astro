@@ -61,7 +61,7 @@ const demo = band[0].steps.slice(0, 6);
     <section id="choir" class="flex flex-col gap-4 scroll-mt-24">
       <div>
         <h2 class="font-display text-2xl font-bold text-sr-ink">Choir and voice</h2>
-        <p class="text-sr-ink-2">Free with any account, or none. abcStepByStep is on until you choose.</p>
+        <p class="text-sr-ink-2">Free with any account, or none. abcStepByStep is on until you choose, and UIL's five levels are always on the Choral page.</p>
       </div>
       <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {BUILTIN_SETS.map((s) => (
@@ -75,7 +75,11 @@ const demo = band[0].steps.slice(0, 6);
               {s.facts.map(([k, v]) => (<><dt class="font-bold opacity-75">{k}</dt><dd>{v}</dd></>))}
             </dl>
             <div class="mt-auto pt-2 border-t border-current/15">
-              <TrackSubscribe client:only="svelte" trackId={s.id} tryHref={s.href} tryLabel="Try it" openHref={s.href.split("?")[0]} free />
+              {s.always ? (
+                <p class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"><span class="font-extrabold">{s.always}</span><a class="font-bold underline" href={s.href}>Try it</a></p>
+              ) : (
+                <TrackSubscribe client:only="svelte" trackId={s.id} tryHref={s.href} tryLabel="Try it" openHref={s.href.split("?")[0]} free />
+              )}
             </div>
           </article>
         ))}

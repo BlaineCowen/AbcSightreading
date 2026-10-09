@@ -538,7 +538,7 @@
           <!-- What is listed here is what the teacher subscribes to (/curriculum). -->
           <a href="/curriculum" class="flex items-center gap-2 rounded-2xl bg-sr-tint text-sr-action-fg px-3 py-2 mb-2 text-sm font-extrabold hover:brightness-95">
             <Plus size={15} /> Choose courses
-            <span class="font-semibold text-xs text-sr-muted truncate">UIL, NYSSMA, band instruments and more</span>
+            <span class="font-semibold text-xs text-sr-muted truncate">NYSSMA, TMEA, band, orchestra and more</span>
           </a>
           {#if $trackPrefs.ready && sections.length === 0}
             {#if reader && reader.family !== 'voice'}
