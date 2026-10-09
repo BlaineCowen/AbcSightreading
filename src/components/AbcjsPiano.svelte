@@ -62,6 +62,10 @@
   ];
   const REACHES = [{ n: 4, label: "Five-finger" }, { n: 5, label: "A 6th" }, { n: 7, label: "An octave" }];
   const CHORD_CHOICES: ChordChoice[] = ["I", "V", "IV", "V7", "ii", "vi"];
+  /** The figures as the Unison page draws them (src/assets/svgs, one per rhythm name). */
+  const rhythmSvgs: Record<string, Promise<{ default: string }>> = Object.fromEntries(
+    RHYTHM_CHOICES.map((r) => [r.name, import(`../assets/svgs/${r.name}.svg?raw`)]),
+  );
   const keyLabel = (k: string) => k.replace("b", "♭").replace("#", "♯").replace(/m$/, " min");
 
   // The level each option first appears at, for its mark.
@@ -305,7 +309,23 @@
       <span class="sr-label">Rhythms</span>
       <div class="flex flex-wrap gap-1.5" role="group" aria-label="Rhythms">
         {#each RHYTHM_CHOICES as r}
-          <button type="button" class="sr-tok chip {settings.rhythms.includes(r.name) ? 'sr-on' : ''}" aria-pressed={settings.rhythms.includes(r.name)} on:click={() => (settings = { ...settings, rhythms: toggle(settings.rhythms, r.name) })}>{r.label}<sup>{at.rhythm(r.name) ?? ""}</sup></button>
+          <button
+            type="button"
+            class="sr-tok-sq rhythm-tile relative px-2 py-1 h-12 min-w-12 flex items-center justify-center {settings.rhythms.includes(r.name) ? 'sr-on' : ''}"
+            aria-label={r.label}
+            title={r.label}
+            aria-pressed={settings.rhythms.includes(r.name)}
+            on:click={() => (settings = { ...settings, rhythms: toggle(settings.rhythms, r.name) })}
+          >
+            {#await rhythmSvgs[r.name]}
+              <span class="text-xs">…</span>
+            {:then svg}
+              <span class="rhythm-icon">{@html svg.default}</span>
+            {:catch}
+              <span class="text-xs">{r.label}</span>
+            {/await}
+            <span class="tile-level" aria-hidden="true">{at.rhythm(r.name) ?? ""}</span>
+          </button>
         {/each}
       </div>
       <p class="text-xs text-sr-faint">6/8 uses its own figures to match: dotted quarters and three eighths, and sixteenths when sixteenths are chosen.</p>
@@ -444,6 +464,18 @@
     margin-left: 4px;
     opacity: 0.6;
     top: -0.4em;
+  }
+  /* The level a rhythm is first used at, in the tile's corner. */
+  .tile-level {
+    position: absolute;
+    top: 2px;
+    right: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    opacity: 0.6;
+  }
+  .rhythm-tile {
+    padding-right: 14px;
   }
   .edited {
     font-size: 11px;
