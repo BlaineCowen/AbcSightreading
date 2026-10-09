@@ -28,7 +28,7 @@
   }
   const tile = (on: boolean) =>
     `flex items-center justify-center rounded-2xl ${compact ? "w-14 h-12 p-1.5" : "w-[4.5rem] h-16 p-2"} ` +
-    (on ? "bg-sr-action text-sr-action-ink" : "bg-sr-track text-sr-ink hover:bg-sr-tint");
+    (on ? "bg-sr-action text-sr-action-ink" : "sr-tile-off bg-sr-track text-sr-ink hover:bg-sr-tint");
 </script>
 
 {#if kind}

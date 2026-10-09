@@ -4,11 +4,12 @@
   import { BPM_MAX, BPM_MIN } from "../../lib/tuner/metronome";
   import { initTuner } from "../../lib/tuner/controller";
   import { meterById, meterName, BEAT_SYMBOL } from "../../lib/tuner/meters";
-  import MeterControls from "./MeterControls.svelte";
+  import TimeSignature from "./TimeSignature.svelte";
+  import SubdivisionPicker from "./SubdivisionPicker.svelte";
+  import SoundPanel from "./SoundPanel.svelte";
   import MetronomePresets from "./MetronomePresets.svelte";
   import BeatTiles from "./BeatTiles.svelte";
   import AssistantPanel from "./AssistantPanel.svelte";
-  import SettingRow from "./SettingRow.svelte";
 
   onMount(() => {
     initTuner();
@@ -75,18 +76,32 @@
     </div>
   </section>
 
-  <div class="h-px bg-sr-hairline" aria-hidden="true"></div>
+  <!-- Everything is in view: no setting waits behind another button. -->
+  <div class="grid gap-4 lg:grid-cols-2">
+    <section class="sr-subcard lg:col-span-2" aria-labelledby="mc-time">
+      <h3 id="mc-time" class="mb-3 font-display text-lg font-bold text-sr-ink">Time signature</h3>
+      <TimeSignature />
+      <div class="mt-5 flex flex-col gap-1.5">
+        <span class="text-xs font-bold text-sr-ink-2">Subdivide</span>
+        <SubdivisionPicker />
+      </div>
+    </section>
 
-  <div class="flex flex-col gap-5">
-    <MetronomePresets />
-    <MeterControls />
-    <SettingRow label="Volume">
-      <input type="range" min="0" max="1" step="0.05" class="w-full max-w-sm sr-range mt-2" aria-label="Metronome volume"
-        value={$tuner.metronomeVolume} on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))} />
-    </SettingRow>
+    <section class="sr-subcard" aria-labelledby="mc-sound">
+      <h3 id="mc-sound" class="mb-3 font-display text-lg font-bold text-sr-ink">Sound</h3>
+      <SoundPanel />
+    </section>
+
+    <section class="sr-subcard" aria-labelledby="mc-practice">
+      <h3 id="mc-practice" class="mb-3 font-display text-lg font-bold text-sr-ink">Practice</h3>
+      <AssistantPanel />
+    </section>
+
+    <section class="sr-subcard lg:col-span-2" aria-labelledby="mc-presets">
+      <h3 id="mc-presets" class="mb-3 font-display text-lg font-bold text-sr-ink">Presets</h3>
+      <MetronomePresets />
+    </section>
   </div>
-
-  <AssistantPanel />
 </div>
 
 <style>

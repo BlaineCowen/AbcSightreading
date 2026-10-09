@@ -5,12 +5,10 @@
   import { tuner } from "../../lib/tuner/store";
   import { QUICK_PRESETS, presetSummary, type MetronomePreset } from "../../lib/tuner/metronome-presets";
   import { groupLevels, meterById } from "../../lib/tuner/meters";
-  import SettingRow from "./SettingRow.svelte";
 
   export let compact = false;
   export let onManual: () => void = () => {};
 
-  let naming = false;
   let name = "";
 
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -28,14 +26,13 @@
     if (!name.trim()) return;
     tuner.saveMetronomePreset(name);
     name = "";
-    naming = false;
   }
 
   $: tok = `sr-tok ${compact ? "px-3 text-[13px]" : ""}`;
 </script>
 
-<SettingRow label="Presets" {compact}>
-  <div class="flex flex-wrap items-center gap-2">
+<div class="flex flex-col gap-3">
+  <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Presets">
     {#each QUICK_PRESETS as p}
       <button type="button" class="{tok} {matches(p, $tuner) ? 'sr-on' : ''}" aria-pressed={matches(p, $tuner)}
         title="{p.name}, at the tempo you have" on:click={() => apply(p)}>{p.name}</button>
@@ -44,36 +41,21 @@
       <span class="inline-flex items-center">
         <button type="button" class="{tok} rounded-r-none !pr-1.5 {matches(p, $tuner) ? 'sr-on' : ''}" aria-pressed={matches(p, $tuner)}
           title={presetSummary(p)} on:click={() => apply(p)}>{p.name}</button>
-        <button type="button" class="{tok} rounded-l-none !pl-2 !pr-3 text-sr-muted {matches(p, $tuner) ? 'sr-on' : ''}" aria-label="Delete the preset {p.name}"
+        <button type="button" class="{tok} rounded-l-none !pl-2 !pr-3 {matches(p, $tuner) ? 'sr-on' : ''}" aria-label="Delete the preset {p.name}"
           title="Delete" on:click={() => tuner.deleteMetronomePreset(p.id)}>×</button>
       </span>
     {/each}
-    {#if !naming}
-      <button type="button" class="{tok} save-new" on:click={() => (naming = true)}>+ Save this</button>
-    {/if}
   </div>
-  {#if naming}
-    <form class="flex items-center gap-1.5" on:submit|preventDefault={save}>
-      <!-- svelte-ignore a11y-autofocus -->
-      <input
-        class="flex-1 min-w-0 max-w-64 rounded-full border-2 border-sr-hairline bg-sr-panel px-3.5 py-1.5 text-base text-sr-ink focus:outline-none focus:border-sr-action"
-        placeholder="Name it: Band warm-up"
-        aria-label="Preset name"
-        maxlength="40"
-        autofocus
-        bind:value={name}
-        on:keydown={(e) => e.key === "Escape" && (naming = false)}
-      />
-      <button type="submit" class="sr-btn" disabled={!name.trim()}>Save</button>
-      <button type="button" class="sr-btn-quiet" on:click={() => (naming = false)}>Cancel</button>
-    </form>
-    <p class="text-xs text-sr-muted">Keeps the time signature, tempo, beats, subdivision, sound, counting voice and practice settings, in this browser.</p>
-  {/if}
-</SettingRow>
-
-<style>
-  .save-new {
-    background: transparent;
-    border: 2px dashed var(--sr-hairline);
-  }
-</style>
+  <form class="flex flex-wrap items-center gap-2" on:submit|preventDefault={save}>
+    <label for="metro-preset-name" class="text-[13px] font-semibold text-sr-ink-2">Save this setup as</label>
+    <input
+      id="metro-preset-name"
+      class="min-w-0 flex-1 basis-40 max-w-64 rounded-full border-2 border-sr-hairline bg-sr-panel px-3.5 py-1.5 text-base text-sr-ink focus:border-sr-action focus:outline-none"
+      placeholder="Band warm-up"
+      maxlength="40"
+      bind:value={name}
+    />
+    <button type="submit" class="sr-btn" disabled={!name.trim()}>Save</button>
+  </form>
+  <p class="text-xs text-sr-muted">A saved preset keeps everything here, tempo included, in this browser. The built-in ones keep your tempo.</p>
+</div>
