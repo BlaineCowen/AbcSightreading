@@ -21,7 +21,7 @@
   let confirmDelete: string | null = null;
   let input: HTMLInputElement;
 
-  onMount(async () => {
+  async function refresh() {
     try {
       pieces = await listPieces();
     } catch (e) {
@@ -29,6 +29,14 @@
     } finally {
       loading = false;
     }
+  }
+
+  onMount(() => {
+    void refresh();
+    // Back from a piece the browser may show this page as it was: a rename there would not show.
+    const shown = (e: PageTransitionEvent) => e.persisted && void refresh();
+    window.addEventListener("pageshow", shown);
+    return () => window.removeEventListener("pageshow", shown);
   });
 
   async function add(files: FileList | File[] | null) {

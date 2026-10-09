@@ -382,8 +382,9 @@ export function readMusicXml(bytes: Uint8Array, fileName = "Untitled"): PieceSco
 
   const work = kid(root, "work");
   const creditWords = kids(root, "credit").flatMap((c) => kids(c, "credit-words").map((w) => w.text.trim())).filter(Boolean);
-  const title =
-    textOf(work, "work-title") || textOf(root, "movement-title") || creditWords[0] || fileName.replace(/\.(musicxml|xml|mxl)$/i, "");
+  // The file's name first (Blaine: teachers name their files; a score's own
+  // title is often "Untitled score" or "Title"), then what the score says.
+  const title = titleFromFileName(fileName) || textOf(work, "work-title") || textOf(root, "movement-title") || creditWords[0] || "Untitled";
   const composer = kids(kid(root, "identification"), "creator").find((c) => c.attrs.type === "composer")?.text.trim();
 
   const warnings = [...counts].map(([what, n]) => {
@@ -394,6 +395,13 @@ export function readMusicXml(bytes: Uint8Array, fileName = "Untitled"): PieceSco
   });
 
   return { version: PIECE_VERSION, title, composer: composer || undefined, parts, measures, warnings };
+}
+
+/** "Shenandoah_SATB-final.mxl" -> "Shenandoah SATB-final"; nothing for a name that says nothing ("score.xml"). */
+export function titleFromFileName(fileName: string): string {
+  const base = fileName.split(/[\\/]/).pop() ?? "";
+  const name = base.replace(/\.(musicxml|xml|mxl)$/i, "").replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+  return /^(untitled|score|musicxml|export|untitled score)?$/i.test(name) ? "" : name;
 }
 
 /** The key's name for ABC (`Bb`, `F#m`). */

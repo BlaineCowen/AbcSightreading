@@ -224,15 +224,21 @@
     await render();
   }
 
+  /** Shown at once; put back if the server refuses it. (Enter and the blur that follows both land here.) */
   async function saveTitle() {
-    if (!piece) return;
-    const title = titleDraft.trim();
+    if (!piece || !renaming) return;
     renaming = false;
-    if (!title || title === piece.title) return;
+    const before = piece.title;
+    const title = titleDraft.trim();
+    if (!title || title === before) return;
+    piece = { ...piece, title };
+    document.title = `${title} | My music`;
     try {
       await updatePiece(id, { title });
-      piece = { ...piece, title };
+      status = "";
     } catch (e) {
+      piece = { ...piece, title: before };
+      document.title = `${before} | My music`;
       status = (e as Error).message;
     }
   }

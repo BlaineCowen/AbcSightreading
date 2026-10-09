@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import abcjs from "abcjs";
 import { strToU8, zipSync } from "fflate";
-import { PieceReadError, nearestProgram, readMusicXml } from "../../src/lib/pieces/read-musicxml";
+import { PieceReadError, nearestProgram, readMusicXml, titleFromFileName } from "../../src/lib/pieces/read-musicxml";
 import { abcForPiece, drawnElements, splitLength } from "../../src/lib/pieces/write-abc";
 import { TICKS, type PieceScore } from "../../src/lib/pieces/model";
 import { attrs, backup, note, scoreXml } from "./fixtures/musicxml-pieces";
@@ -69,7 +69,9 @@ function expected(score: PieceScore, from = 0, to = score.measures.length - 1): 
 describe("readMusicXml", () => {
   test("times, pitches, ties, a triplet, a chord and lyrics", () => {
     const score = read(threeBarScore());
-    expect(score.title).toBe("Test Piece");
+    // The file's name, before the score's own title.
+    expect(score.title).toBe("test");
+    expect(read(threeBarScore(), "score.musicxml").title).toBe("Test Piece");
     expect(score.composer).toBe("A. Composer");
     expect(score.measures.map((m) => [m.label, m.start, m.length])).toEqual([
       ["1", 0, 192],
@@ -252,6 +254,15 @@ describe("abcForPiece", () => {
     expect(splitLength(60)).toEqual([48, 12]);
     expect(splitLength(192)).toEqual([192]);
     expect(splitLength(168)).toEqual([144, 24]);
+  });
+});
+
+describe("titleFromFileName", () => {
+  test("the file's name, tidied; nothing for a name that says nothing", () => {
+    expect(titleFromFileName("Shenandoah_SATB.mxl")).toBe("Shenandoah SATB");
+    expect(titleFromFileName("Ave Maria - Arcadelt.musicxml")).toBe("Ave Maria - Arcadelt");
+    expect(titleFromFileName("score.xml")).toBe("");
+    expect(titleFromFileName("Untitled score.mxl")).toBe("");
   });
 });
 
