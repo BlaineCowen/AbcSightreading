@@ -1447,7 +1447,9 @@
     if (settingPop === which) return (settingPop = null);
     const pill = e.currentTarget as HTMLElement;
     const room = setbarEl?.clientWidth ?? POP_WIDTH;
-    popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
+    // Measured against the row itself: a pill sits inside its group, so offsetLeft would be from the group.
+    const fromLeft = setbarEl ? pill.getBoundingClientRect().left - setbarEl.getBoundingClientRect().left : 0;
+    popLeft = Math.max(0, Math.min(fromLeft, room - POP_WIDTH));
     settingPop = which;
     popOpener = pill;
     void focusPop();
@@ -2699,13 +2701,35 @@
          phone. The exercise history and New exercise end the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
       <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-        <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
+        <!-- In groups, each under a small label (as the Unison and piano pages'):
+             the voices first, then the music, the rhythms and the harmony. -->
+        <div class="set-group" role="group" aria-label="Voices">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-action"></span>Voices</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Music">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Rhythm">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-peach"></span>Rhythm</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Harmony">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-butter"></span>Harmony</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
       </div>
       <div class="setbar-end">
         <!-- Back through the exercises already generated this session. -->
@@ -2756,7 +2780,7 @@
           role="dialog"
           aria-label={({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}
         >
-          <p class="set-pop-title">{({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}</p>
+          <p class="set-pop-title"><span class="set-group-dot tone-{({ voicing: 'action', more: 'action', key: 'sky', meter: 'sky', length: 'sky', rhythm: 'peach', harmony: 'butter' })[settingPop]}"></span>{({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}</p>
           <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
           {#if settingPop === 'voicing'}
             <div class="space-y-2">
@@ -3551,7 +3575,30 @@
     gap: 0.5rem;
     padding: 0.625rem;
   }
-  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 26rem; min-width: 0; }
+  /* Clipped sideways so the hairline before a group that starts a row falls outside and is not drawn. */
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; flex: 1 1 26rem; min-width: 0; overflow-x: clip; padding-left: 3px; }
+  /* A group of pills under its label; groups set apart by space and a hairline between them (as the Unison page's). */
+  .set-group { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+  .set-group::before { content: ""; position: absolute; left: -0.5rem; top: 0.25rem; bottom: 0.25rem; border-left: 1px solid var(--sr-hairline); }
+  .set-group-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .set-group-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-left: 0.4rem;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sr-muted);
+  }
+  .set-group-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; display: inline-block; }
+  .set-pop-title .set-group-dot { margin-right: 0.5rem; vertical-align: 0.1em; }
+  /* The pastel, ringed in its own ink so it shows on white and in the dark theme. */
+  .tone-action { background: var(--sr-action); }
+  .tone-sky { background: var(--sr-sky); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-sky-ink) 45%, transparent); }
+  .tone-peach { background: var(--sr-peach); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-peach-ink) 45%, transparent); }
+  .tone-butter { background: var(--sr-butter); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-butter-ink) 45%, transparent); }
   .set-pill {
     display: inline-flex;
     align-items: center;
@@ -3660,6 +3707,8 @@
   @media (max-width: 640px) {
     .setbar-end { flex: 1; }
     .setbar-new { flex: 1; justify-content: center; }
+    /* A phone: each group a row of its own. */
+    .set-group { width: 100%; }
     .set-pop,
     .set-pop-wide,
     .set-pop-tools {
