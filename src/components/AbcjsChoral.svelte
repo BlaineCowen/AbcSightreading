@@ -1409,7 +1409,7 @@
    * opens Display (the score options) the same way (toolPop). A tap outside,
    * Escape, Done or New exercise closes them.
    */
-  type SettingPop = "voicing" | "key" | "meter" | "length" | "rhythm" | "harmony" | "more";
+  type SettingPop = "voicing" | "key" | "meter" | "length" | "rhythm" | "harmony" | "ranges";
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | null = null;
   let popLeft = 0;
@@ -1490,13 +1490,13 @@
    * no dots (there is nothing to have changed from).
    */
   $: pillSigs = {
-    voicing: selectedVoicing,
+    voicing: JSON.stringify([selectedVoicing, voiceTexture]),
     key: [...selectedKeys].sort().join(","),
     meter: selectedTimeSignature,
     length: JSON.stringify([measures, fullLength, fullLengthMeasures]),
     rhythm: _tabSigs.rhythm,
     harmony: _tabSigs.harmony,
-    more: JSON.stringify([voiceTexture, _tabSigs.ranges]),
+    ranges: _tabSigs.ranges,
   };
   let presetPillSigs: Record<string, string> | null = null;
   let pillsFor: Record<string, string> | null = null;
@@ -2707,7 +2707,7 @@
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-action"></span>Voices</span>
           <div class="set-group-pills">
             <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-            <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
+            <button class="set-pill" aria-label="Voice ranges" aria-expanded={settingPop === 'ranges'} on:click={(e) => togglePop('ranges', e)}>Ranges{#if pillChanged.ranges}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
         <div class="set-group" role="group" aria-label="Music">
@@ -2775,12 +2775,12 @@
         <div
           in:popIn
           out:popOut
-          class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'more' ? 'set-pop-wide' : ''}"
+          class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'ranges' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
           role="dialog"
-          aria-label={({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}
+          aria-label={({ voicing: 'Voicing and texture', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', ranges: 'Voice ranges' })[settingPop]}
         >
-          <p class="set-pop-title"><span class="set-group-dot tone-{({ voicing: 'action', more: 'action', key: 'sky', meter: 'sky', length: 'sky', rhythm: 'peach', harmony: 'butter' })[settingPop]}"></span>{({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}</p>
+          <p class="set-pop-title"><span class="set-group-dot tone-{({ voicing: 'action', ranges: 'action', key: 'sky', meter: 'sky', length: 'sky', rhythm: 'peach', harmony: 'butter' })[settingPop]}"></span>{({ voicing: 'Voicing and texture', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', ranges: 'Voice ranges' })[settingPop]}</p>
           <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
           {#if settingPop === 'voicing'}
             <div class="space-y-2">
@@ -2794,6 +2794,32 @@
                   >{voicing}</button>
                 {/each}
               </div>
+            </div>
+            <div class="space-y-2 pt-3">
+              <p class="sr-label">Voice texture</p>
+              {#if fullLength}
+                <p class="text-xs text-sr-muted">
+                  The form decides this per section for a full-length piece: the imitative
+                  passage gets staggered entrances and the rest all voices.
+                </p>
+              {/if}
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
+                {#each voiceTextures as mode}
+                  <button
+                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
+                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
+                    on:click={() => (voiceTexture = mode)}
+                    aria-pressed={voiceTexture === mode}
+                  >{voiceTextureLabels[mode]}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {voiceTexture === "full"
+                  ? "Every part sings throughout, apart from rests in the rhythm."
+                  : measures < 12
+                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
+                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
+              </p>
             </div>
           {:else if settingPop === 'key'}
             <div class="space-y-2">
@@ -3187,36 +3213,9 @@
               </div>
             </div>
           </div>
-          {:else if settingPop === 'more'}
+          {:else if settingPop === 'ranges'}
             <div class="space-y-5">
-            <div class="space-y-2">
-              <p class="sr-label">Voice texture</p>
-              {#if fullLength}
-                <p class="text-xs text-sr-muted">
-                  The form decides this per section for a full-length piece: the imitative
-                  passage gets staggered entrances and the rest all voices.
-                </p>
-              {/if}
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
-                {#each voiceTextures as mode}
-                  <button
-                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
-                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
-                    on:click={() => (voiceTexture = mode)}
-                    aria-pressed={voiceTexture === mode}
-                  >{voiceTextureLabels[mode]}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {voiceTexture === "full"
-                  ? "Every part sings throughout, apart from rests in the rhythm."
-                  : measures < 12
-                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
-                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
-              </p>
-            </div>
               <div class="space-y-2">
-                <p class="sr-label">Voice ranges</p>
           {#if selectedVoicing && possibleVoicing[selectedVoicing]}
             <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
