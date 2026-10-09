@@ -9,6 +9,10 @@
   import { tuner } from "../lib/tuner/store";
   import { SampleBank, type ClickLevel } from "../lib/tuner/click-sounds";
   import { scheduleClick } from "../lib/playback-click";
+  import { beatEvents, beatLevelsFor, gridOf, type BeatLevel } from "../lib/tuner/click-pattern";
+  import { VoiceBank, wordAt } from "../lib/tuner/voice-count";
+  import { VOICE_GAIN } from "../lib/tuner/metronome";
+  import { assistedLevels } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
@@ -94,6 +98,7 @@
   import { DETECT_LATENCY_MS } from "../lib/grade";
   import type { GradeTrace } from "../lib/grade-runner";
   import { solfegeOf } from "../lib/grade";
+  import { degreeLetter, pitchLetter } from "../lib/note-names";
   import { billingStatus } from "../lib/billing-client";
   import { signedInUser } from "../lib/auth-client";
   import { initTuner, micInput, startTuner, stopTuner } from "../lib/tuner/controller";
@@ -1148,14 +1153,23 @@
    * a pool of minor keys names them as the minor is sung: la ti do... la-based,
    * do re me... do-based. A mixed pool keeps the major names.
    */
-  $: degreeNames = minorInPool && !majorInPool
+  /**
+   * An instrument reads note names, not solfège (Blaine, 9 October 2026): with
+   * a band or string reader the panels name each degree by its letter in the
+   * key, or by its number while the pool holds more than one key.
+   */
+  $: byLetter = reader?.family === "band" || reader?.family === "strings";
+  $: letterKey = byLetter && selectedKeys.size === 1 ? [...selectedKeys][0] : null;
+  $: degreeNames = byLetter
+    ? [1, 2, 3, 4, 5, 6, 7].map((d) => (letterKey ? degreeLetter(letterKey, d) : String(d)))
+    : minorInPool && !majorInPool
     ? MINOR_DEGREES.map((d) => minorLabel(d, null, minorSolfege))
     : [...DEGREE_NAMES];
   $: chipLabel = (label: string) =>
-    minorInPool && !majorInPool
+    byLetter || (minorInPool && !majorInPool)
       ? label.replace(/\b(Do|Re|Mi|Fa|Sol|La|Ti)\b/g, (w) => {
           const name = degreeNames[["do", "re", "mi", "fa", "sol", "la", "ti"].indexOf(w.toLowerCase())];
-          return name.charAt(0).toUpperCase() + name.slice(1);
+          return byLetter ? name : name.charAt(0).toUpperCase() + name.slice(1);
         })
       : label;
   $: majorInPool = [...selectedKeys].some((k) => !isMinorKey(k));
@@ -1727,6 +1741,8 @@
       click: {
         subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
         withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
+        ...($tuner.beatLevels ? { beatLevels: [...$tuner.beatLevels] } : {}),
+        ...($tuner.subMask ? { subMask: $tuner.subMask } : {}),
       },
       run: {
         exercises: drillExercises,
@@ -2237,6 +2253,8 @@
     // every call.
     metronomeBeats = newMetronomeBeatState();
     cursorBeats = newMetronomeBeatState();
+    // Which beats the practice assistant drops, new each time it plays.
+    clickSeed = Math.floor(Math.random() * 2 ** 31);
 
     timingCallbacks = new abcjs.TimingCallbacks(currentTune, {
       beatCallback: (beatNumber, totalBeats, _totalTime, position) => {
@@ -2253,7 +2271,20 @@
         );
         // A Grade run with the click off still counts in.
         const gradeQuiet = gradeTimeline && gradeClickChoice === "off" && beatNumber >= countInBeats(playedMeter());
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) playMetronomeClick(beat.isDownbeat);
+        // The count-in clicks plainly; the music's beats take their levels,
+        // and the practice assistant's silent bars and dropped beats.
+        const inCount = countInBeats(playedMeter());
+        const musicBeat = beatNumber >= inCount ? beat.beatInBar : undefined;
+        const musicBar = Math.floor((metronomeBeats.lastClickedBeat - inCount) / Math.max(1, beatsPerMeasure));
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) {
+          playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
+          // The next beat's word, a beat ahead, while there is a next beat of music.
+          const next = metronomeBeats.lastClickedBeat + 1;
+          if (next >= inCount && next < totalBeats) {
+            const per = Math.max(1, beatsPerMeasure);
+            sayNextBeat((next - inCount) % per, per, Math.floor((next - inCount) / per));
+          }
+        }
 
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
@@ -2731,6 +2762,10 @@
    *   sample-accurate rather than drifting with the timer that queues them.
    */
   const clickBank = new SampleBank();
+  /** Which beats the practice assistant drops this playback. */
+  let clickSeed = 0;
+  /** The counting voice's words (voice-count.ts), loaded when it is on. */
+  const voiceBank = new VoiceBank();
   /**
    * One beat of the click, as the Tools metronome sets it: its sound, its
    * accent on the downbeat, and its subdivisions after the beat, at exact
@@ -2738,19 +2773,61 @@
    * the exercise and under the Click button alike; those two only turn it
    * on and off.
    */
+  /**
+   * The counting voice's word for the next beat, said now so it can start
+   * before the beat by its lead-in (voice-count.ts): the click here is placed
+   * as abcjs reaches each beat, too late to start a word early.
+   */
+  function sayNextBeat(nextBeatInBar: number, beatsInBar: number, nextBar: number) {
+    if (!audioContext || metronomeGainNode.gain.value === 0 || gradeSubdivision != null) return;
+    const { accent, subdivision, beatLevels, subMask, assistant, voice } = tuner.get();
+    if (voice.mode === "off") return;
+    void voiceBank.load(audioContext).catch(() => {});
+    const level = assistedLevels(beatLevelsFor({ beats: beatsInBar, accent, beatLevels }), nextBar, assistant, clickSeed)[nextBeatInBar];
+    const first = beatEvents(level, subdivision, subMask).find((e) => e.slot === 0);
+    if (!first) return;
+    const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
+    const compound = meterKindOf(playedMeter()) === "compound";
+    const word = wordAt(voice.system, gridOf(subdivision), 0, nextBeatInBar, compound, secondsPerBeat / gridOf(subdivision));
+    if (word) voiceBank.say(audioContext, metronomeGainNode, word, audioContext.currentTime + secondsPerBeat, first.gain * voice.volume * VOICE_GAIN);
+  }
+
   function playMetronomeClick(
     isDownbeat: boolean,
-    when: number = audioContext ? audioContext.currentTime : 0
+    when: number = audioContext ? audioContext.currentTime : 0,
+    /** The beat of the bar, for its level (click-pattern.ts); unset in a count-in. */
+    beatInBar?: number,
+    beatsInBar?: number,
+    /** The music's bar, from 0, for the practice assistant (practice-assistant.ts). */
+    bar?: number
   ) {
     if (!audioContext || metronomeGainNode.gain.value === 0) return;
-    const { clickSound, accent, subdivision } = tuner.get();
-    const level: ClickLevel = isDownbeat && accent ? "downbeat" : "beat";
-    scheduleClick(audioContext, clickBank, metronomeGainNode, when, clickSound, level);
+    const { clickSound, accent, subdivision, beatLevels, subMask, assistant, voice } = tuner.get();
+    // Levels set for this many beats, else beat 1 accented as always; then the
+    // assistant's silent bars and dropped beats. A Grade run keeps its own click.
+    const level: BeatLevel =
+      beatInBar !== undefined && beatsInBar
+        ? (gradeSubdivision == null && bar !== undefined
+            ? assistedLevels(beatLevelsFor({ beats: beatsInBar, accent, beatLevels }), bar, assistant, clickSeed)
+            : beatLevelsFor({ beats: beatsInBar, accent, beatLevels }))[beatInBar]
+        : isDownbeat && accent ? "accent" : "normal";
     // A Grade run in time sets its own: beats, or beats with their subdivision.
-    const sub = Math.max(1, Math.round(gradeSubdivision ?? subdivision));
+    const grid = gradeSubdivision ?? subdivision;
     const secondsPerBeat = Math.min(2, Math.max(0.1, 60 / (Number(tempo) || 60)));
-    for (let k = 1; k < sub; k++) {
-      scheduleClick(audioContext, clickBank, metronomeGainNode, when + (k * secondsPerBeat) / sub, clickSound, "sub");
+    // The counting voice says the music's beats (never the count-in, and not
+    // under a Grade run, which keeps its plain click); voice alone drops the click there.
+    const speak = voice.mode !== "off" && gradeSubdivision == null && beatInBar !== undefined;
+    if (speak) void voiceBank.load(audioContext).catch(() => {});
+    const compound = meterKindOf(playedMeter()) === "compound";
+    const slotSeconds = secondsPerBeat / gridOf(grid);
+    for (const e of beatEvents(level, grid, gradeSubdivision ? null : subMask)) {
+      const at = when + e.at * secondsPerBeat;
+      if (!speak || voice.mode === "both") scheduleClick(audioContext, clickBank, metronomeGainNode, at, clickSound, e.level, e.gain);
+      // The beat's own word was said a beat ahead (sayNextBeat), so it could start early.
+      if (speak && e.slot > 0) {
+        const word = wordAt(voice.system, gridOf(grid), e.slot, beatInBar!, compound, slotSeconds);
+        if (word) voiceBank.say(audioContext, metronomeGainNode, word, at, e.gain * voice.volume * VOICE_GAIN);
+      }
     }
   }
 
@@ -4218,6 +4295,7 @@
       perf: $gradeRunner.perf,
       claps: $gradeRunner.claps,
       doPc: gradeDoPc,
+      nameOf: noteNameOf,
       onsetBeats: STRICTNESS[$tuner.gradeStrictness].onsetBeats,
       bpm: tempo,
     });
@@ -4238,12 +4316,13 @@
         return `Note ${i + 1}: ${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`;
       return `Note ${i + 1}: on time`;
     }
-    const want = solfegeOf(n.midi, gradeDoPc);
+    const want = noteNameOf(n.midi);
+    const sang = byLetter ? "you played" : "you sang";
     if (v.perf) {
       const r = v.perf.notes[i];
       if (!r) return null;
       if (r.missed) return `Note ${i + 1} (${want}): not heard`;
-      const parts = [r.pitchOk ? `${want}, ${r.cents === 0 ? "in tune" : `${Math.abs(r.cents ?? 0)} cents ${(r.cents ?? 0) > 0 ? "sharp" : "flat"}`}` : `you sang ${solfegeOf(r.sung ?? n.midi, gradeDoPc)}, the note is ${want}`];
+      const parts = [r.pitchOk ? `${want}, ${r.cents === 0 ? "in tune" : `${Math.abs(r.cents ?? 0)} cents ${(r.cents ?? 0) > 0 ? "sharp" : "flat"}`}` : `${sang} ${noteNameOf(r.sung ?? n.midi)}, the note is ${want}`];
       if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > STRICTNESS[$tuner.gradeStrictness].onsetBeats)
         parts.push(`${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`);
       else if (r.onsetBeats !== null) parts.push("on time");
@@ -4252,7 +4331,7 @@
     }
     const r = v.result?.notes[i];
     if (!r) return null;
-    const first = r.firstTry !== null ? `, you first sang ${solfegeOf(r.firstTry, gradeDoPc)}` : "";
+    const first = r.firstTry !== null ? `, ${sang.replace("you ", "you first ")} ${noteNameOf(r.firstTry)}` : "";
     if (r.outcome === "skipped") return `Note ${i + 1} (${want}): skipped${first}`;
     const how = r.outcome === "first" ? "right first time" : r.outcome === "corrected" ? `corrected${first}` : "after hearing it";
     const tune = r.cents !== null && Math.abs(r.cents) >= 10 ? ` · ${Math.abs(r.cents)} cents ${r.cents > 0 ? "sharp" : "flat"}` : "";
@@ -4268,6 +4347,14 @@
     const doBased = !!info?.minor && minorSolfege === "do" ? 9 : 0;
     return (((info ? NOTES.indexOf(info.doNote) : 0) + doBased + transposeSemitones) % 12 + 12) % 12;
   })();
+
+  /**
+   * A graded note's name: solfège for a singer, the written letter for an
+   * instrument (its pitches are heard sounding, so the transposition comes off).
+   */
+  $: noteNameOf = byLetter
+    ? (midi: number) => pitchLetter(selectedKey, midi - transposeSemitones)
+    : (midi: number) => solfegeOf(midi, gradeDoPc);
 
   /** After a run, colour each note on the score as the card does. */
   let gradeMarked: Element[] = [];
@@ -4385,7 +4472,9 @@
     if (settingPop === which) return (settingPop = null);
     const pill = e.currentTarget as HTMLElement;
     const room = setbarEl?.clientWidth ?? POP_WIDTH;
-    popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
+    // Measured against the row itself: a pill sits inside its group now, so offsetLeft would be from the group.
+    const fromLeft = setbarEl ? pill.getBoundingClientRect().left - setbarEl.getBoundingClientRect().left : 0;
+    popLeft = Math.max(0, Math.min(fromLeft, room - POP_WIDTH));
     settingPop = which;
     popOpener = pill;
     void focusPop();
@@ -4451,7 +4540,7 @@
     length: `${measures} ${measures === 1 ? "bar" : "bars"}`,
     notes: (() => {
       const degs = (minorInPool && !majorInPool ? [...minorScaleDegrees] : [...selectedScaleDegrees]).sort((x, y) => x - y);
-      const names = minorInPool && !majorInPool ? degreeNames : SOLFA;
+      const names = byLetter || (minorInPool && !majorInPool) ? degreeNames : SOLFA;
       const chroma = selectedSharpDegrees.size + selectedFlatDegrees.size;
       const base = degs.length === 7 ? "all 7" : degs.map((d) => names[d - 1]).join(" ");
       return chroma ? `${base} +${chroma}` : base;
@@ -4875,6 +4964,7 @@
       onClose={closeGrade}
       onNewExercise={gradeNewExercise}
       doPc={gradeDoPc}
+      nameOf={byLetter ? noteNameOf : null}
       detail={gradeDetail}
       onSave={gradeDebugOn && !gradeShareOn ? saveGradeRunNow : null}
       onSend={gradeShareOn ? sendGradeRunNow : null}
@@ -4959,23 +5049,41 @@
          phone. New exercise sits at the end of the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
       <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-        <!-- The big switch, first: a sung line, or rhythm alone. -->
-        <div class="set-mode" role="group" aria-label="Mode">
-          <button class:on={!rhythmOnly} aria-pressed={!rhythmOnly} on:click={() => { rhythmOnly = false; closePops(false); }}>Pitched</button>
-          <button class:on={rhythmOnly} aria-pressed={rhythmOnly} on:click={() => { rhythmOnly = true; closePops(false); }}>Rhythm only</button>
+        <!-- In groups, each under a small label (as the piano page's): the big
+             switch first, a sung line or rhythm alone; then the music, the
+             pitches (sung lines only) and the rhythms. -->
+        <div class="set-group" role="group" aria-label="Mode">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-action"></span>Mode</span>
+          <div class="set-mode">
+            <button class:on={!rhythmOnly} aria-pressed={!rhythmOnly} on:click={() => { rhythmOnly = false; closePops(false); }}>Pitched</button>
+            <button class:on={rhythmOnly} aria-pressed={rhythmOnly} on:click={() => { rhythmOnly = true; closePops(false); }} title="Rhythm only: no pitches">Rhythm</button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Music">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
+          <div class="set-group-pills">
+            {#if !rhythmOnly}
+              <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            {/if}
+            <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
         </div>
         {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          <div class="set-group" role="group" aria-label="Pitch">
+            <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-mint"></span>Pitch</span>
+            <div class="set-group-pills">
+              <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}{#if pillChanged.notes}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+              <button class="set-pill" aria-label="Clef: {selectedClef}" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{selectedClef[0].toUpperCase() + selectedClef.slice(1)}{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            </div>
+          </div>
         {/if}
-        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}{#if pillChanged.notes}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        {/if}
-        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        {#if !rhythmOnly}
-          <button class="set-pill" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{selectedClef} clef{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        {/if}
+        <div class="set-group" role="group" aria-label="Rhythm">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-peach"></span>Rhythm</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
       </div>
       <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading}>
         <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
@@ -5000,7 +5108,7 @@
           role="dialog"
           aria-label={({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'Clef' })[settingPop]}
         >
-          <p class="set-pop-title">{({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'Clef' })[settingPop]}</p>
+          <p class="set-pop-title"><span class="set-group-dot tone-{({ key: 'sky', meter: 'sky', length: 'sky', notes: 'mint', more: 'mint', rhythm: 'peach' })[settingPop]}"></span>{({ key: 'Key', meter: 'Time signature', length: 'Length', notes: 'Notes', rhythm: 'Rhythms', more: 'Clef' })[settingPop]}</p>
           {#if settingPop === 'key'}
               <div class="space-y-2">
                 
@@ -5085,30 +5193,28 @@
             {#if majorInPool}
             <div class="space-y-2">
               <p class="sr-label">Scale Degrees{minorInPool ? " (major)" : ""}</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
+              <!-- Laid out as a keyboard from C: each note two half-columns wide,
+                   each sharp or flat one half-column over, between the notes it
+                   falls between (♯1 and ♭2 between 1 and 2), as the black keys sit. -->
+              <div class="degree-grid" style="--cols: 14" role="group" aria-label="Scale Degrees">
                 {#each sharpScaleDegrees as degree}
                   <button
-                    class="sr-tok px-2
-                      {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
+                    class="sr-tok px-0 {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}"
+                    style="grid-column: {2 * degree.value} / span 2; grid-row: 1"
                     on:click={() => toggleSharpDegree(degree.value)}
                   >{degree.display}</button>
                 {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
                 {#each scaleDegrees as degree}
                   <button
-                    class="sr-tok {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
+                    class="sr-tok px-0 {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
+                    style="grid-column: {2 * degree - 1} / span 2; grid-row: 2"
                     on:click={() => toggleScaleDegree(degree)}
                   >{degree}</button>
                 {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
                 {#each flatScaleDegrees as degree}
                   <button
-                    class="sr-tok px-2
-                      {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
+                    class="sr-tok px-0 {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}"
+                    style="grid-column: {2 * degree.value - 2} / span 2; grid-row: 3"
                     on:click={() => toggleFlatDegree(degree.value)}
                   >{degree.display}</button>
                 {/each}
@@ -5121,29 +5227,30 @@
                  melodic and harmonic minor), lowered under it. -->
             <div class="space-y-2">
               <p class="sr-label">Scale Degrees (minor)</p>
-              <div class="grid grid-cols-[repeat(7,2.6rem)] sm:grid-cols-[repeat(7,3rem)] gap-1.5 sm:gap-2 w-max" role="group" aria-label="Minor scale degrees">
+              <!-- From A, the same way: ♯1 and ♭2 between 1 and 2, ♯3 between 3 and 4, ♯7 past 7. -->
+              <div class="degree-grid" style="--cols: 15" role="group" aria-label="Minor scale degrees">
                 {#each MINOR_DEGREES as d}
                   {#if MINOR_SHARPS.includes(d)}
                     <button
                       class="sr-tok px-0 flex flex-col items-center leading-tight {minorSharpDegrees.has(d) ? 'sr-on' : ''} {d >= 6 ? 'ring-1 ring-sr-action/40' : ''}"
-                      style="grid-column: {d}; grid-row: 1"
+                      style="grid-column: {2 * d} / span 2; grid-row: 1"
                       aria-pressed={minorSharpDegrees.has(d)}
                       on:click={() => (minorSharpDegrees = toggleIn(minorSharpDegrees, d))}
-                    >♯{d}<span class="text-[10px] opacity-70">{minorLabel(d, "sharp", minorSolfege)}</span></button>
+                    >♯{d}<span class="text-[10px] opacity-70">{byLetter ? (letterKey ? degreeLetter(letterKey, d, 1) : "") : minorLabel(d, "sharp", minorSolfege)}</span></button>
                   {/if}
                   <button
                     class="sr-tok px-0 flex flex-col items-center leading-tight {minorScaleDegrees.has(d) ? 'sr-on' : ''}"
-                    style="grid-column: {d}; grid-row: 2"
+                    style="grid-column: {2 * d - 1} / span 2; grid-row: 2"
                     aria-pressed={minorScaleDegrees.has(d)}
                     on:click={() => (minorScaleDegrees = toggleIn(minorScaleDegrees, d))}
-                  >{d}<span class="text-[10px] opacity-70">{minorLabel(d, null, minorSolfege)}</span></button>
+                  >{d}<span class="text-[10px] opacity-70">{byLetter ? (letterKey ? degreeLetter(letterKey, d, 0) : "") : minorLabel(d, null, minorSolfege)}</span></button>
                   {#if MINOR_FLATS.includes(d)}
                     <button
                       class="sr-tok px-0 flex flex-col items-center leading-tight {minorFlatDegrees.has(d) ? 'sr-on' : ''}"
-                      style="grid-column: {d}; grid-row: 3"
+                      style="grid-column: {2 * d - 2} / span 2; grid-row: 3"
                       aria-pressed={minorFlatDegrees.has(d)}
                       on:click={() => (minorFlatDegrees = toggleIn(minorFlatDegrees, d))}
-                    >♭{d}<span class="text-[10px] opacity-70">{minorLabel(d, "flat", minorSolfege)}</span></button>
+                    >♭{d}<span class="text-[10px] opacity-70">{byLetter ? (letterKey ? degreeLetter(letterKey, d, -1) : "") : minorLabel(d, "flat", minorSolfege)}</span></button>
                   {/if}
                 {/each}
               </div>
@@ -5373,7 +5480,7 @@
             />
             {#if rangeSpan}
               <p class="text-xs text-sr-faint">
-                This range follows the key: it is placed around do for each key drawn. Change it
+                This range follows the key: it is placed around {byLetter ? "the tonic" : "do"} for each key drawn. Change it
                 here and it becomes your own.
               </p>
             {/if}
@@ -6107,7 +6214,30 @@
     gap: 0.5rem;
     padding: 0.625rem;
   }
-  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 26rem; min-width: 0; }
+  /* Clipped sideways so the hairline before a group that starts a row falls outside and is not drawn. */
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; flex: 1 1 26rem; min-width: 0; overflow-x: clip; padding-left: 3px; }
+  /* A group of pills under its label; groups set apart by space and a hairline between them (as the piano page's). */
+  .set-group { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+  .set-group::before { content: ""; position: absolute; left: -0.5rem; top: 0.25rem; bottom: 0.25rem; border-left: 1px solid var(--sr-hairline); }
+  .set-group-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .set-group-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-left: 0.4rem;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sr-muted);
+  }
+  .set-group-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; display: inline-block; }
+  .set-pop-title .set-group-dot { margin-right: 0.5rem; vertical-align: 0.1em; }
+  /* The pastel, ringed in its own ink so it shows on white and in the dark theme. */
+  .tone-action { background: var(--sr-action); }
+  .tone-sky { background: var(--sr-sky); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-sky-ink) 45%, transparent); }
+  .tone-mint { background: var(--sr-mint); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-mint-ink) 45%, transparent); }
+  .tone-peach { background: var(--sr-peach); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-peach-ink) 45%, transparent); }
   .set-pill {
     display: inline-flex;
     align-items: center;
@@ -6149,7 +6279,7 @@
   }
   .set-mode button {
     min-height: 2.25rem;
-    padding: 0 0.7rem;
+    padding: 0 0.65rem;
     border-radius: 999px;
     font-size: 14px;
     font-weight: 800;
@@ -6159,6 +6289,17 @@
   .set-pill-more { background: transparent; color: var(--sr-action-fg); padding-inline: 0.6rem; }
   .set-pill-more[aria-expanded="true"] { background: var(--sr-tint); color: var(--sr-action-fg); }
   .setbar-new { margin-left: auto; min-height: 2.75rem; }
+  /* Scale degrees on half-columns, so a sharp or flat sits between its two notes. */
+  .degree-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), 1.3rem);
+    gap: 0.375rem 0;
+    width: max-content;
+  }
+  .degree-grid > button { margin: 0 2px; justify-content: center; }
+  @media (min-width: 640px) {
+    .degree-grid { grid-template-columns: repeat(var(--cols), 1.5rem); gap: 0.5rem 0; }
+  }
 
   /* One popover at a time: under its pill, or a bottom sheet on a phone. */
   .set-pop {
@@ -6228,6 +6369,8 @@
 
   @media (max-width: 640px) {
     .setbar-new { flex: 1; justify-content: center; }
+    /* A phone: each group a row of its own. */
+    .set-group { width: 100%; }
     .set-pop,
     .set-pop-wide,
     .set-pop-tools {

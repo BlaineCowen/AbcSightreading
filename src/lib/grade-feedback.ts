@@ -66,6 +66,8 @@ export function drawGradeFeedback(o: {
   /** A rhythm clapped: each note's clap and the stray claps (no pitch trace). */
   claps?: ClapResult | null;
   doPc: number;
+  /** How a sung note is named beside it; solfège when absent (an instrument's reader passes letters). */
+  nameOf?: (midi: number) => string;
   /** Beats a note may be early or late with full credit (the strictness). */
   onsetBeats: number;
   bpm: number;
@@ -279,7 +281,7 @@ export function drawGradeFeedback(o: {
         put(head);
         const degree = ((sung - o.doPc) % 12 + 12) % 12;
         if (![0, 2, 4, 5, 7, 9, 11].includes(degree)) label(x - space * 1.15, y + space * 0.45, sung > n.midi ? "♯" : "♭", BAD);
-        label(x + space * 1.9, y + space * 0.45, solfegeOf(sung, o.doPc), BAD);
+        label(x + space * 1.9, y + space * 0.45, o.nameOf ? o.nameOf(sung) : solfegeOf(sung, o.doPc), BAD);
       }
     }
     // Let go early: a line under the note, as long as it was meant to last.

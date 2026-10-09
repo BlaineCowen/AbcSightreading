@@ -5,7 +5,9 @@
  *   bun run icons:rhythm
  *
  * Writes one SVG per rhythm into src/assets/svgs/, which is where both pickers
- * import them from (`../assets/svgs/<name>.svg?raw`, inlined with {@html}).
+ * import them from (`../assets/svgs/<name>.svg?raw`, inlined with {@html}),
+ * and one per metronome subdivision (click-pattern.ts SUB_PATTERNS) into
+ * src/assets/svgs/metronome/, at the same scale, so the two sets match.
  *
  * The icons this replaces were bitmaps traced by potrace: fixed ink, no shared
  * geometry, and a different weight from the engraving they sit beside. These
@@ -96,6 +98,47 @@ const MUSIC = {
   twoEighthsTwoSixteenths: "c8[ c8 c16 c16]",
   quarterTwoSixteenths: "c4 c16[ c16]",
 };
+
+/**
+ * A triplet's 3 is text in LilyPond's SVG, which toFragment refuses (no font
+ * ships with these). The music font's own digit is a glyph, drawn as a path.
+ */
+const TRIPLET = String.raw`\once \override TupletNumber.text = \markup \musicglyph "three" \tuplet 3/2`;
+
+/**
+ * The metronome's subdivisions, one beat each: click-pattern.ts SUB_PATTERNS
+ * by id (`subIconFile` turns an id into its file name). main() fails if a
+ * pattern has no entry here. Simple patterns cut a quarter, compound a dotted
+ * quarter; a triplet shows its 3 (bracketed only where nothing is beamed).
+ */
+const SUB_MUSIC = {
+  "q": "c4",
+  "8": "c8[ c8]",
+  "8-off": "r8 c8",
+  "3": `${TRIPLET} { c8[ c8 c8] }`,
+  "3-swing": `${TRIPLET} { c4 c8 }`,
+  "3-rest-first": `${TRIPLET} { r8 c8[ c8] }`,
+  "3-rest-last": `${TRIPLET} { c8[ c8] r8 }`,
+  "16": "c16[ c16 c16 c16]",
+  "16-1e&": "c16[ c16 c8]",
+  "16-1&a": "c8[ c16 c16]",
+  "16-1ea": "c16[ c8 c16]",
+  "16-1a": "c8.[ c16]",
+  "16-e&a": "r16 c16[ c16 c16]",
+  // Spaced tighter: at LilyPond's own spacing eight 32nds ran twice the
+  // width of four sixteenths and dwarfed the rest of the set.
+  "32": String.raw`\override Score.SpacingSpanner.spacing-increment = #0.3 \override Score.SpacingSpanner.shortest-duration-space = #1 c32[ c32 c32 c32 c32 c32 c32 c32]`,
+  "c-q": "c4.",
+  "c-8": "c8[ c8 c8]",
+  "c-q8": "c4 c8",
+  "c-8q": "c8 c4",
+  "c-off": "r8 c8[ c8]",
+  "c-16": "c16[ c16 c16 c16 c16 c16]",
+};
+
+
+/** A pattern id as a file name: "16-1e&" is "16-1eand". Shared with SubdivisionPicker. */
+const subIconFile = (id) => id.replace(/&/g, "and");
 
 const lyFor = (music) =>
   `${PRELUDE}\\new RhythmicStaff { \\stemUp ${music} }\n`;
@@ -275,6 +318,30 @@ function main() {
       fs.writeFileSync(path.join(OUT_DIR, `${id}.svg`), emitSvg(frag, id, version));
     }
     console.log(`wrote ${ids.length} icons to src/assets/svgs (LilyPond ${version})`);
+
+    // The metronome's subdivisions, into their own folder.
+    const subIds = Object.keys(SUB_MUSIC);
+    const patternIds = [...fs.readFileSync(path.join(ROOT, "src/lib/tuner/click-pattern.ts"), "utf8").matchAll(/\{ id: "([^"]+)", grid:/g)].map((m) => m[1]);
+    const unmapped = patternIds.filter((id) => !(id in SUB_MUSIC));
+    if (unmapped.length) throw new Error(`These subdivisions have no music here: [${unmapped}]`);
+    const subDir = path.join(OUT_DIR, "metronome");
+    fs.mkdirSync(subDir, { recursive: true });
+    const subFiles = subIds.map((id) => {
+      const file = path.join(tmp, `sub-${subIconFile(id)}.ly`);
+      fs.writeFileSync(file, lyFor(SUB_MUSIC[id]));
+      return file;
+    });
+    try {
+      execFileSync(LILYPOND, ["-dbackend=svg", "-dcrop", "-dno-point-and-click", "-o", tmp, ...subFiles], { stdio: ["ignore", "ignore", "pipe"] });
+    } catch (err) {
+      throw new Error(`lilypond failed:\n${err.stderr?.toString() ?? err.message}`);
+    }
+    for (const id of subIds) {
+      const name = subIconFile(id);
+      const svg = fs.readFileSync(path.join(tmp, `sub-${name}.cropped.svg`), "utf8");
+      fs.writeFileSync(path.join(subDir, `${name}.svg`), emitSvg(toFragment(svg, id), id, version));
+    }
+    console.log(`wrote ${subIds.length} subdivision icons to src/assets/svgs/metronome`);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

@@ -260,6 +260,8 @@ export interface ProgressionLineInput {
   flats?: number[];
   /** For tests: a progression by id instead of a random one. */
   progressionId?: string;
+  /** The progressions to choose from, when not the table above (the piano levels have their own, I and V only at first). */
+  progressions?: Progression[];
 }
 
 export interface ProgressionLine {
@@ -333,7 +335,7 @@ export function writeProgressionLine(input: ProgressionLineInput): ProgressionLi
       const c = chordByName.get(name);
       return !!c && pitches.some((n) => c.triadNotes.includes(mod7(n.degree)));
     });
-  const usable = PROGRESSIONS.filter((p) => (input.progressionId ? p.id === input.progressionId : true) && fits(p));
+  const usable = (input.progressions ?? PROGRESSIONS).filter((p) => (input.progressionId ? p.id === input.progressionId : true) && fits(p));
   if (!usable.length) return null;
 
   // The chromatic notes, in a random order of turns, each with the progressions that fit it.

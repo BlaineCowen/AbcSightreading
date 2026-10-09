@@ -16,6 +16,7 @@
   const pages = [
     { href: "/sightreading", short: "Unison", full: "Unison Sight Reading" },
     { href: "/choral-sightreading", short: "Choral", full: "Choral Sight Reading" },
+    { href: "/piano-sightreading", short: "Piano", full: "Piano Sight Reading" },
     { href: "/tuner", short: "abcTuner", full: "abcTuner" },
   ];
   // client:only, so the path is there from the first render.

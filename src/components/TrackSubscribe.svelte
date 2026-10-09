@@ -1,7 +1,7 @@
 <!-- Subscribe to a set or track (src/lib/curriculum/catalogue.ts), on
      /curriculum and each track's page; what is subscribed is what the preset
      menu lists. The built-in sets (`free`) are anyone's, kept in this browser
-     when signed out; an instrument track needs an account, then Pro. -->
+     when signed out; every course is free now too, so `free` is passed for all. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { Check } from "lucide-svelte";

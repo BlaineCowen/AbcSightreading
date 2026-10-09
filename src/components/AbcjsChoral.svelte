@@ -3,7 +3,9 @@
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { tuner } from "../lib/tuner/store";
-  import { drumPatternFor } from "../lib/playback-click";
+  import { drumPatternFor, withClickByBar } from "../lib/playback-click";
+  import { beatLevelsFor } from "../lib/tuner/click-pattern";
+  import { assistedLevels, assistsTheClick } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
   import {
     crossedWholeBeat,
@@ -713,7 +715,7 @@
     lyricSystem, minorSolfege, showChords, cursorMode, instrumentProgram, transposeSemitones,
     [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','),
     playbackVolume, $tuner.metronomeVolume, $tuner.clickWithMusic,
-    $tuner.subdivision, $tuner.accent, $tuner.clickSound,
+    $tuner.subdivision, $tuner.accent, $tuner.clickSound, $tuner.beatLevels?.join(',') ?? '', $tuner.subMask ?? '',
   ].join('|');
 
   /**
@@ -759,6 +761,8 @@
       subdivision: $tuner.subdivision,
       accent: $tuner.accent,
       sound: $tuner.clickSound,
+      beatLevels: $tuner.beatLevels,
+      subMask: $tuner.subMask,
     });
   /**
    * Whether the synth is built with the click. Playing, it is whether this
@@ -768,7 +772,7 @@
    */
   const clickOnFor = (t: typeof $tuner) => (t.exercisePlaying ? t.musicClick : t.clickWithMusic || t.metronomeRunning);
   const clickKeyFor = (t: typeof $tuner) =>
-    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}`;
+    `${clickOnFor(t)}|${t.subdivision}|${t.accent}|${t.clickSound}|${t.metronomeVolume}|${t.beatLevels?.join(",") ?? ""}|${t.subMask ?? ""}|${JSON.stringify([t.assistant.silent, t.assistant.drop])}`;
   $: clickOn = clickOnFor($tuner);
   /** The click the synth was last built with, to notice when the metronome changes it. */
   let builtClick = "";
@@ -987,7 +991,7 @@
     const t = tuner.get();
     builtClick = clickKeyFor(t);
     return {
-      ...(clickOnFor(t) ? { drum: drumFor(selectedTimeSignature), drumBars: 1 } : {}),
+      ...(clickOnFor(t) && drumFor(selectedTimeSignature) ? { drum: drumFor(selectedTimeSignature), drumBars: 1 } : {}),
       // The count-in: two bars in 2/4, so "1, 2, Ready, Go" fits (count-in.ts).
       drumIntro: countInMeasures(playedMeter),
       // Samples come through our own origin: abcjs otherwise fetches them from
@@ -1405,7 +1409,7 @@
    * opens Display (the score options) the same way (toolPop). A tap outside,
    * Escape, Done or New exercise closes them.
    */
-  type SettingPop = "voicing" | "key" | "meter" | "length" | "rhythm" | "harmony" | "more";
+  type SettingPop = "voicing" | "key" | "meter" | "length" | "rhythm" | "harmony" | "ranges";
   let settingPop: SettingPop | null = null;
   let toolPop: "display" | null = null;
   let popLeft = 0;
@@ -1443,7 +1447,9 @@
     if (settingPop === which) return (settingPop = null);
     const pill = e.currentTarget as HTMLElement;
     const room = setbarEl?.clientWidth ?? POP_WIDTH;
-    popLeft = Math.max(0, Math.min(pill.offsetLeft, room - POP_WIDTH));
+    // Measured against the row itself: a pill sits inside its group, so offsetLeft would be from the group.
+    const fromLeft = setbarEl ? pill.getBoundingClientRect().left - setbarEl.getBoundingClientRect().left : 0;
+    popLeft = Math.max(0, Math.min(fromLeft, room - POP_WIDTH));
     settingPop = which;
     popOpener = pill;
     void focusPop();
@@ -1484,13 +1490,13 @@
    * no dots (there is nothing to have changed from).
    */
   $: pillSigs = {
-    voicing: selectedVoicing,
+    voicing: JSON.stringify([selectedVoicing, voiceTexture]),
     key: [...selectedKeys].sort().join(","),
     meter: selectedTimeSignature,
     length: JSON.stringify([measures, fullLength, fullLengthMeasures]),
     rhythm: _tabSigs.rhythm,
     harmony: _tabSigs.harmony,
-    more: JSON.stringify([voiceTexture, _tabSigs.ranges]),
+    ranges: _tabSigs.ranges,
   };
   let presetPillSigs: Record<string, string> | null = null;
   let pillsFor: Record<string, string> | null = null;
@@ -2191,10 +2197,24 @@
     // which is barVoices' order. Done on every build, so a copy from before a
     // transpose change never outlives it.
     if (renderCurrent) {
-      const audio = withPlaybackTranspose(
+      let audio = withPlaybackTranspose(
         renderCurrent({ ...displayOptions(), hiddenVoices: [] }),
         transposeSemitones
       );
+      // The practice assistant's silent bars and dropped beats, bar by bar
+      // (practice-assistant.ts). A new draw of dropped beats each build.
+      const t = tuner.get();
+      if (clickOnFor(t) && assistsTheClick(t.assistant)) {
+        const beats = beatsOf(selectedTimeSignature);
+        const base = beatLevelsFor({ beats, accent: t.accent, beatLevels: t.beatLevels });
+        const seed = Math.floor(Math.random() * 2 ** 31);
+        audio = withClickByBar(audio, (bar) =>
+          drumPatternFor({
+            beats, subdivision: t.subdivision, accent: t.accent, sound: t.clickSound, subMask: t.subMask,
+            beatLevels: assistedLevels(base, bar, t.assistant, seed),
+          })
+        );
+      }
       const [full] = abcjs.parseOnly(audio);
       tune.setUpAudio = (params: any) => full.setUpAudio(params);
     }
@@ -2681,13 +2701,35 @@
          phone. The exercise history and New exercise end the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
       <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-        <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-        <button class="set-pill set-pill-more" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>More{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}</button>
+        <!-- In groups, each under a small label (as the Unison and piano pages'):
+             the voices first, then the music, the rhythms and the harmony. -->
+        <div class="set-group" role="group" aria-label="Voices">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-action"></span>Voices</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-label="Voice ranges" aria-expanded={settingPop === 'ranges'} on:click={(e) => togglePop('ranges', e)}>Ranges{#if pillChanged.ranges}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Music">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Rhythm">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-peach"></span>Rhythm</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div class="set-group" role="group" aria-label="Harmony">
+          <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-butter"></span>Harmony</span>
+          <div class="set-group-pills">
+            <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+          </div>
+        </div>
       </div>
       <div class="setbar-end">
         <!-- Back through the exercises already generated this session. -->
@@ -2733,12 +2775,12 @@
         <div
           in:popIn
           out:popOut
-          class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'more' ? 'set-pop-wide' : ''}"
+          class="set-pop {settingPop === 'rhythm' || settingPop === 'harmony' || settingPop === 'ranges' ? 'set-pop-wide' : ''}"
           style="--pop-left: {popLeft}px"
           role="dialog"
-          aria-label={({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}
+          aria-label={({ voicing: 'Voicing and texture', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', ranges: 'Voice ranges' })[settingPop]}
         >
-          <p class="set-pop-title">{({ voicing: 'Voicing', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', more: 'More settings' })[settingPop]}</p>
+          <p class="set-pop-title"><span class="set-group-dot tone-{({ voicing: 'action', ranges: 'action', key: 'sky', meter: 'sky', length: 'sky', rhythm: 'peach', harmony: 'butter' })[settingPop]}"></span>{({ voicing: 'Voicing and texture', key: 'Key', meter: 'Time signature', length: 'Length', rhythm: 'Rhythms', harmony: 'Harmony', ranges: 'Voice ranges' })[settingPop]}</p>
           <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
           {#if settingPop === 'voicing'}
             <div class="space-y-2">
@@ -2752,6 +2794,32 @@
                   >{voicing}</button>
                 {/each}
               </div>
+            </div>
+            <div class="space-y-2 pt-3">
+              <p class="sr-label">Voice texture</p>
+              {#if fullLength}
+                <p class="text-xs text-sr-muted">
+                  The form decides this per section for a full-length piece: the imitative
+                  passage gets staggered entrances and the rest all voices.
+                </p>
+              {/if}
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
+                {#each voiceTextures as mode}
+                  <button
+                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
+                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
+                    on:click={() => (voiceTexture = mode)}
+                    aria-pressed={voiceTexture === mode}
+                  >{voiceTextureLabels[mode]}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {voiceTexture === "full"
+                  ? "Every part sings throughout, apart from rests in the rhythm."
+                  : measures < 12
+                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
+                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
+              </p>
             </div>
           {:else if settingPop === 'key'}
             <div class="space-y-2">
@@ -3145,36 +3213,9 @@
               </div>
             </div>
           </div>
-          {:else if settingPop === 'more'}
+          {:else if settingPop === 'ranges'}
             <div class="space-y-5">
-            <div class="space-y-2">
-              <p class="sr-label">Voice texture</p>
-              {#if fullLength}
-                <p class="text-xs text-sr-muted">
-                  The form decides this per section for a full-length piece: the imitative
-                  passage gets staggered entrances and the rest all voices.
-                </p>
-              {/if}
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Voice texture">
-                {#each voiceTextures as mode}
-                  <button
-                    class="sr-tok {voiceTexture === mode ? 'sr-on' : ''} {mode === 'staggered' && !polyphonyAllowed ? 'sr-outside' : ''}"
-                    title={mode === 'staggered' && !polyphonyAllowed ? `${activePresetLabel || "This level"} is homophonic only` : ""}
-                    on:click={() => (voiceTexture = mode)}
-                    aria-pressed={voiceTexture === mode}
-                  >{voiceTextureLabels[mode]}</button>
-                {/each}
-              </div>
-              <p class="text-xs text-sr-faint">
-                {voiceTexture === "full"
-                  ? "Every part sings throughout, apart from rests in the rhythm."
-                  : measures < 12
-                    ? "Parts drop out for a few measures at a time. Needs 12 measures or more. Every part is there for the opening and the cadence."
-                    : "Parts drop out for a few measures at a time. Every part is there for the opening and the cadence."}
-              </p>
-            </div>
               <div class="space-y-2">
-                <p class="sr-label">Voice ranges</p>
           {#if selectedVoicing && possibleVoicing[selectedVoicing]}
             <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
@@ -3533,7 +3574,30 @@
     gap: 0.5rem;
     padding: 0.625rem;
   }
-  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1 1 26rem; min-width: 0; }
+  /* Clipped sideways so the hairline before a group that starts a row falls outside and is not drawn. */
+  .setbar-pills { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; flex: 1 1 26rem; min-width: 0; overflow-x: clip; padding-left: 3px; }
+  /* A group of pills under its label; groups set apart by space and a hairline between them (as the Unison page's). */
+  .set-group { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+  .set-group::before { content: ""; position: absolute; left: -0.5rem; top: 0.25rem; bottom: 0.25rem; border-left: 1px solid var(--sr-hairline); }
+  .set-group-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .set-group-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-left: 0.4rem;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sr-muted);
+  }
+  .set-group-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; display: inline-block; }
+  .set-pop-title .set-group-dot { margin-right: 0.5rem; vertical-align: 0.1em; }
+  /* The pastel, ringed in its own ink so it shows on white and in the dark theme. */
+  .tone-action { background: var(--sr-action); }
+  .tone-sky { background: var(--sr-sky); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-sky-ink) 45%, transparent); }
+  .tone-peach { background: var(--sr-peach); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-peach-ink) 45%, transparent); }
+  .tone-butter { background: var(--sr-butter); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sr-butter-ink) 45%, transparent); }
   .set-pill {
     display: inline-flex;
     align-items: center;
@@ -3642,6 +3706,8 @@
   @media (max-width: 640px) {
     .setbar-end { flex: 1; }
     .setbar-new { flex: 1; justify-content: center; }
+    /* A phone: each group a row of its own. */
+    .set-group { width: 100%; }
     .set-pop,
     .set-pop-wide,
     .set-pop-tools {

@@ -62,3 +62,56 @@ describe("sounds saved before the samples changed", () => {
     expect(toClickSound("cowbell")).toBeNull();
   });
 });
+
+import { metronomeClickFor, newMetronomeBeatState } from "../../src/lib/metronome-beats";
+
+describe("the click's bar model under an exercise", () => {
+  test("the drum pattern rests where a slot or a beat is silent, and lists only the hits", () => {
+    // Off-beats in 2/4: a rest then a hit, each beat.
+    const off = drumPatternFor({ beats: 2, subdivision: 2, accent: true, sound: "quartz", subMask: "01" }).split(" ");
+    expect(off[0]).toBe("zdzd");
+    expect(off.length).toBe(1 + 2 * 2);
+    // Backbeat: 1 and 3 silent.
+    const back = drumPatternFor({ beats: 4, subdivision: 1, accent: true, sound: "quartz", beatLevels: ["off", "normal", "off", "normal"] }).split(" ");
+    expect(back[0]).toBe("zdzd");
+    // A soft beat is quieter than a normal one.
+    const soft = drumPatternFor({ beats: 2, subdivision: 1, accent: false, sound: "quartz", beatLevels: ["normal", "soft"] }).split(" ");
+    expect(Number(soft[4])).toBeLessThan(Number(soft[3]));
+    // Nothing to play: no drum track at all.
+    expect(drumPatternFor({ beats: 2, subdivision: 1, accent: true, sound: "quartz", beatLevels: ["off", "off"] })).toBe("");
+  });
+
+  test("the beat tracker says which beat of the bar each click is", () => {
+    const state = newMetronomeBeatState();
+    const seen = [0, 0.5, 1, 2, 3, 4, 5].map((b) => metronomeClickFor(state, b, 3)).filter((c) => c.click).map((c) => c.beatInBar);
+    expect(seen).toEqual([0, 1, 2, 0, 1, 2]);
+  });
+});
+
+import abcjs from "abcjs";
+import { withClickByBar } from "../../src/lib/playback-click";
+
+describe("Choral's click bar by bar", () => {
+  const abc = [
+    "X:1", "M:4/4", "L:1/4", "Q:1/4=60", "%%score [S A]", "V:S", "V:A", "K:C",
+    "[V:S] CDEF | GABc | cBAG | FEDC |]",
+    "[V:A] C2C2 | C2C2 | C2C2 | C2C2 |]",
+  ].join("\n");
+  const drumStarts = (tune: string) => {
+    const [parsed] = (abcjs as any).parseOnly(tune);
+    const audio = parsed.setUpAudio({ drum: "dddd 76 76 76 76 100 100 100 100", drumBars: 1, drumIntro: 1 });
+    return audio.tracks[audio.tracks.length - 1].filter((e: any) => e.cmd === "note").map((e: any) => e.start);
+  };
+
+  test("a silent bar is silent, a bar with its own pattern plays it, and the count-in is untouched", () => {
+    const played = withClickByBar(abc, (bar) => (bar === 1 ? "" : bar === 2 ? "zdzd 76 76 100 100" : "dddd 76 76 76 76 100 100 100 100"));
+    expect(played).toContain("[V:A] C2C2 | C2C2"); // only the first voice carries it
+    // In whole notes: the count-in bar 0-1, then the music's bars 1-5.
+    expect(drumStarts(played)).toEqual([0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 3.25, 3.75, 4, 4.25, 4.5, 4.75]);
+  });
+
+  test("unchanged bars give the same drum track as no directives", () => {
+    const same = withClickByBar(abc, () => "dddd 76 76 76 76 100 100 100 100");
+    expect(drumStarts(same)).toEqual(drumStarts(abc));
+  });
+});

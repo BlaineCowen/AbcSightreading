@@ -9,8 +9,8 @@ import { Prisma } from "../../generated/prisma/client";
 /**
  * What a teacher's preset menu offers (src/lib/curriculum/catalogue.ts): the
  * sets and tracks subscribed to, abcStepByStep until they choose; and their
- * own versions of track steps. The built-in sets are anyone's; the
- * instrument tracks, and keeping a version, are Pro and up.
+ * own versions of track steps. Every set and course is anyone's; keeping
+ * your own version of a step is Pro and up.
  *
  * GET                                  -> { tracks, chosen, overrides, canSubscribe }
  * PUT { track, subscribed }            -> the same, after (un)subscribing
@@ -57,7 +57,6 @@ export const PUT: APIRoute = async ({ request }) => {
   }
 
   if (Array.isArray(body.tracks)) {
-    // A Pro track kept in a browser while signed out is only taken with Pro.
     return save(subscriptionsFrom(body.tracks).filter((t) => pro || !needsPro(t)));
   }
 

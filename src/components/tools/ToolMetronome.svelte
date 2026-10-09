@@ -5,9 +5,11 @@
   import { BPM_MAX, BPM_MIN } from "../../lib/tuner/metronome";
   import { practice, exercise } from "../../lib/tools/context";
   import { toolSettings, setTool } from "../../lib/tools/settings";
-  import { METERS, meterById, BEAT_SYMBOL } from "../../lib/tuner/meters";
+  import { METERS, meterById, meterName, BEAT_SYMBOL } from "../../lib/tuner/meters";
   import MeterControls from "../tuner/MeterControls.svelte";
-  import BeatDots from "../tuner/BeatDots.svelte";
+  import MetronomePresets from "../tuner/MetronomePresets.svelte";
+  import BeatTiles from "../tuner/BeatTiles.svelte";
+  import AssistantPanel from "../tuner/AssistantPanel.svelte";
   import { linkedToPage, metronomeSounding, toggleMetronome } from "../../lib/tools/metronome-link";
 
   /**
@@ -48,18 +50,25 @@
 
 <h3 class="text-[15px] font-semibold text-sr-ink">Metronome</h3>
 
-<BeatDots size="sm" />
+<BeatTiles size="sm" />
 
 <div class="flex items-center justify-center gap-4">
   <button class={step} on:click={() => nudge(-1)} disabled={$tuner.bpm <= BPM_MIN} aria-label="Slower">−</button>
   <div class="text-center w-32">
     <div class="text-4xl font-semibold leading-none tabular-nums text-sr-ink">{$tuner.bpm}</div>
-    <div class="text-xs text-sr-muted mt-1 whitespace-nowrap">bpm ({BEAT_SYMBOL[meter.beatNote]}) · {meter.id}</div>
+    <div class="text-xs text-sr-muted mt-1 whitespace-nowrap">bpm ({BEAT_SYMBOL[meter.beatNote]}) · {meterName(meter)}</div>
   </div>
   <button class={step} on:click={() => nudge(1)} disabled={$tuner.bpm >= BPM_MAX} aria-label="Faster">+</button>
 </div>
 
+<!-- On a practice page the meter and tempo are the exercise's, so presets wait for /tuner or a page without one. -->
+{#if !linked}
+  <MetronomePresets compact onManual={() => setTool({ followExercise: false })} />
+{/if}
+
 <MeterControls compact lockedMeter={linked} onManual={() => { if (!linked) setTool({ followExercise: false }); }} />
+
+<AssistantPanel compact />
 
 {#if linked}
   <label class="flex items-center gap-2 text-sm text-sr-ink-2">

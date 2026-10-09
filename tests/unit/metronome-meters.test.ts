@@ -14,6 +14,8 @@ function clicksFor(meterId: string, subdivision: number, bpm = 60, bars = 1) {
   const param = () => ({ setValueAtTime() {}, exponentialRampToValueAtTime() {} });
   const ctx: any = {
     currentTime: 0,
+    // The scheduler waits for a running context (a sleeping one timed beat 1 late).
+    state: "running",
     destination: {},
     createOscillator: () => {
       const osc: any = {

@@ -522,6 +522,17 @@ h1.font-bold, h2.font-bold, h3.font-bold, h1.font-extrabold { font-weight: 600; 
   .sr-tab:hover { color: var(--sr-ink); }
   .sr-tab.sr-on { color: var(--sr-action-ink); background: var(--sr-action); font-weight: 800; }
 
+  /* A card inside a card (the metronome's sections): tinted, and the chips
+     on it turn white so they still read as buttons. */
+  .sr-subcard {
+    background: var(--sr-track);
+    border-radius: 24px;
+    padding: 18px;
+  }
+  .sr-subcard .sr-tok:not(.sr-on),
+  .sr-subcard .sr-tile-off { background: var(--sr-panel); }
+  .sr-subcard .sr-tok:disabled { background: var(--sr-panel); }
+
   /* Surfaces */
   .sr-panel {
     background: var(--sr-panel);

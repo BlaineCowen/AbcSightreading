@@ -268,7 +268,7 @@ The preset menu's Levels tab lists only what the teacher subscribes to on
 at the top): the site's own sets - abcStepByStep (subscribed by default,
 `DEFAULT_SUBSCRIPTIONS`), UIL, NYSSMA Voice - free to anyone and kept in this
 browser when signed out (`sr-subscriptions`, carried to the account on first
-sign-in), and the instrument tracks, Pro. `UserPreference.curriculumTracks`
+sign-in), and the instrument tracks, free too since 9 October 2026 (keeping your own version of a step is still Pro). `UserPreference.curriculumTracks`
 is null until the teacher chooses. `/sightreading?nyssma=<level id>` opens a
 level.
 
@@ -289,6 +289,13 @@ ties), and a note exercise that only uses rhythms from `RHYTHM_LEAD` (2) or
 more steps before - Blaine's rule, "rhythm two steps ahead of the notes". The
 rhythm thread ends at step 15 and the notes catch up in 16-17. Ids
 (`band-trumpet-03`) are permanent, like ladder ids.
+An instrument reads note names, never solfège (Blaine, 9 October 2026): each
+step's new notes are written as a template (`StepNames` in band.ts) and named
+by letter in that instrument's written key (`src/lib/note-names.ts`, tests
+`note-names.test.ts`), so the same step reads "C, D, E" on trumpet and
+"B♭, C, D" on flute. On the Unison page a band or string reader (`byLetter`)
+names the notes pill, the skip panel and Grade's notes the same way (in one
+key by letter, across several by degree number), and Grade says played.
 
 A step half is applied as a saved preset is (`trackStepOptions` ->
 AbcjsSingle `applyTrackStep`): instrument, transpose, clef, keys, rhythms,
@@ -703,6 +710,115 @@ no seam). MP3s live in `public/backing/` (served by the CDN; about 16 MB in
 all) - Vercel Blob is not worth it at this size. Chrome decodes them
 sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
 
+## Piano sight reading
+
+`/piano-sightreading` (`AbcjsPiano.svelte`, `src/lib/piano/`, tests
+`piano.test.ts`, every level x key x meter x length `bun run
+scripts/check-piano.ts`): a grand staff (`%%score {RH | LH}`), a tune over
+an accompaniment, a separate system from Choral and Unison (8 October
+2026). Everything is asked for through `PianoSettings` (levels.ts: keys,
+meters, bars, rhythms, largest skip, reach, hands together or taking turns,
+tune hand, accompaniment patterns, chords, chromatic chords, 3rds and 6ths
+at cadences, dynamics, tempo); a level is only a set of them. The page shows
+every option at every level, each marked with the level that first uses it
+(`unlockedAt`; Blaine: no options appearing as levels go up, as much
+customization as possible), and the address carries the level and only what
+differs from it (`settings-link.ts`).
+
+Harmony first: the tune is the Unison page's progression writer
+(`writeProgressionLine`, taking a `progressions` table of its own) inside
+the hand's position (`rightHandPosition`: thumb on the tonic at or above
+middle C, `reach` steps up; `leftHandPosition` for a tune in the bass),
+over `PIANO_PROGRESSIONS` (major, minor with harmonic minor's V, and
+chromatic ones through V of V, vi and ii). The tune is accepted only if it
+makes no parallel fifths or octaves with the accompaniment it will have and
+no augmented second; a passing note a step under a raised one is raised too
+(the melodic minor's sixth). The accompaniment plays the same chords in a
+pattern (`left-hand.ts`: held root, open fifth, rocking fifths, block, on
+each beat, oom-pah, broken, arpeggio, waltz in 3/4, broken in eighths,
+Alberti, Alberti in sixteenths; 6/8 takes what fills a dotted-quarter
+beat, `patternFits`), the bass root at one place a letter (F2 to E3,
+`bassRoot`), block chords in the shapes a beginner learns (C-E-G, C-F-A,
+B-F-G). A chord's altered note carries its accidental (`chordAlter`;
+PianoNote `alters`), written once a bar per pitch with the natural written
+back (assemble.ts). Beams end with the beat (`beamed`, `beamGroup` = one beat: two eighths, four sixteenths, three eighths in 6/8; Blaine, 9 October 2026).
+
+Ten levels, ending where a beginner's Mozart sonata sits (K. 545's first
+movement, ABRSM Grade 5, RCM Level 6-7), in method-book order checked
+against ABRSM's and RCM's published sight-reading parameters (levels.ts
+header): 1-2 hands taking turns (C, G position); 3 hands together, held
+root; 4 fifths, IV, F, 2/4; 5 chord shapes, eighths, A and D minor,
+dynamics; 6 the tune in the left hand, oom-pah, ii and vi, rests, a 6th's
+reach; 7 broken chords, arpeggios, waltz, dotted quarter, D, E minor; 8
+Alberti, 3rds and 6ths at cadences, an octave's reach, sixteenths; 9 6/8,
+chromatic chords; 10 Alberti in sixteenths, syncopation, dotted eighths,
+four sharps or flats, 12 bars. Ids `piano-01`... are permanent. Measured
+against Sight Reading Factory's piano levels: notes/srf-piano-study.md.
+**Play and grade** (`PianoGrade.svelte`; rules `grade-piano.ts`, the
+keyboard `midi.ts`; tests in `piano.test.ts`): a MIDI keyboard through Web
+MIDI (Chrome, Edge, Firefox; not Safari), every key stamped on the
+performance.now() clock by the event's own timeStamp. Chrome offers MIDI
+only on a secure page (https or localhost): on the Tailscale http address
+to a dev server it is missing, and the panel says so (`midiProblem`; it
+used to blame the browser). Pro, as Unison's Grade (open on the dev server,
+which has no billing). In time only (a Note by note mode was taken off,
+Blaine: a pianist reads at a tempo): a count-in and a click (throughout or
+count-in only) on the page's own AudioContext, beat 1 moved by the output's
+latency since the player plays with the click as heard; afterwards each
+written note (`expectedNotes`, both hands, MIDI with the key's and its own
+accidentals) is matched to a key of the same pitch nearest in time, nearest
+pairs first, within three onset windows (Easy, Standard, Strict: a quarter,
+an eighth, a sixteenth of a beat; full credit inside it); a key that
+matches nothing is an extra and counts as a note scored 0; a missed note
+names the key played near it instead. The marking and the end of the run
+are on timers, not the frame loop (a page out of sight draws no frames).
+The keys sound through the grand piano the exercise plays on
+(`piano-voice.ts`: the FluidR3 samples through /api/soundfont, a key-up
+letting the note go over 0.25 s, velocity as loudness), with **Piano sound
+on/off** beside the keyboard's name for a digital piano that makes its own
+(remembered, `piano-key-sound`). Every run keeps its take (keys down and
+up), and **Hear it back** plays it from the count-in on a second voice
+(so muting the keys leaves the take), with the click or without, the score
+marking the written notes as it reaches them and following them, then the
+grade's marks back. Stop silences everything: the run, every click still
+scheduled (each is kept), the take; the page's Play, Pause and Stop stop
+the panel too (`stopRun`, through `bind:this`). Checked 9 October 2026:
+Stop with 20 clicks scheduled left none, a take of 46 key events played
+back on 20 fetched samples and ended with the grade's 18 green marks back.
+
+**Laid out as the Unison page is** (Blaine, 9 October 2026: the layouts
+should match): the settings as a row of pills (Level, keys, meter and bars,
+rhythms, skips and reach, hands and accompaniment, chords and more), each
+opening its own popover (a sheet from the bottom on a phone) with Done and
+New exercise at its foot, a dot on a pill changed from the level, New
+exercise with the month's count ending the row (`hideGenerate` while it
+shows); above the score the toolbar's Display (layout, measure numbers,
+cursor: off, smooth, beat by beat, note by note) beside Play and grade; the
+playback bar's Layout menu (`score-view.ts`, kept as "piano": size, bars a
+line, spacing, measure numbers), full screen (`createFullscreen`, the
+`focus-*` classes) and its annotations. The pill, popover and toolbar CSS is
+the Unison page's, copied (AbcjsChoral copies it too).
+Layout is Lines, or One scrolling line - the whole exercise as one line
+(`withBarsPerLine`, each bar as wide as its busier hand needs, `lineWidth`,
+no resize) in a box that scrolls sideways (`#paper-box`; abcjs sets its own
+overflow on `#paper`), its title left off, printed in lines. The line
+scrolls continuously (`scroller.ts`, Blaine: not a jump a bar): every frame
+it is placed from where the moment being played sits on the line (anchors:
+each onset's leftmost notehead by its time) and a clock (a run's or a
+take's own; playback's resynced at every note abcjs reports), the moment
+held a third of the way in. Lines follow line by line (`follow.ts`).
+Marks on the score by abcjs's own note elements (staff 0 the right hand,
+staff 1 the left, in order): green right, orange early or late, red
+missed, blue the notes sounding now. Playback and a run follow the score
+(`follow.ts`): each new line is scrolled to a third of the way down the
+window. `window.__pianoMidi` (dev only) presses keys from the console or a
+test; checked end to end with it on 9 October 2026: a planted late note
+(0.30 beats) and a wrong key found exactly, on-time keys within 1-6 ms.
+
+Not yet: exact-notes share links and recent exercises (exercise-link.ts and
+recent-exercises.ts know two pages), the Tools wheel, saved presets and
+class progress, hearing the take back, holding notes for their length.
+
 ## abcTuner
 
 `/tuner` (Pro - `hasPremium()`, checked in `src/pages/tuner.astro`): every
@@ -736,6 +852,43 @@ track each file has a drum note of its own from MIDI 60 up (`drumNoteFor`,
 since abcjs caches samples by note), and the soundfont proxy redirects those
 notes to the files. Old sound names in settings and presets map across
 (`toClickSound`).
+Every click (the metronome, Unison's click, Choral's drum track) reads one bar
+model (`src/lib/tuner/click-pattern.ts`, tests `click-pattern.test.ts`; plan in
+notes/metronome-plan.md): a level per beat (accent, normal, soft, off; the
+beat tiles, tap to cycle) and a subdivision pattern (a grid and the slots that
+sound: off-beats, swing, 1 e &..., drawn as notation in the picker). Unset
+(`beatLevels`, `subMask` null) it clicks exactly as before. The practice
+assistant (`practice-assistant.ts`, the metronome's Practice panel): count-in,
+tempo ramp, silent bars, dropped beats (never beat 1), time limit; silent bars
+and dropped beats also reach the exercise click (Unison per beat, Choral by a
+drum directive written into each bar of the played copy, `withClickByBar`,
+since abcjs lays a multi-bar drum pattern down again at every barline).
+Custom time signatures (`customMeter` in meters.ts, tests
+`metronome-custom-meters.test.ts`; Custom… on the metronome, `CustomMeter.svelte`):
+any top number to 32 over 1, 2, 4, 8 or 16, with a grouping in units of the
+bottom number ("7/8:3+2+2" is the stored id; plain "11/8" is 2+2+2+2+3).
+Multiples of three over 4, 8, 16 are compound (dotted beats), odd tops over 8
+or 16 and any grouping are uneven, the rest simple. An uneven meter's groups
+are heard by volume, not a third pitch (`groupLevels`: beat 1 accented, each
+group's first beat normal, the rest soft), set when the meter is chosen and
+put back by the tiles' Reset. Past twelve beats the counting voice counts
+each group from 1 (`spokenBeat`). Exercises never see a custom meter
+(metronome-link only takes the table's). Presets (`metronome-presets.ts`,
+`MetronomePresets.svelte`, not on a practice page's linked card): Swing,
+Backbeat, Off-beats and 3+3+2 keep the tempo; Save this keeps everything
+(meter, tempo, levels, subdivision, sound, voice, assistant) in this browser
+(`metronomePresets` in the tuner store), up to 24.
+The counting voice (`voice-count.ts`, tests `voice-count.test.ts`; Off,
+Voice + click, Voice only; Counting 1 e & a / 1 trip let / 1 la li, or Kodály
+ta, ti-ti, ti ki ti ki, tri o la) is espeak-ng's plain robot (Blaine's pick),
+built by `bun run scripts/voice/build.ts` into public/voice/robot/ with each
+word's lead-in (loudness to half its peak) in manifest.json; a word starts that
+early so its vowel lands on the beat, and the word before is cut as it comes
+in. Subdivisions are said only when a slot is 0.15 s or longer. On Unison the
+beat's word is said a beat ahead (`sayNextBeat`), since its click is placed as
+abcjs reaches each beat; Choral's click is abcjs's drum track and has no voice
+yet. The metronome times beat 1 on its first tick, once the context runs: the
+page is busy for most of a second loading samples as it starts.
 Pages publish their exercise with `setPracticeContext(abc, bpm)`
 (`src/lib/tools/context.ts`), which reads do, the meter and each part's first
 sounding pitch from the ABC through `scoreFromAbc`. The listening tools open the
@@ -1403,6 +1556,25 @@ first.
 The Choral page opens at UIL Level 3 in F major when the address carries no
 settings (AbcjsChoral `arrivedBare`); a tab's dot means changed since the
 active preset was chosen.
+
+**No parallel fifths or octaves** (8 October 2026). The writers already
+avoided them chord to chord, but decoration made them: with it off, 240 SATB
+exercises across UIL 1-5 had none; with it on, one in ten had a fifth,
+nearly all a passing note moving against another part (counted as a theory
+teacher would: both parts straight from note to note, the same way, perfect
+fifth or octave to another, in semitones). Decoration's own check compared
+only a figure's first and last notes; `parallelInFigure`
+(non-chord-tone-gen) now checks every move a figure makes against every
+part. The few left came from later passes (a restated phrase's varied note,
+a dotted figure in one part), so `generateChoralExercise` also counts
+parallels in the finished exercise (`parallel-check.ts`, tests
+`parallel-check.test.ts`; unisons are left out, a shared line is a texture)
+and draws again, keeping the draw with the fewest faults. 480 exercises
+after: none. Passing notes per exercise unchanged (about 89-90 notes either
+way). It moved four Choral meter-regression snapshots, updated deliberately:
+three had a parallel fifth, and none of the new ones does. Sight Reading
+Factory's choir exercises, counted the same way: 14 of 50 with a parallel
+fifth and about 14 parallel octaves or unisons each.
 
 With `accidentalsByStep` on, `generateChoralExercise` also checks the finished
 bass against the chromatic-note rule (`bass-chromatic-check.ts`: approached by

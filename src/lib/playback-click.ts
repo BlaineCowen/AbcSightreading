@@ -11,6 +11,7 @@
  *   metronome's own samples.
  */
 import { SAMPLE_BOOST, TICK_GAIN, TICK_HZ, drumNoteFor, voiceFor, type ClickLevel, type ClickSound, type SampleBank } from "./tuner/click-sounds";
+import { beatLevelsFor, maskFor, type BeatLevel, LEVEL_GAIN } from "./tuner/click-pattern";
 
 /** One bar's clicks in order: each beat, then its subdivisions. */
 export function barClicks(beats: number, subdivision: number, accent: boolean): ClickLevel[] {
@@ -23,16 +24,37 @@ export function barClicks(beats: number, subdivision: number, accent: boolean): 
 }
 
 /**
- * An abcjs drum pattern for one bar: "d" per click, then each click's drum
- * note (drumNoteFor, which the soundfont proxy serves from public/clicks),
- * then each one's velocity.
+ * An abcjs drum pattern for one bar, from the click's bar model
+ * (click-pattern.ts): a slot per subdivision of every beat, "d" where it
+ * sounds and "z" where it is silent, then each "d"'s drum note (drumNoteFor,
+ * which the soundfont proxy serves from public/clicks), then its velocity. A
+ * bar with nothing to sound is "" - no drum track.
  */
-export function drumPatternFor(o: { beats: number; subdivision: number; accent: boolean; sound: ClickSound }): string {
-  const levels = barClicks(o.beats, Math.max(1, Math.round(o.subdivision)), o.accent);
-  const voices = levels.map((l) => voiceFor(o.sound, l)!);
-  const pitches = voices.map((v) => drumNoteFor(v.sample));
-  const velocities = voices.map((v) => Math.max(1, Math.min(127, Math.round(v.gain * 55))));
-  return ["d".repeat(levels.length), ...pitches, ...velocities].join(" ");
+export function drumPatternFor(o: {
+  beats: number;
+  subdivision: number;
+  accent: boolean;
+  sound: ClickSound;
+  beatLevels?: BeatLevel[] | null;
+  subMask?: string | null;
+}): string {
+  const levels = beatLevelsFor(o);
+  const mask = maskFor(o.subdivision, o.subMask);
+  const slots: string[] = [];
+  const hits: { level: ClickLevel; gain: number }[] = [];
+  for (const level of levels) {
+    mask.forEach((on, slot) => {
+      const gain = LEVEL_GAIN[level];
+      if (!on || gain === 0) return void slots.push("z");
+      slots.push("d");
+      hits.push({ level: slot > 0 ? "sub" : level === "accent" ? "downbeat" : "beat", gain });
+    });
+  }
+  if (!hits.length) return "";
+  const voices = hits.map((h) => ({ voice: voiceFor(o.sound, h.level)!, gain: h.gain }));
+  const pitches = voices.map((v) => drumNoteFor(v.voice.sample));
+  const velocities = voices.map((v) => Math.max(1, Math.min(127, Math.round(v.voice.gain * v.gain * 55))));
+  return [slots.join(""), ...pitches, ...velocities].join(" ");
 }
 
 /**
@@ -45,7 +67,9 @@ export function scheduleClick(
   destination: AudioNode,
   time: number,
   sound: ClickSound,
-  level: ClickLevel
+  level: ClickLevel,
+  /** A soft beat's share of the level (click-pattern.ts LEVEL_GAIN). */
+  scale = 1
 ) {
   const voice = voiceFor(sound, level);
   const buffer = voice ? bank.get(voice.sample) : undefined;
@@ -54,7 +78,7 @@ export function scheduleClick(
     src.buffer = buffer;
     src.playbackRate.value = voice.rate;
     const gain = ctx.createGain();
-    gain.gain.value = voice.gain * SAMPLE_BOOST;
+    gain.gain.value = voice.gain * SAMPLE_BOOST * scale;
     src.connect(gain).connect(destination);
     src.start(time);
     src.stop(time + 0.6);
@@ -66,10 +90,49 @@ export function scheduleClick(
   osc.type = "sine";
   osc.frequency.setValueAtTime(TICK_HZ[level], time);
   gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.exponentialRampToValueAtTime(TICK_GAIN[level] * 0.6, time + 0.001);
+  gain.gain.exponentialRampToValueAtTime(TICK_GAIN[level] * 0.6 * scale, time + 0.001);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
   osc.connect(gain).connect(destination);
   osc.start(time);
   osc.stop(time + 0.04);
   osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+}
+
+/**
+ * The tune Choral plays with its click changing bar by bar (the practice
+ * assistant's silent bars and dropped beats): each bar of the first voice
+ * opens with its own drum pattern, or the drum off for a silent bar. abcjs
+ * lays the global drum pattern down at every barline, and a pattern spanning
+ * several bars overlaps itself there, so the change is written into the bars.
+ * Only the played copy carries this; the drawn and exported ABC never do.
+ * `patternFor(bar)` is drumPatternFor's string for that bar, "" for silence.
+ */
+export function withClickByBar(abc: string, patternFor: (bar: number) => string): string {
+  const lines = abc.split("\n");
+  const body = lines.findIndex((l) => /^K:/.test(l));
+  if (body < 0) return abc;
+  const first = lines.slice(body + 1).map((l) => /^\[V:([^\]]+)\]/.exec(l)?.[1]).find(Boolean);
+  let bar = 0;
+  return lines
+    .map((line, i) => {
+      if (i <= body) return line;
+      const tag = /^\[V:([^\]]+)\]/.exec(line);
+      // The first voice's lines, or a tune without voices.
+      if (first ? tag?.[1] !== first : /^[A-Za-z%]:|^%/.test(line)) return line;
+      const head = tag ? tag[0] : "";
+      const parts = line.slice(head.length).split(/(\|\]|\|\||:\|\||\|:|:\||\|)/);
+      return (
+        head +
+        parts
+          .map((part, k) => {
+            if (k % 2 === 1 || !part.trim()) return part;
+            const pattern = patternFor(bar++);
+            const directive = pattern ? `[I:MIDI=drumon][I:MIDI=drum ${pattern}]` : "[I:MIDI=drumoff]";
+            const lead = part.match(/^\s*/)![0];
+            return lead + directive + part.slice(lead.length);
+          })
+          .join("")
+      );
+    })
+    .join("\n");
 }

@@ -23,6 +23,8 @@
   export let blocked: string | null = null;
   /** Do's pitch class in the exercise's key, for naming notes in solfege. */
   export let doPc = 0;
+  /** An instrument's reader names notes by letter (note-names.ts); null is solfège. */
+  export let nameOf: ((midi: number) => string) | null = null;
   /** After a run: what the tapped note on the score did. */
   export let detail: string | null = null;
   /** Saving a run for review (the recording and the grading's data); null hides it. */
@@ -184,7 +186,7 @@
       ? "Got it"
       : v.target === null
         ? ""
-        : guidance({ sung: v.sung, target: v.target, doPc, onTarget: v.onTarget });
+        : guidance({ sung: v.sung, target: v.target, doPc, onTarget: v.onTarget, nameOf });
   $: lineTone = v.credited || v.onTarget
     ? "text-sr-action-fg"
     : v.sung !== null && Math.abs(v.cents ?? 0) >= 100

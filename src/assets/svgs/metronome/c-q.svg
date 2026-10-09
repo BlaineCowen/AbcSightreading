@@ -1,0 +1,4 @@
+<!-- GENERATED - do not edit; run `bun run icons:rhythm`.
+     c-q, engraved by LilyPond 2.26.0 (svg backend, -dcrop).
+     Units are LilyPond staff-spaces; colour follows currentColor. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0.0000 0.0000 4.2042 3.8783" width="37.8" height="34.9" fill="currentColor" role="img" aria-hidden="true" preserveAspectRatio="xMidYMid meet"><g transform="translate(2.0000, 3.3333)"><path transform="scale(0.0040, -0.0040)" d="M0 -46c0 91 116 182 217 182c63 0 109 -35 109 -90c0 -87 -110 -182 -220 -182c-67 0 -106 39 -106 90z"/></g><g transform="translate(3.7542, 2.8333)"><path transform="scale(0.0040, -0.0040)" d="M0 0c0 31 25 56 56 56s56 -25 56 -56s-25 -56 -56 -56s-56 25 -56 56z"/></g><g transform="translate(3.2392, 3.3333)"><rect x="-0.0650" y="-3.3333" width="0.1300" height="3.1471" ry="0.0400"/></g></svg>

@@ -25,6 +25,9 @@ export function initTuner() {
   wired = true;
   let last = tuner.get();
   metronome.onBeat = (beat) => tuner.setMetronomeBeat(beat);
+  metronome.onBar = (live) => tuner.setMetronomeLive(live);
+  // The time limit: the metronome stopped itself; the page's Start/Stop follows.
+  metronome.onTimeUp = () => tuner.setMetronomeRunning(false);
   tuner.subscribe((s) => {
     if (s.a4 !== last.a4) engine?.setA4(s.a4);
     if (s.sensitivity !== last.sensitivity) engine?.setSensitivity(s.sensitivity);
@@ -44,6 +47,10 @@ export function initTuner() {
       s.beatsPerBar !== last.beatsPerBar ||
       s.subdivision !== last.subdivision ||
       s.accent !== last.accent ||
+      s.beatLevels !== last.beatLevels ||
+      s.subMask !== last.subMask ||
+      s.assistant !== last.assistant ||
+      s.voice !== last.voice ||
       s.clickSound !== last.clickSound ||
       s.metronomeVolume !== last.metronomeVolume
     ) {
@@ -63,6 +70,11 @@ const metronomeSettings = (s: TunerState) => ({
   beatsPerBar: s.beatsPerBar,
   subdivision: s.subdivision,
   accent: s.accent,
+  beatLevels: s.beatLevels,
+  subMask: s.subMask,
+  assistant: s.assistant,
+  voice: s.voice,
+  compound: meterById(s.meter).kind === "compound",
   groupStarts: meterById(s.meter).groupStarts,
   sound: s.clickSound,
   // The store's 0.5 middle is the level the metronome always had.
