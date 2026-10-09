@@ -63,7 +63,7 @@ describe("which part to widen", () => {
     // sentence, so matching it alone could not tell the two ends apart.
     expect(hint).toContain("more room at the top");
     expect(hint).not.toContain("more room at the bottom");
-    expect(hint).toContain("Voice ranges");
+    expect(hint).toContain("under Ranges");
   });
 });
 
@@ -84,7 +84,7 @@ describe("what a failed Generate says", () => {
     // Every part has a wide span here, so the chord count is the real story.
     const roomy = [part("Soprano", 20, 34), part("Alto", 14, 30), part("Bass", 2, 20)];
     const hint = failureHint(ctx({ parts: roomy, chordCount: 3 }));
-    expect(hint).toContain("chords settings");
+    expect(hint).toContain("under Harmony");
     expect(hint).not.toContain("least room");
   });
 
@@ -107,7 +107,7 @@ describe("what a failed Generate says", () => {
     const roomy = [part("Soprano", 20, 34), part("Alto", 14, 30), part("Bass", 2, 20)];
     const hint = failureHint(ctx({ parts: roomy }));
     expect(hint).toContain("Generate again");
-    expect(hint).toContain("Voice ranges");
+    expect(hint).toContain("under Ranges");
   });
 
   test("every hint is a whole sentence, not a fragment", () => {

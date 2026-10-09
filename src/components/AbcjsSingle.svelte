@@ -61,6 +61,11 @@
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import StepStrip from "./StepStrip.svelte";
+  import FailureBanner from "./FailureBanner.svelte";
+  import { showSetting } from "../lib/show-setting";
+  import { unisonAdvice, widenedRange, type FixAction } from "../lib/failure-fix";
+  import { keySignatures as KEY_TABLE } from "../resources/key-signatures";
+  import { noteArray as NOTE_ARRAY } from "../resources/noteArray";
   import TourHelpButton from "./tour/TourHelpButton.svelte";
   import { arrival, isQuickStart } from "../lib/tour";
   import ReaderPill from "./ReaderPill.svelte";
@@ -4478,6 +4483,31 @@
     const target = pop?.querySelector<HTMLElement>(".sr-on, [aria-pressed='true']") ?? pop?.querySelector<HTMLElement>("button, input, select");
     target?.focus({ preventScroll: true });
   }
+  /** Which setting an error points at (failure-fix.ts), and the pill to ring while it stands. */
+  $: errorAdvice = error ? unisonAdvice(error, { maxSkip, exactSkips: skips.exactOn, tiesOn: allowTiesAcrossBarline }) : null;
+  $: warnPill = errorAdvice?.pill ?? null;
+
+  /** Show me: the pill brought into view and opened. */
+  function showPill(pill: string) {
+    showSetting(setbarEl, pill, errorAdvice?.target, settingPop === pill);
+  }
+
+  /** The banner's fix: the change made, and the exercise tried again. */
+  function applyFix(action: FixAction) {
+    if (action.kind === "widenRange") {
+      if (rangeSpan && rangeSpan[1] - rangeSpan[0] <= 12) {
+        // A range that follows the key keeps following it, a step wider each way.
+        rangeSpan = [rangeSpan[0] - 1, rangeSpan[1] + 1];
+      } else {
+        const degrees = [...(majorInPool ? selectedScaleDegrees : minorScaleDegrees)];
+        const tonic = KEY_TABLE[selectedKey]?.rootOffset ?? 0;
+        handleRangeChange(widenedRange(selectedRange, tonic, degrees, { min: 0, max: NOTE_ARRAY.length - 1 }));
+      }
+    } else if (action.kind === "maxSkip") maxSkip = action.to;
+    else if (action.kind === "tiesOn") allowTiesAcrossBarline = true;
+    void handleClick();
+  }
+
   function togglePop(which: SettingPop, e: MouseEvent) {
     toolPop = null;
     if (settingPop === which) return (settingPop = null);
@@ -5050,7 +5080,10 @@
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
     {#if !assignment}<UpgradeNotice /><PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
-    {#if error}
+    {#if errorAdvice?.pill}
+      <FailureBanner advice={errorAdvice} busy={isLoading} onShow={showPill} onFix={applyFix} onDismiss={() => (error = null)} />
+    {:else if error}
+      <!-- Not a setting (sound that did not load, a link that would not open): the message alone. -->
       <div class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print">
         <p class="text-sm text-sr-brass">{error}</p>
       </div>
@@ -5075,25 +5108,25 @@
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
           <div class="set-group-pills">
             {#if !rhythmOnly}
-              <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+              <button class="set-pill" data-pill="key" class:set-pill-warn={warnPill === 'key'} aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
             {/if}
-            <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-            <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="meter" class:set-pill-warn={warnPill === 'meter'} aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="length" class:set-pill-warn={warnPill === 'length'} aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
         {#if !rhythmOnly}
           <div class="set-group" role="group" aria-label="Pitch">
             <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-mint"></span>Pitch</span>
             <div class="set-group-pills">
-              <button class="set-pill" aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}{#if pillChanged.notes}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-              <button class="set-pill" aria-label="Clef: {selectedClef}" aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{selectedClef[0].toUpperCase() + selectedClef.slice(1)}{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+              <button class="set-pill" data-pill="notes" class:set-pill-warn={warnPill === 'notes'} aria-expanded={settingPop === 'notes'} on:click={(e) => togglePop('notes', e)}>{pillText.notes}{#if pillChanged.notes}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+              <button class="set-pill" aria-label="Clef: {selectedClef}" data-pill="more" class:set-pill-warn={warnPill === 'more'} aria-expanded={settingPop === 'more'} on:click={(e) => togglePop('more', e)}>{selectedClef[0].toUpperCase() + selectedClef.slice(1)}{#if pillChanged.more}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
             </div>
           </div>
         {/if}
         <div class="set-group" role="group" aria-label="Rhythm">
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-peach"></span>Rhythm</span>
           <div class="set-group-pills">
-            <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="rhythm" class:set-pill-warn={warnPill === 'rhythm'} aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
       </div>
@@ -5286,7 +5319,7 @@
 
             <!-- Skips: the largest skip by note value, and the exact-skips panel
                  under them (short-note-skips.ts, skip-settings.ts). -->
-            <div class="space-y-2">
+            <div class="space-y-2" data-fix="skips">
               <p class="sr-label">Skips</p>
               <div class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 sm:grid-cols-[auto_auto_auto_minmax(0,1fr)] sm:gap-x-3"
                 role="group" aria-label="Skips">
@@ -5484,7 +5517,7 @@
                  things that change what is printed. -->
           </div>
             <div class="mt-5">
-          <div class="space-y-3">
+          <div class="space-y-3" data-fix="range">
             <p class="sr-label">Note Range</p>
             <RangeSelector
               range={selectedRange}
@@ -5538,7 +5571,7 @@
             <!-- Applies in both modes: without it, a selection that cannot
                  tile the measure (half notes alone in 3/4) has no valid
                  output at all. -->
-            <div class="space-y-2 pt-1">
+            <div class="space-y-2 pt-1" data-fix="ties">
               <p class="sr-label">
                 Ties Across Barline
               </p>

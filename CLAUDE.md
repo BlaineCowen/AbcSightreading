@@ -1351,6 +1351,21 @@ presets once; the server dedupes by name + creation time.
   is drawn, so an exercise that could not be written costs nothing; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
 
+## When an exercise cannot be written
+
+The banner names the setting in the way and helps change it (9 October
+2026; `src/lib/failure-fix.ts`, tests `failure-fix.test.ts`;
+`FailureBanner.svelte`). Choral's words still come from failure-hint.ts;
+Unison's from the generator, the bare range messages put in plain words.
+Each failure points at a pill (ringed, `set-pill-warn`, while it stands),
+**Show me the setting** opens it and flashes the control inside
+(`data-fix="<target>"`, `show-setting.ts`), and where one change usually
+clears it a button makes it and tries again: widen the Unison range until
+it holds do, mi or so (`widenedRange`; a key-following span grows a step
+each way), give Choral's tightest part two steps at the top, 8 bars, let
+eighths leap, one larger skip, ties across the barline. A message that is
+not about a setting (sound that did not load) keeps the plain box.
+
 ## First visit (welcome, Quick start, the tour)
 
 Since 9 October 2026 (Blaine: the app was overwhelming for new users;

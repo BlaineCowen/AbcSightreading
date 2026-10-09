@@ -786,3 +786,31 @@ html.sr-pop-open .tools-fab,
 html.sr-pop-open .feedback-fab { display: none; }
 /* The walkthrough is showing (TourLayer): Feedback steps aside too. */
 html.sr-tour-open .feedback-fab { display: none; }
+
+/* A settings pill holding what stopped an exercise being written
+   (FailureBanner, failure-fix.ts): ringed in the warning colour, with one
+   pulse so the eye finds it. */
+html .set-pill.set-pill-warn {
+  box-shadow: 0 0 0 2.5px var(--sr-brass);
+  animation: sr-pill-warn 1.2s ease-out 2;
+}
+@keyframes sr-pill-warn {
+  0% { box-shadow: 0 0 0 2.5px var(--sr-brass), 0 0 0 2.5px var(--sr-brass-bg); }
+  70% { box-shadow: 0 0 0 2.5px var(--sr-brass), 0 0 0 12px transparent; }
+  100% { box-shadow: 0 0 0 2.5px var(--sr-brass); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .set-pill.set-pill-warn { animation: none; }
+}
+/* Show me: the control inside a popover that is in the way, flashed once. */
+.sr-fix-flash {
+  border-radius: var(--sr-r-sm);
+  animation: sr-fix-flash 1.3s ease-out 2;
+}
+@keyframes sr-fix-flash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; background-color: transparent; }
+  30% { box-shadow: 0 0 0 6px var(--sr-brass-bg); background-color: var(--sr-brass-bg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sr-fix-flash { animation: none; box-shadow: 0 0 0 3px var(--sr-brass); }
+}

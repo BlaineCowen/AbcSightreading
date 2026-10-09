@@ -40,7 +40,10 @@
   import { rhythms as allRhythms } from "../resources/rhythms";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import { beatsOf, timeSignaturesFor } from "../lib/meter";
-  import { failureHint, type PartSpan } from "../lib/failure-hint";
+  import { type PartSpan } from "../lib/failure-hint";
+  import { choralAdvice, type FailureAdvice, type FixAction } from "../lib/failure-fix";
+  import FailureBanner from "./FailureBanner.svelte";
+  import { showSetting } from "../lib/show-setting";
   import {
     planForm,
     requiredMeasures,
@@ -438,14 +441,48 @@
     );
   }
 
-  function currentFailureHint(): string {
-    return failureHint({
+  function currentAdvice(): FailureAdvice {
+    return choralAdvice({
       parts: partSpans(),
       measures,
       chordCount: userAllowedChords.size,
       maxSkip,
       stepwiseEighths,
     });
+  }
+
+  /** Which setting a failure points at (failure-fix.ts), kept beside the message it explains. */
+  let generationAdvice: FailureAdvice | null = null;
+  $: shownAdvice = generationError
+    ? generationAdvice?.message === generationError
+      ? generationAdvice
+      : { message: generationError, pill: null, fix: null }
+    : null;
+  /** The pill ringed while a failure stands. */
+  $: warnPill = shownAdvice?.pill ?? null;
+  function fail(message: string, pill: string | null) {
+    generationAdvice = { message, pill, fix: null };
+    generationError = message;
+  }
+
+  /** Show me: the pill brought into view and opened. */
+  function showPill(pill: string) {
+    showSetting(setbarEl, pill, shownAdvice?.target, settingPop === pill);
+  }
+
+  /** The banner's fix: the change made, and the exercise tried again. */
+  function applyFix(action: FixAction) {
+    if (action.kind === "widenPart") {
+      const part = possibleVoicing[selectedVoicing]?.parts[action.part];
+      if (part) {
+        const top = Math.min(part.range[1], part.currentRange[1] + action.steps);
+        const bottom = top > part.currentRange[1] ? part.currentRange[0] : Math.max(part.range[0], part.currentRange[0] - action.steps);
+        handleRangeChange(action.part, { min: bottom, max: top });
+      }
+    } else if (action.kind === "measures") measures = action.to;
+    else if (action.kind === "stepwiseEighthsOff") stepwiseEighths = false;
+    else if (action.kind === "maxSkip") maxSkip = Math.min(maxSkipRange[1], action.to);
+    void handleClick();
   }
 
   let chordProgression: Chord[] = [];
@@ -2421,17 +2458,19 @@
     // and getting nothing is one situation however it came about.
     const validRhythms = selectedRhythms.filter((r): r is Rhythm => r !== undefined);
     if (validRhythms.length === 0) {
-      generationError = "No rhythms are selected, so there is nothing to write with. Pick at least one under Rhythm.";
+      fail("No rhythms are selected, so there is nothing to write with. Pick at least one under Rhythm.", "rhythm");
       return;
     }
     if (selectedKeys.size === 0 && !(fullLength && fullLengthLevel)) {
-      generationError = "No keys are selected. Pick at least one under Key.";
+      fail("No keys are selected. Pick at least one under Key.", "key");
       return;
     }
     if (!rhythmsCanFill) {
-      generationError =
+      fail(
         `These rhythms cannot fill a bar of ${selectedTimeSignature}. ` +
-        `Add a shorter note (a quarter or an eighth), or change the time signature.`;
+        `Add a shorter note (a quarter or an eighth), or change the time signature.`,
+        "rhythm",
+      );
       return;
     }
 
@@ -2597,7 +2636,8 @@
       if (error instanceof JobCancelled) return;
       // Kept for the console; the banner is what the reader gets.
       console.error("Error generating exercise:", error);
-      generationError = currentFailureHint();
+      generationAdvice = currentAdvice();
+      generationError = generationAdvice.message;
     } finally {
       currentJob = null;
       isGenerating = false;
@@ -2665,25 +2705,14 @@
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
     {#if !assignment}<UpgradeNotice /><PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
-    {#if generationError}
-      <div
-        class="w-full mt-4 rounded-lg border border-sr-brass bg-sr-brass-bg p-4 no-print"
-        role="status"
-      >
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-sm font-semibold text-sr-brass font-semibold">
-              Could not write an exercise with these settings
-            </p>
-            <p class="mt-1 text-sm text-sr-brass">{generationError}</p>
-          </div>
-          <button
-            class="text-sr-brass hover:text-sr-ink text-xl leading-none"
-            on:click={() => (generationError = null)}
-            aria-label="Dismiss"
-          >&times;</button>
-        </div>
-      </div>
+    {#if shownAdvice}
+      <FailureBanner
+        advice={shownAdvice}
+        busy={isGenerating}
+        onShow={showPill}
+        onFix={applyFix}
+        onDismiss={() => (generationError = null)}
+      />
     {/if}
 
     {#if linkError}
@@ -2715,28 +2744,28 @@
         <div class="set-group" role="group" aria-label="Voices">
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-action"></span>Voices</span>
           <div class="set-group-pills">
-            <button class="set-pill" data-tour="voicing" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-            <button class="set-pill" aria-label="Voice ranges" aria-expanded={settingPop === 'ranges'} on:click={(e) => togglePop('ranges', e)}>Ranges{#if pillChanged.ranges}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-tour="voicing" data-pill="voicing" class:set-pill-warn={warnPill === 'voicing'} aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" aria-label="Voice ranges" data-pill="ranges" class:set-pill-warn={warnPill === 'ranges'} aria-expanded={settingPop === 'ranges'} on:click={(e) => togglePop('ranges', e)}>Ranges{#if pillChanged.ranges}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
         <div class="set-group" role="group" aria-label="Music">
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
           <div class="set-group-pills">
-            <button class="set-pill" aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-            <button class="set-pill" aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
-            <button class="set-pill" aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="key" class:set-pill-warn={warnPill === 'key'} aria-expanded={settingPop === 'key'} on:click={(e) => togglePop('key', e)}>{pillText.key}{#if pillChanged.key}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="meter" class:set-pill-warn={warnPill === 'meter'} aria-expanded={settingPop === 'meter'} on:click={(e) => togglePop('meter', e)}>{pillText.meter}{#if pillChanged.meter}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="length" class:set-pill-warn={warnPill === 'length'} aria-expanded={settingPop === 'length'} on:click={(e) => togglePop('length', e)}>{pillText.length}{#if pillChanged.length}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
         <div class="set-group" role="group" aria-label="Rhythm">
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-peach"></span>Rhythm</span>
           <div class="set-group-pills">
-            <button class="set-pill" aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="rhythm" class:set-pill-warn={warnPill === 'rhythm'} aria-expanded={settingPop === 'rhythm'} on:click={(e) => togglePop('rhythm', e)}>{pillText.rhythm}{#if pillChanged.rhythm}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
         <div class="set-group" role="group" aria-label="Harmony">
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-butter"></span>Harmony</span>
           <div class="set-group-pills">
-            <button class="set-pill" aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-pill="harmony" class:set-pill-warn={warnPill === 'harmony'} aria-expanded={settingPop === 'harmony'} on:click={(e) => togglePop('harmony', e)}>{pillText.harmony}{#if pillChanged.harmony}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
       </div>
@@ -3200,7 +3229,7 @@
             </div>
 
             <!-- Stepwise eighths -->
-            <div class="space-y-1">
+            <div class="space-y-1" data-fix="stepwise">
               <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
                 <input type="checkbox" bind:checked={stepwiseEighths} class="sr-check" />
                 Eighth notes move by step
@@ -3209,7 +3238,7 @@
             </div>
 
             <!-- Max Skip -->
-            <div class="space-y-2">
+            <div class="space-y-2" data-fix="maxskip">
               <p class="sr-label">Max Melodic Skip</p>
               <div class="flex flex-wrap items-center gap-3" role="group" aria-label="Max Melodic Skip">
                 <button type="button" class="sr-btn-quiet"
@@ -3229,7 +3258,7 @@
           {#if selectedVoicing && possibleVoicing[selectedVoicing]}
             <div class="grid gap-4 sm:grid-cols-2">
               {#each Object.entries(possibleVoicing[selectedVoicing].parts) as [partName, part]}
-                <div class="space-y-1.5">
+                <div class="space-y-1.5" data-fix="part:{partName}">
                   <!-- A text button, so showing it does not make this row taller
                        than the next card's and knock the grid out of line. -->
                   <div class="flex items-baseline gap-3">
