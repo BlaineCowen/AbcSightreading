@@ -61,6 +61,7 @@
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
   import ReaderPill from "./ReaderPill.svelte";
+  import DegreeKeyboard from "./DegreeKeyboard.svelte";
   import { loadReaderId, readerById, readerForTmeaPart, readerForTrack, saveReaderId, stepOnReader, type Reader } from "../lib/readers";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
   import { setPracticeContext } from "../lib/tools/context";
@@ -4490,6 +4491,30 @@
   });
   const keyName = (k: string) => (isMinorKey(k) ? `${k.replace(/m$/, "")} minor` : `${k} major`);
   const SOLFA = ["do", "re", "mi", "fa", "so", "la", "ti"];
+
+  // Scale degrees as a keyboard (DegreeKeyboard): major from C, the
+  // chromatic notes on the black keys, sharp above flat; minor from A, its
+  // raised 6 and 7 ringed, and a faded A past G so ♯7 (G♯) has its key.
+  const MAJOR_SHARP_SYL: Record<number, string> = { 1: "di", 2: "ri", 4: "fi", 5: "si", 6: "li" };
+  const MAJOR_FLAT_SYL: Record<number, string> = { 2: "ra", 3: "me", 5: "se", 6: "le", 7: "te" };
+  $: majorWhites = scaleDegrees.map((d) => ({ label: String(d), sub: SOLFA[d - 1], on: selectedScaleDegrees.has(d), toggle: () => toggleScaleDegree(d) }));
+  $: majorBlacks = [1, 2, 4, 5, 6].map((d) => ({
+    after: d - 1,
+    keys: [
+      { label: `♯${d}`, sub: MAJOR_SHARP_SYL[d], on: selectedSharpDegrees.has(d), toggle: () => toggleSharpDegree(d) },
+      { label: `♭${d + 1}`, sub: MAJOR_FLAT_SYL[d + 1], on: selectedFlatDegrees.has(d + 1), toggle: () => toggleFlatDegree(d + 1) },
+    ],
+  }));
+  $: minorWhites = MINOR_DEGREES.map((d) => ({ label: String(d), sub: minorLabel(d, null, minorSolfege), on: minorScaleDegrees.has(d), toggle: () => (minorScaleDegrees = toggleIn(minorScaleDegrees, d)) }));
+  $: minorBlacks = MINOR_SHARPS.map((d) => ({
+    after: d - 1,
+    keys: [
+      { label: `♯${d}`, sub: minorLabel(d, "sharp", minorSolfege), on: minorSharpDegrees.has(d), ring: d >= 6, toggle: () => (minorSharpDegrees = toggleIn(minorSharpDegrees, d)) },
+      ...(MINOR_FLATS.includes(d + 1)
+        ? [{ label: `♭${d + 1}`, sub: minorLabel(d + 1, "flat", minorSolfege), on: minorFlatDegrees.has(d + 1), toggle: () => (minorFlatDegrees = toggleIn(minorFlatDegrees, d + 1)) }]
+        : []),
+    ],
+  }));
   /**
    * What each pill holds, as one string, and those strings as they were when
    * the preset was chosen: a pill with a dot has been changed since. No preset,
@@ -5172,34 +5197,7 @@
             {#if majorInPool}
             <div class="space-y-2">
               <p class="sr-label">Scale Degrees{minorInPool ? " (major)" : ""}</p>
-              <div class="flex flex-wrap gap-2" role="group" aria-label="Scale Degrees">
-                {#each sharpScaleDegrees as degree}
-                  <button
-                    class="sr-tok px-2
-                      {selectedSharpDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 1 ? 'sm:ml-5' : degree.value === 4 ? 'sm:ml-10' : ''}"
-                    on:click={() => toggleSharpDegree(degree.value)}
-                  >{degree.display}</button>
-                {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                {#each scaleDegrees as degree}
-                  <button
-                    class="sr-tok {selectedScaleDegrees.has(degree) ? 'sr-on' : ''}"
-                    on:click={() => toggleScaleDegree(degree)}
-                  >{degree}</button>
-                {/each}
-              </div>
-              <div class="flex flex-wrap gap-2">
-                {#each flatScaleDegrees as degree}
-                  <button
-                    class="sr-tok px-2
-                      {selectedFlatDegrees.has(degree.value) ? 'sr-on' : ''}
-                      {degree.value === 2 ? 'sm:ml-5' : degree.value === 5 ? 'sm:ml-10' : ''}"
-                    on:click={() => toggleFlatDegree(degree.value)}
-                  >{degree.display}</button>
-                {/each}
-              </div>
+              <DegreeKeyboard ariaLabel="Major scale degrees" whites={majorWhites} blacks={majorBlacks} />
             </div>
             {/if}
             {#if minorInPool}
@@ -5208,32 +5206,7 @@
                  melodic and harmonic minor), lowered under it. -->
             <div class="space-y-2">
               <p class="sr-label">Scale Degrees (minor)</p>
-              <div class="grid grid-cols-[repeat(7,2.6rem)] sm:grid-cols-[repeat(7,3rem)] gap-1.5 sm:gap-2 w-max" role="group" aria-label="Minor scale degrees">
-                {#each MINOR_DEGREES as d}
-                  {#if MINOR_SHARPS.includes(d)}
-                    <button
-                      class="sr-tok px-0 flex flex-col items-center leading-tight {minorSharpDegrees.has(d) ? 'sr-on' : ''} {d >= 6 ? 'ring-1 ring-sr-action/40' : ''}"
-                      style="grid-column: {d}; grid-row: 1"
-                      aria-pressed={minorSharpDegrees.has(d)}
-                      on:click={() => (minorSharpDegrees = toggleIn(minorSharpDegrees, d))}
-                    >♯{d}<span class="text-[10px] opacity-70">{minorLabel(d, "sharp", minorSolfege)}</span></button>
-                  {/if}
-                  <button
-                    class="sr-tok px-0 flex flex-col items-center leading-tight {minorScaleDegrees.has(d) ? 'sr-on' : ''}"
-                    style="grid-column: {d}; grid-row: 2"
-                    aria-pressed={minorScaleDegrees.has(d)}
-                    on:click={() => (minorScaleDegrees = toggleIn(minorScaleDegrees, d))}
-                  >{d}<span class="text-[10px] opacity-70">{minorLabel(d, null, minorSolfege)}</span></button>
-                  {#if MINOR_FLATS.includes(d)}
-                    <button
-                      class="sr-tok px-0 flex flex-col items-center leading-tight {minorFlatDegrees.has(d) ? 'sr-on' : ''}"
-                      style="grid-column: {d}; grid-row: 3"
-                      aria-pressed={minorFlatDegrees.has(d)}
-                      on:click={() => (minorFlatDegrees = toggleIn(minorFlatDegrees, d))}
-                    >♭{d}<span class="text-[10px] opacity-70">{minorLabel(d, "flat", minorSolfege)}</span></button>
-                  {/if}
-                {/each}
-              </div>
+              <DegreeKeyboard ariaLabel="Minor scale degrees" whites={minorWhites} blacks={minorBlacks} tail={{ label: "1", sub: minorLabel(1, null, minorSolfege) }} />
               <p class="text-xs text-sr-faint">{minorScaleName(minorSharpDegrees, minorSolfege)}. Raise 7 for harmonic minor, 6 and 7 for melodic.</p>
               <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Minor solfège">
                 <span class="text-xs text-sr-faint">Sing minor</span>
