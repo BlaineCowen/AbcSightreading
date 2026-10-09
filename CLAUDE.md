@@ -734,7 +734,7 @@ beat, `patternFits`), the bass root at one place a letter (F2 to E3,
 `bassRoot`), block chords in the shapes a beginner learns (C-E-G, C-F-A,
 B-F-G). A chord's altered note carries its accidental (`chordAlter`;
 PianoNote `alters`), written once a bar per pitch with the natural written
-back (assemble.ts). Eighths are beamed by beat group (`beamed`).
+back (assemble.ts). Beams end with the beat (`beamed`, `beamGroup` = one beat: two eighths, four sixteenths, three eighths in 6/8; Blaine, 9 October 2026).
 
 Ten levels, ending where a beginner's Mozart sonata sits (K. 545's first
 movement, ABRSM Grade 5, RCM Level 6-7), in method-book order checked

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import abcjs from "abcjs";
 import { blockChord, bassRoot, rightHandPosition, leftHandPosition, degreeOf, chordDegrees } from "../../src/lib/piano/voicing";
 import { writeLeftHand, LEFT_HAND_BOTTOM, LEFT_HAND_TOP } from "../../src/lib/piano/left-hand";
-import { assemblePianoAbc, beamed } from "../../src/lib/piano/assemble";
+import { assemblePianoAbc, beamed, beamGroup } from "../../src/lib/piano/assemble";
 import { generatePianoExercise, pianoFault, mergeRests } from "../../src/lib/piano/generatePiano";
 import { PIANO_LEVELS, patternsFor, settingsFor, unlockedAt, type LeftHandPattern } from "../../src/lib/piano/levels";
 import { settingsFromQuery, settingsQuery } from "../../src/lib/piano/settings-link";
@@ -92,10 +92,16 @@ test("every level writes in each key and meter it offers, without a fault, with 
   }
 }, 120000);
 
-test("eighths are beamed in their group, and a quarter or a rest breaks the beam", () => {
+test("beams end with the beat, and a quarter or a rest breaks one", () => {
   const n = (p: number, l: number) => ({ pitches: [p], length: l });
-  // 4/4: four eighths under one beam a half bar.
-  expect(beamed([n(14, 4), n(15, 4), n(16, 4), n(17, 4), n(18, 4), n(17, 4), n(16, 8)], 16)).toBe("C4D4E4F4 G4F4 E8");
+  // 4/4: eighths beamed two a beat, never across a beat.
+  expect(beamed([n(14, 4), n(15, 4), n(16, 4), n(17, 4), n(18, 4), n(17, 4), n(16, 8)], beamGroup("4/4"))).toBe("C4D4 E4F4 G4F4 E8");
+  // Sixteenths four a beat; an eighth and two sixteenths one beam.
+  expect(beamed([n(14, 2), n(15, 2), n(16, 2), n(17, 2), n(18, 4), n(17, 2), n(16, 2), n(15, 16)], beamGroup("4/4"))).toBe("C2D2E2F2 G4F2E2 D16");
+  // A dotted quarter and eighth: the eighth (the second half of beat 2) stands alone.
+  expect(beamed([n(14, 12), n(15, 4), n(16, 16)], beamGroup("4/4"))).toBe("C12 D4 E16");
+  // 6/8: three eighths a beat.
+  expect(beamed([n(14, 4), n(15, 4), n(16, 4), n(17, 4), n(18, 4), n(17, 4)], beamGroup("6/8"))).toBe("C4D4E4 F4G4F4");
   // 3/4: a beat; a rest between breaks it.
   expect(beamed([n(14, 8), n(15, 4), n(16, 4), { pitches: [], length: 4, rest: true }, n(17, 4), n(18, 8)], 8)).toBe("C8 D4E4 z4 F4 G8");
 });

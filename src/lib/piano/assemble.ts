@@ -10,7 +10,7 @@
  */
 import { noteArray } from "../../resources/noteArray";
 import { keySignatures } from "../../resources/key-signatures";
-import { tempoField } from "../meter";
+import { beatUnitOf, tempoField } from "../meter";
 import type { PianoNote } from "./left-hand";
 import { degreeOf } from "./voicing";
 
@@ -51,17 +51,18 @@ function token(n: PianoNote, key: string, written: Map<number, number>): string 
 }
 
 /**
- * How far a beam may reach: a half bar in 4/4 and 2/4 (four eighths under one
- * beam, as an Alberti or broken-chord bass is printed), a beat in 3/4 and 6/8.
+ * How far a beam may reach: one beat, so every beam ends where its beat does
+ * (two eighths a beat, four sixteenths, three eighths in 6/8) and the reader
+ * sees the beats (Blaine, 9 October 2026; it beamed half bars, four eighths
+ * across beats 1 and 2).
  */
-export function beamGroup(meter: string, barUnits: number): number {
-  if (meter === "6/8") return 12;
-  return meter === "3/4" ? barUnits / 3 : barUnits >= 32 ? barUnits / 2 : barUnits;
+export function beamGroup(meter: string, _barUnits?: number): number {
+  return beatUnitOf(meter);
 }
 
 /**
  * A bar's notes as ABC, beamed: ABC beams notes written with no space between
- * them, so two notes shorter than a quarter, side by side in one beam group,
+ * them, so two notes shorter than a quarter, both starting in the same beat,
  * are joined. A rest, or anything a quarter or longer, breaks the beam. It
  * used to join every note with a space, and every eighth printed with its
  * own flag.
