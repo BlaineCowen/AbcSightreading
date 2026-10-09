@@ -60,6 +60,9 @@
   } from "../lib/meter";
   import type { LyricSystem } from "../resources/solfege";
   import PresetDropdown from "./PresetDropdown.svelte";
+  import StepStrip from "./StepStrip.svelte";
+  import TourHelpButton from "./tour/TourHelpButton.svelte";
+  import { arrival, isQuickStart } from "../lib/tour";
   import ReaderPill from "./ReaderPill.svelte";
   import { loadReaderId, readerById, readerForTmeaPart, readerForTrack, saveReaderId, stepOnReader, type Reader } from "../lib/readers";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
@@ -876,6 +879,12 @@
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  /** The step strip's Next step: the step, written at once (a step for the Choral page goes there). */
+  function goToStep(step: LadderStep) {
+    applyLadderStep(step);
+    if (step.unison) void handleClick();
   }
 
   function applyLadderStep(step: LadderStep) {
@@ -4073,6 +4082,8 @@
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[linkedStepId ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
+    // Quick start (the first visit's welcome, tour.ts): step 1, written at once.
+    if (linkedStep && isQuickStart(arrival().search)) setTimeout(() => void handleClick(), 0);
     // A curriculum step from /curriculum: the teacher's own version once their tracks load.
     const linkedTrack = !linkedStep && linkedTrackKey && stepOfKey(linkedTrackKey) ? linkedTrackKey : null;
     if (linkedTrack) applyTrackStep(linkedTrack);
@@ -5035,6 +5046,7 @@
     </PresetDropdown>
     {/if}
     {#if assignment}<AssignmentBanner {assignment} />{/if}
+    {#if activeStepId && !assignment}<StepStrip stepId={activeStepId} onSelect={goToStep} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
     {#if !assignment}<UpgradeNotice /><PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
@@ -5048,7 +5060,7 @@
          opens only its own choices (settingPop), under it, or as a sheet on a
          phone. New exercise sits at the end of the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
-      <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
+      <div class="setbar-pills" data-tour="settings" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
         <!-- In groups, each under a small label (as the piano page's): the big
              switch first, a sung line or rhythm alone; then the music, the
              pitches (sung lines only) and the rhythms. -->
@@ -5085,7 +5097,7 @@
           </div>
         </div>
       </div>
-      <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading}>
+      <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading}>
         <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
         <span>New exercise</span>
           {#if $usage && $usage.limit !== null && $usage.remaining !== null}
@@ -5097,6 +5109,7 @@
             >{$usage.remaining}</span>
           {/if}
       </button>
+      <TourHelpButton />
 
       {#if settingPop}
         <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
@@ -5628,7 +5641,7 @@
            on the TV). Display and Drill open under it (toolPop). -->
       <div class="score-tools" bind:this={toolsEl}>
         <div class="focus-hide no-print flex flex-wrap items-center gap-2">
-          <button class="tool-btn" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
+          <button class="tool-btn" data-tour="display" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
             <Eye size={16} aria-hidden="true" />Display
           </button>
           <button class="tool-btn {drillRunning ? 'tool-btn-live' : ''}" aria-expanded={toolPop === 'drill'} on:click={() => toggleTool('drill')}>
@@ -5646,6 +5659,7 @@
         <button
           class="inline-flex items-center gap-2 rounded-full px-4 min-h-10 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
           on:click={openGrade}
+          data-tour="grade"
           disabled={grading}
           title={rhythmOnly ? "Clap it (or tap it) and get a score, alone or as a class" : "Sing it into the microphone and get a score"}
         >

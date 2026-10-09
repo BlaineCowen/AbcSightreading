@@ -1351,6 +1351,30 @@ presets once; the server dedupes by name + creation time.
   is drawn, so an exercise that could not be written costs nothing; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
 
+## First visit (welcome, Quick start, the tour)
+
+Since 9 October 2026 (Blaine: the app was overwhelming for new users;
+`src/lib/tour.ts`, tests `tour.test.ts`). A practice page opened with
+nothing in the address (`window.__srArrival`, kept by Layout before a page
+rewrites its address) by someone not yet greeted shows a welcome card
+(TourLayer.svelte, mounted in Layout; never for students): **Quick start**
+opens step 1 of abcStepByStep and writes it at once
+(`/sightreading?step=sbs-01-rhythm&start=1`), **Show me around** runs the
+walkthrough, Skip closes it. Remembered per browser (`abc-welcome-v1`,
+`abc-tour-<page>-v1`), no database field. The walkthrough is a bubble at a
+time over a dimmed page, each pointing at a control marked
+`data-tour="<id>"` (the steps in `TOUR_STEPS`; a control missing or hidden,
+such as Tools on a phone, is left out). It comes back from the "?" at the
+end of each settings row, the navbar (desktop icon, Take the tour on a
+phone), `?tour=1`, or `/how-to-use`. Keep `data-tour` on the controls when
+moving them.
+
+abcStepByStep is easier to find: the preset menu opens on it when no
+built-in preset is active (`sectionToOpen`), a mint strip above the
+settings shows the step, what it adds, All steps (`sr-open-presets`, which
+opens the menu at a section) and Next step (`nextStepAfter`); the landing
+page, the signed-in home (no exercise yet) and /how-to-use link step 1.
+
 ## Home page (signed in)
 
 `/` is two pages (8 October 2026): the landing page for anyone signed out

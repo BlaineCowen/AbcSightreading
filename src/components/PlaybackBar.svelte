@@ -334,6 +334,7 @@
           class="flex items-center justify-center gap-1 sr-btn sr-btn-play px-4 h-11 xl:h-8 text-sm font-bold disabled:opacity-40"
           disabled={!hasExercise}
           on:click={onPause}
+          data-tour="play"
           aria-label="Pause"
         ><Pause size={18} /><span class="hidden sm:inline">Pause</span></button>
       {:else}
@@ -342,6 +343,7 @@
                  disabled:opacity-40 {isPreparing ? 'disabled:opacity-80 cursor-progress' : ''}"
           disabled={!hasExercise || isPreparing}
           on:click={onPlay}
+          data-tour="play"
           aria-label={isPreparing ? "Loading sounds…" : "Play"}
           aria-busy={isPreparing}
           title={isPreparing ? "Loading sounds…" : undefined}

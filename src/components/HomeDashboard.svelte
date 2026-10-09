@@ -5,6 +5,7 @@
   import { trackById, TRACK_COLOR_CLASS, iconFor } from "../lib/curriculum/tracks";
   import { INSTRUMENT_ICON, INSTRUMENT_PATHS } from "../lib/curriculum/instrument-icons";
   import StudentAssignments from "./StudentAssignments.svelte";
+  import { FIRST_STEP_HREF } from "../lib/tour";
 
   /**
    * The home page for someone signed in (index.astro shows the landing page to
@@ -77,6 +78,13 @@
         <span class="text-xs font-bold uppercase tracking-wide opacity-80">Continue</span>
         <span class="text-lg font-extrabold leading-tight">{last.title}</span>
         <span class="text-sm opacity-90">{last.detail}</span>
+      </a>
+    {:else if accountType !== "student"}
+      <!-- Nothing written yet: where a newcomer starts (tour.ts Quick start). -->
+      <a class="start-card bg-sr-action text-sr-action-ink" href={FIRST_STEP_HREF}>
+        <span class="text-xs font-bold uppercase tracking-wide opacity-80">Start here</span>
+        <span class="text-lg font-extrabold leading-tight">abcStepByStep, step 1</span>
+        <span class="text-sm opacity-90">A short rhythm first. Each step adds one new thing.</span>
       </a>
     {/if}
     <a class="start-card bg-sr-mint text-sr-mint-ink {last ? '' : 'sm:col-span-1'}" href="/sightreading">

@@ -106,6 +106,8 @@
   } from "../lib/instruments";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PresetDropdown from "./PresetDropdown.svelte";
+  import StepStrip from "./StepStrip.svelte";
+  import TourHelpButton from "./tour/TourHelpButton.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
   import { setPracticeContext } from "../lib/tools/context";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
@@ -1537,6 +1539,12 @@
    * A ladder step. A step for the Unison page is opened there: its settings are
    * a single line's, and this page has no way to write one.
    */
+  /** The step strip's Next step: the step, written at once (a step for the Unison page goes there). */
+  function goToStep(step: LadderStep) {
+    applyLadderStep(step);
+    if (step.choral) void handleClick();
+  }
+
   function applyLadderStep(step: LadderStep) {
     if (!step.choral) {
       window.location.href = stepHref(step);
@@ -2653,6 +2661,7 @@
     </PresetDropdown>
     {/if}
     {#if assignment}<AssignmentBanner {assignment} />{/if}
+    {#if activeStepId && !assignment}<StepStrip stepId={activeStepId} onSelect={goToStep} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
     {#if !assignment}<UpgradeNotice /><PlanEndingBanner /><FreeMonthPromo variant="note" />{/if}
@@ -2700,13 +2709,13 @@
          opens only its own choices (settingPop), under it, or as a sheet on a
          phone. The exercise history and New exercise end the row. -->
     <section class="setbar sr-panel w-full my-4 no-print" aria-label="Exercise settings" bind:this={setbarEl}>
-      <div class="setbar-pills" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
+      <div class="setbar-pills" data-tour="settings" class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
         <!-- In groups, each under a small label (as the Unison and piano pages'):
              the voices first, then the music, the rhythms and the harmony. -->
         <div class="set-group" role="group" aria-label="Voices">
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-action"></span>Voices</span>
           <div class="set-group-pills">
-            <button class="set-pill" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
+            <button class="set-pill" data-tour="voicing" aria-expanded={settingPop === 'voicing'} on:click={(e) => togglePop('voicing', e)}>{pillText.voicing}{#if pillChanged.voicing}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
             <button class="set-pill" aria-label="Voice ranges" aria-expanded={settingPop === 'ranges'} on:click={(e) => togglePop('ranges', e)}>Ranges{#if pillChanged.ranges}<span class="set-pill-dot" title="Changed from the preset"></span>{/if}<ChevronDown size={14} class="set-pill-chev" aria-hidden="true" /></button>
           </div>
         </div>
@@ -2756,7 +2765,7 @@
             {/if}
           </div>
         {/if}
-        <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
+        <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
           <RefreshCw size={16} class={isGenerating ? 'animate-spin' : ''} />
           <span>New exercise</span>
           {#if $usage && $usage.limit !== null && $usage.remaining !== null}
@@ -2768,6 +2777,7 @@
             >{$usage.remaining}</span>
           {/if}
         </button>
+      <TourHelpButton />
       </div>
 
       {#if settingPop}
@@ -3293,7 +3303,7 @@
       <!-- The score's own toolbar: how it is shown and played (Display, the
            score options), opening under it. -->
       <div class="score-tools focus-hide no-print" bind:this={toolsEl}>
-        <button class="tool-btn" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
+        <button class="tool-btn" data-tour="display" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
           <Eye size={16} aria-hidden="true" />Display
         </button>
         {#if toolPop}

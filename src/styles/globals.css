@@ -784,3 +784,5 @@ html.sr-focus .playback-bar .bar-secondary > :not(.fs-keep) {
    Feedback buttons step aside so they cover none of it. */
 html.sr-pop-open .tools-fab,
 html.sr-pop-open .feedback-fab { display: none; }
+/* The walkthrough is showing (TourLayer): Feedback steps aside too. */
+html.sr-tour-open .feedback-fab { display: none; }

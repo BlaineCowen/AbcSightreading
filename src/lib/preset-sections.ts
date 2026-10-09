@@ -35,12 +35,14 @@ export function levelSections(offered: { uil: boolean; nyssma: boolean; tmea?: b
 
 /**
  * The section to open when the picker opens: the one holding the active
- * preset, or none (every section collapsed) when no built-in preset is active.
+ * preset, or abcStepByStep when no built-in preset is active, so a newcomer
+ * sees where to start (it sat collapsed and nobody found it; 9 October 2026).
  */
 export function sectionToOpen(
   sections: LevelSection[],
   active: { step: boolean; nyssma: boolean; uil: boolean; track?: boolean; tmea?: boolean },
 ): LevelSectionId | null {
   const want: LevelSectionId | null = active.step ? "steps" : active.track ? "tracks" : active.nyssma ? "nyssma" : active.tmea ? "tmea" : active.uil ? "uil" : null;
+  if (!want) return sections.find((s) => s.id === "steps")?.id ?? null;
   return sections.find((s) => s.id === want)?.id ?? null;
 }

@@ -401,7 +401,7 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
-  <button type="button" class="sr-btn" on:click={open ? () => (open = false) : openGrade} aria-expanded={open}>Play and grade</button>
+  <button type="button" class="sr-btn" data-tour="grade" on:click={open ? () => (open = false) : openGrade} aria-expanded={open}>Play and grade</button>
   {#if keyboards.length}
     <span class="text-sm text-sr-muted">Keyboard: {keyboards.join(", ")}</span>
     <button

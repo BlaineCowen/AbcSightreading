@@ -4,6 +4,8 @@
   import { Sun, Moon, CircleUser } from "lucide-svelte";
   import { nextNavState, type NavScroll } from "../lib/nav-reveal";
   import { signedInUser } from "../lib/auth-client";
+  import CircleQuestionMark from "lucide-svelte/icons/circle-question-mark";
+  import { startTour, tourPageFor } from "../lib/tour";
   let isNavbarOpen = false;
   /** The page has the feedback form (Layout marks it on <body>). */
   const feedbackHere = typeof document !== "undefined" && document.body.dataset.feedback === "1";
@@ -22,6 +24,8 @@
   // client:only, so the path is there from the first render.
   const here =
     typeof window === "undefined" ? "" : window.location.pathname.replace(/\/+$/, "") || "/";
+  /** A practice page has a walkthrough (tour.ts): Take the tour, here too. */
+  const tourHere = tourPageFor(here) !== null;
 
   /**
    * Light/dark toggle. Only pages that opt in to the dark theme (`themable` on
@@ -170,6 +174,14 @@
             {page.short}
           </a>
         {/each}
+        {#if tourHere}
+          <button
+            class="w-10 h-10 flex items-center justify-center rounded-full text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
+            on:click={startTour}
+            aria-label="Take the tour of this page"
+            title="Take the tour"
+          ><CircleQuestionMark size={19} /></button>
+        {/if}
         {#if themable}
           <button
             class="w-10 h-10 flex items-center justify-center rounded-full text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
@@ -214,6 +226,13 @@
           >
             {account ? (isStudentEmail(account.email) ? "Account" : `Account (${account.email})`) : "Sign in"}
           </a>
+        {/if}
+        {#if tourHere}
+          <button
+            type="button"
+            class="flex items-center min-h-12 px-4 rounded-full text-base font-bold text-left text-sr-ink-2 hover:bg-sr-track"
+            on:click={() => { isNavbarOpen = false; startTour(); }}
+          >Take the tour</button>
         {/if}
         {#if feedbackHere}
           <!-- The floating Feedback button is hidden on a phone; it lives here. -->

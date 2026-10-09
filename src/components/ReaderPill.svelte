@@ -46,6 +46,7 @@
 <div bind:this={root} class="relative">
   <button
     type="button"
+    data-tour="reader"
     class="reader-trigger inline-flex items-center gap-2 bg-sr-sky text-sr-sky-ink rounded-full px-4 py-2 text-sm font-extrabold hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-sr-action"
     aria-haspopup="dialog"
     aria-expanded={open}

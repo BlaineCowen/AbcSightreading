@@ -6,6 +6,7 @@ import Analytics from "@vercel/analytics/astro";
 import { readFeedbackEmail } from "../lib/feedback-email";
 import { currentUser } from "../lib/server/api";
 import { serverEnv } from "../lib/server/env";
+import TourLayer from "../components/tour/TourLayer.svelte";
 import "../styles/globals.css";
 import "abcjs/abcjs-audio.css";
 
@@ -123,6 +124,9 @@ const feedbackConfigured = !!readFeedbackEmail(
     <script is:inline>
       // Tone.js prints a banner to the console on load unless this is set.
       window.TONE_SILENCE_LOGGING = true;
+      // The address as it arrived, before a practice page writes its settings
+      // into it: the first-visit welcome reads it (src/lib/tour.ts).
+      window.__srArrival = { search: location.search, hash: location.hash };
       try {
         var t = localStorage.getItem("sr-theme");
         if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
@@ -159,5 +163,6 @@ const feedbackConfigured = !!readFeedbackEmail(
     {
       feedbackConfigured && !isStudent && <FeedbackButton client:idle page={title} />
     }
+    <TourLayer client:only="svelte" student={isStudent} />
   </body>
 </html>

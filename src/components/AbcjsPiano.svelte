@@ -24,6 +24,7 @@
   import { crossedWholeBeat, newMetronomeBeatState } from "../lib/metronome-beats";
   import PlaybackBar from "./PlaybackBar.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
+  import TourHelpButton from "./tour/TourHelpButton.svelte";
   import CountInBadge from "./CountInBadge.svelte";
   import { countGeneration, mayGenerate } from "../lib/usage";
   import { withCopyright, styleCopyright } from "../lib/copyright";
@@ -556,6 +557,7 @@
               <button
                 type="button"
                 class="set-pill {id === 'level' ? 'set-pill-level' : ''}"
+                data-tour="pill-{id}"
                 aria-expanded={settingPop === id}
                 aria-label="{POP_TITLE[id]}: {pillText[id]}"
                 on:click={(e) => togglePop(id, e)}
@@ -569,12 +571,13 @@
         </div>
       {/each}
     </div>
-    <button class="sr-btn setbar-new flex items-center gap-1.5" aria-label="Generate a new exercise" on:click={generate} disabled={isGenerating}>
+    <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={generate} disabled={isGenerating}>
       <RefreshCw size={16} class={isGenerating ? "animate-spin" : ""} /><span>New exercise</span>
       {#if $usage && $usage.limit !== null && $usage.remaining !== null}
         <span class="setbar-count {$usage.remaining <= 3 ? 'low' : ''}" title="{$usage.remaining} of {$usage.limit} left this month" aria-label="{$usage.remaining} left this month">{$usage.remaining}</span>
       {/if}
     </button>
+      <TourHelpButton />
 
     {#if settingPop}
       <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
@@ -728,7 +731,7 @@
       <!-- The score's toolbar, as the Unison page's: Display, and Play and grade. -->
       <div class="score-tools" bind:this={toolsEl}>
         <div class="focus-hide no-print flex flex-wrap items-center gap-2">
-          <button type="button" class="tool-btn" aria-expanded={toolPop === "display"} on:click={(e) => toggleTool("display", e)}><Eye size={16} aria-hidden="true" />Display</button>
+          <button type="button" class="tool-btn" data-tour="display" aria-expanded={toolPop === "display"} on:click={(e) => toggleTool("display", e)}><Eye size={16} aria-hidden="true" />Display</button>
         </div>
         <PianoGrade bind:this={grade} {exercise} tune={renderedTune} bpm={settings.bpm} onStart={pausePlayback} />
         {#if toolPop === "display"}

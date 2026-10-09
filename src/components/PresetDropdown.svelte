@@ -365,14 +365,29 @@
       root?.querySelector<HTMLElement>('.preset-trigger')?.focus();
     }
   }
+  /**
+   * Opened from elsewhere on the page (the step strip's All steps, the
+   * tour): `sr-open-presets`, with the Levels section to show.
+   */
+  async function onOpenRequest(e: Event) {
+    const section = (e as CustomEvent<{ section?: LevelSectionId }>).detail?.section;
+    await openPanel();
+    if (section && sections.some((s) => s.id === section)) {
+      tab = 'levels';
+      expanded = new Set([section]);
+    }
+    root?.scrollIntoView({ block: 'nearest' });
+  }
   onMount(() => {
     document.addEventListener('pointerdown', onDocPointer);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('sr-open-presets', onOpenRequest);
   });
   onDestroy(() => {
     if (typeof document === 'undefined') return;
     document.removeEventListener('pointerdown', onDocPointer);
     document.removeEventListener('keydown', onKey);
+    window.removeEventListener('sr-open-presets', onOpenRequest);
   });
 
   /** Arrow keys move between the tabs, as a tab list should. */
@@ -389,6 +404,7 @@
   <!-- The trigger names what is loaded; the panel below is where to choose. -->
   <button
     type="button"
+    data-tour="preset"
     class="preset-trigger inline-flex items-center gap-2 bg-sr-mint text-sr-mint-ink rounded-full px-4 py-2 text-sm font-extrabold hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-sr-action max-w-full"
     aria-haspopup="dialog"
     aria-expanded={open}

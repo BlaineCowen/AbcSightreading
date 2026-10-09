@@ -270,6 +270,7 @@
 
   <!-- The button -->
   <button
+    data-tour="tools"
     class="tools-fab fixed z-50 right-4 sm:right-6 h-14 min-w-14 px-4 rounded-full bg-sr-action text-sr-action-ink shadow-xl flex items-center justify-center gap-2 text-sm font-semibold hover:brightness-110"
     on:click={toggleWheel}
     aria-expanded={wheelOpen}

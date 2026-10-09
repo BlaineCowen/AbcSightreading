@@ -577,3 +577,10 @@ export const STEP_PARAM = "step";
 /** Where a step is read, with the step to load. */
 export const stepHref = (s: LadderStep) =>
   `${s.page === "unison" ? "/sightreading" : "/choral-sightreading"}?${STEP_PARAM}=${encodeURIComponent(s.id)}`;
+
+/** The step after this one (the next half of a pair, then the next pair), or null at the top. */
+export function nextStepAfter(id: string): LadderStep | null {
+  const s = ladderById[id];
+  if (!s) return null;
+  return ladder[ladder.indexOf(s) + 1] ?? null;
+}

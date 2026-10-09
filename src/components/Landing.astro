@@ -7,6 +7,7 @@ import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 // the generator or spending a visitor's free exercises.
 import heroExercise from "../assets/hero-exercise.svg?raw";
 import FreeMonthPromo from "../components/FreeMonthPromo.svelte";
+import { FIRST_STEP_HREF } from "../lib/tour";
 import { enabled as freeMonthOn, offerUntil } from "../lib/server/free-month";
 
 /**
@@ -181,6 +182,10 @@ const jsonLd = [
             or practice in parts: SATB, SSA, TTB
           </a>
         </div>
+        <p class="mt-4 text-sm font-bold text-sr-muted">
+          New to sight reading?
+          <a href={FIRST_STEP_HREF} class="text-sr-action-fg underline underline-offset-4 hover:brightness-110">Start at step 1 of abcStepByStep</a>
+        </p>
       </div>
 
       <figure class="hero-demo relative w-full max-w-xl mx-auto lg:max-w-none">
@@ -320,6 +325,11 @@ const jsonLd = [
             Choral
           </a>
         </div>
+        <p class="mt-5 text-sm font-bold text-sr-muted">
+          Just starting?
+          <a href={FIRST_STEP_HREF} class="text-sr-action-fg underline underline-offset-4 hover:brightness-110">abcStepByStep, step 1</a>
+          takes you from rhythm alone to singing in parts.
+        </p>
         <p class="mt-10 text-sm text-sr-faint">
           Rhythm-only drills, counted in Kodály or 1 &amp; 2 &amp;, are on the
           <a class="underline hover:text-sr-action-fg" href="/sightreading">Unison</a> page.
