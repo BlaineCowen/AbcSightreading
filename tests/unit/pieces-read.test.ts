@@ -224,10 +224,16 @@ describe("abcForPiece", () => {
     expect(abc).toContain("w: Hal- le- lu");
   });
 
-  test("an excerpt starts at its first bar", () => {
+  test("an excerpt starts at its first bar, numbered as printed", () => {
     const score = read(threeBarScore());
     const { abc, startTick } = abcForPiece(score, { from: 1, to: 2 });
     expect(startTick).toBe(192);
+    expect(abc).toContain("%%barnumbers 1");
+    expect(abc).toContain("%%setbarnb 2");
+    // abcjs numbers the bar after the excerpt's first as 3.
+    const [t] = abcjs.parseOnly(abc) as unknown as { lines: { staff: { voices: { el_type: string; barNumber?: number }[][] }[] }[] }[];
+    const numbers = t.lines.flatMap((l) => l.staff[0].voices[0]).filter((e) => e.el_type === "bar" && e.barNumber !== undefined).map((e) => e.barNumber);
+    expect(numbers[0]).toBe(3);
     // The tie into bar 2 is cut: its second half sounds as the excerpt's first note.
     const want = expected(score, 1, 2);
     want.push(`69@0.0000`);

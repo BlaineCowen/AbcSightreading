@@ -47,6 +47,8 @@ export type AbcOptions = {
   tempo?: number;
   /** Part names over the score's own, per part index (a teacher's renames, "Soprano (you)"). */
   names?: Record<number, string>;
+  /** Number every bar from the printed number of the first (default true). */
+  barNumbers?: boolean;
   /** Write the score's tempo changes (default true). */
   tempoChanges?: boolean;
   /** MIDI program per part index, over the part's own. */
@@ -189,6 +191,10 @@ export function abcForPiece(score: PieceScore, opts: AbcOptions = {}): PieceAbc 
     `M:${first.time.beats}/${first.time.beatType}`,
     "L:1/192",
     `Q:1/4=${Math.round(tempo)}`,
+    // Every bar numbered as the teacher's copy numbers it, so "bar 12" is the
+    // same bar to everyone, an excerpt from bar 9 included (abcjs numbers
+    // every bar but the first; %%setbarnb names the first).
+    ...(opts.barNumbers === false ? [] : ["%%barnumbers 1"]),
     `%%score ${scoreTerms.join(" ")}`,
     ...defs,
     "K:C",
@@ -225,6 +231,11 @@ export function abcForPiece(score: PieceScore, opts: AbcOptions = {}): PieceAbc 
       const out: string[] = [];
       const words: string[] = [];
       body.push(`V:${v.id}`);
+      // In the body, before the program: abcjs throws on %%setbarnb in a
+      // header with voices in it, and counts one short after a %%MIDI line.
+      if (lineStart === from && v === voices[0] && opts.barNumbers !== false && /^\d+$/.test(first.label)) {
+        body.push(`%%setbarnb ${Number(first.label)}`);
+      }
       if (lineStart === from) body.push(`%%MIDI program ${opts.programs?.[v.part] ?? part.program}`);
       if (lineStart === from && whole && score.measures[from].repeatStart) out.push("|:");
       for (let mi = lineStart; mi <= lineEnd; mi++) {
