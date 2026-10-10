@@ -37,6 +37,9 @@
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { tuner } from "../../lib/tuner/store";
   import { scheduleForPiece, beatsInBar } from "../../lib/pieces/schedule";
+  import { noteElements, shadeBars, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
+  import { SectionPlayer } from "../../lib/pieces/section-player";
+  import { TICKS } from "../../lib/pieces/model";
   import { attemptsLeft, attemptsLine, bestOf, marksOf, type Mark } from "../../lib/pieces/attempts";
   import { finishAttempt, listAttempts, loadAttempt, sendTake, startAttempt, type AttemptRow } from "../../lib/pieces/client";
   import { startPractice } from "../../lib/practice-tracker";
@@ -59,6 +62,15 @@
   export let canAssign = false;
   /** ?attempt=<id>: an attempt shown with its marks and take (the student's own, or the teacher's class). */
   export let attemptId: string | null = null;
+
+  /** Assignment mode: where playback starts (bars that lead in, heard and not graded). */
+  let leadIn = 0;
+  /** The drawn notes, each with its model note (score-dom.ts). */
+  let items: NoteEl[] = [];
+  const player = new SectionPlayer();
+  let cursorFrame = 0;
+  let lit: Element[] = [];
+  let shadedOnce = false;
 
   /** Assignment mode: the part this student sings or plays, their own choice, kept in this browser. */
   let myPart: string | null = null;
@@ -103,8 +115,9 @@
       scoreBpm = bpm = firstTempo ?? 100;
       to = score.measures.length - 1;
       if (assignment) {
-        ({ from, to } = assignment.settings);
-        excerpt = true;
+        ({ from, to, leadIn } = assignment.settings);
+        // The whole piece shows; the graded bars are shaded, the lead-in lighter.
+        excerpt = false;
         bpm = assignment.settings.tempo;
         clickOn = assignment.settings.hearing === "acappella";
         const allowed = partsFor(score, from, to);
@@ -238,18 +251,21 @@
 
   let gradeNotes: ReturnType<typeof scheduleForPiece>["notes"] = [];
 
-  /** Abcjs plays the excerpt (the click and count-in, what the teacher chose to hear); the downbeat after the count-in is t0. */
+  /**
+   * The section plays from the lead-in, with the count-in and a click, and
+   * what the teacher chose to hear; the first graded downbeat (t0) is when the
+   * music is heard plus the lead-in's length.
+   */
   function startTimeline(): number {
-    if (!synthControl || !score) return performance.now();
-    void synthControl.play();
+    if (!score || !player.ready) return performance.now();
+    const heardAt = player.play(() => {
+      isPlaying = false;
+      stopCursor();
+    }, sectionClicks());
     isPlaying = true;
-    const time = score.measures[from].time;
-    const meterName = `${time.beats}/${time.beatType}`;
-    const beatMs = 60_000 / gradeBpm();
-    const countInMs = countInMeasures(meterName) * beatsInBar(time) * beatMs;
-    const ctx = (synthControl as any)?.midiBuffer?.audioContext ?? null;
-    const latency = Math.round((((ctx as any)?.baseLatency ?? 0) + ((ctx as any)?.outputLatency ?? 0)) * 1000);
-    return performance.now() + countInMs + latency;
+    followCursor();
+    const leadInMs = ((score.measures[from].start - score.measures[leadIn].start) / TICKS) * (60_000 / bpm);
+    return heardAt + leadInMs;
   }
 
   function openSetup() {
@@ -281,7 +297,8 @@
     looping = false;
     grading = true;
     pause();
-    await buildSynth();
+    // Rendered before the microphone starts: nothing may await after it.
+    await player.prepare(sectionSound());
     const schedule = scheduleForPiece(score, myPart, from, to);
     gradeNotes = schedule.notes;
     if (!gradeNotes.length) {
@@ -391,6 +408,8 @@
 
   onDestroy(() => {
     gradeRunner.stop();
+    player.destroy();
+    cancelAnimationFrame(cursorFrame);
     if (grading) releaseMic();
     try { synthControl?.destroy?.(); } catch {}
   });
@@ -481,11 +500,115 @@
     });
     renderedTune = tune;
     mapNotes();
+    items = noteElements(tune, drawn, score);
+    if (assignment) shadeAssignment();
     await buildSynth();
   }
 
+  /** The graded bars shaded on the whole score, the lead-in lighter; scrolled to the first time. */
+  function shadeAssignment() {
+    if (!score) return;
+    const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
+    const label = (a: number, b: number) => (a === b ? `bar ${score!.measures[a].label}` : `bars ${score!.measures[a].label} to ${score!.measures[b].label}`);
+    shadeBars(svg, items, [
+      ...(leadIn < from ? [{ from: leadIn, to: from - 1, cls: "shade-lead", label: "Lead-in" }] : []),
+      { from, to, cls: "shade-graded", label: `Graded: ${label(from, to)}` },
+    ]);
+    if (!shadedOnce) {
+      shadedOnce = true;
+      const first = items.find((it) => it.note.measure === leadIn)?.svg[0];
+      (first as HTMLElement | undefined)?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }
+  }
+
+  // ── Assignment playback: the lead-in to the last graded bar, on the audio clock ──
+  function sectionSound() {
+    const all = abcForPiece(score!, {
+      ...abcOptions(score!.parts.map((_, i) => i)),
+      from: leadIn,
+      to,
+      tempo: bpm,
+      tempoChanges: false,
+      barNumbers: false,
+    });
+    const levels = all.voices.map((v) => {
+      const pid = score!.parts[v.part].id;
+      const s = parts[pid];
+      return s ? levelOf(pid) * (s.volume / 80) : 0;
+    });
+    return { abc: all.abc, levels };
+  }
+
+  function sectionClicks() {
+    const bar = score!.measures[leadIn];
+    const time = bar.time;
+    const beatMs = 60_000 / gradeBpm();
+    const perBar = beatsInBar(time);
+    const fullBar = Math.round((time.beats * 4 * TICKS) / time.beatType);
+    // A pickup starts late in its bar.
+    const firstBeat = bar.length < fullBar ? Math.round(((fullBar - bar.length) / fullBar) * perBar) : 0;
+    const sectionMs = ((score!.measures[to].start + score!.measures[to].length - bar.start) / TICKS) * (60_000 / bpm);
+    return {
+      beatMs,
+      beatsPerBar: perBar,
+      countIn: countInMeasures(`${time.beats}/${time.beatType}`) * perBar,
+      throughMs: clickOn || grading ? sectionMs : 0,
+      firstBeat,
+    };
+  }
+
+  /** The tick the music has reached, from the audio clock. */
+  function sectionTick(): number | null {
+    const ms = player.elapsedMs();
+    if (ms === null || !score) return null;
+    return score.measures[leadIn].start + (ms / (60_000 / bpm)) * TICKS;
+  }
+
+  function followCursor() {
+    cancelAnimationFrame(cursorFrame);
+    const step = () => {
+      const t = sectionTick();
+      for (const e of lit) e.classList.remove("piece-now");
+      lit = t === null || t < score!.measures[leadIn].start ? [] : soundingAt(items, t);
+      for (const e of lit) e.classList.add("piece-now");
+      const head = lit[0] as HTMLElement | undefined;
+      if (head) {
+        const r = head.getBoundingClientRect();
+        if (r.top < 80 || r.bottom > window.innerHeight - 140) head.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+      if (player.startedAt) cursorFrame = requestAnimationFrame(step);
+    };
+    cursorFrame = requestAnimationFrame(step);
+  }
+
+  function stopCursor() {
+    cancelAnimationFrame(cursorFrame);
+    for (const e of lit) e.classList.remove("piece-now");
+    lit = [];
+  }
+
+  /** Plays the section; returns when the music's first sample is heard (performance.now ms). */
+  async function playSection(): Promise<number | null> {
+    if (!score) return null;
+    isPreparing = true;
+    try {
+      await player.prepare(sectionSound());
+    } finally {
+      isPreparing = false;
+    }
+    const heardAt = player.play(() => {
+      isPlaying = false;
+      stopCursor();
+      if (looping && !grading) void playSection();
+    }, sectionClicks());
+    isPlaying = true;
+    followCursor();
+    return heardAt;
+  }
+
   async function buildSynth() {
-    if (!renderedTune || !score) return;
+    // An assignment plays its section through SectionPlayer instead.
+    if (!renderedTune || !score || assignment) return;
     const abcjs = (await import("abcjs")).default;
     try { synthControl?.destroy?.(); } catch {}
     // Every part plays, shown or not: the audio is a parse of all of them.
@@ -543,6 +666,7 @@
   }
 
   async function play() {
+    if (assignment) return void playSection();
     if (!synthControl || isPreparing) return;
     isPreparing = true;
     try {
@@ -558,6 +682,12 @@
 
   /** abcjs's play() toggles isStarted and pause() never resets it (see AbcjsChoral pausePlayback). */
   function pause() {
+    if (assignment) {
+      player.stop();
+      stopCursor();
+      isPlaying = false;
+      return;
+    }
     if (!synthControl) return;
     synthControl.pause();
     synthControl.isStarted = false;
@@ -659,7 +789,7 @@
         <span class="kind"><Music size={12} aria-hidden="true" /> Assignment · a piece</span>
         <h1 class="text-2xl sm:text-3xl font-bold">{piece.title}</h1>
         <p class="font-bold">
-          Bars {score.measures[from].label} to {score.measures[to].label}{mine ? `, your part: ${mine.s.name}` : ""}. You hear: {HEARING_LABEL[assignment.settings.hearing].title.toLowerCase()}.
+          Graded: bars {score.measures[from].label} to {score.measures[to].label}{leadIn < from ? `, after a lead-in from bar ${score.measures[leadIn].label}` : ""}{mine ? `. Your part: ${mine.s.name}` : ""}. You hear: {HEARING_LABEL[assignment.settings.hearing].title.toLowerCase()}.
         </p>
         {#if assignment.note}<p class="text-sm">{assignment.note}</p>{/if}
         <p class="text-sm">
@@ -907,12 +1037,19 @@
       {:else}
         <button type="button" class="t-btn t-main" aria-label="Play" disabled={isPreparing} on:click={play}><Play size={24} aria-hidden="true" /></button>
       {/if}
-      <span class="t-label">{excerpt ? `Bars ${score.measures[from].label} to ${score.measures[to].label}` : "Whole piece"} · {bpm} bpm</span>
+      <span class="t-label">{assignment ? `Bars ${score.measures[leadIn].label} to ${score.measures[to].label}` : excerpt ? `Bars ${score.measures[from].label} to ${score.measures[to].label}` : "Whole piece"} · {bpm} bpm</span>
     </div>
   {/if}
 </div>
 
 <style>
+  :global(#piece-paper .shade-graded) { fill: var(--sr-peach); opacity: 0.6; }
+  :global(#piece-paper .shade-lead) { fill: var(--sr-sky); opacity: 0.5; }
+  :global(#piece-paper .shade-graded-label), :global(#piece-paper .shade-lead-label) {
+    font: 800 11px Nunito, sans-serif;
+    fill: var(--sr-peach-ink);
+  }
+  :global(#piece-paper .shade-lead-label) { fill: var(--sr-sky-ink); }
   :global(#piece-paper .grade-good), :global(#piece-paper .grade-good path) { fill: #1f9d6b; color: #1f9d6b; }
   :global(#piece-paper .grade-ok), :global(#piece-paper .grade-ok path) { fill: #c98a00; color: #c98a00; }
   :global(#piece-paper .grade-bad), :global(#piece-paper .grade-bad path) { fill: #d13f2f; color: #d13f2f; }

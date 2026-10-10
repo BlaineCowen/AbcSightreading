@@ -42,11 +42,15 @@ describe("what can be assigned", () => {
     expect(barsProblem(score, 0, 1)).toBeNull();
     expect(barsProblem(score, 0, 2)).toMatch(/meter changes in bar 3/);
     expect(barsProblem(score, 2, 0)).toBe("Choose the bars.");
+    // A lead-in starts at or before the graded bars, in the same meter.
+    expect(barsProblem(score, 1, 1, 0)).toBeNull();
+    expect(barsProblem(score, 1, 1, 2)).toMatch(/lead-in/);
+    expect(checkPieceAssignment({ from: 1, to: 1, leadIn: 0, tempo: 90 }, "pc1", score).ok && "ok").toBe("ok");
   });
 
   test("the request is checked and tidied", () => {
     const ok = checkPieceAssignment({ from: 0, to: 1, hearing: "selected", playing: ["P2", "P2", "P9"], tempo: 92.4, maxAttempts: 3, strictness: "strict" }, "pc1", score);
-    expect(ok).toEqual({ ok: true, value: { pieceId: "pc1", from: 0, to: 1, hearing: "selected", playing: ["P2"], tempo: 92, maxAttempts: 3, strictness: "strict" } });
+    expect(ok).toEqual({ ok: true, value: { pieceId: "pc1", from: 0, to: 1, leadIn: 0, hearing: "selected", playing: ["P2"], tempo: 92, maxAttempts: 3, strictness: "strict" } });
     // Only "selected" keeps a list; an unknown choice is "the other parts".
     const others = checkPieceAssignment({ from: 0, to: 0, hearing: "loud", playing: ["P2"], tempo: 100 }, "pc1", score);
     expect(others.ok && [others.value.hearing, others.value.playing, others.value.maxAttempts]).toEqual(["others", [], null]);

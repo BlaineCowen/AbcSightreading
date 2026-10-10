@@ -14,6 +14,7 @@
   import { partSettingsFor, type PartSettings, type PieceSummary } from "../../lib/pieces/rules";
   import { MAX_MINUTES } from "../../lib/practice";
   import type { PieceScore } from "../../lib/pieces/model";
+  import { barOfElement, noteElements, shadeBars, type NoteEl } from "../../lib/pieces/score-dom";
 
   /** A fixed piece (the viewer), or chosen here (a class's card). */
   export let pieceId: string | null = null;
@@ -35,6 +36,12 @@
   let busy = false;
 
   let from = 0;
+  /** Where playback starts: at `from` (a count-in only), or bars before it as a lead-in. */
+  let leadIn = 0;
+  /** What a tap on the music sets next. */
+  let pick: "from" | "to" | "leadIn" = "from";
+  let previewItems: NoteEl[] = [];
+  let drawnFor = "";
   let to = 0;
   let hearing: Hearing = "others";
   let playing = new Set<string>();
@@ -73,6 +80,9 @@
       settings = partSettingsFor(loaded.score, loaded.parts);
       from = Math.min(initial.from ?? 0, score.measures.length - 1);
       to = Math.min(initial.to ?? Math.min(score.measures.length - 1, from + 7), score.measures.length - 1);
+      leadIn = from;
+      pick = "from";
+      drawnFor = "";
       tempo = Math.round(initial.tempo ?? score.measures.find((m) => m.tempo)?.tempo ?? 100);
       // "Only what you choose" starts on a piano or organ part, if the piece has one.
       const keys = score.parts.filter((p) => /piano|organ|keyboard|accomp/i.test(nameOf(p.id))).map((p) => p.id);
@@ -91,11 +101,13 @@
   }
 
   const nameOf = (id: string) => settings[id]?.name ?? score?.parts.find((p) => p.id === id)?.name ?? "Part";
-  $: why = score ? barsProblem(score, from, to) ?? (hearing === "selected" && playing.size === 0 ? "Choose the parts that play along." : null) : null;
+  // The lead-in never starts after the graded bars.
+  $: if (leadIn > from) leadIn = from;
+  $: why = score ? barsProblem(score, from, to, leadIn) ?? (hearing === "selected" && playing.size === 0 ? "Choose the parts that play along." : null) : null;
   $: choosable = score ? partsFor(score, from, to) : [];
   $: notChoosable = score ? score.parts.filter((p) => !choosable.includes(p.id)) : [];
   $: summary = score && !why
-    ? `Each student chooses their part (${listOf(choosable.map(nameOf))}) and sings or plays ${barsLabel(score, { from, to })} at ${tempo} bpm, hearing ` +
+    ? `Each student chooses their part (${listOf(choosable.map(nameOf))}) and sings or plays ${barsLabel(score, { from, to })}${leadIn < from ? ` after a lead-in from bar ${score.measures[leadIn].label}` : ""} at ${tempo} bpm, hearing ` +
       {
         others: "the other parts with their own silent",
         quiet: "every part, their own softly",
@@ -109,21 +121,64 @@
     return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   }
 
-  // The excerpt as students will see it: their part and what plays along.
-  let drawTimer: ReturnType<typeof setTimeout> | null = null;
-  $: if (score && previewEl && !why) schedulePreview(from, to);
-  function schedulePreview(..._deps: unknown[]) {
-    if (drawTimer) clearTimeout(drawTimer);
-    drawTimer = setTimeout(drawPreview, 150);
-  }
-  async function drawPreview() {
-    if (!score || !previewEl) return;
+  // The whole piece, as students will see it: tap a bar to choose it, the
+  // graded bars shaded and the lead-in lighter. Drawn once a piece; shaded
+  // again as the choice changes.
+  $: if (score && previewEl) void drawPreview(chosenPiece);
+  $: if (previewItems.length) shade(from, to, leadIn);
+
+  async function drawPreview(key: string) {
+    if (!score || !previewEl || drawnFor === key) return;
+    drawnFor = key;
     await tick();
     const abcjs = (await import("abcjs")).default;
     const idx = score.parts.map((p, i) => (settings[p.id]?.hidden ? -1 : i)).filter((i) => i >= 0);
     const names = Object.fromEntries(score.parts.map((p, i) => [i, nameOf(p.id)]));
-    const { abc } = abcForPiece(score, { parts: idx, from, to, names, barsPerLine: 4, tempoChanges: false });
-    abcjs.renderAbc(previewEl, abc, { responsive: "resize", staffwidth: 700, scale: 0.8 });
+    const drawn = abcForPiece(score, { parts: idx.length ? idx : [0], names, barsPerLine: 4, tempoChanges: false });
+    const [tune] = abcjs.renderAbc(previewEl, drawn.abc, {
+      add_classes: true,
+      responsive: "resize",
+      staffwidth: 700,
+      scale: 0.8,
+      clickListener: (el: unknown) => tapBar(barOfElement(previewItems, el)),
+    });
+    previewItems = noteElements(tune, drawn, score);
+    shade(from, to, leadIn);
+    // The chosen bars in view.
+    const first = previewItems.find((it) => it.note.measure === leadIn)?.svg[0] as Element | undefined;
+    if (first && previewEl.parentElement) {
+      const box = previewEl.parentElement;
+      box.scrollTop = Math.max(0, first.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 40);
+    }
+  }
+
+  function shade(..._deps: unknown[]) {
+    if (!score) return;
+    const label = (a: number, b: number) => (a === b ? `bar ${score!.measures[a].label}` : `bars ${score!.measures[a].label} to ${score!.measures[b].label}`);
+    shadeBars(previewEl?.querySelector("svg") ?? null, previewItems, [
+      ...(leadIn < from ? [{ from: leadIn, to: from - 1, cls: "shade-lead", label: "Lead-in" }] : []),
+      { from, to, cls: "shade-graded", label: `Graded: ${label(from, to)}` },
+    ]);
+  }
+
+  /** A tap on the music sets the next thing: the first graded bar, then the last; or the lead-in. */
+  function tapBar(bar: number | null) {
+    if (bar === null) return;
+    if (pick === "leadIn") {
+      leadIn = Math.min(bar, from);
+      pick = "from";
+      return;
+    }
+    if (pick === "from" || bar < from) {
+      const keepLead = leadIn === from;
+      from = bar;
+      to = Math.max(to, bar);
+      if (keepLead || leadIn > from) leadIn = from;
+      pick = "to";
+      return;
+    }
+    to = bar;
+    pick = "from";
   }
 
   async function assign() {
@@ -138,7 +193,7 @@
         minutes,
         dueAt,
         note,
-        piece: { from, to, hearing, playing: [...playing], tempo, maxAttempts: limitAttempts ? maxAttempts : null, strictness },
+        piece: { from, to, leadIn, hearing, playing: [...playing], tempo, maxAttempts: limitAttempts ? maxAttempts : null, strictness },
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -185,17 +240,36 @@
   {#if loadingPiece}
     <p class="text-sm text-sr-muted">Loading the piece…</p>
   {:else if score}
+    <div class="flex flex-col gap-2">
+      <p class="text-sm text-sr-ink-2">Tap the music to choose the bars, or pick them here. Every bar is numbered as in your score.</p>
+      <div class="chips" role="group" aria-label="What a tap on the music sets">
+        <button type="button" class="chip" class:on={pick === "from"} aria-pressed={pick === "from"} on:click={() => (pick = "from")}>Tap the first graded bar</button>
+        <button type="button" class="chip" class:on={pick === "to"} aria-pressed={pick === "to"} on:click={() => (pick = "to")}>Tap the last graded bar</button>
+        <button type="button" class="chip" class:on={pick === "leadIn"} aria-pressed={pick === "leadIn"} on:click={() => (pick = "leadIn")}>Tap where the lead-in starts</button>
+      </div>
+    </div>
+    <div class="preview" aria-label="The piece: tap a bar to choose it">
+      <div bind:this={previewEl}></div>
+    </div>
     <div class="flex flex-wrap gap-4">
       <label class="field">
-        <span>From bar</span>
-        <select bind:value={from} on:change={() => (to = Math.max(to, from))}>
+        <span>Graded from bar</span>
+        <select bind:value={from} on:change={() => ((to = Math.max(to, from)), (leadIn = Math.min(leadIn, from)))}>
           {#each score.measures as m, i}<option value={i}>{m.label}</option>{/each}
         </select>
       </label>
       <label class="field">
-        <span>To bar</span>
+        <span>to bar</span>
         <select bind:value={to}>
           {#each score.measures as m, i}<option value={i} disabled={i < from}>{m.label}</option>{/each}
+        </select>
+      </label>
+      <label class="field">
+        <span>Playback starts</span>
+        <select bind:value={leadIn}>
+          {#each score.measures.slice(0, from + 1) as m, i}
+            <option value={i}>{i === from ? "With the graded bars (count-in only)" : `At bar ${m.label} (a lead-in)`}</option>
+          {/each}
         </select>
       </label>
       <label class="field">
@@ -230,13 +304,7 @@
       {/if}
     </fieldset>
 
-    {#if why}
-      <p class="text-sm text-sr-brass" role="alert">{why}</p>
-    {:else}
-      <div class="preview" aria-label="What students will see">
-        <div bind:this={previewEl}></div>
-      </div>
-    {/if}
+    {#if why}<p class="text-sm text-sr-brass" role="alert">{why}</p>{/if}
 
     <fieldset class="flex flex-col gap-2">
       <legend class="legend">Graded attempts</legend>
@@ -356,12 +424,20 @@
     outline: 2px solid var(--sr-action);
     outline-offset: 2px;
   }
+  .preview :global(.shade-graded) { fill: var(--sr-peach); opacity: 0.6; }
+  .preview :global(.shade-lead) { fill: var(--sr-sky); opacity: 0.5; }
+  .preview :global(.shade-graded-label), .preview :global(.shade-lead-label) {
+    font: 800 12px Nunito, sans-serif;
+    fill: var(--sr-peach-ink);
+  }
+  .preview :global(.shade-lead-label) { fill: var(--sr-sky-ink); }
+  .preview :global(.abcjs-note), .preview :global(.abcjs-rest) { cursor: pointer; }
   .preview {
     background: #fff;
     border-radius: 20px;
     padding: 0.5rem;
     border: 1px solid var(--sr-hairline);
-    max-height: 22rem;
+    max-height: 26rem;
     overflow: auto;
   }
   .summary {

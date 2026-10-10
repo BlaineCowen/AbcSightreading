@@ -1404,10 +1404,10 @@ starts one (`POST /api/assignments/<id>/attempts` with their part; counted
 then, so stopping part way still uses one of a limited number), the page
 runs Grade's Pitch & rhythm (`GradeRunner`, the Unison page's engine) on
 their part's notes from the model (`scheduleForPiece`: 32nds from the
-excerpt's first downbeat, ties held), with abcjs playing what the teacher
-chose to hear plus a click and count-in (t0 is the play call plus the
-count-in plus the output's latency; not yet measured end to end the way
-the Unison page's was), then sends the scores and each note's marks
+excerpt's first downbeat, ties held), with what the teacher chose to hear
+(SectionPlayer, below) plus a click and count-in (t0 from the audio clock;
+not yet measured end to end with a fake microphone the way the Unison
+page's was), then sends the scores and each note's marks
 (`PATCH .../attempts/<attempt>`) and the take, straight to private Blob
 (`/api/attempt-takes` signs it: the student's own attempt, under two hours
 old, no take yet; `attempts/<assignment>/<attempt>.webm`). The student is
@@ -1450,8 +1450,24 @@ drawn element mapped to its model notes). Also the tempo, attempts (as many
 as they like, or up to 20), strictness; minutes optional (0 is no time
 goal). The form (`AssignPieceForm.svelte`) is on a class's card and in the
 viewer (Assign to a class), says why bars cannot be assigned, and draws the
-excerpt. `/pieces/<id>?assignment=<id>` opens it for a student or the
-teacher: those bars only, their part marked "(you)"; practice time counts
+excerpt. Every bar of a piece is numbered as the teacher's score numbers it
+(write-abc: `%%barnumbers 1`, and `%%setbarnb` in the body before the first
+voice's `%%MIDI program`, since abcjs throws on it in a header with voices
+and counts one short after a MIDI line). In the form the teacher taps bars on
+the whole piece (Tap the first graded bar, the last, where the lead-in
+starts) or picks them from lists; the graded bars are shaded peach, the
+lead-in sky (`score-dom.ts` `shadeBars`). A **lead-in** (`leadIn`, at or
+before the graded bars, one meter throughout): playback starts there, heard
+and not graded. `/pieces/<id>?assignment=<id>` opens it for a student or the
+teacher: the whole piece, the graded bars shaded and scrolled to, their part
+marked "(you)"; Play plays the lead-in to the last graded bar through
+`SectionPlayer` (section-player.ts: those bars rendered to an AudioBuffer
+off screen, started at a known moment on the audio clock, the count-in and
+click scheduled on that clock, since abcjs's `%%MIDI drumoff` silences its
+count-in too), and the cursor follows the audio clock (`soundingAt`). Grade's
+t0 is when the music is heard plus the lead-in. Checked in headless Chrome on
+a Mozart quartet: the shading, a tap mapping to its bar, the count-in exact
+(2.12 s for four beats at 120 plus the 0.12 s start). Practice time counts
 (page "piece"). A student reads the piece through the assignment (`pieceForReader`); a piece
 cannot be deleted while assigned.
 

@@ -38,9 +38,11 @@ export const QUIET_LEVEL = 0.3;
 
 export type PieceAssignment = {
   pieceId: string;
-  /** Bar indexes into the score, inclusive. */
+  /** Bar indexes into the score, inclusive: what is graded. */
   from: number;
   to: number;
+  /** Where playback starts, at or before `from`: bars that lead in, heard and not graded. */
+  leadIn: number;
   hearing: Hearing;
   /** The parts that play in `selected`. */
   playing: string[];
@@ -80,10 +82,11 @@ export function partsFor(score: PieceScore, from: number, to: number): string[] 
 }
 
 /** Why these bars cannot be assigned, or null: one meter, and at least one part a student can take. */
-export function barsProblem(score: PieceScore, from: number, to: number): string | null {
+export function barsProblem(score: PieceScore, from: number, to: number, leadIn = from): string | null {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to >= score.measures.length || from > to) return "Choose the bars.";
-  const first = score.measures[from].time;
-  for (let m = from + 1; m <= to; m++) {
+  if (!Number.isInteger(leadIn) || leadIn < 0 || leadIn > from) return "The lead-in starts at or before the graded bars.";
+  const first = score.measures[leadIn].time;
+  for (let m = leadIn + 1; m <= to; m++) {
     const t = score.measures[m].time;
     if (t.beats !== first.beats || t.beatType !== first.beatType) return `The meter changes in bar ${score.measures[m].label}. Choose bars in one meter.`;
   }
@@ -116,7 +119,8 @@ export function checkPieceAssignment(body: unknown, pieceId: string, score: Piec
   const b = body as Record<string, unknown>;
   const from = Number(b.from);
   const to = Number(b.to);
-  const problem = barsProblem(score, from, to);
+  const leadIn = b.leadIn === undefined || b.leadIn === null || b.leadIn === "" ? from : Number(b.leadIn);
+  const problem = barsProblem(score, from, to, leadIn);
   if (problem) return { ok: false, error: problem };
   const hearing = HEARING.includes(b.hearing as Hearing) ? (b.hearing as Hearing) : "others";
   const ids = new Set(score.parts.map((p) => p.id));
@@ -133,7 +137,7 @@ export function checkPieceAssignment(body: unknown, pieceId: string, score: Piec
   const strictness = STRICTNESS.includes(b.strictness as Strictness) ? (b.strictness as Strictness) : "standard";
   return {
     ok: true,
-    value: { pieceId, from, to, hearing, playing: hearing === "selected" ? playing : [], tempo: Math.round(tempo), maxAttempts, strictness },
+    value: { pieceId, from, to, leadIn, hearing, playing: hearing === "selected" ? playing : [], tempo: Math.round(tempo), maxAttempts, strictness },
   };
 }
 
@@ -149,6 +153,7 @@ export function pieceAssignmentOf(params: unknown): PieceAssignment | null {
     pieceId: p.pieceId,
     from: p.from as number,
     to: p.to as number,
+    leadIn: Number.isInteger(p.leadIn) && (p.leadIn as number) <= (p.from as number) ? (p.leadIn as number) : (p.from as number),
     hearing: legacy ? "selected" : HEARING.includes(p.hearing as Hearing) ? (p.hearing as Hearing) : "others",
     playing: ((legacy ? p.accompaniment : p.playing) as unknown[] | undefined ?? []).filter((x): x is string => typeof x === "string"),
     tempo: typeof p.tempo === "number" ? p.tempo : 100,
