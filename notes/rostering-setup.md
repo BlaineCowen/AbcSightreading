@@ -1,101 +1,151 @@
-# Rosters: Google Classroom and ClassLink
+# School setup: Google Classroom, ClassLink, email, legal pages
 
-What the code does is in CLAUDE.md ("Rosters from Google Classroom and
-ClassLink"). This is what has to be set up outside it, by Blaine.
+A checklist to work down in order. Each step says where to click and what to
+type. Steps marked **Done** were finished on 10 October 2026.
 
-## Google Classroom
+How the code works is in CLAUDE.md, under "Rosters from Google Classroom and
+ClassLink".
 
-The site's Google sign-in client (`GOOGLE_CLIENT_ID`) does the Classroom
-import too. Nothing new goes in the environment.
+---
 
-1. **Google Cloud console**, the project that holds that client:
-   APIs & Services > Library > **Google Classroom API** > Enable.
-2. **Google Auth Platform > Data access > Add or remove scopes**, and add both:
-   - `https://www.googleapis.com/auth/classroom.courses.readonly`
-   - `https://www.googleapis.com/auth/classroom.rosters.readonly`
+## 0. Before anything: get this code live
 
-   Both are "sensitive", not "restricted", so there is no security audit.
-3. **Branding:**
-   - App name: abcSightReading
-   - Logo: `public/og.png`, cropped square, or the favicon
-   - Home page: https://www.abc-sightreading.com
-   - Privacy policy: https://www.abc-sightreading.com/privacy
-   - Authorised domain: abc-sightreading.com. It must be verified in Search Console under the same Google account.
-4. **Redirect URIs.** Nothing new: connecting Classroom uses the same
-   `/api/auth/callback/google` as sign-in, on each domain already listed.
-5. **Try it before verification.** Unverified, the app works for up to 100
-   people after a "Google hasn't verified this app" screen (Advanced > Go to
-   abcSightReading):
-   - In Google Classroom, with your own Google account, make a class.
-   - Join it as a student from a second Google account.
-   - On /account, use Import from Google Classroom on a class.
-   - Sign in as that student on the Student tab with Sign in with Google.
-6. **Submit for verification** (Google Auth Platform > Verification centre).
-   They want:
-   - An unlisted YouTube video. Record each step:
-     1. Sign in as a teacher.
-     2. Choose Import from Google Classroom.
-     3. The consent screen, with the URL bar showing the client ID.
-     4. Picking a class.
-     5. The students appearing.
-     6. A student signing in with Google and seeing an assignment.
-   - A justification for each scope. Suggested wording:
-     - **courses.readonly:** "A music teacher picks which of their Google Classroom classes to bring into abcSightReading. We list their active classes by name and section so they can choose."
-     - **rosters.readonly:** "We read the chosen class's student list (names and Google user IDs) to create each student's practice account. Students then sign in with Google, so the teacher never types a roster or hands out passwords. We do not read emails, coursework or grades."
+- [ ] **Add the new database column.** In Claude Code, type
+      `! bun run db:deploy`. It should say the migration
+      `20261010120000_class_roster_source` was applied. Claude then pushes
+      to dev.
+- [ ] **Try it on dev** (dev.abc-sightreading.com) after step 1.
+- [ ] **Push to main** when you're happy. Google and ClassLink check the
+      /privacy and /terms links against the live site, so do this before
+      step 1d and step 3.
 
-   Reports put it at a few days to a few weeks.
+---
 
-### What a school's Google admin has to do (students under 18)
+## 1. Google (sign-in and Google Classroom)
 
-Since October 2023, students marked under 18 in Google Workspace for
-Education cannot sign in to an app their admin has not allowed. Teachers
-are not affected. Send this to a teacher's IT department:
+Google Cloud console, project **abc-sightreading**, under Google Auth
+Platform: https://console.cloud.google.com/auth/overview?project=abc-sightreading
 
-> Admin console > Security > Access and data control > API controls > App
-> access control > Manage third-party app access > Configure new app >
-> search by OAuth client ID **`<GOOGLE_CLIENT_ID>`** > abcSightReading >
-> choose the student organisational unit > **Trusted** (or Limited).
-> Students only sign in with their basic profile (name and ID); the app
-> never asks students for Classroom or Drive access.
+- [x] **Done: Google Classroom API turned on.**
+- [x] **Done: scopes added** (Data Access): openid, email, profile,
+      `classroom.courses.readonly` and `classroom.rosters.readonly`.
+      Google lists the two Classroom ones as non-sensitive, so there should
+      be no long review for them.
+- [x] **Done: branding** (Branding):
+  - App name: abcSightReading
+  - Home page: https://www.abc-sightreading.com
+  - Privacy policy: https://www.abc-sightreading.com/privacy
+  - Terms: https://www.abc-sightreading.com/terms
+- [ ] **1a. Publish the app. This is important today.** On the Audience
+      page, the app is in **Testing** with no test users. While it is,
+      Google lets nobody but listed test users sign in, so "Continue with
+      Google" fails for everyone on the live site. The page shows 0 users
+      ever. Click **Publish app**, then **Confirm**. With only basic and
+      non-sensitive scopes, it goes live straight away.
+- [ ] **1b. Logo (optional).** Branding > App logo: a 120×120 PNG. Adding
+      a logo makes Google want a brand verification (a few days), so leave
+      it until you have time for that.
+- [ ] **1c. Domain ownership.** For verification later, abc-sightreading.com
+      must be verified in Search Console under blaine.cowen@gmail.com. If
+      you added the site to Search Console for SEO already, it is.
+- [ ] **1d. Test the Classroom import.** You need two Google accounts: your
+      Gmail as the teacher, and any second Gmail as a student.
+  1. As the teacher, go to classroom.google.com, then **+** > Create class
+     (call it "Test choir"). Copy the class code.
+  2. In another browser profile, sign in as the second account and join
+     with that code.
+  3. On dev, sign in as your educator account. On /account, under
+     Students, a class card has **Import from Google Classroom**.
+  4. Click it, then **Connect Google Classroom**. Pick your teacher Google
+     account, allow both permissions, then pick "Test choir".
+  5. The student appears with a "Google" badge.
+  6. In the second profile, go to dev /login, choose the **Student** tab,
+     then **Sign in with Google**. You should land on the student's
+     account page.
 
-Some districts already allow any app that only asks for basic sign-in.
-There, students can sign in with nothing set up.
+### What a school's IT department does (for students under 18)
 
-## ClassLink
+Google blocks under-18 school accounts from apps their admin hasn't
+allowed. Teachers can send IT this:
 
-1. **Partner Portal.** Start at https://www.classlink.com/partners. It is
-   free. The person signing up needs an email **at abc-sightreading.com**,
-   since ClassLink matches it to the website. Porkbun forwarding only
-   receives mail, so first set up a real mailbox there, either Porkbun email
-   or Google Workspace. The onboarding contact is partners@classlink.com.
-2. **Create the OAuth2 app** in the portal:
-   - **Redirect URIs:**
-     - https://www.abc-sightreading.com/api/auth/callback/classlink
-     - https://dev.abc-sightreading.com/api/auth/callback/classlink
-     - http://localhost:4321/api/auth/callback/classlink
-   - **Launch URL** for the LaunchPad tile: https://www.abc-sightreading.com/classlink
-   - **Scope:** profile
-3. **Keys.** Put `CLASSLINK_CLIENT_ID` and `CLASSLINK_CLIENT_SECRET` in
-   Vercel (Production and Preview) and in `.env.local`. "Sign in with
-   ClassLink" then appears on /login, and /classlink works.
-4. **Test** in ClassLink's test tenant from the portal.
-5. **Request certification**, which lists the app in ClassLink's App
-   Library. They ask for:
-   - an icon
-   - a **terms of use** URL (the site has none yet)
-   - the privacy policy URL
-   - a data sharing policy URL (/privacy covers it, or make a page)
-   - a review call
+> Please allow **abcSightReading** for students. Admin console > Security >
+> Access and data control > API controls > App access control > Manage
+> third-party app access > Configure new app > search the OAuth client ID
+> **451534850151-0ku7…** (full ID under Google Auth Platform > Clients) >
+> choose the students' organisational unit > **Trusted**. Students only
+> sign in with their name and Google ID; the app never asks students for
+> Classroom, Drive or email access.
 
-**What happens on sign-in.** A ClassLink student who signs in gets a
-student account with no email. Until their teacher's class roster comes
-through ClassLink, they type their class code once (/account shows "Join
-your class"). A teacher gets an ordinary account. It never signs in to an
-existing account with the same email, since a district can put any email
-on a ClassLink account.
+Some districts already allow any app that only asks for basic sign-in. In
+those districts it just works.
 
-**Whole rosters from ClassLink** (OneRoster, through ClassLink's Roster
-Server) come per district: each district must approve abcSightReading and
-share its data. Once one does, the Partner Portal API key lists the
-districts that have, and the code can import each teacher's classes. That
-is the next piece of work, best started with a real district.
+---
+
+## 2. Email at abc-sightreading.com
+
+Mail for the domain already forwards through Porkbun (its MX records are in
+place, and feedback@ is in use). The site now shows two more addresses:
+**support@** (on /terms) and **privacy@** (on /privacy).
+
+- [ ] **2a. Add the forwards.** Porkbun > Domain Management >
+      abc-sightreading.com > **Email** > Email Forwarding > Add:
+  - `support` to blaine.cowen@gmail.com
+  - `privacy` to blaine.cowen@gmail.com
+  - `partners` to blaine.cowen@gmail.com (for ClassLink, step 3)
+- [ ] **2b. Check them:** send yourself a test to each from another account.
+
+ClassLink's partner sign-up wants an address at the company domain, and it
+emails a code to confirm it. A forward is enough to receive that. You only
+need a real mailbox (Porkbun Email about $24 a year, or Google Workspace)
+if you want to *send* mail as @abc-sightreading.com.
+
+---
+
+## 3. ClassLink
+
+- [ ] **3a. Sign up** at https://www.classlink.com/partners > "Become a
+      Partner" or "Partner Portal", using **partners@abc-sightreading.com**
+      (step 2a). It is free.
+- [ ] **3b. Create the app** in the Partner Portal, as an OAuth2 / OpenID
+      Connect SSO app:
+  - Name: abcSightReading
+  - Redirect URIs (all three):
+    - `https://www.abc-sightreading.com/api/auth/callback/classlink`
+    - `https://dev.abc-sightreading.com/api/auth/callback/classlink`
+    - `http://localhost:4321/api/auth/callback/classlink`
+  - Launch URL (where the LaunchPad tile goes):
+    `https://www.abc-sightreading.com/classlink`
+  - Scope: `profile`
+  - Terms: https://www.abc-sightreading.com/terms
+  - Privacy: https://www.abc-sightreading.com/privacy
+  - Data sharing policy: https://www.abc-sightreading.com/privacy#sharing
+- [ ] **3c. Put in the keys.** ClassLink gives a Client ID and a Client
+      Secret. Add them in Vercel > abc-sightreading > Settings > Environment
+      Variables, for Production and Preview:
+  - `CLASSLINK_CLIENT_ID`
+  - `CLASSLINK_CLIENT_SECRET`
+
+  Then redeploy. To use them locally, also add both lines to `.env`. "Sign
+  in with ClassLink" then appears on /login.
+- [ ] **3d. Test** with ClassLink's test district from the portal: sign in
+      as a test student, then type a class code once on /account.
+- [ ] **3e. Request certification** in the portal (an icon, plus a review
+      call). After that, districts can find abcSightReading in ClassLink's
+      App Library.
+- [ ] **3f. Later, with a real district:** whole rosters from ClassLink
+      (OneRoster). The district approves abcSightReading in ClassLink, and
+      Claude builds the import against it.
+
+---
+
+## 4. Legal pages
+
+- [x] **Done: /privacy and /terms are written,** linked in the footer and
+      under the sign-up form.
+- [ ] **4a. Have someone read them.** A lawyer who knows school data, or
+      your district's own data privacy office, should read /privacy and
+      /terms once before a district relies on them.
+- [ ] **4b. Student data privacy agreements.** Districts in Texas use the
+      TX-NDPA through the Student Data Privacy Consortium
+      (privacy.a4l.org). When a district sends one, sign it; the privacy
+      page already offers to.
