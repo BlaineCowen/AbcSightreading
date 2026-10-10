@@ -14,7 +14,7 @@
   import { partSettingsFor, type PartSettings, type PieceSummary } from "../../lib/pieces/rules";
   import { MAX_MINUTES } from "../../lib/practice";
   import type { PieceScore } from "../../lib/pieces/model";
-  import { barOfElement, noteElements, shadeBars, type NoteEl } from "../../lib/pieces/score-dom";
+  import { barBoxes, barFromEvent, barHits, noteElements, shadeBars, type BarBox } from "../../lib/pieces/score-dom";
 
   /** A fixed piece (the viewer), or chosen here (a class's card). */
   export let pieceId: string | null = null;
@@ -38,9 +38,16 @@
   let from = 0;
   /** Where playback starts: at `from` (a count-in only), or bars before it as a lead-in. */
   let leadIn = 0;
-  /** What a tap on the music sets next. */
-  let pick: "from" | "to" | "leadIn" = "from";
-  let previewItems: NoteEl[] = [];
+  /** The first bar clicked, waiting for the last (a range picked like dates on a calendar). */
+  let anchor: number | null = null;
+  /** The next click on the music sets where the lead-in starts. */
+  let pickingLead = false;
+  /** The bar under the pointer, for the live preview. */
+  let hoverBar: number | null = null;
+  /** A mouse drag across bars: where it started, and whether it has left that bar. */
+  let dragFrom: number | null = null;
+  let dragged = false;
+  let boxes: BarBox[] = [];
   let drawnFor = "";
   let to = 0;
   let hearing: Hearing = "others";
@@ -81,7 +88,8 @@
       from = Math.min(initial.from ?? 0, score.measures.length - 1);
       to = Math.min(initial.to ?? Math.min(score.measures.length - 1, from + 7), score.measures.length - 1);
       leadIn = from;
-      pick = "from";
+      anchor = null;
+      pickingLead = false;
       drawnFor = "";
       tempo = Math.round(initial.tempo ?? score.measures.find((m) => m.tempo)?.tempo ?? 100);
       // "Only what you choose" starts on a piano or organ part, if the piece has one.
@@ -125,7 +133,7 @@
   // graded bars shaded and the lead-in lighter. Drawn once a piece; shaded
   // again as the choice changes.
   $: if (score && previewEl) void drawPreview(chosenPiece);
-  $: if (previewItems.length) shade(from, to, leadIn);
+  $: if (boxes.length) shade(from, to, leadIn, anchor, hoverBar, pickingLead);
 
   async function drawPreview(key: string) {
     if (!score || !previewEl || drawnFor === key) return;
@@ -140,46 +148,117 @@
       responsive: "resize",
       staffwidth: 700,
       scale: 0.8,
-      clickListener: (el: unknown) => tapBar(barOfElement(previewItems, el)),
     });
-    previewItems = noteElements(tune, drawn, score);
-    shade(from, to, leadIn);
+    const svg = previewEl.querySelector("svg");
+    boxes = barBoxes(svg, noteElements(tune, drawn, score));
+    barHits(svg, boxes);
+    shade();
     // The chosen bars in view.
-    const first = previewItems.find((it) => it.note.measure === leadIn)?.svg[0] as Element | undefined;
+    const first = svg?.querySelector(`[data-bar="${leadIn}"]`);
     if (first && previewEl.parentElement) {
       const box = previewEl.parentElement;
       box.scrollTop = Math.max(0, first.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 40);
     }
   }
 
+  const barName = (i: number) => score?.measures[i]?.label ?? String(i + 1);
+  const barsName = (a: number, b: number) => (a === b ? `bar ${barName(a)}` : `bars ${barName(a)} to ${barName(b)}`);
+
   function shade(..._deps: unknown[]) {
     if (!score) return;
-    const label = (a: number, b: number) => (a === b ? `bar ${score!.measures[a].label}` : `bars ${score!.measures[a].label} to ${score!.measures[b].label}`);
-    shadeBars(previewEl?.querySelector("svg") ?? null, previewItems, [
-      ...(leadIn < from ? [{ from: leadIn, to: from - 1, cls: "shade-lead", label: "Lead-in" }] : []),
-      { from, to, cls: "shade-graded", label: `Graded: ${label(from, to)}` },
-    ]);
+    const svg = previewEl?.querySelector("svg") ?? null;
+    // Waiting for the last bar: the range so far follows the pointer.
+    if (anchor !== null) {
+      const end = hoverBar ?? anchor;
+      const [a, b] = [Math.min(anchor, end), Math.max(anchor, end)];
+      shadeBars(svg, boxes, [{ from: a, to: b, cls: "shade-graded", label: `Graded: ${barsName(a, b)}` }]);
+    } else {
+      const lead = pickingLead && hoverBar !== null && hoverBar < from ? hoverBar : leadIn;
+      shadeBars(svg, boxes, [
+        ...(lead < from ? [{ from: lead, to: from - 1, cls: "shade-lead", label: "Lead-in" }] : []),
+        { from, to, cls: "shade-graded", label: `Graded: ${barsName(from, to)}` },
+      ]);
+    }
+    svg?.querySelectorAll<SVGElement>(".bar-hit").forEach((r) => {
+      const bar = Number(r.dataset.bar);
+      r.classList.toggle("lead-ok", pickingLead && bar < from);
+      r.classList.toggle("anchor", anchor === bar);
+    });
   }
 
-  /** A tap on the music sets the next thing: the first graded bar, then the last; or the lead-in. */
-  function tapBar(bar: number | null) {
-    if (bar === null) return;
-    if (pick === "leadIn") {
-      leadIn = Math.min(bar, from);
-      pick = "from";
-      return;
-    }
-    if (pick === "from" || bar < from) {
-      const keepLead = leadIn === from;
-      from = bar;
-      to = Math.max(to, bar);
-      if (keepLead || leadIn > from) leadIn = from;
-      pick = "to";
-      return;
-    }
-    to = bar;
-    pick = "from";
+  /** Sets the graded bars, keeping a lead-in that still comes before them. */
+  function setRange(a: number, b: number) {
+    const lead = leadIn < from ? leadIn : null;
+    from = Math.min(a, b);
+    to = Math.max(a, b);
+    leadIn = lead !== null && lead < from ? lead : from;
   }
+
+  /** A click on a bar: the first bar, then the last; or the lead-in's bar. */
+  function clickBar(bar: number) {
+    if (pickingLead) {
+      if (bar < from) leadIn = bar;
+      pickingLead = false;
+      return;
+    }
+    if (anchor === null) {
+      anchor = bar;
+      setRange(bar, bar);
+    } else {
+      setRange(anchor, bar);
+      anchor = null;
+    }
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    const bar = barFromEvent(e);
+    if (bar === null || e.pointerType !== "mouse" || pickingLead || e.button !== 0) return;
+    e.preventDefault();
+    dragFrom = bar;
+    dragged = false;
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    const bar = barFromEvent(e);
+    hoverBar = bar;
+    if (dragFrom === null || bar === null) return;
+    if (bar !== dragFrom || dragged) {
+      dragged = true;
+      anchor = null;
+      setRange(dragFrom, bar);
+    }
+  }
+
+  function onPointerUp() {
+    // A drag picks the range at once; a press without moving is a click.
+    if (dragFrom !== null && dragged) suppressClick = true;
+    dragFrom = null;
+  }
+
+  let suppressClick = false;
+  function onClick(e: MouseEvent) {
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+    const bar = barFromEvent(e);
+    if (bar !== null) clickBar(bar);
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== "Escape" || (anchor === null && !pickingLead)) return;
+    e.stopPropagation();
+    if (anchor !== null) anchor = null;
+    pickingLead = false;
+  }
+
+  $: prompt = !score
+    ? ""
+    : pickingLead
+      ? `Click the bar where playback starts, before bar ${barName(from)}.`
+      : anchor !== null
+        ? `Now click the last bar to grade. It starts at bar ${barName(anchor)}; click it again for just that bar.`
+        : `Graded: ${barsName(from, to)}${leadIn < from ? `, after a lead-in from bar ${barName(leadIn)}` : ""}. Click a bar to choose again, or drag across bars.`;
 
   async function assign() {
     if (!score || why || !chosenClass) return;
@@ -240,21 +319,30 @@
   {#if loadingPiece}
     <p class="text-sm text-sr-muted">Loading the piece…</p>
   {:else if score}
-    <div class="flex flex-col gap-2">
-      <p class="text-sm text-sr-ink-2">Tap the music to choose the bars, or pick them here. Every bar is numbered as in your score.</p>
-      <div class="chips" role="group" aria-label="What a tap on the music sets">
-        <button type="button" class="chip" class:on={pick === "from"} aria-pressed={pick === "from"} on:click={() => (pick = "from")}>Tap the first graded bar</button>
-        <button type="button" class="chip" class:on={pick === "to"} aria-pressed={pick === "to"} on:click={() => (pick = "to")}>Tap the last graded bar</button>
-        <button type="button" class="chip" class:on={pick === "leadIn"} aria-pressed={pick === "leadIn"} on:click={() => (pick = "leadIn")}>Tap where the lead-in starts</button>
+    <div class="picker-head">
+      <p class="prompt" class:waiting={anchor !== null || pickingLead} aria-live="polite">
+        <span class="step">{pickingLead ? "Lead-in" : anchor !== null ? "2" : "1"}</span>
+        {prompt}
+      </p>
+      <div class="chips">
+        {#if anchor !== null || pickingLead}
+          <button type="button" class="chip" on:click={() => ((anchor = null), (pickingLead = false))}>Cancel</button>
+        {:else if leadIn < from}
+          <button type="button" class="chip" on:click={() => (pickingLead = true)}>Move the lead-in</button>
+          <button type="button" class="chip" on:click={() => (leadIn = from)}>No lead-in</button>
+        {:else if from > 0}
+          <button type="button" class="chip" on:click={() => (pickingLead = true)}>Add a lead-in</button>
+        {/if}
       </div>
     </div>
-    <div class="preview" aria-label="The piece: tap a bar to choose it">
+    <!-- svelte-ignore a11y-no-static-element-interactions a11y-click-events-have-key-events -->
+    <div class="preview" class:picking-lead={pickingLead} aria-label="The piece: click the first bar to grade, then the last. The lists below do the same." on:pointerdown={onPointerDown} on:pointermove={onPointerMove} on:pointerup={onPointerUp} on:pointerleave={() => (hoverBar = null)} on:click={onClick} on:keydown={onKey}>
       <div bind:this={previewEl}></div>
     </div>
     <div class="flex flex-wrap gap-4">
       <label class="field">
         <span>Graded from bar</span>
-        <select bind:value={from} on:change={() => ((to = Math.max(to, from)), (leadIn = Math.min(leadIn, from)))}>
+        <select bind:value={from} on:change={() => ((anchor = null), (to = Math.max(to, from)), (leadIn = Math.min(leadIn, from)))}>
           {#each score.measures as m, i}<option value={i}>{m.label}</option>{/each}
         </select>
       </label>
@@ -431,7 +519,45 @@
     fill: var(--sr-peach-ink);
   }
   .preview :global(.shade-lead-label) { fill: var(--sr-sky-ink); }
-  .preview :global(.abcjs-note), .preview :global(.abcjs-rest) { cursor: pointer; }
+  .preview :global(.bar-hit) { fill: transparent; cursor: pointer; }
+  .preview :global(.bar-hit:hover) { fill: var(--sr-action); fill-opacity: 0.1; }
+  .preview :global(.bar-hit.anchor) { stroke: var(--sr-peach-ink); stroke-width: 2; stroke-dasharray: 5 4; }
+  .preview.picking-lead :global(.bar-hit) { cursor: not-allowed; }
+  .preview.picking-lead :global(.bar-hit.lead-ok) { cursor: pointer; }
+  .preview.picking-lead :global(.bar-hit.lead-ok:hover) { fill: var(--sr-sky-ink); fill-opacity: 0.12; }
+  .preview { user-select: none; -webkit-user-select: none; }
+  .picker-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .prompt {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--sr-ink);
+    flex: 1 1 20rem;
+  }
+  .prompt .step {
+    flex: none;
+    min-width: 1.8rem;
+    height: 1.8rem;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    display: inline-grid;
+    place-items: center;
+    font-size: 0.8rem;
+    background: var(--sr-tint);
+    color: var(--sr-action);
+  }
+  .prompt.waiting .step {
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+  }
   .preview {
     background: #fff;
     border-radius: 20px;

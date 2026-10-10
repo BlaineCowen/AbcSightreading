@@ -37,7 +37,7 @@
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { tuner } from "../../lib/tuner/store";
   import { scheduleForPiece, beatsInBar } from "../../lib/pieces/schedule";
-  import { noteElements, shadeBars, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
+  import { barBoxes, noteElements, shadeBars, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
   import { SectionPlayer } from "../../lib/pieces/section-player";
   import { TICKS } from "../../lib/pieces/model";
   import { attemptsLeft, attemptsLine, bestOf, marksOf, type Mark } from "../../lib/pieces/attempts";
@@ -510,7 +510,7 @@
     if (!score) return;
     const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
     const label = (a: number, b: number) => (a === b ? `bar ${score!.measures[a].label}` : `bars ${score!.measures[a].label} to ${score!.measures[b].label}`);
-    shadeBars(svg, items, [
+    shadeBars(svg, barBoxes(svg, items), [
       ...(leadIn < from ? [{ from: leadIn, to: from - 1, cls: "shade-lead", label: "Lead-in" }] : []),
       { from, to, cls: "shade-graded", label: `Graded: ${label(from, to)}` },
     ]);
