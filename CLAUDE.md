@@ -1419,6 +1419,18 @@ link opening that attempt: `?attempt=` puts its marks on the music and plays
 its take, `/api/attempts/<id>/take`). The teacher can Try the grading in
 the assignment; nothing is kept.
 
+Before each attempt a dialog checks the setup (`AudioCheck.svelte`, rules
+`src/lib/pieces/audio-check.ts`, tests `audio-check.test.ts`; Blaine, after
+SmartMusic): headphones on (wired; Bluetooth lags), a speaker test (four
+notes, "Yes, I heard them"), a microphone test (a live meter until a voice is
+held half a second), and the beep test: three A5 beeps played while the
+tuner listens; heard in two of three (the beep's pitch class in a third of
+the frames, or 10 dB over the quiet after it) means the microphone will hear
+the accompaniment and grade it, so headphones or a lower volume are asked
+for (Go on anyway is allowed). Passed once in a tab (`abc-audio-check-v1`,
+sessionStorage), later attempts open on the last step with Check my setup
+again. The microphone it turns on stays on into the attempt.
+
 Assigning (Educator, as every assignment): a class's assignments are two
 kinds, kept apart wherever they show (Blaine: "a clear distinction between
 generated sight reading and my library"): **Sight reading** (sky; a step, a

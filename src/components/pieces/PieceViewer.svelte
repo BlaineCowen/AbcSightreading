@@ -41,6 +41,7 @@
   import { finishAttempt, listAttempts, loadAttempt, sendTake, startAttempt, type AttemptRow } from "../../lib/pieces/client";
   import { startPractice } from "../../lib/practice-tracker";
   import AssignPieceForm from "./AssignPieceForm.svelte";
+  import AudioCheck from "./AudioCheck.svelte";
   import Music from "lucide-svelte/icons/music";
   import Send from "lucide-svelte/icons/send";
 
@@ -261,6 +262,8 @@
   async function startRun() {
     if (!assignment || !myPart || !score) return;
     gradeError = "";
+    // The setup dialog closes at once; "Your starting note…" shows while this gets going.
+    gradeStage = "running";
     clearMarks();
     shown = null;
     if (assignment.role === "student") {
@@ -271,6 +274,7 @@
         attempts = [...attempts, r.attempt];
       } catch (e) {
         gradeError = (e as Error).message;
+        gradeStage = "idle";
         return;
       }
     } else currentAttempt = null;
@@ -283,19 +287,21 @@
     if (!gradeNotes.length) {
       grading = false;
       gradeError = "Your part has no notes in these bars.";
+      gradeStage = "idle";
       return;
     }
     recording = await startGradeRecording();
+    // The setup check (AudioCheck) leaves the microphone on.
     initTuner();
-    await startTuner();
+    if (tuner.get().engineStatus !== "running") await startTuner();
     if (tuner.get().engineStatus !== "running") {
       grading = false;
       gradeError = "The microphone did not start. Allow it in your browser, then try again.";
       await recording?.stop();
+      gradeStage = "idle";
       return;
     }
     tuner.setMicHeld(true);
-    gradeStage = "running";
     const time = score.measures[from].time;
     gradeRunner.start({
       notes: gradeNotes,
@@ -771,22 +777,7 @@
           {/if}
         </div>
 
-        {#if gradeStage === "setup"}
-          <div class="setup flex flex-col gap-2">
-            {#if assignment.role === "student"}
-              <p class="font-bold text-sr-ink">Your teacher will hear a recording of this attempt. It is kept for {90} days, then deleted.</p>
-              {#if maxAttempts !== null}<p class="text-sm text-sr-ink-2">This uses one of your {maxAttempts} attempts, even if you stop part way.</p>{/if}
-            {/if}
-            <p class="text-sm text-sr-ink-2">
-              You hear your starting note, then a count-in. Sing or play {mine?.s.name ?? "your part"} from bar {score.measures[from].label} to bar {score.measures[to].label} at {bpm} bpm.
-              Headphones help: the music from speakers can be heard by the microphone.
-            </p>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" class="sr-btn" on:click={startRun}>Start</button>
-              <button type="button" class="sr-btn-quiet" on:click={() => (gradeStage = "idle")}>Not now</button>
-            </div>
-          </div>
-        {:else if gradeStage === "running"}
+        {#if gradeStage === "running"}
           <div class="flex flex-wrap items-center gap-3" role="status">
             <span class="live-dot" aria-hidden="true"></span>
             <span class="font-bold text-sr-ink">
@@ -892,6 +883,16 @@
         <input type="checkbox" bind:checked={looping} /> Loop
       </label>
     </section>
+    {/if}
+
+    {#if gradeStage === "setup" && assignment}
+      <AudioCheck
+        student={assignment.role === "student"}
+        maxAttempts={maxAttempts}
+        summary={`${mine?.s.name ?? "Your part"}, bars ${score.measures[from].label} to ${score.measures[to].label}, at ${bpm} bpm.`}
+        onStart={() => void startRun()}
+        onClose={() => (gradeStage = "idle")}
+      />
     {/if}
 
     <div id="piece-box" class="score-paper">
