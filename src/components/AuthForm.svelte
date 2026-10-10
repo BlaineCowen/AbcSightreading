@@ -212,6 +212,10 @@
     </button>
   </form>
 
+  {#if mode === "signup"}
+    <p class="text-xs text-sr-muted text-center">By creating an account you agree to our <a class="underline" href="/terms">terms</a> and <a class="underline" href="/privacy">privacy policy</a>.</p>
+  {/if}
+
   {#if mode === "student"}
     <p class="text-sm text-sr-muted text-center">Forgot your password? Ask your teacher for a new one.</p>
     <a class="text-sm text-sr-muted underline self-center" href="/join">Have a class code but no account? Join a class</a>

@@ -1,0 +1,150 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { GENERATION_LIMITS } from "../lib/plan";
+import { SUPPORT_EMAIL } from "../lib/contact";
+
+/**
+ * Terms of use. ClassLink's certification and many districts ask for one
+ * beside the privacy policy (/privacy). Like that page, every statement must
+ * be true of the site as it stands; it promises nothing the code or the
+ * business does not do. Read by a lawyer before a district relies on it.
+ */
+
+const UPDATED = "10 October 2026";
+---
+
+<Layout title="Terms of use | abcSightReading" description="The terms for using abcSightReading: accounts, school and student use, plans and billing, music you upload, and what we each promise." themable>
+  <article class="policy max-w-3xl mx-auto px-2 pb-16 text-sr-ink-2">
+    <p class="sr-label">Updated {UPDATED}</p>
+    <h1 class="text-4xl font-bold text-sr-ink leading-tight">Terms of use</h1>
+    <p class="lead">
+      These terms are between you and abc Sight Reading, a business of BlaineCo in Texas ("we"). By using abcSightReading you agree to them. Our <a class="sr-link" href="/privacy">privacy policy</a> says what we collect and why, and is part of these terms.
+    </p>
+
+    <nav class="toc" aria-label="On this page">
+      <a href="#service">The service</a>
+      <a href="#accounts">Accounts</a>
+      <a href="#schools">Schools and students</a>
+      <a href="#plans">Plans and billing</a>
+      <a href="#yours">Your music and work</a>
+      <a href="#ours">Our exercises</a>
+      <a href="#rules">Fair use</a>
+      <a href="#limits">Promises and limits</a>
+      <a href="#changes">Changes and contact</a>
+    </nav>
+
+    <section id="service">
+      <h2>The service</h2>
+      <p>abcSightReading writes sight-reading exercises, plays them, and helps singers and players practise them, with tools for teachers to run classes. We keep improving it, so features change.</p>
+    </section>
+
+    <section id="accounts">
+      <h2>Accounts</h2>
+      <ul>
+        <li>You can use much of the site without an account, up to {GENERATION_LIMITS.anonymous} exercises a month. A free account gives {GENERATION_LIMITS.free} a month and keeps your settings.</li>
+        <li>Give true details, keep your password to yourself, and tell us if you think someone else is using your account.</li>
+        <li>You are responsible for what happens under your account.</li>
+        <li>You may delete your account at any time from your account page.</li>
+      </ul>
+    </section>
+
+    <section id="schools">
+      <h2>Schools and students</h2>
+      <ul>
+        <li><b>Teachers.</b> If you add students (from a list, a class code, Google Classroom or ClassLink), you confirm you have your school's permission to use abcSightReading with them, including for students under 13, and that you will use their information only for your class.</li>
+        <li><b>Students</b> use the site under their teacher and school. A student account belongs to the class; the teacher can reset its password or remove it, which deletes it.</li>
+        <li><b>Districts</b> may ask for a student data privacy agreement. Where one is signed, it governs student data over anything here that conflicts with it.</li>
+      </ul>
+    </section>
+
+    <section id="plans">
+      <h2>Plans and billing</h2>
+      <ul>
+        <li>Pro and Educator are paid by the year. Prices are shown on the <a class="sr-link" href="/pricing">pricing page</a> and include any sales tax.</li>
+        <li>A plan paid by card renews each year unless you turn automatic renewal off on your account page, which you can do at any time. We email before a plan that will not renew ends.</li>
+        <li>A school quote is for one year unless it says it renews. A plan bought by purchase order is invoiced net 30; if the invoice goes unpaid after it falls due, the plan ends.</li>
+        <li>Payments are taken by Stripe. If you think a charge is wrong, write to us and we will sort it out.</li>
+        <li>Codes, gifts and free months are for the person they were given to, once, and end on the date they say.</li>
+      </ul>
+    </section>
+
+    <section id="yours">
+      <h2>Your music and work</h2>
+      <ul>
+        <li>Music you upload, presets you save and recordings students make stay yours or your school's. You give us only the permission we need to store them, show them to you and your class, and play and grade them.</li>
+        <li>Only upload music you have the right to use: your own, public domain, or music your school is licensed to copy for its students. We will remove music when its owner shows us it was uploaded without permission.</li>
+      </ul>
+    </section>
+
+    <section id="ours">
+      <h2>Our exercises</h2>
+      <p>The site, its software and its design are ours. Exercises it writes for you are yours to print, project, share and use in your teaching and your concerts, as many as you like. Please keep the small copyright line they carry, and do not sell them or use them to build a competing product.</p>
+    </section>
+
+    <section id="rules">
+      <h2>Fair use</h2>
+      <p>Do not try to get into accounts or data that are not yours, overload or scrape the site, get around plan limits, or use it to harm anyone. We may suspend an account that does, after telling the account holder why where we can.</p>
+    </section>
+
+    <section id="limits">
+      <h2>Promises and limits</h2>
+      <ul>
+        <li>We work to keep the site running and your data safe, but the site is provided as it is, without guarantees that it will always be available or free of mistakes. Grading by microphone is a practice aid, not an official adjudication.</li>
+        <li>As far as the law allows, we are not liable for indirect or consequential losses, and our total liability to you is limited to what you paid us in the twelve months before the claim.</li>
+        <li>These terms are governed by the laws of Texas. Any dispute goes to the courts of Harris County, Texas, unless your school's agreement with us says otherwise.</li>
+      </ul>
+    </section>
+
+    <section id="changes">
+      <h2>Changes and contact</h2>
+      <p>If we change these terms in a way that matters, we will say so on this page before the change takes effect.</p>
+      <p>Questions: <a class="sr-link" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.</p>
+    </section>
+  </article>
+</Layout>
+
+<style>
+  .policy {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    line-height: 1.65;
+  }
+  .lead {
+    font-size: 1.15rem;
+  }
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .toc a {
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    background: var(--sr-tint);
+    color: var(--sr-action-fg);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    scroll-margin-top: 5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--sr-ink);
+  }
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 1.2rem;
+    list-style: disc;
+  }
+  b {
+    color: var(--sr-ink);
+  }
+</style>

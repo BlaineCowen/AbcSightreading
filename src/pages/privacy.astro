@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import { RETENTION_DAYS } from "../lib/practice";
 import { TAKE_DAYS } from "../lib/pieces/attempts";
+import { PRIVACY_EMAIL } from "../lib/contact";
 
 /**
  * The privacy policy. Schools, districts and the ClassLink and Google
@@ -12,7 +13,7 @@ import { TAKE_DAYS } from "../lib/pieces/attempts";
  */
 
 const UPDATED = "10 October 2026";
-const CONTACT = "privacy@abc-sightreading.com";
+const CONTACT = PRIVACY_EMAIL;
 
 const providers = [
   { name: "Vercel", what: "hosts the site, stores uploaded music and recordings privately, and counts page visits for teachers' and other adults' pages (cookieless, never on a student's page)" },

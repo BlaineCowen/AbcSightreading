@@ -17,6 +17,7 @@ export const PUBLIC_PAGES = [
   "/tuner",
   "/curriculum",
   "/privacy",
+  "/terms",
   ...TRACKS.map((t) => `/curriculum/${t.id}`),
 ];
 
