@@ -19,7 +19,8 @@ const providers = [
   { name: "Prisma Postgres", what: "the database that holds accounts, classes and results" },
   { name: "Stripe", what: "takes payments; we never see a card number" },
   { name: "Resend", what: "sends account emails, such as a password reset" },
-  { name: "Google", what: "signs you in, only if you choose Continue with Google" },
+  { name: "Google", what: "signs you in if you choose Google, and gives a teacher their Google Classroom class lists when they ask" },
+  { name: "ClassLink", what: "signs a school's teachers and students in, when their district uses it" },
 ];
 ---
 
@@ -46,12 +47,13 @@ const providers = [
       <h2>Students</h2>
       <p>A student account is made by a teacher (from a class list) or by the student with the teacher's class code. Students may be under 13, so their accounts hold as little as we can manage.</p>
       <ul>
-        <li><b>No email address.</b> A student signs in with a class code, a username and a password. The password is stored only as a secure hash.</li>
+        <li><b>No email address.</b> A student signs in with a class code, a username and a password (stored only as a secure hash), or with their school's Google or ClassLink account. For those we keep only the account's ID number, which links it to their account here. Never its email, and never Google's or ClassLink's access to it.</li>
         <li><b>A name,</b> as the teacher or student typed it, so the teacher knows who is who.</li>
         <li><b>Practice:</b> minutes practised, how many exercises, and on which days. Nothing about what was clicked or where.</li>
         <li><b>Class work:</b> which assignments were done, and the score of each graded attempt, with how each note went.</li>
         <li><b>Recordings of graded attempts</b> on music the teacher assigned, so the teacher can listen. A student is told this before their first graded attempt.</li>
       </ul>
+      <p>When a teacher brings a class in from Google Classroom, we read that class's name and its students' names and Google ID numbers, with the teacher's permission, and nothing else: no emails, work or grades.</p>
       <p>Student pages carry no analytics and no feedback form. Students cannot buy anything, and never reach our payment provider.</p>
     </section>
 

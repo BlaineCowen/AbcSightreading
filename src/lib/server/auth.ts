@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins/username";
+import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { stripe as stripePlugin } from "@better-auth/stripe";
 import type Stripe from "stripe";
@@ -7,7 +8,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { resetPasswordEmail, sendAccountEmail, verifyEmailEmail } from "./auth-email";
-import { isStudentEmail } from "../roster";
+import { classlinkEmail, isStudentEmail } from "../roster";
 import { EDUCATOR_ON_SALE } from "../plan";
 import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from "./stripe";
 import { becomeEducator } from "./educator";
@@ -114,6 +115,53 @@ const url = baseURL();
 
 const googleId = serverEnv("GOOGLE_CLIENT_ID");
 const googleSecret = serverEnv("GOOGLE_CLIENT_SECRET");
+const classlinkId = serverEnv("CLASSLINK_CLIENT_ID");
+const classlinkSecret = serverEnv("CLASSLINK_CLIENT_SECRET");
+
+/**
+ * ClassLink single sign-on (notes/rostering-setup.md): a student clicks our
+ * tile in their district's LaunchPad, or "Sign in with ClassLink" on the
+ * login page, and is signed in. Their account is keyed by ClassLink's UserId.
+ * A student's account gets no email (the same placeholder a class roster
+ * gives, so it is a student account, src/lib/roster.ts); a teacher's keeps
+ * the district email. Only when configured.
+ */
+type ClassLinkInfo = { UserId?: number | string; Email?: string; FirstName?: string; LastName?: string; Role?: string; Role_Level?: number | string };
+const classlink =
+  classlinkId && classlinkSecret
+    ? [
+        genericOAuth({
+          config: [
+            {
+              providerId: "classlink",
+              clientId: classlinkId,
+              clientSecret: classlinkSecret,
+              authorizationUrl: "https://launchpad.classlink.com/oauth2/v2/auth",
+              tokenUrl: "https://launchpad.classlink.com/oauth2/v2/token",
+              scopes: ["profile"],
+              pkce: false,
+              getUserInfo: async (tokens) => {
+                const res = await fetch("https://nodeapi.classlink.com/v2/my/info", { headers: { Authorization: `Bearer ${tokens.accessToken}` } });
+                if (!res.ok) return null;
+                const me = (await res.json()) as ClassLinkInfo;
+                if (me.UserId === undefined || me.UserId === null || me.UserId === "") return null;
+                const id = String(me.UserId);
+                const student = me.Role?.toLowerCase() === "student" || String(me.Role_Level) === "4";
+                const name = [me.FirstName, me.LastName].filter(Boolean).join(" ").trim() || (student ? "Student" : "Teacher");
+                return {
+                  id,
+                  name,
+                  // A district can put any address on a ClassLink account, so it
+                  // never signs anyone into an account made another way.
+                  email: student || !me.Email ? classlinkEmail(id, student) : me.Email.toLowerCase(),
+                  emailVerified: false,
+                };
+              },
+            },
+          ],
+        }),
+      ]
+    : [];
 
 export const auth = betterAuth({
   baseURL: url,
@@ -157,8 +205,42 @@ export const auth = betterAuth({
   // than sending people to a Google error page.
   socialProviders:
     googleId && googleSecret
-      ? { google: { clientId: googleId, clientSecret: googleSecret } }
+      ? {
+          google: {
+            clientId: googleId,
+            clientSecret: googleSecret,
+            // Choose which Google account each time: a teacher's school one, a student's school one.
+            prompt: "select_account",
+            // A refresh token, so a class can sync from Google Classroom again later.
+            accessType: "offline",
+            // A Google sign-in makes an account only when asked to (AuthForm passes
+            // requestSignUp): the student tab's button signs in students their
+            // teacher brought in from Google Classroom, and nobody else.
+            disableImplicitSignUp: true,
+          },
+        }
       : {},
+  account: {
+    accountLinking: {
+      // A teacher connects their school Google account to Classroom from an
+      // account made with another email (src/lib/classroom.ts).
+      allowDifferentEmails: true,
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // An account with no real email is a student's: a roster's, or ClassLink's.
+        before: async (user) => (isStudentEmail(user.email) ? { data: { ...user, accountType: "student" } } : { data: user }),
+      },
+    },
+    account: {
+      // A student signs in with Google or ClassLink, but we keep only the link to
+      // that account, never its tokens (the ID token carries their email).
+      create: { after: async (account) => stripStudentTokens(account) },
+      update: { after: async (account) => stripStudentTokens(account) },
+    },
+  },
   user: {
     deleteUser: {
       enabled: true,
@@ -202,6 +284,7 @@ export const auth = betterAuth({
       usernameValidator: (u) => /^[a-z0-9.]+$/.test(u),
       displayUsername: false,
     }),
+    ...classlink,
     ...billing,
   ],
   hooks: {
@@ -246,5 +329,17 @@ export const auth = betterAuth({
 
 /** Whether "Continue with Google" should be shown. */
 export const googleEnabled = !!(googleId && googleSecret);
+/** Whether "Sign in with ClassLink" should be shown. */
+export const classlinkEnabled = classlink.length > 0;
+
+async function stripStudentTokens(account: { id: string; userId: string; providerId: string; accessToken?: string | null; refreshToken?: string | null; idToken?: string | null }) {
+  if (account.providerId === "credential" || !(account.accessToken || account.refreshToken || account.idToken)) return;
+  const user = await prisma.user.findUnique({ where: { id: account.userId }, select: { accountType: true } });
+  if (user?.accountType !== "student") return;
+  await prisma.account.update({
+    where: { id: account.id },
+    data: { accessToken: null, refreshToken: null, idToken: null, accessTokenExpiresAt: null, refreshTokenExpiresAt: null },
+  });
+}
 
 export type AuthSession = typeof auth.$Infer.Session;

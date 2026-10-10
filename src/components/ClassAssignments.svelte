@@ -8,6 +8,7 @@
   import { uilPresets } from "../lib/uil-presets";
   import { MAX_MINUTES, assignmentKind } from "../lib/practice";
   import { assignmentHref } from "../lib/assignment-client";
+  import { shareToClassroomUrl } from "../lib/classroom";
   import AssignPieceForm from "./pieces/AssignPieceForm.svelte";
 
   /**
@@ -194,6 +195,7 @@
           {/if}
           <div class="flex flex-wrap items-center gap-3 text-xs">
             <a class="underline text-sr-action-fg" href={assignmentHref(a)}>{piece ? "Open it: every attempt, and try it as they will" : "Open it as students see it"}</a>
+            <a class="underline text-sr-action-fg" target="_blank" rel="noopener" href={shareToClassroomUrl(new URL(assignmentHref(a), location.origin).href, a.title)} title="Post a link to this assignment in Google Classroom">Share to Google Classroom</a>
             {#if confirmRemove === a.id}
               <span class="text-sr-ink">Remove it? Their practice time stays in the log.</span>
               <button class="text-sr-danger font-semibold" on:click={() => remove(a)}>Remove</button>

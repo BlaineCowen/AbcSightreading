@@ -28,9 +28,11 @@ export const GET: APIRoute = async ({ request }) => {
       id: true,
       name: true,
       joinCode: true,
+      rosterSource: true,
+      rosterSyncedAt: true,
       enrollments: {
         orderBy: { createdAt: "asc" },
-        select: { managed: true, createdAt: true, student: { select: { id: true, name: true, username: true } } },
+        select: { managed: true, createdAt: true, student: { select: { id: true, name: true, username: true, accounts: { where: { providerId: "google" }, select: { id: true } } } } },
       },
     },
   });
@@ -40,11 +42,13 @@ export const GET: APIRoute = async ({ request }) => {
       id: c.id,
       name: c.name,
       joinCode: c.joinCode ? formatJoinCode(c.joinCode) : null,
+      classroom: c.rosterSource?.startsWith("google:") ? { syncedAt: c.rosterSyncedAt?.getTime() ?? null } : null,
       students: c.enrollments.map((e) => ({
         id: e.student.id,
         name: e.student.name,
         username: shortUsername(e.student.username),
         managed: e.managed,
+        google: e.student.accounts.length > 0,
         joinedAt: e.createdAt.getTime(),
       })),
     })),

@@ -9,21 +9,32 @@ import StudentAssignments from "../components/StudentAssignments.svelte";
 import { currentUser } from "../lib/server/api";
 import { accountTypeFor } from "../lib/server/students";
 import { EDUCATOR_ON_SALE } from "../lib/plan";
+import { prisma } from "../lib/server/db";
+import { googleEnabled } from "../lib/server/auth";
 
 // What this account is decides the page: an educator manages students; a
 // student's teacher manages theirs, so none of the director's tools show.
 const viewer = await currentUser(Astro.request).catch(() => null);
 // From the database: the session cookie can be five minutes behind a purchase.
 const accountType = viewer ? await accountTypeFor(viewer) : "standard";
+// A student who signed in with ClassLink before their teacher added them: one class code to type.
+const classless = accountType === "student" && viewer ? (await prisma.enrollment.count({ where: { studentId: viewer.id } })) === 0 : false;
 ---
 
 <Layout noindex title="Account | abcSightReading" themable>
   <div class="flex flex-col w-full items-center gap-6 pb-16">
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
+    {classless && (
+      <section class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3">
+        <h2 class="text-lg font-semibold text-sr-ink">Join your class</h2>
+        <p class="text-sm text-sr-ink-2">You are signed in. Type your class code once, and your teacher's assignments show up here.</p>
+        <a class="sr-btn self-start" href="/join">Enter my class code</a>
+      </section>
+    )}
     {accountType !== "educator" && <StudentAssignments client:only="svelte" />}
     <AccountPanel client:only="svelte" />
     {accountType !== "student" && <SchoolQuote client:only="svelte" educatorOnSale={EDUCATOR_ON_SALE} />}
-    {accountType === "educator" && <EducatorStudents client:only="svelte" />}
+    {accountType === "educator" && <EducatorStudents client:only="svelte" {googleEnabled} />}
     {accountType !== "student" && <ClassProgress client:only="svelte" />}
     {accountType !== "student" && <SyllableEditor client:only="svelte" />}
   </div>

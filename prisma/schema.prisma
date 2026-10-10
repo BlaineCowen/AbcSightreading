@@ -217,6 +217,9 @@ model Class {
   course      String?
   /// Its own list of the course's steps as preset keys (hidden, reordered, presets added); null is the course as written.
   courseSteps Json?
+  /// Where its students come from besides codes and pasted lists: "google:<course id>" (a Google Classroom class, synced on request).
+  rosterSource   String?
+  rosterSyncedAt DateTime?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]

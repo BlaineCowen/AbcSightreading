@@ -7,6 +7,11 @@
   import { EDUCATOR_ON_SALE } from "../lib/plan";
   import ClassAssignments from "./ClassAssignments.svelte";
   import { UNISON_PRESET_STORE } from "../lib/preset-storage";
+  import { authClient } from "../lib/auth-client";
+  import { CLASSROOM_SCOPES, type ClassroomCourse } from "../lib/classroom";
+
+  /** Whether Google sign-in is set up here, and so Google Classroom import. */
+  export let googleEnabled = false;
 
   /**
    * The educator's students: seats, each class's join code, its students,
@@ -18,8 +23,8 @@
    * resets a password to print a new card.
    */
 
-  type Student = { id: string; name: string; username: string | null; managed: boolean };
-  type Cls = { id: string; name: string; joinCode: string | null; students: Student[] };
+  type Student = { id: string; name: string; username: string | null; managed: boolean; google: boolean };
+  type Cls = { id: string; name: string; joinCode: string | null; classroom: { syncedAt: number | null } | null; students: Student[] };
   type Card = { name: string; username: string; password: string; className: string; joinCode: string };
 
   let seats = { total: 0, used: 0, left: 0 };
@@ -57,8 +62,89 @@
     savedPresets = lists.flat();
   }
 
+  // ── Google Classroom ──
+  /** The class whose Classroom picker is open, the teacher's Classroom classes, and what is happening. */
+  let classroomFor: string | null = null;
+  let courses: ClassroomCourse[] = [];
+  let classroomState: "idle" | "loading" | "connect" | "choose" | "syncing" = "idle";
+  let classroomNote = "";
+
+  async function openClassroom(cls: Cls) {
+    classroomFor = cls.id;
+    classroomNote = "";
+    problem = notice = "";
+    classroomState = "loading";
+    const res = await fetch("/api/classroom/courses");
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      courses = data.courses;
+      classroomState = "choose";
+      if (!courses.length) classroomNote = "No active classes in that Google Classroom account. Is it the account you teach with?";
+    } else if (data.reconnect) {
+      classroomState = "connect";
+      classroomNote = data.error ?? "";
+    } else {
+      classroomState = "idle";
+      classroomFor = null;
+      problem = data.error ?? "Could not reach Google Classroom.";
+    }
+  }
+
+  /** Off to Google to allow reading classes and rosters; back here with the picker open. */
+  async function connectClassroom() {
+    const { error } = await authClient.linkSocial({
+      provider: "google",
+      scopes: CLASSROOM_SCOPES,
+      callbackURL: `/account?classroom=${classroomFor}#students`,
+    });
+    if (error) classroomNote = error.message ?? "Could not reach Google.";
+  }
+
+  async function syncClassroom(cls: Cls, courseId?: string) {
+    classroomFor = cls.id;
+    classroomState = "syncing";
+    problem = notice = "";
+    const res = await fetch(`/api/classes/${cls.id}/classroom`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(courseId ? { courseId } : {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.reconnect) {
+        classroomState = "connect";
+        classroomNote = data.error ?? "";
+        return;
+      }
+      classroomState = "idle";
+      classroomFor = null;
+      problem = data.error ?? "Could not bring that class in.";
+      return;
+    }
+    classroomState = "idle";
+    classroomFor = null;
+    const n = data.added.length;
+    notice =
+      (n ? `Added ${n} student${n === 1 ? "" : "s"} from ${data.courseName} to ${cls.name}. They sign in on the Student tab with Sign in with Google.` : `Everyone in ${data.courseName} is already in ${cls.name}.`) +
+      (data.present && n ? ` ${data.present} were already here.` : "") +
+      (data.gone.length ? ` No longer in Google Classroom: ${data.gone.join(", ")}. Remove them below if they have left.` : "");
+    await load();
+  }
+
+  const syncedOn = (t: number | null) => (t ? new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
+
   onMount(() => {
     loadSaved().catch(() => {});
+    // Back from connecting Google: open that class's Classroom picker.
+    const back = new URLSearchParams(location.search).get("classroom");
+    if (back) {
+      history.replaceState(null, "", "/account#students");
+      load().then(() => {
+        const cls = classes.find((c) => c.id === back);
+        if (cls) openClassroom(cls);
+      });
+      return;
+    }
     if (new URLSearchParams(location.search).get("seats") === "added") {
       notice = "Thank you! The seats are added, and they count for a year.";
       history.replaceState(null, "", "/account#students");
@@ -207,7 +293,7 @@
               {#each cls.students as s (s.id)}
                 <tr class="border-t border-sr-hairline">
                   <td class="py-1.5 text-sr-ink">{s.name}</td>
-                  <td class="text-sr-ink-2 font-mono">{s.username ?? "own account"}</td>
+                  <td class="text-sr-ink-2 font-mono">{s.username ?? "own account"}{#if s.google}<span class="g-badge" title="Signs in with Google">Google</span>{/if}</td>
                   <td class="text-right whitespace-nowrap">
                     {#if s.managed}
                       <button class="p-1 text-sr-faint hover:text-sr-ink" title="New password" aria-label="New password for {s.name}" on:click={() => resetPassword(cls, s)}><KeyRound size={14} /></button>
@@ -221,6 +307,39 @@
         {/if}
 
         <ClassAssignments classId={cls.id} saved={savedPresets} />
+
+        {#if classroomFor === cls.id && classroomState !== "idle"}
+          <div class="flex flex-col gap-2 rounded-md border border-sr-hairline bg-sr-panel p-3" aria-live="polite">
+            {#if classroomState === "loading"}
+              <p class="text-sm text-sr-muted">Asking Google Classroom for your classes…</p>
+            {:else if classroomState === "syncing"}
+              <p class="text-sm text-sr-muted">Bringing in the students…</p>
+            {:else if classroomState === "connect"}
+              <p class="text-sm text-sr-ink-2">
+                Connect the Google account you teach with. Google will ask to let abcSightReading see your classes and who is in them. We read the names only, never emails or grades.
+              </p>
+              {#if classroomNote}<p class="text-xs text-sr-brass">{classroomNote}</p>{/if}
+              <div class="flex gap-2">
+                <button class="sr-btn text-sm" on:click={connectClassroom}>Connect Google Classroom</button>
+                <button class="text-sm text-sr-muted underline" on:click={() => ((classroomFor = null), (classroomState = "idle"))}>Cancel</button>
+              </div>
+            {:else}
+              <p class="text-sm text-sr-ink-2">Which Google Classroom class is {cls.name}?</p>
+              {#if classroomNote}<p class="text-xs text-sr-brass">{classroomNote}</p>{/if}
+              <div class="flex flex-col gap-1">
+                {#each courses as c (c.id)}
+                  <button class="course" on:click={() => syncClassroom(cls, c.id)}>
+                    <span class="font-semibold text-sr-ink">{c.name}</span>{#if c.section}<span class="text-sr-muted"> · {c.section}</span>{/if}
+                  </button>
+                {/each}
+              </div>
+              <div class="flex gap-2">
+                <button class="text-sm text-sr-muted underline" on:click={connectClassroom}>Use a different Google account</button>
+                <button class="text-sm text-sr-muted underline" on:click={() => ((classroomFor = null), (classroomState = "idle"))}>Cancel</button>
+              </div>
+            {/if}
+          </div>
+        {/if}
 
         {#if addingTo === cls.id}
           <div class="flex flex-col gap-2">
@@ -244,7 +363,17 @@
             </div>
           </div>
         {:else}
-          <button class="sr-btn-quiet text-sm self-start" on:click={() => { addingTo = cls.id; rosterText = ""; }}>Add students</button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button class="sr-btn-quiet text-sm" on:click={() => { addingTo = cls.id; rosterText = ""; }}>Add students</button>
+            {#if googleEnabled}
+              {#if cls.classroom}
+                <button class="sr-btn-quiet text-sm" disabled={classroomState === "syncing"} on:click={() => syncClassroom(cls)}>Sync with Google Classroom</button>
+                {#if cls.classroom.syncedAt}<span class="text-xs text-sr-muted">Synced {syncedOn(cls.classroom.syncedAt)}</span>{/if}
+              {:else}
+                <button class="sr-btn-quiet text-sm" on:click={() => openClassroom(cls)}>Import from Google Classroom</button>
+              {/if}
+            {/if}
+          </div>
         {/if}
       </div>
     {/each}
@@ -270,6 +399,28 @@
 {/if}
 
 <style>
+  .g-badge {
+    margin-left: 0.5rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-family: Nunito, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--sr-sky);
+    color: var(--sr-sky-ink);
+  }
+  .course {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    min-height: 2.75rem;
+    border-radius: 12px;
+    border: 1px solid var(--sr-hairline);
+    background: var(--sr-raise);
+    font-size: 0.9rem;
+  }
+  .course:hover {
+    border-color: var(--sr-action);
+  }
   @media print {
     :global(body *) { visibility: hidden; }
     .login-cards, .login-cards * { visibility: visible; }

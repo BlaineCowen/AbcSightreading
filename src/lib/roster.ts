@@ -164,3 +164,11 @@ export const studentLoginName = (joinCode: string, username: string) =>
 export const studentEmail = (loginName: string) => `${loginName}@${STUDENT_DOMAIN}`;
 
 export const isStudentEmail = (email: string) => email.toLowerCase().endsWith(`@${STUDENT_DOMAIN}`);
+
+/**
+ * The placeholder for an account made by ClassLink sign-in: a student's is a
+ * student address (no mailbox, a student account); a teacher without an email
+ * at the district gets one that is not.
+ */
+export const classlinkEmail = (userId: string, student: boolean) =>
+  student ? `classlink.${userId}@${STUDENT_DOMAIN}` : `classlink.${userId}@classlink.abc-sightreading.invalid`;

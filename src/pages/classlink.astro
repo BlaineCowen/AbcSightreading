@@ -1,0 +1,41 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { classlinkEnabled } from "../lib/server/auth";
+
+/**
+ * Where a district's ClassLink LaunchPad tile points (notes/rostering-setup.md):
+ * it starts a ClassLink sign-in at once, and the student or teacher lands on
+ * their home page signed in. ClassLink cannot send people straight to our
+ * sign-in callback, which only accepts a sign-in this site began.
+ */
+---
+
+<Layout noindex title="Signing in with ClassLink | abcSightReading" themable>
+  <div class="flex flex-col items-center gap-4 py-16 text-center">
+    {classlinkEnabled ? (
+      <>
+        <h1 class="text-2xl font-bold text-sr-ink">Signing you in with ClassLink…</h1>
+        <p class="text-sr-muted" id="classlink-wait">This takes a moment.</p>
+        <a class="sr-btn" id="classlink-retry" href="/classlink" hidden>Try again</a>
+      </>
+    ) : (
+      <>
+        <h1 class="text-2xl font-bold text-sr-ink">ClassLink sign-in is not set up yet</h1>
+        <p class="text-sr-muted"><a class="sr-link" href="/login">Sign in another way</a></p>
+      </>
+    )}
+  </div>
+</Layout>
+
+<script>
+  import { authClient } from "../lib/auth-client";
+  if (document.getElementById("classlink-wait")) {
+    authClient.signIn
+      .social({ provider: "classlink" as "google", callbackURL: "/", errorCallbackURL: "/login?mode=student", requestSignUp: true })
+      .then(({ error }) => {
+        if (!error) return;
+        document.getElementById("classlink-wait")!.textContent = "ClassLink did not answer.";
+        document.getElementById("classlink-retry")!.hidden = false;
+      });
+  }
+</script>

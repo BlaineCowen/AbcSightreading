@@ -1220,6 +1220,33 @@ analytics and no feedback form (Layout.astro). Permission checks read
 cookie. Deleting a teacher deletes the student accounts they made. 100 seats per
 educator (seat packs: stage 4, with Stripe).
 
+**Rosters from Google Classroom and ClassLink** (10 October 2026; setup
+outside the code in notes/rostering-setup.md). Google Classroom: on a class
+card, Import from Google Classroom links the teacher's Google account with
+`classroom.courses.readonly` and `classroom.rosters.readonly`
+(`authClient.linkSocial`; `allowDifferentEmails`, since a school Google
+account rarely matches the account's email), lists their active classes
+and brings one in (`src/lib/classroom.ts` `planSync`, server
+`src/lib/server/classroom.ts`, tests `classroom.test.ts`): a student account
+per new student, linked to the Google account by its ID (an `account` row,
+providerId google, accountId Classroom's userId, the same number as the
+sign-in's subject), an existing one enrolled, and those who have left only
+listed, never removed. The class remembers it (`Class.rosterSource`
+`google:<course id>`), so Sync with Google Classroom needs no picking.
+Students sign in on the Student tab with Sign in with Google: Google
+sign-in makes an account only when asked (`disableImplicitSignUp`; the
+other tabs pass `requestSignUp`), so that button only finds accounts a
+teacher brought in. ClassLink: the genericOAuth plugin when
+`CLASSLINK_CLIENT_ID`/`_SECRET` are set; keyed by ClassLink's UserId; a
+student gets a student placeholder email (`classlinkEmail`) and so a
+student account (a `databaseHooks.user.create` rule: a student email is a
+student account), a teacher their district email but never linked to an
+existing account by it. `/classlink` is the LaunchPad tile's launch URL. A
+student's Google or ClassLink tokens are never kept (`stripStudentTokens`:
+the ID token holds their email). Each assignment has Share to Google
+Classroom (`shareToClassroomUrl`, no key needed). Whole ClassLink rosters
+(OneRoster) wait for a district to approve the app.
+
 A preset holds every setting on its page (Choral `getCurrentParams`, Unison
 `currentOptions`): generation, display (lyrics, chords, cursor, hidden and
 muted voices), sound (instrument, transposition, volumes) and the metronome: its
