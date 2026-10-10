@@ -16,6 +16,7 @@ export const PUBLIC_PAGES = [
   "/why-abc-sight-reading",
   "/tuner",
   "/curriculum",
+  "/privacy",
   ...TRACKS.map((t) => `/curriculum/${t.id}`),
 ];
 

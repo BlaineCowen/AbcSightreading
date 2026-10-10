@@ -1,0 +1,191 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { RETENTION_DAYS } from "../lib/practice";
+import { TAKE_DAYS } from "../lib/pieces/attempts";
+
+/**
+ * The privacy policy. Schools, districts and the ClassLink and Google
+ * listings ask for one before students can be rostered. Every statement here
+ * must be true of the code as it stands: when what is stored, who sees it or
+ * how long it is kept changes, change this page in the same commit. The
+ * numbers that live in code are read from it.
+ */
+
+const UPDATED = "10 October 2026";
+const CONTACT = "privacy@abc-sightreading.com";
+
+const providers = [
+  { name: "Vercel", what: "hosts the site, stores uploaded music and recordings privately, and counts page visits for teachers' and other adults' pages (cookieless, never on a student's page)" },
+  { name: "Prisma Postgres", what: "the database that holds accounts, classes and results" },
+  { name: "Stripe", what: "takes payments; we never see a card number" },
+  { name: "Resend", what: "sends account emails, such as a password reset" },
+  { name: "Google", what: "signs you in, only if you choose Continue with Google" },
+];
+---
+
+<Layout title="Privacy policy | abcSightReading" description="What abcSightReading collects, why, who can see it, how long it is kept, and how to have it deleted. Written for teachers, parents and schools." themable>
+  <article class="policy max-w-3xl mx-auto px-2 pb-16 text-sr-ink-2">
+    <p class="sr-label">Updated {UPDATED}</p>
+    <h1 class="text-4xl font-bold text-sr-ink leading-tight">Privacy policy</h1>
+    <p class="lead">
+      abcSightReading is sight-reading practice for choirs, bands and orchestras, made by abc Sight Reading (BlaineCo) in Texas. We collect what the site needs to work and nothing more. We do not sell data, we show no ads, and we never use a student's information for anything but their class.
+    </p>
+
+    <nav class="toc" aria-label="On this page">
+      <a href="#students">Students</a>
+      <a href="#teachers">Teachers and other accounts</a>
+      <a href="#microphone">The microphone</a>
+      <a href="#sharing">Who sees what</a>
+      <a href="#keeping">How long we keep it</a>
+      <a href="#choices">Your choices</a>
+      <a href="#schools">For schools</a>
+      <a href="#contact">Contact</a>
+    </nav>
+
+    <section id="students">
+      <h2>Students</h2>
+      <p>A student account is made by a teacher (from a class list) or by the student with the teacher's class code. Students may be under 13, so their accounts hold as little as we can manage.</p>
+      <ul>
+        <li><b>No email address.</b> A student signs in with a class code, a username and a password. The password is stored only as a secure hash.</li>
+        <li><b>A name,</b> as the teacher or student typed it, so the teacher knows who is who.</li>
+        <li><b>Practice:</b> minutes practised, how many exercises, and on which days. Nothing about what was clicked or where.</li>
+        <li><b>Class work:</b> which assignments were done, and the score of each graded attempt, with how each note went.</li>
+        <li><b>Recordings of graded attempts</b> on music the teacher assigned, so the teacher can listen. A student is told this before their first graded attempt.</li>
+      </ul>
+      <p>Student pages carry no analytics and no feedback form. Students cannot buy anything, and never reach our payment provider.</p>
+    </section>
+
+    <section id="teachers">
+      <h2>Teachers and other accounts</h2>
+      <ul>
+        <li><b>Your name and email,</b> and a hashed password, or your Google account if you sign in with Google.</li>
+        <li><b>What you make:</b> saved presets, settings, recent exercises, classes, assignments, and music you upload.</li>
+        <li><b>Billing:</b> Stripe holds payment details. For a school quote we keep the purchasing contact and address you give us.</li>
+        <li><b>A monthly exercise count</b> for free accounts.</li>
+        <li><b>The free month of Pro:</b> to keep it to one per person we keep a fingerprint of your email, browser and network, each stored only as a scrambled hash.</li>
+        <li><b>Feedback you send</b> with the Feedback button reaches us by email.</li>
+      </ul>
+    </section>
+
+    <section id="microphone">
+      <h2>The microphone</h2>
+      <p>Grading, the tuner and the other listening tools hear you in your browser. The sound is worked out on your device and goes nowhere, with two exceptions, both said on screen before anything is sent:</p>
+      <ul>
+        <li><b>A graded attempt on assigned music</b> is recorded and sent to the student's teacher.</li>
+        <li><b>Report error</b> sends one grading run and its recording to us to improve grading, only when an adult presses Send. Students do not have this button.</li>
+      </ul>
+      <p>Any other recording you play back after a run stays in your browser and is gone when you clear the marks.</p>
+    </section>
+
+    <section id="sharing">
+      <h2>Who sees what</h2>
+      <ul>
+        <li><b>A student's work</b> is seen by the student and their teacher. Other students never see it.</li>
+        <li><b>We</b> look at data only to run the site, fix problems you ask us about, or as the law requires.</li>
+        <li><b>Service providers</b> hold data for us and use it for nothing else:</li>
+      </ul>
+      <dl class="providers">
+        {providers.map((p) => (<><dt>{p.name}</dt><dd>{p.what}</dd></>))}
+      </dl>
+      <p>We do not sell or rent personal information, and we do not share it for advertising.</p>
+    </section>
+
+    <section id="keeping">
+      <h2>How long we keep it</h2>
+      <ul>
+        <li>Recordings of graded attempts: {TAKE_DAYS} days, then deleted. Sooner if the teacher deletes the assignment.</li>
+        <li>Practice minutes and exercise counts: {RETENTION_DAYS} days, about a school year and a summer.</li>
+        <li>Everything else: until the account is deleted. Deleting a teacher's account also deletes the student accounts that teacher made.</li>
+      </ul>
+    </section>
+
+    <section id="choices">
+      <h2>Your choices</h2>
+      <ul>
+        <li>Delete your account at any time from your account page. It goes with everything in it.</li>
+        <li>A teacher can remove a student, reset a student's password, or delete their class.</li>
+        <li>A parent or guardian can ask the teacher, or write to us, to see or delete a child's information. We will confirm who is asking with the school before we act.</li>
+      </ul>
+      <p>Cookies: one keeps you signed in, one remembers an advertiser's code for 60 days if you arrived by their link, and one marks that a browser has claimed the free month. Settings such as your tempo are kept in your own browser.</p>
+    </section>
+
+    <section id="schools">
+      <h2>For schools</h2>
+      <p>When a school or teacher uses abcSightReading with students, we act on the school's behalf and under its direction. Student information is used only to provide the service to that class, is never used to build profiles or advertise, and is deleted when the school asks. We will sign a student data privacy agreement with a district on request.</p>
+      <p>Passwords are hashed, every page is served over HTTPS, and uploaded music and recordings are kept in private storage that only signed in owners and their teachers can reach.</p>
+      <p>If this policy changes in a way that affects students, we will say so on this page before the change takes effect.</p>
+    </section>
+
+    <section id="contact">
+      <h2>Contact</h2>
+      <p>Questions, requests to see or delete information, or a district agreement: <a class="sr-link" href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+    </section>
+  </article>
+</Layout>
+
+<style>
+  .policy {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    line-height: 1.65;
+  }
+  .lead {
+    font-size: 1.15rem;
+  }
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .toc a {
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    background: var(--sr-tint);
+    color: var(--sr-action-fg);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    scroll-margin-top: 5rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--sr-ink);
+  }
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 1.2rem;
+    list-style: disc;
+  }
+  b {
+    color: var(--sr-ink);
+  }
+  .providers {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.4rem 1rem;
+    padding: 1rem 1.2rem;
+    border-radius: 20px;
+    background: var(--sr-panel);
+    border: 1px solid var(--sr-hairline);
+  }
+  .providers dt {
+    font-weight: 800;
+    color: var(--sr-ink);
+  }
+  @media (max-width: 480px) {
+    .providers {
+      grid-template-columns: 1fr;
+    }
+    .providers dd {
+      margin-bottom: 0.5rem;
+    }
+  }
+</style>
