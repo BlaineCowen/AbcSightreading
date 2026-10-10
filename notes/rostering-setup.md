@@ -87,8 +87,8 @@ Mail for the domain already forwards through Porkbun (its MX records are in
 place, and feedback@ is in use). The site now shows two more addresses:
 **support@** (on /terms) and **privacy@** (on /privacy).
 
-- [ ] **2a. Add the forwards.** Porkbun > Domain Management >
-      abc-sightreading.com > **Email** > Email Forwarding > Add:
+- [x] **Done: the forwards** (Porkbun > Domain Management >
+      abc-sightreading.com > **Email** > Email Forwarding):
   - `support` to blaine.cowen@gmail.com
   - `privacy` to blaine.cowen@gmail.com
   - `partners` to blaine.cowen@gmail.com (for ClassLink, step 3)
