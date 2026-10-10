@@ -1396,7 +1396,28 @@ page, the signed-in home (no exercise yet) and /how-to-use link step 1.
 MuseScore, Sibelius, Finale or Dorico (.mxl, .musicxml, .xml) and plays it
 (`/pieces/<id>`): each part's instrument (any of `INSTRUMENTS`), volume,
 mute, solo and show or hide, saved to the piece; a run of bars; any tempo;
-loop. Next: graded attempts, with the takes kept 90 days.
+loop.
+
+**Graded attempts** (`src/lib/pieces/attempts.ts`, schedule.ts; server
+`src/lib/server/attempts.ts`; tests `pieces-attempts.test.ts`): a student
+starts one (`POST /api/assignments/<id>/attempts` with their part; counted
+then, so stopping part way still uses one of a limited number), the page
+runs Grade's Pitch & rhythm (`GradeRunner`, the Unison page's engine) on
+their part's notes from the model (`scheduleForPiece`: 32nds from the
+excerpt's first downbeat, ties held), with abcjs playing what the teacher
+chose to hear plus a click and count-in (t0 is the play call plus the
+count-in plus the output's latency; not yet measured end to end the way
+the Unison page's was), then sends the scores and each note's marks
+(`PATCH .../attempts/<attempt>`) and the take, straight to private Blob
+(`/api/attempt-takes` signs it: the student's own attempt, under two hours
+old, no take yet; `attempts/<assignment>/<attempt>.webm`). The student is
+told first that their teacher hears it and it is kept 90 days; the daily
+cron (`/api/cron/po-invoices`, `deleteOldTakes`) deletes takes past that,
+and any left by a deleted attempt; deleting the assignment deletes its takes.
+The teacher's class card shows each student's part, attempts and best (a
+link opening that attempt: `?attempt=` puts its marks on the music and plays
+its take, `/api/attempts/<id>/take`). The teacher can Try the grading in
+the assignment; nothing is kept.
 
 Assigning (Educator, as every assignment): a class's assignments are two
 kinds, kept apart wherever they show (Blaine: "a clear distinction between

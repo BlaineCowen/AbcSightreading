@@ -11,7 +11,7 @@
 
   type Item = {
     id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: number | null; note: string; maxAttempts?: number | null;
-    className: string; seconds: number; status: "not-started" | "in-progress" | "done"; percent: number;
+    className: string; seconds: number; status: "not-started" | "in-progress" | "done"; percent: number; best?: number | null;
   };
   /** Given by the server (the home page), so it arrives with the page; otherwise fetched. */
   export let initial: { enrolled: boolean; assignments: Item[] } | null = null;
@@ -42,7 +42,8 @@
         <span class="kind {assignmentKind(a) === 'piece' ? 'kind-piece' : 'kind-sr'}">{assignmentKind(a) === "piece" ? "Piece" : "Sight reading"}</span>
         <div class="flex justify-between gap-2 text-sm mt-1">
           <span class="font-medium text-sr-ink">{a.title}</span>
-          {#if a.minutes}<span class="tabular-nums text-sr-ink-2 shrink-0">{Math.floor(a.seconds / 60)} of {a.minutes} min</span>{/if}
+          {#if a.minutes}<span class="tabular-nums text-sr-ink-2 shrink-0">{Math.floor(a.seconds / 60)} of {a.minutes} min</span>
+          {:else if a.page === "piece" && a.best !== null && a.best !== undefined}<span class="tabular-nums text-sr-ink-2 shrink-0">best {a.best}</span>{/if}
         </div>
         {#if a.minutes}<div class="h-1.5 rounded bg-sr-track overflow-hidden mt-2"><div class="h-full bg-sr-action" style="width: {a.percent}%"></div></div>{/if}
         <p class="text-xs mt-1.5 {overdue(a) ? 'text-sr-danger' : 'text-sr-muted'}">

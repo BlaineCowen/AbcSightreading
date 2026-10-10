@@ -142,6 +142,46 @@ const assignmentView = (a: { id: string; title: string; page: string; presetKey:
   };
 };
 
+/**
+ * Graded attempts at piece assignments, per assignment and student: how many,
+ * the best score, the part chosen. A piece is done once one attempt is graded
+ * (and its minutes are in, if it asks for any).
+ */
+async function attemptsFor(assignmentIds: string[], studentIds?: string[]) {
+  const rows = assignmentIds.length
+    ? await prisma.pieceAttempt.findMany({
+        where: { assignmentId: { in: assignmentIds }, ...(studentIds ? { studentId: { in: studentIds } } : {}) },
+        orderBy: { startedAt: "asc" },
+        select: { id: true, assignmentId: true, studentId: true, overall: true, partName: true },
+      })
+    : [];
+  const map = new Map<string, { attempts: number; best: number | null; bestId: string | null; part: string | null }>();
+  for (const r of rows) {
+    const k = `${r.assignmentId}:${r.studentId}`;
+    const m = map.get(k) ?? { attempts: 0, best: null, bestId: null, part: null };
+    m.attempts++;
+    m.part = r.partName;
+    if (r.overall !== null && (m.best === null || r.overall > m.best)) {
+      m.best = r.overall;
+      m.bestId = r.id;
+    }
+    map.set(k, m);
+  }
+  return map;
+}
+
+function withAttempts(
+  a: { page: string; minutes: number },
+  time: ReturnType<typeof assignmentProgress>,
+  att: { attempts: number; best: number | null; bestId: string | null; part: string | null } | undefined,
+) {
+  if (a.page !== "piece") return time;
+  const graded = att?.best !== null && att?.best !== undefined;
+  const timeDone = a.minutes <= 0 || time.status === "done";
+  const status = graded && timeDone ? "done" : graded || time.status !== "not-started" || (att?.attempts ?? 0) > 0 ? "in-progress" : "not-started";
+  return { ...time, status: status as typeof time.status, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null, part: att?.part ?? null };
+}
+
 /** A class's assignments with every student's progress, and each student's last week of practice. */
 export async function classAssignments(classId: string) {
   const [assignments, enrollments] = await Promise.all([
@@ -155,6 +195,7 @@ export async function classAssignments(classId: string) {
   const students = enrollments.map((e) => e.student);
   const ids = students.map((s) => s.id);
   const totals = await totalsFor(assignments.map((a) => a.id), ids);
+  const tries = await attemptsFor(assignments.filter((a) => a.page === "piece").map((a) => a.id), ids);
 
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
   const week = await prisma.practiceTime.groupBy({
@@ -170,7 +211,7 @@ export async function classAssignments(classId: string) {
       ...assignmentView(a),
       progress: students.map((s) => {
         const t = totals.get(`${a.id}:${s.id}`) ?? { seconds: 0, exercises: 0, lastActive: null };
-        return { studentId: s.id, ...t, ...assignmentProgress(t.seconds, a.minutes) };
+        return { studentId: s.id, ...t, ...withAttempts(a, assignmentProgress(t.seconds, a.minutes), tries.get(`${a.id}:${s.id}`)) };
       }),
     })),
   };
@@ -186,12 +227,18 @@ export async function myAssignments(userId: string) {
     take: 50,
   });
   const totals = await totalsFor(assignments.map((a) => a.id), [userId]);
+  const tries = await attemptsFor(assignments.filter((a) => a.page === "piece").map((a) => a.id), [userId]);
   const className = new Map(enrollments.map((e) => [e.classId, e.class.name]));
   return {
     enrolled: true,
     assignments: assignments.map((a) => {
       const t = totals.get(`${a.id}:${userId}`) ?? { seconds: 0, exercises: 0, lastActive: null };
-      return { ...assignmentView(a), className: className.get(a.classId) ?? "", seconds: t.seconds, ...assignmentProgress(t.seconds, a.minutes) };
+      return {
+        ...assignmentView(a),
+        className: className.get(a.classId) ?? "",
+        seconds: t.seconds,
+        ...withAttempts(a, assignmentProgress(t.seconds, a.minutes), tries.get(`${a.id}:${userId}`)),
+      };
     }),
   };
 }

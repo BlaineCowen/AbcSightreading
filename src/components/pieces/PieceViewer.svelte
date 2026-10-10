@@ -29,6 +29,16 @@
   import { DEFAULT_CLICK_SOUND } from "../../lib/tuner/click-sounds";
   import { countInMeasures } from "../../lib/count-in";
   import Ear from "lucide-svelte/icons/ear";
+  import Mic from "lucide-svelte/icons/mic";
+  import { GradeRunner, type GradeTrace } from "../../lib/grade-runner";
+  import { STRICTNESS } from "../../lib/grade";
+  import { drawGradeFeedback, clearGradeFeedback } from "../../lib/grade-feedback";
+  import { startGradeRecording, type GradeRecording } from "../../lib/grade-recording";
+  import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
+  import { tuner } from "../../lib/tuner/store";
+  import { scheduleForPiece, beatsInBar } from "../../lib/pieces/schedule";
+  import { attemptsLeft, attemptsLine, bestOf, marksOf, type Mark } from "../../lib/pieces/attempts";
+  import { finishAttempt, listAttempts, loadAttempt, sendTake, startAttempt, type AttemptRow } from "../../lib/pieces/client";
   import { startPractice } from "../../lib/practice-tracker";
   import AssignPieceForm from "./AssignPieceForm.svelte";
   import Music from "lucide-svelte/icons/music";
@@ -46,6 +56,8 @@
   } | null = null;
   /** The owner has Educator: Assign to a class. */
   export let canAssign = false;
+  /** ?attempt=<id>: an attempt shown with its marks and take (the student's own, or the teacher's class). */
+  export let attemptId: string | null = null;
 
   /** Assignment mode: the part this student sings or plays, their own choice, kept in this browser. */
   let myPart: string | null = null;
@@ -101,16 +113,279 @@
         } catch {}
         if (!myPart && allowed.length === 1) myPart = allowed[0];
         choosingPart = !myPart;
+        void refreshAttempts();
         if (assignment.role === "student") startPractice({ page: "piece", assignmentId: assignment.id, isBusy: () => isPlaying });
       }
       await tick();
       await render();
+      if (attemptId) await showAttempt(attemptId);
     } catch (e) {
       error = (e as Error).message;
     }
   });
 
+  // ── Graded attempts (pieces/attempts.ts) ────────────────────────────────
+  type GradeStage = "idle" | "setup" | "running" | "sending" | "done";
+  let gradeStage: GradeStage = "idle";
+  let gradeError = "";
+  let sendNote = "";
+  let attempts: AttemptRow[] = [];
+  let maxAttempts: number | null = null;
+  let attemptsRole: "teacher" | "student" | null = null;
+  let currentAttempt: string | null = null;
+  let recording: GradeRecording | null = null;
+  let grading = false;
+  /** An attempt being looked at (?attempt=): its marks, who, and its take. */
+  let shown: (AttemptRow & { marks: Mark[] }) | null = null;
+  let marked: Element[] = [];
+
+  const gradeRunner = new GradeRunner({
+    moveTo: () => {},
+    countIn: () => {},
+    click: () => {},
+    marked: (scores) => markNotes(scores),
+    startTimeline: () => startTimeline(),
+    stopTimeline: () => pause(),
+    traced: (trace) => drawTrace(trace),
+  });
+
+  $: myAttempts = attemptsRole === "student" ? attempts : [];
+  $: used = myAttempts.length;
+  $: left = attemptsLeft(maxAttempts, used);
+  $: best = bestOf(myAttempts);
+  $: perf = $gradeRunner.perf;
+  $: if (grading && $gradeRunner.phase === "results") void finishRun();
+
+  async function refreshAttempts() {
+    if (!assignment) return;
+    try {
+      const r = await listAttempts(assignment.id);
+      attempts = r.attempts;
+      maxAttempts = r.max;
+      attemptsRole = r.role;
+    } catch {
+      // the list is a convenience; the attempt itself says what is wrong
+    }
+  }
+
+  /** The quarter-note tempo as Grade counts it: beats of the bar's own beat. */
+  function gradeBpm(): number {
+    const units = scheduleBeatUnits();
+    return (bpm * 8) / units;
+  }
+  function scheduleBeatUnits(): number {
+    const t = score?.measures[from]?.time ?? { beats: 4, beatType: 4 };
+    return t.beatType === 8 && t.beats % 3 === 0 && t.beats > 3 ? 12 : 32 / t.beatType;
+  }
+
+  /** The drawn element for each of my part's model notes, for Grade's marks. */
+  function drawnFor(pid: string): Map<number, { absEl?: { elemset?: Element[] } }> {
+    const out = new Map<number, { absEl?: { elemset?: Element[] } }>();
+    if (!drawn || !renderedTune || !score) return out;
+    const pi = score.parts.findIndex((p) => p.id === pid);
+    const els = drawnElements(renderedTune, drawn.staves);
+    for (const v of drawn.voices) {
+      if (v.part !== pi) continue;
+      (els.get(v.id) ?? []).forEach((el, k) => {
+        const i = v.elements[k];
+        if (i !== undefined && i >= 0 && !out.has(i)) out.set(i, { absEl: (el as { abselem?: { elemset?: Element[] } }).abselem });
+      });
+    }
+    return out;
+  }
+
+  function clearMarks() {
+    for (const el of marked) el.classList.remove("grade-good", "grade-ok", "grade-bad");
+    marked = [];
+    clearGradeFeedback(document.querySelector("#piece-paper svg"));
+  }
+  /** Colour each graded note by its score (cursor is the model note's index). */
+  function markNotes(scores: number[], cursors?: number[]) {
+    clearMarks();
+    if (!myPart) return;
+    const at = drawnFor(myPart);
+    const list = cursors ?? gradeNotes.map((n) => n.cursor);
+    scores.forEach((sc, k) => {
+      const cls = sc >= 90 ? "grade-good" : sc >= 70 ? "grade-ok" : "grade-bad";
+      for (const el of at.get(list[k])?.absEl?.elemset ?? []) {
+        el.classList.add(cls);
+        marked.push(el);
+      }
+    });
+  }
+
+  const LETTERS = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
+  const letterOf = (midi: number) => LETTERS[((Math.round(midi) % 12) + 12) % 12];
+
+  function drawTrace(trace: GradeTrace) {
+    const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
+    if (!svg || !myPart || !assignment) return;
+    const at = drawnFor(myPart);
+    drawGradeFeedback({
+      svg,
+      notes: gradeNotes,
+      drawn: gradeNotes.map((n) => at.get(n.cursor)),
+      drawnAt: (cursor) => at.get(cursor),
+      trace,
+      perf: $gradeRunner.perf,
+      doPc: 0,
+      nameOf: letterOf,
+      onsetBeats: STRICTNESS[assignment.settings.strictness].onsetBeats,
+      bpm: gradeBpm(),
+    });
+  }
+
+  let gradeNotes: ReturnType<typeof scheduleForPiece>["notes"] = [];
+
+  /** Abcjs plays the excerpt (the click and count-in, what the teacher chose to hear); the downbeat after the count-in is t0. */
+  function startTimeline(): number {
+    if (!synthControl || !score) return performance.now();
+    void synthControl.play();
+    isPlaying = true;
+    const time = score.measures[from].time;
+    const meterName = `${time.beats}/${time.beatType}`;
+    const beatMs = 60_000 / gradeBpm();
+    const countInMs = countInMeasures(meterName) * beatsInBar(time) * beatMs;
+    const ctx = (synthControl as any)?.midiBuffer?.audioContext ?? null;
+    const latency = Math.round((((ctx as any)?.baseLatency ?? 0) + ((ctx as any)?.outputLatency ?? 0)) * 1000);
+    return performance.now() + countInMs + latency;
+  }
+
+  function openSetup() {
+    gradeError = "";
+    sendNote = "";
+    gradeStage = "setup";
+  }
+
+  /** Counted on the server first (a student's), then the microphone, then the run. Nothing awaits once the tuner starts. */
+  async function startRun() {
+    if (!assignment || !myPart || !score) return;
+    gradeError = "";
+    clearMarks();
+    shown = null;
+    if (assignment.role === "student") {
+      try {
+        const r = await startAttempt(assignment.id, myPart);
+        currentAttempt = r.attempt.id;
+        maxAttempts = r.max;
+        attempts = [...attempts, r.attempt];
+      } catch (e) {
+        gradeError = (e as Error).message;
+        return;
+      }
+    } else currentAttempt = null;
+    looping = false;
+    grading = true;
+    pause();
+    await buildSynth();
+    const schedule = scheduleForPiece(score, myPart, from, to);
+    gradeNotes = schedule.notes;
+    if (!gradeNotes.length) {
+      grading = false;
+      gradeError = "Your part has no notes in these bars.";
+      return;
+    }
+    recording = await startGradeRecording();
+    initTuner();
+    await startTuner();
+    if (tuner.get().engineStatus !== "running") {
+      grading = false;
+      gradeError = "The microphone did not start. Allow it in your browser, then try again.";
+      await recording?.stop();
+      return;
+    }
+    tuner.setMicHeld(true);
+    gradeStage = "running";
+    const time = score.measures[from].time;
+    gradeRunner.start({
+      notes: gradeNotes,
+      rests: schedule.rests,
+      bpm: gradeBpm(),
+      beatsPerBar: beatsInBar(time),
+      beatUnits: schedule.beatUnits,
+      countInBeats: countInMeasures(`${time.beats}/${time.beatType}`) * beatsInBar(time),
+      reference: "note",
+      mode: "performance",
+      strictness: assignment.settings.strictness,
+      cursor: "note",
+      click: "beat",
+      tonicTriad: [],
+    });
+  }
+
+  function releaseMic() {
+    tuner.setMicHeld(false);
+    stopTuner();
+  }
+
+  function cancelRun() {
+    gradeRunner.stop();
+    pause();
+    grading = false;
+    releaseMic();
+    void recording?.stop();
+    recording = null;
+    gradeStage = "idle";
+    void buildSynth();
+  }
+
+  async function finishRun() {
+    grading = false;
+    pause();
+    releaseMic();
+    const audio = (await recording?.stop()) ?? null;
+    recording = null;
+    const result = $gradeRunner.perf;
+    void buildSynth();
+    if (!assignment || !result) {
+      gradeStage = "done";
+      return;
+    }
+    if (assignment.role !== "student" || !currentAttempt) {
+      gradeStage = "done";
+      sendNote = "A try only: nothing is kept.";
+      return;
+    }
+    gradeStage = "sending";
+    try {
+      await finishAttempt(assignment.id, currentAttempt, marksOf(result));
+      sendNote = "Your score is with your teacher.";
+      if (audio) {
+        await sendTake(assignment.id, currentAttempt, audio);
+        sendNote = "Your score and recording are with your teacher.";
+      }
+    } catch (e) {
+      sendNote = (e as Error).message;
+    }
+    gradeStage = "done";
+    await refreshAttempts();
+  }
+
+  /** An attempt from the list (or ?attempt=): its marks on the music, and its take. */
+  async function showAttempt(id: string) {
+    try {
+      const a = await loadAttempt(id);
+      if (assignment && a.assignmentId !== assignment.id) return;
+      if (myPart !== a.partId) {
+        myPart = a.partId;
+        choosingPart = false;
+        await render();
+      }
+      shown = a;
+      gradeStage = "idle";
+      await tick();
+      markNotes(
+        a.marks.map((m) => m[1]),
+        a.marks.map((m) => m[0]),
+      );
+    } catch (e) {
+      gradeError = (e as Error).message;
+    }
+  }
+
   onDestroy(() => {
+    gradeRunner.stop();
+    if (grading) releaseMic();
     try { synthControl?.destroy?.(); } catch {}
   });
 
@@ -218,7 +493,7 @@
     });
     const meter = score.measures[from]?.time ?? { beats: 4, beatType: 4 };
     const meterName = `${meter.beats}/${meter.beatType}`;
-    const drum = clickOn
+    const drum = clickOn || grading
       ? drumPatternFor({ beats: meter.beatType === 8 && meter.beats % 3 === 0 ? meter.beats / 3 : meter.beats, subdivision: 1, accent: true, sound: DEFAULT_CLICK_SOUND })
       : "";
     synthControl = new abcjs.synth.SynthController();
@@ -235,7 +510,7 @@
         for (const e of lit) e.classList.remove("piece-now");
         lit = [];
         isPlaying = false;
-        if (looping) void play();
+        if (looping && !grading) void play();
       },
     };
     await synthControl.setTune(renderedTune, false, {
@@ -471,6 +746,95 @@
         </label>
         <p class="w-full text-xs text-sr-muted">Tap any note in the music to hear it.</p>
       </section>
+
+      <!-- Graded attempts: counted on the server when they start; the take goes to the teacher. -->
+      <section class="sr-panel p-4 flex flex-col gap-3" aria-labelledby="graded-h">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="graded-h" class="font-bold text-sr-ink">Graded attempts</h2>
+            {#if assignment.role === "student"}
+              <p class="text-sm text-sr-muted">{attemptsLine(maxAttempts, used)}{best ? ` · best ${best.overall}` : ""}</p>
+            {:else}
+              <p class="text-sm text-sr-muted">Try the grading yourself; nothing is kept. Your students' attempts are listed below.</p>
+            {/if}
+          </div>
+          {#if gradeStage === "idle" || gradeStage === "done"}
+            <button
+              type="button"
+              class="sr-btn inline-flex items-center gap-2"
+              disabled={!myPart || (assignment.role === "student" && left === 0)}
+              on:click={openSetup}
+            >
+              <Mic size={16} aria-hidden="true" />
+              {assignment.role === "student" ? (left === 0 ? "No attempts left" : gradeStage === "done" ? "Another attempt" : "Graded attempt") : "Try the grading"}
+            </button>
+          {/if}
+        </div>
+
+        {#if gradeStage === "setup"}
+          <div class="setup flex flex-col gap-2">
+            {#if assignment.role === "student"}
+              <p class="font-bold text-sr-ink">Your teacher will hear a recording of this attempt. It is kept for {90} days, then deleted.</p>
+              {#if maxAttempts !== null}<p class="text-sm text-sr-ink-2">This uses one of your {maxAttempts} attempts, even if you stop part way.</p>{/if}
+            {/if}
+            <p class="text-sm text-sr-ink-2">
+              You hear your starting note, then a count-in. Sing or play {mine?.s.name ?? "your part"} from bar {score.measures[from].label} to bar {score.measures[to].label} at {bpm} bpm.
+              Headphones help: the music from speakers can be heard by the microphone.
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="sr-btn" on:click={startRun}>Start</button>
+              <button type="button" class="sr-btn-quiet" on:click={() => (gradeStage = "idle")}>Not now</button>
+            </div>
+          </div>
+        {:else if gradeStage === "running"}
+          <div class="flex flex-wrap items-center gap-3" role="status">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="font-bold text-sr-ink">
+              {$gradeRunner.phase === "reference" ? "Your starting note…" : $gradeRunner.phase === "countIn" ? "Count-in…" : "Listening"}
+            </span>
+            <button type="button" class="sr-btn-quiet text-sm" on:click={cancelRun}>Stop</button>
+          </div>
+        {:else if (gradeStage === "sending" || gradeStage === "done") && perf}
+          <div class="result flex flex-wrap items-center gap-5">
+            <div class="big">{Math.round(perf.overall)}</div>
+            <div class="flex flex-col text-sm">
+              <span>Pitch <b>{Math.round(perf.pitch)}</b></span>
+              <span>Rhythm <b>{Math.round(perf.rhythm)}</b></span>
+            </div>
+            <p class="text-sm" role="status">{gradeStage === "sending" ? "Sending…" : sendNote}</p>
+          </div>
+          <p class="text-xs text-sr-muted">Green notes were right, amber close, red missed. The line shows what you sang.</p>
+        {/if}
+        {#if gradeError}<p class="text-sm text-sr-danger" role="alert">{gradeError}</p>{/if}
+
+        {#if shown}
+          <div class="shown flex flex-col gap-2">
+            <p class="font-bold text-sr-ink">
+              {shown.studentName ? `${shown.studentName}: ` : ""}{shown.partName}, {shown.overall ?? "not finished"}{shown.overall !== null ? ` (pitch ${shown.pitch}, rhythm ${shown.rhythm})` : ""}
+            </p>
+            <p class="text-xs text-sr-muted">{new Date(shown.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+            {#if shown.hasTake}
+              <!-- svelte-ignore a11y-media-has-caption -->
+              <audio controls preload="none" src="/api/attempts/{shown.id}/take"></audio>
+            {:else}
+              <p class="text-sm text-sr-muted">No recording kept for this one.</p>
+            {/if}
+          </div>
+        {/if}
+
+        {#if attempts.length}
+          <ul class="attempts">
+            {#each attempts as a, k (a.id)}
+              <li>
+                <button type="button" class="att" class:on={shown?.id === a.id} on:click={() => showAttempt(a.id)}>
+                  <span class="truncate">{a.studentName && attemptsRole === "teacher" ? `${a.studentName} · ` : `Attempt ${k + 1} · `}{a.partName}</span>
+                  <span class="tabular-nums font-bold">{a.overall ?? "-"}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
     {:else}
     <section class="sr-panel p-4 flex flex-col gap-2" aria-labelledby="parts-h">
       <h2 id="parts-h" class="font-bold text-sr-ink">Parts</h2>
@@ -548,6 +912,58 @@
 </div>
 
 <style>
+  :global(#piece-paper .grade-good), :global(#piece-paper .grade-good path) { fill: #1f9d6b; color: #1f9d6b; }
+  :global(#piece-paper .grade-ok), :global(#piece-paper .grade-ok path) { fill: #c98a00; color: #c98a00; }
+  :global(#piece-paper .grade-bad), :global(#piece-paper .grade-bad path) { fill: #d13f2f; color: #d13f2f; }
+  .setup, .shown {
+    background: var(--sr-tint);
+    border-radius: 16px;
+    padding: 0.9rem 1rem;
+  }
+  .live-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    background: #d13f2f;
+    animation: live 1s ease-in-out infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .live-dot { animation: none; }
+  }
+  @keyframes live {
+    to { opacity: 0.3; }
+  }
+  .result .big {
+    font-family: Fredoka, sans-serif;
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: var(--sr-ink);
+    line-height: 1;
+  }
+  .result {
+    color: var(--sr-ink-2);
+  }
+  .attempts {
+    display: grid;
+    gap: 0.35rem;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  }
+  .att {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0 0.9rem;
+    border-radius: 14px;
+    border: 1px solid var(--sr-hairline);
+    color: var(--sr-ink);
+    align-items: center;
+  }
+  .att.on {
+    border-color: var(--sr-action);
+    background: var(--sr-tint);
+  }
   .assign-card {
     background: var(--sr-peach);
     color: var(--sr-peach-ink);

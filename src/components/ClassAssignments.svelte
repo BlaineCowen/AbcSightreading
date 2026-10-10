@@ -22,7 +22,11 @@
   /** The teacher's saved presets, both pages, loaded once by the parent. */
   export let saved: { id: string; name: string; page: string }[] = [];
 
-  type Row = { studentId: string; seconds: number; exercises: number; lastActive: number | null; status: string; percent: number };
+  type Row = {
+    studentId: string; seconds: number; exercises: number; lastActive: number | null; status: string; percent: number;
+    /** A piece: graded attempts, the best score and which attempt, the part chosen. */
+    attempts?: number; best?: number | null; bestId?: string | null; part?: string | null;
+  };
   type Assignment = {
     id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: number | null; note: string;
     maxAttempts?: number | null; progress: Row[];
@@ -102,7 +106,10 @@
     ]
       .filter(Boolean)
       .join(" · ");
-  const tally = (a: Assignment) => (a.minutes ? `${doneCount(a)} of ${a.progress.length} done` : `${startedCount(a)} of ${a.progress.length} started`);
+  const tally = (a: Assignment) =>
+    a.minutes || assignmentKind(a) === "piece" ? `${doneCount(a)} of ${a.progress.length} done` : `${startedCount(a)} of ${a.progress.length} started`;
+  /** An attempt opened on the piece, with its marks and take. */
+  const attemptHref = (a: Assignment, attemptId: string) => `${assignmentHref(a)}&attempt=${encodeURIComponent(attemptId)}`;
   const today = new Date().toISOString().slice(0, 10);
   const input = "rounded-xl border border-sr-hairline bg-sr-panel text-sr-ink text-sm px-2 min-h-10";
 </script>
@@ -144,6 +151,24 @@
       {#if openId === a.id}
         <div class="px-3 pb-3 flex flex-col gap-2">
           {#if a.note}<p class="text-sm text-sr-ink-2">{a.note}</p>{/if}
+          {#if piece}
+            <table class="text-sm w-full">
+              <thead><tr class="text-left text-xs text-sr-muted"><th class="font-medium py-1">Student</th><th class="font-medium">Part</th><th class="font-medium text-right">Attempts</th><th class="font-medium text-right">Best</th><th class="font-medium text-right">Practised</th></tr></thead>
+              <tbody>
+                {#each a.progress as p (p.studentId)}
+                  <tr class="border-t border-sr-hairline">
+                    <td class="py-1.5 text-sr-ink">{nameOf(p.studentId)}</td>
+                    <td class="text-sr-ink-2">{p.part ?? "-"}</td>
+                    <td class="text-right tabular-nums">{p.attempts ?? 0}{a.maxAttempts ? ` / ${a.maxAttempts}` : ""}</td>
+                    <td class="text-right tabular-nums font-semibold">
+                      {#if p.bestId}<a class="underline text-sr-action-fg" href={attemptHref(a, p.bestId)} title="Hear it, with the marks">{p.best}</a>{:else}-{/if}
+                    </td>
+                    <td class="text-right text-xs text-sr-muted whitespace-nowrap">{p.seconds ? `${Math.max(1, minutes(p.seconds))} min` : "-"}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {:else}
           <table class="text-sm w-full">
             <thead><tr class="text-left text-xs text-sr-muted"><th class="font-medium py-1">Student</th><th class="font-medium">Time</th><th class="font-medium text-right">{piece ? "" : "Exercises"}</th><th class="font-medium text-right">Last</th></tr></thead>
             <tbody>
@@ -166,8 +191,9 @@
               {/each}
             </tbody>
           </table>
+          {/if}
           <div class="flex flex-wrap items-center gap-3 text-xs">
-            <a class="underline text-sr-action-fg" href={assignmentHref(a)}>Open it as students see it</a>
+            <a class="underline text-sr-action-fg" href={assignmentHref(a)}>{piece ? "Open it: every attempt, and try it as they will" : "Open it as students see it"}</a>
             {#if confirmRemove === a.id}
               <span class="text-sr-ink">Remove it? Their practice time stays in the log.</span>
               <button class="text-sr-danger font-semibold" on:click={() => remove(a)}>Remove</button>

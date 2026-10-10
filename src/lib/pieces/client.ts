@@ -70,3 +70,58 @@ export async function deletePiece(id: string): Promise<void> {
   const res = await fetch(`/api/pieces/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await errorOf(res, "That piece could not be deleted."));
 }
+
+// ── Graded attempts (attempts.ts) ─────────────────────────────────────────
+
+export type AttemptRow = import("./attempts").AttemptSummary & { studentId?: string; studentName?: string };
+
+export async function listAttempts(assignmentId: string): Promise<{ role: "teacher" | "student"; max: number | null; attempts: AttemptRow[] }> {
+  const res = await fetch(`/api/assignments/${assignmentId}/attempts`);
+  if (!res.ok) throw new Error(await errorOf(res, "The attempts could not be loaded."));
+  return res.json();
+}
+
+export async function startAttempt(assignmentId: string, partId: string): Promise<{ attempt: AttemptRow; used: number; max: number | null }> {
+  const res = await fetch(`/api/assignments/${assignmentId}/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ partId }),
+  });
+  if (!res.ok) throw new Error(await errorOf(res, "The attempt could not be started."));
+  return res.json();
+}
+
+export async function finishAttempt(assignmentId: string, attemptId: string, result: object): Promise<AttemptRow> {
+  const res = await fetch(`/api/assignments/${assignmentId}/attempts/${attemptId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(result),
+  });
+  if (!res.ok) throw new Error(await errorOf(res, "The score could not be sent."));
+  return res.json();
+}
+
+/** The take, straight to the private Blob store (signed by /api/attempt-takes), then attached to the attempt. */
+export async function sendTake(assignmentId: string, attemptId: string, audio: { blob: Blob; mime: string }): Promise<void> {
+  const { takePath } = await import("./attempts");
+  const path = takePath(assignmentId, attemptId, audio.mime);
+  if (!path) throw new Error("This browser's recording cannot be kept.");
+  const { upload } = await import("@vercel/blob/client");
+  const blob = await upload(path, audio.blob, {
+    access: "private",
+    handleUploadUrl: "/api/attempt-takes",
+    contentType: audio.mime.split(";")[0],
+  });
+  const res = await fetch(`/api/assignments/${assignmentId}/attempts/${attemptId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ take: blob.pathname }),
+  });
+  if (!res.ok) throw new Error(await errorOf(res, "The recording could not be sent."));
+}
+
+export async function loadAttempt(attemptId: string): Promise<AttemptRow & { assignmentId: string; marks: import("./attempts").Mark[] }> {
+  const res = await fetch(`/api/attempts/${attemptId}`);
+  if (!res.ok) throw new Error(await errorOf(res, "That attempt could not be opened."));
+  return res.json();
+}

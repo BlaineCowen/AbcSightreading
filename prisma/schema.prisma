@@ -45,6 +45,7 @@ model User {
   practiceClock PracticeClock?
   grants        AccessGrant[]
   pieces        Piece[]
+  pieceAttempts PieceAttempt[]
 
   @@map("user")
 }
@@ -156,6 +157,34 @@ model Piece {
 
   @@index([userId])
   @@map("piece")
+}
+
+/// One graded attempt at a piece assignment (src/lib/pieces/attempts.ts).
+/// Counted when it starts, so an abandoned run still uses one of a limited
+/// number; scored when it finishes. The take (the microphone over the run) is
+/// a private Blob kept until deleteAfter, 90 days, for the teacher to hear.
+model PieceAttempt {
+  id            String     @id @default(cuid())
+  assignmentId  String
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// The part the student chose (its id in the score) and its name then.
+  partId        String
+  partName      String
+  startedAt     DateTime   @default(now())
+  finishedAt    DateTime?
+  /// 0-100, once finished.
+  overall       Int?
+  pitch         Int?
+  rhythm        Int?
+  /// Per note, compact: [model note index, pitch 0-100, rhythm 0-100, cents or null, onset beats or null, sung MIDI or null].
+  marks         Json?
+  recordingPath String?
+  deleteAfter   DateTime
+
+  @@index([assignmentId, studentId])
+  @@map("piece_attempt")
 }
 
 model RecentExercise {
@@ -365,6 +394,7 @@ model Assignment {
   note      String         @default("")
   createdAt DateTime       @default(now())
   practice  PracticeTime[]
+  attempts  PieceAttempt[]
 
   @@index([classId])
   @@map("assignment")
