@@ -36,6 +36,10 @@ Platform: https://console.cloud.google.com/auth/overview?project=abc-sightreadin
   - Home page: https://www.abc-sightreading.com
   - Privacy policy: https://www.abc-sightreading.com/privacy
   - Terms: https://www.abc-sightreading.com/terms
+- [x] **Done: redirect URIs** (Clients > abc-sightreading): the live site
+      (with and without www), localhost:4321, the dev branch's vercel.app
+      address and `https://dev.abc-sightreading.com/api/auth/callback/google`
+      (added 10 October 2026, after a redirect_uri_mismatch on dev).
 - [ ] **1a. Publish the app. This is important today.** On the Audience
       page, the app is in **Testing** with no test users. While it is,
       Google lets nobody but listed test users sign in, so "Continue with
