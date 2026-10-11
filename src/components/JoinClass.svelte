@@ -59,10 +59,10 @@
   }
 
   const input =
-    "w-full border border-sr-hairline bg-sr-raise text-sr-ink rounded-md px-3 py-2 text-[15px] focus:outline-none focus:ring-2 focus:ring-sr-action";
+    "w-full border border-sr-hairline bg-sr-raise text-sr-ink rounded-[14px] px-3.5 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-sr-action";
 </script>
 
-<div class="w-full max-w-sm bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-4">
+<div class="w-full max-w-md sr-panel border border-sr-hairline p-6 sm:p-7 flex flex-col gap-4">
   {#if joined}
     <p class="text-sr-ink">You're in <strong>{joined}</strong>.</p>
     <a class="sr-btn text-center" href="/account">Go to your account</a>
@@ -72,27 +72,27 @@
     <p class="text-sm text-sr-ink-2">You are signed in as a teacher. Students join with this page from their own device.</p>
   {:else}
     <form class="flex flex-col gap-3" on:submit|preventDefault={join}>
-      <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
+      <label class="flex flex-col gap-1.5 text-sm font-bold text-sr-ink-2">
         Class code
         <input class="{input} uppercase tracking-widest" bind:value={code} placeholder="KTZ-482" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" required />
-        {#if codeHint}<span class="text-xs text-sr-danger" role="status">{codeHint}</span>{/if}
+        {#if codeHint}<span class="text-xs font-medium text-sr-danger" role="status">{codeHint}</span>{/if}
       </label>
 
       {#if !user}
-        <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
+        <label class="flex flex-col gap-1.5 text-sm font-bold text-sr-ink-2">
           First name
           <input class={input} bind:value={first} maxlength="40" autocomplete="given-name" required />
         </label>
-        <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
-          Last name or initial <span class="text-xs text-sr-faint">(so your teacher knows which Maria you are)</span>
+        <label class="flex flex-col gap-1.5 text-sm font-bold text-sr-ink-2">
+          Last name or initial <span class="text-xs font-medium text-sr-faint">(so your teacher knows which Maria you are)</span>
           <input class={input} bind:value={last} maxlength="40" autocomplete="off" />
         </label>
-        <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
+        <label class="flex flex-col gap-1.5 text-sm font-bold text-sr-ink-2">
           Username
           <input class={input} bind:value={username} on:input={() => (usernameEdited = true)} maxlength="20" autocapitalize="none" spellcheck="false" autocomplete="username" required />
-          <span class="text-xs text-sr-faint">Letters, numbers and dots. You'll type this with the class code to sign in.</span>
+          <span class="text-xs font-medium text-sr-faint">Letters, numbers and dots. You'll type this with the class code to sign in.</span>
         </label>
-        <label class="flex flex-col gap-1 text-sm text-sr-ink-2">
+        <label class="flex flex-col gap-1.5 text-sm font-bold text-sr-ink-2">
           Password
           <div class="flex gap-2">
             {#if showPassword}
@@ -102,14 +102,14 @@
             {/if}
             <button type="button" class="sr-btn-quiet text-xs whitespace-nowrap" on:click={makePassword}>Make one for me</button>
           </div>
-          <span class="text-xs text-sr-faint">At least 8 characters. Write it down somewhere safe.</span>
+          <span class="text-xs font-medium text-sr-faint">At least 8 characters. Write it down somewhere safe.</span>
         </label>
       {:else}
         <p class="text-sm text-sr-muted">You'll join as yourself, and your presets and settings come with you.</p>
       {/if}
 
       {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
-      <button class="sr-btn w-full py-2" type="submit" disabled={busy || !codeOk}>Join the class</button>
+      <button class="sr-btn w-full py-3 text-base" type="submit" disabled={busy || !codeOk}>Join the class</button>
     </form>
     {#if !user}
       <p class="text-xs text-sr-muted text-center">Already have a login card? <a class="underline" href="/login?mode=student">Sign in</a></p>
