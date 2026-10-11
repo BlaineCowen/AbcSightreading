@@ -9,7 +9,8 @@
   import { uilPresets } from "../lib/uil-presets";
   import { nyssmaVoiceLevels } from "../lib/nyssma-presets";
   import { TMEA_LEVELS } from "../lib/tmea-presets";
-  import { itemForKey, type OwnPreset } from "../lib/class-course";
+  import { courseItems, itemForKey, type CourseItem, type OwnPreset } from "../lib/class-course";
+  import { trackById } from "../lib/curriculum/tracks";
   import { MAX_MINUTES, isCustomKey } from "../lib/practice";
   import { clearDraft, designHref, draftComplete, needsPage, saveDraft, type AssignDraft } from "../lib/assignment-draft";
   import { uploadPiece } from "../lib/pieces/client";
@@ -63,7 +64,19 @@
   $: mustGo = goesToPage && !((!fixed || !!exercise) && (!isCustom || !!custom));
   $: pageName = presetKey === "custom:choral" || /choral/.test(designHref(presetKey, own) ?? "") ? "Choral" : "Unison";
 
+  /** The instrument courses the teacher follows, each with its steps (rhythm and notes halves). */
+  let courses: { id: string; name: string; items: CourseItem[] }[] = [];
+  async function loadCourses() {
+    try {
+      const res = await fetch("/api/tracks");
+      if (!res.ok) return;
+      const { tracks } = (await res.json()) as { tracks: string[] };
+      courses = tracks.filter((id) => trackById[id]).map((id) => ({ id, name: trackById[id].name, items: courseItems(id) }));
+    } catch {}
+  }
+
   onMount(async () => {
+    void loadCourses();
     if (!resume) return;
     ({ presetKey, fixed, minutes, dueAt, note, title, custom, exercise } = resume);
     classIds = resume.classIds.filter((id) => classes.some((c) => c.id === id));
@@ -246,6 +259,11 @@
           <optgroup label="TMEA All-State">
             {#each TMEA_LEVELS as l}<option value={presetKeyOf.tmea(l.id)}>{l.label}</option>{/each}
           </optgroup>
+          {#each courses as c (c.id)}
+            <optgroup label={c.name}>
+              {#each c.items as item (item.key)}<option value={item.key}>{item.label}</option>{/each}
+            </optgroup>
+          {/each}
           {#if saved.length}
             <optgroup label="Your presets">
               {#each saved as p}<option value={presetKeyOf.saved(p.id)}>{p.name} ({p.page})</option>{/each}

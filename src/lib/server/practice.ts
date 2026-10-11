@@ -214,13 +214,14 @@ function withAttempts(
 
 /** A class's assignments with every student's progress, and each student's last week of practice. */
 export async function classAssignments(classId: string) {
-  const [assignments, enrollments] = await Promise.all([
+  const [assignments, enrollments, library] = await Promise.all([
     prisma.assignment.findMany({ where: { classId }, orderBy: { createdAt: "desc" } }),
     prisma.enrollment.findMany({
       where: { classId },
       orderBy: { createdAt: "asc" },
       select: { student: { select: { id: true, name: true, username: true } } },
     }),
+    prisma.classPiece.findMany({ where: { classId }, orderBy: { createdAt: "desc" }, select: { piece: { select: { id: true, title: true } } } }),
   ]);
   const students = enrollments.map((e) => ({ id: e.student.id, name: e.student.name, username: shortUsername(e.student.username) }));
   const ids = students.map((s) => s.id);
@@ -236,6 +237,8 @@ export async function classAssignments(classId: string) {
   const weekBy = new Map(week.map((w) => [w.studentId, { seconds: w._sum.seconds ?? 0, exercises: w._sum.exercises ?? 0 }]));
 
   return {
+    // The songs in the class's library (ClassPiece): every piece assigned, until the teacher takes one out.
+    library: library.map((l) => l.piece),
     students: students.map((s) => ({ id: s.id, name: s.name, username: s.username, week: weekBy.get(s.id) ?? { seconds: 0, exercises: 0 } })),
     assignments: assignments.map((a) => ({
       ...assignmentView(a),

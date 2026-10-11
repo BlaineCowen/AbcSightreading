@@ -41,6 +41,15 @@
 
   let students: Student[] = [];
   let assignments: Assignment[] = [];
+  /** Songs in the class's library: students open them whole, any time, until taken out. */
+  let library: { id: string; title: string }[] = [];
+  let confirmShelf: string | null = null;
+  async function takeOut(pieceId: string) {
+    confirmShelf = null;
+    const res = await fetch(`/api/classes/${classId}/library/${encodeURIComponent(pieceId)}`, { method: "DELETE" });
+    if (res.ok) library = library.filter((p) => p.id !== pieceId);
+    else problem = "Could not take that song out. Try again.";
+  }
   let loaded = false;
   let problem = "";
   /** The assign panel (AssignmentWizard), open or not. */
@@ -86,7 +95,7 @@
 
   async function load() {
     const res = await fetch(`/api/classes/${classId}/assignments`);
-    if (res.ok) ({ students, assignments } = await res.json());
+    if (res.ok) ({ students, assignments, library } = await res.json());
     loaded = true;
   }
   onMount(() => {
@@ -260,6 +269,26 @@
     </div>
   {/each}
 
+  {#if library.length}
+    <div class="flex flex-col gap-1.5">
+      <p class="text-xs text-sr-muted">In their library: students open these whole, any part, any time.</p>
+      <ul class="flex flex-wrap gap-2">
+        {#each library as p (p.id)}
+          <li class="shelf">
+            {#if confirmShelf === p.id}
+              <span>Take {p.title} out?</span>
+              <button class="font-bold underline" on:click={() => takeOut(p.id)}>Take out</button>
+              <button class="underline" on:click={() => (confirmShelf = null)}>Keep</button>
+            {:else}
+              <a class="truncate max-w-[14rem]" href="/pieces/{p.id}">{p.title}</a>
+              <button class="x" aria-label="Take {p.title} out of the library" title="Take out of the library" on:click={() => (confirmShelf = p.id)}>×</button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
+
   {#if loaded && !assignments.length && !assigning}
     <p class="text-xs text-sr-muted">Nothing assigned yet. Students see assignments when they sign in, and their time counts while they practise.</p>
   {/if}
@@ -272,6 +301,29 @@
 </div>
 
 <style>
+  .shelf {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.35rem 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .shelf .x {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .shelf .x:hover {
+    background: color-mix(in srgb, var(--sr-peach-ink) 15%, transparent);
+  }
   .kind {
     display: inline-flex;
     align-items: center;
