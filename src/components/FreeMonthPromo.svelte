@@ -3,12 +3,12 @@
 
   /**
    * The free month of Pro, promoted (src/lib/free-month.ts): a strip at the
-   * top of the home page, a one-time note on the practice pages, and a line
-   * on the sign-up form. Each asks /api/free-month, so it says nothing when
+   * top of the home page and a one-time note on the practice pages (the
+   * sign-up form makes its own case, AuthForm). Each asks /api/free-month, so it says nothing when
    * the offer is off, and never to someone who cannot claim it. "For a
    * limited time", or "until <date>" once FREE_MONTH_UNTIL is set.
    */
-  export let variant: "strip" | "note" | "signup" = "strip";
+  export let variant: "strip" | "note" = "strip";
 
   type Status = { ok: boolean; reason?: string; quiet?: boolean; signedIn: boolean; offer: boolean; until: number | null };
   /**
@@ -58,9 +58,5 @@
       <a class="sr-btn text-sm" href="/account#plan">Start my free month</a>
       <button class="text-sm font-bold underline opacity-80" on:click={dismiss}>Not now</button>
     </div>
-  {:else if variant === "signup"}
-    <p class="text-sm rounded-[14px] bg-sr-mint text-sr-mint-ink px-3 py-2">
-      <strong>Limited time:</strong> confirm your email and a free month of Pro is waiting for you. No card needed.
-    </p>
   {/if}
 {/if}

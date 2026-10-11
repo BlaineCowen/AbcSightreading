@@ -19,23 +19,126 @@ const viewer = await currentUser(Astro.request).catch(() => null);
 const accountType = viewer ? await accountTypeFor(viewer) : "standard";
 // A student who signed in with ClassLink before their teacher added them: one class code to type.
 const classless = accountType === "student" && viewer ? (await prisma.enrollment.count({ where: { studentId: viewer.id } })) === 0 : false;
+
+// Everyone but a student gets a menu: the account and plan, the classes, and
+// the rhythm syllables, one at a time. The address's hash picks the tab, so
+// the old links (#plan, #quote, #students, #syllables) still land in the right one.
+const tabs = [
+  { id: "account", label: "Account and plan", hashes: ["account", "plan", "quote"] },
+  { id: "classes", label: "Classes", hashes: ["classes", "students"] },
+  { id: "syllables", label: "Rhythm syllables", hashes: ["syllables"] },
+];
 ---
 
 <Layout noindex title="Account | abcSightReading" themable>
   <div class="flex flex-col w-full items-center gap-6 pb-16">
     <h1 class="text-3xl font-bold text-sr-ink">Account</h1>
-    {classless && (
-      <section class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3">
-        <h2 class="text-lg font-semibold text-sr-ink">Join your class</h2>
-        <p class="text-sm text-sr-ink-2">You are signed in. Type your class code once, and your teacher's assignments show up here.</p>
-        <a class="sr-btn self-start" href="/join">Enter my class code</a>
-      </section>
+    {accountType === "student" ? (
+      <>
+        {classless && (
+          <section class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3">
+            <h2 class="text-lg font-semibold text-sr-ink">Join your class</h2>
+            <p class="text-sm text-sr-ink-2">You are signed in. Type your class code once, and your teacher's assignments show up here.</p>
+            <a class="sr-btn self-start" href="/join">Enter my class code</a>
+          </section>
+        )}
+        <StudentAssignments client:only="svelte" />
+        <AccountPanel client:only="svelte" />
+      </>
+    ) : (
+      <>
+        <nav class="account-tabs" role="tablist" aria-label="Account sections">
+          {tabs.map((t, i) => (
+            <a
+              href={`#${t.id}`}
+              role="tab"
+              id={`tab-${t.id}`}
+              aria-controls={`panel-${t.id}`}
+              aria-selected={i === 0 ? "true" : "false"}
+              class={`sr-tab ${i === 0 ? "sr-on" : ""}`}
+              data-tab={t.id}
+              data-hashes={t.hashes.join(" ")}
+            >{t.label}</a>
+          ))}
+        </nav>
+        <div id="panel-account" role="tabpanel" aria-labelledby="tab-account" class="tab-panel">
+          {accountType !== "educator" && <StudentAssignments client:only="svelte" />}
+          <AccountPanel client:only="svelte" />
+          <SchoolQuote client:only="svelte" educatorOnSale={EDUCATOR_ON_SALE} />
+        </div>
+        <div id="panel-classes" role="tabpanel" aria-labelledby="tab-classes" class="tab-panel" hidden>
+          {accountType === "educator" && <EducatorStudents client:only="svelte" {googleEnabled} />}
+          <ClassProgress client:only="svelte" />
+        </div>
+        <div id="panel-syllables" role="tabpanel" aria-labelledby="tab-syllables" class="tab-panel" hidden>
+          <SyllableEditor client:only="svelte" />
+        </div>
+      </>
     )}
-    {accountType !== "educator" && <StudentAssignments client:only="svelte" />}
-    <AccountPanel client:only="svelte" />
-    {accountType !== "student" && <SchoolQuote client:only="svelte" educatorOnSale={EDUCATOR_ON_SALE} />}
-    {accountType === "educator" && <EducatorStudents client:only="svelte" {googleEnabled} />}
-    {accountType !== "student" && <ClassProgress client:only="svelte" />}
-    {accountType !== "student" && <SyllableEditor client:only="svelte" />}
   </div>
 </Layout>
+
+<style>
+  .account-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 5px;
+    background: var(--sr-track);
+    border-radius: 999px;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .account-tabs .sr-tab {
+    padding: 0.55rem 1.1rem;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .tab-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .tab-panel[hidden] {
+    display: none;
+  }
+  @media (max-width: 480px) {
+    .account-tabs .sr-tab {
+      padding: 0.55rem 0.8rem;
+      font-size: 13px;
+    }
+  }
+</style>
+
+<script>
+  // One section at a time, chosen by the hash: a tab click, an in-page link
+  // (#quote), or a link from elsewhere (/account#students).
+  const links = [...document.querySelectorAll<HTMLAnchorElement>(".account-tabs [data-tab]")];
+  function show(hash: string, scroll: boolean) {
+    const want = hash.replace(/^#/, "");
+    const tab = links.find((a) => (a.dataset.hashes ?? "").split(" ").includes(want)) ?? links[0];
+    if (!tab) return;
+    for (const a of links) {
+      const on = a === tab;
+      a.classList.toggle("sr-on", on);
+      a.setAttribute("aria-selected", on ? "true" : "false");
+      const panel = document.getElementById(`panel-${a.dataset.tab}`);
+      if (panel) panel.hidden = !on;
+    }
+    // A section's own anchor (#quote, #plan) scrolls to it once it is drawn.
+    if (scroll && want && want !== tab.dataset.tab) {
+      requestAnimationFrame(() => document.getElementById(want)?.scrollIntoView({ block: "start" }));
+    }
+  }
+  for (const a of links) {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      history.replaceState(history.state, "", `${location.pathname}${location.search}#${a.dataset.tab}`);
+      show(a.hash, false);
+    });
+  }
+  window.addEventListener("hashchange", () => show(location.hash, true));
+  show(location.hash, false);
+</script>

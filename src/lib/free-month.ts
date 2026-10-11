@@ -64,13 +64,14 @@ export type FreeMonthCheck = {
 };
 
 /** Whether the month can be claimed, and if not, why, in words for the account page. */
-export function freeMonthDecision(c: FreeMonthCheck): { ok: true } | { ok: false; reason: string; quiet?: boolean } {
+export function freeMonthDecision(c: FreeMonthCheck): { ok: true } | { ok: false; reason: string; quiet?: boolean; step?: "confirm" } {
   if (!c.enabled) return { ok: false, reason: "The free month is not on offer right now.", quiet: true };
   if (!c.signedIn) return { ok: false, reason: "Create a free account first.", quiet: true };
   if (c.accountType === "student") return { ok: false, reason: "Your teacher's plan covers you.", quiet: true };
   if (c.hadPro) return { ok: false, reason: "The free month is for accounts that have not had Pro.", quiet: true };
   if (isDisposable(c.email)) return { ok: false, reason: "The free month needs a permanent email address, not a temporary inbox." };
-  if (!c.emailVerified) return { ok: false, reason: "Confirm your email address first: the link is in your inbox." };
+  // The one step a new account has left: the page offers to send the link again.
+  if (!c.emailVerified) return { ok: false, reason: "Confirm your email address first: the link is in your inbox.", step: "confirm" };
   if (c.emailKeyUsed || c.browserUsed) return { ok: false, reason: "The free month has already been used." };
   if (c.networkClaims >= NETWORK_LIMIT) {
     return { ok: false, reason: "Too many free months have been claimed from this network. Try again from another connection, or write to us." };

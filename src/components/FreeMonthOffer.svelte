@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, createEventDispatcher } from "svelte";
+  import Sparkles from "lucide-svelte/icons/sparkles";
+  import { authClient } from "../lib/auth-client";
 
   /**
    * The free month of Pro (src/lib/free-month.ts): no card, it simply ends.
@@ -8,7 +10,7 @@
    * browser, so a second account here is refused.
    */
   const dispatch = createEventDispatcher<{ claimed: { expiresAt: number } }>();
-  let status: { ok: true } | { ok: false; reason: string; quiet?: boolean } | null = null;
+  let status: { ok: true } | { ok: false; reason: string; quiet?: boolean; step?: "confirm" } | null = null;
   let busy = false;
   let problem = "";
 
@@ -30,6 +32,17 @@
     const res = await fetch("/api/free-month").catch(() => null);
     status = res?.ok ? await res.json() : null;
   });
+
+  /** The confirmation link again, for the one step left. */
+  let sent = "";
+  async function resend() {
+    problem = "";
+    const email = (await authClient.getSession()).data?.user.email;
+    if (!email) return;
+    const { error } = await authClient.sendVerificationEmail({ email, callbackURL: "/account?confirmed=1#plan" });
+    if (error) problem = error.message ?? "Could not send the email.";
+    else sent = `A new link is on its way to ${email}.`;
+  }
 
   const day = (t: number) => new Date(t).toLocaleDateString(undefined, { month: "long", day: "numeric" });
 
@@ -55,13 +68,45 @@
 </script>
 
 {#if status && (status.ok || !status.quiet)}
-  <div class="rounded-md border border-sr-hairline bg-sr-mint text-sr-mint-ink p-3 flex flex-col gap-2">
-    <p class="text-sm"><strong>Try Pro free for a month.</strong> No card, nothing to cancel: after 30 days you simply go back to the free plan.</p>
+  <div class="offer">
+    <p class="badge"><Sparkles size={13} aria-hidden="true" /> Free for 30 days</p>
+    <p class="font-display text-xl font-bold leading-tight">Try Pro free for a month</p>
+    <p class="text-sm">Unlimited exercises, Listen and grade, abcTuner and the practice tools. No card, nothing to cancel: after 30 days you simply go back to the free plan.</p>
     {#if status.ok}
-      <button class="sr-btn text-sm self-start" on:click={claim} disabled={busy}>{busy ? "Starting…" : "Start my free month"}</button>
+      <button class="sr-btn self-start" on:click={claim} disabled={busy}>{busy ? "Starting…" : "Start my free month"}</button>
+    {:else if status.step === "confirm"}
+      <p class="text-sm font-bold">One step left: confirm your email with the link in your inbox, then come back here.</p>
+      {#if sent}<p class="text-sm" role="status">{sent}</p>
+      {:else}<button class="sr-btn-quiet text-sm self-start" on:click={resend}>Send the link again</button>{/if}
     {:else}
       <p class="text-sm font-semibold">{status.reason}</p>
     {/if}
     {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
   </div>
 {/if}
+
+<style>
+  .offer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-radius: var(--sr-r-md);
+    background: var(--sr-mint);
+    color: var(--sr-mint-ink);
+    padding: 1.1rem 1.2rem;
+  }
+  .badge {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    background: var(--sr-butter);
+    color: var(--sr-butter-ink);
+    padding: 0.15rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+</style>

@@ -14,6 +14,7 @@ import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from ".
 import { becomeEducator } from "./educator";
 import { recordAffiliateSale, referralFor } from "./codes";
 import { checkoutDiscount } from "../referral";
+import { enabled as freeMonthOn } from "./free-month";
 
 /**
  * A paid seat pack (src/pages/api/billing/seats.ts starts the checkout): 25
@@ -197,7 +198,7 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
       if (isStudentEmail(user.email)) return;
-      const { subject, text } = verifyEmailEmail(url);
+      const { subject, text } = verifyEmailEmail(url, freeMonthOn());
       await sendAccountEmail(user.email, subject, text);
     },
   },

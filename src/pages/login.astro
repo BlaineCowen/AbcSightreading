@@ -2,18 +2,31 @@
 import Layout from "../layouts/Layout.astro";
 import AuthForm from "../components/AuthForm.svelte";
 import { classlinkEnabled, googleEnabled } from "../lib/server/auth";
+import { enabled as freeMonthOn, offerUntil } from "../lib/server/free-month";
 
 const requested = Astro.url.searchParams.get("mode");
 const mode = requested === "signup" || requested === "forgot" || requested === "student" ? requested : "signin";
+
+// A code link (/account?code=X) sent here to sign in first: name the code, so
+// the visitor knows it is waiting on the other side.
+let code: string | null = null;
+try {
+  const next = new URL(Astro.url.searchParams.get("next") ?? "", Astro.url.origin);
+  const raw = next.pathname === "/account" ? next.searchParams.get("code") : null;
+  if (raw && /^[A-Za-z0-9-]{3,30}$/.test(raw)) code = raw.toUpperCase();
+} catch {}
 ---
 
 <Layout noindex title="Sign in | abcSightReading" themable>
-  <div class="flex flex-col w-full items-center gap-6 pb-16">
-    <h1 class="text-3xl font-bold text-sr-ink">Your account</h1>
-    <p class="text-sr-muted text-center max-w-sm">
-      Free. Keep your presets on every device, track which of your classes
-      have passed each step, and use your own rhythm syllables.
-    </p>
-    <AuthForm client:only="svelte" googleEnabled={googleEnabled} classlinkEnabled={classlinkEnabled} mode={mode} />
+  <div class="flex flex-col w-full items-center pt-2 pb-16">
+    <AuthForm
+      client:only="svelte"
+      googleEnabled={googleEnabled}
+      classlinkEnabled={classlinkEnabled}
+      mode={mode}
+      freeMonth={freeMonthOn()}
+      freeMonthUntil={offerUntil()}
+      code={code}
+    />
   </div>
 </Layout>

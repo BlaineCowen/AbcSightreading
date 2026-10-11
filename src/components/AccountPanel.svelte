@@ -44,6 +44,11 @@
       await useCode(linkCode);
       return;
     }
+    // Back from the confirmation email's link: say so, beside the free month it unlocks.
+    if (params.get("confirmed")) {
+      notice = "Your email is confirmed. Thank you!";
+      history.replaceState(null, "", "/account#plan");
+    }
     if (params.get("upgraded")) {
       notice = "Thank you! Pro is on.";
       history.replaceState(null, "", "/account#plan");
@@ -135,7 +140,7 @@
   async function resendVerification() {
     if (!user) return;
     problem = notice = "";
-    const { error } = await authClient.sendVerificationEmail({ email: user.email, callbackURL: "/account" });
+    const { error } = await authClient.sendVerificationEmail({ email: user.email, callbackURL: "/account?confirmed=1#plan" });
     if (error) problem = error.message ?? "Could not send the email.";
     else notice = `A confirmation link is on its way to ${user.email}.`;
   }
@@ -166,6 +171,7 @@
   {#if !user}
     <p class="text-sm text-sr-muted">Loading…</p>
   {:else}
+    {#if notice}<p class="rounded-[14px] bg-sr-mint text-sr-mint-ink px-3 py-2 text-sm font-bold" role="status">{notice}</p>{/if}
     <section class="flex flex-col gap-1">
       <h2 class="text-xs uppercase tracking-wide text-sr-faint">Signed in as</h2>
       <p class="text-sr-ink font-medium">{user.name}</p>
@@ -289,7 +295,6 @@
       {/if}
     </section>
 
-    {#if notice}<p class="text-sm text-sr-ink-2" role="status">{notice}</p>{/if}
     {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
 
     <div class="flex flex-wrap gap-2 items-center">

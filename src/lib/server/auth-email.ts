@@ -57,15 +57,19 @@ export function resetPasswordEmail(url: string) {
   };
 }
 
-export function verifyEmailEmail(url: string) {
+/** `freeMonth`: the free month of Pro is on offer, and confirming is the step that unlocks it. */
+export function verifyEmailEmail(url: string, freeMonth = false) {
   return {
-    subject: "Confirm your email for abcSightReading",
+    subject: freeMonth ? "Confirm your email and start your free month of Pro" : "Confirm your email for abcSightReading",
     text: [
       "Welcome to abcSightReading.",
       "",
       "Confirm this is your address by opening this link:",
       url,
       "",
+      ...(freeMonth
+        ? ["Your free month of Pro is waiting on the page it opens: unlimited exercises, Listen and grade, and the practice tools. No card, nothing to cancel.", ""]
+        : []),
       "If you did not create an account, ignore this email.",
     ].join("\n"),
   };

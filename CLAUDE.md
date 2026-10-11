@@ -1180,7 +1180,19 @@ Better Auth (`src/lib/server/auth.ts`) on Prisma ORM 7 + Prisma Postgres
 Email/password with reset and a confirmation email (sent through Resend, not
 required to sign in), plus Google when `GOOGLE_CLIENT_ID`/`_SECRET` are set.
 Auth endpoints live under `/api/auth/*`; pages are `/login` (also
-`?mode=signup|forgot`), `/reset-password`, `/account`.
+`?mode=signup|forgot|student`), `/reset-password`, `/account`.
+
+Sign-up (11 October 2026, `AuthForm.svelte`): Create account sits beside what
+it gives, the free month of Pro while it is on (`enabled()` passed in by
+login.astro) and the free plan otherwise; a code waiting in `next`
+(/account?code=X) is named on the form. A new account lands on `next` (home
+by default) and WelcomeNote says hello once (sessionStorage for email,
+`?welcome=1` for a new Google account via `newUserCallbackURL`) with the one
+step to the free month. The confirmation email names the month, and its link
+opens `/account?confirmed=1#plan`, where FreeMonthOffer starts it (or sends
+the link again). `/account` is one tab at a time for everyone but students:
+Account and plan (#plan, #quote), Classes (#students), Rhythm syllables
+(#syllables); the hash picks the tab, so old links still land.
 
 Classes (`Class`, `ClassProgress`; `/api/classes`, `src/lib/classes.ts`) are
 signed-in only: a director's choirs and which presets each has passed, keyed
