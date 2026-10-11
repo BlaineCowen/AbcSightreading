@@ -1,0 +1,61 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { currentUser } from "../lib/server/api";
+import { accountTypeFor } from "../lib/server/students";
+import { libraryFor } from "../lib/server/pieces";
+
+/**
+ * A student's library: every song assigned to a class they are in, kept
+ * after the assignment is due or gone (ClassPiece). Each opens whole, any
+ * part, ungraded. Anyone else's music is in My music.
+ */
+const user = await currentUser(Astro.request);
+if (!user) return Astro.redirect("/login?next=/library");
+if ((await accountTypeFor(user)) !== "student") return Astro.redirect("/pieces");
+Astro.response.headers.set("Cache-Control", "private, no-store");
+const songs = await libraryFor(user.id);
+const partsLine = (parts: string[]) => (parts.length <= 3 ? parts.join(", ") : `${parts.length} parts`);
+---
+
+<Layout title="My library | abcSightReading" description="The songs your teachers have assigned." noindex themable>
+  <div class="w-full max-w-4xl mx-auto px-4 py-6 flex flex-col gap-6">
+    <header>
+      <a class="sr-link text-sm" href="/">Home</a>
+      <h1 class="text-3xl sm:text-4xl font-bold text-sr-ink">My library</h1>
+      <p class="mt-1 text-sr-muted">Every song your teachers have assigned. Open one to play it, choose your part and practise any bars you like. Nothing here is graded.</p>
+    </header>
+    {songs.length === 0 ? (
+      <p class="sr-panel p-5 text-sr-muted">No songs yet. When your teacher assigns one, it appears here and stays.</p>
+    ) : (
+      <ul class="flex flex-col gap-2">
+        {songs.map((p) => (
+          <li>
+            <a class="sr-panel flex items-center gap-3 p-3 sm:p-4 no-underline group" href={`/pieces/${p.id}`}>
+              <span class="song-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block font-bold text-sr-ink truncate group-hover:underline">{p.title}</span>
+                <span class="block text-sm text-sr-muted truncate">{[p.composer, partsLine(p.parts), `${p.bars} bars`].filter(Boolean).join(" · ")}</span>
+              </span>
+              <span class="text-xs text-sr-faint text-right hidden sm:block">{p.classes.join(", ")}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .song-icon {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+    flex: none;
+  }
+</style>

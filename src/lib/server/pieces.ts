@@ -110,17 +110,44 @@ export async function pieceFor(userId: string, id: string) {
 }
 
 /**
- * A piece this user may read: their own, or one assigned to a class they are
- * in (a student hears the parts as their teacher set them).
+ * A piece this user may read: their own, or one in the library of a class
+ * they are in (every piece ever assigned to it; a student hears the parts as
+ * their teacher set them), or one assigned to it.
  */
 export async function pieceForReader(userId: string, id: string) {
   const own = await pieceFor(userId, id);
   if (own) return own;
-  const assigned = await prisma.assignment.findFirst({
-    where: { presetKey: `piece:${id}`, class: { enrollments: { some: { studentId: userId } } } },
-    select: { id: true },
-  });
+  const inClass = { class: { enrollments: { some: { studentId: userId } } } };
+  const shelved = await prisma.classPiece.findFirst({ where: { pieceId: id, ...inClass }, select: { id: true } });
+  const assigned = shelved ?? (await prisma.assignment.findFirst({ where: { presetKey: `piece:${id}`, ...inClass }, select: { id: true } }));
   return assigned ? prisma.piece.findUnique({ where: { id } }) : null;
+}
+
+/**
+ * A student's library: every song assigned to a class they are in, newest
+ * first, each with the classes it came from. Kept after the assignment goes.
+ */
+export async function libraryFor(userId: string) {
+  const rows = await prisma.classPiece.findMany({
+    where: { class: { enrollments: { some: { studentId: userId } } } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      createdAt: true,
+      class: { select: { name: true } },
+      piece: { select: { id: true, title: true, composer: true, bars: true, parts: true } },
+    },
+  });
+  const byPiece = new Map<string, { id: string; title: string; composer: string; bars: number; parts: string[]; classes: string[]; addedAt: number }>();
+  for (const r of rows) {
+    const had = byPiece.get(r.piece.id);
+    if (had) {
+      if (!had.classes.includes(r.class.name)) had.classes.push(r.class.name);
+      continue;
+    }
+    const parts = r.piece.parts && typeof r.piece.parts === "object" ? Object.values(r.piece.parts as Record<string, { name?: string }>).map((x) => x.name ?? "Part") : [];
+    byPiece.set(r.piece.id, { id: r.piece.id, title: r.piece.title, composer: r.piece.composer, bars: r.piece.bars, parts, classes: [r.class.name], addedAt: r.createdAt.getTime() });
+  }
+  return [...byPiece.values()];
 }
 
 /** The stored model, read. */

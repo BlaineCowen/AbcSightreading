@@ -6,7 +6,9 @@ import { parsePresetKey } from "../class-validate";
 import { stepOfKey, trackStepLabel } from "../curriculum/tracks";
 import { trackStepOptions } from "../curriculum/options";
 import { overridesFrom } from "../curriculum/subscriptions";
-import { RETENTION_DAYS, assignmentPage, assignmentProgress, creditSeconds, practiceDay } from "../practice";
+import { CUSTOM_KEYS, RETENTION_DAYS, assignedExercise, assignmentPage, assignmentProgress, creditSeconds, isCustomKey, practiceDay, type AssignmentRequest } from "../practice";
+import { nyssmaById } from "../nyssma-presets";
+import { tmeaLevelOf } from "../tmea-presets";
 import { loadScore } from "./pieces";
 import { shortUsername } from "./students";
 import { barsLabel, checkPieceAssignment, pieceAssignmentOf } from "../pieces/assign";
@@ -17,24 +19,43 @@ import { barsLabel, checkPieceAssignment, pieceAssignmentOf } from "../pieces/as
  */
 
 /**
- * What an assignment shows and opens, from the teacher's preset key. Null if
+ * What an assignment shows and opens, from the teacher's request. Null if
  * it is not theirs to assign; `{ error }` when a piece's part or bars cannot
- * be assigned (checked against the piece's score).
+ * be assigned (checked against the piece's score). A sight-reading
+ * assignment with one exercise for everyone keeps it in `params.exercise`.
  */
-export async function describePreset(teacherId: string, presetKey: string, pieceRequest?: unknown) {
+export async function describePreset(teacherId: string, req: AssignmentRequest) {
+  const d = await describeKind(teacherId, req);
+  if (!d || "error" in d || d.page === "piece" || !req.exercise) return d;
+  const params = { ...((d.params ?? {}) as Prisma.InputJsonObject), exercise: req.exercise };
+  return { ...d, params };
+}
+
+async function describeKind(teacherId: string, req: AssignmentRequest) {
+  const presetKey = req.presetKey;
+  if (isCustomKey(presetKey)) {
+    if (!req.custom) return null;
+    const { name, params } = req.custom;
+    return { title: name, page: CUSTOM_KEYS[presetKey], params: { id: "custom", name, params: params as Prisma.InputJsonObject } as Prisma.InputJsonObject };
+  }
   const key = parsePresetKey(presetKey);
   if (!key) return null;
   if (key.kind === "piece") {
     const piece = await prisma.piece.findFirst({ where: { id: key.id, userId: teacherId } });
     if (!piece) return null;
     const score = await loadScore(piece.scorePath);
-    const checked = checkPieceAssignment(pieceRequest, piece.id, score);
+    const checked = checkPieceAssignment(req.piece, piece.id, score);
     if (!checked.ok) return { error: checked.error };
     const label = barsLabel(score, checked.value);
     return { title: `${piece.title}: ${label}`, page: "piece" as const, params: checked.value as unknown as Prisma.InputJsonObject };
   }
   if (key.kind === "step") return { title: stepLabel(ladderById[key.id]), page: assignmentPage(presetKey), params: null };
   if (key.kind === "uil") return { title: uilPresets[key.level].label ?? key.level, page: "choral" as const, params: null };
+  if (key.kind === "nyssma") return { title: nyssmaById[key.id].label, page: "unison" as const, params: null };
+  if (key.kind === "tmea") {
+    const t = tmeaLevelOf(key.id)!;
+    return { title: t.part ? `${t.level.label} · ${t.part}` : t.level.label, page: "unison" as const, params: null };
+  }
   if (key.kind === "track") {
     // The teacher's own version of the step if they kept one, copied in like a saved preset.
     const found = stepOfKey(presetKey)!;
@@ -45,7 +66,7 @@ export async function describePreset(teacherId: string, presetKey: string, piece
   }
   const saved = await prisma.preset.findFirst({ where: { id: key.id, userId: teacherId } });
   if (!saved) return null;
-  return { title: saved.name, page: assignmentPage(presetKey, saved.store), params: { id: saved.id, name: saved.name, params: saved.params } };
+  return { title: saved.name, page: assignmentPage(presetKey, saved.store), params: { id: saved.id, name: saved.name, params: saved.params } as Prisma.InputJsonObject };
 }
 
 /** Whether this account is in the class, or teaches it. */
@@ -143,6 +164,8 @@ const assignmentView = (a: {
     createdAt: a.createdAt.getTime(),
     // A piece's graded attempts: null for as many as they like.
     ...(piece ? { maxAttempts: piece.maxAttempts } : {}),
+    // Sight reading: one exercise every student sings, not new ones each time.
+    ...(!piece && assignedExercise(a.params) ? { fixed: true } : {}),
     // Posted to Google Classroom, and when its grades were last sent there.
     classroom: a.classroomWorkId ? { sentAt: a.gradesSentAt?.getTime() ?? null } : null,
   };

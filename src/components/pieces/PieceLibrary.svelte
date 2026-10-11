@@ -152,7 +152,7 @@
     {/if}
   </section>
 
-  <p class="text-xs text-sr-muted">Only you can see your pieces. Upload only music you have the right to use, such as your own arrangements or music in the public domain.</p>
+  <p class="text-xs text-sr-muted">Only you can see your pieces, and the students of a class you assign one to: it stays in that class's library. Upload only music you have the right to use, such as your own arrangements or music in the public domain.</p>
 </div>
 
 <style>

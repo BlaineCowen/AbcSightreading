@@ -58,6 +58,12 @@
     id: string; title: string; note: string; dueAt: number | null; minutes: number;
     role: "teacher" | "student"; settings: PieceAssignment;
   } | null = null;
+  /**
+   * A song from a class's library (a student, not the owner): the whole
+   * piece, any part, ungraded. Part settings change here only, never the
+   * teacher's copy.
+   */
+  export let library = false;
   /** The owner has Educator: Assign to a class. */
   export let canAssign = false;
   /** ?attempt=<id>: an attempt shown with its marks and take (the student's own, or the teacher's class). */
@@ -129,7 +135,7 @@
         choosingPart = !myPart;
         void refreshAttempts();
         if (assignment.role === "student") startPractice({ page: "piece", assignmentId: assignment.id, isBusy: () => isPlaying });
-      }
+      } else if (library) startPractice({ page: "piece", assignmentId: null, isBusy: () => isPlaying });
       await tick();
       await render();
       if (attemptId) await showAttempt(attemptId);
@@ -703,6 +709,7 @@
   // ── Parts ───────────────────────────────────────────────────────────────
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   function saveParts() {
+    if (library) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
       try {
@@ -778,7 +785,7 @@
   {#if error}
     <div class="sr-panel p-6 flex flex-col gap-3">
       <p class="text-sr-ink">{error}</p>
-      <a class="sr-btn self-start" href="/pieces">Back to My music</a>
+      <a class="sr-btn self-start" href={library ? "/library" : "/pieces"}>Back to {library ? "My library" : "My music"}</a>
     </div>
   {:else if !piece || !score}
     <p class="text-sr-muted">Loading the music…</p>
@@ -804,8 +811,10 @@
     {:else}
     <header class="flex flex-wrap items-end justify-between gap-3">
       <div class="min-w-0">
-        <a class="sr-link text-sm" href="/pieces">My music</a>
-        {#if renaming}
+        <a class="sr-link text-sm" href={library ? "/library" : "/pieces"}>{library ? "My library" : "My music"}</a>
+        {#if library}
+          <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink truncate">{piece.title}</h1>
+        {:else if renaming}
           <form class="flex gap-2 mt-1" on:submit|preventDefault={saveTitle}>
             <label class="sr-only" for="piece-title">Title</label>
             <!-- svelte-ignore a11y-autofocus -->
@@ -846,7 +855,7 @@
       </section>
     {/if}
 
-    {#if piece.warnings.length}
+    {#if piece.warnings.length && !library}
       <p class="text-sm text-sr-muted">{piece.warnings.join(". ")}.</p>
     {/if}
     {/if}

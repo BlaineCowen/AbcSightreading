@@ -7,6 +7,7 @@ import { accountTypeFor } from "../lib/server/students";
 import { prisma } from "../lib/server/db";
 import { generationStatus } from "../lib/server/plan";
 import { myAssignments } from "../lib/server/practice";
+import { libraryFor } from "../lib/server/pieces";
 import { subscriptionsFrom } from "../lib/curriculum/catalogue";
 import { MAX_RECENT, type RecentExercise } from "../lib/recent-exercises";
 
@@ -30,13 +31,15 @@ const home = viewer
       accountType === "student" ? null : prisma.userPreference.findUnique({ where: { userId: viewer.id }, select: { curriculumTracks: true } }),
       generationStatus(viewer.id).catch(() => null),
       accountType === "student" ? myAssignments(viewer.id) : null,
-    ]).then(([rows, pref, allowance, assignments]) => ({
+      accountType === "student" ? libraryFor(viewer.id).catch(() => []) : [],
+    ]).then(([rows, pref, allowance, assignments, library]) => ({
       recent: rows.map((r): RecentExercise => ({
         id: r.id, page: r.page as RecentExercise["page"], title: r.title, detail: r.detail, link: r.link, createdAt: r.createdAt.getTime(),
       })),
       tracks: accountType === "student" ? [] : subscriptionsFrom(pref?.curriculumTracks),
       allowance: allowance && { limit: allowance.limit, remaining: allowance.remaining },
       assignments,
+      library,
     }))
   : null;
 ---

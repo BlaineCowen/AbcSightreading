@@ -11,6 +11,7 @@
 import { parsePresetKey } from "./class-validate";
 import { ladderById, type LadderPage } from "./ladder";
 import { UNISON_PRESET_STORE } from "./preset-storage";
+import { checkName, checkParams } from "./preset-validate";
 
 type Checked<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -63,18 +64,46 @@ export const MAX_MINUTES = 120;
 const MAX_NOTE = 300;
 
 /**
+ * A sight-reading assignment the teacher set up on a practice page rather
+ * than from a preset: `custom:unison` or `custom:choral`, its settings sent
+ * with it (`custom: { name, params }`, a saved preset's shape).
+ */
+export const CUSTOM_KEYS = { "custom:unison": "unison", "custom:choral": "choral" } as const;
+export type CustomKey = keyof typeof CUSTOM_KEYS;
+export const isCustomKey = (k: unknown): k is CustomKey => typeof k === "string" && Object.hasOwn(CUSTOM_KEYS, k);
+
+/** The longest packed exercise an assignment keeps (a 16-bar four-part exercise packs to about 2,000 characters). */
+export const MAX_ASSIGNED_EXERCISE = 8000;
+
+/** A packed exercise (exercise-link.ts: a codec digit, then base64url), or null. */
+export function checkPackedExercise(value: unknown): string | null {
+  return typeof value === "string" && value.length <= MAX_ASSIGNED_EXERCISE && /^[01][A-Za-z0-9_-]+$/.test(value) ? value : null;
+}
+
+/**
  * `minutes` is a practice-time goal; a piece may have none (0), since its
  * goal is the part sung or played. `piece` is the piece's settings as sent,
- * checked against its score on the server (pieces/assign.ts).
+ * checked against its score on the server (pieces/assign.ts). `exercise`, on
+ * sight reading, is one packed exercise every student sings instead of new
+ * ones each time; `custom` the settings of a custom one.
  */
-export type AssignmentRequest = { presetKey: string; minutes: number; dueAt: Date | null; note: string; piece?: unknown };
+export type AssignmentRequest = {
+  presetKey: string;
+  minutes: number;
+  dueAt: Date | null;
+  note: string;
+  piece?: unknown;
+  exercise?: string;
+  custom?: { name: string; params: Record<string, unknown> };
+};
 
 export function checkAssignmentRequest(body: unknown, now = new Date()): Checked<AssignmentRequest> {
   if (typeof body !== "object" || body === null) return { ok: false, error: "Expected an assignment." };
   const b = body as Record<string, unknown>;
-  const key = parsePresetKey(b.presetKey);
-  if (!key) return { ok: false, error: "Choose what to practice." };
-  const isPiece = key.kind === "piece";
+  const custom = isCustomKey(b.presetKey);
+  const key = custom ? null : parsePresetKey(b.presetKey);
+  if (!custom && !key) return { ok: false, error: "Choose what to practice." };
+  const isPiece = key?.kind === "piece";
   const minutes = b.minutes === undefined || b.minutes === null || b.minutes === "" ? (isPiece ? 0 : NaN) : Number(b.minutes);
   if (!Number.isInteger(minutes) || minutes < (isPiece ? 0 : 1) || minutes > MAX_MINUTES) {
     return { ok: false, error: `Minutes: a whole number from ${isPiece ? 0 : 1} to ${MAX_MINUTES}.` };
@@ -89,13 +118,29 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   }
   const note = typeof b.note === "string" ? b.note.trim() : "";
   if (note.length > MAX_NOTE) return { ok: false, error: `Notes are at most ${MAX_NOTE} characters.` };
-  return { ok: true, value: { presetKey: b.presetKey as string, minutes, dueAt, note, ...(isPiece ? { piece: b.piece } : {}) } };
+  const value: AssignmentRequest = { presetKey: b.presetKey as string, minutes, dueAt, note };
+  if (isPiece) value.piece = b.piece;
+  if (!isPiece && b.exercise !== undefined && b.exercise !== null && b.exercise !== "") {
+    const exercise = checkPackedExercise(b.exercise);
+    if (!exercise) return { ok: false, error: "That exercise could not be read. Write it again and choose it." };
+    value.exercise = exercise;
+  }
+  if (custom) {
+    const c = (typeof b.custom === "object" && b.custom !== null ? b.custom : {}) as Record<string, unknown>;
+    const name = checkName(c.name);
+    if (!name.ok) return { ok: false, error: "Give the exercise a title." };
+    const params = checkParams(c.params);
+    if (!params.ok) return params;
+    value.custom = { name: name.value, params: params.value };
+  }
+  return { ok: true, value };
 }
 
 export type AssignmentPage = LadderPage | "piece";
 
 /** The practice page an assignment opens on. A saved preset needs its store. */
 export function assignmentPage(presetKey: string, savedStore?: string): AssignmentPage {
+  if (isCustomKey(presetKey)) return CUSTOM_KEYS[presetKey];
   const key = parsePresetKey(presetKey);
   if (key?.kind === "piece") return "piece";
   if (key?.kind === "step") return ladderById[key.id].page;
@@ -113,7 +158,7 @@ export function assignmentPath(a: { page: string; presetKey?: string }): string 
   return pagePath(a.page === "unison" ? "unison" : "choral");
 }
 
-/** Sight reading (a new exercise each time) or a piece from the teacher's own music. */
+/** Sight reading (new exercises, or one exercise for everyone) or a piece from the teacher's own music. */
 export const assignmentKind = (a: { page: string }): "piece" | "sight-reading" => (a.page === "piece" ? "piece" : "sight-reading");
 
 /** The query parameter a practice page reads to open an assignment. */
@@ -126,4 +171,9 @@ export function assignmentProgress(seconds: number, minutes: number): Progress {
   if (minutes <= 0) return { status: seconds > 0 ? "in-progress" : "not-started", percent: 0 };
   const percent = Math.min(100, Math.floor((seconds / (minutes * 60)) * 100));
   return { status: percent >= 100 ? "done" : seconds > 0 ? "in-progress" : "not-started", percent };
+}
+
+/** The one exercise an assignment gives every student, if it gives one (packed; exerciseFragment opens it). */
+export function assignedExercise(params: unknown): string | null {
+  return params && typeof params === "object" ? checkPackedExercise((params as Record<string, unknown>).exercise) : null;
 }

@@ -24,6 +24,8 @@
   /** The month's allowance; limit null is unlimited. */
   export let allowance: { limit: number | null; remaining: number | null } | null = null;
   export let assignments: { enrolled: boolean; assignments: any[] } | null = null;
+  /** A student's songs: every piece assigned to their classes (server/pieces.ts libraryFor). */
+  export let library: { id: string; title: string; composer: string; classes: string[] }[] = [];
   /** The server's clock, so the times read the same drawn there and here. */
   export let now = Date.now();
 
@@ -101,6 +103,28 @@
 
   {#if accountType === "student"}
     <StudentAssignments initial={assignments} />
+    {#if library.length}
+      <!-- Songs their teachers assigned, whole and any part, to practise any time. -->
+      <section class="sr-panel p-5" aria-labelledby="library-h">
+        <div class="flex items-baseline justify-between gap-3 mb-3">
+          <h2 id="library-h" class="text-xl font-bold text-sr-ink">My library</h2>
+          {#if library.length > 4}<a class="sr-link text-sm" href="/library">All {library.length} songs</a>{/if}
+        </div>
+        <ul class="flex flex-col divide-y divide-sr-hairline-2">
+          {#each library.slice(0, 4) as p (p.id)}
+            <li>
+              <a class="flex items-center gap-3 py-2.5 group" href="/pieces/{p.id}">
+                <span class="page-tag bg-sr-peach text-sr-peach-ink">Song</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block font-bold text-sr-ink truncate group-hover:underline">{p.title}</span>
+                  <span class="block text-sm text-sr-muted truncate">{[p.composer, p.classes.join(", ")].filter(Boolean).join(" · ")}</span>
+                </span>
+              </a>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
   {/if}
 
   <!-- The exercises they wrote last, each reopening exactly as it was. -->
@@ -183,7 +207,10 @@
         <h2 class="text-xl font-bold text-sr-ink">Classes</h2>
         <p class="text-sm text-sr-muted">Students, assignments and what each class has passed.</p>
       </div>
-      <a class="sr-btn text-sm" href="/account">Open classes</a>
+      <span class="flex flex-wrap gap-2">
+        <a class="sr-btn text-sm" href="/account?assign=new#students">Create assignment</a>
+        <a class="sr-btn-quiet text-sm" href="/account#students">Open classes</a>
+      </span>
     </section>
   {/if}
 </div>

@@ -7,6 +7,8 @@
    * goes back to the page's own.
    */
   export let assignment: { title: string; minutes: number; note: string; seconds: number; role: string; dueAt: number | null };
+  /** One exercise for the whole class, not new ones each time. */
+  export let fixed = false;
 
   $: done = Math.floor((assignment.seconds + $sessionSeconds) / 60);
   $: percent = Math.min(100, Math.round(((assignment.seconds + $sessionSeconds) / (assignment.minutes * 60)) * 100));
@@ -27,6 +29,7 @@
     <div class="h-2 rounded bg-sr-track overflow-hidden"><div class="h-full bg-sr-action transition-all" style="width: {percent}%"></div></div>
   {/if}
   {#if assignment.note}<p class="text-sm text-sr-ink-2">{assignment.note}</p>{/if}
+  {#if fixed}<p class="text-sm text-sr-ink-2">Everyone in the class sings this same exercise.</p>{/if}
   <p class="text-xs text-sr-muted">
     {#if percent >= 100}Done! Keep going if you like.{:else}Time counts while you're practicing here.{/if}
     {#if assignment.dueAt}Due {day(assignment.dueAt)}.{/if}

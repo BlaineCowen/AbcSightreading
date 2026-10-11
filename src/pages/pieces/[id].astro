@@ -4,13 +4,14 @@ import PieceViewer from "../../components/pieces/PieceViewer.svelte";
 import PiecesPitch from "../../components/pieces/PiecesPitch.astro";
 import { currentUser } from "../../lib/server/api";
 import { hasEducatorPlan, hasPremium } from "../../lib/server/plan";
-import { pieceFor } from "../../lib/server/pieces";
+import { pieceFor, pieceForReader } from "../../lib/server/pieces";
 import { openAssignment } from "../../lib/server/practice";
 import { pieceAssignmentOf } from "../../lib/pieces/assign";
 import { prisma } from "../../lib/server/db";
 
-// One of my pieces (Pro), or, with ?assignment=, a piece assigned to a class
-// I am in or teach. Anything else answers as a missing piece does.
+// One of my pieces (Pro); with ?assignment=, a piece assigned to a class I am
+// in or teach; or a song in the library of a class I am in (whole, any part,
+// ungraded). Anything else answers as a missing piece does.
 const user = await currentUser(Astro.request);
 const id = Astro.params.id ?? "";
 const assignmentId = Astro.url.searchParams.get("assignment");
@@ -26,12 +27,20 @@ if (user && assignmentId) {
     if (piece) assignment = { id: a.id, title: a.title, note: a.note, dueAt: a.dueAt, minutes: a.minutes, role: a.role, settings };
   }
 }
-const allowed = !!assignment || (!!user && (await hasPremium(user)));
-if (!assignment && allowed && user) piece = await pieceFor(user.id, id);
+let library = false;
+if (!assignment && user) {
+  const shared = await pieceForReader(user.id, id);
+  if (shared && shared.userId !== user.id) {
+    piece = shared;
+    library = true;
+  }
+}
+const allowed = !!assignment || library || (!!user && (await hasPremium(user)));
+if (!assignment && !library && allowed && user) piece = await pieceFor(user.id, id);
 if (allowed && !piece) return new Response(null, { status: 404 });
-const canAssign = !assignment && !!user && (await hasEducatorPlan(user));
+const canAssign = !assignment && !library && !!user && (await hasEducatorPlan(user));
 ---
 
-<Layout title={piece ? `${piece.title} | My music` : "My music | abcSightReading"} description="A piece in My music." noindex themable>
-  {piece ? <PieceViewer client:only="svelte" id={piece.id} assignment={assignment} canAssign={canAssign} attemptId={assignment ? attemptId : null} /> : <PiecesPitch signedIn={!!user} next={`/pieces/${id}`} />}
+<Layout title={piece ? `${piece.title} | ${library ? "My library" : "My music"}` : "My music | abcSightReading"} description="A piece in My music." noindex themable>
+  {piece ? <PieceViewer client:only="svelte" id={piece.id} assignment={assignment} {library} canAssign={canAssign} attemptId={assignment ? attemptId : null} /> : <PiecesPitch signedIn={!!user} next={`/pieces/${id}`} />}
 </Layout>

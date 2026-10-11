@@ -22,6 +22,9 @@
   import { revealNextLine, scrollToReadingPosition, systemAt, systemOf } from "../lib/scroll-to-system";
   import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
+  import AssigningBar from "./AssigningBar.svelte";
+  import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
+  import { assignedExercise } from "../lib/practice";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
@@ -1121,6 +1124,7 @@
     p.set("cursor", cursorMode);
     // An open assignment stays in the address, so a reload keeps it.
     if (assignmentId) p.set(ASSIGNMENT_PARAM, assignmentId);
+    if (assigning) p.set(ASSIGNING_PARAM, "1");
     p.set("sound", String(instrumentProgram));
     p.set("solfege", lyricSystem ?? "0");
     if (minorSolfege === "do") p.set("minorSolfege", "do");
@@ -1221,6 +1225,10 @@
   // Read at start: the URL sync rewrites the address from the page's state.
   const assignmentId = assignmentIdFromUrl();
   let assignment: OpenAssignment | null = null;
+  /** Opened from Create assignment, to set one up here (assignment-draft.ts). */
+  const assigning = !assignmentId && assigningFromUrl();
+  /** The assignment gives every student one exercise: no New exercise. */
+  $: fixedExercise = assignment ? assignedExercise(assignment.params) : null;
 
   /** Opens an assignment: its preset applied, the settings locked while it is open. */
   async function openAssignment(id: string) {
@@ -1230,8 +1238,12 @@
     if (kind === "step" && ladderById[rest]) applyLadderStep(ladderById[rest]);
     else if (kind === "uil" && uilPresets[rest]) applyLevel(uilPresets[rest]);
     else if (kind === "saved" && a.params) applySavedPreset(a.params as SavedPreset);
+    // Set up on this page when it was assigned: a saved preset's shape.
+    else if (kind === "custom" && a.params) applySavedPreset(a.params as SavedPreset);
     assignment = a;
     updateURLParams();
+    const one = assignedExercise(a.params);
+    if (one) await openLinkedExercise(one);
   }
 
   onMount(() => {
@@ -2450,7 +2462,7 @@
   }
 
   async function handleClick() {
-    if (isGenerating) return; // ignore a second click while working
+    if (isGenerating || fixedExercise) return; // ignore a second click while working; one exercise for everyone
     updateURLParams();
     generationError = null;
 
@@ -2700,7 +2712,8 @@
       <GenerationLimit slot="end" part="counter" />
     </PresetDropdown>
     {/if}
-    {#if assignment}<AssignmentBanner {assignment} />{/if}
+    {#if assignment}<AssignmentBanner {assignment} fixed={!!fixedExercise} />{/if}
+    {#if assigning}<div class="w-full mt-3 no-print"><AssigningBar getParams={() => ({ ...getCurrentParams() })} exercise={exerciseParam(exerciseHash)} /></div>{/if}
     {#if activeStepId && !assignment}<StepStrip stepId={activeStepId} onSelect={goToStep} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
@@ -2794,7 +2807,7 @@
             {/if}
           </div>
         {/if}
-        <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating}>
+        <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={handleClick} disabled={isGenerating || !!fixedExercise}>
           <RefreshCw size={16} class={isGenerating ? 'animate-spin' : ''} />
           <span>New exercise</span>
           {#if $usage && $usage.limit !== null && $usage.remaining !== null}
@@ -3534,7 +3547,7 @@
   <!-- Sticky playback bar -->
   <PlaybackBar
     tools
-    hideGenerate={setbarInView}
+    hideGenerate={setbarInView || !!fixedExercise}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}

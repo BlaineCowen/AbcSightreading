@@ -1275,6 +1275,23 @@ counts it as sensitive, so until the app is verified for it teachers see the
 unverified-app warning on that step (notes/rostering-setup.md 1e). ClassLink
 grades (OneRoster) wait for a district.
 
+**Creating an assignment** (10 October 2026; `AssignmentWizard.svelte`,
+handoff `src/lib/assignment-draft.ts`, tests `assignment-draft.test.ts`):
+Create assignment at the top of /account's Students (for any classes; the
+home page links `?assign=new`) and on each class card. Kind (sight reading or
+a song), then what: a preset (steps, UIL, NYSSMA, TMEA, saved) or Custom on
+either page, and New exercises each time or Same exercise for everyone; then
+classes (several at once: one assignment each), minutes, due date, note,
+Send. Custom or one exercise needs the page: the draft goes in
+sessionStorage, the page opens with `?assigning=1` and AssigningBar's Use
+these settings / Use this exercise brings it back (`?assign=resume`). Custom
+is `custom:unison|choral` with the settings as a saved preset's; one
+exercise is `params.exercise` (packed), which the student's page opens with
+New exercise switched off. A song is AssignPieceForm, with an upload in place.
+Every song assigned goes into its class's library (`ClassPiece`, kept after
+the assignment, gone with the class or piece); students open it whole, any
+part, ungraded, from `/library` and their home page (PieceViewer `library`).
+
 A preset holds every setting on its page (Choral `getCurrentParams`, Unison
 `currentOptions`): generation, display (lyrics, chords, cursor, hidden and
 muted voices), sound (instrument, transposition, volumes) and the metronome: its

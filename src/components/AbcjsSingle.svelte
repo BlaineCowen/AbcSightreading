@@ -80,6 +80,9 @@
   import CountInBadge from "./CountInBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
+  import AssigningBar from "./AssigningBar.svelte";
+  import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
+  import { assignedExercise } from "../lib/practice";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
   import { ASSIGNMENT_PARAM } from "../lib/practice";
@@ -281,6 +284,10 @@
   // Read at start: the URL sync rewrites the address from the page's state.
   const assignmentId = assignmentIdFromUrl();
   let assignment: OpenAssignment | null = null;
+  /** Opened from Create assignment, to set one up here (assignment-draft.ts). */
+  const assigning = !assignmentId && assigningFromUrl();
+  /** The assignment gives every student one exercise: no New exercise. */
+  $: fixedExercise = assignment ? assignedExercise(assignment.params) : null;
 
   /** Opens an assignment: its preset applied, the settings locked while it is open. */
   async function openAssignment(id: string) {
@@ -292,8 +299,14 @@
     else if (kind === "saved" && a.params) applySavedPreset(a.params as SavedPreset<any>);
     // A track step as the teacher kept it when assigning (server/practice.ts describePreset).
     else if (kind === "track") applyTrackStep(a.presetKey, (a.params as SavedPreset<any> | null)?.params);
+    else if (kind === "nyssma" && Object.hasOwn(nyssmaById, rest)) applyNyssmaLevel(nyssmaById[rest]);
+    else if (kind === "tmea" && tmeaLevelOf(rest)) applyTmeaLevel(rest);
+    // Set up on this page when it was assigned: a saved preset's shape.
+    else if (kind === "custom" && a.params) applySavedPreset(a.params as SavedPreset<any>);
     assignment = a;
     updateUrlFromState();
+    const one = assignedExercise(a.params);
+    if (one) await openLinkedExercise(one);
   }
 
   onMount(() => {
@@ -1831,6 +1844,7 @@
     if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
     if (assignmentId) params.set(ASSIGNMENT_PARAM, assignmentId);
+    if (assigning) params.set(ASSIGNING_PARAM, "1");
 
     // The exercise hash rides along, or the next settings change would lose it.
     const newUrl = `${window.location.pathname}?${params.toString()}${exerciseHash}`;
@@ -2860,7 +2874,7 @@
    * since generating is about to write a fresh tune at it anyway.
    */
   async function handleClick() {
-    if (grading) return;
+    if (grading || fixedExercise) return;
     if (drillRunning) await stopDrill(false);
     await generateExercise();
   }
@@ -5156,7 +5170,8 @@
       <GenerationLimit slot="end" part="counter" />
     </PresetDropdown>
     {/if}
-    {#if assignment}<AssignmentBanner {assignment} />{/if}
+    {#if assignment}<AssignmentBanner {assignment} fixed={!!fixedExercise} />{/if}
+    {#if assigning}<div class="w-full mt-3 no-print"><AssigningBar getParams={() => ({ ...currentOptions })} exercise={exerciseParam(exerciseHash)} /></div>{/if}
     {#if activeStepId && !assignment}<StepStrip stepId={activeStepId} onSelect={goToStep} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />
     <!-- A paid plan that will not renew, in its last month (plan-ending.ts). -->
@@ -5211,7 +5226,7 @@
           </div>
         </div>
       </div>
-      <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading}>
+      <button class="sr-btn setbar-new flex items-center gap-1.5" data-tour="new" aria-label="Generate a new exercise" on:click={handleClick} disabled={isLoading || !!fixedExercise}>
         <RefreshCw size={16} class={isLoading ? 'animate-spin' : ''} />
         <span>New exercise</span>
           {#if $usage && $usage.limit !== null && $usage.remaining !== null}
@@ -6248,7 +6263,7 @@
        directly to local state. -->
   <PlaybackBar
     tools
-    hideGenerate={setbarInView}
+    hideGenerate={setbarInView || !!fixedExercise}
     fullscreen={$fullscreenOn}
     onToggleFullscreen={fullscreenCtl.toggle}
     {annotationChoices}

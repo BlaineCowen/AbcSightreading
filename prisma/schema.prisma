@@ -154,9 +154,26 @@ model Piece {
   warnings   Json
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  classes    ClassPiece[]
 
   @@index([userId])
   @@map("piece")
+}
+
+/// A song in a class's library (src/lib/server/pieces.ts): every piece ever
+/// assigned to the class, kept after the assignment is gone, so its students
+/// can open the whole song, any part, ungraded. Gone with the class or the piece.
+model ClassPiece {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  pieceId   String
+  piece     Piece    @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([classId, pieceId])
+  @@index([pieceId])
+  @@map("class_piece")
 }
 
 /// One graded attempt at a piece assignment (src/lib/pieces/attempts.ts).
@@ -227,6 +244,7 @@ model Class {
   progress  ClassProgress[]
   enrollments Enrollment[]
   assignments Assignment[]
+  pieces      ClassPiece[]
 
   @@index([userId])
   @@map("class")
@@ -393,6 +411,7 @@ model Assignment {
   /// "unison" or "choral": the page it opens on.
   page      String
   /// A saved preset's settings as they were when assigned; null for steps and levels.
+  /// `exercise` in it (any kind) is one exercise every student sings (assignment-exercise.ts).
   params    Json?
   minutes   Int
   dueAt     DateTime?

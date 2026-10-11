@@ -6,9 +6,9 @@ import { currentUser } from "../../lib/server/api";
 import { hasPremium } from "../../lib/server/plan";
 import { accountTypeFor } from "../../lib/server/students";
 
-// My music: Pro, and never a student account (hasPremium decides the plan).
+// My music: Pro, and never a student account, whose songs are in /library (hasPremium decides the plan).
 const user = await currentUser(Astro.request);
-if (user && (await accountTypeFor(user)) === "student") return Astro.redirect("/account");
+if (user && (await accountTypeFor(user)) === "student") return Astro.redirect("/library");
 const allowed = !!user && (await hasPremium(user));
 ---
 

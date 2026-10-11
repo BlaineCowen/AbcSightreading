@@ -3,14 +3,11 @@
   import Trash2 from "lucide-svelte/icons/trash-2";
   import Sparkles from "lucide-svelte/icons/sparkles";
   import Music from "lucide-svelte/icons/music";
-  import { presetKeyOf } from "../lib/class-validate";
-  import { ladderStages, stepTitle } from "../lib/ladder";
-  import { uilPresets } from "../lib/uil-presets";
-  import { MAX_MINUTES, assignmentKind } from "../lib/practice";
+  import { assignmentKind } from "../lib/practice";
   import { assignmentHref } from "../lib/assignment-client";
   import { CLASSROOM_SCOPES, GRADE_SCOPE, shareToClassroomUrl } from "../lib/classroom";
   import { authClient } from "../lib/auth-client";
-  import AssignPieceForm from "./pieces/AssignPieceForm.svelte";
+  import AssignmentWizard from "./AssignmentWizard.svelte";
   import Gradebook from "./Gradebook.svelte";
 
   /**
@@ -27,6 +24,8 @@
   export let googleClass = false;
   /** The teacher's saved presets, both pages, loaded once by the parent. */
   export let saved: { id: string; name: string; page: string }[] = [];
+  /** Every class of the teacher's, so one assignment can go to several. */
+  export let allClasses: { id: string; name: string }[] = [];
 
   type Row = {
     studentId: string; seconds: number; exercises: number; lastActive: number | null; status: string; percent: number;
@@ -35,7 +34,7 @@
   };
   type Assignment = {
     id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: number | null; note: string;
-    maxAttempts?: number | null; progress: Row[];
+    maxAttempts?: number | null; fixed?: boolean; progress: Row[];
     classroom?: { sentAt: number | null } | null;
   };
   type Student = { id: string; name: string; username?: string | null; week: { seconds: number; exercises: number } };
@@ -44,9 +43,8 @@
   let assignments: Assignment[] = [];
   let loaded = false;
   let problem = "";
-  /** The assign panel: closed, choosing a kind, or filling in one. */
-  let assigning: null | "choose" | "sight-reading" | "piece" = null;
-  let busy = false;
+  /** The assign panel (AssignmentWizard), open or not. */
+  let assigning = false;
   let openId: string | null = null;
   let showWeek = false;
   let showBook = false;
@@ -86,37 +84,24 @@
   }
   let confirmRemove: string | null = null;
 
-  let form = { presetKey: "", minutes: 15, dueAt: "", note: "" };
-
   async function load() {
     const res = await fetch(`/api/classes/${classId}/assignments`);
     if (res.ok) ({ students, assignments } = await res.json());
     loaded = true;
   }
-  onMount(load);
+  onMount(() => {
+    void load();
+    // Sent from the wizard here or the one at the top of the page, to this class among others.
+    const changed = (e: Event) => {
+      if ((e as CustomEvent<{ classIds: string[] }>).detail?.classIds?.includes(classId)) void load();
+    };
+    window.addEventListener("sr-assignments-changed", changed);
+    return () => window.removeEventListener("sr-assignments-changed", changed);
+  });
 
-  async function assign() {
-    busy = true;
-    problem = "";
-    const res = await fetch(`/api/classes/${classId}/assignments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const body = await res.json().catch(() => ({}));
-    busy = false;
-    if (!res.ok) {
-      problem = body.error ?? "Could not assign that.";
-      return;
-    }
-    await assigned(body.id);
-  }
-
-  async function assigned(id: string) {
-    assigning = null;
-    form = { presetKey: "", minutes: 15, dueAt: "", note: "" };
-    openId = id;
-    await load();
+  function assigned(r: { classIds: string[]; ids: string[] }) {
+    const i = r.classIds.indexOf(classId);
+    if (i >= 0) openId = r.ids[i];
   }
 
   async function remove(a: Assignment) {
@@ -142,7 +127,7 @@
         ? a.maxAttempts
           ? `up to ${a.maxAttempts} attempt${a.maxAttempts === 1 ? "" : "s"}`
           : "as many attempts as they like"
-        : null,
+        : a.fixed ? "one exercise for everyone" : null,
       a.minutes ? `${a.minutes} min` : null,
       a.dueAt ? `due ${day(a.dueAt)}` : null,
     ]
@@ -152,8 +137,6 @@
     a.minutes || assignmentKind(a) === "piece" ? `${doneCount(a)} of ${a.progress.length} done` : `${startedCount(a)} of ${a.progress.length} started`;
   /** An attempt opened on the piece, with its marks and take. */
   const attemptHref = (a: Assignment, attemptId: string) => `${assignmentHref(a)}&attempt=${encodeURIComponent(attemptId)}`;
-  const today = new Date().toISOString().slice(0, 10);
-  const input = "rounded-xl border border-sr-hairline bg-sr-panel text-sr-ink text-sm px-2 min-h-10";
 </script>
 
 <div class="flex flex-col gap-2">
@@ -180,7 +163,7 @@
     </table>
   {/if}
 
-  {#if problem && assigning !== "sight-reading"}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
+  {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
 
   {#each assignments as a (a.id)}
     {@const piece = assignmentKind(a) === "piece"}
@@ -281,64 +264,10 @@
     <p class="text-xs text-sr-muted">Nothing assigned yet. Students see assignments when they sign in, and their time counts while they practise.</p>
   {/if}
 
-  {#if assigning === "choose"}
-    <div class="flex flex-col gap-2 border border-sr-hairline rounded-2xl p-3">
-      <p class="text-sm font-semibold text-sr-ink">What should they practise?</p>
-      <div class="grid gap-2 sm:grid-cols-2">
-        <button type="button" class="kind-card bg-sr-sky text-sr-sky-ink" on:click={() => (assigning = "sight-reading")}>
-          <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide"><Sparkles size={14} aria-hidden="true" /> Sight reading</span>
-          <span class="font-bold">Something new each time</span>
-          <span class="text-sm">An abcStepByStep step, a UIL level or one of your presets. Every exercise is freshly written, so they read rather than remember. Set the minutes.</span>
-        </button>
-        <button type="button" class="kind-card bg-sr-peach text-sr-peach-ink" on:click={() => (assigning = "piece")}>
-          <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide"><Music size={14} aria-hidden="true" /> My music</span>
-          <span class="font-bold">A piece you are learning</span>
-          <span class="text-sm">Bars of one part of a piece you uploaded, sung or played with the other parts. Choose the bars, what plays along and how many attempts.</span>
-        </button>
-      </div>
-      <button type="button" class="text-sm text-sr-muted underline self-start" on:click={() => (assigning = null)}>Cancel</button>
-    </div>
-  {:else if assigning === "sight-reading"}
-    <form class="flex flex-col gap-3 border border-sr-hairline rounded-2xl p-3" on:submit|preventDefault={assign}>
-      <p class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-sr-muted"><Sparkles size={14} aria-hidden="true" /> Sight reading</p>
-      <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Practise
-        <select class={input} bind:value={form.presetKey} required>
-          <option value="" disabled>Choose…</option>
-          {#each ladderStages() as stage}
-            <optgroup label="abcStepByStep: {stage.stage}">
-              {#each stage.steps as step}<option value={presetKeyOf.step(step.id)}>{step.number}. {stepTitle(step)}</option>{/each}
-            </optgroup>
-          {/each}
-          <optgroup label="UIL levels">
-            {#each Object.entries(uilPresets) as [key, level]}<option value={presetKeyOf.uil(key)}>{level.label ?? key}</option>{/each}
-          </optgroup>
-          {#if saved.length}
-            <optgroup label="Your presets">
-              {#each saved as p}<option value={presetKeyOf.saved(p.id)}>{p.name} ({p.page})</option>{/each}
-            </optgroup>
-          {/if}
-        </select>
-      </label>
-      <div class="flex flex-wrap gap-3">
-        <label class="text-sm text-sr-ink-2 flex items-center gap-2">Minutes <input class="{input} w-20" type="number" min="1" max={MAX_MINUTES} bind:value={form.minutes} required /></label>
-        <label class="text-sm text-sr-ink-2 flex items-center gap-2">Due <input class={input} type="date" min={today} bind:value={form.dueAt} /></label>
-      </div>
-      <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Note for students <span class="text-xs text-sr-faint">optional</span>
-        <input class={input} bind:value={form.note} maxlength="300" placeholder="Sing on solfège, then on loo" />
-      </label>
-      {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
-      <div class="flex gap-2">
-        <button class="sr-btn text-sm" disabled={busy || !form.presetKey}>Assign</button>
-        <button type="button" class="sr-btn-quiet text-sm" on:click={() => (assigning = "choose")}>Back</button>
-      </div>
-    </form>
-  {:else if assigning === "piece"}
-    <div class="flex flex-col gap-3 border border-sr-hairline rounded-2xl p-3">
-      <p class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-sr-muted"><Music size={14} aria-hidden="true" /> My music</p>
-      <AssignPieceForm {classId} onDone={(r) => assigned(r.id)} onCancel={() => (assigning = "choose")} />
-    </div>
+  {#if assigning}
+    <AssignmentWizard classes={allClasses.length ? allClasses : [{ id: classId, name: className }]} preselect={classId} {saved} onDone={assigned} onCancel={() => (assigning = false)} />
   {:else}
-    <button class="sr-btn-quiet text-sm self-start" on:click={() => ((assigning = "choose"), (problem = ""))}>Assign practice</button>
+    <button class="sr-btn-quiet text-sm self-start" on:click={() => ((assigning = true), (problem = ""))}>Create assignment</button>
   {/if}
 </div>
 
@@ -362,18 +291,5 @@
   .kind-piece {
     background: var(--sr-peach);
     color: var(--sr-peach-ink);
-  }
-  .kind-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    text-align: left;
-    padding: 1rem 1.1rem;
-    border-radius: 20px;
-    transition: transform 120ms ease, box-shadow 120ms ease;
-  }
-  .kind-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--sr-card-shadow);
   }
 </style>

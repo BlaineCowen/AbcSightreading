@@ -9,7 +9,8 @@ import { hasEducatorPlan } from "../../../../lib/server/plan";
  * A class's assignments. The class's teacher only.
  *
  * GET  -> { students: [{ id, name, week }], assignments: [{ ..., progress: [...] }] }
- * POST { presetKey, minutes, dueAt?, note? } -> the assignment
+ * POST { presetKey, minutes, dueAt?, note?, piece?, exercise?, custom? } -> the assignment
+ *   (practice.ts checkAssignmentRequest says what each is)
  */
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -26,7 +27,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (!(await hasEducatorPlan(user))) return json({ error: "Assignments are part of the Educator plan." }, 403);
   const checked = checkAssignmentRequest(await readJson(request));
   if (!checked.ok) return json({ error: checked.error }, 400);
-  const preset = await describePreset(user.id, checked.value.presetKey, checked.value.piece);
+  const preset = await describePreset(user.id, checked.value);
   if (!preset) return json({ error: "That preset is not one of yours." }, 400);
   if ("error" in preset) return json({ error: preset.error }, 400);
   const a = await prisma.assignment.create({
@@ -41,5 +42,10 @@ export const POST: APIRoute = async ({ request, params }) => {
       note: checked.value.note,
     },
   });
+  // A song stays in the class's library after the assignment is gone.
+  if (preset.page === "piece") {
+    const pieceId = checked.value.presetKey.slice("piece:".length);
+    await prisma.classPiece.upsert({ where: { classId_pieceId: { classId: params.id!, pieceId } }, create: { classId: params.id!, pieceId }, update: {} });
+  }
   return json({ id: a.id }, 201);
 };

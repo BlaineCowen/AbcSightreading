@@ -6,6 +6,8 @@
   import { buySeatPacks } from "../lib/billing-client";
   import { EDUCATOR_ON_SALE } from "../lib/plan";
   import ClassAssignments from "./ClassAssignments.svelte";
+  import AssignmentWizard from "./AssignmentWizard.svelte";
+  import { readDraft, type AssignDraft } from "../lib/assignment-draft";
   import { UNISON_PRESET_STORE } from "../lib/preset-storage";
   import { authClient } from "../lib/auth-client";
   import { CLASSROOM_SCOPES, type ClassroomCourse } from "../lib/classroom";
@@ -133,8 +135,18 @@
 
   const syncedOn = (t: number | null) => (t ? new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
 
+  /** Create assignment at the top: for any classes. Opened by ?assign=new, or back from the page with ?assign=resume. */
+  let creating = false;
+  let resume: AssignDraft | null = null;
+
   onMount(() => {
     loadSaved().catch(() => {});
+    const assign = new URLSearchParams(location.search).get("assign");
+    if (assign) {
+      resume = assign === "resume" ? readDraft() : null;
+      creating = true;
+      history.replaceState(null, "", "/account#students");
+    }
     // Back from connecting Google: open that class's Classroom picker.
     const back = new URLSearchParams(location.search).get("classroom");
     if (back) {
@@ -258,6 +270,14 @@
     </p>
   {/if}
 
+  {#if loaded && classes.length}
+    {#if creating}
+      <AssignmentWizard classes={classes.map((c) => ({ id: c.id, name: c.name }))} {resume} saved={savedPresets} onDone={() => (resume = null)} onCancel={() => ((creating = false), (resume = null))} />
+    {:else}
+      <button class="sr-btn self-start text-sm" on:click={() => (creating = true)}>Create assignment</button>
+    {/if}
+  {/if}
+
   {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
   {#if notice}<p class="text-sm text-sr-ink-2" role="status">{notice}</p>{/if}
 
@@ -306,7 +326,7 @@
           </table>
         {/if}
 
-        <ClassAssignments classId={cls.id} className={cls.name} googleClass={!!cls.classroom} saved={savedPresets} />
+        <ClassAssignments classId={cls.id} className={cls.name} googleClass={!!cls.classroom} saved={savedPresets} allClasses={classes.map((c) => ({ id: c.id, name: c.name }))} />
 
         {#if classroomFor === cls.id && classroomState !== "idle"}
           <div class="flex flex-col gap-2 rounded-md border border-sr-hairline bg-sr-panel p-3" aria-live="polite">
