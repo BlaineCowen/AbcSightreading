@@ -5,10 +5,13 @@ import { roleIn } from "./practice";
 import { loadScore } from "./pieces";
 import { partsFor, pieceAssignmentOf } from "../pieces/assign";
 import { FINISH_WITHIN_MS, TAKE_DAYS, TAKE_PATH, type AttemptSummary, type Mark } from "../pieces/attempts";
+import { ATTEMPT_MODES, checkExerciseAttempt } from "../gradebook";
 
 /**
- * Graded attempts at a piece assignment, against the database (rules in
- * src/lib/pieces/attempts.ts). A student starts an attempt (counted then),
+ * Graded attempts at an assignment, against the database (rules in
+ * src/lib/pieces/attempts.ts and src/lib/gradebook.ts): a piece's part, or a
+ * sight-reading assignment's exercises (each attempt a new exercise, its link
+ * kept, as many as they like). A student starts an attempt (counted then),
  * finishes it with the scores and each note's marks, and sends its take; the
  * teacher of the class sees every student's, the student their own.
  */
@@ -23,7 +26,7 @@ const token = () => serverEnv("BLOB_READ_WRITE_TOKEN");
 
 type Row = {
   id: string; partId: string; partName: string; startedAt: Date; finishedAt: Date | null;
-  overall: number | null; pitch: number | null; rhythm: number | null; recordingPath: string | null;
+  overall: number | null; pitch: number | null; rhythm: number | null; recordingPath: string | null; exercise?: string | null;
 };
 export const summaryOf = (a: Row): AttemptSummary => ({
   id: a.id,
@@ -35,20 +38,39 @@ export const summaryOf = (a: Row): AttemptSummary => ({
   pitch: a.pitch,
   rhythm: a.rhythm,
   hasTake: !!a.recordingPath,
+  exercise: a.exercise ?? null,
 });
-const SUMMARY = { id: true, partId: true, partName: true, startedAt: true, finishedAt: true, overall: true, pitch: true, rhythm: true, recordingPath: true } as const;
+const SUMMARY = { id: true, partId: true, partName: true, startedAt: true, finishedAt: true, overall: true, pitch: true, rhythm: true, recordingPath: true, exercise: true } as const;
 
-async function pieceAssignment(assignmentId: string) {
+/** The assignment, and its piece's settings (null for sight reading). */
+async function assignmentOf(assignmentId: string) {
   const a = await prisma.assignment.findUnique({ where: { id: assignmentId } });
-  const settings = a && a.page === "piece" ? pieceAssignmentOf(a.params) : null;
-  if (!a || !settings) throw new AttemptError("No such assignment.", 404);
+  if (!a) throw new AttemptError("No such assignment.", 404);
+  const settings = a.page === "piece" ? pieceAssignmentOf(a.params) : null;
+  if (a.page === "piece" && !settings) throw new AttemptError("No such assignment.", 404);
   return { a, settings };
 }
 
-/** Starts an attempt for a student of the class: counted now. */
-export async function startAttempt(userId: string, assignmentId: string, partId: unknown) {
-  const { a, settings } = await pieceAssignment(assignmentId);
+/**
+ * Starts an attempt for a student of the class: counted now. A piece's names
+ * the part (`partId`); a sight-reading one how it is graded and the exercise.
+ */
+export async function startAttempt(userId: string, assignmentId: string, body: { partId?: unknown; mode?: unknown; exercise?: unknown } = {}) {
+  const { a, settings } = await assignmentOf(assignmentId);
   if ((await roleIn(userId, a.classId)) !== "student") throw new AttemptError("Only a student of the class has graded attempts.", 403);
+  const deleteAfter = new Date(Date.now() + TAKE_DAYS * 86_400_000);
+  if (!settings) {
+    const checked = checkExerciseAttempt(body);
+    if (!checked.ok) throw new AttemptError(checked.error);
+    const { mode, exercise } = checked.value;
+    const row = await prisma.pieceAttempt.create({
+      data: { assignmentId, studentId: userId, partId: mode, partName: ATTEMPT_MODES[mode], exercise, deleteAfter },
+      select: SUMMARY,
+    });
+    const used = await prisma.pieceAttempt.count({ where: { assignmentId, studentId: userId } });
+    return { attempt: summaryOf(row), used, max: null };
+  }
+  const partId = body.partId;
   const piece = await prisma.piece.findUnique({ where: { id: settings.pieceId } });
   if (!piece) throw new AttemptError("This piece is no longer there.", 404);
   const score = await loadScore(piece.scorePath);
@@ -62,7 +84,7 @@ export async function startAttempt(userId: string, assignmentId: string, partId:
   const names = (piece.parts ?? {}) as Record<string, { name?: string }>;
   const partName = names[partId]?.name ?? score.parts.find((p) => p.id === partId)?.name ?? "Part";
   const row = await prisma.pieceAttempt.create({
-    data: { assignmentId, studentId: userId, partId, partName, deleteAfter: new Date(Date.now() + TAKE_DAYS * 86_400_000) },
+    data: { assignmentId, studentId: userId, partId, partName, deleteAfter },
     select: SUMMARY,
   });
   return { attempt: summaryOf(row), used: used + 1, max: settings.maxAttempts };
@@ -79,7 +101,7 @@ export async function finishAttempt(
   userId: string,
   assignmentId: string,
   attemptId: string,
-  result: { overall: number; pitch: number; rhythm: number; marks: Mark[] },
+  result: { overall: number; pitch: number | null; rhythm: number; marks: Mark[] },
 ) {
   const at = await ownOpenAttempt(userId, assignmentId, attemptId);
   if (at.finishedAt) throw new AttemptError("This attempt is already graded.", 409);
@@ -111,7 +133,7 @@ export async function attachTake(userId: string, assignmentId: string, attemptId
 
 /** A student's own attempts, or as the teacher every student's with their names. */
 export async function listAttempts(userId: string, assignmentId: string) {
-  const { a, settings } = await pieceAssignment(assignmentId);
+  const { a, settings } = await assignmentOf(assignmentId);
   const role = await roleIn(userId, a.classId);
   if (!role) throw new AttemptError("No such assignment.", 404);
   const rows = await prisma.pieceAttempt.findMany({
@@ -121,7 +143,7 @@ export async function listAttempts(userId: string, assignmentId: string) {
   });
   return {
     role,
-    max: settings.maxAttempts,
+    max: settings?.maxAttempts ?? null,
     attempts: rows.map((r) => ({ ...summaryOf(r), studentId: r.studentId, studentName: r.student.name })),
   };
 }

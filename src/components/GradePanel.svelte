@@ -37,6 +37,9 @@
   export let timingNote: string | null = null;
   /** Send this run to us, with a note (anyone with Grade but students); null hides it. Resolves to what happened. */
   export let onSend: ((note: string) => Promise<string>) | null = null;
+  /** A student on an assignment: what is kept of a run, said before it starts, and whether this one reached the teacher. */
+  export let keptNote: string | null = null;
+  export let sentNote: string | null = null;
   /** Hear your take (grade-playback.ts): start, or play/pause; null when there is no recording. */
   export let onHearTake: (() => void) | null = null;
   export let take: { open: boolean; loading: boolean; playing: boolean; progress: number; music: boolean; hasMusic: boolean; error: string | null } = {
@@ -301,6 +304,7 @@
         {/if}
       </div>
 
+      {#if keptNote}<p class="text-xs text-sr-ink-2 bg-sr-tint rounded-xl px-3 py-2">{keptNote}</p>{/if}
       <div class="flex gap-2 justify-end pt-1">
         <button class="sr-btn-quiet text-sm" on:click={leaveSetup}>{v.phase === "results" ? "Back to results" : "Cancel"}</button>
         <button class="sr-btn text-sm px-6 py-2" on:click={start} disabled={allowed === null}>{allowed === null ? "…" : "Start"}</button>
@@ -376,6 +380,7 @@
         </div>
       {/if}
 
+      {#if sentNote}<p class="text-sm text-center font-semibold text-sr-ink-2" role="status">{sentNote}</p>{/if}
       <div class="flex flex-col gap-2">
         {#if onHearTake}
           <button class="sr-btn text-sm py-2.5 inline-flex items-center justify-center gap-2" on:click={hear}><Headphones size={16} /> Hear your take</button>

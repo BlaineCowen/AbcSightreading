@@ -182,6 +182,8 @@ model PieceAttempt {
   marks         Json?
   recordingPath String?
   deleteAfter   DateTime
+  /// A sight-reading assignment's attempt: the link to the exercise sung or clapped (each is new). Null for a piece.
+  exercise      String?
 
   @@index([assignmentId, studentId])
   @@map("piece_attempt")
@@ -395,6 +397,9 @@ model Assignment {
   minutes   Int
   dueAt     DateTime?
   note      String         @default("")
+  /// Posted to Google Classroom as coursework (src/lib/server/classroom-grades.ts): its id there, and when grades were last sent.
+  classroomWorkId String?
+  gradesSentAt    DateTime?
   createdAt DateTime       @default(now())
   practice  PracticeTime[]
   attempts  PieceAttempt[]

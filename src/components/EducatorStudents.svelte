@@ -306,7 +306,7 @@
           </table>
         {/if}
 
-        <ClassAssignments classId={cls.id} saved={savedPresets} />
+        <ClassAssignments classId={cls.id} className={cls.name} googleClass={!!cls.classroom} saved={savedPresets} />
 
         {#if classroomFor === cls.id && classroomState !== "idle"}
           <div class="flex flex-col gap-2 rounded-md border border-sr-hairline bg-sr-panel p-3" aria-live="polite">

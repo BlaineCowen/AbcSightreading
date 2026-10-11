@@ -67,6 +67,20 @@ Platform: https://console.cloud.google.com/auth/overview?project=abc-sightreadin
      then **Sign in with Google**. You should land on the student's
      account page.
 
+- [ ] **1e. Grades to Classroom: verification (when you want it public).**
+      Posting assignments and sending grades asks teachers for one more
+      permission, `classroom.coursework.students`, which Google counts as
+      sensitive. It works now, but each teacher sees Google's "this app isn't
+      verified" warning on that step, and at most 100 people can grant it.
+      To lift that: publish the app first (1a), then Data Access > Add or
+      remove scopes > add `.../auth/classroom.coursework.students`, and
+      Verification Center > submit. Google asks why you need it (paste:
+      "Teachers post a practice assignment to their Google Classroom class
+      and send each student's score there as a draft grade, which the teacher
+      reviews and returns.") and a short screen recording of that flow. It
+      takes a few weeks. Don't add the scope before publishing (1a): a
+      sensitive scope on the list can hold the publish up.
+
 ### What a school's IT department does (for students under 18)
 
 Google blocks under-18 school accounts from apps their admin hasn't

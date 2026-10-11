@@ -94,3 +94,57 @@ export function planSync(
 /** "Share to Classroom": Google's own share page, which needs no key. */
 export const shareToClassroomUrl = (url: string, title?: string) =>
   `https://classroom.google.com/share?url=${encodeURIComponent(url)}${title ? `&title=${encodeURIComponent(title)}` : ""}`;
+
+// ── Grades (server side in src/lib/server/classroom-grades.ts) ───────────────
+/**
+ * Posting an assignment to Classroom and filling in its grades needs one more
+ * permission, asked for only when a teacher first does it. Google counts it
+ * as sensitive, so until the app's verification for it is through, teachers
+ * see Google's "unverified app" warning on that step.
+ */
+export const GRADE_SCOPE = "https://www.googleapis.com/auth/classroom.coursework.students";
+
+export const hasGradeScope = (scope: string | null | undefined) =>
+  hasClassroomScopes(scope) && new Set((scope ?? "").split(/[,\s]+/)).has(GRADE_SCOPE);
+
+/**
+ * The coursework an assignment becomes: its title, the note, a link that
+ * opens it, out of 100. A due date only while it is still ahead (Classroom
+ * refuses one in the past).
+ */
+export function courseWorkFor(a: { title: string; note: string; dueAt: number | null }, url: string, now = Date.now()) {
+  const due = a.dueAt && a.dueAt > now ? new Date(a.dueAt) : null;
+  return {
+    title: a.title.slice(0, 3000),
+    description: [a.note, "Practise it on abcSightReading. Your best graded try is your grade."].filter(Boolean).join("\n\n"),
+    materials: [{ link: { url } }],
+    workType: "ASSIGNMENT",
+    state: "PUBLISHED",
+    maxPoints: 100,
+    ...(due
+      ? {
+          dueDate: { year: due.getUTCFullYear(), month: due.getUTCMonth() + 1, day: due.getUTCDate() },
+          dueTime: { hours: due.getUTCHours(), minutes: due.getUTCMinutes() },
+        }
+      : {}),
+  };
+}
+
+/**
+ * Which submissions to grade: each student's submission (by their Google ID)
+ * gets their grade here as a draft grade, which the teacher reviews and
+ * returns in Classroom. Blank grades are left alone, and so is a draft that
+ * already says the same.
+ */
+export function gradePatches(
+  submissions: { id: string; userId: string; draftGrade?: number | null }[],
+  gradeByGoogleId: Map<string, number | null>,
+): { id: string; draftGrade: number }[] {
+  const out: { id: string; draftGrade: number }[] = [];
+  for (const s of submissions) {
+    const g = gradeByGoogleId.get(s.userId);
+    if (g === null || g === undefined || s.draftGrade === g) continue;
+    out.push({ id: s.id, draftGrade: g });
+  }
+  return out;
+}

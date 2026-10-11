@@ -20,7 +20,7 @@ const providers = [
   { name: "Prisma Postgres", what: "the database that holds accounts, classes and results" },
   { name: "Stripe", what: "takes payments; we never see a card number" },
   { name: "Resend", what: "sends account emails, such as a password reset" },
-  { name: "Google", what: "signs you in if you choose Google, and gives a teacher their Google Classroom class lists when they ask" },
+  { name: "Google", what: "signs you in if you choose Google, gives a teacher their Google Classroom class lists when they ask, and receives the assignments and grades a teacher sends to their Classroom class" },
   { name: "ClassLink", what: "signs a school's teachers and students in, when their district uses it" },
 ];
 ---
@@ -51,10 +51,10 @@ const providers = [
         <li><b>No email address.</b> A student signs in with a class code, a username and a password (stored only as a secure hash), or with their school's Google or ClassLink account. For those we keep only the account's ID number, which links it to their account here. Never its email, and never Google's or ClassLink's access to it.</li>
         <li><b>A name,</b> as the teacher or student typed it, so the teacher knows who is who.</li>
         <li><b>Practice:</b> minutes practised, how many exercises, and on which days. Nothing about what was clicked or where.</li>
-        <li><b>Class work:</b> which assignments were done, and the score of each graded attempt, with how each note went.</li>
-        <li><b>Recordings of graded attempts</b> on music the teacher assigned, so the teacher can listen. A student is told this before their first graded attempt.</li>
+        <li><b>Class work:</b> which assignments were done, and the score of each graded attempt, with how each note went and a link to the exercise. The teacher's gradebook shows each student's best score.</li>
+        <li><b>Recordings of graded attempts</b> on assignments, so the teacher can listen. A student is told this on screen before a graded attempt. A rhythm tapped on the screen or the spacebar records nothing.</li>
       </ul>
-      <p>When a teacher brings a class in from Google Classroom, we read that class's name and its students' names and Google ID numbers, with the teacher's permission, and nothing else: no emails, work or grades.</p>
+      <p>When a teacher brings a class in from Google Classroom, we read that class's name and its students' names and Google ID numbers, with the teacher's permission, and nothing else: no emails, work or grades. If the teacher chooses, we post an assignment in that Classroom class and send each student's grade there as a draft for the teacher to return.</p>
       <p>Student pages carry no analytics and no feedback form. Students cannot buy anything, and never reach our payment provider.</p>
     </section>
 
@@ -74,7 +74,7 @@ const providers = [
       <h2>The microphone</h2>
       <p>Grading, the tuner and the other listening tools hear you in your browser. The sound is worked out on your device and goes nowhere, with two exceptions, both said on screen before anything is sent:</p>
       <ul>
-        <li><b>A graded attempt on assigned music</b> is recorded and sent to the student's teacher.</li>
+        <li><b>A graded attempt on an assignment</b> is recorded and sent to the student's teacher.</li>
         <li><b>Report error</b> sends one grading run and its recording to us to improve grading, only when an adult presses Send. Students do not have this button.</li>
       </ul>
       <p>Any other recording you play back after a run stays in your browser and is gone when you clear the marks.</p>

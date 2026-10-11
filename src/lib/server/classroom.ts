@@ -20,7 +20,7 @@ import {
  * which refreshes it when it has run out.
  */
 
-const API = "https://classroom.googleapis.com/v1";
+export const API = "https://classroom.googleapis.com/v1";
 
 export class ClassroomError extends Error {
   constructor(message: string, readonly status = 400, readonly reconnect = false) {
@@ -28,10 +28,10 @@ export class ClassroomError extends Error {
   }
 }
 
-/** A working token for the teacher's Google account, or why there is none. */
-async function tokenFor(userId: string, headers: Headers): Promise<string> {
+/** A working token for the teacher's Google account, with the scopes `granted` asks for, or why there is none. */
+export async function tokenFor(userId: string, headers: Headers, granted = hasClassroomScopes, ask = "Connect Google Classroom first."): Promise<string> {
   const account = await prisma.account.findFirst({ where: { userId, providerId: "google" }, select: { id: true, scope: true } });
-  if (!account || !hasClassroomScopes(account.scope)) throw new ClassroomError("Connect Google Classroom first.", 409, true);
+  if (!account || !granted(account.scope)) throw new ClassroomError(ask, 409, true);
   try {
     const { accessToken } = await auth.api.getAccessToken({ body: { accountId: account.id, userId }, headers });
     if (!accessToken) throw new Error("no token");
@@ -41,7 +41,7 @@ async function tokenFor(userId: string, headers: Headers): Promise<string> {
   }
 }
 
-async function get<T>(token: string, path: string): Promise<T> {
+export async function get<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status === 401 || res.status === 403) throw new ClassroomError("Google Classroom did not let us read that. Connect again, and allow both permissions.", 409, true);
   if (res.status === 404) throw new ClassroomError("That Google Classroom class was not found.", 404);
@@ -50,7 +50,7 @@ async function get<T>(token: string, path: string): Promise<T> {
 }
 
 /** Every page of a list. */
-async function all<T>(token: string, path: string, key: string): Promise<T[]> {
+export async function all<T>(token: string, path: string, key: string): Promise<T[]> {
   const out: T[] = [];
   let page = "";
   for (let n = 0; n < 20; n++) {

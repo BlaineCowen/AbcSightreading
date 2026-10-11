@@ -8,8 +8,10 @@
   import { uilPresets } from "../lib/uil-presets";
   import { MAX_MINUTES, assignmentKind } from "../lib/practice";
   import { assignmentHref } from "../lib/assignment-client";
-  import { shareToClassroomUrl } from "../lib/classroom";
+  import { CLASSROOM_SCOPES, GRADE_SCOPE, shareToClassroomUrl } from "../lib/classroom";
+  import { authClient } from "../lib/auth-client";
   import AssignPieceForm from "./pieces/AssignPieceForm.svelte";
+  import Gradebook from "./Gradebook.svelte";
 
   /**
    * A class's assignments. Two kinds, kept apart wherever they show:
@@ -20,6 +22,9 @@
    */
 
   export let classId: string;
+  export let className = "";
+  /** Its students came from Google Classroom: assignments can be posted there and graded. */
+  export let googleClass = false;
   /** The teacher's saved presets, both pages, loaded once by the parent. */
   export let saved: { id: string; name: string; page: string }[] = [];
 
@@ -31,8 +36,9 @@
   type Assignment = {
     id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: number | null; note: string;
     maxAttempts?: number | null; progress: Row[];
+    classroom?: { sentAt: number | null } | null;
   };
-  type Student = { id: string; name: string; week: { seconds: number; exercises: number } };
+  type Student = { id: string; name: string; username?: string | null; week: { seconds: number; exercises: number } };
 
   let students: Student[] = [];
   let assignments: Assignment[] = [];
@@ -43,6 +49,41 @@
   let busy = false;
   let openId: string | null = null;
   let showWeek = false;
+  let showBook = false;
+
+  // ── Google Classroom: post an assignment, then send its grades (classroom-grades.ts) ──
+  let gcBusy: string | null = null;
+  let gcNote: { id: string; text: string; error?: boolean } | null = null;
+  async function classroomAction(a: Assignment, action: "post" | "grades") {
+    gcBusy = a.id;
+    gcNote = null;
+    const res = await fetch(`/api/assignments/${a.id}/classroom`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const body = await res.json().catch(() => ({}));
+    gcBusy = null;
+    if (res.ok && action === "post") {
+      gcNote = { id: a.id, text: "Posted in Google Classroom. Send grades whenever you like; they arrive as draft grades for you to return." };
+      await load();
+    } else if (res.ok) {
+      const extra = [body.ungraded ? `${body.ungraded} with nothing to grade yet` : "", body.notLinked ? `${body.notLinked} not from Classroom` : ""].filter(Boolean).join(", ");
+      gcNote = { id: a.id, text: `${body.sent} grade${body.sent === 1 ? "" : "s"} sent as drafts. Return them in Classroom.${extra ? ` (${extra}.)` : ""}` };
+      await load();
+    } else if (body.reconnect) {
+      // Off to Google for the grades permission; back here to press it again.
+      const { error } = await authClient.linkSocial({ provider: "google", scopes: [...CLASSROOM_SCOPES, GRADE_SCOPE], callbackURL: "/account#students" });
+      if (error) gcNote = { id: a.id, text: error.message ?? "Could not reach Google.", error: true };
+    } else gcNote = { id: a.id, text: body.error ?? "Google Classroom did not take that.", error: true };
+  }
+  /** A sight-reading attempt opened from its best score: the exercise sung and its take. */
+  let shownAttempt: { id: string; exercise: string | null; hasTake: boolean; partName: string } | null = null;
+  async function openAttempt(id: string) {
+    if (shownAttempt?.id === id) return (shownAttempt = null);
+    const res = await fetch(`/api/attempts/${encodeURIComponent(id)}`);
+    if (res.ok) shownAttempt = await res.json();
+  }
   let confirmRemove: string | null = null;
 
   let form = { presetKey: "", minutes: 15, dueAt: "", note: "" };
@@ -119,9 +160,14 @@
   <div class="flex items-center justify-between gap-2">
     <h4 class="text-sm font-semibold text-sr-ink">Assignments</h4>
     {#if students.length}
-      <button class="text-xs text-sr-muted underline" on:click={() => (showWeek = !showWeek)}>{showWeek ? "Hide" : "Practice this week"}</button>
+      <span class="flex items-center gap-3">
+        {#if assignments.length}<button class="text-xs text-sr-action-fg font-semibold underline" aria-expanded={showBook} on:click={() => (showBook = !showBook)}>{showBook ? "Hide gradebook" : "Gradebook"}</button>{/if}
+        <button class="text-xs text-sr-muted underline" on:click={() => (showWeek = !showWeek)}>{showWeek ? "Hide" : "Practice this week"}</button>
+      </span>
     {/if}
   </div>
+
+  {#if showBook}<Gradebook {className} {students} {assignments} />{/if}
 
   {#if showWeek}
     <table class="text-sm w-full">
@@ -171,7 +217,7 @@
             </table>
           {:else}
           <table class="text-sm w-full">
-            <thead><tr class="text-left text-xs text-sr-muted"><th class="font-medium py-1">Student</th><th class="font-medium">Time</th><th class="font-medium text-right">{piece ? "" : "Exercises"}</th><th class="font-medium text-right">Last</th></tr></thead>
+            <thead><tr class="text-left text-xs text-sr-muted"><th class="font-medium py-1">Student</th><th class="font-medium">Time</th><th class="font-medium text-right">{piece ? "" : "Exercises"}</th><th class="font-medium text-right" title="The best graded attempt (Listen and grade, or Clap and grade)">Best</th><th class="font-medium text-right">Last</th></tr></thead>
             <tbody>
               {#each a.progress as p (p.studentId)}
                 <tr class="border-t border-sr-hairline">
@@ -187,15 +233,37 @@
                     {/if}
                   </td>
                   <td class="text-right tabular-nums">{piece ? "" : p.exercises}</td>
+                  <td class="text-right tabular-nums font-semibold">
+                    {#if p.bestId}<button class="underline text-sr-action-fg" title="{p.attempts} graded attempt{p.attempts === 1 ? '' : 's'}: open the best" on:click={() => openAttempt(p.bestId ?? "")}>{p.best}</button>{:else}-{/if}
+                  </td>
                   <td class="text-right text-xs text-sr-muted whitespace-nowrap">{ago(p.lastActive)}</td>
                 </tr>
+                {#if shownAttempt && shownAttempt.id === p.bestId}
+                  <tr><td colspan="5" class="pb-2">
+                    <div class="flex flex-wrap items-center gap-3 rounded-xl bg-sr-panel border border-sr-hairline p-2 text-xs">
+                      <span class="text-sr-ink-2">{shownAttempt.partName}</span>
+                      {#if shownAttempt.hasTake}<audio controls preload="none" src="/api/attempts/{encodeURIComponent(shownAttempt.id)}/take" class="h-8 max-w-full"></audio>{/if}
+                      {#if shownAttempt.exercise}<a class="underline text-sr-action-fg" href={shownAttempt.exercise} target="_blank" rel="noopener">Open the exercise</a>{/if}
+                    </div>
+                  </td></tr>
+                {/if}
               {/each}
             </tbody>
           </table>
           {/if}
+          {#if gcNote?.id === a.id}<p class="text-xs {gcNote.error ? 'text-sr-danger' : 'text-sr-ink-2'}" role="status">{gcNote.text}</p>{/if}
           <div class="flex flex-wrap items-center gap-3 text-xs">
             <a class="underline text-sr-action-fg" href={assignmentHref(a)}>{piece ? "Open it: every attempt, and try it as they will" : "Open it as students see it"}</a>
-            <a class="underline text-sr-action-fg" target="_blank" rel="noopener" href={shareToClassroomUrl(new URL(assignmentHref(a), location.origin).href, a.title)} title="Post a link to this assignment in Google Classroom">Share to Google Classroom</a>
+            {#if googleClass}
+              {#if a.classroom}
+                <button class="underline text-sr-action-fg font-semibold disabled:opacity-50" disabled={gcBusy === a.id} on:click={() => classroomAction(a, "grades")} title="Each student's grade goes to Classroom as a draft grade">{gcBusy === a.id ? "Sending…" : "Send grades to Classroom"}</button>
+                {#if a.classroom.sentAt}<span class="text-sr-muted">sent {ago(a.classroom.sentAt)}</span>{/if}
+              {:else}
+                <button class="underline text-sr-action-fg font-semibold disabled:opacity-50" disabled={gcBusy === a.id} on:click={() => classroomAction(a, "post")} title="Post it as an assignment in the Google Classroom class, so its grades can go there">{gcBusy === a.id ? "Posting…" : "Post to Google Classroom"}</button>
+              {/if}
+            {:else}
+              <a class="underline text-sr-action-fg" target="_blank" rel="noopener" href={shareToClassroomUrl(new URL(assignmentHref(a), location.origin).href, a.title)} title="Post a link to this assignment in Google Classroom">Share to Google Classroom</a>
+            {/if}
             {#if confirmRemove === a.id}
               <span class="text-sr-ink">Remove it? Their practice time stays in the log.</span>
               <button class="text-sr-danger font-semibold" on:click={() => remove(a)}>Remove</button>

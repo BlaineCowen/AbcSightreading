@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { courseFrom, courseOf, hasClassroomScopes, planSync, rosterSourceFor, shareToClassroomUrl, studentFrom, CLASSROOM_SCOPES } from "../../src/lib/classroom";
+import { courseFrom, courseOf, courseWorkFor, gradePatches, hasClassroomScopes, hasGradeScope, planSync, rosterSourceFor, shareToClassroomUrl, studentFrom, CLASSROOM_SCOPES, GRADE_SCOPE } from "../../src/lib/classroom";
 import { classlinkEmail, isStudentEmail } from "../../src/lib/roster";
 
 const s = (googleId: string, first = "Ana", last = "Diaz") => ({ googleId, first, last, name: `${first} ${last}` });
@@ -57,5 +57,28 @@ describe("Google Classroom", () => {
   test("ClassLink: a student's placeholder makes a student account, a teacher's does not", () => {
     expect(isStudentEmail(classlinkEmail("123", true))).toBe(true);
     expect(isStudentEmail(classlinkEmail("123", false))).toBe(false);
+  });
+});
+
+describe("grades in Classroom", () => {
+  test("the grades permission is on top of the roster ones", () => {
+    expect(hasGradeScope([...CLASSROOM_SCOPES, GRADE_SCOPE].join(","))).toBe(true);
+    expect(hasGradeScope(GRADE_SCOPE)).toBe(false);
+    expect(hasGradeScope(CLASSROOM_SCOPES.join(","))).toBe(false);
+  });
+  test("coursework out of 100 with its link, due only while ahead", () => {
+    const now = Date.UTC(2026, 9, 10);
+    const ahead = courseWorkFor({ title: "Step 4", note: "On solfège", dueAt: Date.UTC(2026, 9, 12, 23, 59, 59) }, "https://x/a", now);
+    expect(ahead.maxPoints).toBe(100);
+    expect(ahead.materials).toEqual([{ link: { url: "https://x/a" } }]);
+    expect(ahead.description.startsWith("On solfège")).toBe(true);
+    expect(ahead.dueDate).toEqual({ year: 2026, month: 10, day: 12 });
+    expect(ahead.dueTime).toEqual({ hours: 23, minutes: 59 });
+    expect("dueDate" in courseWorkFor({ title: "t", note: "", dueAt: Date.UTC(2026, 9, 1) }, "u", now)).toBe(false);
+  });
+  test("a draft grade for each student with one, unchanged ones left alone", () => {
+    const grades = new Map<string, number | null>([["111", 92], ["222", null], ["333", 70]]);
+    const subs = [{ id: "a", userId: "111" }, { id: "b", userId: "222" }, { id: "c", userId: "333", draftGrade: 70 }, { id: "d", userId: "999" }];
+    expect(gradePatches(subs, grades)).toEqual([{ id: "a", draftGrade: 92 }]);
   });
 });

@@ -91,6 +91,17 @@ export async function startAttempt(assignmentId: string, partId: string): Promis
   return res.json();
 }
 
+/** A sight-reading assignment's attempt: how it is graded and the exercise's link (gradebook.ts). */
+export async function startExerciseAttempt(assignmentId: string, mode: "sing" | "clap" | "tap", exercise: string): Promise<{ attempt: AttemptRow }> {
+  const res = await fetch(`/api/assignments/${assignmentId}/attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, exercise }),
+  });
+  if (!res.ok) throw new Error(await errorOf(res, "The attempt could not be started."));
+  return res.json();
+}
+
 export async function finishAttempt(assignmentId: string, attemptId: string, result: object): Promise<AttemptRow> {
   const res = await fetch(`/api/assignments/${assignmentId}/attempts/${attemptId}`, {
     method: "PATCH",

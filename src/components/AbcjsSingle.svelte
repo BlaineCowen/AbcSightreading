@@ -99,6 +99,8 @@
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clearGradeFeedback, drawGradeFeedback, revealTo } from "../lib/grade-feedback";
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
+  import { clapMarksOf } from "../lib/gradebook";
+  import { marksOf } from "../lib/pieces/attempts";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
@@ -4718,6 +4720,13 @@
     gradeList = schedule.notes;
     gradeRestList = schedule.rests;
     if (!gradeList.length) return;
+    // A student on an assignment: the attempt is counted before anything listens.
+    attemptSent = null;
+    pendingAttempt = null;
+    if (assignment?.role === "student" && (rhythmOnly || $tuner.gradeMode === "performance")) {
+      pendingAttempt = await startAssignmentAttempt(assignment.id);
+      if (!pendingAttempt) return;
+    }
     // Saving runs for review: the recording starts first. Nothing may await
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
@@ -4805,6 +4814,62 @@
    * Check timing finds.
    */
   const CLAP_MIC_LATENCY_MS = 45;
+
+  // ── Graded attempts on an assignment (gradebook.ts) ─────────────────────────
+  /**
+   * A student's Pitch & rhythm or clapped run on an assigned exercise is an
+   * attempt: started (counted) before the run with the exercise's link,
+   * finished with its scores and marks, its recording sent, and the best one
+   * is the grade. Note by note is practice and is not kept.
+   */
+  let pendingAttempt: string | null = null;
+  let attemptSent: string | null = null;
+  $: keptNote =
+    assignment?.role === "student"
+      ? rhythmOnly || $tuner.gradeMode === "performance"
+        ? `Your score goes to your teacher${rhythmOnly && $tuner.gradeClapInput === "keys" ? "" : ", with the recording, kept 90 days"}. Your best try counts.`
+        : "Note by note is practice: it is not sent to your teacher. Pitch & rhythm is."
+      : null;
+  /** The exercise's link, to keep with the attempt (without the assignment, which opens its own). */
+  async function exerciseLink(): Promise<string> {
+    let packed = exercisePacked;
+    if (!packed && currentScore) packed = await packExercise({ kind: "unison", score: currentScore }).catch(() => null);
+    const url = new URL(settingsLink());
+    url.searchParams.delete(ASSIGNMENT_PARAM);
+    return url.pathname + url.search + (packed ? exerciseFragment(packed) : "");
+  }
+  async function startAssignmentAttempt(id: string): Promise<string | null> {
+    const mode = !rhythmOnly ? "sing" : $tuner.gradeClapInput === "keys" ? "tap" : "clap";
+    try {
+      const { startExerciseAttempt } = await import("../lib/pieces/client");
+      const r = await startExerciseAttempt(id, mode, await exerciseLink());
+      return r.attempt.id;
+    } catch (e) {
+      attemptSent = (e as Error).message;
+      return null;
+    }
+  }
+  $: if (gradePhase === "results" && pendingAttempt) void finishAssignmentAttempt(pendingAttempt);
+  async function finishAssignmentAttempt(attemptId: string) {
+    pendingAttempt = null;
+    if (!assignment) return;
+    const v = $gradeRunner;
+    const result = v.claps ? clapMarksOf(v.claps) : v.perf ? marksOf(v.perf) : null;
+    if (!result) return;
+    attemptSent = "Sending your score…";
+    try {
+      const { finishAttempt, sendTake } = await import("../lib/pieces/client");
+      await finishAttempt(assignment.id, attemptId, result);
+      attemptSent = "Your score is with your teacher.";
+      if (gradeRecording) await stopGradeRecording(true);
+      if (gradeAudio) {
+        await sendTake(assignment.id, attemptId, gradeAudio);
+        attemptSent = "Your score and recording are with your teacher.";
+      }
+    } catch (e) {
+      attemptSent = (e as Error).message;
+    }
+  }
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
   $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";
@@ -5031,6 +5096,8 @@
       {rhythmOnly}
       onCheckTiming={checkClapTiming}
       {timingNote}
+      {keptNote}
+      sentNote={attemptSent}
     />
     {#if tapping}
       <TapPad onTap={(t) => gradeRunner.tap(t)} />

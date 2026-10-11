@@ -8,6 +8,7 @@ import { trackStepOptions } from "../curriculum/options";
 import { overridesFrom } from "../curriculum/subscriptions";
 import { RETENTION_DAYS, assignmentPage, assignmentProgress, creditSeconds, practiceDay } from "../practice";
 import { loadScore } from "./pieces";
+import { shortUsername } from "./students";
 import { barsLabel, checkPieceAssignment, pieceAssignmentOf } from "../pieces/assign";
 
 /**
@@ -126,7 +127,10 @@ async function totalsFor(assignmentIds: string[], studentIds?: string[]) {
   return map;
 }
 
-const assignmentView = (a: { id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: Date | null; note: string; createdAt: Date; params?: unknown }) => {
+const assignmentView = (a: {
+  id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: Date | null; note: string; createdAt: Date; params?: unknown;
+  classroomWorkId?: string | null; gradesSentAt?: Date | null;
+}) => {
   const piece = a.page === "piece" ? pieceAssignmentOf(a.params) : null;
   return {
     id: a.id,
@@ -139,12 +143,14 @@ const assignmentView = (a: { id: string; title: string; page: string; presetKey:
     createdAt: a.createdAt.getTime(),
     // A piece's graded attempts: null for as many as they like.
     ...(piece ? { maxAttempts: piece.maxAttempts } : {}),
+    // Posted to Google Classroom, and when its grades were last sent there.
+    classroom: a.classroomWorkId ? { sentAt: a.gradesSentAt?.getTime() ?? null } : null,
   };
 };
 
 /**
- * Graded attempts at piece assignments, per assignment and student: how many,
- * the best score, the part chosen. A piece is done once one attempt is graded
+ * Graded attempts, per assignment and student: how many, the best score, the
+ * part chosen (a piece's; for sight reading, how it was graded). A piece is done once one attempt is graded
  * (and its minutes are in, if it asks for any).
  */
 async function attemptsFor(assignmentIds: string[], studentIds?: string[]) {
@@ -175,7 +181,8 @@ function withAttempts(
   time: ReturnType<typeof assignmentProgress>,
   att: { attempts: number; best: number | null; bestId: string | null; part: string | null } | undefined,
 ) {
-  if (a.page !== "piece") return time;
+  // Sight reading: done by its minutes; graded attempts, if any, are its grade.
+  if (a.page !== "piece") return { ...time, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null };
   const graded = att?.best !== null && att?.best !== undefined;
   const timeDone = a.minutes <= 0 || time.status === "done";
   const status = graded && timeDone ? "done" : graded || time.status !== "not-started" || (att?.attempts ?? 0) > 0 ? "in-progress" : "not-started";
@@ -189,13 +196,13 @@ export async function classAssignments(classId: string) {
     prisma.enrollment.findMany({
       where: { classId },
       orderBy: { createdAt: "asc" },
-      select: { student: { select: { id: true, name: true } } },
+      select: { student: { select: { id: true, name: true, username: true } } },
     }),
   ]);
-  const students = enrollments.map((e) => e.student);
+  const students = enrollments.map((e) => ({ id: e.student.id, name: e.student.name, username: shortUsername(e.student.username) }));
   const ids = students.map((s) => s.id);
   const totals = await totalsFor(assignments.map((a) => a.id), ids);
-  const tries = await attemptsFor(assignments.filter((a) => a.page === "piece").map((a) => a.id), ids);
+  const tries = await attemptsFor(assignments.map((a) => a.id), ids);
 
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
   const week = await prisma.practiceTime.groupBy({
@@ -206,7 +213,7 @@ export async function classAssignments(classId: string) {
   const weekBy = new Map(week.map((w) => [w.studentId, { seconds: w._sum.seconds ?? 0, exercises: w._sum.exercises ?? 0 }]));
 
   return {
-    students: students.map((s) => ({ id: s.id, name: s.name, week: weekBy.get(s.id) ?? { seconds: 0, exercises: 0 } })),
+    students: students.map((s) => ({ id: s.id, name: s.name, username: s.username, week: weekBy.get(s.id) ?? { seconds: 0, exercises: 0 } })),
     assignments: assignments.map((a) => ({
       ...assignmentView(a),
       progress: students.map((s) => {
@@ -227,7 +234,7 @@ export async function myAssignments(userId: string) {
     take: 50,
   });
   const totals = await totalsFor(assignments.map((a) => a.id), [userId]);
-  const tries = await attemptsFor(assignments.filter((a) => a.page === "piece").map((a) => a.id), [userId]);
+  const tries = await attemptsFor(assignments.map((a) => a.id), [userId]);
   const className = new Map(enrollments.map((e) => [e.classId, e.class.name]));
   return {
     enrolled: true,

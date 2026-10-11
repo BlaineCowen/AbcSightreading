@@ -1247,6 +1247,34 @@ the ID token holds their email). Each assignment has Share to Google
 Classroom (`shareToClassroomUrl`, no key needed). Whole ClassLink rosters
 (OneRoster) wait for a district to approve the app.
 
+**The gradebook** (10 October 2026; rules `src/lib/gradebook.ts`, tests
+`gradebook.test.ts`, the grid `Gradebook.svelte` under a class's Assignments
+on /account). A row a student, a column an assignment, oldest first; each cell
+the best graded attempt (Blaine: practice never costs a student), or where
+nothing is graded yet and the assignment has minutes, the share of them done
+(shown with %); blank, never 0, when not started. Download CSV gives the same
+grid with usernames and the average (a BOM for Excel; a name starting = + - @
+is defused). Graded attempts now come from sight-reading assignments too: a
+student's Pitch & rhythm or clapped/tapped run on an assigned exercise on the
+Unison page is a `PieceAttempt` (the table keeps its name) with `partId` the
+mode (sing, clap, tap), `exercise` the link to the exercise sung (each is
+new), its marks and recording (none when tapped), as many as they like; Note
+by note is practice and is not sent. The setup card says what is kept
+(`keptNote`), the results whether it reached the teacher. The teacher's Best
+column opens the attempt: its recording and the exercise.
+
+**Grades to Google Classroom** (`src/lib/server/classroom-grades.ts`,
+`/api/assignments/[id]/classroom`): for a class brought in from Classroom,
+"Post to Google Classroom" makes the assignment coursework there (out of 100,
+a link back, the due date while ahead), and "Send grades to Classroom" sends
+each linked student's gradebook grade as a draft grade, which the teacher
+returns in Classroom. Classroom lets an app grade only coursework it made, so
+a link shared by hand cannot be graded. It needs one more permission,
+`classroom.coursework.students`, asked for (linkSocial) the first time; Google
+counts it as sensitive, so until the app is verified for it teachers see the
+unverified-app warning on that step (notes/rostering-setup.md 1e). ClassLink
+grades (OneRoster) wait for a district.
+
 A preset holds every setting on its page (Choral `getCurrentParams`, Unison
 `currentOptions`): generation, display (lyrics, chords, cursor, hidden and
 muted voices), sound (instrument, transposition, volumes) and the metronome: its

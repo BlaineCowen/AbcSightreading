@@ -1,8 +1,9 @@
 import type { PerfResult } from "../grade";
 
 /**
- * Graded attempts at a piece assignment: the rules the page and the server
- * share (tests pieces-attempts.test.ts). An attempt counts when it starts, so
+ * Graded attempts at an assignment (a piece, or a sight-reading assignment's
+ * exercises, gradebook.ts): the rules the page and the server share (tests
+ * pieces-attempts.test.ts). An attempt counts when it starts, so
  * walking away from a bad run still uses one of a limited number. Its take is
  * kept 90 days for the teacher to hear, then deleted.
  */
@@ -25,6 +26,8 @@ export type AttemptSummary = {
   pitch: number | null;
   rhythm: number | null;
   hasTake: boolean;
+  /** A sight-reading attempt: the link to the exercise. */
+  exercise?: string | null;
 };
 
 export function attemptsLeft(max: number | null, used: number): number | null {
@@ -61,10 +64,11 @@ const score = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >
 const maybe = (v: unknown, lo: number, hi: number) => v === null || (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi);
 
 /** A finished attempt as the page sends it, checked. */
-export function checkAttemptResult(body: unknown): Checked<{ overall: number; pitch: number; rhythm: number; marks: Mark[] }> {
+export function checkAttemptResult(body: unknown): Checked<{ overall: number; pitch: number | null; rhythm: number; marks: Mark[] }> {
   if (!body || typeof body !== "object") return { ok: false, error: "Expected the attempt's result." };
   const b = body as Record<string, unknown>;
-  if (!score(b.overall) || !score(b.pitch) || !score(b.rhythm)) return { ok: false, error: "Scores are 0 to 100." };
+  // A clapped rhythm has no pitch score.
+  if (!score(b.overall) || !(b.pitch === null || score(b.pitch)) || !score(b.rhythm)) return { ok: false, error: "Scores are 0 to 100." };
   if (!Array.isArray(b.marks) || b.marks.length > MAX_MARKS) return { ok: false, error: "Those marks are not readable." };
   for (const m of b.marks) {
     if (!Array.isArray(m) || m.length !== 6) return { ok: false, error: "Those marks are not readable." };
@@ -75,7 +79,7 @@ export function checkAttemptResult(body: unknown): Checked<{ overall: number; pi
   }
   return {
     ok: true,
-    value: { overall: Math.round(b.overall as number), pitch: Math.round(b.pitch as number), rhythm: Math.round(b.rhythm as number), marks: b.marks as Mark[] },
+    value: { overall: Math.round(b.overall as number), pitch: b.pitch === null ? null : Math.round(b.pitch as number), rhythm: Math.round(b.rhythm as number), marks: b.marks as Mark[] },
   };
 }
 
