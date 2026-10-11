@@ -4808,12 +4808,26 @@
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
   $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";
+  /**
+   * While any run is on, Space never reaches the page: held down (a repeat),
+   * pressed while the microphone grades, or on a button still focused from
+   * Start, it scrolled the page a screen down or pressed that button again,
+   * and the music went out of view (Blaine, 10 October 2026).
+   */
   function onTapKey(e: KeyboardEvent) {
-    if (!tapping || e.code !== "Space" || e.repeat) return;
+    if (!grading || e.code !== "Space") return;
     const el = e.target as HTMLElement | null;
     if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
     e.preventDefault();
-    gradeRunner.tap(e.timeStamp);
+    if (tapping && !e.repeat) gradeRunner.tap(e.timeStamp);
+  }
+  function onTapKeyUp(e: KeyboardEvent) {
+    if (grading && e.code === "Space") e.preventDefault();
+  }
+  // A run starting takes focus off whatever started it, so Space presses nothing.
+  $: if (grading && typeof document !== "undefined" && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+    const el = document.activeElement;
+    if (!el.isContentEditable && !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) el.blur();
   }
 
   /**
@@ -6250,7 +6264,7 @@
 </div>
 
 
-<svelte:window on:keydown={onTapKey} />
+<svelte:window on:keydown={onTapKey} on:keyup={onTapKeyUp} />
 <style>
   /* The settings row: pills that each open their own popover, then New exercise. */
   .setbar {
