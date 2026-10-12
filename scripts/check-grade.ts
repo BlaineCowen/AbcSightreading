@@ -217,7 +217,9 @@ if (MODE === "pitch") {
 // The count-in's "1": the first downbeat is four beats later (4/4).
 const one = await page.waitForFunction(() => (window as any).__countIn.find((w: any) => w.word === "1")?.at, { timeout: 15000 });
 const t1 = (await one.jsonValue()) as number;
-const t0 = t1 + 4 * beatMs;
+// The beat the run is scored by, as the page booked it on the audio clock;
+// the count-in's "1" on screen is a frame or so behind it (drawing only).
+const t0 = ((await page.evaluate(() => (window as any).__gradeDebug.t0?.())) as number | null) ?? t1 + 4 * beatMs;
 const unitMs = beatMs / 8;
 const plan = sched.notes
   .map((note, i) => {
