@@ -46,6 +46,7 @@ model User {
   grants        AccessGrant[]
   pieces        Piece[]
   pieceAttempts PieceAttempt[]
+  liveRoom      LiveRoom?
 
   @@map("user")
 }
@@ -562,4 +563,56 @@ model FreeMonthClaim {
   @@index([browserKey])
   @@index([networkKey, createdAt])
   @@map("free_month_claim")
+}
+
+// Live practice (src/lib/live.ts): a director's room. Its code never changes
+// (it goes on a QR poster on the wall), so students open the same address
+// every day. While the director has Live on, whatever their practice page
+// draws is published here (`abc`, `version` up by one each time) and every
+// student's device shows it, each reading the part it chose. On air means
+// `endedAt` is unset and `endsAt` is still ahead: Live off sets `endedAt`,
+// and a room nobody touches for LIVE_IDLE_MS goes off by itself. Students
+// need no account; nothing about them is kept but a random device id, the
+// part it reads and when it was last seen.
+model LiveRoom {
+  id        String       @id @default(cuid())
+  /// What students type or scan: "482KTZ" (shown 482-KTZ). Digits first, so it is never a class code.
+  code      String       @unique
+  teacherId String       @unique
+  teacher   User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  /// "choral" or "unison": the page publishing now.
+  page      String       @default("choral")
+  /// The whole score as the director's page writes it, every voice.
+  abc       String       @default("")
+  version   Int          @default(0)
+  /// What the students' view needs beside the ABC: tempo, title (LiveSettings).
+  settings  Json?
+  /// "Start together": when the count-in begins, on the server clock (LivePlay).
+  play      Json?
+  /// When Live was last turned on.
+  startedAt DateTime     @default(now())
+  /// On air until then, unless ended sooner; activity pushes it back.
+  endsAt    DateTime     @default(now())
+  /// When Live was turned off; null while on air.
+  endedAt   DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  devices   LiveDevice[]
+
+  @@map("live_room")
+}
+
+// A device following a room: a random id the browser made, the part it
+// reads, when it last said it was there. No name, no account.
+model LiveDevice {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  deviceKey String
+  part      String?
+  seenAt    DateTime @default(now())
+
+  @@unique([roomId, deviceKey])
+  @@index([roomId, seenAt])
+  @@map("live_device")
 }

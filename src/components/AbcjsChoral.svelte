@@ -1,4 +1,5 @@
 <script lang="ts">
+  import LiveTeacher from "./LiveTeacher.svelte";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
@@ -2432,6 +2433,15 @@
   let history: HistoryEntry[] = [];
   let historyIndex = -1;
 
+  /**
+   * What live practice sends to the students' devices (LiveTeacher): the
+   * score as drawn, but with every voice, since each device picks its own
+   * part. Follows renderedString, which every exercise and every change to
+   * the annotations rewrites.
+   */
+  $: liveAbc = renderedString && renderCurrent ? renderCurrent({ ...displayOptions(), hiddenVoices: [] }) : "";
+  $: liveTitle = history[historyIndex]?.label ?? "";
+
   function pushHistory(entry: HistoryEntry) {
     history = [...history, entry].slice(-HISTORY_LIMIT);
     historyIndex = history.length - 1;
@@ -3348,6 +3358,10 @@
         <button class="tool-btn" data-tour="display" aria-expanded={toolPop === 'display'} on:click={() => toggleTool('display')}>
           <Eye size={16} aria-hidden="true" />Display
         </button>
+        <!-- Live practice (Pro): every student's device on the director's live link follows this exercise, each on its own part. -->
+        {#if !assignment}
+          <LiveTeacher page="choral" abc={liveAbc} {bpm} title={liveTitle} />
+        {/if}
         {#if toolPop}
           <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
           <div in:popIn out:popOut class="set-pop set-pop-tools" role="dialog" aria-label="Display">
