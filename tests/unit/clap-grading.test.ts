@@ -127,11 +127,34 @@ describe("grading a clapped rhythm", () => {
     expect(r.notes[2]).toMatchObject({ missed: true, rhythm: 0 });
     expect(r.rhythm).toBe(75);
   });
-  test("two claps on one note: one counts, one is a stray, and the stray costs a note", () => {
+  test("two claps on one note: one counts, one is a stray, and the stray costs its beat", () => {
     const r = run("B8 B8 B8 B8 |", [0, 1000, 1080, 2000, 3000]);
     expect(r.notes.every((n) => n.rhythm === 100)).toBe(true);
     expect(r.strays.length).toBe(1);
-    expect(r.rhythm).toBe(80); // 400 over 4 notes + 1 stray
+    expect(r.rhythm).toBe(75); // 3 of 4 beats
+    expect(r).toMatchObject({ beats: 4, beatsRight: 3 });
+  });
+  test("by beat: a ti-ti clapped as ta loses the whole beat", () => {
+    // ta ti-ti ta ta, clapped as four quarters: 4 of 5 notes, but 3 of 4 beats.
+    const r = run("B8 B4 B4 B8 B8 |", [0, 1000, 2000, 3000]);
+    expect(r.notes[2].missed).toBe(true);
+    expect(r.rhythm).toBe(75);
+    // Only the steady beat through a bar of ti-ti: nothing.
+    expect(run("B4 B4 B4 B4 B4 B4 B4 B4 |", [0, 1000, 2000, 3000]).rhythm).toBe(0);
+  });
+  test("by beat: a stray in a rest or a held note's beat counts as a beat wrong", () => {
+    // ta, a half note, ta: a clap on the half note's second beat.
+    const r = run("B8 B16 B8 |", [0, 1000, 2000, 3000]);
+    expect(r.strays).toHaveLength(1);
+    expect(r).toMatchObject({ beats: 4, beatsRight: 3, rhythm: 75 });
+    // Left alone, the held beat is not counted at all.
+    expect(run("B8 B16 B8 |", [0, 1000, 3000])).toMatchObject({ beats: 3, rhythm: 100 });
+  });
+  test("by beat: a stray a little early belongs to the next beat", () => {
+    const r = run("B8 B8 B8 B8 |", [0, 1000, 1850, 2000, 3000]);
+    expect(r.strays).toHaveLength(1);
+    expect(r.rhythm).toBe(75);
+    expect(r.notes[2].rhythm).toBe(100);
   });
   test("of two claps on a note both in time, the nearer one counts", () => {
     const r = run("B8 B8 B8 B8 |", [0, 1000, 1150, 2000, 3000]);
@@ -180,13 +203,13 @@ describe("grading a clapped rhythm", () => {
   test("claps in the count-in are not graded", () => {
     expect(run("B8 B8 B8 B8 |", [-4000, -3000, 0, 1000, 2000, 3000]).strays).toEqual([]);
   });
-  test("a class: a quiet stray (a child or two) costs a fraction; a loud one (half the room) nearly a whole note", () => {
+  test("a class: a quiet stray (a child or two) costs a fraction of its beat; a loud one (half the room) nearly all of it", () => {
     const body = "B8 B8 B8 B8 |";
     const quiet = run(body, [0, 1000, 1500, 2000, 3000], "standard", "class", [1, 1, 0.3, 1, 1]);
     const loud = run(body, [0, 1000, 1500, 2000, 3000], "standard", "class", [1, 1, 0.9, 1, 1]);
     expect(quiet.strays[0].weight).toBeCloseTo(0.3, 5);
-    expect(quiet.rhythm).toBe(93); // 400 / 4.3
-    expect(loud.rhythm).toBe(82); // 400 / 4.9
+    expect(quiet.rhythm).toBe(93); // (300 + 70) / 4 beats
+    expect(loud.rhythm).toBe(78); // (300 + 10) / 4
     expect(quiet.together).toBe(30);
     expect(togetherLabel(30)).toBe("Tight");
   });

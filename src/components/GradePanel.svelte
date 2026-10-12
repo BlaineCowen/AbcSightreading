@@ -349,6 +349,7 @@
               <li class="tally"><Scissors size={16} /><span>Let go early{perfCounts.rests ? ", or sang through a rest" : ""}</span><b class="warn">{perfCounts.short + perfCounts.rests}</b></li>
             {/if}
           {:else if clapCounts}
+            {#if claps?.beats}<li class="tally"><Check size={16} class="text-sr-action-fg" /><span>Beats right</span><b class="good">{claps.beatsRight} of {claps.beats}</b></li>{/if}
             <li class="tally"><Check size={16} class="text-sr-action-fg" /><span>Clapped in time</span><b class="good">{clapCounts.right}</b></li>
             <li class="tally"><ArrowLeftRight size={16} /><span>Early or late</span><b class={clapCounts.timing ? "warn" : "zero"}>{clapCounts.timing}</b></li>
             <li class="tally"><Ban size={16} /><span>Missed</span><b class={clapCounts.missed ? "bad" : "zero"}>{clapCounts.missed}</b></li>
