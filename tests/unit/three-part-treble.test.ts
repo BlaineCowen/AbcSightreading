@@ -139,14 +139,14 @@ test("with restatements on, the upper parts reach and leave every eighth by step
 
 // The half cadence at bar 4 carries it inside the long V (The Rainbird, bars 4
 // and 20): soprano 2's note splits, do held over the V, then ti. "I should be
-// seeing them in m 4 more often" (Blaine). 92% of 8-bar Level 2 exercises,
-// measured; 0 before.
+// seeing them in m 4 more often" (Blaine), then "not every time... like 30%"
+// (11 October 2026). About a third of 8-bar Level 2 exercises, measured.
 test("Level 2's half cadence at bar 4 holds do over the V, then falls to ti", () => {
   let found = 0;
   const level = uilPresets["UIL 2"];
   const saved = { log: console.log, warn: console.warn };
   Object.assign(console, { log: quiet, warn: quiet });
-  const exercises = Array.from({ length: 25 }, () =>
+  const exercises = Array.from({ length: 60 }, () =>
     generateChoralExercise({
       key: "G", timeSig: TIME_SIGS["4/4"], partsObject: presetVoicing("3 Part Treble", level)!, measures: 8,
       maxSkip: level.maxSkip, bpm: 72, nctProbability: 0, stepwiseEighths: true, accidentalsByStep: true,
@@ -162,8 +162,9 @@ test("Level 2's half cadence at bar 4 holds do over the V, then falls to ti", ()
     const s2 = ex.voiceNotes[ex.voiceNames.indexOf("Soprano2")].map((n: VoiceNote) => ({ n, t: (t += n.length) - n.length }));
     if (s2.some(({ n, t }, i) => t >= 96 && t < 128 && n.ornament && n.degree === 0 && s2[i + 1]?.n.degree === 6 && s2[i + 1].n.pitchValue === n.pitchValue - 1)) found++;
   }
-  expect(found / exercises.length).toBeGreaterThan(0.6);
-}, 120_000);
+  expect(found / exercises.length).toBeGreaterThan(0.12);
+  expect(found / exercises.length).toBeLessThan(0.6);
+}, 240_000);
 
 // "LVL 2 should not be jumping la to mi" (Blaine, 7 October 2026): every part,
 // decoration and restatements on, skips only as UIL lists for Level 2.

@@ -102,9 +102,10 @@ const SUSPENSION_RATE = 0.9;
 /**
  * The same suspension inside a half cadence's long V (The Rainbird, bars 4
  * and 20): soprano 2 brings do into the V and holds it over the bass's sol
- * for the first half of the note, then falls to ti.
+ * for the first half of the note, then falls to ti. About three bar 4s in
+ * ten (Blaine: "not every time", 11 October 2026; it was 0.9).
  */
-const HALF_CADENCE_SUSPENSION_RATE = 0.9;
+const HALF_CADENCE_SUSPENSION_RATE = 0.28;
 /** The pull to do for soprano 2 on the beat before such a cadence, so there is a do to hold. */
 const PREPARE = 4;
 const ATTEMPTS = 40;

@@ -114,7 +114,8 @@ const CHANGE_MID_BAR = 0.4;
 const TEMPERATURE = 0.55;
 const ATTEMPTS = 40;
 const SUSPENSION_RATE = 0.9;
-const HALF_CADENCE_SUSPENSION_RATE = 0.9;
+/** The half cadence's suspension at bar 4, about three times in ten (three-part-treble.ts). */
+const HALF_CADENCE_SUSPENSION_RATE = 0.28;
 const PREPARE = 4;
 /** A chromatic chord sung without its altered note is the diatonic chord again: what a drill of that note must not be. */
 const MISSING_ALTERED = 6;
