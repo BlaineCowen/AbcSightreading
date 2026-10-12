@@ -88,6 +88,23 @@ export function steadyLag(claps: { t: number }[], onsets: number[], beatMs: numb
 /** No more than this is ever taken for a steady lag (more is the clapper, not the microphone). */
 export const MAX_LAG_MS = 250;
 
+/**
+ * The most a clap may be off and keep full credit, in ms, whatever the
+ * tempo: the strictness's share of a beat alone (STRICTNESS onsetBeats) let
+ * Strict forgive 125 ms at 60 BPM and 0 credit only at 375, so quarters
+ * clapped audibly off the beat still scored 100 (Blaine, 12 October 2026).
+ * A good solo run sits within 12 ms (median) and 39 ms (90th percentile),
+ * Blaine's class runs within 30-58 and 65-170. Easy stays a share of a beat.
+ * Credit falls to nothing at three times this; where a clap may be matched
+ * (`windowsFor`) is still the beat's share, so a clap far off is late, not
+ * missed and a stray.
+ */
+export const CLAP_FULL_MS: Record<Strictness, number> = { easy: Infinity, standard: 80, strict: 40 };
+
+/** Beats a clap may be off with full credit, at this tempo. */
+export const clapToleranceBeats = (s: Strictness, bpm: number) =>
+  Math.min(STRICTNESS[s].onsetBeats, CLAP_FULL_MS[s] / (60_000 / Math.max(1, bpm)));
+
 /** Below this share of the room's usual loudness, a note was clapped by only part of it. */
 export const WEAK_SHARE = 0.4;
 
@@ -159,7 +176,8 @@ export function gradeClaps(
   const onsets = written.map((t) => t + lag);
   const from = o.forgiveLag ? onsets : written;
   const wins = windowsFor(onsets, reach, Math.min(reach, beatMs / 2));
-  const credit = (err: number) => (Math.abs(err) <= tol ? 100 : Math.max(0, (100 * (reach - Math.abs(err))) / (reach - tol)));
+  const full = clapToleranceBeats(o.strictness, o.bpm) * beatMs;
+  const credit = (err: number) => (Math.abs(err) <= full ? 100 : Math.max(0, (100 * (3 * full - Math.abs(err))) / (2 * full)));
 
   // Claps from the first note's window on (a clap in the count-in is not graded).
   const claps = moved.filter((c) => !notes.length || c.t >= wins[0].from);

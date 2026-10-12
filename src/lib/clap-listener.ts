@@ -1,11 +1,19 @@
 import type { ClapAudio, ClapBlock } from "./clap-detect";
 
 /**
- * Listens for claps on the tuner's own microphone (no second stream): the
- * clap worklet's blocks, each moved from the audio clock onto the page's
+ * Listens for claps on the microphone: the clap worklet's blocks, each moved from the audio clock onto the page's
  * (performance.now), the clock the exercise's timeline runs on. The mapping
  * comes from the context's output timestamp, read as each batch arrives, so
  * when a batch reaches the main thread does not matter; only the clock does.
+ *
+ * It opens a stream of its own with no echo cancellation (as grade-recording
+ * does), on the tuner's context, and falls back to the tuner's stream only if
+ * that is refused. The canceller turns the microphone down while the speakers
+ * sound, and a clap on the beat lands on the click: on a Windows laptop
+ * (12 October 2026) it swallowed 6 of the 16 claps on the beat, every
+ * off-beat clap heard, and a clean run graded 71. The same run's recording,
+ * without the canceller, has all 23 and grades 96. The click heard back is
+ * left to withoutClickEcho, which learns its level from the count-in.
  */
 export class ClapListener {
   private node: AudioWorkletNode | null = null;
@@ -15,12 +23,23 @@ export class ClapListener {
   private pcm: { t: number; samples: Float32Array }[] = [];
   private pcmRate = 16000;
   private stopped = false;
+  private raw: MediaStream | null = null;
+  private input: AudioNode | null = null;
 
   constructor(private ctx: AudioContext, private source: AudioNode) {}
 
   /** Not awaited by the page: the count-in is long enough for the module to load. */
   async start() {
     await this.ctx.audioWorklet.addModule("/clap-detector.js");
+    let input = this.source;
+    try {
+      const raw = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
+      if (this.stopped) return raw.getTracks().forEach((t) => t.stop());
+      this.raw = raw;
+      input = this.ctx.createMediaStreamSource(raw);
+    } catch {}
     // Stopped while the module loaded (a run cancelled at once).
     if (this.stopped) return;
     const node = new AudioWorkletNode(this.ctx, "clap-detector");
@@ -35,7 +54,8 @@ export class ClapListener {
         this.pcmRate = pcmRate ?? this.pcmRate;
       }
     };
-    this.source.connect(node);
+    input.connect(node);
+    this.input = input;
     // Safari only runs a worklet whose graph reaches the destination (as the tuner's).
     this.sink = this.ctx.createGain();
     this.sink.gain.value = 0;
@@ -75,11 +95,13 @@ export class ClapListener {
     // Only this listener's own connection: a bare disconnect() would cut the tuner off too.
     if (this.node) {
       try {
-        this.source.disconnect(this.node);
+        this.input?.disconnect(this.node);
       } catch {}
       this.node.disconnect();
     }
     this.sink?.disconnect();
+    this.raw?.getTracks().forEach((t) => t.stop());
+    this.raw = null;
     this.node = null;
     this.sink = null;
     const out = this.blocks;
