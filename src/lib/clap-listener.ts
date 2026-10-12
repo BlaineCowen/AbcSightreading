@@ -15,6 +15,27 @@ import type { ClapAudio, ClapBlock } from "./clap-detect";
  * without the canceller, has all 23 and grades 96. The click heard back is
  * left to withoutClickEcho, which learns its level from the count-in.
  */
+/**
+ * Audio-clock seconds to performance.now ms, from the context's output
+ * timestamp: when a sound booked at that audio time is heard. The one ruler
+ * for both sides of a clap run: the claps (stamped here) and the click they
+ * follow (booked on the audio clock by the page, AbcjsSingle
+ * startGradeTimeline), so whatever the mapping gets wrong it gets wrong the
+ * same way for both, and only a steady offset is left (learnmusic.fun's rule:
+ * any term in the beat's time applies identically to what it is scored
+ * against).
+ */
+export function audioToPage(ctx: BaseAudioContext): (sec: number) => number {
+  const ts = (ctx as AudioContext).getOutputTimestamp?.();
+  if (ts?.contextTime !== undefined && ts.performanceTime) {
+    const { contextTime, performanceTime } = ts;
+    return (sec) => performanceTime + (sec - contextTime) * 1000;
+  }
+  const now = performance.now();
+  const at = ctx.currentTime;
+  return (sec) => now + (sec - at) * 1000;
+}
+
 export class ClapListener {
   private node: AudioWorkletNode | null = null;
   private sink: GainNode | null = null;
@@ -66,14 +87,7 @@ export class ClapListener {
 
   /** Audio-clock seconds to performance.now ms. */
   private clock(): (sec: number) => number {
-    const ts = this.ctx.getOutputTimestamp?.();
-    if (ts?.contextTime !== undefined && ts.performanceTime) {
-      const { contextTime, performanceTime } = ts;
-      return (sec) => performanceTime + (sec - contextTime) * 1000;
-    }
-    const now = performance.now();
-    const at = this.ctx.currentTime;
-    return (sec) => now + (sec - at) * 1000;
+    return audioToPage(this.ctx);
   }
 
   /** The sound heard, as one run of samples from its first one's page time (for telling chant from claps). */

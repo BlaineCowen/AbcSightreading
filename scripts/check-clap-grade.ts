@@ -154,7 +154,9 @@ await page.evaluate(() => {
   (b as HTMLButtonElement | undefined)?.click();
 });
 const one = await page.waitForFunction(() => (window as any).__countIn.find((w: any) => w.word === "1")?.at, { timeout: 15000 });
-const t0 = ((await one.jsonValue()) as number) + 4 * beatMs;
+// The beat the run is scored by, as the page booked it on the audio clock;
+// the count-in's "1" on screen is a frame or so behind it (drawing only).
+const t0 = ((await page.evaluate(() => (window as any).__gradeDebug.t0?.())) as number | null) ?? ((await one.jsonValue()) as number) + 4 * beatMs;
 
 // What is clapped, on the page's clock.
 const times: number[] = [];

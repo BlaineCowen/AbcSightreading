@@ -85,7 +85,7 @@
   import { linkedPresetId, openLinkedPreset } from "../lib/preset-link";
   import GradePanel from "./GradePanel.svelte";
   import TapPad from "./TapPad.svelte";
-  import { ClapListener } from "../lib/clap-listener";
+  import { ClapListener, audioToPage } from "../lib/clap-listener";
   import { detectClaps } from "../lib/clap-detect";
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
@@ -2277,7 +2277,8 @@
         const inCount = countInBeats(playedMeter());
         const musicBeat = beatNumber >= inCount ? beat.beatInBar : undefined;
         const musicBar = Math.floor((metronomeBeats.lastClickedBeat - inCount) / Math.max(1, beatsPerMeasure));
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet) {
+        // A Grade run books its clicks on the audio clock (startGradeTimeline).
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet && !gradeTimeline) {
           playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
           // The next beat's word, a beat ahead, while there is a next beat of music.
           const next = metronomeBeats.lastClickedBeat + 1;
@@ -4128,6 +4129,8 @@
       view: () => { let v: unknown; gradeRunner.subscribe((x) => (v = x))(); return v; },
       mic: () => { const t = tuner.get(); return { status: t.engineStatus, dbfs: t.dbfs, pitch: t.pitch }; },
       clapBlocks: () => gradeRunner.lastClapBlocks,
+      // The first downbeat the run is scored by, from its start (the checks clap and sing to it).
+      t0: () => gradeT0,
       // A note's detail line, as tapping it shows (for checking the syllables named).
       detailOf: async (i: number) => { gradeDetailIndex = i; await tick(); return gradeDetail; },
       take: () => ({ ...take, note: takeNote, now: takePlayer?.now() ?? null, start: takePlayer?.start ?? null }),
@@ -4259,16 +4262,60 @@
     passCursorOverride = o.cursor;
     passMetronomeOverride = true;
     scrollToFirstSystem();
-    const startedAt = performance.now();
-    timingCallbacks.start(0);
     // The click is heard this much after it is played (the audio output's
     // own delay: a few tens of ms on a laptop, far more on Bluetooth), and a
-    // singer sings with the click they hear.
+    // singer sings with the click they hear. Kept with a saved run.
     gradeOutputLatencyMs = Math.round((((audioContext as any)?.baseLatency ?? 0) + ((audioContext as any)?.outputLatency ?? 0)) * 1000);
-    return startedAt + getCountInDuration() * 1000 + gradeOutputLatencyMs;
+    if (!audioContext) {
+      const startedAt = performance.now();
+      timingCallbacks.start(0);
+      return startedAt + getCountInDuration() * 1000 + gradeOutputLatencyMs;
+    }
+    // Two clocks, as learnmusic.fun's Rhythm Hero keeps them. The click and
+    // the beat the run is scored by are one grid booked on the audio clock:
+    // every click at T0 + k beats, exactly. The click used to sound when the
+    // cursor's timer reached each beat, a frame or more late and a different
+    // amount every beat (up to 16 ms on a fast Mac, 20-60 ms in a Windows
+    // laptop's recordings), and the claps that followed it were marked early
+    // and late by its wobble. The cursor and the count-in words are drawing
+    // only: they start when the first click is heard and may lag a frame.
+    const ctx = audioContext;
+    const T0 = ctx.currentTime + GRADE_CLICK_LEAD_S;
+    const heard = audioToPage(ctx)(T0);
+    const beatSec = 60 / (Number(tempo) || 60);
+    const inCount = countInBeats(playedMeter());
+    const perBar = Math.max(1, beatsOf(playedMeter()));
+    let k = 0;
+    const book = () => {
+      // Every beat due within the next GRADE_CLICK_AHEAD_S, on the grid.
+      while (T0 + k * beatSec < ctx.currentTime + GRADE_CLICK_AHEAD_S) {
+        const inBar = k % perBar;
+        if (k < inCount) playMetronomeClick(inBar === 0, T0 + k * beatSec);
+        else if (gradeClickChoice !== "off") playMetronomeClick(inBar === 0, T0 + k * beatSec, inBar, perBar, Math.floor((k - inCount) / perBar));
+        k++;
+      }
+    };
+    book();
+    gradeClickTimer = setInterval(book, 25);
+    gradeCursorStart = setTimeout(() => {
+      gradeCursorStart = null;
+      if (gradeTimeline) timingCallbacks?.start(0);
+    }, Math.max(0, heard - performance.now()));
+    gradeT0 = heard + getCountInDuration() * 1000;
+    return gradeT0;
   }
+  /** The first downbeat of the run in time, as heard (page ms). */
+  let gradeT0: number | null = null;
+  /** How far ahead the first click is booked, and how far ahead the clicks are kept booked (s). */
+  const GRADE_CLICK_LEAD_S = 0.15;
+  const GRADE_CLICK_AHEAD_S = 0.3;
+  let gradeClickTimer: ReturnType<typeof setInterval> | null = null;
+  let gradeCursorStart: ReturnType<typeof setTimeout> | null = null;
 
   function stopGradeTimeline() {
+    if (gradeClickTimer) clearInterval(gradeClickTimer);
+    if (gradeCursorStart) clearTimeout(gradeCursorStart);
+    gradeClickTimer = gradeCursorStart = null;
     if (!gradeTimeline) return;
     gradeTimeline = false;
     gradeSubdivision = null;
@@ -4762,11 +4809,12 @@
   /**
    * The microphone's delay for a clap until Check timing has measured it:
    * measured end to end with the fake microphone (scripts/check-clap-grade.ts
-   * MEASURE=1: 36 ms on every clap; 45 through the tuner's echo-cancelled
-   * stream, before the listener had its own). A real microphone adds its own, which
-   * Check timing finds.
+   * MEASURE=1: 23-26 ms against the beat booked on the audio clock; it read
+   * 36, and 45 through the tuner's echo-cancelled stream, while the check
+   * timed its claps from the count-in word on screen). A real microphone adds
+   * its own, which Check timing finds.
    */
-  const CLAP_MIC_LATENCY_MS = 36;
+  const CLAP_MIC_LATENCY_MS = 25;
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
   $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";
@@ -4794,15 +4842,20 @@
     const mic = new ClapListener(input.ctx, input.source);
     await mic.start();
     if (audioContext?.state === "suspended") await audioContext.resume();
-    const beatMs = 600;
-    const outMs = ((audioContext?.baseLatency ?? 0) + (audioContext?.outputLatency ?? 0)) * 1000;
+    if (!audioContext) return;
+    // Booked on the audio clock and read through the same ruler as a run's
+    // clicks and claps (startGradeTimeline, audioToPage): a delay measured
+    // any other way is stale the moment a run measures differently.
+    const ctx = audioContext;
+    const beatSec = 0.6;
+    const T0 = ctx.currentTime + 0.3;
+    const toPage = audioToPage(ctx);
     const clicks: number[] = [];
     timingNote = "Clap with the clicks: 1 2 3 4, then four more…";
-    const start = performance.now() + 300;
     for (let k = 0; k < 12; k++) {
-      setTimeout(() => playMetronomeClick(k % 4 === 0), start + k * beatMs - performance.now());
+      playMetronomeClick(k % 4 === 0, T0 + k * beatSec);
       // The first four are a count-in: clap along with the last eight.
-      if (k >= 4) clicks.push(start + k * beatMs + outMs);
+      if (k >= 4) clicks.push(toPage(T0 + k * beatSec));
     }
     setTimeout(() => {
       const claps = detectClaps(mic.stop());
@@ -4819,7 +4872,7 @@
       const ms = Math.round(lags[lags.length >> 1]);
       tuner.setGrade({ clapLatencyMs: ms });
       timingNote = `Checked: this microphone hears claps ${ms} ms late. Claps are timed for that now.`;
-    }, start + 12 * beatMs + 400 - performance.now());
+    }, toPage(T0 + 12 * beatSec) + 400 - performance.now());
   }
 
   async function gradeNewExercise() {

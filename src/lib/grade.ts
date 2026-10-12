@@ -228,9 +228,12 @@ export const WRONG_NOTE_CENTS = 100;
 /**
  * How long after a sound the pitch detector reports it, in ms: subtracted from
  * every frame's time before it is compared with the music. Measured end to end
- * with the fake microphone (a WAV sung exactly in time).
+ * with the fake microphone (a WAV sung exactly in time): 80 against the beat
+ * the run books on the audio clock (12 October 2026, scripts/check-grade.ts,
+ * eight runs). It was 110 while the check timed its singing from the count-in
+ * word on screen, which trails the beat.
  */
-export const DETECT_LATENCY_MS = 110;
+export const DETECT_LATENCY_MS = 80;
 /**
  * A note sung for less than its strictness's `held` share of its length was
  * cut short (a breath taken out of a note is musical; Easy allows most of

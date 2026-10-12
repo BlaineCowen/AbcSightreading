@@ -961,8 +961,8 @@ Grade's strip and its marks.
   down to 0 at three times it; a pitch carried on at the right time counts;
   cut short below 60% of its length costs 25; a rest sung through counts as a
   0). Pitch %, rhythm %, overall their mean. Frames are moved back by
-  `DETECT_LATENCY_MS` (110), measured end to end: clean onsets land within
-  about 25 ms of the beat.
+  `DETECT_LATENCY_MS` (80), measured end to end: clean onsets land within
+  about 15 ms of the beat (median).
 
 Strictness (`STRICTNESS`: Easy, Standard, Strict) sets the pitch tolerance
 (50/35/25 cents), the onset window (1/2, 1/4, 1/8 beat), the free
@@ -996,9 +996,8 @@ waited. `bun run scripts/replay-grade-detect.ts grade-runs/<dir>...` replays
 sent runs through the detector and grades them again (`EXPECT=0` without
 the hint): that run 32% of its notes heard and 55 overall -> 89% and 100,
 the two runs of 7 October unchanged (97 and 91-92). check-grade still finds
-exactly the planted faults in both modes, with and without the click. The beat is also moved by the audio
-output's own delay (`baseLatency` + `outputLatency`), since a singer sings
-with the click as heard. Replayed with these, that run grades 97 pitch,
+exactly the planted faults in both modes, with and without the click. The beat is the click as heard
+(below, "One clock for the beat"). Replayed with these, that run grades 97 pitch,
 99 rhythm.
 
 Grade's setup and results are centred cards over the page (GradePanel);
@@ -1011,6 +1010,23 @@ missed, stray) and Easy / Standard / Strict, which grades the same run again
 at once (`GradeRunner.regrade`: it keeps the pitch frames or the claps it
 heard). "See it on the music" puts the results away to the strip, whose
 Results button brings them back.
+
+**One clock for the beat** (12 October 2026, after learnmusic.fun's Rhythm
+Hero): a run in time books every click on the audio clock before it sounds,
+on one grid, T0 + k beats (AbcjsSingle `startGradeTimeline`), and the run is
+scored by that grid as heard, read through the context's output timestamp
+(clap-listener `audioToPage`), the same ruler the claps are stamped with. The
+click used to sound when the cursor's timer reached each beat: up to 16 ms
+off the scored beat on a fast Mac, 20-60 ms beat to beat in a Windows
+laptop's recordings, and claps that followed it were graded by its wobble.
+Now 0.1 ms (`bun run scripts/check-grade-clicks.ts`, `CPU=4` for a slow
+laptop). The cursor and count-in words are drawing only: they start when the
+first click is heard. Check timing books its clicks the same way, so a delay
+it saves matches a run (any term added to the beat must go in both). The
+end-to-end checks clap and sing to the page's own beat (`__gradeDebug.t0`),
+not the count-in word on screen, which trails it by a frame; against that,
+DETECT_LATENCY_MS fell from 110 to 80 and the fake microphone's delay from 36
+to 25.
 
 **Hear your take** (`src/lib/grade-playback.ts`, tests
 `grade-playback.test.ts`): every microphone run is recorded (grade-recording,
@@ -1180,7 +1196,7 @@ refractory time moves the clap to it (detectClaps, `LOUDER_DB`), and two
 sounds within 100 ms (half the closest notes at most) are one clap at the
 louder (`pairClaps`, solo only). On the raw microphone, without these, Blaine's
 6 October solo runs graded 60 and 38; with them 90 and 85. One quiet clap exactly on a click cannot be
-told from its echo. The microphone's delay is `CLAP_MIC_LATENCY_MS` (36; 45 through the echo-cancelled stream,
+told from its echo. The microphone's delay is `CLAP_MIC_LATENCY_MS` (25; it read 36, and 45 through the echo-cancelled stream, against the count-in word on screen,
 measured with the fake microphone) until **Check timing** (clap along with
 eight clicks) stores the median for this browser (`clapLatencyMs`).
 `bun run scripts/check-clap-grade.ts` checks it end to end (`WHO=class`,
