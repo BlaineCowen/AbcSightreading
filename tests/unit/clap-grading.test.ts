@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { detectBursts, detectClaps, withoutClickEcho, type ClapBlock } from "../../src/lib/clap-detect";
-import { gradeClaps, togetherLabel } from "../../src/lib/grade-rhythm";
+import { clapToleranceBeats, gradeClaps, togetherLabel } from "../../src/lib/grade-rhythm";
 import { voicingAt } from "../../src/lib/clap-detect";
 import { gradeSchedule } from "../../src/lib/grade";
 
@@ -101,10 +101,26 @@ describe("grading a clapped rhythm", () => {
   test("a clap 0.3 beats late is full credit on Easy, part on Standard", () => {
     const times = [0, 1300, 2000, 3000];
     expect(run("B8 B8 B8 B8 |", times, "easy").notes[1].rhythm).toBe(100);
-    const std = run("B8 B8 B8 B8 |", times, "standard").notes[1];
+    // Standard's full credit is 80 ms (CLAP_FULL_MS), nothing at 240: 300 ms
+    // late is a late clap with no credit, still matched rather than missed.
+    const far = run("B8 B8 B8 B8 |", times, "standard");
+    expect(far.notes[1]).toMatchObject({ missed: false, rhythm: 0 });
+    expect(far.notes[1].onsetBeats).toBeCloseTo(0.3, 5);
+    expect(far.strays).toHaveLength(0);
+    const std = run("B8 B8 B8 B8 |", [0, 1150, 2000, 3000], "standard").notes[1];
     expect(std.rhythm).toBeGreaterThan(0);
     expect(std.rhythm).toBeLessThan(100);
-    expect(std.onsetBeats).toBeCloseTo(0.3, 5);
+  });
+  test("Strict holds slow quarters to 40 ms, not an eighth of a beat", () => {
+    // At 60 BPM an eighth of a beat is 125 ms, which let claps audibly off score 100.
+    expect(run("B8 B8 B8 B8 |", [0, 1030, 2000, 3000], "strict").notes[1].rhythm).toBe(100);
+    expect(run("B8 B8 B8 B8 |", [0, 1060, 2000, 3000], "strict").notes[1].rhythm).toBe(75);
+    expect(run("B8 B8 B8 B8 |", [0, 1100, 2000, 3000], "strict").notes[1].rhythm).toBe(25);
+    expect(run("B8 B8 B8 B8 |", [0, 1100, 2000, 3000], "strict").rhythm).toBe(81);
+    expect(clapToleranceBeats("strict", 60)).toBeCloseTo(0.04, 5);
+    // Fast, an eighth of a beat is the smaller and still rules: 31 ms at 240.
+    expect(clapToleranceBeats("strict", 240)).toBe(0.125);
+    expect(clapToleranceBeats("easy", 60)).toBe(0.5);
   });
   test("a note not clapped is missed and scores 0", () => {
     const r = run("B8 B8 B8 B8 |", [0, 1000, 3000]);

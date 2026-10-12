@@ -89,6 +89,7 @@
   import { detectClaps } from "../lib/clap-detect";
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
+  import { clapToleranceBeats } from "../lib/grade-rhythm";
   import { clearGradeFeedback, drawGradeFeedback, revealTo } from "../lib/grade-feedback";
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
@@ -4296,7 +4297,7 @@
       claps: $gradeRunner.claps,
       doPc: gradeDoPc,
       nameOf: noteNameOf,
-      onsetBeats: STRICTNESS[$tuner.gradeStrictness].onsetBeats,
+      onsetBeats: $gradeRunner.claps ? clapToleranceBeats($tuner.gradeStrictness, tempo) : STRICTNESS[$tuner.gradeStrictness].onsetBeats,
       bpm: tempo,
     });
   }
@@ -4312,8 +4313,8 @@
       const r = v.claps.notes[i];
       if (!r) return null;
       if (r.missed) return `Note ${i + 1}: no clap heard`;
-      if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > STRICTNESS[$tuner.gradeStrictness].onsetBeats)
-        return `Note ${i + 1}: ${Math.abs(r.onsetBeats).toFixed(2)} beats ${r.onsetBeats > 0 ? "late" : "early"}`;
+      if (r.onsetBeats !== null && Math.abs(r.onsetBeats) > clapToleranceBeats($tuner.gradeStrictness, tempo))
+        return `Note ${i + 1}: ${Math.round((Math.abs(r.onsetBeats) * 60_000) / tempo)} ms ${r.onsetBeats > 0 ? "late" : "early"}`;
       return `Note ${i + 1}: on time`;
     }
     const want = noteNameOf(n.midi);
@@ -4720,7 +4721,8 @@
 
   /**
    * A rhythm clapped into the microphone or tapped (grade-rhythm.ts). With
-   * the microphone, the clap listener shares the tuner's stream; it is not
+   * the microphone, the clap listener opens its own stream on the tuner's
+   * context, without echo cancellation (clap-listener.ts); it is not
    * awaited, since nothing may await between the tuner starting and the run
    * starting, and the count-in gives it time to load.
    */
@@ -4760,10 +4762,11 @@
   /**
    * The microphone's delay for a clap until Check timing has measured it:
    * measured end to end with the fake microphone (scripts/check-clap-grade.ts
-   * MEASURE=1: 45 ms on every clap). A real microphone adds its own, which
+   * MEASURE=1: 36 ms on every clap; 45 through the tuner's echo-cancelled
+   * stream, before the listener had its own). A real microphone adds its own, which
    * Check timing finds.
    */
-  const CLAP_MIC_LATENCY_MS = 45;
+  const CLAP_MIC_LATENCY_MS = 36;
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
   $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";

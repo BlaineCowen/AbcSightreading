@@ -3,7 +3,7 @@
   import { tuner } from "../lib/tuner/store";
   import type { GradeRunner } from "../lib/grade-runner";
   import { guidance, STRICTNESS, type Strictness } from "../lib/grade";
-  import { togetherLabel } from "../lib/grade-rhythm";
+  import { CLAP_FULL_MS, togetherLabel } from "../lib/grade-rhythm";
 
   /**
    * Grade's strip on the Unison page (rules in grade.ts, the run in
@@ -261,7 +261,7 @@
           <span>Strictness</span>
           {#each STRICT_LEVELS as [id, lv]}
             <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeStrictness === id ? 'sr-on' : ''}" aria-pressed={$tuner.gradeStrictness === id} on:click={() => tuner.setGrade({ gradeStrictness: id })}
-              title={rhythmOnly ? `In time within ${lv.onsetBeats} of a beat` : `In tune within ${lv.cents} cents${performance ? `; in time within ${lv.onsetBeats} of a beat` : ""}`}>{lv.label}</button>
+              title={rhythmOnly ? `In time within ${CLAP_FULL_MS[id] === Infinity ? `${lv.onsetBeats} of a beat` : `${CLAP_FULL_MS[id]} ms (${lv.onsetBeats} of a beat when that is less)`}` : `In tune within ${lv.cents} cents${performance ? `; in time within ${lv.onsetBeats} of a beat` : ""}`}>{lv.label}</button>
           {/each}
         </div>
         {#if performance || rhythmOnly}

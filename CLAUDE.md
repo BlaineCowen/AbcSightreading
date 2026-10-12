@@ -1099,7 +1099,11 @@ device hears the room and grades it as one. Rules in `src/lib/grade-rhythm.ts`
 notes one to one and in order (a small dynamic program), each within its
 note's window: three onset windows, never past halfway to a neighbouring
 note (reaching to the neighbour let every clap after a missed note slide one
-note over). Credit is the singing grade's onset rule. Every clap matched to
+note over). Credit is the singing grade's onset rule, with the full-credit
+window capped in ms for claps (`CLAP_FULL_MS`: Standard 80, Strict 40; Easy
+uncapped): a share of a beat let Strict forgive 125 ms at 60 BPM, so slow
+quarters clapped audibly off scored 100 (12 October 2026). Matching windows
+keep the beat's share, so a clap far off is late, not missed. Every clap matched to
 no note is a stray and counts as one more note scored 0 (rhythm = sum over
 notes + strays). A class's clap is a burst (`detectBursts`), timed where
 half its energy has arrived; its level is the root of its energy, so against
@@ -1138,8 +1142,11 @@ left on Just me; a Just me run whose claps come in clusters now says it
 sounded like a class (`soundedLikeClass`). The result lists what was not
 counted (chanted syllables, late claps folded in).
 
-The microphone is the tuner's own stream (`micInput`), listened to by
-`public/clap-detector.js`: the power above 1.5 kHz and over the whole band
+The microphone is a stream of its own on the tuner's context, with no echo
+cancellation (`ClapListener`; the tuner's stream is the fallback), listened
+to by `public/clap-detector.js`. Through the tuner's echo-cancelled stream a
+Windows laptop lost 6 of 16 claps on the beat, under the click (a sent run,
+12 October 2026: 71, every off-beat clap heard; 96 from its recording). It reads the power above 1.5 kHz and over the whole band
 every 128 samples, stamped on the audio clock and moved onto performance.now
 (`ClapListener`), since the tuner's 2048-sample frames are too coarse. A clap
 is a sudden rise of the high band (9 dB over its floor, and peaking 20 dB
@@ -1158,7 +1165,7 @@ says "missed" and a stray has its cross and "extra". The page's click heard back
 learned from the count-in, when nobody claps, and later a sound within 40 ms
 of a click counts only if 6 dB louder (`withoutClickEcho`); the click is off
 after the count-in by default. One quiet clap exactly on a click cannot be
-told from its echo. The microphone's delay is `CLAP_MIC_LATENCY_MS` (45,
+told from its echo. The microphone's delay is `CLAP_MIC_LATENCY_MS` (36; 45 through the echo-cancelled stream,
 measured with the fake microphone) until **Check timing** (clap along with
 eight clicks) stores the median for this browser (`clapLatencyMs`).
 `bun run scripts/check-clap-grade.ts` checks it end to end (`WHO=class`,
