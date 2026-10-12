@@ -122,6 +122,12 @@
    * its own" is a link worth sending.
    */
   let hiddenVoices: Set<string> = new Set();
+  /**
+   * Voices printed without solfège while a syllable system is on: the basses
+   * reading syllables while the rest read the notes, say. Empty is every voice,
+   * which is how it always was. In the share link and presets, like hiding.
+   */
+  let lyricsOff: Set<string> = new Set();
   let bpm = 60;
   let generatedBpm = 60;
   /** 0-1.5, 1 = as written. Remembered per browser, not put in the share link. */
@@ -713,7 +719,7 @@
     stepwiseEighths, voiceTexture, JSON.stringify(Object.entries(rhythmBias).sort()),
     accidentalsByStep, chromaticFrequency, focusChord,
     lyricSystem, minorSolfege, showChords, cursorMode, instrumentProgram, transposeSemitones,
-    [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','),
+    [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','), [...lyricsOff].sort().join(','),
     playbackVolume, $tuner.metronomeVolume, $tuner.clickWithMusic,
     $tuner.subdivision, $tuner.accent, $tuner.clickSound, $tuner.beatLevels?.join(',') ?? '', $tuner.subMask ?? '',
   ].join('|');
@@ -743,6 +749,11 @@
     exerciseVoices = names;
     if (names.length && names.every((n) => hiddenVoices.has(n))) {
       hiddenVoices = new Set();
+      updateURLParams();
+    }
+    // Solfège off under every voice reads as solfège off, which has its own button.
+    if (names.length && names.every((n) => lyricsOff.has(n))) {
+      lyricsOff = new Set();
       updateURLParams();
     }
   }
@@ -1016,6 +1027,7 @@
     // shared link always opened in four parts. Links carrying either still work.
     selectedVoicing = knownVoicing(p.get("voicing") ?? p.get("voices"));
     hiddenVoices = new Set((p.get("hide") ?? "").split(",").map((v) => v.trim()).filter(Boolean));
+    lyricsOff = new Set((p.get("solfegeOff") ?? "").split(",").map((v) => v.trim()).filter(Boolean));
     const keyParam = p.get("key") || "C";
     const keyList = keyParam.split(",").map((k) => k.trim()).filter(Boolean);
     selectedKeys = new Set(keyList.length ? keyList : ["C"]);
@@ -1089,6 +1101,7 @@
     p.set("transpose", String(transposeSemitones));
     p.set("texture", voiceTexture);
     if (hiddenVoices.size) p.set("hide", [...hiddenVoices].join(","));
+    if (lyricsOff.size) p.set("solfegeOff", [...lyricsOff].join(","));
     const biasPairs = Object.entries(rhythmBias);
     if (biasPairs.length) {
       p.set("bias", biasPairs.map(([n, v]) => `${n}:${v}`).join(","));
@@ -1716,6 +1729,7 @@
       instrumentProgram,
       transposeSemitones,
       hiddenVoices: [...hiddenVoices],
+      lyricsOff: [...lyricsOff],
       mutedVoices: [...mutedVoices],
       playbackVolume,
       click: currentClick(),
@@ -1737,6 +1751,7 @@
       instrumentProgram: isInstrumentProgram(p.instrumentProgram) ? Number(p.instrumentProgram) : instrumentProgram,
       transposeSemitones: clampTranspose(Number(p.transposeSemitones ?? 0)),
       hiddenVoices: new Set(Array.isArray(p.hiddenVoices) ? p.hiddenVoices.map(String) : []),
+      lyricsOff: new Set(Array.isArray(p.lyricsOff) ? p.lyricsOff.map(String) : []),
       mutedVoices: new Set(Array.isArray(p.mutedVoices) ? p.mutedVoices.map(String) : []),
       playbackVolume: numberIn(p.playbackVolume, 0, 1, playbackVolume),
       // Presets from before the metronome was one kept its level here, on
@@ -1756,6 +1771,7 @@
     instrumentProgram = d.instrumentProgram;
     transposeSemitones = d.transposeSemitones;
     hiddenVoices = d.hiddenVoices;
+    lyricsOff = d.lyricsOff;
     mutedVoices = d.mutedVoices;
     playbackVolume = d.playbackVolume;
     if (d.metronomeVolume !== null) tuner.setMetronomeVolume(d.metronomeVolume);
@@ -1990,6 +2006,7 @@
       minorSolfege,
       midiProgram: instrumentProgram,
       hiddenVoices: [...hiddenVoices],
+      lyricsOff: [...lyricsOff],
     };
   }
 
@@ -2004,6 +2021,23 @@
   /** Clicking the one that is already on turns it off, like a radio you can clear. */
   async function handleLyricSystem(system: LyricSystem) {
     lyricSystem = lyricSystem === system ? null : system;
+    await reRenderAnnotations();
+  }
+
+  /** The voices on the page, and which of them carry the syllables. */
+  $: lyricVoices = barVoices.filter((n) => !hiddenVoices.has(n));
+  $: lyricOn = lyricVoices.filter((n) => !lyricsOff.has(n));
+  $: lyricWhere = lyricOn.length === lyricVoices.length
+    ? "under each part"
+    : `under ${lyricOn.join(" and ")} only`;
+
+  /** Solfège on or off under one part. The last part keeps it: none at all is the system's own button. */
+  async function handleToggleLyricVoice(voiceName: string) {
+    const next = new Set(lyricsOff);
+    if (next.has(voiceName)) next.delete(voiceName);
+    else if (lyricVoices.some((n) => n !== voiceName && !next.has(n))) next.add(voiceName);
+    else return;
+    lyricsOff = next;
     await reRenderAnnotations();
   }
 
@@ -2022,6 +2056,10 @@
     { id: "chords", label: "Chord symbols", on: showChords },
     { id: "measures", label: "Measure numbers", on: scoreView.measureNumbers !== false },
     ...lyricSystems.map(([v, l]) => ({ id: v as string, label: l, on: lyricSystem === v })),
+    // With syllables on, which parts carry them - for a choir reading off the TV.
+    ...(lyricSystem && lyricVoices.length > 1
+      ? lyricVoices.map((n) => ({ id: `part:${n}`, label: `Syllables: ${n}`, on: !lyricsOff.has(n) }))
+      : []),
   ];
   async function pickAnnotation(id: string) {
     if (id === "clean") {
@@ -2030,6 +2068,7 @@
       await reRenderAnnotations();
     } else if (id === "chords") await handleToggleChords();
     else if (id === "measures") changeScoreView({ measureNumbers: scoreView.measureNumbers === false });
+    else if (id.startsWith("part:")) await handleToggleLyricVoice(id.slice(5));
     else await handleLyricSystem(id as LyricSystem);
   }
 
@@ -3355,16 +3394,29 @@
             Chord symbols above the top staff{lyricSystem ? ", " : "."}
           {/if}
           {#if lyricSystem === "movable"}
-            Movable do under each part: do is the tonic, so a tune reads the same in
+            Movable do {lyricWhere}: do is the tonic, so a tune reads the same in
             every key.
           {:else if lyricSystem === "fixed"}
-            Fixed do under each part: C is do whatever the key.
+            Fixed do {lyricWhere}: C is do whatever the key.
           {:else if lyricSystem === "names"}
-            The note names under each part.
+            The note names {lyricWhere}.
           {:else if !showChords}
             Clean: the same exercise, printed for sight-reading.
           {/if}
         </p>
+        {#if lyricSystem && lyricVoices.length > 1}
+          <!-- Which parts carry the syllables: the basses on solfège while the rest read the notes. -->
+          <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Solfège under">
+            <span class="text-xs text-sr-faint">Under</span>
+            {#each lyricVoices as name}
+              <button
+                class="sr-tok {lyricsOff.has(name) ? '' : 'sr-on'}"
+                aria-pressed={!lyricsOff.has(name)}
+                on:click={() => handleToggleLyricVoice(name)}
+              >{name}</button>
+            {/each}
+          </div>
+        {/if}
         {#if lyricSystem === "movable" && [...selectedKeys].some((k) => isMinorKey(k))}
           <!-- How minor is sung: the tonic as la (the relative major's syllables) or as do. -->
           <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Minor solfège">

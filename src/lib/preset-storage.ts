@@ -49,6 +49,8 @@ export interface PresetParams {
   instrumentProgram?: number;
   transposeSemitones?: number;
   hiddenVoices?: string[];
+  /** Voices printed without solfège; every voice has it when absent. */
+  lyricsOff?: string[];
   mutedVoices?: string[];
   playbackVolume?: number;
   metronomeVolume?: number;

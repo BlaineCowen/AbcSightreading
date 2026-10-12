@@ -49,6 +49,8 @@ export type FullLengthDisplay = {
   midiProgram?: number;
   /** Voices with no staff - every section leaves out the same ones. */
   hiddenVoices?: string[];
+  /** Voices printed without the lyric line (abc-assembly `lyricsOff`). */
+  lyricsOff?: string[];
 };
 
 export type FullLengthOptions = {

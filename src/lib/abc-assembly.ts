@@ -33,6 +33,12 @@ export interface AbcDisplayOptions {
    * just get no staff. Hiding every voice is ignored rather than drawing nothing.
    */
   hiddenVoices?: string[];
+  /**
+   * Voices printed without the lyric line, by full name ("Soprano"): solfège
+   * under the basses alone, say, while the rest read the notes. Every voice
+   * gets it when absent or empty, which is the score exactly as it was.
+   */
+  lyricsOff?: string[];
 }
 
 // Interface for additional metadata needed for the ABC header
@@ -284,7 +290,7 @@ export function assembleAbcString(
     // Solfège goes on its own `w:` line directly after this voice's body, which
     // is how ABC attaches lyrics to a voice. One syllable per *note* - rests
     // take no slot, or every later syllable would sit one note to the left.
-    if (display.lyrics) {
+    if (display.lyrics && !display.lyricsOff?.includes(part.name)) {
       const syllables = lyricLineFor(notesForPart, key, display.lyrics, display.minorSolfege);
       if (syllables.length > 0) abcString += `w: ${syllables.join(" ")}\n`;
     }
