@@ -69,6 +69,30 @@ export type ClapResult = {
  * one person's second clap that close is a double clap and still costs.
  */
 export const CLAP_MERGE_MS = 300;
+/**
+ * One person's clap often comes as two sounds 60-100 ms apart, a faint one
+ * then the clap itself 1.5 to 30 times louder (every sent recording, 12
+ * October 2026; the listener has heard the raw microphone since that day).
+ * The faint one was matched or left over as a stray, so a clap a little early
+ * read as "extra" and, scored by beat, cost its beat. Sounds this close are
+ * one clap, timed at the louder; never more than half the closest written
+ * notes apart, so fast sixteenths stay two claps.
+ */
+export const CLAP_PAIR_MS = 100;
+
+/** One person's sounds closer than `within` ms, as one clap at the louder: the merged list and how many were folded in. */
+export function pairClaps<T extends Clap>(claps: T[], within: number): { claps: T[]; folded: number } {
+  const out: T[] = [];
+  let folded = 0;
+  for (const c of claps) {
+    const last = out[out.length - 1];
+    if (last && c.t - last.t < within) {
+      folded++;
+      if (c.level > last.level) out[out.length - 1] = c;
+    } else out.push(c);
+  }
+  return { claps: out, folded };
+}
 /** Quieter than this share of the run's own claps: the room (talk, a chair), not a clap. */
 export const QUIET_SHARE = 0.25;
 /**
@@ -102,13 +126,15 @@ export const MAX_LAG_MS = 250;
  * tempo: the strictness's share of a beat alone (STRICTNESS onsetBeats) let
  * Strict forgive 125 ms at 60 BPM and 0 credit only at 375, so quarters
  * clapped audibly off the beat still scored 100 (Blaine, 12 October 2026).
- * A good solo run sits within 12 ms (median) and 39 ms (90th percentile),
+ * Strict was 40 ms for a few hours on 12 October 2026 and docked a clean
+ * Windows take to 94 (its claps wander about 70 ms around their own lag);
+ * at 50 it is 97. A good solo run sits within 12 ms (median) and 39 ms (90th percentile),
  * Blaine's class runs within 30-58 and 65-170. Easy stays a share of a beat.
  * Credit falls to nothing at three times this; where a clap may be matched
  * (`windowsFor`) is still the beat's share, so a clap far off is late, not
  * missed and a stray.
  */
-export const CLAP_FULL_MS: Record<Strictness, number> = { easy: Infinity, standard: 80, strict: 40 };
+export const CLAP_FULL_MS: Record<Strictness, number> = { easy: Infinity, standard: 80, strict: 50 };
 
 /** Beats a clap may be off with full credit, at this tempo. */
 export const clapToleranceBeats = (s: Strictness, bpm: number) =>
@@ -204,7 +230,10 @@ export function gradeClaps(
   // strays only (below).
   const isQuiet = (c: Clap) => typical > 0 && c.level < CLASS_QUIET_SHARE * typical;
   const quietHeard = o.who === "class" ? all.filter((c) => !c.voiced && isQuiet(c)) : [];
-  const moved = all.filter((c) => !c.voiced && !quietHeard.includes(c));
+  const sounds = all.filter((c) => !c.voiced && !quietHeard.includes(c));
+  const closest = Math.min(...notes.slice(1).map((n, i) => (n.startUnits - notes[i].startUnits) * unitMs), Infinity);
+  const paired = o.who === "solo" ? pairClaps(sounds, Math.min(CLAP_PAIR_MS, closest / 2)) : { claps: sounds, folded: 0 };
+  const moved = paired.claps;
   const voicedHeard = all.filter((c) => c.voiced);
   const lag = Math.max(-MAX_LAG_MS, Math.min(MAX_LAG_MS, steadyLag(moved.filter((c) => c.t >= written[0] - beatMs), written, beatMs)));
   // The windows sit where the claps steadily land; the credit is measured
@@ -304,7 +333,7 @@ export function gradeClaps(
     ...(o.who === "class" && spreads.length ? { together: Math.round(spreads[spreads.length >> 1]) } : {}),
     lagMs: Math.round(lag),
     lagForgiven: !!o.forgiveLag,
-    ignored: { voiced: voicedHeard.length - takenVoiced.size, merged: merged.length, quiet: quietHeard.filter((c) => !notes.length || c.t >= wins[0].from).length + quietLeft.length },
+    ignored: { voiced: voicedHeard.length - takenVoiced.size, merged: merged.length + paired.folded, quiet: quietHeard.filter((c) => !notes.length || c.t >= wins[0].from).length + quietLeft.length },
     ...(clustered >= Math.max(3, 0.25 * n) ? { soundedLikeClass: true } : {}),
   };
 }

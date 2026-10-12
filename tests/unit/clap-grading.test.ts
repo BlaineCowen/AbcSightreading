@@ -47,6 +47,13 @@ describe("hearing claps", () => {
     const found = detectClaps(blocks(1200, [clap(400, 0.3), clap(420, 0.05)]));
     expect(found.length).toBe(1);
   });
+  test("a faint lead-in just before a clap does not hide the clap", () => {
+    // A Windows laptop: something faint crossed first, the clap 30 ms on, 35 dB louder.
+    const found = detectClaps(blocks(1200, [clap(400, 0.003), clap(430, 0.3)]));
+    expect(found.length).toBe(1);
+    expect(Math.abs(found[0].t - 430)).toBeLessThanOrEqual(3);
+    expect(found[0].level).toBeGreaterThan(0.2);
+  });
   test("a bump in a clap's ring (a reflection) is not a second clap", () => {
     // Blaine's run: a clap, and 60 ms on a reflection rising 12 dB out of its ring.
     const found = detectClaps(blocks(1200, [clap(400, 0.3), clap(460, 0.3 * 10 ** (-28 / 20))]));
@@ -72,6 +79,19 @@ describe("hearing claps", () => {
     // The count-in's echoes are left for the grading to ignore (before the first note);
     // after it, the echo at 2500 goes, the loud clap at 2008 and the clap away from any click stay.
     expect(kept.filter((c) => c.t >= 1900).map((c) => c.t)).toEqual([2008, 2250]);
+  });
+  test("an echo that comes back late is learned at its delay and dropped there", () => {
+    // A Windows laptop: the click heard 160 ms after each beat.
+    const clicks = [0, 1000, 2000, 3000, 4000, 5000];
+    const echo = clicks.map((k) => ({ t: k + 160, level: 0.07 }));
+    const claps = [{ t: 4030, level: 0.46 }, { t: 5040, level: 0.5 }];
+    const kept = withoutClickEcho([...echo, ...claps].sort((a, b) => a.t - b.t), clicks, 3900);
+    expect(kept.filter((c) => c.t >= 3900).map((c) => c.t)).toEqual([4030, 5040]);
+  });
+  test("a room clapping along with the count-in is not taken for the echo", () => {
+    const clicks = [0, 1000, 2000, 3000, 4000, 5000];
+    const heard = clicks.map((k) => ({ t: k + 100, level: 0.3 }));
+    expect(withoutClickEcho(heard, clicks, 3900)).toEqual(heard);
   });
   test("with nothing heard at the count-in's clicks, nothing is left out", () => {
     const claps = [{ t: 2010, level: 0.001 }];
@@ -111,13 +131,13 @@ describe("grading a clapped rhythm", () => {
     expect(std.rhythm).toBeGreaterThan(0);
     expect(std.rhythm).toBeLessThan(100);
   });
-  test("Strict holds slow quarters to 40 ms, not an eighth of a beat", () => {
+  test("Strict holds slow quarters to 50 ms, not an eighth of a beat", () => {
     // At 60 BPM an eighth of a beat is 125 ms, which let claps audibly off score 100.
-    expect(run("B8 B8 B8 B8 |", [0, 1030, 2000, 3000], "strict").notes[1].rhythm).toBe(100);
-    expect(run("B8 B8 B8 B8 |", [0, 1060, 2000, 3000], "strict").notes[1].rhythm).toBe(75);
-    expect(run("B8 B8 B8 B8 |", [0, 1100, 2000, 3000], "strict").notes[1].rhythm).toBe(25);
-    expect(run("B8 B8 B8 B8 |", [0, 1100, 2000, 3000], "strict").rhythm).toBe(81);
-    expect(clapToleranceBeats("strict", 60)).toBeCloseTo(0.04, 5);
+    expect(run("B8 B8 B8 B8 |", [0, 1040, 2000, 3000], "strict").notes[1].rhythm).toBe(100);
+    expect(run("B8 B8 B8 B8 |", [0, 1060, 2000, 3000], "strict").notes[1].rhythm).toBe(90);
+    expect(run("B8 B8 B8 B8 |", [0, 1100, 2000, 3000], "strict").notes[1].rhythm).toBe(50);
+    expect(run("B8 B8 B8 B8 |", [0, 1100, 2000, 3000], "strict").rhythm).toBe(88);
+    expect(clapToleranceBeats("strict", 60)).toBeCloseTo(0.05, 5);
     // Fast, an eighth of a beat is the smaller and still rules: 31 ms at 240.
     expect(clapToleranceBeats("strict", 240)).toBe(0.125);
     expect(clapToleranceBeats("easy", 60)).toBe(0.5);
@@ -128,11 +148,23 @@ describe("grading a clapped rhythm", () => {
     expect(r.rhythm).toBe(75);
   });
   test("two claps on one note: one counts, one is a stray, and the stray costs its beat", () => {
-    const r = run("B8 B8 B8 B8 |", [0, 1000, 1080, 2000, 3000]);
+    const r = run("B8 B8 B8 B8 |", [0, 1000, 1130, 2000, 3000]);
     expect(r.notes.every((n) => n.rhythm === 100)).toBe(true);
     expect(r.strays.length).toBe(1);
     expect(r.rhythm).toBe(75); // 3 of 4 beats
     expect(r).toMatchObject({ beats: 4, beatsRight: 3 });
+  });
+  test("one person's clap heard as two sounds close together is one clap, at the louder", () => {
+    // A faint sound 60 ms ahead of a clap that is itself 50 ms early: one clap, no stray.
+    const r = gradeClaps(gradeSchedule(abc("B8 B8 B8 B8 |")), [{ t: 0, level: 1 }, { t: 890, level: 0.3 }, { t: 950, level: 1 }, { t: 2000, level: 1 }, { t: 3000, level: 1 }], { t0: 0, bpm: 60, beatUnits: 8, strictness: "standard", who: "solo" });
+    expect(r.strays).toHaveLength(0);
+    expect(r.notes[1].onsetBeats).toBeCloseTo(-0.05, 5);
+    expect(r.ignored.merged).toBe(1);
+    expect(r).toMatchObject({ beatsRight: 4, rhythm: 100 });
+    // Fast sixteenths (150 ms apart at 100 BPM) stay two claps: the pair is at most half that.
+    const fast = gradeClaps(gradeSchedule(abc("B2 B2 B2 B2 B8 B8 B8 |")), [0, 150, 300, 450, 600, 1200, 1800].map((t) => ({ t, level: 1 })), { t0: 0, bpm: 100, beatUnits: 8, strictness: "standard", who: "solo" });
+    expect(fast.notes.every((n) => !n.missed)).toBe(true);
+    expect(fast.rhythm).toBe(100);
   });
   test("by beat: a ti-ti clapped as ta loses the whole beat", () => {
     // ta ti-ti ta ta, clapped as four quarters: 4 of 5 notes, but 3 of 4 beats.
