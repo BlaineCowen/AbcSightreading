@@ -367,7 +367,7 @@
           <p class="note"><Sparkles size={14} class="inline -mt-0.5" /> This sounded like a whole class. For a room, choose <b>The class</b> before you start.</p>
         {/if}
         {#if claps?.ignored && claps.ignored.voiced + claps.ignored.merged > 0}
-          <p class="text-xs text-sr-muted">Not counted against you: {[claps.ignored.voiced && `${claps.ignored.voiced} chanted syllable${claps.ignored.voiced === 1 ? "" : "s"}`, claps.ignored.merged && `${claps.ignored.merged} late claps folded into the class's clap`].filter(Boolean).join(" and ")}.</p>
+          <p class="text-xs text-sr-muted">Not counted against you: {[claps.ignored.voiced && `${claps.ignored.voiced} chanted syllable${claps.ignored.voiced === 1 ? "" : "s"}`, claps.ignored.merged && ($tuner.gradeWho === "class" ? `${claps.ignored.merged} late claps folded into the class's clap` : `${claps.ignored.merged} double sound${claps.ignored.merged === 1 ? "" : "s"} heard as one clap`)].filter(Boolean).join(" and ")}.</p>
         {/if}
         <p class="text-xs text-sr-muted">
           {#if v.perf}On the music: a wrong note shows the note you sang beside it, and the line is your pitch, blue on the note, red off it. An arrow means early or late. Tap a note for details.{:else}On the music: an arrow means a clap came early or late; a cross, a stray clap. Tap a note for details.{/if}

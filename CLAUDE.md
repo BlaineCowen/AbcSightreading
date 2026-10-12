@@ -1100,7 +1100,7 @@ notes one to one and in order (a small dynamic program), each within its
 note's window: three onset windows, never past halfway to a neighbouring
 note (reaching to the neighbour let every clap after a missed note slide one
 note over). Credit is the singing grade's onset rule, with the full-credit
-window capped in ms for claps (`CLAP_FULL_MS`: Standard 80, Strict 40; Easy
+window capped in ms for claps (`CLAP_FULL_MS`: Standard 80, Strict 50; Easy
 uncapped): a share of a beat let Strict forgive 125 ms at 60 BPM, so slow
 quarters clapped audibly off scored 100 (12 October 2026). Matching windows
 keep the beat's share, so a clap far off is late, not missed. Every clap matched to
@@ -1169,9 +1169,17 @@ Check timing has run it is taken to be the microphone and not counted
 100. On the score each early or late note has a labelled arrow from the note
 to where it came in (orange with some credit, red with none), a missed note
 says "missed" and a stray has its cross and "extra". The page's click heard back is
-learned from the count-in, when nobody claps, and later a sound within 40 ms
-of a click counts only if 6 dB louder (`withoutClickEcho`); the click is off
-after the count-in by default. One quiet clap exactly on a click cannot be
+learned from the count-in, when nobody claps, with its delay (a Windows
+laptop heard it 160 ms late, past the 40 ms once looked in, and the echo took
+the note from the clap), and later a sound within 40 ms of a click's echo
+counts only if 3 times louder (`withoutClickEcho`); an "echo" as loud as the
+run's claps is a room clapping along with the count-in and is not learned; the click is off
+after the count-in by default. One person's clap often comes as two sounds,
+a faint one then the clap 60-100 ms on: a much louder sound within the 60 ms
+refractory time moves the clap to it (detectClaps, `LOUDER_DB`), and two
+sounds within 100 ms (half the closest notes at most) are one clap at the
+louder (`pairClaps`, solo only). On the raw microphone, without these, Blaine's
+6 October solo runs graded 60 and 38; with them 90 and 85. One quiet clap exactly on a click cannot be
 told from its echo. The microphone's delay is `CLAP_MIC_LATENCY_MS` (36; 45 through the echo-cancelled stream,
 measured with the fake microphone) until **Check timing** (clap along with
 eight clicks) stores the median for this browser (`clapLatencyMs`).

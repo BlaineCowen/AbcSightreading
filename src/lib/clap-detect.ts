@@ -39,6 +39,8 @@ const ABS_GATE_DB = -70;
 const PEAK_MS = 15;
 /** Two claps of one person are at least this far apart (a clap rings on). */
 export const CLAP_REFRACTORY_MS = 60;
+/** A sound this much louder than what crossed first, within the refractory time, is the clap. */
+const LOUDER_DB = 10;
 /** At its peak at least this share of a clap's power is in the high band (a voice's is far less). */
 const HI_SHARE = 0.15;
 /**
@@ -86,15 +88,29 @@ export function detectClaps(blocks: ClapBlock[]): Clap[] {
     const b = blocks[i];
     const level = db(b.hi);
     if (b.t < quietUntil || level < ABS_GATE_DB || level - floor[i] < CLAP_RISE_DB) continue;
-    let peak = i;
-    for (let j = i + 1; j < blocks.length && blocks[j].t - b.t <= PEAK_MS; j++) if (blocks[j].hi > blocks[peak].hi) peak = j;
-    const p = blocks[peak];
+    const peakFrom = (k: number) => {
+      let pk = k;
+      for (let j = k + 1; j < blocks.length && blocks[j].t - blocks[k].t <= PEAK_MS; j++) if (blocks[j].hi > blocks[pk].hi) pk = j;
+      return pk;
+    };
+    let peak = peakFrom(i);
     let before = Infinity;
     for (let j = i - 1; j >= 0 && b.t - blocks[j].t <= RISE_MS; j--) before = Math.min(before, levels[j]);
     if (before !== Infinity && levels[peak] - before < RISE_DB) continue;
+    // A much louder sound just after is the clap; what crossed first was its
+    // faint lead-in (or the click heard back), and the refractory time would
+    // have hidden the clap itself (a Windows laptop, 12 October 2026: the
+    // lead-in at 0.01, the clap 30 ms on at 0.5).
+    let at = i;
+    for (let j = peak + 1; j < blocks.length && blocks[j].t - b.t <= CLAP_REFRACTORY_MS; j++) {
+      if (levels[j] < levels[peak] + LOUDER_DB) continue;
+      at = j;
+      peak = peakFrom(j);
+    }
+    const p = blocks[peak];
     if (p.hi < HI_SHARE * p.full) continue;
-    claps.push({ t: b.t, level: Math.sqrt(p.hi) });
-    quietUntil = b.t + CLAP_REFRACTORY_MS;
+    claps.push({ t: blocks[at].t, level: Math.sqrt(p.hi) });
+    quietUntil = blocks[at].t + CLAP_REFRACTORY_MS;
   }
   return claps;
 }
@@ -150,18 +166,51 @@ export function detectBursts(blocks: ClapBlock[]): Clap[] {
 
 /**
  * The page's own click, heard back through the microphone. The count-in
- * clicks while nobody should clap, so what the microphone hears near those
- * clicks is the echo, and its level is learned there. Afterwards a sound near
- * a click is a clap only if it is clearly louder than the echo (6 dB). With
- * echo cancellation doing its job nothing is learned and nothing is dropped.
+ * clicks while nobody should clap, so what the microphone hears just after
+ * those clicks is the echo: its delay and its level are learned there.
+ * Afterwards a sound at a click's echo is a clap only if it is clearly louder
+ * than the echo (ECHO_MARGIN). With echo cancellation doing its job nothing is
+ * learned and nothing is dropped.
+ *
+ * The delay matters since the listener hears the raw microphone (12 October
+ * 2026): on a Windows laptop the click came back 160 ms after the beat, and
+ * looked for only within 40 ms of the beat it was never learned. With the
+ * clapper's own 100 ms forgiven as the microphone's, the echo then sat nearer
+ * the note than the clap itself and took it, the clap marked "extra".
  */
 export const ECHO_NEAR_MS = 40;
+/**
+ * A sound at the echo must be this many times the count-in's echo to be a
+ * clap (9.5 dB): the run's echoes came back up to twice the count-in's (0.15
+ * against 0.07), a clap at 0.37 and up.
+ */
+const ECHO_MARGIN = 3;
+/** An echo is quieter than this share of the run's loud sounds, its claps (the Windows laptop's: 0.13). */
+const ECHO_MAX_SHARE = 0.4;
+/** The echo is looked for this long after each count-in click. */
+export const ECHO_MAX_DELAY_MS = 300;
 export function withoutClickEcho<T extends Clap>(claps: T[], clicks: number[], countInEnd: number): T[] {
-  const near = (c: Clap) => clicks.some((k) => Math.abs(c.t - k) <= ECHO_NEAR_MS);
-  const heard = claps.filter((c) => c.t < countInEnd && near(c)).map((c) => c.level);
-  if (!heard.length) return claps;
-  const echo = median(heard);
-  return claps.filter((c) => !(near(c) && c.level < echo * 2));
+  const delays: number[] = [];
+  const levels: number[] = [];
+  for (const k of clicks.filter((k) => k < countInEnd)) {
+    const c = claps.find((c) => c.t >= k - ECHO_NEAR_MS && c.t <= k + ECHO_MAX_DELAY_MS && c.t < countInEnd);
+    if (c) {
+      delays.push(c.t - k);
+      levels.push(c.level);
+    }
+  }
+  if (delays.length < 2) return claps;
+  const delay = median(delays);
+  const echo = median(levels);
+  // As loud as the run's own claps is not an echo: the room clapped along
+  // with the count-in (Blaine's class, 8 October), and taken for the echo it
+  // threw out every clap of the run.
+  // The run's claps are its loud sounds (much of what is heard may be echo).
+  const after = claps.filter((c) => c.t >= countInEnd).map((c) => c.level).sort((a, b) => a - b);
+  const run = after.length ? after[Math.floor(after.length * 0.8)] : 0;
+  if (run > 0 && echo > ECHO_MAX_SHARE * run) return claps;
+  const near = (c: Clap) => clicks.some((k) => Math.abs(c.t - (k + delay)) <= ECHO_NEAR_MS);
+  return claps.filter((c) => !(near(c) && c.level < echo * ECHO_MARGIN));
 }
 
 /**
