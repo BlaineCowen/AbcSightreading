@@ -10,9 +10,15 @@ import type { Clap } from "./clap-detect";
  * one clap cannot serve two notes. A note's credit is the onset rule the
  * singing grade uses: full within the strictness's window, down to nothing at
  * three times it; no clap, nothing. Every clap matched to no note - in a rest,
- * a second clap on a note, before or after the music - is a stray, and counts
- * as one more note scored 0: one stray in 16 notes costs what one missed note
- * does.
+ * a second clap on a note, before or after the music - is a stray.
+ *
+ * The score is beat by beat (`scoreByBeats`), the way a teacher marks: a beat
+ * is right only if every note starting in it was clapped and nothing extra
+ * landed in it, and then it scores its notes' timing credit. Note by note
+ * (credit over notes + strays) let a wrong rhythm score high: clapping only
+ * the beat through ti-ti got 70, a made-up rhythm on the grid up to 92 (a
+ * sent run's exercise, 12 October 2026, 2,000 random trials); beat by beat
+ * those are 56 and 88 at most (35 on average on Strict), the real run 94.
  *
  * A class is graded as one room (`who: "class"`): each clap is the room's
  * burst (clap-detect `detectBursts`), whose level against the room's usual
@@ -40,6 +46,9 @@ export type ClapResult = {
   letter: string;
   notes: ClapNote[];
   strays: StrayClap[];
+  /** Beats with a note or a stray in them, and how many of those were right (`scoreByBeats`). */
+  beats: number;
+  beatsRight: number;
   /** A class: the median width of its claps, in ms (how together it was). */
   together?: number;
   /** How far behind (+) or ahead the claps ran as a whole, in ms (`steadyLag`). */
@@ -124,6 +133,33 @@ export function windowsFor(onsets: number[], reach: number, edge = reach) {
     from: on - Math.min(reach, i ? (on - onsets[i - 1]) / 2 : edge),
     to: on + Math.min(reach, i < onsets.length - 1 ? (onsets[i + 1] - on) / 2 : edge),
   }));
+}
+
+/**
+ * The score, beat by beat. A beat with notes starting in it scores their mean
+ * credit if none was missed and no stray fell in it; a stray costs its
+ * weight (a whole one for one person, a class's by how much of the room
+ * clapped), so the beat keeps what is left. A beat where no note starts (a
+ * rest, a held note) counts only if a stray fell in it, then as 0. A stray
+ * belongs to the beat it is nearest the start of: up to a quarter beat early
+ * is the next beat's.
+ */
+export function scoreByBeats(notes: ClapNote[], strays: StrayClap[], beatUnits: number) {
+  const beatOf = (units: number) => Math.max(0, Math.floor(units / beatUnits));
+  const byBeat = new Map<number, { notes: ClapNote[]; stray: number }>();
+  const at = (b: number) => byBeat.get(b) ?? (byBeat.set(b, { notes: [], stray: 0 }), byBeat.get(b)!);
+  for (const n of notes) at(beatOf(n.startUnits)).notes.push(n);
+  for (const s of strays) at(beatOf(s.units + beatUnits / 4)).stray += s.weight;
+  let total = 0;
+  let right = 0;
+  for (const { notes: ns, stray } of byBeat.values()) {
+    if (!ns.length || ns.some((n) => n.missed)) continue;
+    const score = (ns.reduce((a, n) => a + n.rhythm, 0) / ns.length) * Math.max(0, 1 - stray);
+    total += score;
+    if (score >= 90) right++;
+  }
+  const beats = byBeat.size;
+  return { rhythm: beats ? Math.round(total / beats) : 0, beats, beatsRight: right };
 }
 
 export function gradeClaps(
@@ -256,14 +292,15 @@ export function gradeClaps(
       weight: o.who === "class" && usual > 0 ? Math.min(1, c.level / usual) : 1,
     }));
 
-  const counted = n + strays.reduce((a, s) => a + s.weight, 0);
-  const rhythm = counted ? Math.round(out.reduce((a, x) => a + x.rhythm, 0) / counted) : 0;
+  const { rhythm, beats, beatsRight } = scoreByBeats(out, strays, o.beatUnits);
   const spreads = fill.filter((c): c is Clap => !!c && !c.voiced).map((c) => c.spread).filter((s): s is number => s !== undefined).sort((a, b) => a - b);
   return {
     rhythm,
     letter: letterFor(rhythm),
     notes: out,
     strays,
+    beats,
+    beatsRight,
     ...(o.who === "class" && spreads.length ? { together: Math.round(spreads[spreads.length >> 1]) } : {}),
     lagMs: Math.round(lag),
     lagForgiven: !!o.forgiveLag,

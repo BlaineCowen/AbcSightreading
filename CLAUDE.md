@@ -1104,8 +1104,15 @@ window capped in ms for claps (`CLAP_FULL_MS`: Standard 80, Strict 40; Easy
 uncapped): a share of a beat let Strict forgive 125 ms at 60 BPM, so slow
 quarters clapped audibly off scored 100 (12 October 2026). Matching windows
 keep the beat's share, so a clap far off is late, not missed. Every clap matched to
-no note is a stray and counts as one more note scored 0 (rhythm = sum over
-notes + strays). A class's clap is a burst (`detectBursts`), timed where
+no note is a stray. The score is beat by beat (`scoreByBeats`, 12 October
+2026), the way a teacher marks: a beat counts its notes' credit only if every
+note starting in it was clapped and no stray fell in it (a stray costs its
+weight); a beat with no note starting counts only if a stray fell in it, as
+0. "Beats right" heads the results. Note by note (credit over notes +
+strays) let a wrong rhythm score high: on a sent run's exercise, 2,000
+random trials, the steady beat through ti-ti got 70 and a made-up rhythm on
+the grid up to 92; beat by beat 56 and 88 (35 on average on Strict), random
+times 6-25, the real run 94. A class's clap is a burst (`detectBursts`), timed where
 half its energy has arrived; its level is the root of its energy, so against
 the room's usual level it is the root of the share of the room that clapped:
 a stray from one child in twenty weighs about 0.2, a whole room's 1, and a
