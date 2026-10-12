@@ -1,163 +1,136 @@
 # Live practice
 
-Built 7 October 2026 on the `live-practice` branch (from `grading`).
-Sight Reading Factory's "Live Practice", matched and beaten: a teacher's
-exercise on every student's own device, each showing only their part, and
-every new exercise arriving on all of them within two seconds.
+Built 7 October 2026 as per-session codes (`live-practice` branch), reshaped
+12 October 2026 on the `live-room` branch into what Blaine asked for: a
+**permanent link per director**, on a QR poster on the classroom wall. While
+the director has Live on, every student's device on that link shows the exact
+exercise on the director's page, each reading the part it chose. With Live
+off, the link waits.
 
 ## What it does
 
-**Teacher** (Choral page and Unison page, Pro or Educator): a mint **Live**
-button beside Generate (hidden for student accounts and while an assignment
-is open; a free or signed-out teacher sees it with a Pro tag and is sent to
-/pricing or /login). Pressing it starts a session and opens a panel:
+**Director** (Choral and Unison pages; Pro or Educator, not a student
+account): a mint **Live** button beside New exercise. It turns Live on and
+opens the panel:
 
-- the code, big enough to project (`482-KTZ`), and a QR code to
-  `<site>/live?code=482KTZ`;
-- how many devices are connected, and how many on each part;
-- **Start together**: every device shows a count-in ("1, 2, Ready, Go", the
-  page's own count-in words) and then highlights each note as it comes, in
-  time, from one start on the server clock; **Stop** clears it;
-- **Hide this** (the Live button then shows the code and the device count,
-  and opens the panel again) and **End session**.
+- the room's code, big enough to project (`482-KTZ`), its address
+  (`abc-sightreading.com/live/482KTZ`) and a QR code to it. **The code never
+  changes**: it is the director's room, made the first time and kept;
+- how many devices are connected, and on which parts;
+- **Start together**: every device counts in ("1, 2, Ready, Go") and then
+  highlights each note in time, from one start on the server clock; **Stop**;
+- **Print the poster** (`/live/poster`: "Scan to see the music", the QR,
+  the address and the code; print once and leave it up), **Hide this**,
+  **Turn Live off**;
+- **Need a new link?**: a new code when a link has got out. The old address
+  and its posters stop working; codes are never reused.
 
-From then on whatever the page draws is sent: every Generate, history
-step, opened link, and every change of chord symbols, solfège, rhythm
-syllables or tempo. The same score twice is sent once. A reloaded page picks
-its open session up again.
+While Live is on the button shows the code and the device count. Whatever the
+page draws is sent: every New exercise, history step, opened link, and every
+change of chord symbols, solfège, rhythm syllables or tempo. The same score
+twice is sent once. A reloaded page carries on while Live is on. Opening the
+panel puts away the first visit's welcome card and any tour (`tourStepAside`
+in tour.ts): it carries the code and QR the room needs to see.
 
-**Student** (`/live`, linked from /join and the account page): type the
-code (or open the QR link), pick a part (Soprano, Alto, ... or the full
-score; remembered per session in this browser), and that part is drawn big
-on white paper in either theme, without the part's name down the side,
-bars per line from `score-layout.ts`, a size control, the copyright line.
-Chord symbols the teacher shows are copied onto every part (they are written
-on the top voice). "Hear my part" plays it with abcjs and highlights the
-notes. New exercises replace the old with a "New exercise" badge; the part
-is kept. When the teacher ends the session the page says so.
+**Students** (`/live/<code>`, the poster's address; `/live` to type a code,
+and old `/live?code=` links land on the room's address): no account. With Live
+off the page says "Waiting for <director>" and keeps listening; when Live comes
+on the exercise appears with no tap. A device picks a part (Soprano, Alto, ...
+or the full score), remembered in that browser for that room, so a bass sees
+the bass part every day, after a reload, and when Live goes off and on again.
+The part is drawn big on white paper in either theme, without its name down
+the side, with a size control and the copyright line; chord symbols the
+director shows are copied onto every part. "Hear my part" plays it. New
+exercises replace the old with a "New exercise" badge; the part is kept.
 
-**No account, nothing personal.** A device sends a random id it made up
-(localStorage `sr-live-device`) and the part it reads, so the teacher's
-panel can count it. /live renders with `Layout childSafe`: no analytics, no
-feedback form, the same as a student account's pages. Signed-in students
-use it the same way. Unlike SRF, students need no paid seat.
+**Nothing personal is kept.** A device sends a random id it made up
+(localStorage `sr-live-device`) and its part, so the panel can count it.
+/live renders with `Layout childSafe`: no analytics, no feedback form.
 
 ## How it works
 
-- `src/lib/live.ts`: every rule, unit-tested in `tests/unit/live.test.ts`
-  (28 tests, looped 20 times): codes (three digits then three letters, the
-  class-code alphabet reversed so the two can never be confused, with hints
-  that say "that looks like a class code"), expiry, device counting, poll
-  timing and backoff, the ETag, publish validation, the Start together
-  timing and the NTP-style clock offset, a per-instance rate limiter, and
-  `extractVoice`, which takes one part out of a multi-voice score. It is
-  tested against the assembler itself: for a generated SATB exercise, in
-  every display (plain, solfège, chord symbols, both), each extracted part
-  equals byte for byte what `renderChoral` writes with the other three
-  voices hidden, lifted chord symbols included.
-- `src/lib/server/live.ts` and `src/pages/api/live/`:
-  - `POST /api/live { page }` starts a session (signed in, `hasPremium`, not
-    a student account; checked on the server). It ends the teacher's other
-    open sessions and deletes sessions finished more than a day ago.
-    `GET /api/live` returns the open one.
-  - `GET /api/live/<code>?since=<version>` is the students' poll, every
-    1.5 s while the page is seen, 6 s hidden, backing off on errors. It
-    answers `{ version, play }` and, only when the version differs from
-    `since`, the score `{ abc, settings, page }`; ETag/304; and
-    `Vercel-CDN-Cache-Control: max-age=1`, so every device in a room asking
-    the same address costs about one database query a second per class.
-  - `PUT /api/live/<code> { abc, settings }` publishes (owner only; version
-    + 1, pushes the expiry back). `DELETE` ends it.
-  - `POST /api/live/<code>/beat { device, part }` every 15 s from each
-    device (one `updateMany` in the usual case; at most 400 devices).
-  - `GET /api/live/<code>/devices` for the teacher's panel every 4 s:
-    devices seen in the last 40 s, by part; keeps the session alive.
-  - `POST /api/live/<code>/play { start, bpm }` sets or clears the start:
-    `{ id, at, bpm, version }`, `at` 3.5 s from now on the server clock.
-  - `GET /api/live/time` is the server clock; each device takes five
-    readings and trusts the quickest round trip.
-- Sessions end when ended, or 3 hours after the teacher's last activity
-  (publish, Start together, or the panel being open), and never more than 12
-  hours after starting.
-- Rate limits are in memory per server instance (a guard, not a quota):
-  polls per address loose (a class shares a school's address), unknown codes
-  30 a minute per address (stops guessing), heartbeats 12 a minute per
-  device, teacher calls 240 a minute.
-- UI: `src/components/LiveTeacher.svelte` (the button and panel, QR from
-  `src/lib/qr.ts` on the small MIT `qrcode-generator` package),
-  `src/components/LiveStudent.svelte`, `src/pages/live.astro`. Choral sends
-  `renderCurrent({ ...displayOptions(), hiddenVoices: [] })` (every voice
-  whatever the teacher hides on their own screen); Unison sends
-  `withChosenAnnotations(renderedString[0])`.
+- `src/lib/live.ts`: the rules, unit-tested in `tests/unit/live.test.ts`:
+  codes (three digits then three letters, never mistakable for a class code),
+  `livePath`, on-air and expiry (`LIVE_IDLE_MS` 3 h since the director's last
+  activity, `LIVE_MAX_MS` 12 h from Live on), device counting
+  (`DEVICE_WINDOW_MS` 40 s, heartbeats every 15 s), poll timing and backoff
+  (slower while waiting), the ETag, publish validation, Start together timing
+  and the clock offset, the per-instance rate limiter, the remembered part,
+  and `extractVoice`, which takes one part out of a multi-voice score (held
+  byte for byte to what `renderChoral` writes with the other voices hidden).
+- Schema: `LiveRoom` (one per director, `teacherId` unique, `code` unique and
+  permanent; the current `abc`, `version`, `settings`, `play`; on air while
+  `endedAt` is unset and `endsAt` ahead) and `LiveDevice` (room, random device
+  key, part, seen at). Migration `20261012000000_live_room`, additive only.
+- `src/lib/server/live.ts`: `mayRunLive`, `ensureRoom`, `goLive`,
+  `newRoomCode`, `ownRoom`, `roomByCode`, `directorName`.
+- `src/pages/api/live/`:
+  - `GET /api/live` the director's room (`?make=1` makes it, off air, for the
+    poster); `POST { page }` Live on; `POST { action: "new-code" }`.
+  - `GET /api/live/<code>?since=<version>` the students' poll, every 1.5 s
+    while the page is seen: off air `{ live: false, director }`; on air
+    `{ live: true, version, play }` plus the score when the version moved.
+    ETag/304 and `Vercel-CDN-Cache-Control: max-age=1`, so a class costs about
+    one query a second. `PUT { abc, settings }` publishes (owner, on air);
+    `DELETE` is Live off (the room and address stay).
+  - `POST /api/live/<code>/beat`, `GET /api/live/<code>/devices`,
+    `POST /api/live/<code>/play`, `GET /api/live/time` as before.
+- UI: `src/components/LiveTeacher.svelte`, `src/components/LiveStudent.svelte`,
+  `src/pages/live.astro`, `src/pages/live/[code].astro`,
+  `src/pages/live/poster.astro`; QR from `src/lib/qr.ts`
+  (`qrcode-generator`, MIT).
 
 ## Testing
 
-- `bun run test`: 1459 pass, 5 skip, 0 fail (live.test.ts included).
-- `bunx astro check`: 0 errors, 0 warnings.
-- End to end, `scripts/check-live.ts` (puppeteer-core, Chrome): one teacher
-  and two phone-sized student devices on a dev server. It checks the code,
-  that the students read different parts and each is drawn one staff, that
-  the panel counts both, that a new Generate reaches both (0.5 to 1.7 s
-  after the click, generation included), that the part is kept, that Start
-  together counts both in and runs their cursors, and that End session ends
-  both. Passed on Choral and Unison (`PAGE=unison`), light and dark
-  (`THEME=`). To run it:
+- `bun run test` (live.test.ts included) and `bunx astro check`.
+- End to end, `scripts/check-live.ts` (puppeteer-core, Chrome): one director
+  and two phone-sized devices on a dev server **on a local database, never the
+  shared one**. 23 checks: one permanent code; a device on the link while Live
+  is off waits and turns to the exercise by itself; no welcome card over the
+  panel; different parts, one staff each; the panel counts both; a new
+  exercise reaches both (0.6 to 1.4 s after the click, generation included)
+  and keeps their parts; Start together counts both in and runs their cursors;
+  Live off sends both back to waiting; Live on again brings both back on their
+  parts with no tap and the same code; a reload keeps the part; the poster
+  carries the address, code and QR; an old `/live?code=` link lands on the
+  room. Clean on Choral and Unison (`PAGE=unison`), light and dark (`THEME=`),
+  12 October 2026. The welcome-card check fails with the fix removed.
 
   ```sh
+  # the local database: Docker container abcsr-live-db on 127.0.0.1:54329
   DATABASE_URL=postgresql://postgres:localdev@127.0.0.1:54329/abcsr \
   BETTER_AUTH_SECRET=<any 32+ chars> BETTER_AUTH_URL=http://localhost:4472 \
   COMP_EMAILS=live-teacher@example.test bun run dev -- --port 4472
-  # once: sign up live-teacher@example.test (password LiveTest!2026pw) at /login
   APP=http://localhost:4472 SHOTS=/tmp bun run scripts/check-live.ts
   ```
 
-  Never against the shared database.
+  The script makes the teacher account on first run. Leave email, Stripe and
+  Google keys out of that server's environment. A device that leaves stays in
+  the count for up to 40 s, so wait that long between runs.
 
-## The migration to apply later
+## Before it goes live
 
-`prisma/migrations/20261007000000_live_practice/migration.sql`: two new
-tables, `live_session` and `live_device`, their indexes and foreign keys
-(cascade from `user`). Additive only; nothing existing changes. Applied to
-the local Docker database only. For production, read it and run
-`bun run db:deploy` when this branch is merged.
+`bun run db:deploy` applies `20261012000000_live_room` to the shared database
+(two new tables; nothing existing changes). The 7 October `live_practice`
+migration was never applied anywhere shared and is gone.
 
 ## Follow-ups
 
-- **The teacher's own screen in Start together**: the devices count in and
-  follow, but the teacher's page does not (its Play has its own count-in and
-  synth). Next: start the page's playback at the shared moment, so the
-  projected full score follows too.
-- **Sound on Start together**: devices are silent then (thirty phones
-  playing at once is noise). An opt-in "play my part" for headphones, and a
-  click on the teacher's device only, would be easy on the same timing.
-- **Accuracy of Start together**: measured only as "both devices count in
-  and follow"; the clock offset is within half the quickest round trip
-  (usually under 30 ms on school wifi). A check that compares two devices'
-  cursor times would put a number on it.
-- **Teacher picks parts for devices**, or locks the part choice; and a
-  "follow the bouncing note" size for the full score on a tablet.
-- **Grade in live sessions**: each student runs Listen and grade on their
-  own part, results to the teacher's panel. The data rules (under 13, no
-  account) need deciding first.
-- Polling could move to server-sent events if Vercel's limits allow; the
-  1 s CDN cache makes polling cheap enough for now.
-- Unison's playback transpose and instrument are not sent: devices hear
-  piano at written pitch.
+- The director's own screen in Start together: devices count in and follow,
+  the director's page does not yet start at the shared moment.
+- Sound on Start together (devices are silent: thirty phones at once is
+  noise); an opt-in "play my part" for headphones.
+- The director picks or locks parts for devices.
+- Grading in a live room (the data rules for students with no account first).
+- Unison's playback transpose and instrument are not sent.
+- Server-sent events instead of polling, if Vercel's limits allow.
 
 ## Open questions for Blaine
 
-1. **Who may run it**: Pro and Educator (any paid plan), as built. SRF ties
-   it to its ensemble plans. Educator only?
-2. **Students need no account at all.** That is the point, and nothing about
-   them is stored, but it also means anyone with the code can watch. Fine for
-   sight-reading exercises? (Codes are 6.2 million to one, guessing is rate
-   limited, sessions end within hours.)
-3. **Database cost**: with the CDN cache a class polling costs about one
-   query a second plus two heartbeat writes a second per 30 devices. Prisma
-   Postgres bills by operation: worth a look at the plan's numbers before
-   launch, and the CDN caching should be confirmed on a preview deploy
-   (response header `x-vercel-cache: HIT`).
-4. **The name**: "Live practice" and "Live" on the button. "Live" may read
-   as streaming video; alternatives: "Class screens", "Share to class".
-5. **Assignments**: Live is hidden while an assignment is open on the page.
-   Right?
+1. Pro and Educator may run it, as built. Educator only?
+2. Anyone with the link can watch while Live is on (it is on the wall, by
+   design). Fine for sight-reading exercises?
+3. Database cost: about one query a second per class plus heartbeats; worth a
+   look at Prisma Postgres's operation pricing, and confirm the CDN cache on a
+   preview (`x-vercel-cache: HIT` on the poll).
+4. The name: "Live practice" and "Live".

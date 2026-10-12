@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tourStepAside } from "../lib/tour";
   import { onDestroy, onMount } from "svelte";
   import { Radio, X, Play, Square, Users, Printer } from "lucide-svelte";
   import { billingStatus } from "../lib/billing-client";
@@ -266,6 +267,8 @@
   function onKey(e: KeyboardEvent) {
     if (panelOpen && e.key === "Escape") panelOpen = false;
   }
+  // The panel carries the code and QR the room needs to see: no welcome card over it.
+  $: if (panelOpen) tourStepAside();
 </script>
 
 <svelte:window on:keydown={onKey} />

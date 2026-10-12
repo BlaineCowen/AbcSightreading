@@ -97,6 +97,15 @@ export function shouldWelcome(opts: { page: TourPage | null; search: string; has
   return !tourSeen(opts.page, opts.store);
 }
 
+/**
+ * Asks the welcome card and any tour in progress to get out of the way: a
+ * panel that must be seen has opened over the page (the Live panel). The
+ * welcome counts as answered, so it does not come back.
+ */
+export function tourStepAside() {
+  window.dispatchEvent(new CustomEvent("sr-tour-step-aside"));
+}
+
 /** Starts the walkthrough on this page (the "?" button, the navbar). */
 export function startTour() {
   window.dispatchEvent(new CustomEvent("sr-start-tour"));
