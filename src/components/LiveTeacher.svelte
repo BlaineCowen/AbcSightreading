@@ -18,7 +18,7 @@
    * `abc` is the whole score, every voice, as the page would draw it with
    * nothing hidden; empty while there is none.
    */
-  export let page: "choral" | "unison";
+  export let page: "choral" | "unison" | "ensemble";
   export let abc: string;
   export let bpm: number;
   export let title = "";

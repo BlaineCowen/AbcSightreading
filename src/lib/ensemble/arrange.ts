@@ -99,6 +99,111 @@ function cut(players: EnsembleInstrument[], n: number): number[][] {
 
 const overlap = (a: { min: number; max: number }, b: { min: number; max: number }) => Math.min(a.max, b.max) - Math.max(a.min, b.min);
 
+/** A part's main instrument: the one most of its players play (the higher on a tie). */
+const mainOf = (tally: Map<string, number>) =>
+  ensembleInstrument[[...tally.entries()].sort((a, b) => b[1] - a[1] || mid(ensembleInstrument[b[0]]) - mid(ensembleInstrument[a[0]]))[0][0]];
+
+/** The best of an octave up, down or none for an instrument to play a line in `range`: the octave and how much it shares. */
+function fitOctave(inst: EnsembleInstrument, range: { min: number; max: number }) {
+  let octave = 0;
+  let shared = -Infinity;
+  for (const o of [0, -1, 1]) {
+    const v = overlap({ min: inst.concert.min - 7 * o, max: inst.concert.max - 7 * o }, range);
+    if (v > shared + 1) {
+      shared = v;
+      octave = o;
+    }
+  }
+  return { octave, shared };
+}
+
+/**
+ * A part's range: its main instrument's (the most players), narrowed by each
+ * other instrument on it, fitted an octave away where that overlaps more,
+ * never below a sixth.
+ */
+function bandOf(tally: Map<string, number>) {
+  const main = mainOf(tally);
+  let lo = main.concert.min;
+  let hi = main.concert.max;
+  const octaves = new Map<string, number>();
+  for (const id of tally.keys()) {
+    const inst = ensembleInstrument[id];
+    const { octave } = fitOctave(inst, main.concert);
+    octaves.set(id, octave);
+    // The line it plays is `octave` octaves from where it sounds: narrow the part to fit.
+    const nlo = Math.max(lo, inst.concert.min - 7 * octave);
+    const nhi = Math.min(hi, inst.concert.max - 7 * octave);
+    if (nhi - nlo >= MIN_SPAN) {
+      lo = nlo;
+      hi = nhi;
+    }
+  }
+  return { lo, hi, octaves };
+}
+
+/** The most chairs a section splits into (Trumpet 1, 2, 3); more players double a chair. */
+export const MAX_CHAIRS = 3;
+
+/**
+ * A section split by chair, as band and orchestra parts are (Blaine, 13
+ * October 2026: more than four lines, doubling octaves and parts, so each
+ * player can pick a part of their own): two trumpets play the top two parts
+ * rather than one line in unison. The harmony stays in four parts; a chair
+ * that moves to another part doubles it as written (whole sections still
+ * double at the octave: a tuba under the bass line). A chair only moves
+ * down, to the part under the section's, then the next, only to one whose
+ * players' shared range it fits; the part it leaves always keeps a player.
+ */
+function splitSections(members: EnsembleMember[], tallies: Map<string, number>[]) {
+  // A chair joins a part only if it shares a sixth with the range the part's
+  // players already share, and the part, with it, still fits every one of them.
+  // 0: as written, 1: an octave away, null: not at all. A voice never takes
+  // another part's line an octave away (an instrument may double one).
+  const fits = (inst: EnsembleInstrument, part: Map<string, number>): number | null => {
+    const band = bandOf(part);
+    const fit = fitOctave(inst, { min: band.lo, max: band.hi });
+    if (fit.shared < MIN_SPAN) return null;
+    // A chair plays the part it moves to as written: whole sections double at
+    // the octave (a tuba under the bass line), a split one does not.
+    if (fit.octave !== 0) return null;
+    const joined = new Map(part).set(inst.id, 1);
+    const after = bandOf(joined);
+    const allFit = [...joined.keys()].every((id) => {
+      const i = ensembleInstrument[id];
+      const o = after.octaves.get(id) ?? 0;
+      return after.lo >= i.concert.min - 7 * o - 2 && after.hi <= i.concert.max - 7 * o + 2;
+    });
+    return allFit ? (fit.octave === 0 ? 0 : 1) : null;
+  };
+  for (const m of members) {
+    const inst = ensembleInstrument[m.instrument];
+    const want = Math.min(m.count, MAX_CHAIRS);
+    for (;;) {
+      const on = tallies.map((t, k) => (t.has(inst.id) ? k : -1)).filter((k) => k >= 0);
+      if (on.length >= want) break;
+      // The nearest part it is not on, the one below first (a second trumpet under the first).
+      const near = (k: number) => Math.min(...on.map((j) => Math.abs(j - k)));
+      // Only down (a second trumpet under the first, never over it), the nearest part first.
+      const lowest = Math.max(...on);
+      const next = tallies
+        .map((_, k) => k)
+        .filter((k) => k > lowest && fits(inst, tallies[k]) !== null)
+        .sort((a, b) => near(a) - near(b))[0];
+      if (next === undefined) break;
+      // From the part where it has the most players; that part keeps one.
+      const from = on.sort((a, b) => (tallies[b].get(inst.id) ?? 0) - (tallies[a].get(inst.id) ?? 0))[0];
+      const left = (tallies[from].get(inst.id) ?? 0) - 1;
+      if (left < 1) break;
+      tallies[from].set(inst.id, left);
+      tallies[next].set(inst.id, 1);
+    }
+    // The section shared out evenly across its chairs, the top chairs taking any extra (3, 2, 2 of seven).
+    const on = tallies.map((t, k) => (t.has(inst.id) ? k : -1)).filter((k) => k >= 0);
+    on.forEach((k, i) => tallies[k].set(inst.id, Math.floor(m.count / on.length) + (i < m.count % on.length ? 1 : 0)));
+  }
+}
+
 export function arrangeEnsemble(members: EnsembleMember[]): Arrangement {
   const known = members.filter((m) => m.count > 0 && ensembleInstrument[m.instrument]);
   if (!known.length) throw new Error("Choose at least one instrument.");
@@ -108,38 +213,17 @@ export function arrangeEnsemble(members: EnsembleMember[]): Arrangement {
   const n = partCount(known);
   while (players.length < n) players = [...players, players[players.length - 1]];
   const groups = cut(players, n);
+  // Who is on each part: instrument -> players.
+  const tallies = groups.map((g) => {
+    const tally = new Map<string, number>();
+    for (const p of g) tally.set(players[p].id, (tally.get(players[p].id) ?? 0) + 1);
+    return tally;
+  });
+  splitSections(known, tallies);
 
   // Each part's range: its main instrument's (the most players), with the
   // others fitted to it an octave away where that overlaps more.
-  const bands = groups.map((g) => {
-    const tally = new Map<string, number>();
-    for (const p of g) tally.set(players[p].id, (tally.get(players[p].id) ?? 0) + 1);
-    const main = ensembleInstrument[[...tally.entries()].sort((a, b) => b[1] - a[1] || mid(ensembleInstrument[b[0]]) - mid(ensembleInstrument[a[0]]))[0][0]];
-    let lo = main.concert.min;
-    let hi = main.concert.max;
-    const octaves = new Map<string, number>();
-    for (const id of tally.keys()) {
-      const inst = ensembleInstrument[id];
-      let bestOct = 0;
-      let bestOverlap = -Infinity;
-      for (const o of [0, -1, 1]) {
-        const v = overlap({ min: inst.concert.min - 7 * o, max: inst.concert.max - 7 * o }, main.concert);
-        if (v > bestOverlap + 1) {
-          bestOverlap = v;
-          bestOct = o;
-        }
-      }
-      octaves.set(id, bestOct);
-      // The line it plays is `o` octaves from where it sounds: narrow the part to fit, never below a sixth.
-      const nlo = Math.max(lo, inst.concert.min - 7 * bestOct);
-      const nhi = Math.min(hi, inst.concert.max - 7 * bestOct);
-      if (nhi - nlo >= MIN_SPAN) {
-        lo = nlo;
-        hi = nhi;
-      }
-    }
-    return { lo, hi, tally, octaves };
-  });
+  const bands = tallies.map((tally) => ({ ...bandOf(tally), tally }));
 
   // A part far below the one above it (a string bass under violins) is
   // written an octave up and played an octave down, as a bass line doubled

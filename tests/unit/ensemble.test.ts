@@ -56,13 +56,35 @@ describe("an instrument reads its part", () => {
 });
 
 describe("arranging an ensemble", () => {
-  test("a brass quintet: four parts, the trumpets sharing the top, the tuba the bass", () => {
+  test("a brass quintet: four parts, the trumpets split by chair, the tuba the bass", () => {
     const a = arrangeEnsemble([{ instrument: "band-trumpet", count: 2 }, { instrument: "band-horn", count: 1 }, { instrument: "band-trombone", count: 1 }, { instrument: "band-tuba", count: 1 }]);
     expect(a.parts.map((p) => p.name)).toEqual(["Soprano", "Alto", "Tenor", "Bass"]);
     const tuba = a.staves.find((s) => s.instrument.id === "band-tuba")!;
     expect(a.parts[tuba.part].order).toBe(0);
-    expect(a.staves.filter((s) => s.instrument.id === "band-trumpet")).toHaveLength(1);
-    expect(a.staves.find((s) => s.instrument.id === "band-trumpet")!).toMatchObject({ part: 0, count: 2, name: "Trumpet (2)" });
+    const tpts = a.staves.filter((s) => s.instrument.id === "band-trumpet");
+    expect(tpts.map((s) => [s.name, s.part, s.count])).toEqual([["Trumpet 1", 0, 1], ["Trumpet 2", 1, 1]]);
+    // Five lines on four parts: the second trumpet doubles another part.
+    expect(a.staves).toHaveLength(5);
+  });
+  test("a section splits into at most three chairs; more players double a chair", () => {
+    const a = arrangeEnsemble([{ instrument: "band-clarinet", count: 7 }, { instrument: "band-tuba", count: 1 }]);
+    const cl = a.staves.filter((s) => s.instrument.id === "band-clarinet");
+    expect(cl.map((s) => s.name)).toEqual(["Clarinet 1 (3)", "Clarinet 2 (2)", "Clarinet 3 (2)"]);
+    expect(cl.reduce((t, s) => t + s.count, 0)).toBe(7);
+  });
+  test("every part keeps a player, and a chair only moves to a part its instrument can play", () => {
+    for (const members of [
+      [{ instrument: "band-flute", count: 3 }, { instrument: "band-tuba", count: 1 }],
+      [{ instrument: "band-trumpet", count: 3 }, { instrument: "band-horn", count: 2 }, { instrument: "band-trombone", count: 2 }, { instrument: "band-tuba", count: 2 }],
+      [{ instrument: "orch-violin", count: 6 }, { instrument: "orch-viola", count: 2 }, { instrument: "orch-cello", count: 3 }, { instrument: "orch-bass", count: 1 }],
+    ]) {
+      const a = arrangeEnsemble(members);
+      for (let k = 0; k < a.parts.length; k++) expect(a.staves.some((s) => s.part === k)).toBe(true);
+      // The tuba stays on the bass; a flute never reaches it.
+      for (const s of a.staves) if (s.instrument.id === "band-flute") expect(a.parts[s.part].order).toBeGreaterThan(0);
+      const players = members.reduce((t, m) => t + m.count, 0);
+      expect(a.staves.reduce((t, s) => t + s.count, 0)).toBe(players);
+    }
   });
   test("four trumpets split into four numbered parts, staggered", () => {
     const a = arrangeEnsemble([{ instrument: "band-trumpet", count: 4 }]);
@@ -93,9 +115,10 @@ const ENSEMBLES: Record<string, [string, number][]> = {
 describe("an ensemble exercise", () => {
   test("each staff in its own key, clef and sound, transposed back for playback", () => {
     const ex = generateEnsembleExercise({ members: ENSEMBLES["brass quintet"].map(([instrument, count]) => ({ instrument, count })), key: "Bb", timeSig: TS["4/4"], measures: 4, level: 3, bpm: 80 });
-    expect(ex.abc).toContain('V:Tpt clef=treble name="Trumpet (2)" snm="Tpt" transpose=-2');
+    expect(ex.abc).toContain('V:Tpt1 clef=treble name="Trumpet 1" snm="Tpt 1" transpose=-2');
+    expect(ex.abc).toContain('V:Tpt2 clef=treble name="Trumpet 2" snm="Tpt 2" transpose=-2');
     expect(ex.abc).toContain('V:Hn clef=treble name="French horn" snm="Hn" transpose=-7');
-    expect(ex.abc).toMatch(/V:Tpt\n%%MIDI program 56\n\[K:C\] /);
+    expect(ex.abc).toMatch(/V:Tpt1\n%%MIDI program 56\n\[K:C\] /);
     expect(ex.abc).toMatch(/V:Hn\n%%MIDI program 60\n\[K:F\] /);
     expect(ex.abc).toMatch(/V:Tba\n%%MIDI program 58\n\[K:Bb\] /);
   });
@@ -180,5 +203,25 @@ describe("ensemble settings: links and saved ensembles", () => {
     expect(settingsFromSaved(null)).toEqual(DEFAULT_SETTINGS);
     expect(settingsFromSaved({ members: "brass", level: "x" })).toEqual(DEFAULT_SETTINGS);
     expect(settingsFromSaved({ members: [{ instrument: "band-nonsense", count: 3 }] }).members).toEqual(DEFAULT_SETTINGS.members);
+  });
+});
+
+describe("an ensemble on Live: each device picks its part", () => {
+  test("every staff comes out of the full score as a score of its own, in its own key and sound", async () => {
+    const { voicesOf, extractVoice } = await import("../../src/lib/live");
+    const abcjs = (await import("abcjs")).default as any;
+    const members = [{ instrument: "band-trumpet", count: 2 }, { instrument: "band-horn", count: 1 }, { instrument: "band-alto-sax", count: 1 }, { instrument: "band-tuba", count: 1 }];
+    const ex = generateEnsembleExercise({ members, key: "Bb", timeSig: TS["4/4"], measures: 4, level: 3, bpm: 80, style: "chorale" });
+    const voices = voicesOf(ex.abc);
+    expect(voices.map((v) => v.name)).toEqual(ex.arrangement.staves.map((s) => s.name));
+    ex.arrangement.staves.forEach((s) => {
+      const part = extractVoice(ex.abc, s.id);
+      expect(voicesOf(part).map((v) => v.id)).toEqual([s.id]);
+      expect(part).toContain(`%%MIDI program ${s.instrument.program}`);
+      expect(part).toContain(`[K:${writtenKey("Bb", s.instrument.transpose)}]`);
+      const [tune] = abcjs.parseOnly(part);
+      expect(tune.warnings ?? []).toEqual([]);
+      expect(tune.lines[0].staff).toHaveLength(1);
+    });
   });
 });

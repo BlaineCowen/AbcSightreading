@@ -9,7 +9,7 @@ import { formatLiveCode, livePath } from "../../../lib/live";
  * GET  -> { room: { code, display, path, live, page, version, endsAt } | null }:
  *         a reloaded page carries on while Live is on. `?make=1` makes the
  *         room (off air) if there is none, for the poster.
- * POST { page: "choral" | "unison" }: Live on (Pro or Educator), making the
+ * POST { page: "choral" | "unison" | "ensemble" }: Live on (Pro or Educator), making the
  *         room the first time. POST { action: "new-code" }: a new code, off
  *         air; the old address stops working.
  */
@@ -44,6 +44,6 @@ export const POST: APIRoute = async ({ request }) => {
   if (!allowed.ok) return allowed.response;
   const body = ((await readJson(request)) ?? {}) as { page?: unknown; action?: unknown };
   if (body.action === "new-code") return json({ room: shape(await newRoomCode(user.id)) });
-  const page = body.page === "unison" ? "unison" : "choral";
+  const page = body.page === "unison" || body.page === "ensemble" ? body.page : "choral";
   return json({ room: shape(await goLive(user.id, page)) });
 };

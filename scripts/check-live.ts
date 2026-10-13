@@ -6,7 +6,8 @@
  *
  * Needs a dev server on a local database (never the shared one) where the
  * teacher has Pro: COMP_EMAILS=live-teacher@example.test on the dev server.
- * The teacher account is made on first run. PAGE=unison runs it on the
+ * The teacher account is made on first run. PAGE=ensemble runs it on the
+ * Ensemble page (each device a player's part); PAGE=unison runs it on the
  * Unison page; SHOTS=<dir> saves screenshots; THEME=light|dark.
  *
  * Checks: the room's address is the same every time (the poster's); a device
@@ -23,7 +24,9 @@ import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 const APP = process.env.APP ?? "http://localhost:4472";
 const EMAIL = process.env.EMAIL ?? "live-teacher@example.test";
 const PASSWORD = process.env.PASSWORD ?? "LiveTest!2026pw";
-const PAGE = process.env.PAGE === "unison" ? "unison" : "choral";
+const PAGE = process.env.PAGE === "unison" ? "unison" : process.env.PAGE === "ensemble" ? "ensemble" : "choral";
+/** Pages with parts to choose between. */
+const PARTS = PAGE !== "unison";
 const SHOTS = process.env.SHOTS ?? "";
 const THEME = process.env.THEME ?? "";
 const theme = (p: any) => (THEME ? p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: THEME }]) : null);
@@ -116,7 +119,7 @@ check(await within(early, () => !!document.querySelector("[data-live-waiting]"),
 if (SHOTS) await early.screenshot({ path: `${SHOTS}/live-waiting.png` });
 
 // ── Live on ───────────────────────────────────────────────────────────────
-await teacher.goto(`${APP}/${PAGE === "choral" ? "choral-sightreading" : "sightreading"}`, { waitUntil: "networkidle2" });
+await teacher.goto(`${APP}/${PAGE === "choral" ? "choral-sightreading" : PAGE === "ensemble" ? "ensemble-sightreading" : "sightreading"}`, { waitUntil: "networkidle2" });
 await teacher.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => (b.textContent ?? "").trim().startsWith("Live")), { timeout: 20000 });
 await clickText(teacher, "New exercise").catch(() => clickText(teacher, "Generate"));
 await teacher.waitForSelector(".focus-score svg .abcjs-note", { timeout: 60000 });
@@ -134,8 +137,8 @@ check(await within(early, () => !document.querySelector("[data-live-waiting]") &
 const s1: Student = { page: early, part: await pickPart(early, 0) };
 const late = await device(2);
 await late.goto(`${APP}/live/${code}`, { waitUntil: "domcontentloaded" });
-const s2: Student = { page: late, part: await pickPart(late, PAGE === "choral" ? 3 : 0) };
-if (PAGE === "choral") check(s1.part !== s2.part, `the students read different parts (${s1.part}, ${s2.part})`);
+const s2: Student = { page: late, part: await pickPart(late, PARTS ? 3 : 0) };
+if (PARTS) check(s1.part !== s2.part, `the students read different parts (${s1.part}, ${s2.part})`);
 
 /** How many voices a device draws, from abcjs's per-voice classes. */
 const voicesDrawn = (p: any) =>

@@ -1256,9 +1256,25 @@ third to fill; two parts never decorate the same instant). Closing that
 needs new figures (chord-tone eighths, decorations in thirds) in the shared
 pass. Saved ensembles ("My ensembles" in the Ensemble popover) are presets
 in their own list, `abcsr_ensemble_presets` (preset-validate PRESET_STORES),
-opened through `settingsFromSaved`, checked as a link is. Check, 13 October
-2026: 10,267 exercises over 48 ensembles in both styles, 2 failed (simple
-style, unusual mixes, 16 bars), no note out of range, no abcjs warning.
+opened through `settingsFromSaved`, checked as a link is. Sections split by chair
+(`splitSections`, Blaine 13 October: more than four lines, doubling octaves
+and parts, so each player has a part of their own): a section of two or more
+takes up to `MAX_CHAIRS` (3) parts, moving only down (a second trumpet
+under the first) and only to a part it plays as written within its players'
+shared range, shared out evenly (seven clarinets 3, 2, 2); the harmony stays
+four parts and a moved chair doubles one (whole sections still double at the
+octave). Allowing octave moves, or moves up, put a bass choir on the alto line
+8vb and violas over the violins, and moved chairs had to be checked against
+the part's shared range, not its main instrument's, or 8,430 notes in a gate
+run fell outside their players' ranges. Known: string orchestra still gives
+violas the alto line and cellos the tenor (the register grouping, `cut`). Live (`LiveTeacher page="ensemble"`) publishes the full score; each
+device picks its staff ("Trumpet 2") and live.ts `extractVoice` gives it that
+staff in its own key, clef and sound (`ensemble.test.ts` checks every staff;
+`PAGE=ensemble scripts/check-live.ts` 23/23, 13 October 2026). Check, 13 October
+2026, with sections split: 10,442 exercises over 48 ensembles in both styles,
+9 failed (simple style on unusual random mixes, worst 6 of 216 for clarinets
+with string and voice basses at Level 1), no note out of range, no abcjs
+warning.
 
 ## Accounts
 

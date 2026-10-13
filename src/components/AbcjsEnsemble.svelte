@@ -21,6 +21,7 @@
   import PlaybackBar from "./PlaybackBar.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
   import CountInBadge from "./CountInBadge.svelte";
+  import LiveTeacher from "./LiveTeacher.svelte";
   import { withCopyright, styleCopyright } from "../lib/copyright";
   import { countInMeasures, showCountIn, hideCountIn } from "../lib/count-in";
   import { drumPatternFor } from "../lib/playback-click";
@@ -249,6 +250,13 @@
   }
 
   $: bpm = settings.bpm;
+  /**
+   * What Live sends to the students' devices (LiveTeacher): the full score,
+   * every staff in its own key, clef and sound, since each device picks its
+   * own part (Trumpet 2, Viola); live.ts extractVoice cuts it out.
+   */
+  $: liveAbc = exercise ? (lyrics, scoreView, abcFor(exercise, null)) : "";
+  $: liveTitle = exercise ? `${preset?.label ?? savedNow?.name ?? "Ensemble"} · concert ${keyLabel(exercise.key)} · ${exercise.meter}` : "";
   const settingsLink = () => `${location.origin}/ensemble-sightreading?${settingsQuery(settings)}`;
   const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
 
@@ -591,6 +599,8 @@
         <div class="focus-hide no-print flex flex-wrap items-center gap-2">
           <button type="button" class="tool-btn" aria-expanded={toolPop === "display"} on:click={(e) => toggleTool("display", e)}><Eye size={16} aria-hidden="true" />Display</button>
         </div>
+        <!-- Live practice (Pro): every student's device on the director's live link follows this exercise, each on the part it picks. -->
+        <LiveTeacher page="ensemble" abc={liveAbc} {bpm} title={liveTitle} />
         {#if toolPop === "display"}
           <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
           <div in:popIn out:popOut class="set-pop set-pop-tools no-print" role="dialog" aria-label="Display">
