@@ -53,8 +53,10 @@ export type ClapResult = {
   together?: number;
   /** How far behind (+) or ahead the claps ran as a whole, in ms (`steadyLag`). */
   lagMs: number;
-  /** Whether that lag was taken out of the timing (an unchecked microphone's). */
+  /** Whether a lag could be taken out of the timing (an unchecked device's). */
   lagForgiven: boolean;
+  /** How much was taken out: the lateness forgiven as the device's delay, ms (0 when checked, or early). */
+  forgivenMs: number;
   /** Sounds not counted as strays: chanted syllables, sounds folded into a class's clap, background. */
   ignored: { voiced: number; merged: number; quiet: number };
   /** Just me, but it sounded like a room (many claps a little apart on each note): try The class. */
@@ -120,6 +122,17 @@ export function steadyLag(claps: { t: number }[], onsets: number[], beatMs: numb
 }
 /** No more than this is ever taken for a steady lag (more is the clapper, not the microphone). */
 export const MAX_LAG_MS = 250;
+/**
+ * How much steady lateness is forgiven while this device's timing is
+ * unchecked, as its speakers' and microphone's delay: a TV or Bluetooth
+ * output delays the click 100-200 ms, and a player is late by the same. Only
+ * lateness: a delay can only make a clap register late, so a steady earliness
+ * is the player (Blaine, 13 October 2026: a 16th early graded well). Once
+ * Check timing has measured the device, nothing is forgiven. 220, not 150:
+ * Blaine's own sent runs, unchecked, ran 71-215 ms steadily late (a school
+ * laptop and its room), and at 150 three of them lost 7-33 points on Strict.
+ */
+export const FORGIVE_MAX_MS = 220;
 
 /**
  * The most a clap may be off and keep full credit, in ms, whatever the
@@ -129,12 +142,15 @@ export const MAX_LAG_MS = 250;
  * Strict was 40 ms for a few hours on 12 October 2026 and docked a clean
  * Windows take to 94 (its claps wander about 70 ms around their own lag);
  * at 50 it is 97. A good solo run sits within 12 ms (median) and 39 ms (90th percentile),
- * Blaine's class runs within 30-58 and 65-170. Easy stays a share of a beat.
+ * Blaine's class runs within 30-58 and 65-170. Easy was a share of a beat
+ * alone, half of one: 400 ms at 75 BPM, so taps 94 ms early scored 100
+ * (Blaine's sent run, 13 October 2026); now 120 ms, still above a ragged
+ * class's 90th percentile.
  * Credit falls to nothing at three times this; where a clap may be matched
  * (`windowsFor`) is still the beat's share, so a clap far off is late, not
  * missed and a stray.
  */
-export const CLAP_FULL_MS: Record<Strictness, number> = { easy: Infinity, standard: 80, strict: 50 };
+export const CLAP_FULL_MS: Record<Strictness, number> = { easy: 120, standard: 80, strict: 50 };
 
 /** Beats a clap may be off with full credit, at this tempo. */
 export const clapToleranceBeats = (s: Strictness, bpm: number) =>
@@ -239,7 +255,10 @@ export function gradeClaps(
   // The windows sit where the claps steadily land; the credit is measured
   // from there too when the lag is forgiven, else from the written beat.
   const onsets = written.map((t) => t + lag);
-  const from = o.forgiveLag ? onsets : written;
+  // The windows follow the claps wherever they steadily land, so an early
+  // player's claps still find their notes; the credit forgives only lateness.
+  const forgiven = o.forgiveLag ? Math.max(0, Math.min(FORGIVE_MAX_MS, lag)) : 0;
+  const from = written.map((t) => t + forgiven);
   const wins = windowsFor(onsets, reach, Math.min(reach, beatMs / 2));
   const full = clapToleranceBeats(o.strictness, o.bpm) * beatMs;
   const credit = (err: number) => (Math.abs(err) <= full ? 100 : Math.max(0, (100 * (3 * full - Math.abs(err))) / (2 * full)));
@@ -333,6 +352,7 @@ export function gradeClaps(
     ...(o.who === "class" && spreads.length ? { together: Math.round(spreads[spreads.length >> 1]) } : {}),
     lagMs: Math.round(lag),
     lagForgiven: !!o.forgiveLag,
+    forgivenMs: Math.round(forgiven),
     ignored: { voiced: voicedHeard.length - takenVoiced.size, merged: merged.length + paired.folded, quiet: quietHeard.filter((c) => !notes.length || c.t >= wins[0].from).length + quietLeft.length },
     ...(clustered >= Math.max(3, 0.25 * n) ? { soundedLikeClass: true } : {}),
   };
