@@ -6,6 +6,7 @@
  *   INPUT=keys bun run scripts/check-clap-grade.ts       # the spacebar and the pad
  *   ECHO=1 CLICK=beat bun run scripts/check-clap-grade.ts  # the page's click heard back by the microphone
  *   MEASURE=1 bun run scripts/check-clap-grade.ts        # the microphone's delay (sets no latency)
+ *   OVERLAP=1 CLICK=beat bun run scripts/check-clap-grade.ts  # the metronome already on: one click a beat; take paused: no click left booked
  *
  * Also STRICT=easy|standard|strict, SHOTS=<png>.
  *
@@ -27,6 +28,9 @@ const INPUT = (process.env.INPUT ?? "mic") as "mic" | "keys";
 const CLICK = process.env.CLICK ?? "off";
 const ECHO = !!process.env.ECHO;
 const MEASURE = !!process.env.MEASURE;
+const OVERLAP = !!process.env.OVERLAP;
+let failures = 0;
+const expect = (ok: boolean, what: string) => { if (!ok) { failures++; console.log("  FAIL:", what); } };
 // Inside what the strictness still counts as this note (three windows): Strict's
 // is 0.375 beats, and 0.35 plus a tap's dispatch delay landed past it.
 const LATE_BEATS = Math.min(0.35, 2.4 * STRICTNESS[STRICT].onsetBeats);
@@ -54,8 +58,39 @@ page.on("request", (req) => {
   return req.continue();
 });
 
+// OVERLAP: every click the page books, on any of its audio contexts but the
+// fake microphone's: when it sounds (page time), and whether it was cancelled.
+await page.evaluateOnNewDocument(() => {
+  type Booked = { ctx: BaseAudioContext; when: number; page: number; cancelled: boolean };
+  const booked: Booked[] = ((window as any).__clicks = []);
+  const mark = new WeakMap<object, Booked>();
+  const isClick = (n: any) => (n.context !== (window as any).__fakeCtx) && (n instanceof OscillatorNode || (!!n.buffer && n.buffer.duration < 1));
+  for (const P of [AudioBufferSourceNode.prototype, OscillatorNode.prototype] as any[]) {
+    const start = P.start;
+    P.start = function (when?: number, ...rest: any[]) {
+      if (isClick(this)) {
+        const ctx = this.context as AudioContext;
+        const t = when && when > 0 ? Math.max(when, ctx.currentTime) : ctx.currentTime;
+        const ts = ctx.getOutputTimestamp?.();
+        const pg = ts?.performanceTime ? ts.performanceTime + (t - (ts.contextTime ?? 0)) * 1000 : performance.now() + (t - ctx.currentTime) * 1000;
+        const b = { ctx, when: t, page: pg, cancelled: false };
+        booked.push(b);
+        mark.set(this, b);
+      }
+      return start.call(this, when, ...rest);
+    };
+    const stop = P.stop;
+    P.stop = function (when?: number) {
+      const b = mark.get(this);
+      // A stop at or before its start is a cancel (its own stop is booked after it).
+      if (b && (!when || when <= b.when + 0.001)) b.cancelled = true;
+      return stop.call(this, when);
+    };
+  }
+});
 await page.evaluateOnNewDocument(() => {
   const ctx = new AudioContext();
+  (window as any).__fakeCtx = ctx;
   const room = ctx.createGain();
   navigator.mediaDevices.getUserMedia = async () => {
     await ctx.resume();
@@ -144,12 +179,20 @@ const held = sched.notes.find((x, i) => x.lengthUnits >= 16 && ![LATE, MISS, DOU
 // Off the beat (an eighth in), never on a click: one quiet clap exactly on the click is indistinguishable from its echo.
 const strayUnits = rest ? rest.startUnits + 4 : held ? held.startUnits + 4 : null;
 
+if (OVERLAP) {
+  // The transport's Click: the metronome ticking on its own before the run.
+  await page.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /^Click( On)?$/.test((b.textContent ?? "").trim())) as HTMLButtonElement | undefined)?.click());
+  await new Promise((r) => setTimeout(r, 1500));
+  const ticks = await page.evaluate(() => (window as any).__clicks.length as number);
+  expect(ticks > 0, `the metronome should tick on its own before the run (${ticks} clicks)`);
+}
 await page.evaluate(() => {
   const b = [...document.querySelectorAll("button")].find((x) => /Clap and grade/.test(x.textContent ?? ""));
   (b as HTMLButtonElement | undefined)?.click();
 });
 await new Promise((r) => setTimeout(r, 1200));
 await page.evaluate(() => {
+  (window as any).__clicks.length = 0;
   const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
   (b as HTMLButtonElement | undefined)?.click();
 });
@@ -203,8 +246,6 @@ const r = out.view.claps;
 if (!r) throw new Error("no result: " + JSON.stringify(out.view).slice(0, 300));
 console.log("strip:", out.dock);
 console.log(`rhythm ${r.rhythm}% ${r.letter}; strays ${r.strays.map((s: any) => `${(s.units / 8).toFixed(2)}b w${s.weight.toFixed(2)}`).join(", ") || "none"}${r.together !== undefined ? `; together ${r.together} ms` : ""}; marks drawn ${out.marks}`);
-let failures = 0;
-const expect = (ok: boolean, what: string) => { if (!ok) { failures++; console.log("  FAIL:", what); } };
 const errs: number[] = [];
 r.notes.forEach((x: any, i: number) => {
   console.log(`  ${String(i + 1).padStart(2)} rhythm ${String(x.rhythm).padStart(3)} onset ${x.onsetBeats === null ? "  -  " : (x.onsetBeats * beatMs).toFixed(0).padStart(4) + "ms"}${x.missed ? " missed" : ""}`);
@@ -233,6 +274,27 @@ if (failures && process.env.DUMP) {
   const { detectClaps } = await import("../src/lib/clap-detect");
   console.log("late note at beat", sched.notes[LATE].startUnits / 8, "neighbours", sched.notes[LATE - 1]?.startUnits / 8, sched.notes[LATE + 1]?.startUnits / 8, "strays (beats)", r.strays.map((s: any) => (s.units / 8).toFixed(3)).join(" "), "lag", r.lagMs, "forgiven", r.lagForgiven);
   console.log("detected near it:", detectClaps(blocks).filter((c) => Math.abs(c.t - at) < 400).map((c) => (c.t - at).toFixed(0)).join(" "));
+}
+if (OVERLAP) {
+  const end = t0 + sched.totalUnits * unitMs;
+  // Those that sound: a click cancelled before it starts is silent.
+  const during = (await page.evaluate(() => ((window as any).__clicks as { page: number; cancelled: boolean }[]).filter((c) => !c.cancelled).map((c) => c.page)))
+    .filter((t) => t > t0 - 4 * beatMs - beatMs / 2 && t < end + beatMs)
+    .sort((a, b) => a - b);
+  const crowded = during.filter((t, i) => i > 0 && t - during[i - 1] < beatMs * 0.9).length;
+  expect(crowded === 0, `one click a beat through the count-in and the run (${during.length} clicks, ${crowded} less than a beat after another)`);
+  if (crowded) console.log("  clicks (beats from the first downbeat):", during.map((t) => ((t - t0) / beatMs).toFixed(2)).join(" "));
+  await new Promise((r) => setTimeout(r, 1500));
+  const late = await page.evaluate((e) => ((window as any).__clicks as { page: number; cancelled: boolean }[]).filter((c) => !c.cancelled && c.page > e).length, end + beatMs * 2);
+  expect(late === 0, `nothing should tick on after the run (${late} clicks)`);
+  // Hear your take, then Pause: no click may be left booked.
+  await page.evaluate(() => { const b = [...document.querySelectorAll("button")].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+  await new Promise((r) => setTimeout(r, 2500));
+  const paused = await page.evaluate(() => { const b = document.querySelector('[aria-label="Pause"]') as HTMLButtonElement | null; b?.click(); return !!b; });
+  expect(paused, "the take should play and offer Pause");
+  await new Promise((r) => setTimeout(r, 300));
+  const left = await page.evaluate(() => ((window as any).__clicks as { ctx: AudioContext; when: number; cancelled: boolean }[]).filter((c) => !c.cancelled && c.when > c.ctx.currentTime + 0.05).length);
+  expect(left === 0, `no click should be left booked after Pause (${left})`);
 }
 // PLAYBACK=1: the clapped take plays back, the cursor following its notes.
 if (process.env.PLAYBACK && INPUT === "mic") {

@@ -4311,6 +4311,12 @@
     // laptop's recordings), and the claps that followed it were marked early
     // and late by its wobble. The cursor and the count-in words are drawing
     // only: they start when the first click is heard and may lag a frame.
+    // The run is the exercise playing, as Play is (metronome-link): a
+    // metronome ticking on its own stops rather than ticking on over the run's
+    // clicks, and the transport's metronome button turns the run's click on
+    // and off instead of starting a second metronome.
+    if (tuner.get().metronomeRunning) tuner.setMetronomeRunning(false);
+    tuner.setPlayback(true, gradeClickChoice !== "off");
     const ctx = audioContext;
     const T0 = ctx.currentTime + GRADE_CLICK_LEAD_S;
     const heard = audioToPage(ctx)(T0);
@@ -4323,7 +4329,7 @@
       while (T0 + k * beatSec < ctx.currentTime + GRADE_CLICK_AHEAD_S) {
         const inBar = k % perBar;
         if (k < inCount) playMetronomeClick(inBar === 0, T0 + k * beatSec);
-        else if (gradeClickChoice !== "off") playMetronomeClick(inBar === 0, T0 + k * beatSec, inBar, perBar, Math.floor((k - inCount) / perBar));
+        else if (tuner.get().musicClick) playMetronomeClick(inBar === 0, T0 + k * beatSec, inBar, perBar, Math.floor((k - inCount) / perBar));
         k++;
       }
     };
@@ -4350,6 +4356,7 @@
     gradeClickTimer = gradeCursorStart = null;
     if (!gradeTimeline) return;
     gradeTimeline = false;
+    exercisePlays(false);
     gradeSubdivision = null;
     passCursorOverride = null;
     passMetronomeOverride = null;

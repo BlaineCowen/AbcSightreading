@@ -1021,7 +1021,15 @@ off the scored beat on a fast Mac, 20-60 ms beat to beat in a Windows
 laptop's recordings, and claps that followed it were graded by its wobble.
 Now 0.1 ms (`bun run scripts/check-grade-clicks.ts`, `CPU=4` for a slow
 laptop). The cursor and count-in words are drawing only: they start when the
-first click is heard. Check timing books its clicks the same way, so a delay
+first click is heard. A run is the exercise playing, as Play is
+(metronome-link): a metronome ticking on its own stops as it starts (its
+booked ticks cancelled, `Metronome.stop`), and the transport's Click turns the
+run's click on and off instead of starting a second metronome. Hear your take
+keeps its booked clicks with its sources, so Pause stops them
+(`scheduleClick` returns the sound). `OVERLAP=1 CLICK=beat bun run
+scripts/check-clap-grade.ts` checks all three: before the fix 43 clicks in a
+22-beat run, the metronome ticking on after it, 15 clicks left booked after
+Pause. Check timing books its clicks the same way, so a delay
 it saves matches a run (any term added to the beat must go in both). The
 end-to-end checks clap and sing to the page's own beat (`__gradeDebug.t0`),
 not the count-in word on screen, which trails it by a frame; against that,

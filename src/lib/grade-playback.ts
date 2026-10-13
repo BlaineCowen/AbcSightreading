@@ -151,7 +151,8 @@ export class TakePlayer {
         const t = m.t0 + k * m.beatMs;
         if (t < at - 5) continue;
         const beatInBar = ((k % m.beatsPerBar) + m.beatsPerBar) % m.beatsPerBar;
-        scheduleClick(this.ctx, this.bank, this.musicGain, when + (t - at) / 1000, m.clickSound, beatInBar === 0 ? "downbeat" : "beat");
+        // Kept with the take's sources, so a pause or a seek stops the clicks booked ahead too.
+        this.sources.push(scheduleClick(this.ctx, this.bank, this.musicGain, when + (t - at) / 1000, m.clickSound, beatInBar === 0 ? "downbeat" : "beat"));
       }
     }
     this.anchor = { ctx: when, page: at };

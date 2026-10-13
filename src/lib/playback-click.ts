@@ -59,7 +59,9 @@ export function drumPatternFor(o: {
 
 /**
  * One click at an exact time, as the Tools metronome plays it: its sample if
- * loaded, else the synthesized tick.
+ * loaded, else the synthesized tick. Returns the sound, so a caller that books
+ * clicks ahead can stop them (grade-playback: a take paused with its clicks
+ * left booked played them on, and Play again booked a second set over them).
  */
 export function scheduleClick(
   ctx: BaseAudioContext,
@@ -70,7 +72,7 @@ export function scheduleClick(
   level: ClickLevel,
   /** A soft beat's share of the level (click-pattern.ts LEVEL_GAIN). */
   scale = 1
-) {
+): AudioScheduledSourceNode {
   const voice = voiceFor(sound, level);
   const buffer = voice ? bank.get(voice.sample) : undefined;
   if (voice && buffer) {
@@ -83,7 +85,7 @@ export function scheduleClick(
     src.start(time);
     src.stop(time + 0.6);
     src.onended = () => { src.disconnect(); gain.disconnect(); };
-    return;
+    return src;
   }
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -96,6 +98,7 @@ export function scheduleClick(
   osc.start(time);
   osc.stop(time + 0.04);
   osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+  return osc;
 }
 
 /**

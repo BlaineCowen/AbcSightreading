@@ -109,6 +109,21 @@ export class Metronome {
   stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    // Ticks already booked ahead (up to SCHEDULE_AHEAD_S) are cancelled too:
+    // left to sound, the last one flammed against a Grade run's first click
+    // when the run took the metronome over (13 October 2026).
+    const now = this.ctx?.currentTime ?? 0;
+    for (const [node, at] of this.booked) if (at > now) try { node.stop(); } catch {}
+    this.booked.clear();
+  }
+  /** Clicks booked and not yet over, with when each starts. */
+  private booked = new Map<AudioScheduledSourceNode, number>();
+  private keep(node: AudioScheduledSourceNode, at: number, ended: () => void) {
+    this.booked.set(node, at);
+    node.onended = () => {
+      this.booked.delete(node);
+      ended();
+    };
   }
 
   dispose() {
@@ -209,10 +224,10 @@ export class Metronome {
       src.start(time);
       // The files run 2.4 s; nothing here needs more than the bell's ring.
       src.stop(time + 0.6);
-      src.onended = () => {
+      this.keep(src, time, () => {
         src.disconnect();
         gain.disconnect();
-      };
+      });
       return;
     }
     this.tick(time, level, scale);
@@ -235,10 +250,10 @@ export class Metronome {
     osc.connect(gain).connect(this.out!);
     osc.start(time);
     osc.stop(time + 0.04);
-    osc.onended = () => {
+    this.keep(osc, time, () => {
       osc.disconnect();
       gain.disconnect();
-    };
+    });
   }
 }
 
