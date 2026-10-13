@@ -111,8 +111,6 @@ export function assembleAbcString(
   abcString += `% End of header, start of tune body:\n`;
 
   // --- Body Generation ---
-  const beatsPerMeasure = timeSig.tsPerMeasure;
-
   /**
    * Chord symbols from the hidden voices, by the time they start.
    *
@@ -133,6 +131,34 @@ export function assembleAbcString(
     }
   }
 
+  for (const voiceIndex of shown) {
+    const part = voiceParts[voiceIndex];
+    const lifted = voiceIndex === shown[0] ? liftedSymbols : null;
+    const { music, lyrics } = voiceBodyAbc(allVoiceNotes[voiceIndex], key, timeSig, display, lifted);
+    abcString += `[V:${part.smallName}] ${music}\n`;
+    if (lyrics) abcString += `${lyrics}\n`;
+  }
+
+  return abcString;
+}
+
+/**
+ * One voice's notes as ABC: the music (beamed by the beat, bars, accidentals
+ * printed only where the key or the bar does not already give them, the
+ * closing |]) and its solfège line (`w: ...`, or null). Shared by the Choral
+ * score (assembleAbcString) and the Ensemble score (ensemble/abc.ts), whose
+ * staves each read their own key.
+ *
+ * `lifted` carries chord symbols from hidden voices onto this one, by start time.
+ */
+export function voiceBodyAbc(
+  notesForPart: VoiceNote[],
+  key: string,
+  timeSig: TimeSignature,
+  display: AbcDisplayOptions = {},
+  lifted: Map<number, string> | null = null
+): { music: string; lyrics: string | null } {
+  const beatsPerMeasure = timeSig.tsPerMeasure;
   /**
    * How wide one beam group is, in 32nd-note units - a quarter in simple time,
    * a dotted quarter in compound. Already carried on every time signature.
@@ -191,104 +217,96 @@ export function assembleAbcString(
   // Strip leading accidental characters (^, _, =) to get the bare pitch+octave key.
   const basePitch = (noteName: string) => noteName.replace(/^[\^_=]+/, "");
 
-  for (const voiceIndex of shown) {
-    const part = voiceParts[voiceIndex];
-    const partSmallName = part.smallName;
-    let partString = `[V:${partSmallName}] `;
-    let measureCount = 0;
-    /** Where the current note starts, from the top of the piece. */
-    let at = 0;
-    const lifted = voiceIndex === shown[0] ? liftedSymbols : null;
 
-    // Tracks which pitch+octave strings have been altered within the current measure.
-    // Key = bare pitch string (e.g. "A,", "F"); value = the accidental type applied.
-    // Cleared at every barline so accidentals don't bleed across measures.
-    const measureAccidentals = new Map<string, string>();
+  let partString = "";
+  let measureCount = 0;
+  /** Where the current note starts, from the top of the piece. */
+  let at = 0;
 
-    const notesForPart = allVoiceNotes[voiceIndex];
+  // Tracks which pitch+octave strings have been altered within the current measure.
+  // Key = bare pitch string (e.g. "A,", "F"); value = the accidental type applied.
+  // Cleared at every barline so accidentals don't bleed across measures.
+  const measureAccidentals = new Map<string, string>();
+  for (let stepIndex = 0; stepIndex < notesForPart.length; stepIndex++) {
+    const note = notesForPart[stepIndex];
 
-    for (let stepIndex = 0; stepIndex < notesForPart.length; stepIndex++) {
-      const note = notesForPart[stepIndex];
+    // Log the note being processed
 
-      // Log the note being processed
-
-      // Chord-symbol annotation (e.g. "I", "V⁷", "V⁶/V").
-      //
-      // Emitted before the rest/note branch, not inside it: the symbols sit in
-      // one row above the top staff, and that voice can be resting there when
-      // the texture thins. Kept inside the note branch, every symbol over a rest
-      // silently vanished and the row thinned out with the texture.
-      //
-      // The leading "^" pins it above the staff as an annotation. A bare chord
-      // token does survive the parser - checked, "V/V" comes back intact rather
-      // than being read as a slash chord - but it would then be engraved in the
-      // chord font, and Roman-numeral analysis is an annotation, not a lead
-      // sheet chord.
-      const chordSymbol = note.chordSymbol ?? lifted?.get(at);
-      if (display.chordSymbols && chordSymbol) {
-        partString += `"^${chordSymbol}"`;
-      }
-
-      if (note.rest) {
-        partString += `z${note.length}`;
-      } else {
-        const base = basePitch(note.name);
-
-        // One rule for both altered and diatonic notes: work out what this note
-        // needs to sound as, compare it with what is already in force for that
-        // letter, and print a sign only when the two differ.
-        //
-        // Two bugs came from not doing this. An accidental holds for the rest of
-        // the measure, so a bar of repeated eighths printed ^G ^G ^G where a
-        // reader expects ^G G G. And cancelling was hard-coded to a natural,
-        // which is only right in a key that does not already alter that letter -
-        // in G major, a plain F after an F natural has to be restored with ^F,
-        // not marked natural again.
-        const want = note.accidental ?? keyAccidental(note);
-        const inForce = measureAccidentals.get(base) ?? keyAccidental(note);
-        if (want === inForce) {
-          partString += `${base}${note.length}`;
-        } else {
-          measureAccidentals.set(base, want);
-          partString += `${ACCIDENTAL_PREFIX[want] ?? ""}${base}${note.length}`;
-        }
-      }
-      // A space breaks the beam; leaving it out is what joins the notes.
-      const startsAt = measureCount;
-      measureCount += note.length;
-      at += note.length;
-      const completesMeasure = measureCount >= beatsPerMeasure;
-      if (
-        completesMeasure ||
-        !beamsTogether(note, notesForPart[stepIndex + 1], startsAt)
-      ) {
-        partString += " ";
-      }
-
-      // Add bar line if measure is complete
-      if (completesMeasure) {
-        partString += "| ";
-        measureCount = measureCount % beatsPerMeasure; // Handle any overflow
-        measureAccidentals.clear(); // Accidentals don't carry across barlines
-      }
+    // Chord-symbol annotation (e.g. "I", "V⁷", "V⁶/V").
+    //
+    // Emitted before the rest/note branch, not inside it: the symbols sit in
+    // one row above the top staff, and that voice can be resting there when
+    // the texture thins. Kept inside the note branch, every symbol over a rest
+    // silently vanished and the row thinned out with the texture.
+    //
+    // The leading "^" pins it above the staff as an annotation. A bare chord
+    // token does survive the parser - checked, "V/V" comes back intact rather
+    // than being read as a slash chord - but it would then be engraved in the
+    // chord font, and Roman-numeral analysis is an annotation, not a lead
+    // sheet chord.
+    const chordSymbol = note.chordSymbol ?? lifted?.get(at);
+    if (display.chordSymbols && chordSymbol) {
+      partString += `"^${chordSymbol}"`;
     }
 
-    // Add final double bar line
-    if (!partString.endsWith("| ")) {
-      partString += "|]";
+    if (note.rest) {
+      partString += `z${note.length}`;
     } else {
-      partString = partString.slice(0, -2) + "|]";
-    }
-    abcString += partString + "\n";
+      const base = basePitch(note.name);
 
-    // Solfège goes on its own `w:` line directly after this voice's body, which
-    // is how ABC attaches lyrics to a voice. One syllable per *note* - rests
-    // take no slot, or every later syllable would sit one note to the left.
-    if (display.lyrics) {
-      const syllables = lyricLineFor(notesForPart, key, display.lyrics, display.minorSolfege);
-      if (syllables.length > 0) abcString += `w: ${syllables.join(" ")}\n`;
+      // One rule for both altered and diatonic notes: work out what this note
+      // needs to sound as, compare it with what is already in force for that
+      // letter, and print a sign only when the two differ.
+      //
+      // Two bugs came from not doing this. An accidental holds for the rest of
+      // the measure, so a bar of repeated eighths printed ^G ^G ^G where a
+      // reader expects ^G G G. And cancelling was hard-coded to a natural,
+      // which is only right in a key that does not already alter that letter -
+      // in G major, a plain F after an F natural has to be restored with ^F,
+      // not marked natural again.
+      const want = note.accidental ?? keyAccidental(note);
+      const inForce = measureAccidentals.get(base) ?? keyAccidental(note);
+      if (want === inForce) {
+        partString += `${base}${note.length}`;
+      } else {
+        measureAccidentals.set(base, want);
+        partString += `${ACCIDENTAL_PREFIX[want] ?? ""}${base}${note.length}`;
+      }
+    }
+    // A space breaks the beam; leaving it out is what joins the notes.
+    const startsAt = measureCount;
+    measureCount += note.length;
+    at += note.length;
+    const completesMeasure = measureCount >= beatsPerMeasure;
+    if (
+      completesMeasure ||
+      !beamsTogether(note, notesForPart[stepIndex + 1], startsAt)
+    ) {
+      partString += " ";
+    }
+
+    // Add bar line if measure is complete
+    if (completesMeasure) {
+      partString += "| ";
+      measureCount = measureCount % beatsPerMeasure; // Handle any overflow
+      measureAccidentals.clear(); // Accidentals don't carry across barlines
     }
   }
 
-  return abcString;
+  // Add final double bar line
+  if (!partString.endsWith("| ")) {
+    partString += "|]";
+  } else {
+    partString = partString.slice(0, -2) + "|]";
+  }
+
+  // Solfège goes on its own `w:` line directly after this voice's body, which
+  // is how ABC attaches lyrics to a voice. One syllable per *note* - rests
+  // take no slot, or every later syllable would sit one note to the left.
+  let lyrics: string | null = null;
+  if (display.lyrics) {
+    const syllables = lyricLineFor(notesForPart, key, display.lyrics, display.minorSolfege);
+    if (syllables.length > 0) lyrics = `w: ${syllables.join(" ")}`;
+  }
+  return { music: partString, lyrics };
 }
