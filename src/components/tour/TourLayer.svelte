@@ -136,6 +136,17 @@
     welcoming = false;
   }
 
+  /** Something that must be seen opened over the page (tourStepAside): no card over it, now or later. */
+  let steppedAside = false;
+  function stepAside() {
+    steppedAside = true;
+    if (welcoming) {
+      markWelcomed(storage());
+      welcoming = false;
+    }
+    if (index >= 0) finish();
+  }
+
   function onKey(e: KeyboardEvent) {
     if (welcoming && e.key === "Escape") {
       e.preventDefault();
@@ -164,6 +175,7 @@
     vw = window.innerWidth;
     vh = window.innerHeight;
     window.addEventListener("sr-start-tour", onStart);
+    window.addEventListener("sr-tour-step-aside", stepAside);
     window.addEventListener("scroll", follow, { passive: true, capture: true });
     window.addEventListener("resize", follow);
     window.addEventListener("scrollend", follow, { capture: true });
@@ -174,12 +186,13 @@
     const asked = new URLSearchParams(search).get("tour") === "1";
     if (asked) setTimeout(() => void start(true), 600);
     else if (shouldWelcome({ page, search, hash, student, store: storage() })) {
-      setTimeout(() => (welcoming = true), 700);
+      setTimeout(() => (welcoming = !steppedAside), 700);
     }
   });
   onDestroy(() => {
     if (typeof window === "undefined") return;
     window.removeEventListener("sr-start-tour", onStart);
+    window.removeEventListener("sr-tour-step-aside", stepAside);
     window.removeEventListener("scroll", follow, { capture: true } as EventListenerOptions);
     window.removeEventListener("resize", follow);
     window.removeEventListener("scrollend", follow, { capture: true } as EventListenerOptions);

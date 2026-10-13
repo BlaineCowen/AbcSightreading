@@ -1,4 +1,5 @@
 <script lang="ts">
+  import LiveTeacher from "./LiveTeacher.svelte";
   import { onDestroy, onMount, tick } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
@@ -3352,6 +3353,15 @@
    */
   let passSyllables = false;
 
+  /**
+   * What live practice sends to the students' devices (LiveTeacher): the line
+   * as drawn, with the annotations chosen now. Everyone reads the one line.
+   * The flags are named so a change to any of them sends it again.
+   */
+  $: liveAbc = typeof renderedString?.[0] === "string"
+    ? (showSolfege, showRhythmSyllables, passSyllables, rhythmOnly, withChosenAnnotations(renderedString[0]))
+    : "";
+
   /** Every sound back to the reader's own controls. */
   function clearPassSounds() {
     if (
@@ -5847,6 +5857,10 @@
             <Clapperboard size={16} aria-hidden="true" />Video
             {#if videoAllowed === false}<span class="sr-pro-tag">Pro</span>{/if}
           </button>
+          <!-- Live practice (Pro): every student's device on the director's live link follows this line. -->
+          {#if !assignment}
+            <LiveTeacher page="unison" abc={liveAbc} bpm={tempo} rhythm={rhythmOnly} />
+          {/if}
         </div>
         <button
           class="inline-flex items-center gap-2 rounded-full px-4 min-h-10 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"

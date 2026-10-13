@@ -1,0 +1,22 @@
+---
+import Layout from "../layouts/Layout.astro";
+import LiveStudent from "../components/LiveStudent.svelte";
+
+/**
+ * Live practice, the student's side, by code: a director's room, a part, and
+ * that part on this device, following every exercise the director draws.
+ * The poster's address, /live/<code>, opens the room directly.
+ * Anyone may open it with no account, children included, so it carries no
+ * analytics and no feedback form (childSafe).
+ */
+---
+
+<Layout noindex childSafe title="Live practice | abcSightReading" description="Follow your director's exercise on your own device, with only your part." themable>
+  <div class="flex flex-col w-full items-center gap-5 pb-16 max-w-5xl mx-auto">
+    <div class="text-center">
+      <h1 class="text-3xl font-bold text-sr-ink">Live practice</h1>
+      <p class="text-sr-muted mt-1">Your director's exercise, with only your part.</p>
+    </div>
+    <LiveStudent client:only="svelte" />
+  </div>
+</Layout>

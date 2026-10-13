@@ -17,6 +17,11 @@ interface Props {
   themable?: boolean;
   /** Keep this page out of search results: accounts, sign-in, tools. */
   noindex?: boolean;
+  /**
+   * A page anyone may open with no account, children included (/live): it
+   * carries nothing that watches or reports, as a student's pages do not.
+   */
+  childSafe?: boolean;
   /** Structured data (schema.org JSON-LD) for this page. */
   jsonLd?: object | object[];
 }
@@ -26,6 +31,7 @@ const {
   description = "Unlimited sight-reading and sight-singing exercises for choirs and other ensembles: SATB, SSA, TTB and unison, UIL levels 1 to 5, with solfège and playback.",
   themable = false,
   noindex = false,
+  childSafe = false,
   jsonLd,
 } = Astro.props;
 
@@ -47,7 +53,7 @@ const ogImage = new URL("/og.png?v=abcsr", Astro.site).href;
  * and Texas Education Code 32.152 bars using student data for anything else.
  */
 const viewer = await currentUser(Astro.request).catch(() => null);
-const isStudent = (viewer as { accountType?: string } | null)?.accountType === "student";
+const isStudent = childSafe || (viewer as { accountType?: string } | null)?.accountType === "student";
 
 /**
  * Whether the Feedback button appears at all.

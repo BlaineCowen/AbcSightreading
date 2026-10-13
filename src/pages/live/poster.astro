@@ -1,0 +1,126 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { currentUser } from "../../lib/server/api";
+import { ensureRoom, mayRunLive } from "../../lib/server/live";
+import { formatLiveCode, livePath } from "../../lib/live";
+import { qrPath } from "../../lib/qr";
+
+/**
+ * The poster for a director's live room: a QR code to its permanent address,
+ * the address and the code, big, to print once and put on the wall. Makes
+ * the room (off air) if the director has none yet.
+ */
+const user = await currentUser(Astro.request).catch(() => null);
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent("/live/poster")}`);
+const allowed = await mayRunLive(user);
+if (!allowed.ok) return Astro.redirect("/pricing");
+const room = await ensureRoom(user.id);
+const host = new URL(Astro.request.url).host.replace(/^www\./, "");
+const url = `${Astro.url.origin}${livePath(room.code)}`;
+const shortUrl = `${host}${livePath(room.code)}`;
+const qr = qrPath(url);
+---
+
+<Layout noindex title="Live practice poster | abcSightReading" description="Print your live practice poster.">
+  <div class="poster-tools no-print flex flex-wrap items-center justify-center gap-3 mb-6">
+    <p class="text-sr-muted text-sm">Print it once and put it up: the link never changes.</p>
+    <button class="sr-btn" id="print-poster">Print</button>
+  </div>
+  <article class="poster mx-auto">
+    <p class="poster-kicker">Live practice</p>
+    <h1 class="poster-head">Scan to see the music</h1>
+    <svg viewBox={`0 0 ${qr.size} ${qr.size}`} class="poster-qr" shape-rendering="crispEdges" role="img" aria-label={`QR code for ${url}`}>
+      <path d={qr.path} />
+    </svg>
+    <p class="poster-url">{shortUrl}</p>
+    <p class="poster-code">Code <strong>{formatLiveCode(room.code)}</strong></p>
+    <p class="poster-steps">Pick your part. You'll see only your part, and every new exercise as it comes. No account needed.</p>
+    <p class="poster-mark"><em>abc</em>SightReading</p>
+  </article>
+</Layout>
+
+<script>
+  document.getElementById("print-poster")?.addEventListener("click", () => window.print());
+</script>
+
+<style>
+  .poster {
+    background: #ffffff;
+    color: #15213a;
+    border-radius: 28px;
+    max-width: 720px;
+    padding: 48px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+    box-shadow: var(--sr-card-shadow);
+  }
+  .poster-kicker {
+    font-family: var(--sr-font-display);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #1e56c0;
+  }
+  .poster-head {
+    font-family: var(--sr-font-display);
+    font-weight: 700;
+    font-size: clamp(36px, 7vw, 60px);
+    line-height: 1.05;
+  }
+  .poster-qr {
+    width: min(420px, 80vw);
+    height: auto;
+    fill: #15213a;
+  }
+  .poster-url {
+    font-family: var(--sr-font-display);
+    font-weight: 700;
+    font-size: clamp(20px, 4.5vw, 34px);
+    word-break: break-all;
+  }
+  .poster-code {
+    font-size: 22px;
+    color: #34405e;
+  }
+  .poster-code strong {
+    font-family: var(--sr-font-display);
+    letter-spacing: 0.06em;
+    color: #15213a;
+  }
+  .poster-steps {
+    font-size: 18px;
+    color: #34405e;
+    max-width: 30rem;
+  }
+  .poster-mark {
+    font-family: var(--sr-font-display);
+    font-weight: 600;
+    font-size: 20px;
+    margin-top: 8px;
+  }
+  .poster-mark em {
+    font-family: Georgia, serif;
+    color: #1e56c0;
+  }
+  @media print {
+    :global(header),
+    :global(footer) {
+      display: none !important;
+    }
+    :global(main) {
+      padding-top: 0 !important;
+    }
+    :global(body) {
+      background: #ffffff !important;
+    }
+    .poster {
+      box-shadow: none;
+      max-width: none;
+      padding: 24px 0;
+    }
+  }
+</style>
