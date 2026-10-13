@@ -1,5 +1,5 @@
 /**
- * Every ready-made ensemble, and random ones, at every level, key, meter and
+ * Every ready-made ensemble, and random ones, in both styles, at every level, key, meter and
  * length the Ensemble page offers: does it generate, does every staff stay in
  * its players' range, and does abcjs read the score without a warning.
  *
@@ -36,6 +36,7 @@ const bad: string[] = [];
 for (const e of ensembles) {
   let f = 0, o = 0, w = 0, n = 0;
   const errors = new Set<string>();
+  for (const style of ["simple", "chorale"] as const)
   for (const level of [1, 2, 3, 4, 5])
     for (const key of ENSEMBLE_KEYS)
       for (const meter of ENSEMBLE_METERS)
@@ -46,7 +47,7 @@ for (const e of ensembles) {
             n++;
             Object.assign(console, { log: () => {}, warn: () => {} });
             try {
-              const ex = generateEnsembleExercise({ members: e.members, key, timeSig: TS[meter], measures, level, bpm: 80 });
+              const ex = generateEnsembleExercise({ members: e.members, key, timeSig: TS[meter], measures, level, bpm: 80, style });
               Object.assign(console, { log: real });
               ex.arrangement.staves.forEach((s, i) => {
                 const lo = s.instrument.concert.min - stepsFor(s.instrument.transpose) - 2;
@@ -58,7 +59,7 @@ for (const e of ensembles) {
             } catch (err) {
               Object.assign(console, { log: real });
               f++;
-              errors.add(`L${level} ${key} ${meter} ${measures}: ${String((err as Error).message).slice(0, 60)}`);
+              errors.add(`${style} L${level} ${key} ${meter} ${measures}: ${String((err as Error).message).slice(0, 60)}`);
             }
           }
   runs += n; fails += f; outOfRange += o; warnings += w;

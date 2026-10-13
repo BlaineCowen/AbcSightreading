@@ -249,6 +249,7 @@ export function voiceBodyAbc(
       partString += `"^${chordSymbol}"`;
     }
 
+    if (note.fermata) partString += "!fermata!";
     if (note.rest) {
       partString += `z${note.length}`;
     } else {

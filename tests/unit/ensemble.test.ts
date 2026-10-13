@@ -6,6 +6,7 @@ import { ensembleInstrument, stepsFor } from "../../src/lib/ensemble/instruments
 import { writtenKey } from "../../src/lib/curriculum/band";
 import { noteArray } from "../../src/resources/noteArray";
 import { timeSignaturesFor } from "../../src/lib/meter";
+import { DEFAULT_SETTINGS, settingsFromQuery, settingsFromSaved, settingsQuery } from "../../src/lib/ensemble/settings";
 import type { VoiceNote } from "../../src/lib/types";
 
 const TS = timeSignaturesFor(["4/4", "3/4"]);
@@ -132,4 +133,52 @@ describe("an ensemble exercise", () => {
         }
     }
   }, 120_000);
+});
+
+describe("the Bach chorale style", () => {
+  const quintet = ENSEMBLES["brass quintet"].map(([instrument, count]) => ({ instrument, count }));
+  test("a fermata over every part at each phrase's end, and over the last note", () => {
+    const ex = generateEnsembleExercise({ members: quintet, key: "Bb", timeSig: TS["4/4"], measures: 8, level: 3, bpm: 80, style: "chorale" });
+    for (const notes of ex.staffNotes) {
+      const sounding = notes.filter((n) => !n.rest);
+      expect(sounding[sounding.length - 1].fermata).toBe(true);
+      expect(notes.filter((n) => n.fermata).length).toBeGreaterThanOrEqual(2);
+    }
+    // Every staff holds its fermatas at the same moments.
+    const ends = (notes: VoiceNote[]) => { let at = 0; return notes.map((n) => ((at += n.length), n.fermata ? at : -1)).filter((x) => x >= 0); };
+    const first = ends(ex.staffNotes[0]);
+    for (const notes of ex.staffNotes) expect(ends(notes)).toEqual(first);
+    expect((ex.abc.match(/!fermata!/g) ?? []).length).toBe(first.length * ex.staffNotes.length);
+  });
+  test("busier than the simple style: more of the parts move in eighths, on their own", () => {
+    const eighthShare = (style: "simple" | "chorale") => {
+      let eighths = 0, notes = 0;
+      const quiet = { log: console.log, warn: console.warn };
+      Object.assign(console, { log: () => {}, warn: () => {} });
+      try {
+        for (let r = 0; r < 12; r++) {
+          const ex = generateEnsembleExercise({ members: quintet, key: "F", timeSig: TS["4/4"], measures: 8, level: 5, bpm: 80, style });
+          for (const part of ex.concert) for (const n of part) if (!n.rest) { notes++; if (n.length <= 4) eighths++; }
+        }
+      } finally {
+        Object.assign(console, quiet);
+      }
+      return eighths / notes;
+    };
+    // Measured: about 20% at Level 5 (Bach writes 36%); simple at Level 5 takes UIL's rhythms.
+    expect(eighthShare("chorale")).toBeGreaterThan(0.12);
+  }, 120_000);
+});
+
+describe("ensemble settings: links and saved ensembles", () => {
+  test("the style rides in the link, and a saved ensemble opens as saved", () => {
+    const s = { ...DEFAULT_SETTINGS, style: "simple" as const, level: 4, keys: ["Eb"], members: [{ instrument: "band-flute", count: 2 }, { instrument: "band-tuba", count: 1 }] };
+    expect(settingsFromQuery("?" + settingsQuery(s))).toEqual(s);
+    expect(settingsFromSaved(JSON.parse(JSON.stringify(s)))).toEqual(s);
+  });
+  test("a damaged saved ensemble still opens, on the defaults", () => {
+    expect(settingsFromSaved(null)).toEqual(DEFAULT_SETTINGS);
+    expect(settingsFromSaved({ members: "brass", level: "x" })).toEqual(DEFAULT_SETTINGS);
+    expect(settingsFromSaved({ members: [{ instrument: "band-nonsense", count: 3 }] }).members).toEqual(DEFAULT_SETTINGS.members);
+  });
 });

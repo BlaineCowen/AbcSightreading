@@ -14,7 +14,7 @@
   import { onDestroy, onMount, tick } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
-  import { ChevronDown, Eye, Minus, Plus, RefreshCw } from "lucide-svelte";
+  import { ChevronDown, Eye, Minus, Plus, RefreshCw, X } from "lucide-svelte";
   import { usage, countGeneration, mayGenerate } from "../lib/usage";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
@@ -38,9 +38,14 @@
     MAX_PLAYERS,
     playerCount,
     settingsFromQuery,
+    settingsFromSaved,
     settingsQuery,
+    ENSEMBLE_PRESET_STORE,
     type EnsembleSettings,
   } from "../lib/ensemble/settings";
+  import { addPreset, listPresets, removePreset } from "../lib/preset-sync";
+  import type { SavedPreset } from "../lib/preset-storage";
+  import type { EnsembleStyle } from "../lib/ensemble/generate";
   import type { LyricSystem } from "../resources/solfege";
 
   const FAMILIES = [
@@ -49,6 +54,10 @@
     { id: "strings", label: "Strings" },
   ] as const;
   const keyLabel = (k: string) => k.replace("b", "♭").replace("#", "♯");
+  const STYLES: { id: EnsembleStyle; label: string; note: string }[] = [
+    { id: "chorale", label: "Bach chorale", note: "A quarter-note pulse with every part moving on its own: passing tones and neighbours in eighths, suspensions into the cadences, inversions and seventh chords, a fermata at each phrase's end." },
+    { id: "simple", label: "Simple", note: "The parts move together in the textures of the UIL choir levels: one rhythm, small skips, one part often holding do." },
+  ];
   const LEVEL_NOTE: Record<number, string> = {
     1: "Quarters and halves, I and V, steps and small skips.",
     2: "Adds eighth pairs and IV.",
@@ -120,13 +129,53 @@
   const short = (xs: string[], n = 3) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} +${xs.length - n}`);
   $: players = playerCount(settings.members);
   $: preset = ENSEMBLE_PRESETS.find((p) => JSON.stringify(p.members) === JSON.stringify(settings.members.filter((m) => m.count > 0)));
+  // ── My ensembles: saved settings (preset-sync: the account, or this browser) ──
+  let saved: SavedPreset<EnsembleSettings>[] = [];
+  let savedName = "";
+  let saving = false;
+  let saveError = "";
+  const sameSettings = (a: EnsembleSettings, b: EnsembleSettings) => settingsQuery(a) === settingsQuery(b);
+  $: savedNow = saved.find((p) => sameSettings(settingsFromSaved(p.params), settings)) ?? null;
+  async function loadSaved() {
+    try {
+      saved = (await listPresets<EnsembleSettings>(ENSEMBLE_PRESET_STORE)).presets;
+    } catch {
+      saved = [];
+    }
+  }
+  async function saveEnsemble() {
+    const name = savedName.trim();
+    if (!name || saving) return;
+    saving = true;
+    saveError = "";
+    try {
+      const p = await addPreset<EnsembleSettings>(name, settings, ENSEMBLE_PRESET_STORE);
+      saved = [...saved, p];
+      savedName = "";
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : String(e);
+    } finally {
+      saving = false;
+    }
+  }
+  function openSaved(p: SavedPreset<EnsembleSettings>) {
+    settings = settingsFromSaved(p.params);
+  }
+  async function forgetSaved(p: SavedPreset<EnsembleSettings>) {
+    try {
+      await removePreset(p.id, ENSEMBLE_PRESET_STORE);
+      saved = saved.filter((x) => x.id !== p.id);
+    } catch (e) {
+      saveError = e instanceof Error ? e.message : String(e);
+    }
+  }
   $: pillText = {
-    ensemble: preset ? preset.label : `${players} players`,
-    level: `Level ${settings.level}`,
+    ensemble: savedNow ? savedNow.name : preset ? preset.label : `${players} players`,
+    level: `${settings.style === "chorale" ? "Chorale" : "Simple"} · Level ${settings.level}`,
     keys: short(settings.keys.map(keyLabel), 3),
     meter: `${short(settings.meters, 2)} · ${settings.measures} bars`,
   };
-  const POP_TITLE: Record<SettingPop, string> = { ensemble: "Ensemble", level: "Level", keys: "Concert keys", meter: "Meter and length" };
+  const POP_TITLE: Record<SettingPop, string> = { ensemble: "Ensemble", level: "Style and level", keys: "Concert keys", meter: "Meter and length" };
   const PILL_GROUPS: { label: string; tone: string; ids: SettingPop[] }[] = [
     { label: "Ensemble", tone: "action", ids: ["ensemble"] },
     { label: "Level", tone: "mint", ids: ["level"] },
@@ -153,7 +202,7 @@
   }
   function choosePreset(id: string) {
     const p = ENSEMBLE_PRESETS.find((x) => x.id === id);
-    if (p) settings = { ...settings, members: p.members.map((m) => ({ ...m })), keys: [...p.keys] };
+    if (p) settings = { ...settings, members: p.members.map((m) => ({ ...m })), keys: [...p.keys], style: p.style };
   }
   function toggle<T>(items: T[], item: T): T[] {
     if (items.includes(item)) return items.length > 1 ? items.filter((x) => x !== item) : items;
@@ -219,7 +268,7 @@
       const key = pick(settings.keys);
       const meter = pick(settings.meters);
       const timeSig = timeSignaturesFor([meter])[meter];
-      const ex = generateEnsembleExercise({ members: settings.members, key, timeSig, measures: settings.measures, level: settings.level, bpm: settings.bpm, title: `${preset?.label ?? "Ensemble"}, concert ${keyLabel(key)}` });
+      const ex = generateEnsembleExercise({ members: settings.members, key, timeSig, measures: settings.measures, level: settings.level, style: settings.style, bpm: settings.bpm, title: `${preset?.label ?? "Ensemble"}, concert ${keyLabel(key)}` });
       exercise = { ...ex, key, meter };
       // A staff hidden before keeps hidden if it is still there; otherwise the whole score.
       const names = new Set(ex.arrangement.staves.map((s) => s.name));
@@ -377,6 +426,7 @@
     const seen = new IntersectionObserver(([entry]) => (setbarInView = entry.intersectionRatio >= 0.6), { threshold: [0, 0.6, 1] });
     if (setbarEl) seen.observe(setbarEl);
     settings = settingsFromQuery(location.search);
+    void loadSaved();
     void generate();
     return () => {
       document.removeEventListener("pointerdown", away, true);
@@ -426,6 +476,25 @@
         <p class="set-pop-title"><span class="set-group-dot tone-{toneOf(settingPop)}"></span>{POP_TITLE[settingPop]}</p>
         {#if settingPop === "ensemble"}
           <div class="flex flex-col gap-4">
+            <div class="flex flex-col gap-1.5">
+              <p class="sr-label">My ensembles</p>
+              {#if saved.length}
+                <div class="flex flex-wrap gap-1.5" role="group" aria-label="My ensembles">
+                  {#each saved as p (p.id)}
+                    <span class="saved-chip {savedNow?.id === p.id ? 'on' : ''}">
+                      <button type="button" class="saved-open" aria-pressed={savedNow?.id === p.id} on:click={() => openSaved(p)}>{p.name}</button>
+                      <button type="button" class="saved-x" aria-label="Delete {p.name}" title="Delete" on:click={() => forgetSaved(p)}><X size={13} /></button>
+                    </span>
+                  {/each}
+                </div>
+              {/if}
+              <form class="flex flex-wrap items-center gap-1.5" on:submit|preventDefault={saveEnsemble}>
+                <input class="save-name" type="text" maxlength="80" placeholder={savedNow ? `Saved as ${savedNow.name}` : "Name this ensemble, e.g. 3rd period band"} bind:value={savedName} aria-label="Name to save this ensemble as" />
+                <button type="submit" class="sr-tok" disabled={!savedName.trim() || saving || players < 2}>{saving ? "Saving…" : "Save"}</button>
+              </form>
+              <p class="text-xs text-sr-faint">Keeps the instruments, style, level, keys, meter, length and tempo.{saveError ? ` ${saveError}` : ""}</p>
+            </div>
+            <p class="sr-label -mb-2">Ready-made</p>
             <div class="flex flex-wrap gap-1.5" role="group" aria-label="Ready-made ensembles">
               {#each ENSEMBLE_PRESETS as p (p.id)}
                 <button type="button" class="sr-tok {preset?.id === p.id ? 'sr-on' : ''}" aria-pressed={preset?.id === p.id} on:click={() => choosePreset(p.id)}>{p.label}</button>
@@ -461,13 +530,25 @@
             {/if}
           </div>
         {:else if settingPop === "level"}
+          <p class="sr-label mb-1.5">Style</p>
+          <div class="flex flex-wrap gap-1.5 mb-2" role="group" aria-label="Style">
+            {#each STYLES as st}
+              <button type="button" class="sr-tok {settings.style === st.id ? 'sr-on' : ''}" aria-pressed={settings.style === st.id} on:click={() => (settings = { ...settings, style: st.id })}>{st.label}</button>
+            {/each}
+          </div>
+          <p class="text-sm text-sr-muted mb-4">{STYLES.find((x) => x.id === settings.style)?.note}</p>
+          <p class="sr-label mb-1.5">Level</p>
           <div class="flex flex-wrap gap-1.5" role="group" aria-label="Level">
             {#each [1, 2, 3, 4, 5] as n}
               <button type="button" class="sr-tok {settings.level === n ? 'sr-on' : ''}" aria-pressed={settings.level === n} on:click={() => (settings = { ...settings, level: n })}>{n}</button>
             {/each}
           </div>
-          <p class="text-sm text-sr-muted mt-3">Level {settings.level}: {LEVEL_NOTE[settings.level]}</p>
-          <p class="text-xs text-sr-faint mt-2">The rhythms, chords and skips of the UIL sight-reading levels.</p>
+          {#if settings.style === "chorale"}
+            <p class="text-sm text-sr-muted mt-3">Level {settings.level}: {settings.level <= 2 ? "diatonic chords and their inversions, decorated now and then." : settings.level <= 4 ? "adds secondary dominants (fi, si, di), decorated more often." : "the busiest: every chord tone that can be decorated, is."}</p>
+          {:else}
+            <p class="text-sm text-sr-muted mt-3">Level {settings.level}: {LEVEL_NOTE[settings.level]}</p>
+            <p class="text-xs text-sr-faint mt-2">The rhythms, chords and skips of the UIL sight-reading levels.</p>
+          {/if}
         {:else if settingPop === "keys"}
           <div class="flex flex-wrap gap-1.5" role="group" aria-label="Concert keys">
             {#each ENSEMBLE_KEYS as k}
@@ -504,7 +585,7 @@
   <div class="focus-keep w-full flex flex-col gap-3">
     {#if exercise}
       <p class="focus-hide text-sm text-sr-muted px-1">
-        Concert {keyLabel(exercise.key)} · {exercise.meter} · level {settings.level} · {exercise.arrangement.parts.length} parts{#if onePart} · showing {onePart} only{/if}
+        Concert {keyLabel(exercise.key)} · {exercise.meter} · {settings.style === "chorale" ? "chorale" : "simple"}, level {settings.level} · {exercise.arrangement.parts.length} parts{#if onePart} · showing {onePart} only{/if}
       </p>
       <div class="score-tools" bind:this={toolsEl}>
         <div class="focus-hide no-print flex flex-wrap items-center gap-2">
@@ -645,4 +726,12 @@
   .parts-preview li { display: flex; gap: 0.5rem; align-items: baseline; }
   .part-no { min-width: 1.25rem; height: 1.25rem; border-radius: 999px; background: var(--sr-track); font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
   .chip { min-width: 2.75rem; }
+  .saved-chip { display: inline-flex; align-items: center; border-radius: 999px; background: var(--sr-track); border: 2px solid transparent; }
+  .saved-chip.on { background: var(--sr-tint); border-color: var(--sr-action); }
+  .saved-open { padding: 0.35rem 0.25rem 0.35rem 0.8rem; font-size: 14px; font-weight: 700; color: var(--sr-ink); }
+  .saved-chip.on .saved-open { color: var(--sr-action-fg); }
+  .saved-x { width: 1.75rem; height: 1.75rem; margin-right: 0.15rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--sr-muted); }
+  .saved-x:hover { background: var(--sr-raise); color: var(--sr-ink); }
+  .save-name { flex: 1 1 14rem; min-width: 0; min-height: 2.5rem; padding: 0 0.9rem; border-radius: 999px; background: var(--sr-track); color: var(--sr-ink); border: 2px solid transparent; font-size: 14px; }
+  .save-name:focus { outline: none; border-color: var(--sr-action); }
 </style>

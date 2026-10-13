@@ -41,6 +41,8 @@ export interface VoiceNote extends Note {
     | "double-flat"
     | null;
   isCadenceEnd?: boolean; // Flag if this note is the end of a cadence
+  /** A fermata over it (the Ensemble page's chorale style; abc-assembly voiceBodyAbc). */
+  fermata?: boolean;
   /**
    * Set on a note the rhyme pass swapped for a different tone of the same
    * chord, so the restatement answers the first phrase instead of echoing it.

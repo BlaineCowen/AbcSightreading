@@ -7,8 +7,8 @@
  * the checks here are about size and which list, not about the settings.
  */
 
-/** The lists presets are kept in: choral's, and unison's. */
-export const PRESET_STORES = ["abcsr_presets", "abcsr_unison_presets"] as const;
+/** The lists presets are kept in: choral's, unison's, and the Ensemble page's. */
+export const PRESET_STORES = ["abcsr_presets", "abcsr_unison_presets", "abcsr_ensemble_presets"] as const;
 export type PresetStore = (typeof PRESET_STORES)[number];
 
 export const MAX_NAME_LENGTH = 80;

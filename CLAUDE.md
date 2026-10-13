@@ -1241,9 +1241,24 @@ chromatic so solfège reads fi as fi. Each staff carries its own `[K:]`,
 `%%MIDI program` (after its first V: line in the body) and `transpose=`.
 `voiceBodyAbc` (abc-assembly.ts) is the note writer Choral and Ensemble share;
 Choral's output is unchanged (meter snapshots). A staff can be hidden ("one
-part") and is still heard: playback reads the full score. Check, 13 October
-2026: 5,248 exercises over 48 ensembles, 2 failed (unusual mixes, 16 bars),
-no note out of range, no abcjs warning.
+part") and is still heard: playback reads the full score. Two styles (the
+Level pill, `style` in links): Simple, the UIL level's choir textures; and
+Bach chorale (`CHORALE` in generate.ts, the default for the band and string
+groups): a quarter pulse, halves and wholes at cadences, every part decorated
+on its own by the corpus-tuned decoration pass, all diatonic chords in every
+inversion and the V7's (secondary dominants from Level 3), leaps to a sixth,
+the general writer, and a fermata over every part at each phrase's end
+(`VoiceNote.fermata`, printed by voiceBodyAbc). Measured against 120 of
+Bach's chorales (13 October 2026): he writes 36% eighths, parts' rhythms
+differ on 55% of beats, 21% of moves leap; chorale style at Level 5 gives
+20%, 30%, 28%, the decoration pass's own ceiling (a passing tone needs a
+third to fill; two parts never decorate the same instant). Closing that
+needs new figures (chord-tone eighths, decorations in thirds) in the shared
+pass. Saved ensembles ("My ensembles" in the Ensemble popover) are presets
+in their own list, `abcsr_ensemble_presets` (preset-validate PRESET_STORES),
+opened through `settingsFromSaved`, checked as a link is. Check, 13 October
+2026: 10,267 exercises over 48 ensembles in both styles, 2 failed (simple
+style, unusual mixes, 16 bars), no note out of range, no abcjs warning.
 
 ## Accounts
 
