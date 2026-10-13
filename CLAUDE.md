@@ -1219,6 +1219,32 @@ To test with a real signal, run Chromium with
 `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`;
 a synthetic 440 Hz tone reads A4 within a cent.
 
+## Ensemble page
+
+`/ensemble-sightreading` (`AbcjsEnsemble.svelte`, `src/lib/ensemble/`, tests
+`ensemble.test.ts`, gate `bun run scripts/check-ensemble.ts`): a teacher picks
+instruments and voices with counts (the Reading as list: band, the four voice
+parts, strings; ready-made groups in `settings.ts`) and gets a chorale for
+them (Blaine, 13 October 2026: chorale style, two to four parts with
+doubling, its own page, voices beside instruments). `arrange.ts` lines the
+players up by register and cuts them into parts where registers differ most
+(a section can split, Trumpet 1 and 2), staggers parts that share a register,
+writes a part far below the one above an octave up for its players to read
+8vb (a string bass under violins), and names the parts so the Choral writer
+uses the texture that fits (SATB, SAB, SA/TB; two parts more than an octave
+apart go to the general writer, since the duet writers dragged a tuba to the
+top of its range). Choral pitch is concert + 7. `generate.ts` writes the
+parts with a UIL level's rhythms, chords and skips in any major concert key,
+then `transpose.ts` gives each instrument its staff: its octave, written key
+(`writtenKey`), every note spelled from its sound, chromatic notes kept
+chromatic so solfège reads fi as fi. Each staff carries its own `[K:]`,
+`%%MIDI program` (after its first V: line in the body) and `transpose=`.
+`voiceBodyAbc` (abc-assembly.ts) is the note writer Choral and Ensemble share;
+Choral's output is unchanged (meter snapshots). A staff can be hidden ("one
+part") and is still heard: playback reads the full score. Check, 13 October
+2026: 5,248 exercises over 48 ensembles, 2 failed (unusual mixes, 16 bars),
+no note out of range, no abcjs warning.
+
 ## Accounts
 
 Better Auth (`src/lib/server/auth.ts`) on Prisma ORM 7 + Prisma Postgres

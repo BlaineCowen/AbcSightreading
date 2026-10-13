@@ -52,6 +52,8 @@ export const CHORAL_BIAS = 7;
 const MIN_SPAN = 5;
 /** How far past its comfortable range a part may reach, in steps. */
 const REACH = 2;
+/** Two parts further apart than this (steps, between their middles) are not a duet in thirds and sixths. */
+const WIDE_DUO = 7;
 /** The widest gap between two parts' ranges, in steps (a fourth); wider, the lower is written an octave up. */
 const MAX_GAP = 3;
 
@@ -166,7 +168,12 @@ export function arrangeEnsemble(members: EnsembleMember[]): Arrangement {
     return [lo, hi] as [number, number];
   });
 
-  const names = NAMES[n] ?? (current[0][0] + current[1][0] >= 2 * 12 ? ["Soprano", "Alto"] : ["Tenor", "Bass"]);
+  // Two parts: the SA and TB writers keep a duet in thirds and sixths, which
+  // drags a tuba under a trumpet to the top of its range. Parts more than an
+  // octave apart are written by the general writer instead (names it does not
+  // match: build-chord-notes, by order).
+  const apart = n === 2 && (current[0][0] + current[0][1]) / 2 - (current[1][0] + current[1][1]) / 2 > WIDE_DUO;
+  const names = NAMES[n] ?? (apart ? ["Upper", "Lower"] : current[0][0] + current[1][0] >= 2 * 12 ? ["Soprano", "Alto"] : ["Tenor", "Bass"]);
   const parts: EnsemblePart[] = current.map((c, k) => ({
     name: names[k],
     order: n - 1 - k,

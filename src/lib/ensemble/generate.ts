@@ -48,6 +48,9 @@ export type EnsembleExercise = {
   exercise: ChoralExercise;
 };
 
+/** Draws after the first, when one cannot be written. */
+const ENSEMBLE_RETRIES = 2;
+
 export const ENSEMBLE_KEYS = ["C", "F", "Bb", "Eb", "Ab", "Db", "G", "D", "A", "E"];
 
 /** What the level hands the Choral writer, as the sweep and the page build it. */
@@ -64,7 +67,18 @@ export function generateEnsembleExercise(o: EnsembleOptions): EnsembleExercise {
   const selectedRhythms = allRhythms.filter(
     (r) => preset.allowedRhythmNames.includes(r.name) && isSelectableRhythm(r) && !(r.pattern === true && containsRest(r)) && !r.rest && r.totalValue <= o.timeSig.tsPerMeasure,
   );
-  const exercise = generateChoralExercise({
+  // A draw that cannot fit a chord (an unusual mix of registers, 16 bars) is drawn again: with two more draws about 1 in 2,600 still fails (scripts/check-ensemble.ts, 13 October 2026).
+  let exercise: ChoralExercise | undefined;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      exercise = drawChorale();
+      break;
+    } catch (e) {
+      if (attempt >= ENSEMBLE_RETRIES) throw e;
+    }
+  }
+  function drawChorale() {
+    return generateChoralExercise({
     key: o.key,
     timeSig: o.timeSig,
     partsObject: arrangement.partsObject,
@@ -86,7 +100,8 @@ export function generateEnsembleExercise(o: EnsembleOptions): EnsembleExercise {
     dottedOnStrongBeats: !!preset.dottedOnStrongBeats,
     partWriterLevel: preset.level,
   } as any);
-  const byName = new Map(exercise.voiceNames.map((n, i) => [n, exercise.voiceNotes[i]]));
+  }
+  const byName = new Map(exercise!.voiceNames.map((n, i) => [n, exercise!.voiceNotes[i]]));
   const concert = arrangement.parts.map((p) => byName.get(p.name) ?? []);
   // Choral pitch is an octave above concert: read it an octave down.
   const staffNotes = arrangement.staves.map((s) =>
@@ -95,7 +110,7 @@ export function generateEnsembleExercise(o: EnsembleOptions): EnsembleExercise {
     ),
   );
   const abc = ensembleAbc(arrangement.staves, staffNotes, concert[0], o);
-  return { abc, arrangement, staffNotes, concert, exercise };
+  return { abc, arrangement, staffNotes, concert, exercise: exercise! };
 }
 
 /** The full score: a staff an instrument, each in its own key, clef and sound. */
