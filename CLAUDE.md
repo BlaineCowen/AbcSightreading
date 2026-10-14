@@ -958,6 +958,19 @@ subdivided when it does; it kept a click of its own, on every beat, until
   moving on in time and counting pitch sung ahead toward the next note -
   and a singer following the cursor in time had short notes marked missed
   and attempts counted against the wrong notes (Blaine's saved run).
+  **Pip, the pitch guide** (14 October 2026; `src/lib/pitch-guide.ts`, on by
+  default, Pitch guide On/Off in the setup, `gradeGuide` in the tuner
+  store): while a note is waited on, a ball with a face rides the staff at
+  the pitch being sung (folded into the note's octave, placed by staff steps
+  from the notehead like grade-feedback), on a spring each frame from the
+  runner's 50 ms ticks. Peach far off, butter within a semitone, mint in
+  tune; a tag says which way (and the cents within a semitone), a dashed
+  line points to the note, a trail streams behind, the ring fills with the
+  hold, and the runner's credit (`GradeView.outcome`) pops it with confetti
+  and "First try!" or "Fixed it!". A different note held 250 ms shows as a
+  named ghost notehead beside the written one. `GUIDE_SHOTS=<dir> MODE=pitch
+  scripts/check-grade.ts` screenshots it mid-note. Meant to be filmed: the
+  viral idea was a sing-and-get-graded clip.
 The key's reference (do mi so mi do, so below, do, then the first note) plays
 on the grand piano the exercise plays on (`playPiano` in tools/tone.ts, the
 /api/soundfont samples, fetched as the run starts and waited on for at most

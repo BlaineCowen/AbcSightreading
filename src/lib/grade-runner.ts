@@ -28,6 +28,7 @@ import {
   type Strictness,
   type Help,
   type NoteResult,
+  type Outcome,
 } from "./grade";
 
 /**
@@ -68,6 +69,8 @@ export type GradeView = {
   helping: boolean;
   /** The note has its credit; the cursor waits out its written length. */
   credited: boolean;
+  /** Note by note, once credited: right first time, corrected or helped. */
+  outcome: Outcome | null;
   result: GradeResult | null;
   /** Pitch & rhythm's result: pitch, rhythm and overall. */
   perf: PerfResult | null;
@@ -113,7 +116,7 @@ export type GradeHooks = {
 };
 
 const TICK_MS = 50;
-const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, result: null, perf: null, claps: null, tapped: 0, mode: "pitch" };
+const IDLE: GradeView = { phase: "idle", index: -1, total: 0, hold: 0, onTarget: false, cents: null, sung: null, target: null, helping: false, credited: false, outcome: null, result: null, perf: null, claps: null, tapped: 0, mode: "pitch" };
 const midiOfHz = (hz: number, a4: number) => 69 + 12 * Math.log2(hz / a4);
 
 export class GradeRunner {
@@ -448,7 +451,7 @@ export class GradeRunner {
     this.hooks.moveTo(i);
     // Note by note: the note shown is the one to listen for.
     setExpectedNotes([this.notes[i].midi]);
-    this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false, credited: false });
+    this.set({ index: i, hold: 0, onTarget: false, cents: null, sung: null, target: this.notes[i].midi, helping: false, credited: false, outcome: null });
   }
 
   private tick() {
@@ -507,7 +510,7 @@ export class GradeRunner {
         help: this.help,
       });
       this.creditedAt = now;
-      this.set({ hold: 1, onTarget: true, cents, sung, credited: true });
+      this.set({ hold: 1, onTarget: true, cents, sung, credited: true, outcome });
       return;
     }
     this.set({ hold: Math.min(1, this.holdMs / CREDIT_MS), onTarget, cents, sung });

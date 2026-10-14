@@ -290,6 +290,14 @@
             {/if}
           </div>
         {/if}
+        {#if !performance && !rhythmOnly}
+          <div class="row" role="group" aria-label="Pitch guide">
+            <span>Pitch guide</span>
+            <button class="sr-tok text-xs px-2.5 py-1 {$tuner.gradeGuide ? 'sr-on' : ''}" aria-pressed={$tuner.gradeGuide} on:click={() => tuner.setGrade({ gradeGuide: true })}
+              title="A ball on the score shows where your pitch is against the note">On</button>
+            <button class="sr-tok text-xs px-2.5 py-1 {!$tuner.gradeGuide ? 'sr-on' : ''}" aria-pressed={!$tuner.gradeGuide} on:click={() => tuner.setGrade({ gradeGuide: false })}>Off</button>
+          </div>
+        {/if}
         {#if rhythmOnly && onCheckTiming}
           <div class="row">
             <span>Timing</span>

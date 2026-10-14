@@ -8,7 +8,9 @@
  *
  * Also: SHOTS=<png> a screenshot of the result; SAVE=<dir> press "Save this
  * run" and keep its files; LAYOUT=1 print the notes and rests; PROBE=1 what
- * the tuner hears during the run; NO_RECORD=1 run without the review recording.
+ * the tuner hears during the run; NO_RECORD=1 run without the review recording;
+ * GUIDE_SHOTS=<dir> (MODE=pitch) screenshots of the pitch guide mid-note: the
+ * wrong first try, its correction and the pop, and a note found first time.
  *
  * Needs the dev server (bun run dev). Chrome is driven by puppeteer-core
  * (marketing/ad's copy); the account is answered as Pro; the microphone is
@@ -31,6 +33,7 @@ const CURSOR = process.env.CURSOR ?? "smooth";
 const CLICK = process.env.CLICK ?? "beat";
 const LATE_BEATS = 0.35;
 const SHOTS = process.env.SHOTS ?? "";
+const GUIDE_SHOTS = process.env.GUIDE_SHOTS ?? "";
 
 const browser = await puppeteer.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -179,6 +182,15 @@ if (MODE === "pitch") {
       ? [{ midi: midi + 2, at: now + 250, ms: 550 }, { midi, at: now + 900, ms: 700 }]
       : [{ midi, at: now + 250, ms: 700 }];
     await page.evaluate((p) => (window as any).__sing(p), plan);
+    if (GUIDE_SHOTS && (i === 1 || i === WRONG)) {
+      // Milliseconds after the note is shown: the singer comes in at 250.
+      const at = i === WRONG ? [["wrong", 750], ["fixing", 1080], ["pop", 1420]] : [["holding", 470], ["pop", 760]];
+      for (const [name, ms] of at as [string, number][]) {
+        const wait = now + ms - (await page.evaluate(() => performance.now()));
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+        await page.screenshot({ path: `${GUIDE_SHOTS}/note${i + 1}-${name}.png` });
+      }
+    }
     await page.waitForFunction((k) => { const v = (window as any).__gradeDebug.view(); return v.index !== k || v.phase === "results"; }, { timeout: 15000 }, i);
   }
   await page.waitForFunction(() => (window as any).__gradeDebug.view().phase === "results", { timeout: 15000 });

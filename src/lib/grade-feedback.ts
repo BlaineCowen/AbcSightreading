@@ -26,11 +26,11 @@ const NS = "http://www.w3.org/2000/svg";
 const GROUP_CLASS = "grade-overlay";
 
 /** A note as drawn: abcjs's selectable for it (what `drawnNotes()` returns). */
-type Drawn = { absEl?: { elemset?: Element[] } } | undefined;
+export type Drawn = { absEl?: { elemset?: Element[] } } | undefined;
 
-type Head = { x: number; right: number; y: number; h: number; line: Element | null };
+export type Head = { x: number; right: number; y: number; h: number; line: Element | null };
 
-function headOf(d: Drawn): Head | null {
+export function headOf(d: Drawn): Head | null {
   const els = (d?.absEl?.elemset ?? []) as Element[];
   const head = els.map((e) => (e.matches?.(".abcjs-notehead") ? e : e.querySelector?.(".abcjs-notehead"))).find(Boolean) as SVGGraphicsElement | undefined;
   const el = (head ?? els[0]) as SVGGraphicsElement | undefined;

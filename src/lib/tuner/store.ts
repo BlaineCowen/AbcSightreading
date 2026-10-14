@@ -71,6 +71,8 @@ export interface TunerState {
   gradeCursor: "off" | "smooth" | "beat" | "note";
   /** Pitch & rhythm: the click while singing - none, beats, or beats with their subdivision. */
   gradeClick: "off" | "beat" | "sub";
+  /** Note by note: Pip, the pitch guide on the score (pitch-guide.ts). */
+  gradeGuide: boolean;
   /** Grade has the microphone: closing a Tools card must not stop it. */
   micHeld: boolean;
   /** Grading a rhythm (grade-rhythm.ts): clapped into the microphone, or tapped on the spacebar and pad. */
@@ -125,7 +127,7 @@ const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "beatLevels", "subMask", "assistant", "voice", "metronomePresets", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
-  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs", "tapLatencyMs",
+  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeGuide", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs", "tapLatencyMs",
 ] as const;
 const STORAGE_KEY = "abc-tuner-settings";
 
@@ -159,6 +161,7 @@ const initial: TunerState = {
   gradeStrictness: "easy",
   gradeCursor: "beat",
   gradeClick: "beat",
+  gradeGuide: true,
   micHeld: false,
   gradeClapInput: "mic",
   gradeWho: "solo",
@@ -408,7 +411,7 @@ export const tuner = {
   toggleChallengeGuideTone: () => state.update((s) => ({ ...s, challengeGuideTone: !s.challengeGuideTone })),
   setGradeReference: (gradeReference: "note" | "triad") => set({ gradeReference }),
   setGrade: (
-    patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick" | "gradeClapInput" | "gradeWho" | "gradeClapClick" | "tapPadSide" | "clapLatencyMs" | "tapLatencyMs">>,
+    patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick" | "gradeGuide" | "gradeClapInput" | "gradeWho" | "gradeClapClick" | "tapPadSide" | "clapLatencyMs" | "tapLatencyMs">>,
   ) => set(patch),
   setMicHeld: (micHeld: boolean) => set({ micHeld }),
 };

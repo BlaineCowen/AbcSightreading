@@ -102,7 +102,8 @@
   import { GradeRunner } from "../lib/grade-runner";
   import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
   import { clapToleranceBeats } from "../lib/grade-rhythm";
-  import { clearGradeFeedback, drawGradeFeedback, revealTo } from "../lib/grade-feedback";
+  import { clearGradeFeedback, drawGradeFeedback, headOf, revealTo } from "../lib/grade-feedback";
+  import { PitchGuide } from "../lib/pitch-guide";
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { clapMarksOf } from "../lib/gradebook";
   import { marksOf } from "../lib/pieces/attempts";
@@ -4152,7 +4153,10 @@
   let gradeList: GradeNote[] = [];
   let gradeLit: Element[] = [];
   const gradeRunner = new GradeRunner({
-    moveTo: (i) => gradeCursorTo(i),
+    moveTo: (i) => {
+      gradeCursorTo(i);
+      guideTo(i);
+    },
     countIn: (beat) => (beat < 0 ? hideCountIn() : showCountIn(playedMeter(), beat)),
     click: (downbeat) => {
       if (audioContext?.state === "suspended") void audioContext.resume();
@@ -4764,6 +4768,28 @@
     gradeCursorTo(-1);
     revealTo(document.querySelector("#paper svg"), null);
     take = { ...take, open: false, playing: false };
+  }
+
+  /** Note by note's pitch guide (pitch-guide.ts): Pip on the note being waited on. */
+  let pitchGuide: PitchGuide | null = null;
+  function guideTo(i: number) {
+    const n = gradeList[i];
+    if (!n || rhythmOnly || $tuner.gradeMode !== "pitch" || !$tuner.gradeGuide) {
+      pitchGuide?.destroy();
+      pitchGuide = null;
+      return;
+    }
+    pitchGuide ??= new PitchGuide({ doPc: gradeDoPc, nameOf: noteNameOf, tolerance: STRICTNESS[$tuner.gradeStrictness].cents, reduceMotion });
+    pitchGuide.setNote(() => {
+      const svg = document.querySelector("#paper svg") as SVGSVGElement | null;
+      const head = headOf(drawnNotes()[n.cursor]);
+      return svg && head ? { svg, head } : null;
+    }, n.midi);
+  }
+  $: pitchGuide?.feed($gradeRunner);
+  $: if (pitchGuide && ($gradeRunner.phase === "idle" || $gradeRunner.phase === "results")) {
+    pitchGuide.destroy();
+    pitchGuide = null;
   }
 
   function gradeCursorTo(i: number) {
