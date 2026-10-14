@@ -347,15 +347,6 @@
     phase = "intro";
   }
 
-  $: verdict = final
-    ? final.firsts === challenge.notes.length
-      ? "Perfect!"
-      : final.total >= challenge.notes.length * 75
-        ? "Nailed it!"
-        : final.total >= challenge.notes.length * 45
-          ? "Not bad!"
-          : "Brave attempt!"
-    : "";
 </script>
 
 <svelte:head>
@@ -427,7 +418,6 @@
         <span class="status">{recording ? "Saving your video…" : "Done!"}</span>
       {:else if phase === "result"}
         <div class="result">
-          <p class="verdict font-display">{verdict} <span>{final?.total ?? 0} points · {final?.firsts ?? 0} of {challenge.notes.length} first try</span></p>
           <div class="row wrap">
             {#if take?.shareable}
               <button class="go" on:click={shareVideo}>Share video</button>
@@ -667,18 +657,6 @@
     gap: 0.6rem;
     align-items: center;
     width: 100%;
-  }
-  .verdict {
-    margin: 0;
-    color: #ffffff;
-    font-size: 1.4rem;
-    text-align: center;
-  }
-  .verdict span {
-    display: block;
-    font-family: Nunito, system-ui, sans-serif;
-    font-size: 0.95rem;
-    color: #c3d0ea;
   }
   button:focus-visible,
   a:focus-visible {

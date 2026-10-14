@@ -146,7 +146,9 @@ export class ChallengeScene {
     }
     if (s.phase === "done" && !this.doneAt) {
       this.doneAt = now;
-      this.burst(W / 2, CAM_H * 0.55, 60);
+      // Party poppers from the camera's bottom corners, up the sides: the face stays clear.
+      this.burst(30, PAPER_TOP, 34, -Math.PI * 0.42, 0.35);
+      this.burst(W - 30, PAPER_TOP, 34, -Math.PI * 0.58, 0.35);
     }
 
     ctx.clearRect(0, 0, W, H);
@@ -433,26 +435,21 @@ export class ChallengeScene {
     const ctx = this.ctx;
     ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     if (s.phase === "done" && v) {
+      // The verdict goes on the paper, under the notes: the camera stays
+      // clear, so the video ends on the singer's face.
       const t = Math.min(1, (now - this.doneAt) / 350);
+      const rise = 16 * (1 - t);
       const n = s.challenge.notes.length;
       const heading = v.firsts === n ? "Perfect!" : v.total >= n * 75 ? "Nailed it!" : v.total >= n * 45 ? "Not bad!" : "Brave attempt!";
-      // The verdict over the camera.
       ctx.globalAlpha = t;
-      ctx.fillStyle = "rgba(255,255,255,.92)";
-      this.rr(W / 2 - 280, CAM_H * 0.36 - 20 * (1 - t), 560, 230, 40);
-      ctx.fill();
       ctx.fillStyle = C.ink;
-      ctx.font = "600 64px Fredoka, Nunito, system-ui, sans-serif";
-      ctx.fillText(heading, W / 2, CAM_H * 0.36 + 88 - 20 * (1 - t));
+      ctx.font = "600 68px Fredoka, Nunito, system-ui, sans-serif";
+      ctx.fillText(heading, W / 2, 1066 + rise);
       ctx.font = "800 28px Nunito, system-ui, sans-serif";
       ctx.fillStyle = C.mintText;
-      ctx.fillText(`${v.firsts} of ${n} right first time`, W / 2, CAM_H * 0.36 + 140 - 20 * (1 - t));
-      ctx.fillStyle = C.muted;
-      ctx.font = "700 24px Nunito, system-ui, sans-serif";
-      ctx.fillText("Your turn: abc-sightreading.com/challenge", W / 2, CAM_H * 0.36 + 186 - 20 * (1 - t));
+      ctx.fillText(`${v.total} points · ${v.firsts} of ${n} right first time`, W / 2, 1114 + rise);
       ctx.globalAlpha = 1;
-    }
-    if (s.message && s.phase !== "singing" && s.phase !== "done") {
+    } else if (s.message && s.phase !== "singing") {
       this.pill(s.message, W / 2, 1060, [C.sky, C.skyInk], 26, "center");
     } else if (v) {
       ctx.fillStyle = C.ink;
@@ -464,14 +461,16 @@ export class ChallengeScene {
     }
     ctx.fillStyle = C.muted;
     ctx.font = "800 26px Nunito, system-ui, sans-serif";
-    ctx.fillText("abc-sightreading.com/challenge", W / 2, H - 46);
+    ctx.fillText(s.phase === "done" ? "Your turn: abc-sightreading.com/challenge" : "abc-sightreading.com/challenge", W / 2, H - 46);
   }
 
-  private burst(x: number, y: number, n: number) {
+  /** Confetti from (x, y): all round, or within `spread` radians either side of `aim`. */
+  private burst(x: number, y: number, n: number, aim?: number, spread = Math.PI) {
     if (this.reduce) return;
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2, sp = 220 + Math.random() * 380;
-      this.bits.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 220, life: 0, max: 700 + Math.random() * 600,
+      const a = aim === undefined ? Math.random() * Math.PI * 2 : aim + (Math.random() * 2 - 1) * spread;
+      const sp = aim === undefined ? 220 + Math.random() * 380 : 650 + Math.random() * 450;
+      this.bits.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - (aim === undefined ? 220 : 0), life: 0, max: 900 + Math.random() * 700,
         col: CONFETTI[i % CONFETTI.length], r: 5 + Math.random() * 6, rot: Math.random() * 6, rect: i % 3 === 0 });
     }
   }

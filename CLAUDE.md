@@ -1352,7 +1352,9 @@ colour, flicking through pitches, and land one by one, so every video shows
 they were drawn on the spot (Blaine: show it is not the same thing every
 time). Try again keeps the notes and skips the shuffle; New notes shuffles a
 new set. Then the first note plays (on the engine's context, so it is in the
-video), then the run; the verdict card holds 2.6 s at the end. The
+video), then the run; the verdict holds 2.6 s at the end, on the paper under
+the notes and the confetti up the sides, so the camera is clear for the
+singer's reaction (Blaine). The
 canvas and the microphone (with the played notes) are recorded with the
 play-along's recorder (MP4 where the browser can), and Share video hands the
 file to the phone's share sheet (Instagram, TikTok, Messages); Save video
