@@ -6,6 +6,7 @@
  * Needs the dev server; Pro is answered.
  *
  *   bun run scripts/check-overlaps.ts
+ *   SIZES=desktop,phone  STATES=clap   SHOTS=<dir> (a screenshot of each state)  LIST=1 (every floating box)
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 const APP = process.env.APP ?? "http://localhost:4321";
@@ -18,7 +19,7 @@ const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.
 type Case = { page: string; state: string; setup?: (p: any) => Promise<void> };
 const gen = async (p: any) => { await p.click('[aria-label="Generate a new exercise"]').catch(() => {}); await sleep(2500); };
 const press = (p: any, re: RegExp) => p.evaluate((s: string, f: string) => { const x = [...document.querySelectorAll("button")].find((e) => new RegExp(s, f).test((e.textContent ?? "").trim())); (x as HTMLButtonElement)?.click(); }, re.source, re.flags);
-const CASES: Case[] = [
+const ALL_CASES: Case[] = [
   { page: "/", state: "home" },
   { page: "/pricing", state: "pricing" },
   { page: "/sightreading?rhythmOnly=false", state: "unison", setup: gen },
@@ -40,6 +41,7 @@ const CASES: Case[] = [
   { page: "/choral-sightreading", state: "choral", setup: gen },
   { page: "/tuner", state: "tuner" },
 ];
+const CASES = ALL_CASES.filter((c) => !process.env.STATES || process.env.STATES.split(",").some((k) => c.state.includes(k)));
 for (const size of SIZES) {
   for (const c of CASES) {
     const p = await b.newPage();
@@ -59,6 +61,7 @@ for (const size of SIZES) {
       await p.goto(APP + c.page, { waitUntil: "networkidle2", timeout: 30000 });
       await sleep(1200);
       if (c.setup) await c.setup(p);
+      if (process.env.SHOTS) await p.screenshot({ path: `${process.env.SHOTS}/${size.name}-${c.state.replace(/[^a-z0-9]+/gi, "-")}.png` });
       const found: string[] = await p.evaluate(() => {
         const name = (e: Element) => {
           const h = e as HTMLElement;

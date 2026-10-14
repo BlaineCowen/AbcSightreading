@@ -1159,9 +1159,10 @@ beat, 400 ms at 75 BPM).
 
 **Clap grading** (rhythm-only Unison, Pro; "Clap and grade"): only each
 note's start counts and rests are silence. Clap with the **Microphone** or
-the **Spacebar & pad** (`TapPad.svelte`: a big round pad fixed at the right
-edge, moved left with its arrow, answering on pointerdown; the spacebar
-likewise, key repeat ignored), and **Who**: Just me, or The class - one
+the **Spacebar & pad** (`TapPad.svelte`: a wide key floating in the middle
+just above Grade's strip, like a space bar (Blaine, 14 October 2026; it was
+a round pad at one edge), answering on pointerdown; the spacebar likewise,
+key repeat ignored), and **Who**: Just me, or The class - one
 device hears the room and grades it as one. Rules in `src/lib/grade-rhythm.ts`
 (`gradeClaps`), hearing in `src/lib/clap-detect.ts` (tests
 `clap-grading.test.ts`), the runner's mode `"claps"`. Claps are matched to
@@ -2111,8 +2112,8 @@ as the MIDI file's copyright notice (meta event FF 02 opening track 1,
 elements that overlap, on each page at desktop, tablet and phone sizes and
 in the states that add floating things (a clap run with the tap pad, Grade's
 strip, the Tools card), and which is on top. Clean on 6 October 2026 at five sizes (4K, 1440p, desktop, tablet, phone) after
-three fixes (the Tools card overlapped its button at 4K): the tap pad sat on the Tools button (it now sits above it,
-bottom: bar + 152 px), and on a tablet Grade's strip covered the Feedback
+three fixes (the Tools card overlapped its button at 4K): the tap pad sat on the Tools button (it is now a centred key
+clear of both corners, bar + 5rem, in rem so it clears Grade's strip at 4K too), and on a tablet Grade's strip covered the Feedback
 button (it is narrower by the corner buttons there).
 
 ## Big screens
