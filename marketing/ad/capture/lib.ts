@@ -117,6 +117,8 @@ export async function recordExact(page: Page, name: string, act: () => Promise<v
   }
   const endTs = Date.now() / 1000;
   const marks: { word: string | null; at: number }[] = await page.evaluate(() => (window as any).__countIn ?? []);
+  // Chrome now and then delivers a frame a few ms out of order: in time order, or ffmpeg refuses a negative duration.
+  frames.sort((a, b) => a.ts - b.ts);
   const t0 = frames[0].ts;
   // Each frame shown until the next; the last until the recording stopped.
   const list = frames.map((f, i) => `file '${f.file}'\nduration ${((frames[i + 1]?.ts ?? endTs) - f.ts).toFixed(4)}`).join("\n");

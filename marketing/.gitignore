@@ -1,0 +1,15 @@
+# Rendered output, caches and media for every marketing project: the
+# compositions, scripts and notes are committed, the footage and renders are
+# not (each project's own .gitignore says the same for its folders).
+renders/
+snapshots/
+.waveform-cache/
+.thumbnails/
+.hyperframes/
+__pycache__/
+footage-old/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.log

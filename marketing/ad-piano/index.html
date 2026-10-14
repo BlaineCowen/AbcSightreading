@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<!-- Written by build.py: edit the scene table there, not this file. -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #eaf0f9; }
+body { font-family: "Nunito", sans-serif; color: #15213a; }
+#root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #eaf0f9; }
+.scene { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; background: #eaf0f9; opacity: 0; }
+#hook { opacity: 1; z-index: 1; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+.wipe { position: absolute; inset: 0; width: 1920px; height: 1080px; z-index: 1000; transform: translateX(-1920px); }
+
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21,33,58,0.10); }
+.wordmark .abc, .close-mark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest, .close-mark .rest { font-family: "Fredoka", sans-serif; font-weight: 600; letter-spacing: -0.005em; line-height: 1; color: #15213a; }
+.wordmark { font-size: 44px; } .wordmark .rest { font-size: 44px; }
+
+.hook-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
+.hook-head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 132px; line-height: 1.22; letter-spacing: -0.01em; color: #15213a; }
+.hook-head .hw { display: inline-block; }
+.hook-head .hword { display: inline-block; }
+#hw3 { color: #2f6fe0; }
+#hook-ball { z-index: 1; } /* behind the words, so a hop never covers line one */
+.ball { position: absolute; left: 0; top: 0; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #8dbaff 0%, #2f6fe0 55%, #1e56c0 100%); box-shadow: 0 10px 24px rgba(30,86,192,0.35); z-index: 5; opacity: 0; }
+
+.scene-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 90px 96px; display: flex; flex-direction: row; align-items: center; gap: 72px; }
+.scene-content.flip { flex-direction: row-reverse; }
+.copy { flex: 0 0 560px; display: flex; flex-direction: column; align-items: flex-start; gap: 30px; }
+.kicker { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 30px; padding: 10px 26px; border-radius: 999px; }
+.nw { white-space: nowrap; }
+.head { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 80px; line-height: 1.04; color: #15213a; max-width: 560px; }
+.body { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 36px; line-height: 1.3; color: #34405e; max-width: 540px; }
+.chips { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.chip { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 28px; color: #0f3b2c; background: #bdebd9; padding: 10px 24px; border-radius: 999px; }
+
+.window { flex: 0 0 1152px; width: 1152px; border-radius: 30px; overflow: hidden; background: #ffffff; border: 2px solid #d8e2f1; box-shadow: 0 30px 70px rgba(21,33,58,0.18); }
+.window .bar { height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: #f0f5fc; border-bottom: 2px solid #e6edf8; }
+.dot { width: 14px; height: 14px; border-radius: 50%; }
+.dot.r { background: #ffb4a8; } .dot.y { background: #ffe08a; } .dot.g { background: #9fe0c5; }
+.url { margin-left: 18px; font-family: "Nunito", sans-serif; font-weight: 700; font-size: 18px; color: #56637f; background: #ffffff; border-radius: 999px; padding: 5px 18px; }
+.screen { position: relative; width: 100%; height: 648px; background: #eaf0f9; }
+.vw { position: absolute; inset: 0; }
+.vw video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.opt-top { position: absolute; z-index: 3; left: 0; right: 0; top: 54px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.opt-head { font-size: 76px; max-width: none; white-space: nowrap; }
+.pdeck { position: absolute; inset: 0; z-index: 2; }
+.pcard { position: absolute; border-radius: 26px; background: #fff; box-shadow: 0 30px 70px rgba(21,33,58,0.22); border: 2px solid #d8e2f1; opacity: 0; }
+.pcard img { display: block; width: 100%; height: 100%; border-radius: 24px; }
+.plabel { position: absolute; left: 22px; top: -26px; font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 30px; color: #0e3563; background: #c9e4ff; padding: 6px 22px; border-radius: 999px; white-space: nowrap; }
+.pa-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 46px 120px 40px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.pa-top { display: flex; align-items: center; gap: 28px; }
+.pa-head { font-size: 60px; max-width: none; white-space: nowrap; }
+.pa-frame { position: relative; width: 1376px; height: 774px; border-radius: 30px; overflow: hidden; box-shadow: 0 30px 70px rgba(21,33,58,0.22); border: 2px solid #d8e2f1; }
+.pa-sub { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 32px; color: #34405e; }
+
+.close-content { position: relative; z-index: 2; width: 100%; height: 100%; padding: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; text-align: center; }
+.close-mark { display: inline-flex; align-items: baseline; gap: 0.1em; font-size: 150px; }
+.close-mark .rest { font-size: 150px; }
+.close-line { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 40px; color: #34405e; max-width: 1300px; }
+.close-row { display: flex; align-items: center; gap: 28px; }
+.cta { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 46px; color: #ffffff; background: #2f6fe0; padding: 20px 54px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47,111,224,0.35); }
+.url-pill { font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 44px; color: #15213a; background: #ffffff; padding: 18px 44px; border-radius: 999px; border: 2px solid #d8e2f1; }
+.close-price { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 34px; color: #1e56c0; }
+
+#hw3 { color: inherit; }
+#hw2 { color: #2f6fe0; }
+.new-badge { background: #ffd3bf; color: #5a2310; font-size: 40px; padding: 10px 34px; margin-top: -40px; }
+.screen { overflow: hidden; }
+.vw { transform-origin: 50% 50%; }
+
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="33.81" data-width="1920" data-height="1080">
+
+<div class="scene" id="hook">
+  <div class="blob" id="hook-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="hook-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="hook-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="hook-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="hook-content">
+    <div class="wordmark hook-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">sightreading.com</span></div>
+    <span class="kicker new-badge" id="hook-new">New</span>
+    <h1 class="hook-head"><span class="hword"><span class="hw" id="hw0">Sight-reading</span></span> <span class="hword"><span class="hw" id="hw1">for</span></span> <span class="hword"><span class="hw" id="hw2">piano</span></span><br><span class="hword"><span class="hw" id="hw3">is</span></span> <span class="hword"><span class="hw" id="hw4">here.</span></span></h1>
+  </div>
+  <div class="ball" id="hook-ball" data-layout-allow-occlusion></div>
+</div>
+
+<div class="scene" id="levels">
+  <div class="blob" id="levels-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="levels-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="levels-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="levels-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content">
+    <div class="copy">
+      <span class="kicker" id="levels-kicker" style="background:#c9e4ff;color:#0e3563">Piano · Levels 1 to 10</span>
+      <h2 class="head" id="levels-head">Ten levels, both hands.</h2>
+      <p class="body" id="levels-body">From five-finger C position to a beginner&#x27;s Mozart sonata.</p>
+    </div>
+    <div class="window" id="levels-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/piano-sightreading</span></div>
+      <div class="screen"><div class="vw" id="levels-vw0"><video id="levels-v0" class="clip" data-start="4.784" data-duration="5.084" data-media-start="0.064" data-track-index="10" src="assets/footage/piano-levels-100.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="generate">
+  <div class="blob" id="generate-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="generate-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="generate-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="generate-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content flip">
+    <div class="copy">
+      <span class="kicker" id="generate-kicker" style="background:#bdebd9;color:#0f3b2c">A new exercise every click</span>
+      <h2 class="head" id="generate-head">Real <span class="nw">left-hand</span> patterns.</h2>
+      <p class="body" id="generate-body">Block chords, waltz bass and Alberti bass, over real chord progressions.</p>
+    </div>
+    <div class="window" id="generate-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/piano-sightreading</span></div>
+      <div class="screen"><div class="vw" id="generate-vw0"><video id="generate-v0" class="clip" data-start="9.568" data-duration="5.084" data-media-start="0.673" data-track-index="14" src="assets/footage/piano-generate-100.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="play">
+  <div class="blob" id="play-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="play-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="play-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="play-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content">
+    <div class="copy">
+      <span class="kicker" id="play-kicker" style="background:#ffd3bf;color:#5a2310">Hear it</span>
+      <h2 class="head" id="play-head">Follow along as it plays.</h2>
+      <p class="body" id="play-body">A grand piano, the notes lit as they sound, or one line that scrolls.</p>
+    </div>
+    <div class="window" id="play-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/piano-sightreading</span></div>
+      <div class="screen"><div class="vw" id="play-vw0" style="transform:scale(1.3);transform-origin:50% 7%"><video id="play-v0" class="clip" data-start="14.352" data-duration="5.084" data-media-start="3.604" data-track-index="18" src="assets/footage/piano-play-100.mp4" muted playsinline></video></div><div class="vw" id="play-vw1" style="transform:scale(1.45);transform-origin:50% 25%"><video id="play-v1" class="clip" data-start="19.136" data-duration="2.691" data-media-start="8.227" data-track-index="19" src="assets/footage/piano-scroll-100.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="grade">
+  <div class="blob" id="grade-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="grade-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="grade-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="grade-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="scene-content flip">
+    <div class="copy">
+      <span class="kicker" id="grade-kicker" style="background:#ffefa8;color:#5c4a00">Pro · MIDI keyboard</span>
+      <h2 class="head" id="grade-head">Play it. Get graded.</h2>
+      <p class="body" id="grade-body">Wrong keys, late notes and misses, marked right on the score.</p>
+    </div>
+    <div class="window" id="grade-window">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">abcsightreading.com/piano-sightreading</span></div>
+      <div class="screen"><div class="vw" id="grade-vw0" style="transform:scale(1.4);transform-origin:50% 2%"><video id="grade-v0" class="clip" data-start="21.527" data-duration="2.692" data-media-start="7.896" data-track-index="22" src="assets/footage/piano-grade-100.mp4" muted playsinline></video></div><div class="vw" id="grade-vw1" style="transform:scale(1.4);transform-origin:50% 2%"><video id="grade-v1" class="clip" data-start="23.919" data-duration="2.692" data-media-start="15.604" data-track-index="23" src="assets/footage/piano-grade-100.mp4" muted playsinline></video></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="scene" id="close">
+  <div class="blob" id="close-blob0" data-layout-ignore style="left:4px;top:-20px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" id="close-blob1" data-layout-ignore style="left:1538px;top:4px;width:380px;height:380px;background:#ffd3bf"></div>
+<div class="blob" id="close-blob2" data-layout-ignore style="left:1404px;top:824px;width:340px;height:340px;background:#bdebd9"></div>
+<div class="blob" id="close-blob3" data-layout-ignore style="left:100px;top:820px;width:260px;height:260px;background:#ffefa8"></div>
+  <div class="close-content">
+    <div class="close-mark" id="close-mark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">SightReading</span></div>
+    <p class="close-line" id="close-line">Piano sight-reading, live now. Both hands, ten levels, a new exercise every click.</p>
+    <div class="close-row">
+      <span class="cta" id="close-cta">Try it free</span>
+      <span class="url-pill" id="close-url">abcsightreading.com</span>
+    </div>
+    <p class="close-price" id="close-price">Free to start. Grading with a MIDI keyboard is Pro, $19.99 a year.</p>
+  </div>
+</div>
+<div class="wipe" id="wipe-a" data-layout-ignore></div>
+<div class="wipe" id="wipe-b" data-layout-ignore></div>
+<div class="wipe" id="wipe-c" data-layout-ignore></div>
+<audio id="music" data-start="0" data-duration="33.81" data-track-index="1" src="assets/music/ad-mix-piano-landscape.mp3" data-volume="0.9"></audio>
+</div>
+<script>
+window.__timelines = window.__timelines || {};
+var tl = gsap.timeline({ paused: true });
+// Where the hook's ball lands: on top of each word, measured from the layout.
+(function () {
+  var root = document.getElementById("root").getBoundingClientRect();
+  window.__hops = [];
+  for (var i = 0; document.getElementById("hw" + i); i++) {
+    var r = document.getElementById("hw" + i).getBoundingClientRect();
+    window.__hops.push({ x: r.left - root.left + r.width / 2, y: r.top - root.top - 10 });
+  }
+  var first = window.__hops[0];
+  gsap.set("#hook-ball", { x: first.x - 260, y: first.y });
+})();
+  var HOOK = [0.599, 1.196, 1.794, 2.392, 2.99], LEN = [0.598, 0.598, 0.598, 0.598, 1.1959], B = 0.5980, W = 1920;
+
+  tl.from(".hook-mark", { y: -30, opacity: 0, duration: 0.6, ease: "back.out(1.7)" }, 0.05);
+  var N = HOOK.length;
+  for (var i = 0; i < N; i++) {
+    tl.from("#hw" + i, { y: 40, scale: 0.85, opacity: 0, duration: 0.3, ease: "back.out(2.2)" }, HOOK[i] - 0.04);
+  }
+  var hops = window.__hops || [];
+  function hop(x, y, from, d, peak) {
+    tl.to("#hook-ball", { x: x, duration: d, ease: "none" }, from);
+    tl.to("#hook-ball", { y: y - peak, duration: d / 2, ease: "power2.out" }, from);
+    tl.to("#hook-ball", { y: y, duration: d / 2 - 0.001, ease: "power2.in" }, from + d / 2);
+  }
+  if (hops.length === N) {
+    var in0 = Math.max(0, HOOK[0] - B);
+    tl.set("#hook-ball", { x: -80, y: hops[0].y, opacity: 1 }, in0);
+    hop(hops[0].x, hops[0].y, in0, HOOK[0] - in0, 170);
+    for (var i = 1; i < N; i++) {
+      var d = LEN[i - 1], peak = d > 0.5 ? 150 : d > 0.2 ? 110 : 65;
+      if (hops[i].y > hops[i - 1].y + 30) {
+        var off = W + 60 - hops[i - 1].x, on = hops[i].x + 60, up = d * off / (off + on);
+        tl.to("#hook-ball", { x: W + 60, y: hops[i - 1].y - peak, duration: up, ease: "power1.out" }, HOOK[i - 1]);
+        tl.set("#hook-ball", { x: -60, y: hops[i].y - peak }, HOOK[i - 1] + up);
+        tl.to("#hook-ball", { x: hops[i].x, y: hops[i].y, duration: d - up - 0.001, ease: "power1.in" }, HOOK[i - 1] + up);
+      } else hop(hops[i].x, hops[i].y, HOOK[i - 1], d, peak);
+    }
+    hop(W + 90, hops[N - 1].y + 40, HOOK[N - 1], LEN[N - 1], 110);
+  }
+  tl.from("#hook-new", { scale: 0.4, opacity: 0, duration: 0.45, ease: "back.out(2.6)" }, 0.021);
+  tl.to('.blob', { y: '+=40', x: '-=20', duration: 33.81, ease: 'sine.inOut' }, 0);
+
+  // ---- hook -> levels: covered on the downbeat at 4.784
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 4.534);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 4.534);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 4.534);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.444);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.494);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 4.544);
+  tl.set("#hook", { opacity: 0 }, 4.784);
+  tl.set("#levels", { opacity: 1 }, 4.784);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.804);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.854);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 4.904);
+  tl.from("#levels-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 4.784);
+  tl.from("#levels-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 5.332);
+  tl.from("#levels-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 5.930);
+  tl.from("#levels-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 6.528);
+
+  // ---- levels -> generate: covered on the downbeat at 9.568
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffd3bf" }, 9.318);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffefa8" }, 9.318);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#c9e4ff" }, 9.318);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 9.228);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 9.278);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 9.328);
+  tl.set("#levels", { opacity: 0 }, 9.568);
+  tl.set("#generate", { opacity: 1 }, 9.568);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 9.588);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 9.638);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 9.688);
+  tl.from("#generate-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 9.568);
+  tl.from("#generate-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 10.116);
+  tl.from("#generate-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 10.714);
+  tl.from("#generate-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 11.312);
+
+  // ---- generate -> play: covered on the downbeat at 14.352
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#ffefa8" }, 14.102);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#c9e4ff" }, 14.102);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#bdebd9" }, 14.102);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.012);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.062);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 14.112);
+  tl.set("#generate", { opacity: 0 }, 14.352);
+  tl.set("#play", { opacity: 1 }, 14.352);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.372);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.422);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 14.472);
+  tl.from("#play-window", { x: 90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 14.352);
+  tl.from("#play-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 14.900);
+  tl.from("#play-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 15.498);
+  tl.from("#play-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 16.096);
+  tl.fromTo("#play-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 19.076);
+
+  // ---- play -> grade: covered on the downbeat at 21.527
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#c9e4ff" }, 21.277);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#bdebd9" }, 21.277);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffd3bf" }, 21.277);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 21.187);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 21.237);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 21.287);
+  tl.set("#play", { opacity: 0 }, 21.527);
+  tl.set("#grade", { opacity: 1 }, 21.527);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 21.547);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 21.597);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 21.647);
+  tl.from("#grade-window", { x: -90, scale: 0.94, opacity: 0, duration: 0.72, ease: "power3.out" }, 21.527);
+  tl.from("#grade-kicker", { y: 24, opacity: 0, duration: 0.419, ease: "back.out(2)" }, 22.075);
+  tl.from("#grade-head", { y: 46, opacity: 0, duration: 0.60, ease: "power3.out" }, 22.673);
+  tl.from("#grade-body", { y: 28, opacity: 0, duration: 0.60, ease: "expo.out" }, 23.271);
+  tl.fromTo("#grade-vw1", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "sine.inOut" }, 23.859);
+
+  // ---- grade -> close: covered on the downbeat at 26.311
+  tl.set("#wipe-a", { x: -1920, backgroundColor: "#bdebd9" }, 26.061);
+  tl.set("#wipe-b", { x: -1920, backgroundColor: "#ffd3bf" }, 26.061);
+  tl.set("#wipe-c", { x: -1920, backgroundColor: "#ffefa8" }, 26.061);
+  tl.to("#wipe-a", { x: 0, duration: 0.24, ease: "power3.inOut" }, 25.971);
+  tl.to("#wipe-b", { x: 0, duration: 0.24, ease: "power3.inOut" }, 26.021);
+  tl.to("#wipe-c", { x: 0, duration: 0.24, ease: "power3.inOut" }, 26.071);
+  tl.set("#grade", { opacity: 0 }, 26.311);
+  tl.set("#close", { opacity: 1 }, 26.311);
+  tl.to("#wipe-a", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 26.331);
+  tl.to("#wipe-b", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 26.381);
+  tl.to("#wipe-c", { x: 1920, duration: 0.26, ease: "power3.inOut" }, 26.431);
+  tl.from("#close-mark", { scale: 0.6, opacity: 0, duration: 0.72, ease: "back.out(1.8)" }, 26.311);
+  tl.from("#close-line", { y: 30, opacity: 0, duration: 0.60, ease: "power3.out" }, 26.859);
+  tl.from("#close-cta", { y: 30, scale: 0.8, opacity: 0, duration: 0.55, ease: "back.out(2.4)" }, 27.457);
+  tl.from("#close-url", { x: 40, opacity: 0, duration: 0.55, ease: "expo.out" }, 27.756);
+  tl.from("#close-price", { y: 20, opacity: 0, duration: 0.50, ease: "sine.out" }, 28.055);
+  // On the ending's last hit, the logo and the button pop.
+  tl.to(["#close-mark", "#close-cta"], { scale: 1.1, duration: 0.09, ease: "power2.out", yoyo: true, repeat: 1 }, 28.759);
+  tl.to("#close", { opacity: 0, duration: 0.6, ease: "sine.in" }, 33.210);
+window.__timelines["main"] = tl;
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1920">
+<!-- Written by build.py: edit the scene table there, not this file. -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+#root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #eaf0f9; font-family: "Fredoka", sans-serif; color: #15213a; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+.scene { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21, 33, 58, 0.1); font-size: 44px; }
+.wordmark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest { font-weight: 600; line-height: 1; color: #15213a; }
+.wordmark.big { font-size: 74px; padding: 22px 52px; }
+
+.hook-wrap { position: absolute; left: 50px; right: 50px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
+.hook-head { display: flex; flex-direction: column; align-items: center; font-weight: 700; font-size: 100px; line-height: 1.14; letter-spacing: -0.01em; }
+.hl { display: block; white-space: nowrap; }
+.hl.blue { color: #1e56c0; font-size: 130px; }
+
+.lvl-top { position: absolute; left: 60px; right: 60px; top: 250px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.lvl-chip { display: inline-block; font-weight: 700; font-size: 84px; line-height: 1; padding: 22px 56px; border-radius: 999px; box-shadow: 0 14px 34px rgba(21, 33, 58, 0.14); }
+.dots { display: flex; gap: 16px; }
+.dot { width: 22px; height: 22px; border-radius: 50%; background: #d8e2f1; }
+.dot.on { background: #2f6fe0; }
+.lvl-sub { position: relative; display: flex; align-items: center; gap: 16px; font-weight: 600; font-size: 46px; color: #34405e; white-space: nowrap; }
+.lvl-sub .sep { color: #56637f; }
+.keys { position: relative; display: inline-block; min-width: 250px; height: 1.2em; }
+.keys .k { position: absolute; left: 0; top: 0; white-space: nowrap; }
+#sol-sub { min-width: 380px; height: 1.2em; justify-content: center; }
+#sol-sub span { position: absolute; left: 0; right: 0; text-align: center; }
+
+.card { position: absolute; border-radius: 36px; overflow: hidden; background: #ffffff; border: 3px solid #ffffff; box-shadow: 0 30px 70px rgba(21, 33, 58, 0.18); }
+.ex { position: absolute; left: 0; top: 0; width: 100%; }
+.score { display: block; width: 100%; height: auto; }
+.newex { position: absolute; right: 70px; width: 330px; height: 80px; }
+.newex-btn { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 36px; color: #ffffff; background: #2f6fe0; border-radius: 999px; box-shadow: 0 10px 24px rgba(47, 111, 224, 0.35); }
+.ring { position: absolute; inset: 0; border-radius: 999px; border: 5px solid #2f6fe0; opacity: 0; }
+
+.panel { position: absolute; left: 40px; width: 1000px; height: 244px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 -16px 50px rgba(21, 33, 58, 0.22); border: 2px solid #d8e2f1; }
+.panel-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tap { position: absolute; width: 210px; height: 120px; margin: -60px 0 0 -105px; border-radius: 999px; border: 7px solid #ff8a5c; box-shadow: 0 0 0 6px rgba(255, 138, 92, 0.25); }
+
+.close-wrap { position: absolute; left: 60px; right: 60px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 56px; text-align: center; }
+.close-line { display: flex; flex-direction: column; align-items: center; font-weight: 700; font-size: 72px; line-height: 1.15; }
+.close-line .nl { color: #1e56c0; }
+.cta { font-weight: 700; font-size: 60px; color: #ffffff; background: #2f6fe0; padding: 24px 70px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47, 111, 224, 0.35); }
+
+</style>
+</head>
+<body>
+<div data-hf-id="hf-r2a6" id="root" data-composition-id="main" data-start="0" data-duration="35.00" data-width="1080" data-height="1920">
+<div data-hf-id="hf-pyew" class="blob" data-layout-ignore="" style="left:-90px;top:90px;width:320px;height:320px;background:#c9e4ff"></div>
+<div data-hf-id="hf-w2tp" class="blob" data-layout-ignore="" style="left:800px;top:150px;width:380px;height:380px;background:#ffd3bf"></div>
+<div data-hf-id="hf-oio8" class="blob" data-layout-ignore="" style="left:740px;top:1600px;width:360px;height:360px;background:#bdebd9"></div>
+<div data-hf-id="hf-nji5" class="blob" data-layout-ignore="" style="left:-40px;top:1560px;width:280px;height:280px;background:#ffefa8"></div>
+<div data-hf-id="hf-pya3" class="card" id="card" style="left:40px;top:540px;width:1000px;height:1040px">
+  <div data-hf-id="hf-0ol7" class="ex" data-layout-allow-overflow="" id="ex-l1-1"><img data-hf-id="hf-p15d" id="img-l1-1" class="clip score" data-start="3.00" data-duration="2.00" data-track-index="2" src="assets/scores/l1-1.png" alt=""></div><div data-hf-id="hf-pt3k" class="ex" data-layout-allow-overflow="" id="ex-l1-2"><img data-hf-id="hf-m3zd" id="img-l1-2" class="clip score" data-start="5.00" data-duration="2.00" data-track-index="2" src="assets/scores/l1-2.png" alt=""></div><div data-hf-id="hf-njyw" class="ex" data-layout-allow-overflow="" id="ex-l2-1"><img data-hf-id="hf-o4ar" id="img-l2-1" class="clip score" data-start="7.00" data-duration="2.00" data-track-index="2" src="assets/scores/l2-1.png" alt=""></div><div data-hf-id="hf-w7ur" class="ex" data-layout-allow-overflow="" id="ex-l2-2"><img data-hf-id="hf-1d5z" id="img-l2-2" class="clip score" data-start="9.00" data-duration="2.00" data-track-index="2" src="assets/scores/l2-2.png" alt=""></div><div data-hf-id="hf-uj1x" class="ex" data-layout-allow-overflow="" id="ex-l3-1"><img data-hf-id="hf-qlnu" id="img-l3-1" class="clip score" data-start="11.00" data-duration="2.00" data-track-index="2" src="assets/scores/l3-1.png" alt=""></div><div data-hf-id="hf-yh5y" class="ex" data-layout-allow-overflow="" id="ex-l3-2"><img data-hf-id="hf-qlg2" id="img-l3-2" class="clip score" data-start="13.00" data-duration="2.00" data-track-index="2" src="assets/scores/l3-2.png" alt=""></div><div data-hf-id="hf-a48a" class="ex" data-layout-allow-overflow="" id="ex-l4-1"><img data-hf-id="hf-w0vc" id="img-l4-1" class="clip score" data-start="15.00" data-duration="2.00" data-track-index="2" src="assets/scores/l4-1.png" alt=""></div><div data-hf-id="hf-6649" class="ex" data-layout-allow-overflow="" id="ex-l4-2"><img data-hf-id="hf-br2c" id="img-l4-2" class="clip score" data-start="17.00" data-duration="2.00" data-track-index="2" src="assets/scores/l4-2.png" alt=""></div><div data-hf-id="hf-nm2f" class="ex" data-layout-allow-overflow="" id="ex-l5-1"><img data-hf-id="hf-zhcy" id="img-l5-1" class="clip score" data-start="19.00" data-duration="2.00" data-track-index="2" src="assets/scores/l5-1.png" alt=""></div><div data-hf-id="hf-ey6k" class="ex" data-layout-allow-overflow="" id="ex-l5-2"><img data-hf-id="hf-5umj" id="img-l5-2" class="clip score" data-start="21.00" data-duration="2.00" data-track-index="2" src="assets/scores/l5-2.png" alt=""></div><div data-hf-id="hf-lig7" class="ex" data-layout-allow-overflow="" id="ex-sol-off1"><img data-hf-id="hf-fk5w" id="img-sol-off1" class="clip score" data-start="23.00" data-duration="1.70" data-track-index="2" src="assets/scores/sol-off.png" alt=""></div><div data-hf-id="hf-hlc4" class="ex" data-layout-allow-overflow="" id="ex-sol-on"><img data-hf-id="hf-buvl" id="img-sol-on" class="clip score" data-start="24.70" data-duration="4.20" data-track-index="2" src="assets/scores/sol-on.png" alt=""></div><div data-hf-id="hf-cukc" class="ex" data-layout-allow-overflow="" id="ex-sol-off2"><img data-hf-id="hf-brj6" id="img-sol-off2" class="clip score" data-start="28.90" data-duration="2.10" data-track-index="2" src="assets/scores/sol-off.png" alt=""></div>
+</div>
+<div data-hf-id="hf-k7wm" class="newex clip" id="newex-host" data-start="3.00" data-duration="20.00" data-track-index="4" style="top:500px"><span data-hf-id="hf-raxd" class="ring" id="newex-ring"></span><span data-hf-id="hf-knlv" class="newex-btn" id="newex">↻ New exercise</span></div>
+<div data-hf-id="hf-qiz4" class="scene clip" id="hook" data-start="0" data-duration="3.0" data-track-index="0">
+  <div data-hf-id="hf-wghq" class="hook-wrap">
+    <div data-hf-id="hf-ey06" class="wordmark" id="hook-mark"><svg data-hf-id="hf-k8ug" class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path data-hf-id="hf-42m4" d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg><span data-hf-id="hf-xi9b" class="rest">sightreading.com</span></div>
+    <h1 data-hf-id="hf-77hy" class="hook-head"><span data-hf-id="hf-5t1u" class="hl" id="h1">Never run out of</span><span data-hf-id="hf-3rjk" class="hl blue" id="h2">UIL choir</span><span data-hf-id="hf-0oyn" class="hl" id="h3">sight-reading music.</span></h1>
+  </div>
+</div>
+<div data-hf-id="hf-0sn3" class="scene clip lvl" id="lvl1" data-start="3.00" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-tk0w" class="lvl-top">
+    <span data-hf-id="hf-xt4c" class="lvl-chip" id="chip1" style="background:#bdebd9;color:#0f3b2c">UIL Level 1</span>
+    <div data-hf-id="hf-zx1w" class="dots"><span data-hf-id="hf-kpmd" class="dot on"></span><span data-hf-id="hf-9gry" class="dot"></span><span data-hf-id="hf-zcc2" class="dot"></span><span data-hf-id="hf-zqn3" class="dot"></span><span data-hf-id="hf-04y4" class="dot"></span></div>
+    <div data-hf-id="hf-k0tn" class="lvl-sub"><span data-hf-id="hf-1fr0">2 Part Treble</span><span data-hf-id="hf-9z7o" class="sep">·</span><span data-hf-id="hf-ukzh" class="keys"><span data-hf-id="hf-j2ir" class="k" data-layout-allow-overlap="" id="k1a">G major</span><span data-hf-id="hf-2xcq" class="k" data-layout-allow-overlap="" id="k1b">G major</span></span></div>
+  </div>
+</div>
+<div data-hf-id="hf-f49s" class="scene clip lvl" id="lvl2" data-start="7.00" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-4yvs" class="lvl-top">
+    <span data-hf-id="hf-x8cx" class="lvl-chip" id="chip2" style="background:#c9e4ff;color:#0e3563">UIL Level 2</span>
+    <div data-hf-id="hf-2trg" class="dots"><span data-hf-id="hf-fcvd" class="dot on"></span><span data-hf-id="hf-gjsg" class="dot on"></span><span data-hf-id="hf-0j95" class="dot"></span><span data-hf-id="hf-0xk6" class="dot"></span><span data-hf-id="hf-1bv7" class="dot"></span></div>
+    <div data-hf-id="hf-gdfv" class="lvl-sub"><span data-hf-id="hf-pvqf">3 Part Treble</span><span data-hf-id="hf-jxks" class="sep">·</span><span data-hf-id="hf-kwr5" class="keys"><span data-hf-id="hf-e4vw" class="k" data-layout-allow-overlap="" id="k2a">G major</span><span data-hf-id="hf-67g2" class="k" data-layout-allow-overlap="" id="k2b">F major</span></span></div>
+  </div>
+</div>
+<div data-hf-id="hf-giso" class="scene clip lvl" id="lvl3" data-start="11.00" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-3ryp" class="lvl-top">
+    <span data-hf-id="hf-nkd3" class="lvl-chip" id="chip3" style="background:#ffefa8;color:#5c4a00">UIL Level 3</span>
+    <div data-hf-id="hf-1mud" class="dots"><span data-hf-id="hf-g5hf" class="dot on"></span><span data-hf-id="hf-e5ya" class="dot on"></span><span data-hf-id="hf-drn9" class="dot on"></span><span data-hf-id="hf-1q68" class="dot"></span><span data-hf-id="hf-vrkt" class="dot"></span></div>
+    <div data-hf-id="hf-fz4u" class="lvl-sub"><span data-hf-id="hf-iwff">4 Part Mixed</span><span data-hf-id="hf-iqnp" class="sep">·</span><span data-hf-id="hf-m3o8" class="keys"><span data-hf-id="hf-79jx" class="k" data-layout-allow-overlap="" id="k3a">G major</span><span data-hf-id="hf-87o5" class="k" data-layout-allow-overlap="" id="k3b">D major</span></span></div>
+  </div>
+</div>
+<div data-hf-id="hf-sa9n" class="scene clip lvl" id="lvl4" data-start="15.00" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-469q" class="lvl-top">
+    <span data-hf-id="hf-8az1" class="lvl-chip" id="chip4" style="background:#ffd3bf;color:#5a2310">UIL Level 4</span>
+    <div data-hf-id="hf-215e" class="dots"><span data-hf-id="hf-eykc" class="dot on"></span><span data-hf-id="hf-ek9b" class="dot on"></span><span data-hf-id="hf-ckq6" class="dot on"></span><span data-hf-id="hf-c6f5" class="dot on"></span><span data-hf-id="hf-w5vu" class="dot"></span></div>
+    <div data-hf-id="hf-fktt" class="lvl-sub"><span data-hf-id="hf-umak">3 Part Mixed</span><span data-hf-id="hf-j4yq" class="sep">·</span><span data-hf-id="hf-lpd7" class="keys"><span data-hf-id="hf-iloy" class="k" data-layout-allow-overlap="" id="k4a">C major</span><span data-hf-id="hf-ib7a" class="k" data-layout-allow-overlap="" id="k4b">D major</span></span></div>
+  </div>
+</div>
+<div data-hf-id="hf-ty66" class="scene clip lvl" id="lvl5" data-start="19.00" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-2zcn" class="lvl-top">
+    <span data-hf-id="hf-yeuz" class="lvl-chip" id="chip5" style="background:#2f6fe0;color:#ffffff">UIL Level 5</span>
+    <div data-hf-id="hf-40oj" class="dots"><span data-hf-id="hf-awt7" class="dot on"></span><span data-hf-id="hf-bb48" class="dot on"></span><span data-hf-id="hf-a475" class="dot on"></span><span data-hf-id="hf-aii6" class="dot on"></span><span data-hf-id="hf-9bl3" class="dot on"></span></div>
+    <div data-hf-id="hf-f6is" class="lvl-sub"><span data-hf-id="hf-9nd7">4 Part Mixed</span><span data-hf-id="hf-l4hv" class="sep">·</span><span data-hf-id="hf-jpu2" class="keys"><span data-hf-id="hf-671k" class="k" data-layout-allow-overlap="" id="k5a">F major</span><span data-hf-id="hf-ubkm" class="k" data-layout-allow-overlap="" id="k5b">B♭ major</span></span></div>
+  </div>
+</div>
+<div data-hf-id="hf-hdii" class="scene clip" id="sol" data-start="23.00" data-duration="8.00" data-track-index="1">
+  <div data-hf-id="hf-3dno" class="lvl-top">
+    <span data-hf-id="hf-gexs" class="lvl-chip" id="sol-chip" style="background:#15213a;color:#ffffff">Solfège</span>
+    <div data-hf-id="hf-2p30" class="lvl-sub" id="sol-sub"><span data-hf-id="hf-i6tm" id="sol-state-a" data-layout-allow-overlap="">One tap: on</span><span data-hf-id="hf-6fdb" id="sol-state-b" data-layout-allow-overlap="">One tap: off</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-hg9d" class="panel" id="panel" style="top:1290px">
+  <img data-hf-id="hf-e3lf" id="annot-off1" class="clip panel-img" data-start="23.00" data-duration="1.75" data-track-index="3" src="assets/scores/display-pop-annot.png" alt="">
+  <img data-hf-id="hf-rxdo" id="annot-on" class="clip panel-img" data-start="24.75" data-duration="4.20" data-track-index="3" src="assets/scores/display-pop-on-annot.png" alt="">
+  <img data-hf-id="hf-o9b5" id="annot-off2" class="clip panel-img" data-start="28.95" data-duration="2.05" data-track-index="3" src="assets/scores/display-pop-annot.png" alt="">
+</div>
+<div data-hf-id="hf-iwc9" class="tap" id="tap" style="left:653px;top:1373px"></div>
+<div data-hf-id="hf-5kyz" class="scene clip" id="close" data-start="31.00" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-hszt" class="close-wrap">
+    <div data-hf-id="hf-k4d9" class="wordmark big" id="close-mark"><svg data-hf-id="hf-2edc" class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path data-hf-id="hf-trqs" d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg><span data-hf-id="hf-n8i7" class="rest">sightreading.com</span></div>
+    <p data-hf-id="hf-6zsa" class="close-line" id="close-line">Written to UIL's criteria,<span data-hf-id="hf-ivyq" class="nl">Level 1 to Level 5.</span></p>
+    <span data-hf-id="hf-1ewl" class="cta" id="cta">Try it free</span>
+  </div>
+</div>
+<audio data-hf-id="hf-6rzp" id="bed" data-start="0" data-duration="35.00" data-track-index="5" src="assets/audio/bed.wav"></audio>
+</div>
+<script>
+const tl = gsap.timeline({ paused: true });
+tl.set("#newex", {scale:1}, 0);
+tl.set("#newex-ring", {opacity:0, scale:0.6}, 0);
+tl.fromTo("#hook-mark", {opacity:0, y:20}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 0.05);
+tl.fromTo(["#h1","#h2","#h3"], {opacity:0, y:50}, {opacity:1, y:0, duration:0.55, ease:"back.out(1.6)", stagger:0.16}, 0.15);
+tl.to("#hook .hook-wrap", {opacity:0, y:-40, duration:0.35, ease:"power2.in"}, 2.65);
+tl.set("#ex-l1-1", {top:82}, 0);
+tl.fromTo("#ex-l1-1", {y:0}, {y:-0, duration:1.75, ease:"power1.inOut"}, 3.20);
+tl.set("#ex-l1-2", {top:82}, 0);
+tl.set("#ex-l1-2", {y:0, x:60, opacity:0}, 0);
+tl.to("#ex-l1-2", {opacity:1, x:0, duration:0.3, ease:"power3.out"}, 5.00);
+tl.to("#ex-l1-2", {y:-0, duration:1.75, ease:"power1.inOut"}, 5.20);
+tl.fromTo("#chip1", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 3.00);
+tl.fromTo("#lvl1 .lvl-sub", {opacity:0, y:20}, {opacity:1, y:0, duration:0.35, ease:"power3.out"}, 3.10);
+tl.fromTo("#k1b", {opacity:0}, {opacity:1, duration:0.2}, 5.00);
+tl.fromTo("#k1a", {opacity:1}, {opacity:0, duration:0.2}, 5.00);
+tl.to("#newex", {scale:0.88, duration:0.12, yoyo:true, repeat:1, ease:"power2.out"}, 4.75);
+tl.set("#newex-ring", {opacity:0.9, scale:0.6}, 4.75);
+tl.to("#newex-ring", {opacity:0, scale:1.6, duration:0.5, ease:"power2.out"}, 4.76);
+tl.fromTo("#ex-l2-1", {y:0}, {y:-121, duration:1.75, ease:"power1.inOut"}, 7.20);
+tl.set("#ex-l2-2", {y:0, x:60, opacity:0}, 0);
+tl.to("#ex-l2-2", {opacity:1, x:0, duration:0.3, ease:"power3.out"}, 9.00);
+tl.to("#ex-l2-2", {y:-123, duration:1.75, ease:"power1.inOut"}, 9.20);
+tl.fromTo("#chip2", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 7.00);
+tl.fromTo("#lvl2 .lvl-sub", {opacity:0, y:20}, {opacity:1, y:0, duration:0.35, ease:"power3.out"}, 7.10);
+tl.fromTo("#k2b", {opacity:0}, {opacity:1, duration:0.2}, 9.00);
+tl.fromTo("#k2a", {opacity:1}, {opacity:0, duration:0.2}, 9.00);
+tl.to("#newex", {scale:0.88, duration:0.12, yoyo:true, repeat:1, ease:"power2.out"}, 8.75);
+tl.set("#newex-ring", {opacity:0.9, scale:0.6}, 8.75);
+tl.to("#newex-ring", {opacity:0, scale:1.6, duration:0.5, ease:"power2.out"}, 8.76);
+tl.fromTo("#ex-l3-1", {y:0}, {y:-415, duration:1.75, ease:"power1.inOut"}, 11.20);
+tl.set("#ex-l3-2", {y:0, x:60, opacity:0}, 0);
+tl.to("#ex-l3-2", {opacity:1, x:0, duration:0.3, ease:"power3.out"}, 13.00);
+tl.to("#ex-l3-2", {y:-415, duration:1.75, ease:"power1.inOut"}, 13.20);
+tl.fromTo("#chip3", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 11.00);
+tl.fromTo("#lvl3 .lvl-sub", {opacity:0, y:20}, {opacity:1, y:0, duration:0.35, ease:"power3.out"}, 11.10);
+tl.fromTo("#k3b", {opacity:0}, {opacity:1, duration:0.2}, 13.00);
+tl.fromTo("#k3a", {opacity:1}, {opacity:0, duration:0.2}, 13.00);
+tl.to("#newex", {scale:0.88, duration:0.12, yoyo:true, repeat:1, ease:"power2.out"}, 12.75);
+tl.set("#newex-ring", {opacity:0.9, scale:0.6}, 12.75);
+tl.to("#newex-ring", {opacity:0, scale:1.6, duration:0.5, ease:"power2.out"}, 12.76);
+tl.fromTo("#ex-l4-1", {y:0}, {y:-109, duration:1.75, ease:"power1.inOut"}, 15.20);
+tl.set("#ex-l4-2", {y:0, x:60, opacity:0}, 0);
+tl.to("#ex-l4-2", {opacity:1, x:0, duration:0.3, ease:"power3.out"}, 17.00);
+tl.to("#ex-l4-2", {y:-128, duration:1.75, ease:"power1.inOut"}, 17.20);
+tl.fromTo("#chip4", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 15.00);
+tl.fromTo("#lvl4 .lvl-sub", {opacity:0, y:20}, {opacity:1, y:0, duration:0.35, ease:"power3.out"}, 15.10);
+tl.fromTo("#k4b", {opacity:0}, {opacity:1, duration:0.2}, 17.00);
+tl.fromTo("#k4a", {opacity:1}, {opacity:0, duration:0.2}, 17.00);
+tl.to("#newex", {scale:0.88, duration:0.12, yoyo:true, repeat:1, ease:"power2.out"}, 16.75);
+tl.set("#newex-ring", {opacity:0.9, scale:0.6}, 16.75);
+tl.to("#newex-ring", {opacity:0, scale:1.6, duration:0.5, ease:"power2.out"}, 16.76);
+tl.fromTo("#ex-l5-1", {y:0}, {y:-415, duration:1.75, ease:"power1.inOut"}, 19.20);
+tl.set("#ex-l5-2", {y:0, x:60, opacity:0}, 0);
+tl.to("#ex-l5-2", {opacity:1, x:0, duration:0.3, ease:"power3.out"}, 21.00);
+tl.to("#ex-l5-2", {y:-407, duration:1.75, ease:"power1.inOut"}, 21.20);
+tl.fromTo("#chip5", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 19.00);
+tl.fromTo("#lvl5 .lvl-sub", {opacity:0, y:20}, {opacity:1, y:0, duration:0.35, ease:"power3.out"}, 19.10);
+tl.fromTo("#k5b", {opacity:0}, {opacity:1, duration:0.2}, 21.00);
+tl.fromTo("#k5a", {opacity:1}, {opacity:0, duration:0.2}, 21.00);
+tl.to("#newex", {scale:0.88, duration:0.12, yoyo:true, repeat:1, ease:"power2.out"}, 20.75);
+tl.set("#newex-ring", {opacity:0.9, scale:0.6}, 20.75);
+tl.to("#newex-ring", {opacity:0, scale:1.6, duration:0.5, ease:"power2.out"}, 20.76);
+tl.fromTo("#ex-sol-on", {y:0}, {y:-1500, duration:3.0, ease:"power1.inOut"}, 25.60);
+tl.fromTo("#sol-chip", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 23.00);
+tl.fromTo("#sol-sub", {opacity:0, y:20}, {opacity:1, y:0, duration:0.35, ease:"power3.out"}, 23.10);
+tl.fromTo("#sol-state-b", {opacity:0}, {opacity:1, duration:0.2}, 27.90);
+tl.fromTo("#sol-state-a", {opacity:1}, {opacity:0, duration:0.2}, 27.90);
+tl.set("#panel", {y:670}, 0);
+tl.set("#tap", {opacity:0}, 0);
+tl.to("#panel", {y:0, duration:0.45, ease:"power3.out"}, 23.95);
+tl.fromTo("#tap", {opacity:0, scale:1.5}, {opacity:1, scale:1, duration:0.25, ease:"power2.out"}, 24.40);
+tl.to("#tap", {scale:0.8, duration:0.1, yoyo:true, repeat:1}, 24.65);
+tl.to("#tap", {opacity:0, duration:0.25}, 25.00);
+tl.to("#panel", {y:670, duration:0.45, ease:"power3.in"}, 25.25);
+tl.to("#panel", {y:0, duration:0.45, ease:"power3.out"}, 28.15);
+tl.fromTo("#tap", {opacity:0, scale:1.5}, {opacity:1, scale:1, duration:0.25, ease:"power2.out"}, 28.60);
+tl.to("#tap", {scale:0.8, duration:0.1, yoyo:true, repeat:1}, 28.85);
+tl.to("#tap", {opacity:0, duration:0.25}, 29.20);
+tl.to("#panel", {y:670, duration:0.45, ease:"power3.in"}, 29.45);
+tl.fromTo("#close-mark", {opacity:0, scale:0.85}, {opacity:1, scale:1, duration:0.5, ease:"back.out(1.7)"}, 31.05);
+tl.fromTo("#close-line", {opacity:0, y:30}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 31.35);
+tl.fromTo("#cta", {opacity:0, y:30}, {opacity:1, y:0, duration:0.45, ease:"back.out(1.6)"}, 31.60);
+tl.fromTo("#card", {opacity:0, y:120}, {opacity:1, y:0, duration:0.5, ease:"power3.out"}, 2.80);
+tl.to("#card", {opacity:0, y:80, duration:0.35, ease:"power2.in"}, 30.70);
+window.__timelines["main"] = tl;
+tl.seek(0);
+</script>
+</body>
+</html>

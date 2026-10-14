@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1080, height=1350" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1350px; overflow: hidden; background: #eaf0f9; }
+#root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #eaf0f9; font-family: "Fredoka", sans-serif; color: #15213a; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+.cap { position: absolute; left: 40px; right: 40px; top: 70px; display: flex; flex-direction: column; align-items: center; text-align: center; font-weight: 700; font-size: 86px; line-height: 1.1; letter-spacing: -0.01em; }
+.cap span { display: block; white-space: nowrap; }
+.cap .blue { color: #1e56c0; }
+.card { position: absolute; left: 40px; top: 380px; width: 1000px; height: 640px; border-radius: 36px; overflow: hidden; background: #ffffff; box-shadow: 0 30px 70px rgba(21, 33, 58, 0.18); }
+.card img { position: absolute; left: 10px; top: 24px; width: 980px; height: auto; display: block; }
+.mark { position: absolute; left: 0; right: 0; top: 1200px; display: flex; justify-content: center; }
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 12px 32px; box-shadow: 0 12px 30px rgba(21, 33, 58, 0.1); font-size: 42px; }
+.wordmark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest { font-weight: 600; line-height: 1; color: #15213a; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="6" data-width="1080" data-height="1350">
+<div class="blob" data-layout-ignore style="left:-90px;top:-40px;width:300px;height:300px;background:#c9e4ff"></div>
+<div class="blob" data-layout-ignore style="left:840px;top:200px;width:320px;height:320px;background:#ffd3bf"></div>
+<div class="blob" data-layout-ignore style="left:800px;top:1120px;width:340px;height:340px;background:#bdebd9"></div>
+<h1 class="cap" id="cap"><span id="c1">Don't let the <span class="blue" style="display:inline">basses</span></span><span id="c2">hold back your</span><span id="c3">sight-reading.</span></h1>
+<div class="card" id="card"><img id="score" src="assets/score.png" alt="" /></div>
+<div class="mark" id="mark"><div class="wordmark"><svg class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z"/></svg><span class="rest">sightreading.com</span></div></div>
+<audio id="bed" data-start="0" data-duration="6" data-track-index="5" src="assets/audio/bed.wav"></audio>
+</div>
+<script>
+const tl = gsap.timeline({ paused: true });
+tl.fromTo(["#c1","#c2","#c3"], {opacity:0, y:40}, {opacity:1, y:0, duration:0.5, ease:"back.out(1.6)", stagger:0.12}, 0.05);
+tl.fromTo("#card", {opacity:0, y:80}, {opacity:1, y:0, duration:0.5, ease:"power3.out"}, 0.3);
+tl.fromTo("#mark", {opacity:0}, {opacity:1, duration:0.4}, 0.6);
+window.__timelines["main"] = tl;
+tl.seek(0);
+</script>
+</body>
+</html>

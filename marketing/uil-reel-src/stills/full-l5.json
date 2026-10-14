@@ -1,0 +1,332 @@
+{
+ "form": [
+  "A bars 1–8 statement",
+  "B bars 9–16 departure · toward vi",
+  "C bars 17–20 imitative · staggered entrances",
+  "A' bars 21–28 return of A",
+  "close bars 29–36 close",
+  "coda bars 37–52 coda"
+ ],
+ "nums": [
+  [
+   2,
+   368
+  ],
+  [
+   3,
+   368
+  ],
+  [
+   4,
+   368
+  ],
+  [
+   5,
+   1356
+  ],
+  [
+   6,
+   1356
+  ],
+  [
+   7,
+   1356
+  ],
+  [
+   8,
+   1356
+  ],
+  [
+   9,
+   2344
+  ],
+  [
+   10,
+   2344
+  ],
+  [
+   11,
+   2344
+  ],
+  [
+   12,
+   2344
+  ],
+  [
+   13,
+   3303
+  ],
+  [
+   14,
+   3332
+  ],
+  [
+   15,
+   3332
+  ],
+  [
+   16,
+   3332
+  ],
+  [
+   17,
+   4291
+  ],
+  [
+   18,
+   4320
+  ],
+  [
+   19,
+   4320
+  ],
+  [
+   20,
+   4320
+  ],
+  [
+   21,
+   5279
+  ],
+  [
+   22,
+   5308
+  ],
+  [
+   23,
+   5308
+  ],
+  [
+   24,
+   5308
+  ],
+  [
+   25,
+   6267
+  ],
+  [
+   26,
+   6296
+  ],
+  [
+   27,
+   6296
+  ],
+  [
+   28,
+   6296
+  ],
+  [
+   29,
+   7255
+  ],
+  [
+   30,
+   7284
+  ],
+  [
+   31,
+   7284
+  ],
+  [
+   32,
+   7284
+  ],
+  [
+   33,
+   8243
+  ],
+  [
+   34,
+   8272
+  ],
+  [
+   35,
+   8272
+  ],
+  [
+   36,
+   8272
+  ],
+  [
+   37,
+   9231
+  ],
+  [
+   38,
+   9260
+  ],
+  [
+   39,
+   9260
+  ],
+  [
+   40,
+   9260
+  ],
+  [
+   41,
+   10219
+  ],
+  [
+   42,
+   10248
+  ],
+  [
+   43,
+   10248
+  ],
+  [
+   44,
+   10248
+  ],
+  [
+   45,
+   11207
+  ],
+  [
+   46,
+   11236
+  ],
+  [
+   47,
+   11236
+  ],
+  [
+   48,
+   11236
+  ],
+  [
+   49,
+   12195
+  ],
+  [
+   50,
+   12224
+  ],
+  [
+   51,
+   12224
+  ],
+  [
+   52,
+   12224
+  ]
+ ],
+ "systems": [
+  436,
+  673,
+  910,
+  1147,
+  1424,
+  1661,
+  1898,
+  2135,
+  2412,
+  2649,
+  2886,
+  3123,
+  3400,
+  3637,
+  3874,
+  4111,
+  4388,
+  4625,
+  4862,
+  5099,
+  5376,
+  5613,
+  5850,
+  6087,
+  6364,
+  6601,
+  6838,
+  7075,
+  7352,
+  7589,
+  7826,
+  8063,
+  8340,
+  8577,
+  8814,
+  9051,
+  9328,
+  9565,
+  9802,
+  10039,
+  10316,
+  10553,
+  10790,
+  11027,
+  11304,
+  11541,
+  11778,
+  12015,
+  12292,
+  12529,
+  12766,
+  13003
+ ],
+ "sample": [
+  [
+   "Sight Reading Exercise in F",
+   "abcjs-title",
+   "abcjs-meta-top"
+  ],
+  [
+   "abc-sightreading.com",
+   "abcjs-composer",
+   "abcjs-meta-top"
+  ],
+  [
+   "Soprano",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l0 abcjs-v0",
+   "abcjs-staff-wrapper abcjs-l0"
+  ],
+  [
+   "= 60",
+   null,
+   "abcjs-tempo abcjs-l0 abcjs-m0 abcjs-mm0 abcjs-v0"
+  ],
+  [
+   "2",
+   "abcjs-bar-number abcjs-l0 abcjs-m0 abcjs-mm0 abcjs-v0",
+   "abcjs-bar abcjs-l0 abcjs-m0 abcjs-mm0 abcjs-v0"
+  ],
+  [
+   "3",
+   "abcjs-bar-number abcjs-l0 abcjs-m1 abcjs-mm1 abcjs-v0",
+   "abcjs-bar abcjs-l0 abcjs-m1 abcjs-mm1 abcjs-v0"
+  ],
+  [
+   "4",
+   "abcjs-bar-number abcjs-l0 abcjs-m2 abcjs-mm2 abcjs-v0",
+   "abcjs-bar abcjs-l0 abcjs-m2 abcjs-mm2 abcjs-v0"
+  ],
+  [
+   "Alto",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l0 abcjs-v1",
+   "abcjs-staff-wrapper abcjs-l0"
+  ],
+  [
+   "Tenor",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l0 abcjs-v2",
+   "abcjs-staff-wrapper abcjs-l0"
+  ],
+  [
+   "Bass",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l0 abcjs-v3",
+   "abcjs-staff-wrapper abcjs-l0"
+  ],
+  [
+   "Soprano",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l1 abcjs-v0",
+   "abcjs-staff-wrapper abcjs-l1"
+  ],
+  [
+   "5",
+   "abcjs-bar-number abcjs-l1 abcjs-m0 abcjs-mm4 abcjs-v0",
+   "abcjs-staff-extra abcjs-clef abcjs-l1 abcjs-m0 abcjs-mm4 abcjs-v0"
+  ]
+ ]
+}

@@ -1,0 +1,16 @@
+X:1
+%%barnumbers 1
+T:Sight Reading Exercise in F
+C:abc-sightreading.com
+M:4/4
+L:1/32
+Q:1/4=60
+%%MIDI program 0
+%%score [S A]
+V:S clef=treble octave=-1 name="Soprano" snm="S"
+V:A clef=treble octave=-1 name="Alto" snm="A"
+K:F
+[V:S] a16 a8 g8 | a24 a8 | b12 c'4 d'8 c'8 | c'24 d'8 | c'12 b4 a8 g8 | f24 a8 | b12 c'4 d'8 c'8 | a32 | a8 a8 b16 | a8 g8 a8 b8 | c'12 c'4 b8 a8 | g24 a8 | b12 a4 g8 a8 | a8 g8 f8 b8 | c'12 c'4 c'4b4 a8 | a24 g8 | a16 a8 b8 | a16 a16 | b12 c'4 b8 a4g4 | a32 | a16 a8 g8 | a24 a8 | b12 c'4 d'8 c'8 | c'24 d'8 | c'12 b4 a8 g8 | f24 a8 | b12 c'4 d'8 c'8 | a32 |]
+[V:A] f16 f8 e8 | f24 c8 | d12 e4 f8 e8 | e24 f8 | e16 f8 e8 | f24 c8 | d12 e4 f8 e8 | f32 | f8 f8 d12 e4 | f8 e8 f8 f8 | e12 e4 e8 e8 | e24 f8 | g12 f4 e8 f8 | f8 e8 f8 f8 | e12 e4 e8 e8 | f24 e8 | f16 f8 g8 | f16 f16 | g12 f4 g8 f4e4 | f32 | f16 f8 e8 | f24 c8 | d12 e4 f8 e8 | e24 f8 | e16 f8 e8 | f24 c8 | d12 e4 f8 e8 | f32 |]
+%%vskip 6
+%%center © 2026 abcSightReading · abc-sightreading.com

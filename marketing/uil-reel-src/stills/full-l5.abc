@@ -1,0 +1,20 @@
+X:1
+%%barnumbers 1
+T:Sight Reading Exercise in F
+C:abc-sightreading.com
+M:4/4
+L:1/32
+Q:1/4=60
+%%MIDI program 0
+%%score [S A T B]
+V:S clef=treble octave=-1 name="Soprano" snm="S"
+V:A clef=treble octave=-1 name="Alto" snm="A"
+V:T clef=treble transpose=-12 name="Tenor" snm="T"
+V:B clef=bass octave=-1 name="Bass" snm="B"
+K:F
+[V:S] a32 | a12 a4 b8 a8 | g16 g16 | g24 z8 | a8 a8 g4g4 g8 | a12 a4 b8 a8 | g16 g16 | a32 | a4 a8 a4 g8 a8 | b4 c'8 b4 a8 a8 | f16 g16 | g24 z8 | a8 a16 b8 | a8 b12 c'4 b8 | a8 f12 f4 g8 | a32 | a12 a4 g8 a8 | =b12 b4 c'8 c'8 | b8 g8 g16 | a32 | a32 | a12 a4 b8 a8 | g16 g16 | g24 z8 | a8 a8 g4g4 g8 | a12 a4 b8 a8 | g16 g16 | a32 | a24 a8 | b24 a8 | g16 a8 =b8 | c'24 z8 | a16 a8 g8 | a16 a4a4 a8 | d'12 d'4 d'4d'4 c'8 | a32 | a8 a8 g12 a4 | b4b4 b8 c'8 c'8 | a12 a4 a4g4 a8 | g24 z8 | f24 f8 | g16 a8 b8 | a16 g16 | a24 z8 | f8 f12 g4 a4g4 | f8 a12 a4 a8 | g8 a16 a4g4 | a24 z8 | f16 f16 | a8 c'24 | d'8 b8 a12 g4 | a32 |]
+[V:A] f32 | f12 f4 g8 ^f8 | g16 e16 | e24 z8 | f8 f8 e4d4 e8 | f12 f4 g8 ^f8 | g16 e16 | f32 | f4 f8 f4 e8 d8 | d4 e8 d4 d8 ^c8 | d16 d16 | e24 z8 | e8 f16 d8 | d8 d12 e4 d8 | f8 d12 d4 c8 | f32 | f12 f4 e8 f8 | g12 g4 g8 f8 | g8 d8 e16 | f32 | f32 | f12 f4 g8 ^f8 | g16 e16 | e24 z8 | f8 f8 e4d4 e8 | f12 f4 g8 ^f8 | g16 e16 | f32 | f24 c8 | d24 d8 | e12 e4 f8 g8 | g24 z8 | f8 f8 d8 g8 | f16 f4f4 f8 | ^f12 f4 g4=f4 g8 | f32 | f8 f8 e12 f4 | g4f4 g8 a16 | f12 f4 e8 f8 | e24 z8 | c24 d8 | e8 e8 f8 f8 | f16 e16 | f24 z8 | c8 d12 d4 d4d4 | d8 c12 c4 d8 | e8 f16 f4e4 | f24 z8 | c16 d16 | f8 f24 | d8 d8 e12 e4 | f32 |]
+[V:T] A32 | A12 A4 G8 A8 | B16 c16 | c24 z8 | A8 A8 B4B4 c8 | A12 A4 G8 A8 | B16 c16 | c32 | A4 A8 A4 B8 A8 | G4 G8 G4 A8 A8 | A16 B16 | c24 z8 | A8 A16 F8 | ^F8 G12 G4 G8 | A8 B12 A4 G8 | c32 | A12 A4 B8 A8 | G12 G4 G8 A8 | B8 B8 c16 | A32 | A32 | A12 A4 G8 A8 | B16 c16 | c24 z8 | A8 A8 B4B4 c8 | A12 A4 G8 A8 | B16 c16 | c32 | A24 A8 | F24 F8 | G16 c8 d8 | e24 z8 | c8 c8 A8 B8 | A16 A4A4 A8 | A12 A4 B4A4 G8 | A32 | A8 A8 c12 c4 | B4B4 B8 f16 | c12 c4 c4B4 A8 | c24 z8 | A24 F8 | c16 c8 d8 | c16 c16 | A24 z8 | A8 B12 B4 A4B4 | B8 A12 A4 A4B4 | c8 A16 A4B4 | A24 z8 | A16 B16 | A8 A24 | B8 B8 c12 c4 | c32 |]
+[V:B] F32 | C12 C4 D8 D8 | G,16 C16 | C24 z8 | F8 F8 G4G4 G8 | C12 C4 D8 D8 | G,16 C16 | F32 | F4 F8 F4 G8 ^F8 | G4 G8 G4 F8 A,8 | D16 D16 | C24 z8 | ^C8 D16 D8 | D8 G,12 G,4 G,8 | D8 D12 D4 E8 | F32 | F12 F4 G8 C8 | G,12 G,4 G,8 C8 | D8 D8 C16 | F32 | F32 | C12 C4 D8 D8 | G,16 C16 | C24 z8 | F8 F8 G4G4 G8 | C12 C4 D8 D8 | G,16 C16 | F32 | F24 F8 | D24 D8 | B,16 F8 D8 | C24 z8 | F16 ^F8 G8 | C16 C4C4 C8 | D12 D4 D4D4 E8 | F32 | F8 F8 C12 C4 | D4D4 D8 F16 | F12 F4 G8 F8 | C24 z8 | F24 F8 | C8 C8 F8 F8 | F16 C16 | F24 z8 | F8 D12 D4 D4D4 | D8 F12 F4 F4G4 | C8 F16 F4G4 | F24 z8 | F16 D16 | D8 C24 | G,8 D8 C12 C4 | C32 |]
+%%vskip 6
+%%center © 2026 abcSightReading · abc-sightreading.com

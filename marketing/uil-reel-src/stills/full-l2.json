@@ -1,0 +1,195 @@
+{
+ "form": [
+  "A bars 1–8 statement",
+  "B bars 9–20 departure",
+  "A' bars 21–28 return of A"
+ ],
+ "nums": [
+  [
+   2,
+   368
+  ],
+  [
+   3,
+   368
+  ],
+  [
+   4,
+   368
+  ],
+  [
+   5,
+   882
+  ],
+  [
+   6,
+   882
+  ],
+  [
+   7,
+   882
+  ],
+  [
+   8,
+   882
+  ],
+  [
+   9,
+   1396
+  ],
+  [
+   10,
+   1396
+  ],
+  [
+   11,
+   1396
+  ],
+  [
+   12,
+   1396
+  ],
+  [
+   13,
+   1881
+  ],
+  [
+   14,
+   1910
+  ],
+  [
+   15,
+   1910
+  ],
+  [
+   16,
+   1910
+  ],
+  [
+   17,
+   2395
+  ],
+  [
+   18,
+   2424
+  ],
+  [
+   19,
+   2424
+  ],
+  [
+   20,
+   2424
+  ],
+  [
+   21,
+   2909
+  ],
+  [
+   22,
+   2938
+  ],
+  [
+   23,
+   2938
+  ],
+  [
+   24,
+   2938
+  ],
+  [
+   25,
+   3423
+  ],
+  [
+   26,
+   3452
+  ],
+  [
+   27,
+   3452
+  ],
+  [
+   28,
+   3452
+  ]
+ ],
+ "systems": [
+  436,
+  673,
+  950,
+  1187,
+  1464,
+  1701,
+  1978,
+  2215,
+  2492,
+  2729,
+  3006,
+  3243,
+  3520,
+  3757
+ ],
+ "sample": [
+  [
+   "Sight Reading Exercise in F",
+   "abcjs-title",
+   "abcjs-meta-top"
+  ],
+  [
+   "abc-sightreading.com",
+   "abcjs-composer",
+   "abcjs-meta-top"
+  ],
+  [
+   "Soprano",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l0 abcjs-v0",
+   "abcjs-staff-wrapper abcjs-l0"
+  ],
+  [
+   "= 60",
+   null,
+   "abcjs-tempo abcjs-l0 abcjs-m0 abcjs-mm0 abcjs-v0"
+  ],
+  [
+   "2",
+   "abcjs-bar-number abcjs-l0 abcjs-m0 abcjs-mm0 abcjs-v0",
+   "abcjs-bar abcjs-l0 abcjs-m0 abcjs-mm0 abcjs-v0"
+  ],
+  [
+   "3",
+   "abcjs-bar-number abcjs-l0 abcjs-m1 abcjs-mm1 abcjs-v0",
+   "abcjs-bar abcjs-l0 abcjs-m1 abcjs-mm1 abcjs-v0"
+  ],
+  [
+   "4",
+   "abcjs-bar-number abcjs-l0 abcjs-m2 abcjs-mm2 abcjs-v0",
+   "abcjs-bar abcjs-l0 abcjs-m2 abcjs-mm2 abcjs-v0"
+  ],
+  [
+   "Alto",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l0 abcjs-v1",
+   "abcjs-staff-wrapper abcjs-l0"
+  ],
+  [
+   "Soprano",
+   "abcjs-staff-extra abcjs-voice-name abcjs-l1 abcjs-v0",
+   "abcjs-staff-wrapper abcjs-l1"
+  ],
+  [
+   "5",
+   "abcjs-bar-number abcjs-l1 abcjs-m0 abcjs-mm4 abcjs-v0",
+   "abcjs-staff-extra abcjs-clef abcjs-l1 abcjs-m0 abcjs-mm4 abcjs-v0"
+  ],
+  [
+   "6",
+   "abcjs-bar-number abcjs-l1 abcjs-m0 abcjs-mm4 abcjs-v0",
+   "abcjs-bar abcjs-l1 abcjs-m0 abcjs-mm4 abcjs-v0"
+  ],
+  [
+   "7",
+   "abcjs-bar-number abcjs-l1 abcjs-m1 abcjs-mm5 abcjs-v0",
+   "abcjs-bar abcjs-l1 abcjs-m1 abcjs-mm5 abcjs-v0"
+  ]
+ ]
+}

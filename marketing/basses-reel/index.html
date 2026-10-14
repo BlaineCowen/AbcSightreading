@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1920">
+<!-- Written by build.py: edit it, not this file. -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+#root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #eaf0f9; font-family: "Fredoka", sans-serif; color: #15213a; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+.scene { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21, 33, 58, 0.1); font-size: 44px; }
+.wordmark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest { font-weight: 600; line-height: 1; color: #15213a; }
+.wordmark.big { font-size: 74px; padding: 22px 52px; }
+
+.hook-wrap { position: absolute; left: 50px; right: 50px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
+.hook-head { display: flex; flex-direction: column; align-items: center; font-weight: 700; font-size: 100px; line-height: 1.14; letter-spacing: -0.01em; }
+.hl { display: block; white-space: nowrap; }
+.hl.blue { color: #1e56c0; font-size: 130px; }
+
+.lvl-top { position: absolute; left: 60px; right: 60px; top: 250px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.lvl-chip { display: inline-block; font-weight: 700; font-size: 84px; line-height: 1; padding: 22px 56px; border-radius: 999px; box-shadow: 0 14px 34px rgba(21, 33, 58, 0.14); }
+.dots { display: flex; gap: 16px; }
+.dot { width: 22px; height: 22px; border-radius: 50%; background: #d8e2f1; }
+.dot.on { background: #2f6fe0; }
+.lvl-sub { position: relative; display: flex; align-items: center; gap: 16px; font-weight: 600; font-size: 46px; color: #34405e; white-space: nowrap; }
+.lvl-sub .sep { color: #56637f; }
+.keys { position: relative; display: inline-block; min-width: 250px; height: 1.2em; }
+.keys .k { position: absolute; left: 0; top: 0; white-space: nowrap; }
+#sol-sub { min-width: 380px; height: 1.2em; justify-content: center; }
+#sol-sub span { position: absolute; left: 0; right: 0; text-align: center; }
+
+.card { position: absolute; border-radius: 36px; overflow: hidden; background: #ffffff; border: 3px solid #ffffff; box-shadow: 0 30px 70px rgba(21, 33, 58, 0.18); }
+.ex { position: absolute; left: 0; top: 0; width: 100%; }
+.score { display: block; width: 100%; height: auto; }
+.newex { position: absolute; right: 70px; width: 330px; height: 80px; }
+.newex-btn { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 36px; color: #ffffff; background: #2f6fe0; border-radius: 999px; box-shadow: 0 10px 24px rgba(47, 111, 224, 0.35); }
+.ring { position: absolute; inset: 0; border-radius: 999px; border: 5px solid #2f6fe0; opacity: 0; }
+
+.panel { position: absolute; left: 40px; width: 1000px; height: 244px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 -16px 50px rgba(21, 33, 58, 0.22); border: 2px solid #d8e2f1; }
+.panel-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tap { position: absolute; width: 210px; height: 120px; margin: -60px 0 0 -105px; border-radius: 999px; border: 7px solid #ff8a5c; box-shadow: 0 0 0 6px rgba(255, 138, 92, 0.25); }
+
+.close-wrap { position: absolute; left: 60px; right: 60px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 56px; text-align: center; }
+.close-line { display: flex; flex-direction: column; align-items: center; font-weight: 700; font-size: 72px; line-height: 1.15; }
+.close-line .nl { color: #1e56c0; }
+.cta { font-weight: 700; font-size: 60px; color: #ffffff; background: #2f6fe0; padding: 24px 70px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47, 111, 224, 0.35); }
+
+.bpanel { position: absolute; left: 40px; width: 1000px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 24px 60px rgba(21, 33, 58, 0.18); border: 2px solid #d8e2f1; }
+.panimg { position: absolute; display: block; height: auto; }
+.tap { width: 200px; height: 96px; margin: -48px 0 0 -100px; }
+.lvl-chip { font-size: 72px; }
+
+</style>
+</head>
+<body>
+<div data-hf-id="hf-mo2c" id="root" data-composition-id="main" data-start="0" data-duration="22.60" data-width="1080" data-height="1920">
+<div data-hf-id="hf-pyew" class="blob" data-layout-ignore="" style="left:-90px;top:90px;width:320px;height:320px;background:#c9e4ff"></div>
+<div data-hf-id="hf-w2tp" class="blob" data-layout-ignore="" style="left:800px;top:150px;width:380px;height:380px;background:#ffd3bf"></div>
+<div data-hf-id="hf-oio8" class="blob" data-layout-ignore="" style="left:740px;top:1600px;width:360px;height:360px;background:#bdebd9"></div>
+<div data-hf-id="hf-nji5" class="blob" data-layout-ignore="" style="left:-40px;top:1560px;width:280px;height:280px;background:#ffefa8"></div>
+<div data-hf-id="hf-7knd" class="card" id="card" style="left:40px;top:560px;width:1000px;height:1040px"><div data-hf-id="hf-x3t9" class="ex" data-layout-allow-overflow="" id="ex-all"><img data-hf-id="hf-exga" id="img-all" class="clip score" data-start="3.40" data-duration="4.00" data-track-index="2" src="assets/scores/b-all.png" alt=""></div><div data-hf-id="hf-l4ql" class="ex" data-layout-allow-overflow="" id="ex-bass"><img data-hf-id="hf-7nu1" id="img-bass" class="clip score" data-start="12.00" data-duration="7.00" data-track-index="2" src="assets/scores/b-bass.png" alt=""></div></div>
+<div data-hf-id="hf-krak" class="scene clip" id="hook" data-start="0" data-duration="3.4" data-track-index="0">
+  <div data-hf-id="hf-wghq" class="hook-wrap">
+    <div data-hf-id="hf-ey06" class="wordmark" id="hook-mark"><svg data-hf-id="hf-k8ug" class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path data-hf-id="hf-42m4" d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg><span data-hf-id="hf-xi9b" class="rest">sightreading.com</span></div>
+    <h1 data-hf-id="hf-77hy" class="hook-head"><span data-hf-id="hf-j5ia" class="hl" id="h1">Don't let the</span><span data-hf-id="hf-ayxw" class="hl blue" id="h2">basses</span><span data-hf-id="hf-yp6z" class="hl" id="h3">hold back your</span><span data-hf-id="hf-pgmd" class="hl" id="h4">sight-reading.</span></h1>
+  </div>
+</div>
+<div data-hf-id="hf-6r7n" class="scene clip" id="problem" data-start="3.40" data-duration="4.00" data-track-index="1">
+  <div data-hf-id="hf-tk0w" class="lvl-top">
+    <span data-hf-id="hf-k8m6" class="lvl-chip" id="pr-chip" style="background:#ffd3bf;color:#5a2310">Solfège under everyone?</span>
+    <div data-hf-id="hf-1ln2" class="lvl-sub" id="pr-sub"><span data-hf-id="hf-0qjm">Then everyone reads the syllables.</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-urzm" class="scene clip" id="taps" data-start="7.40" data-duration="4.60" data-track-index="1">
+  <div data-hf-id="hf-4yvs" class="lvl-top">
+    <span data-hf-id="hf-rf57" class="lvl-chip" id="tp-chip" style="background:#15213a;color:#ffffff">Now: part by part</span>
+    <div data-hf-id="hf-vtdk" class="lvl-sub" id="tp-sub"><span data-hf-id="hf-5xfx">Display · Annotations · Under</span></div>
+  </div>
+  <div data-hf-id="hf-ptnw" class="bpanel" id="bpanel" style="top:820px;height:218px"><img data-hf-id="hf-t82l" id="pan-0" class="clip panimg" data-start="7.40" data-duration="1.28" data-track-index="3" src="assets/scores/b-pan-0.png" alt="" style="left:40px;top:40px;width:920px"><img data-hf-id="hf-1gl6" id="pan-1" class="clip panimg" data-start="8.68" data-duration="0.90" data-track-index="3" src="assets/scores/b-pan-1.png" alt="" style="left:40px;top:40px;width:920px"><img data-hf-id="hf-65gs" id="pan-2" class="clip panimg" data-start="9.58" data-duration="0.90" data-track-index="3" src="assets/scores/b-pan-2.png" alt="" style="left:40px;top:40px;width:920px"><img data-hf-id="hf-zwxw" id="pan-3" class="clip panimg" data-start="10.48" data-duration="1.52" data-track-index="3" src="assets/scores/b-pan-3.png" alt="" style="left:40px;top:40px;width:920px"></div>
+  <div data-hf-id="hf-2kpm" class="tap" id="tap" data-layout-allow-overlap="" style="left:0px;top:957px"></div>
+</div>
+<div data-hf-id="hf-lf8s" class="scene clip" id="payoff" data-start="12.00" data-duration="7.00" data-track-index="1">
+  <div data-hf-id="hf-3ryp" class="lvl-top">
+    <span data-hf-id="hf-wvx8" class="lvl-chip" id="po-chip" style="background:#2f6fe0;color:#ffffff">Solfège for the basses</span>
+    <div data-hf-id="hf-ngqr" class="lvl-sub" id="po-sub"><span data-hf-id="hf-okiz">Notes for everyone else.</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-nfpw" class="scene clip" id="close" data-start="19.00" data-duration="3.60" data-track-index="1">
+  <div data-hf-id="hf-hszt" class="close-wrap">
+    <div data-hf-id="hf-k4d9" class="wordmark big" id="close-mark"><svg data-hf-id="hf-2edc" class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path data-hf-id="hf-trqs" d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg><span data-hf-id="hf-n8i7" class="rest">sightreading.com</span></div>
+    <p data-hf-id="hf-mc7x" class="close-line" id="close-line">Solfège,<span data-hf-id="hf-9h1i" class="nl">part by part.</span></p>
+    <span data-hf-id="hf-1ewl" class="cta" id="cta">Try it free</span>
+  </div>
+</div>
+<audio data-hf-id="hf-btqj" id="bed" data-start="0" data-duration="22.60" data-track-index="5" src="assets/audio/bed.wav"></audio>
+</div>
+<script>
+const tl = gsap.timeline({ paused: true });
+tl.set("#card", {opacity:0}, 0);
+tl.fromTo("#hook-mark", {opacity:0, y:20}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 0.05);
+tl.fromTo(["#h1","#h2","#h3","#h4"], {opacity:0, y:50}, {opacity:1, y:0, duration:0.55, ease:"back.out(1.6)", stagger:0.16}, 0.15);
+tl.to("#hook .hook-wrap", {opacity:0, y:-40, duration:0.35, ease:"power2.in"}, 3.05);
+tl.fromTo("#card", {opacity:0, y:120}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 3.25);
+tl.fromTo("#ex-all", {y:0}, {y:-1300, duration:3.10, ease:"power1.inOut"}, 3.90);
+tl.to("#card", {opacity:0, y:60, duration:0.3, ease:"power2.in"}, 7.10);
+tl.fromTo("#pr-chip", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 3.40);
+tl.fromTo("#pr-sub", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 3.55);
+tl.fromTo("#tp-chip", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 7.40);
+tl.fromTo("#tp-sub", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 7.52);
+tl.fromTo("#bpanel", {opacity:0, y:80}, {opacity:1, y:0, duration:0.4, ease:"power3.out"}, 7.55);
+tl.set("#tap", {opacity:0, scale:1}, 0);
+tl.set("#tap", {x:254}, 8.20);
+tl.fromTo("#tap", {opacity:0, scale:1.4}, {opacity:1, scale:1, duration:0.22, ease:"power2.out"}, 8.25);
+tl.to("#tap", {scale:0.85, duration:0.08, yoyo:true, repeat:1}, 8.56);
+tl.to("#tap", {opacity:0, duration:0.15}, 8.85);
+tl.set("#tap", {x:422}, 9.10);
+tl.fromTo("#tap", {opacity:0, scale:1.4}, {opacity:1, scale:1, duration:0.22, ease:"power2.out"}, 9.15);
+tl.to("#tap", {scale:0.85, duration:0.08, yoyo:true, repeat:1}, 9.46);
+tl.to("#tap", {opacity:0, duration:0.15}, 9.75);
+tl.set("#tap", {x:573}, 10.00);
+tl.fromTo("#tap", {opacity:0, scale:1.4}, {opacity:1, scale:1, duration:0.22, ease:"power2.out"}, 10.05);
+tl.to("#tap", {scale:0.85, duration:0.08, yoyo:true, repeat:1}, 10.36);
+tl.to("#tap", {opacity:0, duration:0.15}, 10.65);
+tl.to("#bpanel", {opacity:0, y:-60, duration:0.3, ease:"power2.in"}, 11.70);
+tl.fromTo("#card", {opacity:0, y:100}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 12.00);
+tl.fromTo("#ex-bass", {y:0}, {y:-1040, duration:5.40, ease:"power1.inOut"}, 12.90);
+tl.to("#card", {opacity:0, y:60, duration:0.3, ease:"power2.in"}, 18.70);
+tl.fromTo("#po-chip", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 12.00);
+tl.fromTo("#po-sub", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 12.15);
+tl.fromTo("#close-mark", {opacity:0, scale:0.85}, {opacity:1, scale:1, duration:0.5, ease:"back.out(1.7)"}, 19.05);
+tl.fromTo("#close-line", {opacity:0, y:30}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 19.35);
+tl.fromTo("#cta", {opacity:0, y:30}, {opacity:1, y:0, duration:0.45, ease:"back.out(1.6)"}, 19.60);
+window.__timelines["main"] = tl;
+tl.seek(0);
+</script>
+</body>
+</html>

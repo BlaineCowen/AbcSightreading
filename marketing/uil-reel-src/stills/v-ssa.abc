@@ -1,0 +1,19 @@
+X:1
+%%barnumbers 1
+T:Sight Reading Exercise in F
+C:abc-sightreading.com
+M:4/4
+L:1/32
+Q:1/4=60
+%%MIDI program 0
+%%score [S1 S2 A]
+V:S1 clef=treble octave=-1 name="Soprano1" snm="S1"
+V:S2 clef=treble octave=-1 name="Soprano2" snm="S2"
+V:A clef=treble octave=-1 name="Alto" snm="A"
+K:F
+% End of header, start of tune body:
+[V:S1] c'16 c'12 d'4 | c'4c'4 d'8 c'16 | b12 b4 a12 a4 | g24 z8 | a8 b8 c'12 d'4 | c'4c'4 b8 c'16 | a24 g8 | a32 |]
+[V:S2] a16 a12 a4 | a4a4 b8 a8 a8 | f16 f12 f4 | e24 z8 | f8 f8 a12 a4 | a4a4 b8 a8 a8 | f24 e8 | f32 |]
+[V:A] f16 f12 f4 | f4f4 f8 f8 f8 | d16 d12 c4 | c24 z8 | f8 f8 f12 f4 | f4f4 f8 f8 f8 | f24 c8 | f32 |]
+%%vskip 6
+%%center © 2026 abcSightReading · abc-sightreading.com
