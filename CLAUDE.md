@@ -1344,7 +1344,8 @@ constants and `noteScore`). The whole picture is one 720 x 1280 canvas
 from Go on (Blaine: the whole frame free while singing; "Can you sing it?"
 shows only before Go), the staff below drawn by hand (no abcjs: eight quarters need only a
 staff; clefs from Noto Music, two glyphs), Pip and its ring, trail, ghost and
-confetti as on the practice page, the level as a small pill on the paper,
+confetti as on the practice page, no solfège (Blaine: not needed; a wrong note held says "too high" or "too
+low"), the level as a small pill on the paper,
 the points, and the abcSightReading logo at the foot (`brand-mark.ts`, the
 navbar's "abc" outlines; Blaine: the logo, so people search for us). Before Go the notes are hidden (eight bobbing "?",
 "Hear do" plays do in the singer's voice), so nobody rehearses them. Go

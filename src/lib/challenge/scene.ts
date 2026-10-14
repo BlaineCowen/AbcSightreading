@@ -209,10 +209,7 @@ export class ChallengeScene {
         ctx.beginPath(); ctx.ellipse(0, 0, SP * 0.66, SP * 0.47, 0, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(226,85,58,.18)"; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.red; ctx.stroke();
         ctx.restore();
-        this.pill(`that's ${syl(m)}`, gx + SP * 0.9, gy - SP * 1.9, TAG.far, 22, "left");
-      }
-      if (!voiced && !v!.credited && this.alpha < 0.3) {
-        this.pill(`sing ${c.notes[idx].syl}`, this.cursorX, ty - SP * 3.1, [C.sky, C.skyInk], 24, "center");
+        this.pill(this.wrong > 0 ? "too high" : "too low", gx + SP * 0.9, gy - SP * 1.9, TAG.far, 22, "left");
       }
     }
 
@@ -335,7 +332,7 @@ export class ChallengeScene {
     // The cursor band.
     if (phase !== "done" && reveal && !shuffling) {
       ctx.fillStyle = `rgba(201,228,255,${0.5 + 0.12 * Math.sin(now / 260)})`;
-      this.rr(this.cursorX - SP * 1.6, topY - SP * 3, SP * 3.2, SP * 11, SP);
+      this.rr(this.cursorX - SP * 1.6, topY - SP * 3, SP * 3.2, SP * 9.2, SP);
       ctx.fill();
     }
     ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.globalAlpha = 0.9;
@@ -366,10 +363,6 @@ export class ChallengeScene {
         ctx.save(); ctx.translate(x, y); ctx.rotate(-0.35);
         ctx.beginPath(); ctx.ellipse(0, 0, SP * 0.66, SP * 0.47, 0, 0, Math.PI * 2);
         ctx.fillStyle = C.line; ctx.fill(); ctx.restore();
-        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-        ctx.font = "800 25px Nunito, system-ui, sans-serif";
-        ctx.fillStyle = C.muted;
-        ctx.fillText("?", x, by + SP * 3.7);
       });
       return;
     }
@@ -386,7 +379,6 @@ export class ChallengeScene {
       }
       const x = X0 + i * STEP_X, y = this.yOf(c, n.midi);
       const r = v?.results[i];
-      const cur = phase !== "done" && (v ? i === v.index && !v.done : i === 0);
       const col = r ? (r.outcome === "skipped" ? C.peachDeep : C.mintDeep) : C.ink;
       // Ledger lines above and below.
       ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
@@ -404,10 +396,6 @@ export class ChallengeScene {
       if (up) { ctx.moveTo(x + SP * 0.6, y - 2); ctx.lineTo(x + SP * 0.6, y - SP * 3.4); }
       else { ctx.moveTo(x - SP * 0.6, y + 2); ctx.lineTo(x - SP * 0.6, y + SP * 3.4); }
       ctx.stroke();
-      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-      ctx.font = `800 ${cur ? 30 : 25}px Nunito, system-ui, sans-serif`;
-      ctx.fillStyle = cur ? C.action : r ? C.mintText : C.muted;
-      ctx.fillText(n.syl, x, Math.max(by + SP * 3.7, y + SP * 2.2));
     });
   }
 
@@ -520,8 +508,6 @@ export class ChallengeScene {
   }
 }
 
-const SYL = ["do", "di", "re", "ri", "mi", "fa", "fi", "so", "si", "la", "li", "ti"];
-const syl = (m: number) => SYL[((Math.round(m) % 12) + 12) % 12];
 
 /** Pip: a ball with a face, coloured by how close; it looks toward the note (`look` -1 up, 1 down). */
 export function drawPip(ctx: CanvasRenderingContext2D, x: number, y: number, R: number, zone: Zone, look: number, alpha: number, stretch: number) {

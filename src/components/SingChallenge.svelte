@@ -231,7 +231,7 @@
       await new Promise((r) => setTimeout(r, SHUFFLE_MS));
       if (phase !== "reference") return;
     }
-    message = `Your first note: ${challenge.notes[0].syl}`;
+    message = "Your first note";
     refStatus = "Listen…";
     await playNote(challenge.notes[0].midi);
     if (phase !== "reference") return;
