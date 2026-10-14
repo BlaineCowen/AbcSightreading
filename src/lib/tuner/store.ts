@@ -83,6 +83,12 @@ export interface TunerState {
   tapPadSide: "right" | "left";
   /** The microphone's delay for claps, in ms, from Check timing (null: the default). */
   clapLatencyMs: number | null;
+  /**
+   * How late taps (spacebar, pad) land after the click they follow, in ms,
+   * from Check timing on this device: the speakers' delay (a TV's HDMI, a
+   * Bluetooth speaker) and the player's own habit. Null: not checked.
+   */
+  tapLatencyMs: number | null;
   // Live analysis, from the last frame
   pitch: number | null;
   note: NoteName | null;
@@ -119,7 +125,7 @@ const PERSISTED = [
   "key", "displayMode", "a4", "sensitivity", "playOctave", "sustain", "bpm", "meter", "clickSound",
   "beatsPerBar", "subdivision", "accent", "beatLevels", "subMask", "assistant", "voice", "metronomePresets", "challengeDirection", "challengeOctave",
   "challengeShowTuner", "challengeDifficulty", "challengeGuideTone", "clickWithMusic", "metronomeVolume", "gradeReference",
-  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs",
+  "gradeMode", "gradeStrictness", "gradeCursor", "gradeClick", "gradeClapInput", "gradeWho", "gradeClapClick", "tapPadSide", "clapLatencyMs", "tapLatencyMs",
 ] as const;
 const STORAGE_KEY = "abc-tuner-settings";
 
@@ -159,6 +165,7 @@ const initial: TunerState = {
   gradeClapClick: "off",
   tapPadSide: "right",
   clapLatencyMs: null,
+  tapLatencyMs: null,
   pitch: null,
   note: null,
   cents: 0,
@@ -401,7 +408,7 @@ export const tuner = {
   toggleChallengeGuideTone: () => state.update((s) => ({ ...s, challengeGuideTone: !s.challengeGuideTone })),
   setGradeReference: (gradeReference: "note" | "triad") => set({ gradeReference }),
   setGrade: (
-    patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick" | "gradeClapInput" | "gradeWho" | "gradeClapClick" | "tapPadSide" | "clapLatencyMs">>,
+    patch: Partial<Pick<TunerState, "gradeMode" | "gradeStrictness" | "gradeCursor" | "gradeClick" | "gradeClapInput" | "gradeWho" | "gradeClapClick" | "tapPadSide" | "clapLatencyMs" | "tapLatencyMs">>,
   ) => set(patch),
   setMicHeld: (micHeld: boolean) => set({ micHeld }),
 };

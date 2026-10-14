@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Copy, KeyRound, UserMinus, Printer, Upload } from "lucide-svelte";
+  import { Copy, KeyRound, UserMinus, Printer, Upload, Monitor, X } from "lucide-svelte";
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
   import { buySeatPacks } from "../lib/billing-client";
@@ -35,6 +35,30 @@
   let problem = "";
   let notice = "";
   let addingTo: string | null = null;
+  /**
+   * How a class gets its students (Blaine, 13 October 2026: adding students
+   * without Google Classroom was not clear): they join with the code, the
+   * teacher makes their logins from a list, or Google Classroom. The panel is
+   * open by itself while a class has nobody in it.
+   */
+  type AddWay = "code" | "list" | "google";
+  let wayFor: Record<string, AddWay> = {};
+  let closedFor = new Set<string>();
+  const showAdd = (cls: Cls, adding: string | null, closed: Set<string>) => adding === cls.id || (!cls.students.length && !closed.has(cls.id));
+  function openAdd(cls: Cls, way?: AddWay) {
+    addingTo = cls.id;
+    rosterText = "";
+    if (way) wayFor = { ...wayFor, [cls.id]: way };
+    closedFor.delete(cls.id);
+    closedFor = closedFor;
+  }
+  function closeAdd(cls: Cls) {
+    if (addingTo === cls.id) addingTo = null;
+    closedFor = new Set(closedFor).add(cls.id);
+  }
+  /** The class whose join code is up on the board (a projector), or null. */
+  let boardFor: Cls | null = null;
+  const site = () => origin.replace(/^https?:\/\//, "").replace(/^www\./, "");
   let rosterText = "";
   let busy = false;
   let cards: Card[] = [];
@@ -361,37 +385,85 @@
           </div>
         {/if}
 
-        {#if addingTo === cls.id}
-          <div class="flex flex-col gap-2">
-            <label class="text-sm text-sr-ink-2 flex flex-col gap-1">
-              Paste names, one per line (or "Last, First"), or a spreadsheet with First and Last columns
-              <textarea class="w-full h-32 border border-sr-hairline bg-sr-raise text-sr-ink rounded-md p-2 text-sm font-mono" bind:value={rosterText} placeholder={"Maria Garcia\nNguyen, Bao"}></textarea>
-            </label>
-            <label class="text-xs text-sr-muted flex items-center gap-2 cursor-pointer self-start">
-              <Upload size={14} /> Or choose a CSV file
-              <input type="file" accept=".csv,.txt,text/csv,text/plain" class="sr-only" on:change={readFile} />
-            </label>
-            {#if parsed.students.length || parsed.errors.length}
-              <p class="text-sm text-sr-ink-2">
-                {parsed.students.length} student{parsed.students.length === 1 ? "" : "s"}{parsed.students.length > seats.left ? `, but only ${seats.left} seats left` : ""}.
-                {#each parsed.errors as e}<span class="block text-xs text-sr-brass">{e}</span>{/each}
-              </p>
-            {/if}
-            <div class="flex gap-2">
-              <button class="sr-btn text-sm" on:click={() => addRoster(cls)} disabled={busy || !parsed.students.length || parsed.students.length > seats.left}>Add and make logins</button>
-              <button class="text-sm text-sr-muted underline" on:click={() => (addingTo = null)}>Cancel</button>
+        {#if cards.some((c) => c.className === cls.name)}
+          <div class="flex flex-wrap items-center gap-2 rounded-md bg-sr-tint p-3">
+            <span class="text-sm text-sr-ink">The new logins are ready. Print the cards now: the passwords are not shown again.</span>
+            <button class="sr-btn text-sm flex items-center gap-1" on:click={() => window.print()}><Printer size={14} /> Print login cards</button>
+          </div>
+        {/if}
+
+        {#if showAdd(cls, addingTo, closedFor)}
+          <div class="add-panel">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-sm font-semibold text-sr-ink">{cls.students.length ? "Add more students" : "Add students to this class"}: choose one way</p>
+              <button class="p-1 text-sr-faint hover:text-sr-ink" aria-label="Close" on:click={() => closeAdd(cls)}><X size={16} /></button>
             </div>
+            <div class="ways" role="tablist" aria-label="How students get in">
+              <button role="tab" class="way {(wayFor[cls.id] ?? 'code') === 'code' ? 'on' : ''}" aria-selected={(wayFor[cls.id] ?? "code") === "code"} on:click={() => (wayFor = { ...wayFor, [cls.id]: "code" })}>
+                <strong>They join with a code</strong><span>Each student makes their own login</span>
+              </button>
+              <button role="tab" class="way {wayFor[cls.id] === 'list' ? 'on' : ''}" aria-selected={wayFor[cls.id] === "list"} on:click={() => (wayFor = { ...wayFor, [cls.id]: "list" })}>
+                <strong>I make their logins</strong><span>From a list of names; you print login cards</span>
+              </button>
+              {#if googleEnabled}
+                <button role="tab" class="way {wayFor[cls.id] === 'google' ? 'on' : ''}" aria-selected={wayFor[cls.id] === "google"} on:click={() => (wayFor = { ...wayFor, [cls.id]: "google" })}>
+                  <strong>Google Classroom</strong><span>Bring in a Classroom class's students</span>
+                </button>
+              {/if}
+            </div>
+
+            {#if (wayFor[cls.id] ?? "code") === "code" && !cls.joinCode}
+              <p class="text-sm text-sr-ink-2">This class has no join code yet: it was made before your Educator plan. Making logins for one student gives it one, or make a new class.</p>
+            {:else if (wayFor[cls.id] ?? "code") === "code"}
+              <ol class="steps">
+                <li>Students go to <strong class="text-sr-ink">{site()}/join</strong> on any device.</li>
+                <li>They type the class code <strong class="font-mono text-lg tracking-widest text-sr-ink">{cls.joinCode ?? "…"}</strong>.</li>
+                <li>They type their name and pick a username and password. No email needed, so it suits students of any age.</li>
+              </ol>
+              <div class="flex flex-wrap gap-2">
+                <button class="sr-btn text-sm flex items-center gap-1" on:click={() => (boardFor = cls)} disabled={!cls.joinCode}><Monitor size={14} /> Show on the board</button>
+                <button class="sr-btn-quiet text-sm flex items-center gap-1" on:click={() => copy(`${origin}/join?code=${cls.joinCode}`)} disabled={!cls.joinCode}><Copy size={14} /> Copy the join link</button>
+              </div>
+              <p class="text-xs text-sr-muted">They appear in this class as they join. Best for students who can keep track of a password; for younger ones, make their logins instead.</p>
+            {:else if wayFor[cls.id] === "list"}
+              <ol class="steps">
+                <li>Paste their names, one a line ("Maria Garcia" or "Garcia, Maria"), or choose a spreadsheet saved as CSV with First and Last columns.</li>
+                <li><strong class="text-sr-ink">Add and make logins</strong> gives each a username and password.</li>
+                <li>Print the login cards and hand them out. Students sign in at {site()}/login, Student.</li>
+              </ol>
+              <textarea class="w-full h-32 border border-sr-hairline bg-sr-raise text-sr-ink rounded-md p-2 text-sm font-mono" aria-label="Student names for {cls.name}" bind:value={rosterText} placeholder={"Maria Garcia\nNguyen, Bao"}></textarea>
+              <label class="text-xs text-sr-muted flex items-center gap-2 cursor-pointer self-start">
+                <Upload size={14} /> Or choose a CSV file
+                <input type="file" accept=".csv,.txt,text/csv,text/plain" class="sr-only" on:change={readFile} />
+              </label>
+              {#if parsed.students.length || parsed.errors.length}
+                <p class="text-sm text-sr-ink-2">
+                  {parsed.students.length} student{parsed.students.length === 1 ? "" : "s"}{parsed.students.length > seats.left ? `, but only ${seats.left} seats left` : ""}.
+                  {#each parsed.errors as e}<span class="block text-xs text-sr-brass">{e}</span>{/each}
+                </p>
+              {/if}
+              <div class="flex gap-2">
+                <button class="sr-btn text-sm" on:click={() => addRoster(cls)} disabled={busy || !parsed.students.length || parsed.students.length > seats.left}>Add and make logins</button>
+              </div>
+              <p class="text-xs text-sr-muted">Best for younger students: no email, and you hold their logins. A lost card: the key beside a student makes a new password and card.</p>
+            {:else}
+              <p class="text-sm text-sr-ink-2">Pick the Google Classroom class this one is, and its students come in. They sign in with their school Google account; Sync later brings in anyone new.</p>
+              <div class="flex flex-wrap items-center gap-2">
+                {#if cls.classroom}
+                  <button class="sr-btn text-sm" disabled={classroomState === "syncing"} on:click={() => syncClassroom(cls)}>Sync with Google Classroom</button>
+                  {#if cls.classroom.syncedAt}<span class="text-xs text-sr-muted">Synced {syncedOn(cls.classroom.syncedAt)}</span>{/if}
+                {:else}
+                  <button class="sr-btn text-sm" on:click={() => openClassroom(cls)}>Import from Google Classroom</button>
+                {/if}
+              </div>
+            {/if}
           </div>
         {:else}
           <div class="flex flex-wrap items-center gap-2">
-            <button class="sr-btn-quiet text-sm" on:click={() => { addingTo = cls.id; rosterText = ""; }}>Add students</button>
-            {#if googleEnabled}
-              {#if cls.classroom}
-                <button class="sr-btn-quiet text-sm" disabled={classroomState === "syncing"} on:click={() => syncClassroom(cls)}>Sync with Google Classroom</button>
-                {#if cls.classroom.syncedAt}<span class="text-xs text-sr-muted">Synced {syncedOn(cls.classroom.syncedAt)}</span>{/if}
-              {:else}
-                <button class="sr-btn-quiet text-sm" on:click={() => openClassroom(cls)}>Import from Google Classroom</button>
-              {/if}
+            <button class="sr-btn-quiet text-sm" on:click={() => openAdd(cls)}>Add students</button>
+            {#if cls.joinCode}<button class="sr-btn-quiet text-sm flex items-center gap-1" on:click={() => (boardFor = cls)}><Monitor size={14} /> Show join code</button>{/if}
+            {#if googleEnabled && cls.classroom}
+              <button class="sr-btn-quiet text-sm" disabled={classroomState === "syncing"} on:click={() => syncClassroom(cls)}>Sync with Google Classroom</button>
             {/if}
           </div>
         {/if}
@@ -399,6 +471,20 @@
     {/each}
   {/if}
 </section>
+
+{#if boardFor}
+  <!-- The join code big enough to read from the back of the room (a projector or TV). -->
+  <div class="board print:hidden" role="dialog" aria-label="Join {boardFor.name}" on:click={() => (boardFor = null)} on:keydown={(e) => e.key === "Escape" && (boardFor = null)} tabindex="-1">
+    <div class="board-inner">
+      <p class="board-class">{boardFor.name}</p>
+      <p class="board-step">Go to</p>
+      <p class="board-url">{site()}/join</p>
+      <p class="board-step">and type the class code</p>
+      <p class="board-code">{boardFor.joinCode}</p>
+      <p class="board-hint">Tap anywhere or press Esc to close</p>
+    </div>
+  </div>
+{/if}
 
 <!-- Login cards: only these print. -->
 {#if cards.length}
@@ -441,6 +527,20 @@
   .course:hover {
     border-color: var(--sr-action);
   }
+  .add-panel { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; border-radius: 16px; background: var(--sr-panel); border: 1px solid var(--sr-hairline); }
+  .ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.5rem; }
+  .way { display: flex; flex-direction: column; gap: 0.15rem; text-align: left; padding: 0.65rem 0.85rem; border-radius: 14px; background: var(--sr-track); border: 2px solid transparent; color: var(--sr-ink); }
+  .way span { font-size: 0.8rem; color: var(--sr-muted); }
+  .way.on { background: var(--sr-tint); border-color: var(--sr-action); }
+  .way.on strong { color: var(--sr-action-fg); }
+  .steps { list-style: decimal; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; color: var(--sr-ink-2); }
+  .board { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: var(--sr-bg, #111); cursor: pointer; }
+  .board-inner { text-align: center; padding: 2rem; }
+  .board-class { font-size: clamp(1.25rem, 3vw, 2.25rem); font-weight: 700; color: var(--sr-muted); margin-bottom: 2rem; }
+  .board-step { font-size: clamp(1.25rem, 3vw, 2.5rem); color: var(--sr-ink-2); }
+  .board-url { font-family: var(--sr-font-display); font-size: clamp(2rem, 6vw, 5.5rem); font-weight: 700; color: var(--sr-ink); margin: 0.25rem 0 1.5rem; }
+  .board-code { font-family: ui-monospace, monospace; font-size: clamp(3rem, 12vw, 11rem); font-weight: 800; letter-spacing: 0.08em; color: var(--sr-action-fg); }
+  .board-hint { margin-top: 2rem; font-size: 0.9rem; color: var(--sr-faint); }
   @media print {
     :global(body *) { visibility: hidden; }
     .login-cards, .login-cards * { visibility: visible; }

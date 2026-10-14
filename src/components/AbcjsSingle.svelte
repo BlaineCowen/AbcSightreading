@@ -4884,7 +4884,11 @@
       cursor: t.gradeCursor,
       click: t.gradeClapClick,
       tonicTriad: [],
-      claps: { who: t.gradeWho, mic, micLatencyMs: t.clapLatencyMs ?? CLAP_MIC_LATENCY_MS, forgiveLag: t.clapLatencyMs === null },
+      claps: {
+        who: t.gradeWho, mic, micLatencyMs: t.clapLatencyMs ?? CLAP_MIC_LATENCY_MS, tapLatencyMs: t.tapLatencyMs ?? 0,
+        // Checked for the input in use: nothing forgiven. Unchecked: some steady lateness (grade-rhythm FORGIVE_MAX_MS).
+        forgiveLag: (t.gradeClapInput === "mic" ? t.clapLatencyMs : t.tapLatencyMs) === null,
+      },
     });
   }
   /**
@@ -4955,6 +4959,7 @@
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
   $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";
+  $: calibrating = calibrationTaps !== null;
   /**
    * While any run is on, Space never reaches the page: held down (a repeat),
    * pressed while the microphone grades, or on a button still focused from
@@ -4962,14 +4967,18 @@
    * and the music went out of view (Blaine, 10 October 2026).
    */
   function onTapKey(e: KeyboardEvent) {
-    if (!grading || e.code !== "Space") return;
+    if ((!grading && !calibrationTaps) || e.code !== "Space") return;
     const el = e.target as HTMLElement | null;
     if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
     e.preventDefault();
+    if (calibrationTaps && !e.repeat) {
+      calibrationTaps = [...calibrationTaps, e.timeStamp];
+      return;
+    }
     if (tapping && !e.repeat) gradeRunner.tap(e.timeStamp);
   }
   function onTapKeyUp(e: KeyboardEvent) {
-    if (grading && e.code === "Space") e.preventDefault();
+    if ((grading || calibrationTaps) && e.code === "Space") e.preventDefault();
   }
   // A run starting takes focus off whatever started it, so Space presses nothing.
   $: if (grading && typeof document !== "undefined" && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
@@ -4984,47 +4993,64 @@
    */
   let timingNote: string | null = null;
   async function checkClapTiming() {
-    initTuner();
-    await startTuner();
-    if (tuner.get().engineStatus !== "running") return;
-    tuner.setMicHeld(true);
-    const input = micInput();
-    if (!input) return;
-    const mic = new ClapListener(input.ctx, input.source);
-    await mic.start();
+    const viaMic = tuner.get().gradeClapInput === "mic";
+    let mic: ClapListener | null = null;
+    if (viaMic) {
+      initTuner();
+      await startTuner();
+      if (tuner.get().engineStatus !== "running") return;
+      tuner.setMicHeld(true);
+      const input = micInput();
+      if (!input) return;
+      mic = new ClapListener(input.ctx, input.source);
+      await mic.start();
+    }
+    // The page makes its audio on the first tap or key; Check timing may be the first.
+    ensureAudio();
     if (audioContext?.state === "suspended") await audioContext.resume();
     if (!audioContext) return;
     // Booked on the audio clock and read through the same ruler as a run's
     // clicks and claps (startGradeTimeline, audioToPage): a delay measured
-    // any other way is stale the moment a run measures differently.
+    // any other way is stale the moment a run measures differently. Taps are
+    // measured the same way (Blaine, 13 October 2026: on a TV the click is
+    // heard 100-200 ms late, so a tap a 16th early looked on time).
     const ctx = audioContext;
     const beatSec = 0.6;
     const T0 = ctx.currentTime + 0.3;
     const toPage = audioToPage(ctx);
     const clicks: number[] = [];
-    timingNote = "Clap with the clicks: 1 2 3 4, then four more…";
+    calibrationTaps = viaMic ? null : [];
+    timingNote = `${viaMic ? "Clap" : "Tap the spacebar or the pad"} with the clicks: 1 2 3 4, then four more…`;
     for (let k = 0; k < 12; k++) {
       playMetronomeClick(k % 4 === 0, T0 + k * beatSec);
-      // The first four are a count-in: clap along with the last eight.
+      // The first four are a count-in: along with the last eight.
       if (k >= 4) clicks.push(toPage(T0 + k * beatSec));
     }
     setTimeout(() => {
-      const claps = detectClaps(mic.stop());
-      tuner.setMicHeld(false);
-      if (!grading) stopTuner();
+      const heard = viaMic ? detectClaps(mic!.stop()).map((c) => c.t) : calibrationTaps ?? [];
+      calibrationTaps = null;
+      if (viaMic) {
+        tuner.setMicHeld(false);
+        if (!grading) stopTuner();
+      }
       const lags = clicks
-        .map((k) => claps.map((c) => c.t - k).filter((d) => d > -150 && d < 250).sort((a, b) => Math.abs(a) - Math.abs(b))[0])
+        .map((k) => heard.map((t) => t - k).filter((d) => d > -150 && d < 350).sort((a, b) => Math.abs(a) - Math.abs(b))[0])
         .filter((d): d is number => d !== undefined)
         .sort((a, b) => a - b);
       if (lags.length < 5) {
-        timingNote = `Only ${lags.length} of 8 claps heard. Clap a little louder, nearer the microphone, and try again.`;
+        timingNote = viaMic
+          ? `Only ${lags.length} of 8 claps heard. Clap a little louder, nearer the microphone, and try again.`
+          : `Only ${lags.length} of 8 taps with the clicks. Tap along with each click and try again.`;
         return;
       }
       const ms = Math.round(lags[lags.length >> 1]);
-      tuner.setGrade({ clapLatencyMs: ms });
-      timingNote = `Checked: this microphone hears claps ${ms} ms late. Claps are timed for that now.`;
+      tuner.setGrade(viaMic ? { clapLatencyMs: ms } : { tapLatencyMs: ms });
+      timingNote = `Checked: on this device ${viaMic ? "claps are heard" : "taps land"} ${ms} ms after the click. Grading counts from there now.`;
     }, toPage(T0 + 12 * beatSec) + 400 - performance.now());
   }
+  /** Taps during Check timing with the spacebar or the pad (null when not checking taps). */
+  let calibrationTaps: number[] | null = null;
+
 
   async function gradeNewExercise() {
     gradeRunner.reset();
@@ -5186,8 +5212,8 @@
       {keptNote}
       sentNote={attemptSent}
     />
-    {#if tapping}
-      <TapPad onTap={(t) => gradeRunner.tap(t)} />
+    {#if tapping || calibrating}
+      <TapPad onTap={(t) => (calibrationTaps ? (calibrationTaps = [...calibrationTaps, t]) : gradeRunner.tap(t))} />
     {/if}
   {/if}
   {#if playAlongOpen}

@@ -118,9 +118,11 @@ describe("grading a clapped rhythm", () => {
     expect(r.strays).toEqual([]);
     expect(r.letter).toBe("A");
   });
-  test("a clap 0.3 beats late is full credit on Easy, part on Standard", () => {
+  test("Easy holds a clap to 120 ms; Standard to 80; far off is late, not missed", () => {
+    // Easy was half a beat (400 ms at 75 BPM): taps 94 ms early scored 100 (Blaine's run, 13 October 2026).
+    expect(run("B8 B8 B8 B8 |", [0, 1110, 2000, 3000], "easy").notes[1].rhythm).toBe(100);
+    expect(run("B8 B8 B8 B8 |", [0, 1300, 2000, 3000], "easy").notes[1].rhythm).toBe(25);
     const times = [0, 1300, 2000, 3000];
-    expect(run("B8 B8 B8 B8 |", times, "easy").notes[1].rhythm).toBe(100);
     // Standard's full credit is 80 ms (CLAP_FULL_MS), nothing at 240: 300 ms
     // late is a late clap with no credit, still matched rather than missed.
     const far = run("B8 B8 B8 B8 |", times, "standard");
@@ -140,7 +142,7 @@ describe("grading a clapped rhythm", () => {
     expect(clapToleranceBeats("strict", 60)).toBeCloseTo(0.05, 5);
     // Fast, an eighth of a beat is the smaller and still rules: 31 ms at 240.
     expect(clapToleranceBeats("strict", 240)).toBe(0.125);
-    expect(clapToleranceBeats("easy", 60)).toBe(0.5);
+    expect(clapToleranceBeats("easy", 60)).toBeCloseTo(0.12, 5);
   });
   test("a note not clapped is missed and scores 0", () => {
     const r = run("B8 B8 B8 B8 |", [0, 1000, 3000]);
@@ -165,6 +167,18 @@ describe("grading a clapped rhythm", () => {
     const fast = gradeClaps(gradeSchedule(abc("B2 B2 B2 B2 B8 B8 B8 |")), [0, 150, 300, 450, 600, 1200, 1800].map((t) => ({ t, level: 1 })), { t0: 0, bpm: 100, beatUnits: 8, strictness: "standard", who: "solo" });
     expect(fast.notes.every((n) => !n.missed)).toBe(true);
     expect(fast.rhythm).toBe(100);
+  });
+  test("an unchecked device: steady lateness is forgiven as its delay, up to 220 ms; earliness never", () => {
+    const at = (offset: number, strictness: "easy" | "standard" | "strict" = "strict", forgiveLag = true) =>
+      gradeClaps(gradeSchedule(abc("B8 B8 B8 B8 | B8 B8 B8 B8 |")), [0, 1, 2, 3, 4, 5, 6, 7].map((b) => ({ t: b * 1000 + offset, level: 1 })), { t0: 0, bpm: 60, beatUnits: 8, strictness, who: "solo", forgiveLag });
+    // A TV's 100 ms: forgiven.
+    expect(at(100)).toMatchObject({ rhythm: 100, forgivenMs: 100 });
+    // 240 ms late: no more than 220 is forgiven (the other 20 counts, inside Strict's 50).
+    expect(at(240).forgivenMs).toBe(220);
+    // A 16th early at 60 BPM (250 ms): never forgiven, and on Strict nothing.
+    expect(at(-250)).toMatchObject({ forgivenMs: 0, rhythm: 0 });
+    // Checked (no forgiveness): 100 ms late is 100 ms late.
+    expect(at(100, "strict", false).rhythm).toBeLessThan(100);
   });
   test("by beat: a ti-ti clapped as ta loses the whole beat", () => {
     // ta ti-ti ta ta, clapped as four quarters: 4 of 5 notes, but 3 of 4 beats.

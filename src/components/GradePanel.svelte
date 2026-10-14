@@ -166,6 +166,8 @@
         claps.soundedLikeClass ? "sounded like a whole class: try Who, The class" : "",
       ].filter(Boolean).join(" · ");
   $: viaMic = $tuner.gradeClapInput === "mic";
+  /** Whether this device's timing has been checked for the input chosen (Check timing). */
+  $: timingChecked = (viaMic ? $tuner.clapLatencyMs : $tuner.tapLatencyMs) !== null;
   $: clapSummary = `${viaMic ? "Microphone" : "Spacebar & pad"}${$tuner.gradeWho === "class" ? " · the class" : ""} · ${STRICTNESS[$tuner.gradeStrictness].label} · cursor ${$tuner.gradeCursor} · ${$tuner.gradeClapClick === "off" ? "count-in only" : `click ${$tuner.gradeClapClick === "sub" ? "subdivided" : "beats"}`}`;
   let stuckOpen = false;
   let detailsOpen = false;
@@ -288,11 +290,13 @@
             {/if}
           </div>
         {/if}
-        {#if rhythmOnly && viaMic && onCheckTiming}
+        {#if rhythmOnly && onCheckTiming}
           <div class="row">
             <span>Timing</span>
-            <button class="sr-tok text-xs px-2.5 py-1" on:click={onCheckTiming} title="Clap along with eight clicks, so claps are timed for this microphone">Check timing</button>
-            <span class="text-xs text-sr-muted basis-full sm:basis-auto">{timingNote ?? ($tuner.clapLatencyMs === null ? "Not checked yet: clap along once for the fairest timing." : `Checked: this microphone hears claps ${$tuner.clapLatencyMs} ms late.`)}</span>
+            <button class="{timingChecked ? 'sr-tok text-xs px-2.5 py-1' : 'sr-btn text-xs px-3 py-1.5'}" on:click={onCheckTiming} title="{viaMic ? 'Clap' : 'Tap'} along with eight clicks, so this device's delay is measured">{timingChecked ? "Check again" : "Check timing"}</button>
+            <span class="text-xs text-sr-muted basis-full sm:basis-auto">{timingNote ?? (timingChecked
+              ? `Checked: on this device ${viaMic ? "claps are heard" : "taps land"} ${$tuner[viaMic ? "clapLatencyMs" : "tapLatencyMs"]} ms after the click. Check again on a new screen, TV or speaker.`
+              : `Not checked on this device yet: ${viaMic ? "clap" : "tap"} along with eight clicks (15 seconds). Until then some lateness is taken as the speakers' delay, and a TV's delay can hide early ${viaMic ? "claps" : "taps"}.`)}</span>
           </div>
         {/if}
         {#if !rhythmOnly}
@@ -362,6 +366,9 @@
         </ul>
         {#if v.perf?.drift !== undefined && Math.abs(v.perf.drift) >= 15}
           <p class="note">Your tuning drifted {Math.abs(v.perf.drift)} cents {v.perf.drift > 0 ? "sharp" : "flat"} by the end{$tuner.gradeStrictness === "strict" ? "." : "; each note was judged in tune with where you were."}</p>
+        {/if}
+        {#if claps && claps.lagForgiven && claps.lagMs !== 0}
+          <p class="text-xs text-sr-muted">Timing not checked on this device: {claps.forgivenMs > 0 ? `${claps.forgivenMs} ms of steady lateness was taken as the speakers' delay${claps.lagMs > claps.forgivenMs ? ` (you ran ${claps.lagMs} ms late)` : ""}` : `you ran ${-claps.lagMs} ms early, and early is never a delay`}. Check timing (before Start) to grade it exactly.</p>
         {/if}
         {#if claps?.soundedLikeClass}
           <p class="note"><Sparkles size={14} class="inline -mt-0.5" /> This sounded like a whole class. For a room, choose <b>The class</b> before you start.</p>

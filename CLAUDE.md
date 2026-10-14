@@ -1112,6 +1112,20 @@ and Grade must find exactly those. It reads the page through a dev-only
 `window.__gradeDebug`, and prints where the clean onsets landed (for
 `DETECT_LATENCY_MS`).
 
+**Timing check** (13 October 2026, `scripts/check-tap-timing.ts`): Check
+timing, in the Clap and grade setup for both inputs, plays eight clicks on
+the audio clock and stores how late this device's claps (`clapLatencyMs`) or
+taps (`tapLatencyMs`) land after them: the speakers' delay, a TV's HDMI or a
+Bluetooth speaker included, which browsers do not report. Taps have it taken
+off as claps have theirs. Checked, nothing is forgiven: on a TV 150 ms behind,
+a rhythm tapped a 16th early scores 0 on Strict (it scored 100). Unchecked,
+steady lateness is forgiven up to `FORGIVE_MAX_MS` (220: Blaine's runs ran
+71-215 ms late unchecked) and earliness never, since a delay only makes a clap
+late; the results say when it was assumed. Unchecked on a TV a 16th early
+still looks on time, which only the check can tell, so the button is
+highlighted until it is done. Easy's full credit is 120 ms (it was half a
+beat, 400 ms at 75 BPM).
+
 **Clap grading** (rhythm-only Unison, Pro; "Clap and grade"): only each
 note's start counts and rests are silence. Clap with the **Microphone** or
 the **Spacebar & pad** (`TapPad.svelte`: a big round pad fixed at the right

@@ -156,6 +156,8 @@ export class GradeRunner {
   lastHeard: Clap[] = [];
   private who: ClapWho = "solo";
   private forgiveLag = false;
+  /** How late this device's taps land (Check timing), taken off each tap. */
+  private tapLatency = 0;
   private clapMicUsed = false;
   private click: "off" | "beat" | "sub" = "beat";
   private running = false;
@@ -202,7 +204,7 @@ export class GradeRunner {
     cursor?: "off" | "smooth" | "beat" | "note";
     click?: "off" | "beat" | "sub";
     /** Rhythm clapped (mode "claps"): who, the microphone's listener if clapping into it, and its delay. */
-    claps?: { who: ClapWho; mic: ClapListener | null; micLatencyMs: number; forgiveLag: boolean };
+    claps?: { who: ClapWho; mic: ClapListener | null; micLatencyMs: number; forgiveLag: boolean; tapLatencyMs?: number };
   }) {
     this.clear();
     this.runId++;
@@ -220,6 +222,7 @@ export class GradeRunner {
     this.clapMicLatency = o.claps?.micLatencyMs ?? 0;
     this.who = o.claps?.who ?? "solo";
     this.forgiveLag = o.claps?.forgiveLag ?? false;
+    this.tapLatency = o.claps?.tapLatencyMs ?? 0;
     this.click = o.click ?? "beat";
     this.taps = [];
     this.running = false;
@@ -355,9 +358,9 @@ export class GradeRunner {
     this.clear();
     this.hooks.stopTimeline?.();
     this.hooks.moveTo(-1);
-    // Taps have no microphone delay; claps with an unchecked one forgive a steady lag.
-    const all = [...heard, ...this.taps];
-    const forgiveLag = this.forgiveLag && !!this.clapMicUsed;
+    // Each input's measured delay is taken off; an unchecked one forgives some steady lateness (grade-rhythm FORGIVE_MAX_MS).
+    const all = [...heard, ...this.taps.map((x) => ({ ...x, t: x.t - this.tapLatency }))];
+    const forgiveLag = this.forgiveLag;
     this.lastRun = { kind: "claps", t0, heard: all, forgiveLag };
     this.showClaps(t0, all, forgiveLag);
   }
