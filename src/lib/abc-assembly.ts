@@ -33,6 +33,12 @@ export interface AbcDisplayOptions {
    * just get no staff. Hiding every voice is ignored rather than drawing nothing.
    */
   hiddenVoices?: string[];
+  /**
+   * Voices printed without the lyric line, by full name ("Soprano"): solfège
+   * under the basses alone, say, while the rest read the notes. Every voice
+   * gets it when absent or empty, which is the score exactly as it was.
+   */
+  lyricsOff?: string[];
 }
 
 // Interface for additional metadata needed for the ABC header
@@ -136,7 +142,7 @@ export function assembleAbcString(
     const lifted = voiceIndex === shown[0] ? liftedSymbols : null;
     const { music, lyrics } = voiceBodyAbc(allVoiceNotes[voiceIndex], key, timeSig, display, lifted);
     abcString += `[V:${part.smallName}] ${music}\n`;
-    if (lyrics) abcString += `${lyrics}\n`;
+    if (lyrics && !display.lyricsOff?.includes(part.name)) abcString += `${lyrics}\n`;
   }
 
   return abcString;

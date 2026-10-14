@@ -1,0 +1,5 @@
+
+.bpanel { position: absolute; left: 40px; width: 1000px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 24px 60px rgba(21, 33, 58, 0.18); border: 2px solid #d8e2f1; }
+.panimg { position: absolute; display: block; height: auto; }
+.tap { width: 200px; height: 96px; margin: -48px 0 0 -100px; }
+.lvl-chip { font-size: 72px; }

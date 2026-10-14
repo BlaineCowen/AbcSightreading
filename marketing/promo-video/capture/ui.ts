@@ -12,6 +12,18 @@ import puppeteer, { type Page } from "../../ad/node_modules/puppeteer-core";
 import { mkdirSync } from "fs";
 
 const APP = process.env.APP ?? "http://localhost:4321";
+const MINE = {
+  beat: "du", slots: ["du", "ta", "de", "ta"], holdStart: "du", holdEach: "u", rest: "shh",
+  named: { dotQuarterEighth: ["du", "de"], dotHalfQuarter: ["du", "du"], eighthQuarterEighth: ["du", "de", "de"], eighthDotQuarter: ["du", "de"], dotEighthSixteenth: ["du", "ta"] },
+};
+import { writeFileSync } from "fs";
+/** Where a control sits on the 1920x1080 page, for the promo to zoom on. */
+async function rectOf(p: Page, sel: string) {
+  return p.evaluate((sel) => {
+    const r = document.querySelector(sel)!.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  }, sel);
+}
 const OUT = new URL("../assets/footage/", import.meta.url).pathname;
 const want = process.env.SHOTS?.split(",");
 mkdirSync(OUT, { recursive: true });
@@ -37,7 +49,8 @@ async function proPage(sound: Record<string, unknown> = {}): Promise<Page> {
     if (u.pathname === "/api/billing") return j({ plan: "pro", billingEnabled: true, subscription: null });
     if (u.pathname.startsWith("/api/usage")) return j({ allowed: true, plan: "pro", limit: null, remaining: null });
     if (u.pathname === "/api/presets" || u.pathname === "/api/classes") return j([]);
-    if (u.pathname === "/api/preferences") return j({});
+    // A teacher's own syllables, so the video's picker offers "Mine" (Gordon-style du-de, for the promo).
+    if (u.pathname === "/api/preferences") return j({ rhythmSyllables: MINE });
     return req.continue();
   });
   await p.evaluateOnNewDocument((s) => {
@@ -87,6 +100,22 @@ async function record(p: Page, name: string, act: () => Promise<void>) {
 const RHYTHM = "rhythmOnly=true&rhythms=quarter,eighthEighth,half,quarterRest&timeSignature=4/4&bpm=90&measures=8";
 const PITCHED = "rhythmOnly=false&key=G&clef=treble&scaleDegrees=1,2,3,4,5,6&rhythms=quarter,eighthEighth,half&timeSignature=4/4&bpm=90&measures=8&showSolfege=true";
 
+/**
+ * The video playing, its labels switched in turn, each held long enough to
+ * cut to: the switch times (seconds into the recording) go to <name>.json, so
+ * the promo shows each label as Blaine names it. The video is paused (see below).
+ */
+async function labelRun(p: Page, name: string, labels: string[]) {
+  // One clip a label (<name>-<label>.webm), each recorded once its bars have
+  // redrawn: the redraw of 32 bars lands seconds after the picker changes,
+  // later than the picker shows, so a single take with switches mistimed them.
+  for (const l of labels) {
+    await pickLabel(p, l);
+    await sleep(6000);
+    await record(p, `${name}-${l.toLowerCase()}`, async () => { await sleep(2600); });
+  }
+}
+
 const shots: Record<string, () => Promise<void>> = {
   // Line 1: the plain exercise, full screen (the score alone), as a still.
   async score() {
@@ -121,13 +150,18 @@ const shots: Record<string, () => Promise<void>> = {
     const p = await proPage();
     await exercise(p, RHYTHM);
     await openVideo(p, "drums-rock-4-4-90");
+    const rect = await rectOf(p, `${OVERLAY} [aria-label="Tempo"]`);
+    const t0 = Date.now();
+    const steps: { at: number; dir: string }[] = [];
     await record(p, "tempo", async () => {
-      await sleep(400);
-      for (let k = 0; k < 10; k++) { await p.click(`${OVERLAY} [aria-label="Slower"]`); await sleep(95); }
-      await sleep(450);
-      for (let k = 0; k < 14; k++) { await p.click(`${OVERLAY} [aria-label="Faster"]`); await sleep(95); }
+      await sleep(500);
+      // Down a few steps, then up past full speed: each one visible.
+      for (let k = 0; k < 5; k++) { steps.push({ at: (Date.now() - t0) / 1000, dir: "down" }); await p.click(`${OVERLAY} [aria-label="Slower"]`); await sleep(260); }
+      await sleep(350);
+      for (let k = 0; k < 9; k++) { steps.push({ at: (Date.now() - t0) / 1000, dir: "up" }); await p.click(`${OVERLAY} [aria-label="Faster"]`); await sleep(220); }
       await sleep(1200);
     });
+    writeFileSync(`${OUT}tempo.json`, JSON.stringify({ rect, steps }, null, 1));
     await p.close();
   },
   // Line 7: the rhythm syllables, then solfège on a sung exercise.
@@ -135,22 +169,12 @@ const shots: Record<string, () => Promise<void>> = {
     const p = await proPage();
     await exercise(p, RHYTHM);
     await openVideo(p, "drums-rock-4-4-90");
-    await record(p, "labels-rhythm", async () => {
-      // Spoken "Counting" then "Kodály" 0.92 s apart (line 7).
-      await sleep(500);
-      for (const l of ["Count", "Kod", "Count"]) { await pickLabel(p, l); await sleep(920); }
-      await sleep(800);
-    });
+    await labelRun(p, "labels-rhythm", ["Count", "Kod", "Mine"]);
     await p.close();
     const q = await proPage();
     await exercise(q, PITCHED);
     await openVideo(q, "drums-rock-4-4-90");
-    await record(q, "labels-pitched", async () => {
-      // "movable do", "fixed do", "note names", about 1.15 s apart.
-      await sleep(500);
-      for (const l of ["Movable", "Fixed", "Note"]) { await pickLabel(q, l); await sleep(1150); }
-      await sleep(800);
-    });
+    await labelRun(q, "labels-pitched", ["Movable", "Fixed", "Note"]);
     await q.close();
   },
   // Line 8: playing, then the Export button (recording in real time).
@@ -161,11 +185,20 @@ const shots: Record<string, () => Promise<void>> = {
     await pickLabel(p, "Movable");
     await sleep(1500);
     await ready(p);
+    const exportRect = await p.evaluate((o) => {
+      const b = [...document.querySelectorAll(`${o} button`)].find((e) => (e.textContent ?? "").trim() === "Export video")!;
+      const r = b.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    }, OVERLAY);
+    const t0 = Date.now();
+    let pressAt = 0;
     await record(p, "export", async () => {
-      await sleep(800);
+      await sleep(1000);
+      pressAt = (Date.now() - t0) / 1000;
       await button(p, /^Export video$/, OVERLAY);
-      await sleep(6000);
+      await sleep(5000);
     });
+    writeFileSync(`${OUT}export.json`, JSON.stringify({ rect: exportRect, pressAt }, null, 1));
     await button(p, /^Cancel export$/, OVERLAY);
     await p.close();
   },

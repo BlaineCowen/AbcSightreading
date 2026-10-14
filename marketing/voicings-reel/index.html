@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" data-resolution="portrait">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1920">
+<!-- Written by build.py: edit the scene table there, not this file. -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+@font-face { font-family: "Fredoka"; src: url("assets/fonts/fredoka-latin.woff2") format("woff2"); font-weight: 300 700; font-style: normal; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #eaf0f9; }
+#root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #eaf0f9; font-family: "Fredoka", sans-serif; color: #15213a; }
+.blob { position: absolute; border-radius: 50%; opacity: 0.55; }
+.scene { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+
+.wordmark { display: inline-flex; align-items: baseline; gap: 0.1em; background: #ffffff; border-radius: 999px; padding: 14px 34px; box-shadow: 0 12px 30px rgba(21, 33, 58, 0.1); font-size: 44px; }
+.wordmark .abc { height: 0.75em; width: auto; color: #1e56c0; }
+.wordmark .rest { font-weight: 600; line-height: 1; color: #15213a; }
+.wordmark.big { font-size: 74px; padding: 22px 52px; }
+
+.hook-wrap { position: absolute; left: 50px; right: 50px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 70px; text-align: center; }
+.hook-head { display: flex; flex-direction: column; align-items: center; font-weight: 700; font-size: 100px; line-height: 1.14; letter-spacing: -0.01em; }
+.hl { display: block; white-space: nowrap; }
+.hl.blue { color: #1e56c0; font-size: 130px; }
+
+.lvl-top { position: absolute; left: 60px; right: 60px; top: 250px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.lvl-chip { display: inline-block; font-weight: 700; font-size: 84px; line-height: 1; padding: 22px 56px; border-radius: 999px; box-shadow: 0 14px 34px rgba(21, 33, 58, 0.14); }
+.dots { display: flex; gap: 16px; }
+.dot { width: 22px; height: 22px; border-radius: 50%; background: #d8e2f1; }
+.dot.on { background: #2f6fe0; }
+.lvl-sub { position: relative; display: flex; align-items: center; gap: 16px; font-weight: 600; font-size: 46px; color: #34405e; white-space: nowrap; }
+.lvl-sub .sep { color: #56637f; }
+.keys { position: relative; display: inline-block; min-width: 250px; height: 1.2em; }
+.keys .k { position: absolute; left: 0; top: 0; white-space: nowrap; }
+#sol-sub { min-width: 380px; height: 1.2em; justify-content: center; }
+#sol-sub span { position: absolute; left: 0; right: 0; text-align: center; }
+
+.card { position: absolute; border-radius: 36px; overflow: hidden; background: #ffffff; border: 3px solid #ffffff; box-shadow: 0 30px 70px rgba(21, 33, 58, 0.18); }
+.ex { position: absolute; left: 0; top: 0; width: 100%; }
+.score { display: block; width: 100%; height: auto; }
+.newex { position: absolute; right: 70px; width: 330px; height: 80px; }
+.newex-btn { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 36px; color: #ffffff; background: #2f6fe0; border-radius: 999px; box-shadow: 0 10px 24px rgba(47, 111, 224, 0.35); }
+.ring { position: absolute; inset: 0; border-radius: 999px; border: 5px solid #2f6fe0; opacity: 0; }
+
+.panel { position: absolute; left: 40px; width: 1000px; height: 244px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 -16px 50px rgba(21, 33, 58, 0.22); border: 2px solid #d8e2f1; }
+.panel-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tap { position: absolute; width: 210px; height: 120px; margin: -60px 0 0 -105px; border-radius: 999px; border: 7px solid #ff8a5c; box-shadow: 0 0 0 6px rgba(255, 138, 92, 0.25); }
+
+.close-wrap { position: absolute; left: 60px; right: 60px; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 56px; text-align: center; }
+.close-line { display: flex; flex-direction: column; align-items: center; font-weight: 700; font-size: 72px; line-height: 1.15; }
+.close-line .nl { color: #1e56c0; }
+.cta { font-weight: 700; font-size: 60px; color: #ffffff; background: #2f6fe0; padding: 24px 70px; border-radius: 999px; box-shadow: 0 16px 34px rgba(47, 111, 224, 0.35); }
+
+.lenpanel { position: absolute; left: 40px; width: 1000px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 24px 60px rgba(21, 33, 58, 0.18); border: 2px solid #d8e2f1; }
+.lenimg { position: absolute; left: 0; top: 0; width: 1000px; display: block; }
+.ribbon { display: flex; gap: 8px; width: 960px; margin-top: 6px; }
+.fpill { display: flex; align-items: center; justify-content: center; min-width: 74px; height: 58px; border-radius: 999px; font-size: 30px; font-weight: 700; border: 2px solid #d8e2f1; }
+.badges { position: absolute; left: 70px; width: 600px; height: 110px; }
+.badge { position: absolute; left: 0; top: 0; display: inline-flex; align-items: baseline; gap: 18px; padding: 14px 30px; border-radius: 26px; box-shadow: 0 12px 30px rgba(21, 33, 58, 0.18); white-space: nowrap; }
+.badge b { font-size: 64px; line-height: 1; color: #15213a; }
+.badge span { font-size: 32px; font-weight: 600; color: #34405e; }
+
+</style>
+</head>
+<body>
+<div data-hf-id="hf-o12t" id="root" data-composition-id="main" data-start="0" data-duration="37.30" data-width="1080" data-height="1920">
+<div data-hf-id="hf-pyew" class="blob" data-layout-ignore="" style="left:-90px;top:90px;width:320px;height:320px;background:#c9e4ff"></div>
+<div data-hf-id="hf-w2tp" class="blob" data-layout-ignore="" style="left:800px;top:150px;width:380px;height:380px;background:#ffd3bf"></div>
+<div data-hf-id="hf-oio8" class="blob" data-layout-ignore="" style="left:740px;top:1600px;width:360px;height:360px;background:#bdebd9"></div>
+<div data-hf-id="hf-nji5" class="blob" data-layout-ignore="" style="left:-40px;top:1560px;width:280px;height:280px;background:#ffefa8"></div>
+<div data-hf-id="hf-erpi" class="card" id="card" style="left:40px;top:650px;width:1000px;height:990px"><div data-hf-id="hf-mvpj" class="ex" data-layout-allow-overflow="" id="ex-v-sa"><img data-hf-id="hf-rtyp" id="img-v-sa" class="clip score" data-start="3.00" data-duration="2.00" data-track-index="2" src="assets/scores/v-sa.png" alt=""></div><div data-hf-id="hf-f96t" class="ex" data-layout-allow-overflow="" id="ex-v-tb"><img data-hf-id="hf-8jb3" id="img-v-tb" class="clip score" data-start="5.00" data-duration="2.00" data-track-index="2" src="assets/scores/v-tb.png" alt=""></div><div data-hf-id="hf-6kme" class="ex" data-layout-allow-overflow="" id="ex-v-ssa"><img data-hf-id="hf-5r8d" id="img-v-ssa" class="clip score" data-start="7.00" data-duration="2.00" data-track-index="2" src="assets/scores/v-ssa.png" alt=""></div><div data-hf-id="hf-wh6n" class="ex" data-layout-allow-overflow="" id="ex-v-sab"><img data-hf-id="hf-9twb" id="img-v-sab" class="clip score" data-start="9.00" data-duration="2.00" data-track-index="2" src="assets/scores/v-sab.png" alt=""></div><div data-hf-id="hf-dxcz" class="ex" data-layout-allow-overflow="" id="ex-v-ttb"><img data-hf-id="hf-b9ka" id="img-v-ttb" class="clip score" data-start="11.00" data-duration="2.00" data-track-index="2" src="assets/scores/v-ttb.png" alt=""></div><div data-hf-id="hf-25ht" class="ex" data-layout-allow-overflow="" id="ex-v-satb"><img data-hf-id="hf-ncgo" id="img-v-satb" class="clip score" data-start="13.00" data-duration="2.00" data-track-index="2" src="assets/scores/v-satb.png" alt=""></div><div data-hf-id="hf-vdyq" class="ex" data-layout-allow-overflow="" id="ex-full-l2"><img data-hf-id="hf-2o3y" id="img-full-l2" class="clip score" data-start="18.20" data-duration="7.00" data-track-index="2" src="assets/scores/full-l2.png" alt=""></div><div data-hf-id="hf-etut" class="ex" data-layout-allow-overflow="" id="ex-full-l5"><img data-hf-id="hf-snv4" id="img-full-l5" class="clip score" data-start="25.20" data-duration="8.50" data-track-index="2" src="assets/scores/full-l5.png" alt=""></div></div>
+<div data-hf-id="hf-qiz4" class="scene clip" id="hook" data-start="0" data-duration="3.0" data-track-index="0">
+  <div data-hf-id="hf-wghq" class="hook-wrap">
+    <div data-hf-id="hf-ey06" class="wordmark" id="hook-mark"><svg data-hf-id="hf-k8ug" class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path data-hf-id="hf-42m4" d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg><span data-hf-id="hf-xi9b" class="rest">sightreading.com</span></div>
+    <h1 data-hf-id="hf-77hy" class="hook-head"><span data-hf-id="hf-dxyk" class="hl blue" id="h1">Every voicing.</span><span data-hf-id="hf-cowq" class="hl" id="h2">Full-length pieces,</span><span data-hf-id="hf-55lw" class="hl" id="h3">in real forms.</span></h1>
+  </div>
+</div>
+<div data-hf-id="hf-7o83" class="scene clip" id="vh-sa" data-start="3.00" data-duration="2.00" data-track-index="1">
+  <div data-hf-id="hf-tk0w" class="lvl-top">
+    <span data-hf-id="hf-vfzj" class="lvl-chip" id="vchip-sa" style="background:#bdebd9;color:#0f3b2c">SA</span>
+    <div data-hf-id="hf-7ely" class="lvl-sub" id="vsub-sa"><span data-hf-id="hf-1fr0">2 Part Treble</span><span data-hf-id="hf-9z7o" class="sep">·</span><span data-hf-id="hf-0fnu">D major</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-18gv" class="scene clip" id="vh-tb" data-start="5.00" data-duration="2.00" data-track-index="1">
+  <div data-hf-id="hf-4yvs" class="lvl-top">
+    <span data-hf-id="hf-0tau" class="lvl-chip" id="vchip-tb" style="background:#c9e4ff;color:#0e3563">TB</span>
+    <div data-hf-id="hf-2f4s" class="lvl-sub" id="vsub-tb"><span data-hf-id="hf-a3x6">2 Part Tenor/Bass</span><span data-hf-id="hf-jxks" class="sep">·</span><span data-hf-id="hf-l1xq">D major</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-j6cm" class="scene clip" id="vh-ssa" data-start="7.00" data-duration="2.00" data-track-index="1">
+  <div data-hf-id="hf-3ryp" class="lvl-top">
+    <span data-hf-id="hf-gaa6" class="lvl-chip" id="vchip-ssa" style="background:#ffefa8;color:#5c4a00">SSA</span>
+    <div data-hf-id="hf-k4x1" class="lvl-sub" id="vsub-ssa"><span data-hf-id="hf-pvqf">3 Part Treble</span><span data-hf-id="hf-iqnp" class="sep">·</span><span data-hf-id="hf-5tzw">F major</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-xoel" class="scene clip" id="vh-sab" data-start="9.00" data-duration="2.00" data-track-index="1">
+  <div data-hf-id="hf-469q" class="lvl-top">
+    <span data-hf-id="hf-8b44" class="lvl-chip" id="vchip-sab" style="background:#ffd3bf;color:#5a2310">SAB</span>
+    <div data-hf-id="hf-qi3s" class="lvl-sub" id="vsub-sab"><span data-hf-id="hf-umak">3 Part Mixed</span><span data-hf-id="hf-j4yq" class="sep">·</span><span data-hf-id="hf-3uz5">B♭ major</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-5x9m" class="scene clip" id="vh-ttb" data-start="11.00" data-duration="2.00" data-track-index="1">
+  <div data-hf-id="hf-2zcn" class="lvl-top">
+    <span data-hf-id="hf-zvrv" class="lvl-chip" id="vchip-ttb" style="background:#bdebd9;color:#0f3b2c">TTB</span>
+    <div data-hf-id="hf-g5zg" class="lvl-sub" id="vsub-ttb"><span data-hf-id="hf-zgb9">3 Part Tenor/Bass</span><span data-hf-id="hf-l4hv" class="sep">·</span><span data-hf-id="hf-d337">G major</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-bxi4" class="scene clip" id="vh-satb" data-start="13.00" data-duration="2.00" data-track-index="1">
+  <div data-hf-id="hf-3dno" class="lvl-top">
+    <span data-hf-id="hf-w8om" class="lvl-chip" id="vchip-satb" style="background:#2f6fe0;color:#ffffff">SATB</span>
+    <div data-hf-id="hf-tk4o" class="lvl-sub" id="vsub-satb"><span data-hf-id="hf-iwff">4 Part Mixed</span><span data-hf-id="hf-lisw" class="sep">·</span><span data-hf-id="hf-lg8r">D major</span></div>
+  </div>
+</div>
+<div data-hf-id="hf-9uy9" class="scene clip" id="tapscene" data-start="15.00" data-duration="3.20" data-track-index="1">
+  <div data-hf-id="hf-26ql" class="lvl-top">
+    <span data-hf-id="hf-zo0i" class="lvl-chip" id="len-chip" style="background:#15213a;color:#ffffff">Full length</span>
+    <div data-hf-id="hf-2vlv" class="lvl-sub" id="len-sub"><span data-hf-id="hf-ousv">One tap. The form comes with it.</span></div>
+  </div>
+  <div data-hf-id="hf-e9ml" class="lenpanel" id="lenpanel" style="top:700px;height:223px">
+    <img data-hf-id="hf-fmio" id="len-off" class="lenimg" src="assets/scores/len-off.png" alt="" style="height:223px">
+    <img data-hf-id="hf-vn8x" id="len-on" class="lenimg" src="assets/scores/len-on.png" alt="" style="height:671px">
+  </div>
+  <div data-hf-id="hf-vp68" class="tap" id="tap" style="left:803px;top:855px;width:250px"></div>
+</div>
+<div data-hf-id="hf-zqpg" class="scene clip" id="ph-full-l2" data-start="18.20" data-duration="7.00" data-track-index="1">
+  <div data-hf-id="hf-2l1m" class="lvl-top">
+    <span data-hf-id="hf-yf3j" class="lvl-chip" id="pchip-full-l2" style="background:#2f6fe0;color:#ffffff">UIL Level 2 · 28 bars</span>
+    <div data-hf-id="hf-uxja" class="lvl-sub" id="psub-full-l2"><span data-hf-id="hf-9bp0">2 Part Treble</span><span data-hf-id="hf-kbvt" class="sep">·</span><span data-hf-id="hf-rrpw">F major</span></div>
+    <div data-hf-id="hf-tsn7" class="ribbon" id="rb-full-l2"><span data-hf-id="hf-zv33" class="fpill" id="fp-full-l2-0" style="flex-grow:8"><b data-hf-id="hf-c7cc">A</b></span><span data-hf-id="hf-4f2n" class="fpill" id="fp-full-l2-1" style="flex-grow:12"><b data-hf-id="hf-b0f9">B</b></span><span data-hf-id="hf-27zd" class="fpill" id="fp-full-l2-2" style="flex-grow:8"><b data-hf-id="hf-v41m">A′</b></span></div>
+  </div>
+  <div data-hf-id="hf-acpr" class="badges" style="top:606px"><div data-hf-id="hf-yi0j" class="badge" id="bd-full-l2-0" data-layout-allow-overlap="" style="background:#c9e4ff"><b data-hf-id="hf-kngk">A</b><span data-hf-id="hf-5amx">statement · bars 1-8</span></div><div data-hf-id="hf-m418" class="badge" id="bd-full-l2-1" data-layout-allow-overlap="" style="background:#ffd3bf"><b data-hf-id="hf-tu0p">B</b><span data-hf-id="hf-5oz8">departure · bars 9-20</span></div><div data-hf-id="hf-fezs" class="badge" id="bd-full-l2-2" data-layout-allow-overlap="" style="background:#bdebd9"><b data-hf-id="hf-t4v2">A′</b><span data-hf-id="hf-lps2">return of A · bars 21-28</span></div></div>
+</div>
+<div data-hf-id="hf-1byl" class="scene clip" id="ph-full-l5" data-start="25.20" data-duration="8.50" data-track-index="1">
+  <div data-hf-id="hf-7r0z" class="lvl-top">
+    <span data-hf-id="hf-g302" class="lvl-chip" id="pchip-full-l5" style="background:#2f6fe0;color:#ffffff">UIL Level 5 · 52 bars</span>
+    <div data-hf-id="hf-3lf5" class="lvl-sub" id="psub-full-l5"><span data-hf-id="hf-9nd7">4 Part Mixed</span><span data-hf-id="hf-kq6u" class="sep">·</span><span data-hf-id="hf-qkst">F major</span></div>
+    <div data-hf-id="hf-6b5o" class="ribbon" id="rb-full-l5"><span data-hf-id="hf-wpyk" class="fpill" id="fp-full-l5-0" style="flex-grow:8"><b data-hf-id="hf-jgjh">A</b></span><span data-hf-id="hf-yudx" class="fpill" id="fp-full-l5-1" style="flex-grow:8"><b data-hf-id="hf-v0xs">B</b></span><span data-hf-id="hf-f8x2" class="fpill" id="fp-full-l5-2" style="flex-grow:4"><b data-hf-id="hf-beqa">C</b></span><span data-hf-id="hf-dje3" class="fpill" id="fp-full-l5-3" style="flex-grow:8"><b data-hf-id="hf-tj63">A′</b></span><span data-hf-id="hf-z08g" class="fpill" id="fp-full-l5-4" style="flex-grow:8"><b data-hf-id="hf-x5tv">close</b></span><span data-hf-id="hf-kbvi" class="fpill" id="fp-full-l5-5" style="flex-grow:16"><b data-hf-id="hf-20nc">coda</b></span></div>
+  </div>
+  <div data-hf-id="hf-cuhr" class="badges" style="top:606px"><div data-hf-id="hf-kllu" class="badge" id="bd-full-l5-0" data-layout-allow-overlap="" style="background:#c9e4ff"><b data-hf-id="hf-juui">A</b><span data-hf-id="hf-rlyl">statement · bars 1-8</span></div><div data-hf-id="hf-dl4h" class="badge" id="bd-full-l5-1" data-layout-allow-overlap="" style="background:#ffd3bf"><b data-hf-id="hf-ummr">B</b><span data-hf-id="hf-2l6x">departure · bars 9-16</span></div><div data-hf-id="hf-nfk9" class="badge" id="bd-full-l5-2" data-layout-allow-overlap="" style="background:#ffefa8"><b data-hf-id="hf-lqja">C</b><span data-hf-id="hf-irjp">imitative · bars 17-20</span></div><div data-hf-id="hf-lswy" class="badge" id="bd-full-l5-3" data-layout-allow-overlap="" style="background:#bdebd9"><b data-hf-id="hf-txh4">A′</b><span data-hf-id="hf-rew6">return of A · bars 21-28</span></div><div data-hf-id="hf-hxn1" class="badge" id="bd-full-l5-4" data-layout-allow-overlap="" style="background:#e4dcff"><b data-hf-id="hf-sxfn">close</b><span data-hf-id="hf-zt91">close · bars 29-36</span></div><div data-hf-id="hf-okuf" class="badge" id="bd-full-l5-5" data-layout-allow-overlap="" style="background:#dce6f5"><b data-hf-id="hf-clkw">coda</b><span data-hf-id="hf-jk9v">coda · bars 37-52</span></div></div>
+</div>
+<div data-hf-id="hf-7lkx" class="scene clip" id="close" data-start="33.70" data-duration="3.60" data-track-index="1">
+  <div data-hf-id="hf-hszt" class="close-wrap">
+    <div data-hf-id="hf-k4d9" class="wordmark big" id="close-mark"><svg data-hf-id="hf-2edc" class="abc" viewBox="0 -736 1780 750" fill="currentColor" aria-hidden="true"><path data-hf-id="hf-trqs" d="M440 -463 426 -416C402 -457 360 -477 301 -477C153 -477 15 -327 15 -166C15 -60 87 14 188 14C257 14 304 -11 351 -73C351 -51 351 -49 354 -41C363 -8 396 14 436 14C527 14 604 -85 646 -157L607 -181C570 -124 520 -70 503 -70C496 -70 489 -78 489 -86C489 -93 489 -94 499 -131L597 -463ZM334 -422C370 -422 395 -393 395 -350C395 -275 336 -56 239 -56C201 -56 178 -86 178 -135C178 -214 232 -422 334 -422ZM1018 -736 751 -722 744 -675H768C818 -675 830 -669 830 -644C830 -633 827 -623 814 -577L717 -251C696 -180 695 -177 695 -145C695 -49 776 14 899 14C981 14 1053 -14 1113 -70C1182 -133 1224 -223 1224 -306C1224 -404 1151 -478 1055 -478C1007 -478 973 -464 927 -426ZM997 -407C1034 -407 1061 -375 1061 -333C1061 -258 1000 -29 904 -29C865 -29 838 -60 838 -105C838 -155 864 -252 895 -315C925 -378 958 -407 997 -407ZM1684 -146C1625 -78 1577 -47 1528 -47C1480 -47 1446 -86 1446 -141C1446 -227 1497 -431 1609 -431C1634 -431 1651 -421 1651 -406C1651 -399 1648 -395 1639 -390C1611 -372 1601 -357 1601 -328C1601 -285 1633 -256 1679 -256C1731 -256 1765 -293 1765 -349C1765 -427 1698 -478 1594 -478C1424 -478 1281 -338 1281 -171C1281 -58 1362 14 1488 14C1576 14 1647 -26 1720 -116Z" /></svg><span data-hf-id="hf-n8i7" class="rest">sightreading.com</span></div>
+    <p data-hf-id="hf-czz6" class="close-line" id="close-line">SA to SATB.<span data-hf-id="hf-5pfa" class="nl">8 bars to a whole piece.</span></p>
+    <span data-hf-id="hf-1ewl" class="cta" id="cta">Try it free</span>
+  </div>
+</div>
+<audio data-hf-id="hf-d17e" id="bed" data-start="0" data-duration="37.30" data-track-index="5" src="assets/audio/bed.wav"></audio>
+</div>
+<script>
+const tl = gsap.timeline({ paused: true });
+tl.set("#card", {opacity:0}, 0);
+tl.fromTo("#hook-mark", {opacity:0, y:20}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 0.05);
+tl.fromTo(["#h1","#h2","#h3"], {opacity:0, y:50}, {opacity:1, y:0, duration:0.55, ease:"back.out(1.6)", stagger:0.16}, 0.15);
+tl.to("#hook .hook-wrap", {opacity:0, y:-40, duration:0.35, ease:"power2.in"}, 2.65);
+tl.fromTo("#card", {opacity:0, y:120}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 2.80);
+tl.set("#ex-v-sa", {top:57}, 0);
+tl.fromTo("#vchip-sa", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.35, ease:"back.out(2)"}, 3.00);
+tl.fromTo("#vsub-sa", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 3.08);
+tl.set("#ex-v-tb", {top:54}, 0);
+tl.set("#ex-v-tb", {x:70, opacity:0}, 0);
+tl.to("#ex-v-tb", {x:0, opacity:1, duration:0.28, ease:"power3.out"}, 5.00);
+tl.fromTo("#vchip-tb", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.35, ease:"back.out(2)"}, 5.00);
+tl.fromTo("#vsub-tb", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 5.08);
+tl.fromTo("#ex-v-ssa", {y:0}, {y:-173, duration:1.60, ease:"power1.inOut"}, 7.30);
+tl.set("#ex-v-ssa", {x:70, opacity:0}, 0);
+tl.to("#ex-v-ssa", {x:0, opacity:1, duration:0.28, ease:"power3.out"}, 7.00);
+tl.fromTo("#vchip-ssa", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.35, ease:"back.out(2)"}, 7.00);
+tl.fromTo("#vsub-ssa", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 7.08);
+tl.fromTo("#ex-v-sab", {y:0}, {y:-171, duration:1.60, ease:"power1.inOut"}, 9.30);
+tl.set("#ex-v-sab", {x:70, opacity:0}, 0);
+tl.to("#ex-v-sab", {x:0, opacity:1, duration:0.28, ease:"power3.out"}, 9.00);
+tl.fromTo("#vchip-sab", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.35, ease:"back.out(2)"}, 9.00);
+tl.fromTo("#vsub-sab", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 9.08);
+tl.fromTo("#ex-v-ttb", {y:0}, {y:-633, duration:1.60, ease:"power1.inOut"}, 11.30);
+tl.set("#ex-v-ttb", {x:70, opacity:0}, 0);
+tl.to("#ex-v-ttb", {x:0, opacity:1, duration:0.28, ease:"power3.out"}, 11.00);
+tl.fromTo("#vchip-ttb", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.35, ease:"back.out(2)"}, 11.00);
+tl.fromTo("#vsub-ttb", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 11.08);
+tl.fromTo("#ex-v-satb", {y:0}, {y:-465, duration:1.60, ease:"power1.inOut"}, 13.30);
+tl.set("#ex-v-satb", {x:70, opacity:0}, 0);
+tl.to("#ex-v-satb", {x:0, opacity:1, duration:0.28, ease:"power3.out"}, 13.00);
+tl.fromTo("#vchip-satb", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.35, ease:"back.out(2)"}, 13.00);
+tl.fromTo("#vsub-satb", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 13.08);
+tl.to("#card", {opacity:0, y:60, duration:0.3, ease:"power2.in"}, 14.70);
+tl.set("#card", {y:0}, 15.05);
+tl.fromTo("#len-chip", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 15.00);
+tl.fromTo("#len-sub", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 15.10);
+tl.fromTo("#lenpanel", {opacity:0, y:80}, {opacity:1, y:0, duration:0.4, ease:"power3.out"}, 15.15);
+tl.set("#len-on", {opacity:0}, 0);
+tl.fromTo("#tap", {opacity:0, scale:1.5}, {opacity:1, scale:1, duration:0.25, ease:"power2.out"}, 15.75);
+tl.to("#tap", {scale:0.85, duration:0.1, yoyo:true, repeat:1}, 16.05);
+tl.to("#tap", {opacity:0, duration:0.2}, 16.35);
+tl.set("#len-off", {opacity:0}, 16.20);
+tl.set("#len-on", {opacity:1}, 16.20);
+tl.to("#lenpanel", {height:671, duration:0.45, ease:"power3.out"}, 16.20);
+tl.to("#lenpanel", {opacity:0, y:-60, duration:0.3, ease:"power2.in"}, 17.90);
+tl.fromTo("#ex-full-l2", {y:0}, {y:-1438, duration:5.80, ease:"none"}, 18.90);
+tl.fromTo("#card", {opacity:0, y:100}, {opacity:1, y:0, duration:0.4, ease:"power3.out"}, 18.20);
+tl.to("#card", {opacity:0, y:60, duration:0.3, ease:"power2.in"}, 24.90);
+tl.set("#card", {y:0}, 25.22);
+tl.fromTo("#pchip-full-l2", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 18.20);
+tl.fromTo("#psub-full-l2", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 18.28);
+tl.fromTo("#rb-full-l2", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 18.36);
+tl.set("#fp-full-l2-0", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l2-0", {backgroundColor:"#c9e4ff", color:"#15213a", duration:0.2}, 18.90);
+tl.set("#bd-full-l2-0", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l2-0", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 18.90);
+tl.to("#bd-full-l2-0", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 21.04);
+tl.set("#fp-full-l2-1", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l2-1", {backgroundColor:"#ffd3bf", color:"#15213a", duration:0.2}, 21.09);
+tl.set("#bd-full-l2-1", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l2-1", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 21.09);
+tl.to("#bd-full-l2-1", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 24.65);
+tl.set("#fp-full-l2-2", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l2-2", {backgroundColor:"#bdebd9", color:"#15213a", duration:0.2}, 24.70);
+tl.set("#bd-full-l2-2", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l2-2", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 24.70);
+tl.fromTo("#ex-full-l5", {y:0}, {y:-7028, duration:7.30, ease:"none"}, 25.90);
+tl.fromTo("#card", {opacity:0, y:100}, {opacity:1, y:0, duration:0.4, ease:"power3.out"}, 25.20);
+tl.to("#card", {opacity:0, y:60, duration:0.3, ease:"power2.in"}, 33.40);
+tl.set("#card", {y:0}, 33.72);
+tl.fromTo("#pchip-full-l5", {opacity:0, scale:0.7}, {opacity:1, scale:1, duration:0.4, ease:"back.out(2)"}, 25.20);
+tl.fromTo("#psub-full-l5", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 25.28);
+tl.fromTo("#rb-full-l5", {opacity:0, y:16}, {opacity:1, y:0, duration:0.3, ease:"power3.out"}, 25.36);
+tl.set("#fp-full-l5-0", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l5-0", {backgroundColor:"#c9e4ff", color:"#15213a", duration:0.2}, 25.90);
+tl.set("#bd-full-l5-0", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l5-0", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 25.90);
+tl.to("#bd-full-l5-0", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 27.01);
+tl.set("#fp-full-l5-1", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l5-1", {backgroundColor:"#ffd3bf", color:"#15213a", duration:0.2}, 27.06);
+tl.set("#bd-full-l5-1", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l5-1", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 27.06);
+tl.to("#bd-full-l5-1", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 28.23);
+tl.set("#fp-full-l5-2", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l5-2", {backgroundColor:"#ffefa8", color:"#15213a", duration:0.2}, 28.28);
+tl.set("#bd-full-l5-2", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l5-2", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 28.28);
+tl.to("#bd-full-l5-2", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 28.85);
+tl.set("#fp-full-l5-3", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l5-3", {backgroundColor:"#bdebd9", color:"#15213a", duration:0.2}, 28.90);
+tl.set("#bd-full-l5-3", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l5-3", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 28.90);
+tl.to("#bd-full-l5-3", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 30.09);
+tl.set("#fp-full-l5-4", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l5-4", {backgroundColor:"#e4dcff", color:"#15213a", duration:0.2}, 30.14);
+tl.set("#bd-full-l5-4", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l5-4", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 30.14);
+tl.to("#bd-full-l5-4", {opacity:0, x:30, duration:0.2, ease:"power2.in"}, 31.33);
+tl.set("#fp-full-l5-5", {backgroundColor:"#ffffff", color:"#56637f"}, 0);
+tl.to("#fp-full-l5-5", {backgroundColor:"#dce6f5", color:"#15213a", duration:0.2}, 31.38);
+tl.set("#bd-full-l5-5", {opacity:0, x:-30}, 0);
+tl.to("#bd-full-l5-5", {opacity:1, x:0, duration:0.25, ease:"power3.out"}, 31.38);
+tl.fromTo("#close-mark", {opacity:0, scale:0.85}, {opacity:1, scale:1, duration:0.5, ease:"back.out(1.7)"}, 33.75);
+tl.fromTo("#close-line", {opacity:0, y:30}, {opacity:1, y:0, duration:0.45, ease:"power3.out"}, 34.05);
+tl.fromTo("#cta", {opacity:0, y:30}, {opacity:1, y:0, duration:0.45, ease:"back.out(1.6)"}, 34.30);
+window.__timelines["main"] = tl;
+tl.seek(0);
+</script>
+</body>
+</html>

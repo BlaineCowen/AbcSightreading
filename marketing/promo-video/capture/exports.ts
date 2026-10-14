@@ -30,6 +30,8 @@ const RHYTHM = "rhythmOnly=true&rhythms=quarter,eighthEighth,half,quarterRest&ti
 const rhythmSound = { loop: 1, guide: 0.55, click: 0, bass: 0, guitar: 0, guitarStyle: "passenger", guideSound: "claves", clickSound: "quartz", melodyProgram: 0, ball: true };
 const JOBS: Job[] = [
   { name: "rock", query: `${RHYTHM}&bpm=90`, track: "drums-rock-4-4-90", labels: "Kod", sound: rhythmSound },
+  // Line 4: "Clap the rhythm over rock..." on rock, in Counting.
+  { name: "rock-count", query: `${RHYTHM}&bpm=90`, track: "drums-rock-4-4-90", labels: "Count", sound: rhythmSound },
   { name: "soul", query: `${RHYTHM}&bpm=80`, track: "soul-4-4-80", labels: "Count", sound: rhythmSound },
   { name: "cumbia", query: `${RHYTHM}&bpm=100`, track: "cumbia-4-4-100", labels: "Kod", sound: rhythmSound },
   { name: "trap", query: `${RHYTHM}&bpm=70`, track: "trap-4-4-70", labels: "Count", sound: rhythmSound },

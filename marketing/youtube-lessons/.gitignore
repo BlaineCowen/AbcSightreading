@@ -1,0 +1,6 @@
+# Videos stay local until they are on YouTube.
+raw/
+final/
+.downloads/
+end-card.png
+*.log

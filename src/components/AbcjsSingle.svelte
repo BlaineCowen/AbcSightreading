@@ -5053,7 +5053,9 @@
 
 
   async function gradeNewExercise() {
-    gradeRunner.reset();
+    // Close Grade before generating: resetting the runner to idle opened the
+    // setup card, which then showed until the new exercise closed Grade.
+    closeGrade();
     await generateExercise();
   }
 

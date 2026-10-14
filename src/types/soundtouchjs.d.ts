@@ -7,6 +7,8 @@ declare module "soundtouchjs" {
   export class SoundTouch {
     /** 1 is unchanged; 1.1 is ten percent faster, pitch kept. */
     tempo: number;
+    /** Pitch moved in semitones, timing kept (the singalong tracks' other keys). */
+    pitchSemitones: number;
     /** The WSOLA stage: its slice, seek window and overlap lengths, in ms (0 keeps the automatic one). */
     stretch: { setParameters(sampleRate: number, sequenceMs: number, seekWindowMs: number, overlapMs: number): void };
   }

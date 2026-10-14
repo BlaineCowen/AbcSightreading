@@ -1,0 +1,9 @@
+
+.lenpanel { position: absolute; left: 40px; width: 1000px; border-radius: 30px; overflow: hidden; background: #ffffff; box-shadow: 0 24px 60px rgba(21, 33, 58, 0.18); border: 2px solid #d8e2f1; }
+.lenimg { position: absolute; left: 0; top: 0; width: 1000px; display: block; }
+.ribbon { display: flex; gap: 8px; width: 960px; margin-top: 6px; }
+.fpill { display: flex; align-items: center; justify-content: center; min-width: 74px; height: 58px; border-radius: 999px; font-size: 30px; font-weight: 700; border: 2px solid #d8e2f1; }
+.badges { position: absolute; left: 70px; width: 600px; height: 110px; }
+.badge { position: absolute; left: 0; top: 0; display: inline-flex; align-items: baseline; gap: 18px; padding: 14px 30px; border-radius: 26px; box-shadow: 0 12px 30px rgba(21, 33, 58, 0.18); white-space: nowrap; }
+.badge b { font-size: 64px; line-height: 1; color: #15213a; }
+.badge span { font-size: 32px; font-weight: 600; color: #34405e; }
