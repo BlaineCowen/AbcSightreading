@@ -1377,8 +1377,8 @@ camera and a synthesized singer, note 3 a step high first (corrected) and
 note 5 an octave down (still first try); checks every outcome, the link's
 seed, a recorded video, no sideways scroll, Hear do playing do, and New
 notes drawing different notes. Clean in every level, both voices, both
-themes (14 October 2026). Tests: `challenge.test.ts`. Not yet tried on a
-real phone.
+themes (14 October 2026). Tests: `challenge.test.ts`. Blaine tried it on his phone
+and it looked right; it went to main the same day (14 October 2026).
 
 Advertised on the home page: a butter card under the landing page's hero
 (and "Just here for fun?" in the hero), and a card on the signed-in home,
