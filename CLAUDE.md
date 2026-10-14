@@ -29,7 +29,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 929 pass, 5 skip, 0 fail. Stability matters because the
+framework to install). 1746 pass, 5 skip, 0 fail (14 October 2026). Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -106,7 +106,10 @@ A cell is something a choir director can select, so a cell that fails is an
 exercise somebody cannot get - and the failures cluster rather than spread, so
 the per-cell table matters more than the total.
 
-Latest: 0 failures in 34,080 exercises (2,840 cells), 8 October 2026, after
+Latest: 0 failures in 11,568 exercises (2,892 cells, `RUNS=4`), 14 October
+2026, after the Ensemble page and Live reached main; no short note
+approached or left by skip. Before that, 0 failures in 34,080 exercises
+(2,840 cells), 8 October 2026, after
 dotted half + quarter left the picker (a dotted half and a quarter, both on
 offer; `NOT_OFFERED` in selectable-rhythms.ts) and UIL 3-5 and the ladder.
 
@@ -709,6 +712,21 @@ backing-tracks.ts, built by `scripts/backing/drums.ts` with the engine's
 no seam). MP3s live in `public/backing/` (served by the CDN; about 16 MB in
 all) - Vercel Blob is not worth it at this size. Chrome decodes them
 sample-exact (a loop at 90 is 21.3333 s, first hit at 0 ms).
+
+**Singalong tracks** (in progress, not in the app yet: no MP3 committed, none
+in `backing-tracks.ts`): backings with harmony, for the pitched play-along,
+each one progression a line can be written over, rendered per key with
+`SHIFT=<semitones>` (C is 0) and `OUT=`. Barefoot (4/4, 90; I V vi IV, two
+bars a chord): Crossover Country's strum and bass over Indie Rocker's drums,
+matched across packs by splice-graph; the engine shifts a looped part's key
+(`shiftChannels`, SoundTouch with its delay taken out). Matinee (soul, A
+minor, 4/4, 86): one Sampled Soul song's electric piano and bass, its drums
+played by hand from the pack's one-shots. Porch (twelve-bar blues shuffle,
+4/4, 88; I6, IV6, V7): piano and bass played note by note from the FluidR3
+soundfont (`scripts/backing/soundfont.ts`, cached in ~/.cache), so every key
+is exact. Mastered to -15 LUFS (the engine's `loudness`). A lo-fi track
+(Daydream) was tried and dropped: Blaine, "lofi isn't really the best to sing
+along to"; he wants simple drums and a keyboard part, not dominant pads.
 
 ## Piano sight reading
 
@@ -1348,6 +1366,15 @@ analytics and no feedback form (Layout.astro). Permission checks read
 `accountType` from the database (`accountTypeFor`), not the five-minute session
 cookie. Deleting a teacher deletes the student accounts they made. 100 seats per
 educator (seat packs: stage 4, with Stripe).
+
+Each class card's **Add students** panel (open by itself while the class is
+empty; 13 October 2026, Blaine: adding students without Google Classroom was
+not clear) offers three ways: They join with a code (the address and code in
+steps, Copy the join link, Show on the board: the code full screen for a
+projector), I make their logins (paste names or a CSV, print the cards, which
+sit on the class), and Google Classroom where it is set up. A class with no
+code says how to get one. `bun run scripts/demo-classes.ts` lists, creates or
+removes "Demo: ..." classes with roster-made students on a teacher's account.
 
 **Rosters from Google Classroom and ClassLink** (10 October 2026; setup
 outside the code in notes/rostering-setup.md). Google Classroom: on a class
@@ -2052,6 +2079,15 @@ sound, transpose, annotations, cursor; Unison's Dynamics there is Off or On,
 On is every mark, a preset with its own set, as NYSSMA's, shows On and
 keeps it), and on Unison Drill, Video and Listen and grade (`toolPop`). Only
 Listen and grade stays in full screen.
+
+On Choral, with a solfège system on, Display > Annotations has an **Under**
+row: each part can be switched off, so the basses read syllables while the
+rest read notes (`lyricsOff`, written by `assembleAbcString`; tests
+`lyrics-off.test.ts`). Empty is every part, byte for byte the old score; the
+last part on keeps its syllables (none at all is the system's own button).
+Full-length pieces honour it in every section. It rides in links
+(`solfegeOff=`), presets and the "edited" signature, and is in the full-screen
+Annotations menu.
 
 ## Score layout
 
