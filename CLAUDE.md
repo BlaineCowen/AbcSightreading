@@ -1340,11 +1340,13 @@ now takes a stream it does not own: camera and microphone are one request,
 since on iOS a second microphone request can silence the first). Each note is
 judged as Grade's Note by note judges, on Easy (`challenge/run.ts`, the same
 constants and `noteScore`). The whole picture is one 720 x 1280 canvas
-(`challenge/scene.ts`): the selfie camera on top with "Can you sing it?" and
-the level, the staff below drawn by hand (no abcjs: eight quarters need only a
+(`challenge/scene.ts`): the selfie camera on top, with nothing drawn over it
+from Go on (Blaine: the whole frame free while singing; "Can you sing it?"
+shows only before Go), the staff below drawn by hand (no abcjs: eight quarters need only a
 staff; clefs from Noto Music, two glyphs), Pip and its ring, trail, ghost and
-confetti as on the practice page, the points, and abc-sightreading.com/
-challenge at the foot. Before Go the notes are hidden (eight bobbing "?",
+confetti as on the practice page, the level as a small pill on the paper,
+the points, and the abcSightReading logo at the foot (`brand-mark.ts`, the
+navbar's "abc" outlines; Blaine: the logo, so people search for us). Before Go the notes are hidden (eight bobbing "?",
 "Hear do" plays do in the singer's voice), so nobody rehearses them. Go
 draws fresh notes (a friend's link keeps theirs the first time) and shuffles
 them in (`scene.shuffle`, `SHUFFLE_MS`): they fly about the whole frame in

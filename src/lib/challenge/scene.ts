@@ -1,5 +1,6 @@
 import { degreeMidi, type Challenge } from "./exercise";
 import type { ChallengeView } from "./run";
+import { ABC_PATH, ABC_BOX } from "../brand-mark";
 
 /**
  * The challenge's picture (/challenge): one 720 x 1280 canvas, the shape of
@@ -33,7 +34,7 @@ type Zone = "in" | "near" | "far";
 const FILL: Record<Zone, string> = { in: C.mintDeep, near: C.butterDeep, far: C.peachDeep };
 const TAG: Record<Zone, [string, string]> = { in: [C.mint, C.mintInk], near: [C.butter, C.butterInk], far: [C.peach, C.peachInk] };
 const CONFETTI = [C.mintDeep, C.butterDeep, C.peachDeep, C.skyDeep, C.action];
-const LEVEL_TAG: Record<Challenge["level"], string> = { warmup: "WARM-UP", skips: "SKIPS", wild: "WILD · MUSICALITY ZERO" };
+const LEVEL_TAG: Record<Challenge["level"], string> = { warmup: "WARM-UP", skips: "SKIPS", wild: "WILD" };
 
 /** The shuffle: notes fly about the frame, flicking through pitches, and land one by one, the first at LAND_FIRST. */
 const LAND_FIRST = 900;
@@ -81,6 +82,7 @@ export class ChallengeScene {
   private doneAt = 0;
   private last = 0;
   private reduce: boolean;
+  private abc: Path2D | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     canvas.width = W;
@@ -299,7 +301,8 @@ export class ChallengeScene {
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, CAM_H);
       drawPip(ctx, W / 2, CAM_H * 0.55, 110, "in", 0, 1, 0);
     }
-    // Title, readable over any background.
+    // Before Go only: from then on the camera is the singer's alone.
+    if (s.phase !== "ready") return;
     const top = ctx.createLinearGradient(0, 0, 0, 220);
     top.addColorStop(0, "rgba(10,16,32,.55)"); top.addColorStop(1, "rgba(10,16,32,0)");
     ctx.fillStyle = top; ctx.fillRect(0, 0, W, 220);
@@ -309,12 +312,12 @@ export class ChallengeScene {
     ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 12;
     ctx.fillText("Can you sing it?", W / 2, 96);
     ctx.shadowBlur = 0;
-    this.pill(LEVEL_TAG[s.challenge.level], W / 2, 140, [C.butter, C.butterInk], 20, "center");
   }
 
   private drawDots(c: Challenge, v: ChallengeView | null) {
     const ctx = this.ctx;
-    const n = c.notes.length, gap = 34, x0 = W / 2 - ((n - 1) * gap) / 2, y = PAPER_TOP + 52;
+    const n = c.notes.length, gap = 30, x0 = W / 2 + 40 - ((n - 1) * gap) / 2, y = PAPER_TOP + 52;
+    this.pill(LEVEL_TAG[c.level], 36, y, [C.butter, C.butterInk], 18, "left");
     for (let i = 0; i < n; i++) {
       const r = v?.results[i];
       const cur = !!v && !v.done && i === v.index;
@@ -459,9 +462,30 @@ export class ChallengeScene {
       ctx.font = "800 20px Nunito, system-ui, sans-serif";
       ctx.fillText("POINTS", W / 2, 1132);
     }
-    ctx.fillStyle = C.muted;
-    ctx.font = "800 26px Nunito, system-ui, sans-serif";
-    ctx.fillText(s.phase === "done" ? "Your turn: abc-sightreading.com/challenge" : "abc-sightreading.com/challenge", W / 2, H - 46);
+    this.drawLogo(W / 2, H - 44, 40);
+  }
+
+  /** The abcSightReading logo, centred on `cx` with its baseline at `y`; `size` is the name's. */
+  private drawLogo(cx: number, y: number, size: number) {
+    const ctx = this.ctx;
+    ctx.font = `600 ${size}px Fredoka, Nunito, system-ui, sans-serif`;
+    const name = "SightReading";
+    const nameW = ctx.measureText(name).width;
+    // "abc" is 0.7 of the name, as in the navbar.
+    const scale = (size * 0.7) / 1000;
+    const abcW = ABC_BOX.width * scale, gap = size * 0.06;
+    const left = cx - (abcW + gap + nameW) / 2;
+    this.abc ??= new Path2D(ABC_PATH);
+    ctx.save();
+    ctx.translate(left, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = C.action;
+    ctx.fill(this.abc);
+    ctx.restore();
+    ctx.fillStyle = C.ink;
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(name, left + abcW + gap, y);
+    ctx.textAlign = "center";
   }
 
   /** Confetti from (x, y): all round, or within `spread` radians either side of `aim`. */
