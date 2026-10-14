@@ -1343,7 +1343,9 @@ constants and `noteScore`). The whole picture is one 720 x 1280 canvas
 (`challenge/scene.ts`): the selfie camera on top, with nothing drawn over it
 from Go on (Blaine: the whole frame free while singing; "Can you sing it?"
 shows only before Go), the staff below drawn by hand (no abcjs: eight quarters need only a
-staff; clefs from Noto Music, two glyphs), Pip and its ring, trail, ghost and
+staff; the clefs and the 4/4 are abcjs's own outlines, `challenge/glyphs.ts`,
+placed where abcjs puts them, since a font clef sat wrong on a phone without
+the font), Pip and its ring, trail, ghost and
 confetti as on the practice page, no solfège (Blaine: not needed; a wrong note held says "too high" or "too
 low"), the level as a small pill on the paper,
 the points, and the abcSightReading logo at the foot (`brand-mark.ts`, the
@@ -1359,9 +1361,12 @@ video), then the run; the verdict holds 2.6 s at the end, on the paper under
 the notes and the confetti up the sides, so the camera is clear for the
 singer's reaction (Blaine). The
 canvas and the microphone (with the played notes) are recorded with the
-play-along's recorder (MP4 where the browser can), and Share video hands the
-file to the phone's share sheet (Instagram, TikTok, Messages); Save video
-downloads it. Nothing is uploaded. While running it takes the whole screen
+play-along's recorder (MP4 where the browser can); the button is a red
+Record, and a REC badge with the time (on the page, not in the video) shows
+while it records. Share video hands the file to the share sheet (Instagram,
+TikTok, Messages); Save video downloads it. On an iPhone a download goes to
+Files, never Photos, so there the one button is Save to Photos (the share
+sheet, where Save Video is) and there is no download (`IOS=1` in the check). Nothing is uploaded. While running it takes the whole screen
 (`.staged`), the canvas fitted at 9:16, 48 px buttons in a bar clear of the
 home indicator, and the screen kept awake.
 

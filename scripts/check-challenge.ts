@@ -6,6 +6,7 @@
  *   LEVEL=warmup VOICE=low bun run scripts/check-challenge.ts
  *   SHOTS=<dir> screenshots: the intro, ready, on a note, a wrong note, the verdict, the result
  *   THEME=light|dark the colour scheme the browser asks for
+ *   IOS=1 an iPhone's user agent: the result offers Save to Photos (the share sheet), no download
  *
  * Needs the dev server (bun run dev). Chrome is driven by puppeteer-core with
  * an iPhone-sized touch viewport. getUserMedia is replaced: the camera is a
@@ -35,6 +36,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+if (process.env.IOS) await page.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1");
 if (process.env.THEME) await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: process.env.THEME }]);
 page.on("pageerror", (e) => console.error("page error:", e.message));
 page.on("console", (m) => { if (m.type() === "error") console.error("console:", m.text().slice(0, 300)); });
@@ -125,9 +127,13 @@ const heard = (await dbg()).lastPlayed;
 if (heard !== doWanted) fail(`Hear do played ${heard}, not do (${doWanted})`);
 await new Promise((r) => setTimeout(r, 1100));
 
-await click("Go");
+if (!(await click("Record"))) fail("no Record button");
 await new Promise((r) => setTimeout(r, 650));
 await shot("2b-shuffling");
+await new Promise((r) => setTimeout(r, 900));
+const badge = await page.evaluate(() => document.querySelector(".rec-badge")?.textContent?.trim() ?? null);
+if (!badge || !/^REC \d:\d\d$/.test(badge)) fail(`no recording badge while recording (${badge})`);
+else console.log(`badge: ${badge}`);
 await page.waitForFunction(() => (window as any).__challengeDebug().phase === "singing", { timeout: 15000 });
 for (let i = 0; i < notes.length; i++) {
   await page.waitForFunction((k) => { const d = (window as any).__challengeDebug(); return d.view?.index === k && !d.view?.credited; }, { timeout: 15000 }, i);
@@ -163,7 +169,12 @@ else {
 }
 const buttons = await page.evaluate(() => [...document.querySelectorAll(".bar button, .bar a")].map((b) => (b.textContent ?? "").trim()));
 console.log(`result buttons: ${buttons.join(" | ")}`);
-if (!buttons.includes("Save video") || !buttons.includes("Challenge a friend") || !buttons.includes("Try again")) fail("the result is missing a button");
+if (process.env.IOS) {
+  if (!buttons.includes("Save to Photos")) fail("an iPhone gets no Save to Photos");
+  if (buttons.includes("Save video")) fail("an iPhone is offered a download, which goes to Files, not Photos");
+} else if (!buttons.includes("Save video")) fail("no Save video");
+if (!buttons.includes("Challenge a friend") || !buttons.includes("Try again")) fail("the result is missing a button");
+if (await page.evaluate(() => !!document.querySelector(".rec-badge"))) fail("the REC badge is still up after recording");
 
 // New notes: a different set, shuffled in. Stop once it is singing.
 await click("New notes");

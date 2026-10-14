@@ -36,6 +36,12 @@
   let revealed = false;
   /** What the bar says while the notes shuffle and the first note plays. */
   let refStatus = "";
+  /** iPhone or iPad: saving to Photos is only through the share sheet. */
+  let isIOS = false;
+  /** While recording: the seconds so far, for the REC badge over the frame (not in the video). */
+  let recOn = false;
+  let recSeconds = 0;
+  let recTimer: ReturnType<typeof setInterval> | null = null;
 
   let canvas: HTMLCanvasElement;
   let video: HTMLVideoElement;
@@ -71,10 +77,9 @@
     if (Number.isFinite(c) && c > 0) { seed = Math.floor(c); fromFriend = true; }
     challenge = makeChallenge(level, voice, seed);
     canRecord = !!videoType();
+    isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     record = canRecord;
     scene = new ChallengeScene(canvas);
-    // The clefs come from Noto Music (the two glyphs only); draw again once it is in.
-    (document as any).fonts?.load?.('88px "Noto Music"', "\u{1D11E}\u{1D122}").catch(() => {});
     raf = requestAnimationFrame(frame);
     // scripts/check-challenge.ts follows the run through this (dev server only).
     if (import.meta.env.DEV) (window as any).__challengeDebug = () => ({ phase, view, notes: challenge.notes.map((n) => n.midi), take: take && { url: take.url, size: take.file.size, type: take.file.type }, lastPlayed });
@@ -159,9 +164,11 @@
     try {
       wakeLock = await (navigator as any).wakeLock?.request("screen");
     } catch {}
-    message = "Tap Go to shuffle your notes";
+    message = readyMessage();
     phase = "ready";
   }
+
+  const readyMessage = () => `Tap ${record && canRecord ? "Record" : "Go"} to shuffle your notes`;
 
   /** Do in the singer's voice: what "Hear do" plays before the notes are known. */
   const doMidi = () => (voice === "high" ? 60 : 48);
@@ -218,6 +225,7 @@
     if (record && canRecord && recDest) {
       try {
         recording = startRecording(canvas, recDest.stream, 30);
+        startRecTimer();
       } catch {
         recording = null;
       }
@@ -241,6 +249,20 @@
     phase = "singing";
   }
 
+  function startRecTimer() {
+    const at = performance.now();
+    recOn = true;
+    recSeconds = 0;
+    if (recTimer) clearInterval(recTimer);
+    recTimer = setInterval(() => (recSeconds = Math.floor((performance.now() - at) / 1000)), 250);
+  }
+  function stopRecTimer() {
+    if (recTimer) clearInterval(recTimer);
+    recTimer = null;
+    recOn = false;
+  }
+  $: recLabel = `${Math.floor(recSeconds / 60)}:${String(recSeconds % 60).padStart(2, "0")}`;
+
   function finish() {
     if (phase !== "singing") return;
     final = view;
@@ -251,6 +273,7 @@
       if (recording) {
         const r = recording;
         recording = null;
+        stopRecTimer();
         const blob = await r.stop();
         const file = new File([blob], `can-you-sing-it.${extensionFor(r.type)}`, { type: blob.type });
         const shareable = !!(navigator as any).canShare?.({ files: [file] });
@@ -274,6 +297,7 @@
   async function stopRun() {
     if (finishTimer) clearTimeout(finishTimer);
     finishTimer = null;
+    stopRecTimer();
     if (recording) {
       const r = recording;
       recording = null;
@@ -282,7 +306,7 @@
     run = null;
     view = null;
     revealed = false;
-    message = "Tap Go to shuffle your notes";
+    message = readyMessage();
     phase = "ready";
   }
 
@@ -323,6 +347,7 @@
   function teardown() {
     if (finishTimer) clearTimeout(finishTimer);
     finishTimer = null;
+    stopRecTimer();
     recording?.stop().catch(() => {});
     recording = null;
     engine?.stop();
@@ -349,16 +374,16 @@
 
 </script>
 
-<svelte:head>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Music&text=%F0%9D%84%9E%F0%9D%84%A2&display=block" />
-</svelte:head>
 
 <div class="challenge" class:staged>
   <div class="frame-wrap">
     <canvas bind:this={canvas} class="frame" aria-label="The challenge: your camera, the eight notes, and a ball showing your pitch"></canvas>
     <!-- The camera, drawn into the canvas; never shown itself. -->
     <video bind:this={video} playsinline muted autoplay class="cam"></video>
+    {#if recOn}
+      <!-- On the page, not in the video: how long it has been recording. -->
+      <div class="rec-badge" role="status"><span class="rec-dot"></span>REC {recLabel}</div>
+    {/if}
   </div>
 
   {#if !staged}
@@ -407,7 +432,11 @@
       {#if phase === "ready"}
         <button class="ghost" on:click={close}>Close</button>
         <button class="ghost" on:click={hear}>Hear do</button>
-        <button class="go" on:click={() => go(true)}>Go</button>
+        {#if record && canRecord}
+          <button class="rec" on:click={() => go(true)}><span class="rec-dot"></span>Record</button>
+        {:else}
+          <button class="go" on:click={() => go(true)}>Go</button>
+        {/if}
       {:else if phase === "reference"}
         <span class="status">{refStatus}</span>
       {:else if phase === "singing"}
@@ -420,13 +449,17 @@
         <div class="result">
           <div class="row wrap">
             {#if take?.shareable}
-              <button class="go" on:click={shareVideo}>Share video</button>
+              <button class="go" on:click={shareVideo}>{isIOS ? "Save to Photos" : "Share video"}</button>
             {/if}
-            {#if take}
+            {#if take && !(isIOS && take.shareable)}
+              <!-- A download: on an iPhone it goes to Files, never Photos, so there the share sheet is the way. -->
               <a class="ghost" href={take.url} download={take.file.name}>Save video</a>
             {/if}
             <button class="ghost" on:click={shareLink}>{copied ? "Link copied" : "Challenge a friend"}</button>
           </div>
+          {#if isIOS && take?.shareable}
+            <p class="tip">Then tap Save Video. Instagram and TikTok are in the same list.</p>
+          {/if}
           <div class="row wrap">
             <button class="ghost" on:click={() => again(false)}>Try again</button>
             <button class="ghost" on:click={() => again(true)}>New notes</button>
@@ -643,6 +676,60 @@
     background: #bdebd9;
     color: #0f3b2c;
     min-width: 7rem;
+  }
+  .bar .rec {
+    min-height: 48px;
+    min-width: 8rem;
+    padding: 0 1.3rem;
+    border-radius: 999px;
+    background: #e2553a;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  .bar .rec .rec-dot {
+    background: #ffffff;
+    animation: none;
+  }
+  .rec-dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: #ff3b30;
+    animation: rec-blink 1s steps(2, start) infinite;
+  }
+  .rec-badge {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(11, 18, 34, 0.75);
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+  @keyframes rec-blink {
+    to { visibility: hidden; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rec-dot { animation: none; }
+  }
+  .tip {
+    margin: 0;
+    color: #c3d0ea;
+    font-size: 0.9rem;
+    text-align: center;
   }
   .status {
     min-height: 48px;

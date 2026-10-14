@@ -1,6 +1,7 @@
 import { degreeMidi, type Challenge } from "./exercise";
 import type { ChallengeView } from "./run";
 import { ABC_PATH, ABC_BOX } from "../brand-mark";
+import { GLYPHS, GLYPH_SPACE } from "./glyphs";
 
 /**
  * The challenge's picture (/challenge): one 720 x 1280 canvas, the shape of
@@ -20,8 +21,8 @@ const CAM_H = 640;
 const PAPER_TOP = CAM_H - 44;
 const SP = 22;
 const MID = 840;
-const X0 = 156;
-const STEP_X = 66;
+const X0 = 174;
+const STEP_X = 63;
 
 const C = {
   ink: "#15213a", muted: "#56637f", line: "#c9d3e6", action: "#2f6fe0",
@@ -83,6 +84,7 @@ export class ChallengeScene {
   private last = 0;
   private reduce: boolean;
   private abc: Path2D | null = null;
+  private paths = new Map<string, Path2D>();
 
   constructor(canvas: HTMLCanvasElement) {
     canvas.width = W;
@@ -344,17 +346,12 @@ export class ChallengeScene {
     ctx.beginPath(); ctx.moveTo(end, topY); ctx.lineTo(end, by); ctx.stroke();
     ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(end + 9, topY); ctx.lineTo(end + 9, by); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(24, topY); ctx.lineTo(24, by); ctx.lineWidth = 2; ctx.stroke();
-    // Clef and time.
-    ctx.fillStyle = C.ink; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.font = `${SP * 4}px "Noto Music", serif`;
-    // Noto Music sets both clefs on the same baseline, the second line up
-    // (measured from screenshots: an F clef on its own line drew 2 spaces high).
-    if (c.clef === "treble") ctx.fillText("\u{1D11E}", 32, topY + 3 * SP);
-    else ctx.fillText("\u{1D122}", 34, topY + 3 * SP);
-    ctx.font = `700 ${SP * 2.1}px Georgia, "Times New Roman", serif`;
-    ctx.textAlign = "center";
-    ctx.fillText("4", 118, topY + 2 * SP - 2);
-    ctx.fillText("4", 118, topY + 4 * SP - 2);
+    // Clef and time, from abcjs's own outlines, placed as abcjs places them.
+    ctx.fillStyle = C.ink;
+    if (c.clef === "treble") this.glyph(GLYPHS.G.d, 38, by - SP);
+    else this.glyph(GLYPHS.F.d, 38, by - 3 * SP);
+    this.glyph(GLYPHS.four.d, 110, by - 2 * SP);
+    this.glyph(GLYPHS.four.d, 110, by);
 
     if (!reveal) {
       // Before Go: eight question marks, bobbing.
@@ -451,6 +448,19 @@ export class ChallengeScene {
       ctx.fillText("POINTS", W / 2, 1132);
     }
     this.drawLogo(W / 2, H - 44, 40);
+  }
+
+  /** An abcjs glyph with its origin at (x, y), at the staff's size. */
+  private glyph(d: string, x: number, y: number) {
+    const ctx = this.ctx;
+    let path = this.paths.get(d);
+    if (!path) this.paths.set(d, (path = new Path2D(d)));
+    const k = SP / GLYPH_SPACE;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(k, k);
+    ctx.fill(path);
+    ctx.restore();
   }
 
   /** The abcSightReading logo, centred on `cx` with its baseline at `y`; `size` is the name's. */
