@@ -1321,6 +1321,46 @@ staff in its own key, clef and sound (`ensemble.test.ts` checks every staff;
 with string and voice basses at Level 1), no note out of range, no abcjs
 warning.
 
+## Can you sing it? (/challenge)
+
+The shareable sing-and-get-graded clip (14 October 2026; the vault's
+"Instagram filter game" idea). Instagram no longer takes outside filters
+(Meta closed Spark AR in January 2025), so it is our own page that works
+like one: **free, no account, no exercise count**, built phone first. Eight
+quarter notes in C at three levels (`src/lib/challenge/exercise.ts`): Warm-up
+(steps do to so, climbs to fa or so, home to do, one repeat at most), Skips
+(steps and skips in an octave, two skips at least, ends on a do), Wild
+("musicality zero": a third to an octave every move, never the note two
+before, never home). Higher voice reads treble, lower bass; any octave
+counts. Seeded (`?l=wild&v=high&c=<seed>`), so "Challenge a friend" sends the
+same eight notes, and the page says so.
+
+The phone listens with the tuner's own detector (`TunerEngine.start(stream)`
+now takes a stream it does not own: camera and microphone are one request,
+since on iOS a second microphone request can silence the first). Each note is
+judged as Grade's Note by note judges, on Easy (`challenge/run.ts`, the same
+constants and `noteScore`). The whole picture is one 720 x 1280 canvas
+(`challenge/scene.ts`): the selfie camera on top with "Can you sing it?" and
+the level, the staff below drawn by hand (no abcjs: eight quarters need only a
+staff; clefs from Noto Music, two glyphs), Pip and its ring, trail, ghost and
+confetti as on the practice page, the points, and abc-sightreading.com/
+challenge at the foot. Go plays the first note (on the engine's context, so it
+is in the video), then the run; the verdict card holds 2.6 s at the end. The
+canvas and the microphone (with the played notes) are recorded with the
+play-along's recorder (MP4 where the browser can), and Share video hands the
+file to the phone's share sheet (Instagram, TikTok, Messages); Save video
+downloads it. Nothing is uploaded. While running it takes the whole screen
+(`.staged`), the canvas fitted at 9:16, 48 px buttons in a bar clear of the
+home indicator, and the screen kept awake.
+
+`bun run scripts/check-challenge.ts` (dev server; `LEVEL=`, `VOICE=`,
+`SEED=`, `THEME=`, `SHOTS=<dir>`): an iPhone-sized touch viewport, a fake
+camera and a synthesized singer, note 3 a step high first (corrected) and
+note 5 an octave down (still first try); checks every outcome, the link's
+seed, a recorded video, and no sideways scroll. Clean in every level, both
+voices, both themes (14 October 2026). Tests: `challenge.test.ts`. Not yet
+tried on a real phone.
+
 ## Accounts
 
 Better Auth (`src/lib/server/auth.ts`) on Prisma ORM 7 + Prisma Postgres

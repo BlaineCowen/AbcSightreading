@@ -1,0 +1,12 @@
+---
+import Layout from "../layouts/Layout.astro";
+import SingChallenge from "../components/SingChallenge.svelte";
+---
+
+<Layout
+  title="Can You Sing It? A Free Sight-Singing Challenge | abcSightReading"
+  description="Eight notes, your phone listening. A little ball shows where your voice is; hold each note in tune to pop it, then share the video. Free, no account."
+  themable
+>
+  <SingChallenge client:only="svelte" />
+</Layout>

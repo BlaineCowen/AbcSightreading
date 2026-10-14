@@ -80,14 +80,23 @@ export class TunerEngine {
     return this.audioContext && this.source ? { ctx: this.audioContext, source: this.source } : null;
   }
 
-  async start(): Promise<void> {
+  /** The stream was handed in (start's `stream`): stop() leaves its tracks to their owner. */
+  private borrowed = false;
+
+  /**
+   * `stream`: listen to a stream the caller already opened (the sing-along
+   * challenge opens the camera and microphone in one request, since on iOS a
+   * second request for the microphone can silence the first).
+   */
+  async start(stream?: MediaStream): Promise<void> {
     if (this.status === "running" || this.status === "starting") return;
     this.status = "starting";
     this.frameCount = 0;
+    this.borrowed = !!stream;
     try {
       // Ask for the mic first: iOS gives a silent input stream if the
       // AudioContext is created before permission is granted.
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+      this.mediaStream = stream ?? await navigator.mediaDevices.getUserMedia({
         audio: {
           // Echo cancellation stays ON: the app plays reference notes and
           // metronome clicks through the speaker, and on a phone that bleeds
@@ -139,7 +148,8 @@ export class TunerEngine {
   }
 
   stop(): void {
-    this.mediaStream?.getTracks().forEach((track) => track.stop());
+    if (!this.borrowed) this.mediaStream?.getTracks().forEach((track) => track.stop());
+    this.source?.disconnect();
     this.workletNode?.disconnect();
     this.analyser?.disconnect();
     this.sink?.disconnect();
