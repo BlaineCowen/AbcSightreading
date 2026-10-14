@@ -1,0 +1,40 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PieceViewer from "../../components/pieces/PieceViewer.svelte";
+
+// Dev server only (scripts/check-piece-viewer.ts): the piece viewer with no
+// account and no database. The script answers /api/pieces/<id> itself, so the
+// director's view, a student's and the teacher's look at an assignment can be
+// drawn and checked. 404 anywhere but `bun run dev`.
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+const q = Astro.url.searchParams;
+const id = q.get("id") ?? "dev-piece";
+const as = q.get("as");
+const library = q.get("library") === "1";
+const assignment =
+  as === "teacher" || as === "student"
+    ? {
+        id: "dev-assignment",
+        title: "Dev assignment",
+        note: "",
+        dueAt: null,
+        minutes: 0,
+        role: as,
+        settings: {
+          pieceId: id,
+          from: Number(q.get("from") ?? 2),
+          to: Number(q.get("to") ?? 5),
+          leadIn: Number(q.get("lead") ?? 0),
+          hearing: "others",
+          playing: [],
+          tempo: 96,
+          maxAttempts: null,
+          strictness: "easy",
+        },
+      }
+    : null;
+---
+
+<Layout title="Piece viewer (dev)" noindex themable>
+  <PieceViewer client:only="svelte" id={id} assignment={assignment as never} library={library} canAssign={!assignment && !library} />
+</Layout>

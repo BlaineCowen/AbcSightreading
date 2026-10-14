@@ -1696,11 +1696,40 @@ page, the signed-in home (no exercise yet) and /how-to-use link step 1.
 
 ## Your own music (pieces)
 
-`/pieces` (My music, Pro, never a student): a teacher uploads MusicXML from
-MuseScore, Sibelius, Finale or Dorico (.mxl, .musicxml, .xml) and plays it
-(`/pieces/<id>`): each part's instrument (any of `INSTRUMENTS`), volume,
-mute, solo and show or hide, saved to the piece; a run of bars; any tempo;
-loop.
+`/pieces` (My music, Pro, never a student; in the navbar for anyone signed
+in, My library for a student): a teacher uploads MusicXML from MuseScore,
+Sibelius, Finale or Dorico (.mxl, .musicxml, .xml) and plays it
+(`/pieces/<id>`).
+
+**The director's view** (14 October 2026, Blaine: he could only see what his
+students saw, with boxes over the bars): the owner's view, also when they
+open one of their own assignments (then a Director view / Student view
+switch, the assignment's bars ready to rehearse; Student view is exactly the
+student's page, attempts included). Each part's instrument (any of
+`INSTRUMENTS`), volume, mute, solo and show or hide, saved to the piece.
+Rehearse: Starting pitches (each sounding part's first note in the bars, low
+to high, then together), Count-in, Click, Loop, tempo, Key (up or down six
+semitones, saved with the piece: `src/lib/pieces/transpose.ts` moves the
+model itself, keys and notes spelled as the new key spells them, and the
+music is drawn and played from that; abcjs's `visualTranspose` drew line 1's
+key and another on every later line; tests `pieces-transpose.test.ts`; an
+assignment is always as written, since it is graded so), Choose bars by tapping the first and last
+bar on the music (`barHits`), and Full screen (fullscreen.ts, as the practice
+pages). Practice mixes: one part loud and the rest at `MIX_SOFT` (rules.ts
+`mixLevel`); "Offer practice mixes in class libraries" lets the students of
+a class library use them too, and Add to a class library puts the piece in
+one without assigning it (`POST /api/classes/<id>/library/<piece>`). The
+piece's own settings (`PieceSettings`: transpose, practiceMixes) are kept in
+its `parts` JSON under `PIECE_KEY`, so they needed no migration; everything
+that lists parts skips that key (`storedParts`, `storedPartIds`). The bars in
+play are never boxed: the notes outside them fade (score-dom `fadeOutside`;
+an assignment's lead-in fades less). Every view now plays through
+`SectionPlayer` (the bars rendered to sound and started on the audio clock),
+at one tempo (the slider; tempo marks inside the piece are not followed).
+`bun run scripts/check-piece-viewer.ts` (`SHOTS=`, `FILE=`, `PHONE=`) checks
+all of it on the dev server through `/dev/piece` (dev only, 404 elsewhere),
+which draws PieceViewer while the script answers its API with a piece read
+from MusicXML (by default a three-part round in the shape of Ghost of John).
 
 **Graded attempts** (`src/lib/pieces/attempts.ts`, schedule.ts; server
 `src/lib/server/attempts.ts`; tests `pieces-attempts.test.ts`): a student
@@ -1762,9 +1791,9 @@ the whole piece (Tap the first graded bar, the last, where the lead-in
 starts) or picks them from lists; the graded bars are shaded peach, the
 lead-in sky (`score-dom.ts` `shadeBars`). A **lead-in** (`leadIn`, at or
 before the graded bars, one meter throughout): playback starts there, heard
-and not graded. `/pieces/<id>?assignment=<id>` opens it for a student or the
-teacher: the whole piece, the graded bars shaded and scrolled to, their part
-marked "(you)"; Play plays the lead-in to the last graded bar through
+and not graded. `/pieces/<id>?assignment=<id>` opens it for a student (and for the
+teacher, in the director's view first): the whole piece, the bars outside
+the assignment faded and the first scrolled to, their part marked "(you)"; Play plays the lead-in to the last graded bar through
 `SectionPlayer` (section-player.ts: those bars rendered to an AudioBuffer
 off screen, started at a known moment on the audio clock, the count-in and
 click scheduled on that clock, since abcjs's `%%MIDI drumoff` silences its

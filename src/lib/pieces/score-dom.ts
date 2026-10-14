@@ -179,6 +179,29 @@ export function barHits(svgRoot: SVGSVGElement | null, boxes: BarBox[]) {
   svgRoot.appendChild(g);
 }
 
+/** Takes `barHits`' boxes away again. */
+export function clearBarHits(svgRoot: Element | null) {
+  svgRoot?.querySelectorAll(`.${HITS}`).forEach((g) => g.remove());
+}
+
+/**
+ * Marks which bars are in play without drawing anything over the music: the
+ * notes of bars outside [from, to] fade (`piece-out`), and those of a lead-in
+ * (from `lead` up to `from`) fade less (`piece-lead`). Nothing fades when the
+ * run is the whole piece.
+ */
+export function fadeOutside(items: NoteEl[], from: number, to: number, lead = from) {
+  for (const it of items) {
+    const m = it.note.measure;
+    const out = m < lead || m > to;
+    const leading = !out && m < from;
+    for (const e of it.svg) {
+      e.classList.toggle("piece-out", out);
+      e.classList.toggle("piece-lead", leading);
+    }
+  }
+}
+
 /** The bar under a pointer event on a `barHits` box, or null. */
 export function barFromEvent(e: Event): number | null {
   const el = (e.target as Element | null)?.closest?.("[data-bar]");

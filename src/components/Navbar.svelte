@@ -58,8 +58,17 @@
    * Sign in, or the account page. Undecided until the session answers, and
    * nothing is drawn meanwhile, so the bar never flashes the wrong one.
    */
-  let account: { email: string } | null | undefined = undefined;
+  let account: { email: string; accountType: "standard" | "educator" | "student" } | null | undefined = undefined;
   signedInUser().then((u) => (account = u));
+  /** Signed in, their own music too: My music (a student's songs are My library). */
+  $: links = account
+    ? [
+        ...pages,
+        account.accountType === "student"
+          ? { href: "/library", short: "My library", full: "My library" }
+          : { href: "/pieces", short: "My music", full: "My music" },
+      ]
+    : pages;
   $: nextHere = encodeURIComponent(here || "/");
 
   let navbar: HTMLElement;
@@ -166,7 +175,7 @@
 
       <!-- Desktop menu -->
       <div class="hidden md:flex items-center gap-1.5">
-        {#each pages as page}
+        {#each links as page}
           <a
             href={page.href}
             class="sr-navlink text-[15px]"
@@ -209,7 +218,7 @@
     <!-- Mobile menu -->
     {#if isNavbarOpen}
       <div class="md:hidden pt-1 pb-3 flex flex-col gap-0.5">
-        {#each pages as page}
+        {#each links as page}
           <a
             href={page.href}
             class="flex items-center min-h-12 px-4 rounded-full text-base font-bold transition-colors {(here === page.href || here.startsWith(page.href + "/")) ? 'font-extrabold text-sr-action-fg bg-sr-tint' : 'text-sr-ink-2 hover:bg-sr-track'}"

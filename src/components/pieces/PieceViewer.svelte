@@ -1,12 +1,19 @@
 <script lang="ts">
   /**
-   * A teacher's own piece (src/lib/pieces/): drawn and played by abcjs from
-   * ABC written out of the model (write-abc.ts). Each part has its own
-   * instrument, volume, mute and show or hide, saved to the piece; the music
-   * plays at any tempo, whole or a run of bars.
+   * A teacher's own piece (src/lib/pieces/): drawn by abcjs from ABC written
+   * out of the model (write-abc.ts), and played through SectionPlayer (the
+   * chosen bars rendered to sound, started on the audio clock, with the
+   * count-in and click scheduled on the same clock, and the cursor following
+   * it). Hidden parts are still heard.
    *
-   * Hidden parts are still heard: the page draws the shown parts and plays a
-   * parse of every part (the Choral page's way, through setUpAudio).
+   * The director's view (the owner's, also when they open one of their
+   * assignments, with a Student view switch to see what students get): each
+   * part's instrument, volume, mute, solo and show or hide, saved to the
+   * piece; starting pitches, count-in, click, tempo, the key it is played and
+   * shown in (saved), a loop, bars chosen by tapping the music, practice mixes
+   * (one part loud, offered to class libraries when the teacher says so), and
+   * full screen for a projector. The bars in play are marked by fading the
+   * rest, never by boxes over the music (Blaine).
    */
   import { onDestroy, onMount, tick } from "svelte";
   import Play from "lucide-svelte/icons/play";
@@ -21,12 +28,13 @@
   import { abcForPiece, type PieceAbc } from "../../lib/pieces/write-abc";
   import { loadPiece, updatePiece } from "../../lib/pieces/client";
   import type { PieceScore } from "../../lib/pieces/model";
-  import { partSettingsFor, type PartSettings, type PieceSummary } from "../../lib/pieces/rules";
+  import { DEFAULT_PIECE_SETTINGS, MAX_TRANSPOSE, mixLevel, partSettingsFor, type PartSettings, type PieceSettings, type PieceSummary } from "../../lib/pieces/rules";
+  import { keyName } from "../../lib/pieces/read-musicxml";
+  import { transposeScore } from "../../lib/pieces/transpose";
+  import { createFullscreen } from "../../lib/fullscreen";
   import { HEARING_LABEL, levelFor, partsFor, type PieceAssignment } from "../../lib/pieces/assign";
   import { drawnElements } from "../../lib/pieces/write-abc";
   import { playPiano, preloadPiano } from "../../lib/tools/tone";
-  import { drumPatternFor } from "../../lib/playback-click";
-  import { DEFAULT_CLICK_SOUND } from "../../lib/tuner/click-sounds";
   import { countInMeasures } from "../../lib/count-in";
   import Ear from "lucide-svelte/icons/ear";
   import Mic from "lucide-svelte/icons/mic";
@@ -37,16 +45,18 @@
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { tuner } from "../../lib/tuner/store";
   import { scheduleForPiece, beatsInBar } from "../../lib/pieces/schedule";
-  import { barBoxes, noteElements, shadeBars, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
+  import { barBoxes, barFromEvent, barHits, clearBarHits, fadeOutside, noteElements, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
   import { SectionPlayer } from "../../lib/pieces/section-player";
   import { TICKS } from "../../lib/pieces/model";
   import { attemptsLeft, attemptsLine, bestOf, marksOf, type Mark } from "../../lib/pieces/attempts";
-  import { finishAttempt, listAttempts, loadAttempt, sendTake, startAttempt, type AttemptRow } from "../../lib/pieces/client";
+  import { addToLibrary, finishAttempt, listAttempts, loadAttempt, myClasses, sendTake, startAttempt, type AttemptRow } from "../../lib/pieces/client";
   import { startPractice } from "../../lib/practice-tracker";
   import AssignPieceForm from "./AssignPieceForm.svelte";
   import AudioCheck from "./AudioCheck.svelte";
   import Music from "lucide-svelte/icons/music";
   import Send from "lucide-svelte/icons/send";
+  import Maximize from "lucide-svelte/icons/maximize";
+  import Minimize from "lucide-svelte/icons/minimize";
 
   export let id: string;
   /**
@@ -108,7 +118,38 @@
 
   let drawn: PieceAbc | null = null;
   let renderedTune: any = null;
-  let synthControl: any = null;
+
+  /** A teacher looking at their own assignment: the director's view, or what students see. */
+  let preview = false;
+  $: studentView = !!assignment && (assignment.role === "student" || preview);
+  /** The assignment as it plays in the student's view; null in the director's. */
+  $: asg = studentView ? assignment : null;
+  /** The piece's own settings (rules.ts): the key it is played in, practice mixes offered. */
+  let settings: PieceSettings = { ...DEFAULT_PIECE_SETTINGS };
+  /** Semitones from the written key; an assignment is always as written (it is graded so). */
+  let transpose = 0;
+  $: tr = asg ? 0 : transpose;
+  /** The music as it is drawn and played: the score, moved into the chosen key (transpose.ts). */
+  let moved: { semis: number; score: PieceScore } | null = null;
+  function music(): PieceScore {
+    if (!tr) return score!;
+    if (moved?.semis !== tr) moved = { semis: tr, score: transposeScore(score!, tr) };
+    return moved.score;
+  }
+  /** The director's count-in before the music (an assignment always counts in). */
+  let countInOn = true;
+  /** A practice mix: this part loud and the rest soft; null for the teacher's own mix. */
+  let loud: string | null = null;
+  /** Choosing bars by tapping the music: the first bar tapped, waiting for the last. */
+  let choosing = false;
+  let anchor: number | null = null;
+  /** The director's bars, kept while the Student view shows the assignment's. */
+  let directorRange = { from: 0, to: 0 };
+  let classes: { id: string; name: string }[] | null = null;
+  let shelfOpen = false;
+  let fs: ReturnType<typeof createFullscreen> | null = null;
+  let fsOn = false;
+  $: owner = !library && (!assignment || assignment.role === "teacher");
 
   onMount(async () => {
     narrow = window.innerWidth <= 640;
@@ -117,13 +158,15 @@
       piece = loaded.piece;
       score = loaded.score;
       parts = partSettingsFor(loaded.score, loaded.parts);
+      settings = loaded.settings;
+      transpose = settings.transpose;
       const firstTempo = score.measures.find((m) => m.tempo)?.tempo;
       scoreBpm = bpm = firstTempo ?? 100;
       to = score.measures.length - 1;
       if (assignment) {
         ({ from, to, leadIn } = assignment.settings);
-        // The whole piece shows; the graded bars are shaded, the lead-in lighter.
-        excerpt = false;
+        // The whole piece shows; the bars outside the assignment fade.
+        excerpt = !(from === 0 && to === score.measures.length - 1);
         bpm = assignment.settings.tempo;
         clickOn = assignment.settings.hearing === "acappella";
         const allowed = partsFor(score, from, to);
@@ -136,6 +179,9 @@
         void refreshAttempts();
         if (assignment.role === "student") startPractice({ page: "piece", assignmentId: assignment.id, isBusy: () => isPlaying });
       } else if (library) startPractice({ page: "piece", assignmentId: null, isBusy: () => isPlaying });
+      directorRange = { from, to };
+      fs = createFullscreen();
+      fs.active.subscribe((v) => (fsOn = v));
       await tick();
       await render();
       if (attemptId) await showAttempt(attemptId);
@@ -355,7 +401,6 @@
     void recording?.stop();
     recording = null;
     gradeStage = "idle";
-    void buildSynth();
   }
 
   async function finishRun() {
@@ -365,7 +410,6 @@
     const audio = (await recording?.stop()) ?? null;
     recording = null;
     const result = $gradeRunner.perf;
-    void buildSynth();
     if (!assignment || !result) {
       gradeStage = "done";
       return;
@@ -417,23 +461,25 @@
     player.destroy();
     cancelAnimationFrame(cursorFrame);
     if (grading) releaseMic();
-    try { synthControl?.destroy?.(); } catch {}
+    fs?.destroy();
   });
 
   $: partOrder = score ? score.parts.map((p, i) => ({ p, i, s: parts[p.id] })).filter((x) => x.s) : [];
   $: shownParts = partOrder.filter((x) => !hiddenPart(x.p.id)).map((x) => x.i);
   $: mine = assignment && myPart ? partOrder.find((x) => x.p.id === myPart) : null;
+  /** Where playback starts: an assignment's lead-in, or the director's first bar. */
+  $: playFrom = asg ? leadIn : from;
   $: choosable = assignment && score ? partOrder.filter((x) => partsFor(score!, from, to).includes(x.p.id)) : [];
 
   /** What shows: the piece's settings, and in an assignment always the student's own part. */
   function hiddenPart(pid: string): boolean {
-    if (assignment && pid === myPart) return false;
+    if (asg && pid === myPart) return false;
     return !!parts[pid]?.hidden;
   }
-  /** How loud a part plays, 0 to 1: in an assignment the teacher's choice of what students hear decides. */
+  /** How loud a part plays, 0 to 1: in an assignment the teacher's choice of what students hear decides; otherwise mute and the practice mix. */
   function levelOf(pid: string): number {
-    if (!assignment) return parts[pid]?.muted ? 0 : 1;
-    return levelFor(assignment.settings, pid, myPart);
+    if (!asg) return parts[pid]?.muted ? 0 : mixLevel(pid, loud);
+    return levelFor(asg.settings, pid, myPart);
   }
 
   async function choosePart(pid: string) {
@@ -462,7 +508,7 @@
     if (!drawn || !renderedTune || !score) return;
     const els = drawnElements(renderedTune, drawn.staves);
     for (const v of drawn.voices) {
-      const notes = score.parts[v.part].notes;
+      const notes = music().parts[v.part].notes;
       (els.get(v.id) ?? []).forEach((el, k) => {
         const i = v.elements[k];
         if (i === undefined || i < 0 || notes[i].rest) return;
@@ -473,6 +519,7 @@
     }
   }
   function onNoteClick(abcElem: unknown) {
+    if (choosing) return;
     const midis = noteAt.get(abcElem);
     if (midis?.length) playPiano(midis, 1);
   }
@@ -481,11 +528,11 @@
   function abcOptions(partIdx: number[]) {
     const programs = Object.fromEntries(partOrder.map((x) => [x.i, x.s.program]));
     const names = Object.fromEntries(
-      partOrder.map((x) => [x.i, assignment && myPart === x.p.id ? `${x.s.name} (you)` : x.s.name]),
+      partOrder.map((x) => [x.i, asg && myPart === x.p.id ? `${x.s.name} (you)` : x.s.name]),
     );
-    const range = excerpt ? { from, to } : {};
+    // The whole piece always shows; the bars in play are marked by fading the rest.
     const perLine = narrow ? 2 : score && score.parts.length > 6 ? 3 : 4;
-    return { parts: partIdx, programs, names, barsPerLine: perLine, tempo: scoreBpm, ...range };
+    return { parts: partIdx, programs, names, barsPerLine: perLine, tempo: scoreBpm };
   }
 
   async function render() {
@@ -493,7 +540,7 @@
     pause();
     const abcjs = (await import("abcjs")).default;
     const shown = shownParts.length ? shownParts : [0];
-    drawn = abcForPiece(score, abcOptions(shown));
+    drawn = abcForPiece(music(), abcOptions(shown));
     const box = document.getElementById("piece-box");
     const staffwidth = Math.max(300, Math.floor((box?.clientWidth ?? 760) / (narrow ? 1 : 1.25)) - 30);
     document.getElementById("piece-paper")?.removeAttribute("style");
@@ -506,32 +553,28 @@
     });
     renderedTune = tune;
     mapNotes();
-    items = noteElements(tune, drawn, score);
-    if (assignment) shadeAssignment();
-    await buildSynth();
+    items = noteElements(tune, drawn, music());
+    choosing = false;
+    anchor = null;
+    markBars();
   }
 
-  /** The graded bars shaded on the whole score, the lead-in lighter; scrolled to the first time. */
-  function shadeAssignment() {
+  /** The bars in play: the rest fade (an assignment's lead-in less); scrolled to the first time. */
+  function markBars() {
     if (!score) return;
-    const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
-    const label = (a: number, b: number) => (a === b ? `bar ${score!.measures[a].label}` : `bars ${score!.measures[a].label} to ${score!.measures[b].label}`);
-    shadeBars(svg, barBoxes(svg, items), [
-      ...(leadIn < from ? [{ from: leadIn, to: from - 1, cls: "shade-lead", label: "Lead-in" }] : []),
-      { from, to, cls: "shade-graded", label: `Graded: ${label(from, to)}` },
-    ]);
-    if (!shadedOnce) {
+    fadeOutside(items, from, to, asg ? leadIn : from);
+    if (!shadedOnce && (asg || excerpt)) {
       shadedOnce = true;
-      const first = items.find((it) => it.note.measure === leadIn)?.svg[0];
+      const first = items.find((it) => it.note.measure === playFrom)?.svg[0];
       (first as HTMLElement | undefined)?.scrollIntoView?.({ block: "center", behavior: "smooth" });
     }
   }
 
   // ── Assignment playback: the lead-in to the last graded bar, on the audio clock ──
   function sectionSound() {
-    const all = abcForPiece(score!, {
+    const all = abcForPiece(music(), {
       ...abcOptions(score!.parts.map((_, i) => i)),
-      from: leadIn,
+      from: playFrom,
       to,
       tempo: bpm,
       tempoChanges: false,
@@ -546,7 +589,7 @@
   }
 
   function sectionClicks() {
-    const bar = score!.measures[leadIn];
+    const bar = score!.measures[playFrom];
     const time = bar.time;
     const beatMs = 60_000 / gradeBpm();
     const perBar = beatsInBar(time);
@@ -557,7 +600,7 @@
     return {
       beatMs,
       beatsPerBar: perBar,
-      countIn: countInMeasures(`${time.beats}/${time.beatType}`) * perBar,
+      countIn: asg || grading || countInOn ? countInMeasures(`${time.beats}/${time.beatType}`) * perBar : 0,
       throughMs: clickOn || grading ? sectionMs : 0,
       firstBeat,
     };
@@ -567,7 +610,7 @@
   function sectionTick(): number | null {
     const ms = player.elapsedMs();
     if (ms === null || !score) return null;
-    return score.measures[leadIn].start + (ms / (60_000 / bpm)) * TICKS;
+    return score.measures[playFrom].start + (ms / (60_000 / bpm)) * TICKS;
   }
 
   function followCursor() {
@@ -575,7 +618,7 @@
     const step = () => {
       const t = sectionTick();
       for (const e of lit) e.classList.remove("piece-now");
-      lit = t === null || t < score!.measures[leadIn].start ? [] : soundingAt(items, t);
+      lit = t === null || t < score!.measures[playFrom].start ? [] : soundingAt(items, t);
       for (const e of lit) e.classList.add("piece-now");
       const head = lit[0] as HTMLElement | undefined;
       if (head) {
@@ -612,98 +655,24 @@
     return heardAt;
   }
 
-  async function buildSynth() {
-    // An assignment plays its section through SectionPlayer instead.
-    if (!renderedTune || !score || assignment) return;
-    const abcjs = (await import("abcjs")).default;
-    try { synthControl?.destroy?.(); } catch {}
-    // Every part plays, shown or not: the audio is a parse of all of them.
-    const all = abcForPiece(score, abcOptions(score.parts.map((_, i) => i)));
-    const [full] = abcjs.parseOnly(all.abc) as any[];
-    renderedTune.setUpAudio = (params: any) => full.setUpAudio(params);
-    const levels = all.voices.map((v) => {
-      const pid = score!.parts[v.part].id;
-      const s = parts[pid];
-      return s ? levelOf(pid) * (s.volume / 80) : 0;
-    });
-    const meter = score.measures[from]?.time ?? { beats: 4, beatType: 4 };
-    const meterName = `${meter.beats}/${meter.beatType}`;
-    const drum = clickOn || grading
-      ? drumPatternFor({ beats: meter.beatType === 8 && meter.beats % 3 === 0 ? meter.beats / 3 : meter.beats, subdivision: 1, accent: true, sound: DEFAULT_CLICK_SOUND })
-      : "";
-    synthControl = new abcjs.synth.SynthController();
-    let lit: Element[] = [];
-    const cursorControl = {
-      onEvent: (event: any) => {
-        for (const e of lit) e.classList.remove("piece-now");
-        lit = (event?.elements ?? []).flat();
-        for (const e of lit) e.classList.add("piece-now");
-        const first = lit[0] as HTMLElement | undefined;
-        first?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-      },
-      onFinished: () => {
-        for (const e of lit) e.classList.remove("piece-now");
-        lit = [];
-        isPlaying = false;
-        if (looping && !grading) void play();
-      },
-    };
-    await synthControl.setTune(renderedTune, false, {
-      soundFontUrl: "/api/soundfont/",
-      soundFontVolumeMultiplier: 3.0,
-      ...(drum ? { drum, drumBars: 1, drumIntro: countInMeasures(meterName) } : {}),
-      // One track a voice, in the order the ABC lists them.
-      sequenceCallback: (tracks: any[]) => {
-        tracks.forEach((track, t) => {
-          // The click's own track (after the voices) keeps its level.
-          if (t >= levels.length) return;
-          const level = levels[t];
-          for (const note of track) note.volume = Math.max(0, Math.min(127, Math.round(note.volume * level)));
-        });
-        return tracks;
-      },
-    });
-    await synthControl.load("#piece-audio", cursorControl, { displayWarp: true });
-    setWarp();
-  }
-
+  /** A new tempo: the sound is rendered at it, so whatever plays stops. */
   function setWarp() {
-    try { synthControl?.setWarp(Math.round((bpm / scoreBpm) * 100)); } catch {}
+    pause();
   }
 
   async function play() {
-    if (assignment) return void playSection();
-    if (!synthControl || isPreparing) return;
-    isPreparing = true;
-    try {
-      const abcjs = (await import("abcjs")).default;
-      const ctx = abcjs.synth.activeAudioContext?.();
-      if (ctx && ctx.state !== "running") await ctx.resume();
-      await synthControl.play();
-      isPlaying = true;
-    } finally {
-      isPreparing = false;
-    }
+    if (choosing) stopChoosing();
+    await playSection();
   }
 
-  /** abcjs's play() toggles isStarted and pause() never resets it (see AbcjsChoral pausePlayback). */
   function pause() {
-    if (assignment) {
-      player.stop();
-      stopCursor();
-      isPlaying = false;
-      return;
-    }
-    if (!synthControl) return;
-    synthControl.pause();
-    synthControl.isStarted = false;
+    player.stop();
+    stopCursor();
     isPlaying = false;
   }
 
   function rewind() {
     pause();
-    try { synthControl?.seek(0); } catch {}
-    document.querySelectorAll("#piece-paper .piece-now").forEach((e) => e.classList.remove("piece-now"));
   }
 
   // ── Parts ───────────────────────────────────────────────────────────────
@@ -724,11 +693,8 @@
   async function changePart(partId: string, patch: Partial<PartSettings[string]>, redraw: boolean) {
     parts = { ...parts, [partId]: { ...parts[partId], ...patch } };
     saveParts();
+    pause();
     if (redraw) await render();
-    else {
-      pause();
-      await buildSynth();
-    }
   }
 
   function solo(partId: string) {
@@ -736,30 +702,132 @@
     parts = Object.fromEntries(Object.entries(parts).map(([pid, s]) => [pid, { ...s, muted: only ? false : pid !== partId }]));
     saveParts();
     pause();
-    void buildSynth();
   }
 
   // ── Bars ────────────────────────────────────────────────────────────────
-  async function setRange(f: number, t: number) {
+  function setRange(f: number, t: number) {
+    pause();
     from = Math.min(f, t);
     to = Math.max(f, t);
     excerpt = !!score && !(from === 0 && to === score.measures.length - 1);
-    await render();
+    if (!asg) directorRange = { from, to };
+    markBars();
   }
 
-  async function wholePiece() {
-    if (!score) return;
-    excerpt = false;
-    from = 0;
-    to = score.measures.length - 1;
-    await render();
+  function wholePiece() {
+    if (score) setRange(0, score.measures.length - 1);
   }
 
-  /** Shown at once; put back if the server refuses it. (Enter and the blur that follows both land here.) */
-  async function toggleClick() {
+  function toggleClick() {
     clickOn = !clickOn;
     pause();
-    await buildSynth();
+  }
+
+  // ── Choosing bars by tapping the music ───────────────────────────────────
+  function startChoosing() {
+    pause();
+    const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
+    barHits(svg, barBoxes(svg, items));
+    choosing = true;
+    anchor = null;
+  }
+  function stopChoosing() {
+    clearBarHits(document.querySelector("#piece-paper svg"));
+    choosing = false;
+    anchor = null;
+  }
+  function onScoreClick(e: MouseEvent) {
+    if (!choosing) return;
+    const bar = barFromEvent(e);
+    if (bar === null) return;
+    if (anchor === null) {
+      anchor = bar;
+      setRange(bar, bar);
+    } else {
+      setRange(anchor, bar);
+      stopChoosing();
+    }
+  }
+
+  // ── Rehearsal ────────────────────────────────────────────────────────────
+  /** Each part's first note in the bars in play, low to high, then all together. */
+  let pitchTimers: ReturnType<typeof setTimeout>[] = [];
+  function startingPitches() {
+    if (!score) return;
+    pitchTimers.forEach(clearTimeout);
+    const firsts: number[] = [];
+    for (const { p, i } of partOrder) {
+      if (levelOf(p.id) === 0) continue;
+      const first = music().parts[i].notes.find((n) => !n.rest && n.measure >= playFrom && n.measure <= to);
+      if (first?.midi !== undefined) firsts.push(first.midi);
+    }
+    const order = [...new Set(firsts)].sort((a, b) => a - b);
+    void preloadPiano(order);
+    order.forEach((m, k) => pitchTimers.push(setTimeout(() => playPiano([m], 1), k * 650)));
+    if (order.length > 1) pitchTimers.push(setTimeout(() => playPiano(order, 2.2), order.length * 650 + 200));
+  }
+
+  /** The key the music sounds in: a concert-pitch part's, or the first part's moved by its transposition. */
+  $: writtenKey = (() => {
+    const part = score?.parts.find((p) => !p.transpose) ?? score?.parts[0];
+    const k = part?.keys?.[0];
+    return k ? { fifths: k.fifths + 7 * (part!.transpose || 0), mode: k.mode } : null;
+  })();
+  function keyLabel(semis: number): string {
+    if (!writtenKey) return semis === 0 ? "As written" : `${semis > 0 ? "Up" : "Down"} ${Math.abs(semis)}`;
+    const fifths = ((((writtenKey.fifths + 7 * semis) % 12) + 12) % 12);
+    const short = keyName(fifths > 6 ? fifths - 12 : fifths, writtenKey.mode);
+    const name = writtenKey.mode === "minor" ? `${short.replace(/m$/, "")} minor` : `${short} major`;
+    return semis === 0 ? `${name} (as written)` : `${name} (${semis > 0 ? "up" : "down"} ${Math.abs(semis)})`;
+  }
+  async function setTranspose(semis: number) {
+    transpose = semis;
+    pause();
+    await render();
+    if (!owner) return;
+    settings = { ...settings, transpose: semis };
+    saveSettings();
+  }
+
+  function saveSettings() {
+    void updatePiece(id, { settings }).then(() => (status = "")).catch((e) => (status = (e as Error).message));
+  }
+
+  function setLoud(pid: string | null) {
+    loud = pid;
+    pause();
+  }
+
+  async function openShelf() {
+    shelfOpen = !shelfOpen;
+    if (shelfOpen && !classes) classes = await myClasses();
+  }
+  async function shelve(c: { id: string; name: string }) {
+    try {
+      await addToLibrary(c.id, id);
+      status = `In ${c.name}'s library: its students can open it any time.`;
+      shelfOpen = false;
+    } catch (e) {
+      status = (e as Error).message;
+    }
+  }
+
+  /** The teacher's switch between their own view and what students see. */
+  async function setPreview(on: boolean) {
+    if (on === preview || !assignment) return;
+    pause();
+    preview = on;
+    if (on) ({ from, to, leadIn } = assignment.settings);
+    else ({ from, to } = directorRange);
+    excerpt = !!score && !(from === 0 && to === score.measures.length - 1);
+    if (on && !myPart && score) {
+      const allowed = partsFor(score, from, to);
+      if (allowed.length === 1) myPart = allowed[0];
+      choosingPart = !myPart;
+    }
+    shadedOnce = false;
+    await tick();
+    await render();
   }
 
   async function saveTitle() {
@@ -781,7 +849,7 @@
   }
 </script>
 
-<div class="w-full max-w-6xl mx-auto px-4 py-6 flex flex-col gap-4 pb-32">
+<div class="focus-main w-full max-w-6xl mx-auto px-4 py-6 flex flex-col gap-4 pb-32">
   {#if error}
     <div class="sr-panel p-6 flex flex-col gap-3">
       <p class="text-sr-ink">{error}</p>
@@ -790,7 +858,14 @@
   {:else if !piece || !score}
     <p class="text-sr-muted">Loading the music…</p>
   {:else}
-    {#if assignment}
+    {#if assignment?.role === "teacher"}
+      <!-- A teacher's own assignment: their full view, or what students get. -->
+      <div class="view-switch" role="radiogroup" aria-label="View">
+        <button type="button" role="radio" aria-checked={!preview} class:on={!preview} on:click={() => setPreview(false)}>Director view</button>
+        <button type="button" role="radio" aria-checked={preview} class:on={preview} on:click={() => setPreview(true)}>Student view</button>
+      </div>
+    {/if}
+    {#if asg}
       <header class="assign-card flex flex-col gap-2">
         <a class="sr-link text-sm self-start" href={assignment.role === "teacher" ? "/account" : "/"}>{assignment.role === "teacher" ? "Classes" : "Home"}</a>
         <span class="kind"><Music size={12} aria-hidden="true" /> Assignment · a piece</span>
@@ -806,12 +881,12 @@
             assignment.settings.maxAttempts ? `${assignment.settings.maxAttempts} graded attempt${assignment.settings.maxAttempts === 1 ? "" : "s"}` : null,
           ].filter(Boolean).join(" · ")}
         </p>
-        {#if assignment.role === "teacher"}<p class="text-xs">You are seeing what your students see.</p>{/if}
+        {#if assignment.role === "teacher"}<p class="text-xs">You are seeing what your students see, and their graded attempts.</p>{/if}
       </header>
     {:else}
     <header class="flex flex-wrap items-end justify-between gap-3">
       <div class="min-w-0">
-        <a class="sr-link text-sm" href={library ? "/library" : "/pieces"}>{library ? "My library" : "My music"}</a>
+        <a class="sr-link text-sm" href={library ? "/library" : assignment ? "/account" : "/pieces"}>{library ? "My library" : assignment ? "Classes" : "My music"}</a>
         {#if library}
           <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink truncate">{piece.title}</h1>
         {:else if renaming}
@@ -829,6 +904,9 @@
           </h1>
         {/if}
         <p class="text-sm text-sr-muted">{piece.composer ? `${piece.composer} · ` : ""}{score.parts.length} part{score.parts.length === 1 ? "" : "s"} · {score.measures.length} bars</p>
+        {#if assignment}
+          <p class="text-sm text-sr-muted">From your assignment: bars {score.measures[assignment.settings.from].label} to {score.measures[assignment.settings.to].label}, ready to rehearse.</p>
+        {/if}
       </div>
       {#if canAssign}
         <button type="button" class="sr-btn inline-flex items-center gap-2" aria-expanded={assignOpen} on:click={() => ((assignOpen = !assignOpen), (assignedTo = null))}>
@@ -860,7 +938,7 @@
     {/if}
     {/if}
 
-    {#if assignment && choosingPart}
+    {#if asg && choosingPart}
       <section class="sr-panel p-4 flex flex-col gap-3" aria-labelledby="choose-h">
         <h2 id="choose-h" class="font-bold text-sr-ink">Which part do you sing or play?</h2>
         <div class="flex flex-wrap gap-2">
@@ -872,7 +950,7 @@
       </section>
     {/if}
 
-    {#if assignment}
+    {#if asg}
       <section class="sr-panel p-4 flex flex-wrap items-end gap-4" aria-label="Practice">
         {#if myPart}
           <button type="button" class="sr-btn inline-flex items-center gap-2" on:click={startingNote}><Ear size={16} aria-hidden="true" /> Starting note</button>
@@ -897,7 +975,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="graded-h" class="font-bold text-sr-ink">Graded attempts</h2>
-            {#if assignment.role === "student"}
+            {#if asg.role === "student"}
               <p class="text-sm text-sr-muted">{attemptsLine(maxAttempts, used)}{best ? ` · best ${best.overall}` : ""}</p>
             {:else}
               <p class="text-sm text-sr-muted">Try the grading yourself; nothing is kept. Your students' attempts are listed below.</p>
@@ -907,11 +985,11 @@
             <button
               type="button"
               class="sr-btn inline-flex items-center gap-2"
-              disabled={!myPart || (assignment.role === "student" && left === 0)}
+              disabled={!myPart || (asg.role === "student" && left === 0)}
               on:click={openSetup}
             >
               <Mic size={16} aria-hidden="true" />
-              {assignment.role === "student" ? (left === 0 ? "No attempts left" : gradeStage === "done" ? "Another attempt" : "Graded attempt") : "Try the grading"}
+              {asg.role === "student" ? (left === 0 ? "No attempts left" : gradeStage === "done" ? "Another attempt" : "Graded attempt") : "Try the grading"}
             </button>
           {/if}
         </div>
@@ -966,6 +1044,47 @@
         {/if}
       </section>
     {:else}
+    <!-- Rehearsal: the director's tools, and a library song's for a student. -->
+    <section class="sr-panel p-4 flex flex-col gap-3" aria-label="Rehearse">
+      <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <button type="button" class="sr-btn inline-flex items-center gap-2" on:click={startingPitches}><Ear size={16} aria-hidden="true" /> Starting pitches</button>
+        <span class="flex gap-1.5" role="group" aria-label="Count-in and click">
+          <button type="button" class="sr-tok" class:sr-on={countInOn} aria-pressed={countInOn} on:click={() => ((countInOn = !countInOn), pause())}>Count-in</button>
+          <button type="button" class="sr-tok" class:sr-on={clickOn} aria-pressed={clickOn} on:click={toggleClick}>Click</button>
+          <button type="button" class="sr-tok" class:sr-on={looping} aria-pressed={looping} on:click={() => (looping = !looping)}>Loop</button>
+        </span>
+        <label class="field">
+          <span>Tempo</span>
+          <span class="flex items-center gap-2">
+            <input type="range" min="30" max="220" step="1" bind:value={bpm} on:change={setWarp} aria-label="Tempo" />
+            <span class="tabular-nums font-bold text-sr-ink w-16">{bpm} bpm</span>
+          </span>
+        </label>
+        <label class="field">
+          <span>Key</span>
+          <select value={transpose} on:change={(e) => setTranspose(Number(e.currentTarget.value))}>
+            {#each Array.from({ length: MAX_TRANSPOSE * 2 + 1 }, (_, k) => MAX_TRANSPOSE - k) as semis}
+              <option value={semis}>{keyLabel(semis)}</option>
+            {/each}
+          </select>
+        </label>
+        <button type="button" class="sr-tok inline-flex items-center gap-1.5" on:click={() => fs?.toggle()}>
+          {#if fsOn}<Minimize size={15} aria-hidden="true" /> Leave full screen{:else}<Maximize size={15} aria-hidden="true" /> Full screen{/if}
+        </button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <span class="font-bold text-sr-ink">{excerpt ? `Bars ${score.measures[from].label} to ${score.measures[to].label}` : "The whole piece"}</span>
+        {#if choosing}
+          <span class="choose-hint" role="status">{anchor === null ? "Tap the first bar in the music" : "Now tap the last bar"}</span>
+          <button type="button" class="sr-tok text-xs" on:click={stopChoosing}>Cancel</button>
+        {:else}
+          <button type="button" class="sr-tok text-xs" on:click={startChoosing}>Choose bars</button>
+          {#if excerpt}<button type="button" class="sr-tok text-xs" on:click={wholePiece}>Whole piece</button>{/if}
+        {/if}
+      </div>
+      <p class="text-xs text-sr-muted">Tap any note to hear it. Starting pitches plays each part's first note, low to high, then all together.</p>
+    </section>
+
     <section class="sr-panel p-4 flex flex-col gap-2" aria-labelledby="parts-h">
       <h2 id="parts-h" class="font-bold text-sr-ink">Parts</h2>
       <ul class="flex flex-col divide-y divide-sr-hairline">
@@ -992,39 +1111,43 @@
           </li>
         {/each}
       </ul>
-      {#if status}<p class="text-sm text-sr-brass" role="status">{status}</p>{/if}
-    </section>
 
-    <section class="sr-panel p-4 flex flex-wrap items-end gap-4" aria-label="Bars and tempo">
-      <label class="field">
-        <span>From bar</span>
-        <select value={from} on:change={(e) => setRange(Number(e.currentTarget.value), Math.max(Number(e.currentTarget.value), to))}>
-          {#each barChoices as b}<option value={b.i}>{b.label}</option>{/each}
-        </select>
-      </label>
-      <label class="field">
-        <span>To bar</span>
-        <select value={to} on:change={(e) => setRange(from, Number(e.currentTarget.value))}>
-          {#each barChoices as b}<option value={b.i} disabled={b.i < from}>{b.label}</option>{/each}
-        </select>
-      </label>
-      {#if excerpt}
-        <button type="button" class="sr-btn-quiet text-sm" on:click={wholePiece}>Whole piece</button>
+      {#if owner || settings.practiceMixes}
+        <!-- Practice mixes: one part loud, the rest soft (rules.ts mixLevel). -->
+        <div class="mixes flex flex-wrap items-center gap-2 pt-2" role="group" aria-label="Practice mix">
+          <span class="text-sm font-bold text-sr-ink">Practice mix</span>
+          <button type="button" class="sr-tok text-xs" class:sr-on={loud === null} aria-pressed={loud === null} on:click={() => setLoud(null)}>Everyone</button>
+          {#each partOrder as { p, s } (p.id)}
+            <button type="button" class="sr-tok text-xs" class:sr-on={loud === p.id} aria-pressed={loud === p.id} on:click={() => setLoud(p.id)}>{s.name} loud</button>
+          {/each}
+        </div>
       {/if}
-      <label class="field">
-        <span>Tempo</span>
-        <span class="flex items-center gap-2">
-          <input type="range" min="30" max="220" step="1" bind:value={bpm} on:change={setWarp} aria-label="Tempo" />
-          <span class="tabular-nums font-bold text-sr-ink w-16">{bpm} bpm</span>
-        </span>
-      </label>
-      <label class="flex items-center gap-2 text-sm text-sr-ink">
-        <input type="checkbox" bind:checked={looping} /> Loop
-      </label>
+      {#if owner}
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="sr-tok text-xs" class:sr-on={settings.practiceMixes} aria-pressed={settings.practiceMixes}
+            on:click={() => ((settings = { ...settings, practiceMixes: !settings.practiceMixes }), saveSettings())}>
+            {settings.practiceMixes ? "Practice mixes offered in class libraries" : "Offer practice mixes in class libraries"}
+          </button>
+          <button type="button" class="sr-tok text-xs" aria-expanded={shelfOpen} on:click={openShelf}>Add to a class library</button>
+        </div>
+        {#if shelfOpen}
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            {#if classes === null}
+              <span class="text-sr-muted">Loading your classes…</span>
+            {:else if !classes.length}
+              <span class="text-sr-muted">No classes yet. Make one on your account page.</span>
+            {:else}
+              <span class="text-sr-muted">Add to:</span>
+              {#each classes as c (c.id)}<button type="button" class="sr-tok text-xs" on:click={() => shelve(c)}>{c.name}</button>{/each}
+            {/if}
+          </div>
+        {/if}
+      {/if}
+      {#if status}<p class="text-sm text-sr-brass" role="status">{status}</p>{/if}
     </section>
     {/if}
 
-    {#if gradeStage === "setup" && assignment}
+    {#if gradeStage === "setup" && asg}
       <AudioCheck
         student={assignment.role === "student"}
         maxAttempts={maxAttempts}
@@ -1034,31 +1157,58 @@
       />
     {/if}
 
-    <div id="piece-box" class="score-paper">
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div id="piece-box" class="score-paper focus-score" class:choosing on:click={onScoreClick}>
       <div id="piece-paper"></div>
     </div>
     <div id="piece-audio" class="hidden"></div>
 
-    <div class="transport no-print" role="group" aria-label="Playback">
+    <div class="transport no-print focus-keep" role="group" aria-label="Playback">
       <button type="button" class="t-btn" aria-label="Back to the start" on:click={rewind}><SkipBack size={20} aria-hidden="true" /></button>
       {#if isPlaying}
         <button type="button" class="t-btn t-main" aria-label="Pause" on:click={pause}><Pause size={24} aria-hidden="true" /></button>
       {:else}
         <button type="button" class="t-btn t-main" aria-label="Play" disabled={isPreparing} on:click={play}><Play size={24} aria-hidden="true" /></button>
       {/if}
-      <span class="t-label">{assignment ? `Bars ${score.measures[leadIn].label} to ${score.measures[to].label}` : excerpt ? `Bars ${score.measures[from].label} to ${score.measures[to].label}` : "Whole piece"} · {bpm} bpm</span>
+      <span class="t-label">{asg ? `Bars ${score.measures[leadIn].label} to ${score.measures[to].label}` : excerpt ? `Bars ${score.measures[from].label} to ${score.measures[to].label}` : "Whole piece"} · {bpm} bpm{tr ? ` · ${tr > 0 ? "+" : ""}${tr}` : ""}</span>
+      {#if fsOn}<button type="button" class="t-btn" aria-label="Leave full screen" on:click={() => fs?.exit()}><Minimize size={20} aria-hidden="true" /></button>{/if}
     </div>
   {/if}
 </div>
 
 <style>
-  :global(#piece-paper .shade-graded) { fill: var(--sr-peach); opacity: 0.6; }
-  :global(#piece-paper .shade-lead) { fill: var(--sr-sky); opacity: 0.5; }
-  :global(#piece-paper .shade-graded-label), :global(#piece-paper .shade-lead-label) {
-    font: 800 11px Nunito, sans-serif;
-    fill: var(--sr-peach-ink);
+  /* The bars in play: the rest fade (score-dom fadeOutside), nothing drawn over the music. */
+  :global(#piece-paper .piece-out) { opacity: 0.22; }
+  :global(#piece-paper .piece-lead) { opacity: 0.55; }
+  :global(#piece-paper .bar-hit) { fill: transparent; cursor: pointer; }
+  :global(#piece-paper .bar-hit:hover) { fill: var(--sr-action); fill-opacity: 0.08; }
+  .choosing { outline: 3px dashed var(--sr-action); outline-offset: -3px; }
+  .choose-hint {
+    background: var(--sr-sky);
+    color: var(--sr-sky-ink);
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.2rem 0.75rem;
   }
-  :global(#piece-paper .shade-lead-label) { fill: var(--sr-sky-ink); }
+  .view-switch {
+    align-self: flex-start;
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--sr-track);
+  }
+  .view-switch button {
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--sr-muted);
+  }
+  .view-switch button.on {
+    background: var(--sr-action);
+    color: var(--sr-action-ink);
+  }
   :global(#piece-paper .grade-good), :global(#piece-paper .grade-good path) { fill: #1f9d6b; color: #1f9d6b; }
   :global(#piece-paper .grade-ok), :global(#piece-paper .grade-ok path) { fill: #c98a00; color: #c98a00; }
   :global(#piece-paper .grade-bad), :global(#piece-paper .grade-bad path) { fill: #d13f2f; color: #d13f2f; }

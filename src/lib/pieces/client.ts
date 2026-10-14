@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from "fflate";
 import type { PieceScore } from "./model";
-import type { PartSettings, PieceSummary } from "./rules";
+import { DEFAULT_PIECE_SETTINGS, type PartSettings, type PieceSettings, type PieceSummary } from "./rules";
 
 /**
  * The page's side of a teacher's pieces: uploading (compressed first, so a
@@ -49,15 +49,29 @@ export async function listPieces(): Promise<PieceSummary[]> {
   return res.json();
 }
 
-export async function loadPiece(id: string): Promise<{ piece: PieceSummary; parts: PartSettings; score: PieceScore }> {
+export async function loadPiece(id: string): Promise<{ piece: PieceSummary; parts: PartSettings; settings: PieceSettings; score: PieceScore }> {
   const [meta, music] = await Promise.all([fetch(`/api/pieces/${id}`), fetch(`/api/pieces/${id}/score`)]);
   if (!meta.ok) throw new Error(await errorOf(meta, "This piece could not be opened."));
   if (!music.ok) throw new Error(await errorOf(music, "This piece's music could not be loaded."));
-  const { piece, parts } = await meta.json();
-  return { piece, parts, score: await music.json() };
+  const { piece, parts, settings } = await meta.json();
+  return { piece, parts, settings: { ...DEFAULT_PIECE_SETTINGS, ...settings }, score: await music.json() };
 }
 
-export async function updatePiece(id: string, change: { title?: string; parts?: PartSettings }): Promise<void> {
+/** The teacher's classes, to put a piece in a library. */
+export async function myClasses(): Promise<{ id: string; name: string }[]> {
+  const res = await fetch("/api/classes");
+  if (!res.ok) return [];
+  const list = (await res.json()) as { id: string; name: string }[];
+  return Array.isArray(list) ? list.map((c) => ({ id: c.id, name: c.name })) : [];
+}
+
+/** Puts a piece in a class's library, without assigning it. */
+export async function addToLibrary(classId: string, pieceId: string): Promise<void> {
+  const res = await fetch(`/api/classes/${classId}/library/${pieceId}`, { method: "POST" });
+  if (!res.ok) throw new Error(await errorOf(res, "It could not be added to that class."));
+}
+
+export async function updatePiece(id: string, change: { title?: string; parts?: PartSettings; settings?: PieceSettings }): Promise<void> {
   const res = await fetch(`/api/pieces/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

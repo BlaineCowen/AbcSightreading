@@ -2,13 +2,16 @@ import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../../lib/server/api";
 import { prisma } from "../../../../lib/server/db";
 import { PieceError, deletePiece, pieceFor, pieceForReader, summaryOf } from "../../../../lib/server/pieces";
-import { checkPieceUpdate } from "../../../../lib/pieces/rules";
+import { PIECE_KEY, checkPieceUpdate, pieceSettingsOf, storedPartIds, storedParts } from "../../../../lib/pieces/rules";
 
 /**
  * One of my pieces.
  *
- * GET               -> { piece: PieceSummary, parts: PartSettings }
- * PATCH { title?, parts? } -> the same, as it now is
+ * GET               -> { piece: PieceSummary, parts: PartSettings, settings: PieceSettings }
+ * PATCH { title?, parts?, settings? } -> the same, as it now is
+ *
+ * The piece's own settings (key, practice mixes) are kept in `parts` under
+ * PIECE_KEY (rules.ts) and answered apart from the parts.
  * DELETE            -> { ok: true }
  *
  * Matched on id and owner: someone else's piece answers exactly like one
@@ -23,7 +26,7 @@ export const GET: APIRoute = async ({ request, params }) => {
   // Its owner, or a student it is assigned to.
   const piece = await pieceForReader(user.id, params.id!);
   if (!piece) return missing();
-  return json({ piece: summaryOf(piece), parts: piece.parts });
+  return json({ piece: summaryOf(piece), parts: storedParts(piece.parts), settings: pieceSettingsOf(piece.parts) });
 };
 
 export const PATCH: APIRoute = async ({ request, params }) => {
@@ -31,13 +34,15 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   if (!user) return json({ error: "Sign in first." }, 401);
   const piece = await pieceFor(user.id, params.id!);
   if (!piece) return missing();
-  const change = checkPieceUpdate(await readJson(request), Object.keys((piece.parts ?? {}) as object));
+  const change = checkPieceUpdate(await readJson(request), storedPartIds(piece.parts));
   if (!change.ok) return json({ error: change.error }, 400);
-  const updated = await prisma.piece.update({
-    where: { id: piece.id },
-    data: { title: change.value.title, parts: change.value.parts },
-  });
-  return json({ piece: summaryOf(updated), parts: updated.parts });
+  const { title, parts, settings } = change.value;
+  const stored =
+    parts || settings
+      ? { ...(parts ?? storedParts(piece.parts)), [PIECE_KEY]: settings ?? pieceSettingsOf(piece.parts) }
+      : undefined;
+  const updated = await prisma.piece.update({ where: { id: piece.id }, data: { title, parts: stored } });
+  return json({ piece: summaryOf(updated), parts: storedParts(updated.parts), settings: pieceSettingsOf(updated.parts) });
 };
 
 export const DELETE: APIRoute = async ({ request, params }) => {

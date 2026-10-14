@@ -3,7 +3,7 @@ import { del, get, put } from "@vercel/blob";
 import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { PieceReadError, readMusicXml } from "../pieces/read-musicxml";
-import { MAX_PIECES, MAX_UPLOAD_BYTES, defaultPartSettings, type PieceSummary } from "../pieces/rules";
+import { MAX_PIECES, MAX_UPLOAD_BYTES, defaultPartSettings, storedParts, type PieceSummary } from "../pieces/rules";
 import type { PieceScore } from "../pieces/model";
 
 /**
@@ -38,7 +38,7 @@ type Row = {
 };
 
 export function summaryOf(p: Row): PieceSummary {
-  const parts = p.parts && typeof p.parts === "object" ? Object.values(p.parts as Record<string, { name?: string }>) : [];
+  const parts = Object.values(storedParts(p.parts) as Record<string, { name?: string }>);
   return {
     id: p.id,
     title: p.title,
@@ -144,7 +144,7 @@ export async function libraryFor(userId: string) {
       if (!had.classes.includes(r.class.name)) had.classes.push(r.class.name);
       continue;
     }
-    const parts = r.piece.parts && typeof r.piece.parts === "object" ? Object.values(r.piece.parts as Record<string, { name?: string }>).map((x) => x.name ?? "Part") : [];
+    const parts = Object.values(storedParts(r.piece.parts) as Record<string, { name?: string }>).map((x) => x.name ?? "Part");
     byPiece.set(r.piece.id, { id: r.piece.id, title: r.piece.title, composer: r.piece.composer, bars: r.piece.bars, parts, classes: [r.class.name], addedAt: r.createdAt.getTime() });
   }
   return [...byPiece.values()];

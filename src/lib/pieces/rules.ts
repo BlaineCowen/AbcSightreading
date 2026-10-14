@@ -50,6 +50,53 @@ export function partSettingsFor(score: PieceScore, stored: unknown): PartSetting
   return base;
 }
 
+/**
+ * Settings for the whole piece: the key it is played and shown in (semitones
+ * from the file's), and whether students in a class library are offered
+ * practice mixes (one part loud, the rest soft). Kept in the piece's `parts`
+ * JSON under PIECE_KEY, beside the parts, so they needed no new column; every
+ * reader of `parts` that lists parts skips it (`storedPartIds`, summaryOf).
+ */
+export const PIECE_KEY = "$piece";
+export const MAX_TRANSPOSE = 6;
+export type PieceSettings = { transpose: number; practiceMixes: boolean };
+export const DEFAULT_PIECE_SETTINGS: PieceSettings = { transpose: 0, practiceMixes: false };
+
+export function checkPieceSettings(v: unknown): PieceSettings | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  if (!Number.isInteger(o.transpose) || Math.abs(o.transpose as number) > MAX_TRANSPOSE) return null;
+  if (typeof o.practiceMixes !== "boolean") return null;
+  return { transpose: o.transpose as number, practiceMixes: o.practiceMixes };
+}
+
+/** The piece's settings from its stored `parts`, the defaults where there are none. */
+export function pieceSettingsOf(stored: unknown): PieceSettings {
+  const s = stored && typeof stored === "object" ? (stored as Record<string, unknown>)[PIECE_KEY] : null;
+  return checkPieceSettings(s) ?? { ...DEFAULT_PIECE_SETTINGS };
+}
+
+/** The part ids in a stored `parts`, without the piece's own settings. */
+export function storedPartIds(stored: unknown): string[] {
+  return stored && typeof stored === "object" ? Object.keys(stored).filter((k) => k !== PIECE_KEY) : [];
+}
+
+/** The stored `parts` without the piece's own settings: the parts alone. */
+export function storedParts(stored: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (stored && typeof stored === "object") for (const k of storedPartIds(stored)) out[k] = (stored as Record<string, unknown>)[k];
+  return out;
+}
+
+/**
+ * One part loud, the rest soft (a practice mix): each part's level, 0 to 1,
+ * over the teacher's own volumes. `null` plays the teacher's mix.
+ */
+export const MIX_SOFT = 0.3;
+export function mixLevel(partId: string, loud: string | null): number {
+  return loud === null || partId === loud ? 1 : MIX_SOFT;
+}
+
 export function checkPartSetting(v: unknown): PartSetting | null {
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
@@ -60,7 +107,7 @@ export function checkPartSetting(v: unknown): PartSetting | null {
   return { name: o.name.trim(), program: Number(o.program), volume: Math.round(o.volume), muted: o.muted, hidden: o.hidden };
 }
 
-export type PieceUpdate = { title?: string; parts?: PartSettings };
+export type PieceUpdate = { title?: string; parts?: PartSettings; settings?: PieceSettings };
 
 export function checkPieceUpdate(body: unknown, partIds: string[]): { ok: true; value: PieceUpdate } | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "Nothing to change." };
@@ -81,7 +128,12 @@ export function checkPieceUpdate(body: unknown, partIds: string[]): { ok: true; 
     }
     value.parts = parts;
   }
-  if (value.title === undefined && value.parts === undefined) return { ok: false, error: "Nothing to change." };
+  if (b.settings !== undefined) {
+    const settings = checkPieceSettings(b.settings);
+    if (!settings) return { ok: false, error: "Those settings are not readable." };
+    value.settings = settings;
+  }
+  if (value.title === undefined && value.parts === undefined && value.settings === undefined) return { ok: false, error: "Nothing to change." };
   return { ok: true, value };
 }
 
