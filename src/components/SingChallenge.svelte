@@ -13,7 +13,7 @@
   import { TunerEngine } from "../lib/tuner/tuner-engine";
   import { LEVELS, LEVEL_IDS, challengeLink, makeChallenge, newSeed, type Challenge, type ChallengeLevel, type ChallengeVoice } from "../lib/challenge/exercise";
   import { ChallengeRun, type ChallengeView } from "../lib/challenge/run";
-  import { ChallengeScene, type SceneState } from "../lib/challenge/scene";
+  import { ChallengeScene, SHUFFLE_MS, type SceneState } from "../lib/challenge/scene";
   import { STRICTNESS } from "../lib/grade";
   import { extensionFor, startRecording, videoType, type Recording } from "../lib/play-along/recorder";
 
@@ -32,6 +32,10 @@
   let canRecord = false;
   let error: string | null = null;
   let copied = false;
+  /** The notes are shown: from Go on. Before it they are "?", so nobody can rehearse them. */
+  let revealed = false;
+  /** What the bar says while the notes shuffle and the first note plays. */
+  let refStatus = "";
 
   let canvas: HTMLCanvasElement;
   let video: HTMLVideoElement;
@@ -53,6 +57,8 @@
   let expected: number | null = null;
   let raf = 0;
   let finishTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The last note played to the singer (checked by scripts/check-challenge.ts). */
+  let lastPlayed: number | null = null;
 
   $: staged = phase !== "intro" && phase !== "starting";
   $: if (phase === "intro") challenge = makeChallenge(level, voice, seed);
@@ -71,7 +77,7 @@
     (document as any).fonts?.load?.('88px "Noto Music"', "\u{1D11E}\u{1D122}").catch(() => {});
     raf = requestAnimationFrame(frame);
     // scripts/check-challenge.ts follows the run through this (dev server only).
-    if (import.meta.env.DEV) (window as any).__challengeDebug = () => ({ phase, view, notes: challenge.notes.map((n) => n.midi), take: take && { url: take.url, size: take.file.size, type: take.file.type } });
+    if (import.meta.env.DEV) (window as any).__challengeDebug = () => ({ phase, view, notes: challenge.notes.map((n) => n.midi), take: take && { url: take.url, size: take.file.size, type: take.file.type }, lastPlayed });
   });
 
   onDestroy(() => {
@@ -101,6 +107,7 @@
       video: stream?.getVideoTracks().length ? video : null,
       message,
       tolerance: TOLERANCE,
+      reveal: revealed,
     });
   }
 
@@ -152,14 +159,18 @@
     try {
       wakeLock = await (navigator as any).wakeLock?.request("screen");
     } catch {}
-    message = "Tap Go, then sing each note";
+    message = "Tap Go to shuffle your notes";
     phase = "ready";
   }
+
+  /** Do in the singer's voice: what "Hear do" plays before the notes are known. */
+  const doMidi = () => (voice === "high" ? 60 : 48);
 
   /** Play a note on the engine's own context (so it is in the recording), and tell the detector it is sounding. */
   function playNote(midi: number, ms = 900): Promise<void> {
     const ctx = engine?.context;
     if (!ctx || !engine) return Promise.resolve();
+    lastPlayed = midi;
     const t = ctx.currentTime;
     const hz = 440 * 2 ** ((midi - 69) / 12);
     const gain = ctx.createGain();
@@ -187,13 +198,23 @@
     );
   }
 
-  async function go() {
+  /**
+   * `fresh`: new notes, shuffled in (a friend's link keeps theirs the first
+   * time). Try again keeps the notes and skips the shuffle.
+   */
+  async function go(fresh = true) {
     if (!engine) return;
     clearTake();
+    if (fresh) {
+      if (!fromFriend) seed = newSeed();
+      fromFriend = false;
+      challenge = makeChallenge(level, voice, seed);
+    }
     scene?.reset();
     run = null;
     view = null;
     final = null;
+    revealed = true;
     if (record && canRecord && recDest) {
       try {
         recording = startRecording(canvas, recDest.stream, 30);
@@ -202,7 +223,16 @@
       }
     }
     phase = "reference";
+    if (fresh) {
+      // The notes fly in, so the video shows they were drawn there and then.
+      scene?.shuffle(performance.now());
+      message = "Shuffling…";
+      refStatus = "Shuffling…";
+      await new Promise((r) => setTimeout(r, SHUFFLE_MS));
+      if (phase !== "reference") return;
+    }
     message = `Your first note: ${challenge.notes[0].syl}`;
+    refStatus = "Listen…";
     await playNote(challenge.notes[0].midi);
     if (phase !== "reference") return;
     message = null;
@@ -234,7 +264,7 @@
     if (phase === "singing" && run && run.current !== null) {
       run.help(performance.now(), 1000);
       void playNote(run.current);
-    } else if (phase === "ready" || phase === "result") void playNote(challenge.notes[0].midi);
+    } else if (phase === "ready" || phase === "result") void playNote(doMidi());
   }
 
   function skip() {
@@ -251,17 +281,13 @@
     }
     run = null;
     view = null;
-    message = "Tap Go, then sing each note";
+    revealed = false;
+    message = "Tap Go to shuffle your notes";
     phase = "ready";
   }
 
   function again(fresh: boolean) {
-    if (fresh) {
-      seed = newSeed();
-      fromFriend = false;
-      challenge = makeChallenge(level, voice, seed);
-    }
-    void go();
+    void go(fresh);
   }
 
   function clearTake() {
@@ -316,6 +342,7 @@
     teardown();
     clearTake();
     final = null;
+    revealed = false;
     message = "Tap Start, then sing each note";
     phase = "intro";
   }
@@ -389,9 +416,9 @@
       {#if phase === "ready"}
         <button class="ghost" on:click={close}>Close</button>
         <button class="ghost" on:click={hear}>Hear do</button>
-        <button class="go" on:click={go}>Go</button>
+        <button class="go" on:click={() => go(true)}>Go</button>
       {:else if phase === "reference"}
-        <span class="status">Listen…</span>
+        <span class="status">{refStatus}</span>
       {:else if phase === "singing"}
         <button class="ghost" on:click={stopRun}>Stop</button>
         <button class="ghost" on:click={hear}>Hear it</button>

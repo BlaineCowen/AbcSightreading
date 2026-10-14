@@ -13,8 +13,8 @@
  * check-grade.ts). The singer sings each note as it comes up, with two faults
  * planted: note 3 a step high before the right one (corrected), note 5 an
  * octave down (still right first time: any octave counts). Checks: every
- * note's outcome, the run finishing, a recorded video of some size, and no
- * sideways scroll on the page.
+ * note's outcome, the run finishing, a recorded video of some size, no
+ * sideways scroll, Hear do playing do, and New notes drawing different notes.
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 import { makeChallenge, type ChallengeLevel, type ChallengeVoice } from "../src/lib/challenge/exercise";
@@ -118,8 +118,17 @@ await shot("2-ready");
 const stagedOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 if (stagedOverflow > 0) fail(`the stage scrolls sideways by ${stagedOverflow}px`);
 
+await click("Hear do");
+await new Promise((r) => setTimeout(r, 200));
+const doWanted = VOICE === "high" ? 60 : 48;
+const heard = (await dbg()).lastPlayed;
+if (heard !== doWanted) fail(`Hear do played ${heard}, not do (${doWanted})`);
+await new Promise((r) => setTimeout(r, 1100));
+
 await click("Go");
-await page.waitForFunction(() => (window as any).__challengeDebug().phase === "singing", { timeout: 10000 });
+await new Promise((r) => setTimeout(r, 650));
+await shot("2b-shuffling");
+await page.waitForFunction(() => (window as any).__challengeDebug().phase === "singing", { timeout: 15000 });
 for (let i = 0; i < notes.length; i++) {
   await page.waitForFunction((k) => { const d = (window as any).__challengeDebug(); return d.view?.index === k && !d.view?.credited; }, { timeout: 15000 }, i);
   const now = await page.evaluate(() => performance.now());
@@ -155,6 +164,14 @@ else {
 const buttons = await page.evaluate(() => [...document.querySelectorAll(".bar button, .bar a")].map((b) => (b.textContent ?? "").trim()));
 console.log(`result buttons: ${buttons.join(" | ")}`);
 if (!buttons.includes("Save video") || !buttons.includes("Challenge a friend") || !buttons.includes("Try again")) fail("the result is missing a button");
+
+// New notes: a different set, shuffled in. Stop once it is singing.
+await click("New notes");
+await page.waitForFunction(() => (window as any).__challengeDebug().phase === "singing", { timeout: 15000 });
+const fresh = (await dbg()).notes as number[];
+console.log(`new notes: ${fresh.join(" ")}`);
+if (JSON.stringify(fresh) === JSON.stringify(notes)) fail("New notes gave the same notes");
+await click("Stop");
 
 console.log(failures ? `${failures} check(s) failed` : "all checks passed");
 await browser.close();

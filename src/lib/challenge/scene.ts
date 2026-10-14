@@ -1,4 +1,4 @@
-import type { Challenge } from "./exercise";
+import { degreeMidi, type Challenge } from "./exercise";
 import type { ChallengeView } from "./run";
 
 /**
@@ -35,6 +35,12 @@ const TAG: Record<Zone, [string, string]> = { in: [C.mint, C.mintInk], near: [C.
 const CONFETTI = [C.mintDeep, C.butterDeep, C.peachDeep, C.skyDeep, C.action];
 const LEVEL_TAG: Record<Challenge["level"], string> = { warmup: "WARM-UP", skips: "SKIPS", wild: "WILD · MUSICALITY ZERO" };
 
+/** The shuffle: notes fly about the frame, flicking through pitches, and land one by one, the first at LAND_FIRST. */
+const LAND_FIRST = 900;
+const LAND_GAP = 120;
+/** From the start of a shuffle until the last note has landed and settled. */
+export const SHUFFLE_MS = LAND_FIRST + 7 * LAND_GAP + 350;
+
 export type SceneState = {
   challenge: Challenge;
   phase: "ready" | "reference" | "singing" | "done";
@@ -43,6 +49,8 @@ export type SceneState = {
   /** A line under the music before the run: what to do now. */
   message: string | null;
   tolerance: number;
+  /** False before Go: the notes are hidden ("?"), so nobody can rehearse them. */
+  reveal: boolean;
 };
 
 // Diatonic staff position: chromatic pitches sit halfway between neighbours.
@@ -63,6 +71,9 @@ export class ChallengeScene {
   private trail: { t: number; y: number | null; z: Zone }[] = [];
   private bits: Bit[] = [];
   private pops = new Map<number, number>();
+  private shuffleAt = 0;
+  private scatter: { x: number; y: number; rot: number; spin: number }[] = [];
+  private landed = new Set<number>();
   private cheer: { text: string; at: number; x: number } | null = null;
   private celebrated = -1;
   private cand: { semi: number; since: number } | null = null;
@@ -85,12 +96,26 @@ export class ChallengeScene {
     this.trail = [];
     this.bits = [];
     this.pops.clear();
+    this.shuffleAt = 0;
+    this.landed.clear();
     this.cheer = null;
     this.celebrated = -1;
     this.cand = null;
     this.wrong = null;
     this.doneAt = 0;
     this.cursorX = X0;
+  }
+
+  /** Throw the notes in the air: they land in their places over SHUFFLE_MS. */
+  shuffle(now: number) {
+    this.shuffleAt = now;
+    this.landed.clear();
+    this.scatter = Array.from({ length: 8 }, () => ({
+      x: 70 + Math.random() * (W - 140),
+      y: 170 + Math.random() * (H - 380),
+      rot: (Math.random() - 0.5) * 5,
+      spin: (Math.random() - 0.5) * 12,
+    }));
   }
 
   private bottomY(_c?: Challenge) {
@@ -133,7 +158,7 @@ export class ChallengeScene {
 
     this.drawDots(c, v);
     this.cursorX += (X0 + idx * STEP_X - this.cursorX) * (1 - Math.exp(-dt / 110));
-    this.drawStaff(c, v, now, s.phase);
+    this.drawStaff(c, v, now, s.phase, s.reveal);
 
     // The sung pitch.
     const cents = singing && v ? v.cents : null;
@@ -297,11 +322,13 @@ export class ChallengeScene {
     }
   }
 
-  private drawStaff(c: Challenge, v: ChallengeView | null, now: number, phase: SceneState["phase"]) {
+  private drawStaff(c: Challenge, v: ChallengeView | null, now: number, phase: SceneState["phase"], reveal: boolean) {
     const ctx = this.ctx;
     const by = this.bottomY(c), topY = by - 4 * SP;
+    const st = this.shuffleAt ? now - this.shuffleAt : Infinity;
+    const shuffling = st < SHUFFLE_MS;
     // The cursor band.
-    if (phase !== "done") {
+    if (phase !== "done" && reveal && !shuffling) {
       ctx.fillStyle = `rgba(201,228,255,${0.5 + 0.12 * Math.sin(now / 260)})`;
       this.rr(this.cursorX - SP * 1.6, topY - SP * 3, SP * 3.2, SP * 11, SP);
       ctx.fill();
@@ -327,7 +354,31 @@ export class ChallengeScene {
     ctx.fillText("4", 118, topY + 2 * SP - 2);
     ctx.fillText("4", 118, topY + 4 * SP - 2);
 
+    if (!reveal) {
+      // Before Go: eight question marks, bobbing.
+      c.notes.forEach((_, i) => {
+        const x = X0 + i * STEP_X, y = topY + 2 * SP + Math.sin(now / 380 + i * 0.9) * SP * 0.6;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(-0.35);
+        ctx.beginPath(); ctx.ellipse(0, 0, SP * 0.66, SP * 0.47, 0, 0, Math.PI * 2);
+        ctx.fillStyle = C.line; ctx.fill(); ctx.restore();
+        ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.font = "800 25px Nunito, system-ui, sans-serif";
+        ctx.fillStyle = C.muted;
+        ctx.fillText("?", x, by + SP * 3.7);
+      });
+      return;
+    }
+
     c.notes.forEach((n, i) => {
+      const land = LAND_FIRST + i * LAND_GAP;
+      if (st < land) {
+        this.drawFlying(c, i, st / land, st);
+        return;
+      }
+      if (shuffling && !this.landed.has(i)) {
+        this.landed.add(i);
+        this.pops.set(i, now);
+      }
       const x = X0 + i * STEP_X, y = this.yOf(c, n.midi);
       const r = v?.results[i];
       const cur = phase !== "done" && (v ? i === v.index && !v.done : i === 0);
@@ -353,6 +404,29 @@ export class ChallengeScene {
       ctx.fillStyle = cur ? C.action : r ? C.mintText : C.muted;
       ctx.fillText(n.syl, x, Math.max(by + SP * 3.7, y + SP * 2.2));
     });
+  }
+
+  /** A note in the air: wandering, flicking through pitches, then rushing to its place. */
+  private drawFlying(c: Challenge, i: number, p: number, t: number) {
+    const ctx = this.ctx;
+    const sc = this.scatter[i] ?? { x: W / 2, y: H / 2, rot: 0, spin: 0 };
+    const wx = sc.x + Math.sin(t / 170 + i * 1.3) * 70;
+    const wy = sc.y + Math.cos(t / 210 + i * 2.1) * 70;
+    // A new pitch every 80 ms: it could be any of them.
+    const k = Math.floor(t / 80);
+    const r = Math.abs(Math.sin(i * 12.9898 + k * 78.233) * 43758.5453) % 1;
+    const flick = degreeMidi(Math.floor(r * 11), c.voice === "high" ? 60 : 48);
+    const e = p * p * p;
+    const x = wx + (X0 + i * STEP_X - wx) * e;
+    const y = wy + (this.yOf(c, flick) - wy) * e;
+    const rot = (sc.rot + (sc.spin * t) / 1000) * (1 - e) - 0.35 * e;
+    const col = CONFETTI[i % CONFETTI.length];
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(1.4 - 0.4 * e, 1.4 - 0.4 * e);
+    ctx.beginPath(); ctx.ellipse(0, 0, SP * 0.66, SP * 0.47, 0, 0, Math.PI * 2);
+    ctx.fillStyle = e > 0.6 ? C.ink : col; ctx.fill();
+    ctx.strokeStyle = e > 0.6 ? C.ink : col; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(SP * 0.6, -2); ctx.lineTo(SP * 0.6, -SP * 3.4); ctx.stroke();
+    ctx.restore();
   }
 
   private drawFoot(s: SceneState, v: ChallengeView | null, now: number) {

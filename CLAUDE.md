@@ -1344,8 +1344,15 @@ constants and `noteScore`). The whole picture is one 720 x 1280 canvas
 the level, the staff below drawn by hand (no abcjs: eight quarters need only a
 staff; clefs from Noto Music, two glyphs), Pip and its ring, trail, ghost and
 confetti as on the practice page, the points, and abc-sightreading.com/
-challenge at the foot. Go plays the first note (on the engine's context, so it
-is in the video), then the run; the verdict card holds 2.6 s at the end. The
+challenge at the foot. Before Go the notes are hidden (eight bobbing "?",
+"Hear do" plays do in the singer's voice), so nobody rehearses them. Go
+draws fresh notes (a friend's link keeps theirs the first time) and shuffles
+them in (`scene.shuffle`, `SHUFFLE_MS`): they fly about the whole frame in
+colour, flicking through pitches, and land one by one, so every video shows
+they were drawn on the spot (Blaine: show it is not the same thing every
+time). Try again keeps the notes and skips the shuffle; New notes shuffles a
+new set. Then the first note plays (on the engine's context, so it is in the
+video), then the run; the verdict card holds 2.6 s at the end. The
 canvas and the microphone (with the played notes) are recorded with the
 play-along's recorder (MP4 where the browser can), and Share video hands the
 file to the phone's share sheet (Instagram, TikTok, Messages); Save video
@@ -1357,9 +1364,14 @@ home indicator, and the screen kept awake.
 `SEED=`, `THEME=`, `SHOTS=<dir>`): an iPhone-sized touch viewport, a fake
 camera and a synthesized singer, note 3 a step high first (corrected) and
 note 5 an octave down (still first try); checks every outcome, the link's
-seed, a recorded video, and no sideways scroll. Clean in every level, both
-voices, both themes (14 October 2026). Tests: `challenge.test.ts`. Not yet
-tried on a real phone.
+seed, a recorded video, no sideways scroll, Hear do playing do, and New
+notes drawing different notes. Clean in every level, both voices, both
+themes (14 October 2026). Tests: `challenge.test.ts`. Not yet tried on a
+real phone.
+
+Advertised on the home page: a butter card under the landing page's hero
+(and "Just here for fun?" in the hero), and a card on the signed-in home,
+both with Pip (`PipFace.svelte`, bobbing; still with reduced motion).
 
 ## Accounts
 

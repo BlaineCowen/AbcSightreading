@@ -5,6 +5,7 @@
   import { trackById, TRACK_COLOR_CLASS, iconFor } from "../lib/curriculum/tracks";
   import { INSTRUMENT_ICON, INSTRUMENT_PATHS } from "../lib/curriculum/instrument-icons";
   import StudentAssignments from "./StudentAssignments.svelte";
+  import PipFace from "./PipFace.svelte";
   import { FIRST_STEP_HREF } from "../lib/tour";
 
   /**
@@ -100,6 +101,16 @@
       <span class="text-sm">Two, three and four parts, UIL levels 1 to 5.</span>
     </a>
   </section>
+
+  <!-- The free challenge (/challenge): something to send a choir or a class. -->
+  <a class="challenge-card bg-sr-butter text-sr-butter-ink" href="/challenge">
+    <PipFace class="w-16 h-16 shrink-0" />
+    <span class="flex-1 min-w-0">
+      <span class="block text-lg font-extrabold leading-tight">Can you sing it?</span>
+      <span class="block text-sm">Eight random notes, graded as you sing, with a video to share. Free, no account: send it to your {accountType === "student" ? "friends" : "singers"}.</span>
+    </span>
+    <span class="sr-btn text-sm shrink-0">Try it</span>
+  </a>
 
   {#if accountType === "student"}
     <StudentAssignments initial={assignments} />
@@ -227,6 +238,16 @@
     transition: transform 120ms ease, box-shadow 120ms ease;
   }
   .start-card:hover { transform: translateY(-2px); }
+  .challenge-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: 24px;
+    box-shadow: var(--sr-card-shadow);
+  }
+  .challenge-card:hover { filter: brightness(0.98); }
   .page-tag {
     font-size: 11px;
     font-weight: 800;

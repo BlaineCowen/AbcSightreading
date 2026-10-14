@@ -7,6 +7,7 @@ import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 // the generator or spending a visitor's free exercises.
 import heroExercise from "../assets/hero-exercise.svg?raw";
 import FreeMonthPromo from "../components/FreeMonthPromo.svelte";
+import PipFace from "../components/PipFace.svelte";
 import { FIRST_STEP_HREF } from "../lib/tour";
 import { enabled as freeMonthOn, offerUntil } from "../lib/server/free-month";
 
@@ -186,6 +187,10 @@ const jsonLd = [
           New to sight reading?
           <a href={FIRST_STEP_HREF} class="text-sr-action-fg underline underline-offset-4 hover:brightness-110">Start at step 1 of abcStepByStep</a>
         </p>
+        <p class="mt-2 text-sm font-bold text-sr-muted">
+          Just here for fun?
+          <a href="/challenge" class="text-sr-action-fg underline underline-offset-4 hover:brightness-110">Can you sing these 8 notes?</a>
+        </p>
       </div>
 
       <figure class="hero-demo relative w-full max-w-xl mx-auto lg:max-w-none">
@@ -204,6 +209,26 @@ const jsonLd = [
           A real exercise. Yours will be a new one.
         </figcaption>
       </figure>
+    </section>
+
+    <!-- Can you sing it? The free challenge (/challenge): for anyone, no
+         account, and a video to share, so it is offered to every visitor. -->
+    <section class="py-6 px-2">
+      <a
+        href="/challenge"
+        class="challenge-promo group flex flex-col sm:flex-row items-center gap-5 sm:gap-8 rounded-[28px] bg-sr-butter text-sr-butter-ink p-6 sm:p-8 text-center sm:text-left"
+      >
+        <PipFace class="w-24 h-24 sm:w-28 sm:h-28 shrink-0" />
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-extrabold uppercase tracking-[0.08em] opacity-80">Free · no account · on your phone</p>
+          <h2 class="mt-1 text-3xl sm:text-4xl font-bold">Can you sing it?</h2>
+          <p class="mt-2 text-base sm:text-lg font-semibold">
+            Eight random notes. Your phone listens and Pip shows where your voice is.
+            Pop every note, then share the video and dare your friends.
+          </p>
+        </div>
+        <span class="sr-btn px-7 py-3 text-base whitespace-nowrap shrink-0">Take the challenge</span>
+      </a>
     </section>
 
     <!-- The pain -->
@@ -445,7 +470,16 @@ const jsonLd = [
       opacity: 0;
     }
   }
+  .challenge-promo {
+    box-shadow: var(--sr-card-shadow);
+    transition: transform 120ms ease;
+  }
+  .challenge-promo:hover {
+    transform: translateY(-2px);
+  }
   @media (prefers-reduced-motion: reduce) {
+    .challenge-promo { transition: none; }
+    .challenge-promo:hover { transform: none; }
     .hero-cursor,
     .hero-countin span {
       animation: none;
