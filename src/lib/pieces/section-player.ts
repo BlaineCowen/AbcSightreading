@@ -26,6 +26,8 @@ export type Clicks = {
   throughMs: number;
   /** The beat of its bar the music starts on (a pickup starts late in its bar). */
   firstBeat?: number;
+  /** Clicks a beat through the music: 1 the beat alone, 2 or 3 subdivided. */
+  sub?: number;
 };
 
 export class SectionPlayer {
@@ -33,8 +35,11 @@ export class SectionPlayer {
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
   private key = "";
-  /** The audio clock when the buffer started, and performance.now() then. */
-  startedAt: { audio: number; perf: number } | null = null;
+  /**
+   * The audio clock when the buffer's `offsetMs` was played, performance.now()
+   * then, and that offset (a start from the middle of the music).
+   */
+  startedAt: { audio: number; perf: number; offsetMs: number } | null = null;
 
   context(): AudioContext {
     this.ctx ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -88,13 +93,13 @@ export class SectionPlayer {
 
   private clicks: OscillatorNode[] = [];
 
-  /** A short tick: higher on a downbeat. */
-  private tick(ctx: AudioContext, at: number, down: boolean) {
+  /** A short tick: higher on a downbeat, softer between beats. */
+  private tick(ctx: AudioContext, at: number, kind: "down" | "beat" | "sub") {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.frequency.value = down ? 1760 : 1320;
+    osc.frequency.value = kind === "down" ? 1760 : kind === "beat" ? 1320 : 990;
     gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(down ? 0.5 : 0.32, at + 0.003);
+    gain.gain.exponentialRampToValueAtTime(kind === "down" ? 0.5 : kind === "beat" ? 0.32 : 0.16, at + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
     osc.connect(gain).connect(ctx.destination);
     osc.start(at);
@@ -103,10 +108,13 @@ export class SectionPlayer {
   }
 
   /**
-   * Starts it a moment from now, after the count-in; returns when
-   * (performance.now() ms) the music's first sample is heard.
+   * Starts it a moment from now, after the count-in, `offsetMs` into the
+   * music (0 from the top); returns when (performance.now() ms) the music's
+   * first sample is heard. From the middle, the count-in and the click keep
+   * the music's own beat: the count-in is the beats before the first beat at
+   * or after the start.
    */
-  play(onEnded: () => void, clicks: Clicks): number {
+  play(onEnded: () => void, clicks: Clicks, offsetMs = 0): number {
     const ctx = this.context();
     if (!this.buffer) throw new Error("Not prepared.");
     if (ctx.state !== "running") void ctx.resume();
@@ -116,11 +124,18 @@ export class SectionPlayer {
     src.connect(ctx.destination);
     const begin = ctx.currentTime + 0.12;
     const beat = clicks.beatMs / 1000;
-    const at = begin + clicks.countIn * beat;
-    for (let k = 0; k < clicks.countIn; k++) this.tick(ctx, begin + k * beat, k % clicks.beatsPerBar === 0);
+    const kStart = Math.ceil((offsetMs - 1) / clicks.beatMs);
+    // The music's time t (ms from its top) sounds at at + (t - offsetMs) / 1000.
+    const at = clicks.countIn ? begin + (offsetMs - (kStart - clicks.countIn) * clicks.beatMs) / 1000 : begin;
+    for (let k = 0; k < clicks.countIn; k++) this.tick(ctx, at + ((kStart - clicks.countIn + k) * clicks.beatMs - offsetMs) / 1000, k % clicks.beatsPerBar === 0 ? "down" : "beat");
     const first = clicks.firstBeat ?? 0;
-    for (let k = 0; k * clicks.beatMs < clicks.throughMs; k++) this.tick(ctx, at + k * beat, (k + first) % clicks.beatsPerBar === 0);
-    src.start(at);
+    const sub = Math.max(1, clicks.sub ?? 1);
+    for (let k = Math.max(0, kStart); k * clicks.beatMs < clicks.throughMs; k++) {
+      const t = at + (k * clicks.beatMs - offsetMs) / 1000;
+      this.tick(ctx, t, (k + first) % clicks.beatsPerBar === 0 ? "down" : "beat");
+      for (let j = 1; j < sub; j++) this.tick(ctx, t + (j * beat) / sub, "sub");
+    }
+    src.start(at, offsetMs / 1000);
     src.onended = () => {
       if (this.source === src) {
         this.source = null;
@@ -130,14 +145,14 @@ export class SectionPlayer {
     };
     this.source = src;
     const perf = performance.now() + (at - ctx.currentTime) * 1000;
-    this.startedAt = { audio: at, perf };
+    this.startedAt = { audio: at, perf, offsetMs };
     return perf + this.latencyMs();
   }
 
-  /** Milliseconds since the first sample was heard, or null when not playing. */
+  /** Milliseconds into the music as heard now, or null when not playing (negative during the count-in). */
   elapsedMs(): number | null {
     if (!this.startedAt || !this.ctx) return null;
-    return (this.ctx.currentTime - this.startedAt.audio) * 1000 - this.latencyMs();
+    return (this.ctx.currentTime - this.startedAt.audio) * 1000 - this.latencyMs() + this.startedAt.offsetMs;
   }
 
   stop() {

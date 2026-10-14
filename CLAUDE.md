@@ -1731,6 +1731,26 @@ all of it on the dev server through `/dev/piece` (dev only, 404 elsewhere),
 which draws PieceViewer while the script answers its API with a piece read
 from MusicXML (by default a three-part round in the shape of Ghost of John).
 
+**Laid out as the practice pages** (14 October 2026, Blaine): the owner's
+and a library song's view have the settings pills (Key, Parts with the mixer
+and practice mixes, Bars, and for the owner Class libraries), a toolbar over
+the score (Starting pitches, Listen and grade) and the shared PlaybackBar
+(Count-in and Click in its extra slot). A tapped note is where Play starts
+(marked, named in a chip; tapped while playing, it jumps there), Pause keeps
+the place, and a new tempo carries on from it. Repeats are followed: the
+whole piece's sound plays them (write-abc), so the cursor, a start from a
+note and grading read the sound's time through `src/lib/pieces/timeline.ts`
+(`playedBars`, `Timeline`; tests `pieces-timeline.test.ts`), and
+`scheduleForPiece` takes that order. **Listen and grade** is Grade's own
+panel (GradePanel, with a `setup` slot and no New exercise) on one part of
+the bars in play: Pitch & rhythm (the sound made with the other parts, every
+part with yours quietly, or a cappella) or Note by note (each note lit, Pip
+on it, and the other parts' notes under it played as it comes up, never your
+own pitch class), in the key chosen, letter names. Practice: nothing is
+kept. `check-piece-viewer.ts` covers all of it (fake microphone: the run
+starts, runs and grades; `PIP_SHOTS=` pictures Pip). Pip rides just left of
+the note now, on both pages (Blaine: behind the cursor, not on the note).
+
 **Graded attempts** (`src/lib/pieces/attempts.ts`, schedule.ts; server
 `src/lib/server/attempts.ts`; tests `pieces-attempts.test.ts`): a student
 starts one (`POST /api/assignments/<id>/attempts` with their part; counted

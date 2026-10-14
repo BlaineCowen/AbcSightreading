@@ -116,7 +116,7 @@ export class PitchGuide {
     this.target = midi;
     this.spot = locate();
     if (this.spot) this.attach(this.spot);
-    if (this.spot && (this.y === null || this.alpha < 0.05)) this.x = this.cx();
+    if (this.spot && (this.y === null || this.alpha < 0.05)) this.x = this.bx();
     this.credited = false;
     this.cand = null;
     this.wrongSemi = null;
@@ -197,6 +197,14 @@ export class PitchGuide {
     const h = this.spot!.head;
     return (h.x + h.right) / 2;
   }
+  /**
+   * Where the ball rides: just left of the note's ring, behind the cursor,
+   * never over the note itself (Blaine, 14 October 2026: the note stays
+   * readable while it is sung).
+   */
+  private bx() {
+    return this.spot!.head.x - this.space() * (RING_R + PIP_R + 0.2);
+  }
   private yOf(midi: number) {
     return this.spot!.head.y - stepsBetween(midi, this.target!, this.o.doPc) * (this.space() / 2);
   }
@@ -242,7 +250,7 @@ export class PitchGuide {
     const v = this.feedV;
     const head = this.spot!.head;
     const tx = this.cx();
-    this.x += (tx - this.x) * (1 - Math.exp(-dt / 110));
+    this.x += (this.bx() - this.x) * (1 - Math.exp(-dt / 110));
     const voiced = v.cents !== null && !v.helping;
     const cents = v.cents ?? 0;
     const z = this.zone(cents);
@@ -338,14 +346,16 @@ export class PitchGuide {
           this.setTag(this.hint, label, this.x, y - sp * (PIP_R + 1.3), TAG[zz], sp * TAG_SIZE, "middle");
           this.hint.g.setAttribute("opacity", this.alpha.toFixed(2));
         }
-        // Pointing to the note when the ball is away from it.
+        // Pointing to the note when the ball is above or below it: from the
+        // ball's edge to the ring's, on the line between their centres.
         const dy = head.y - y;
-        if (zz !== "in" && Math.abs(dy) > sp * (PIP_R + RING_R)) {
-          const dir = Math.sign(dy);
-          this.elastic.setAttribute("x1", this.x.toFixed(2));
-          this.elastic.setAttribute("y1", (y + dir * sp * PIP_R).toFixed(2));
-          this.elastic.setAttribute("x2", tx.toFixed(2));
-          this.elastic.setAttribute("y2", (head.y - dir * R).toFixed(2));
+        if (zz !== "in" && Math.abs(dy) > sp * 0.8) {
+          const dx = tx - this.x;
+          const len = Math.hypot(dx, dy) || 1;
+          this.elastic.setAttribute("x1", (this.x + (dx / len) * sp * PIP_R).toFixed(2));
+          this.elastic.setAttribute("y1", (y + (dy / len) * sp * PIP_R).toFixed(2));
+          this.elastic.setAttribute("x2", (tx - (dx / len) * R).toFixed(2));
+          this.elastic.setAttribute("y2", (head.y - (dy / len) * R).toFixed(2));
           this.elastic.setAttribute("opacity", (0.6 * this.alpha).toFixed(2));
           this.elastic.setAttribute("display", "inline");
         }

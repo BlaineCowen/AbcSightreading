@@ -18,7 +18,8 @@
   export let signedIn: boolean;
   export let onStart: () => void;
   export let onClose: () => void;
-  export let onNewExercise: () => void;
+  /** Null leaves New exercise out (a piece is the same music every time). */
+  export let onNewExercise: (() => void) | null;
   /** Why it cannot start now (no exercise, rhythm only), or null. */
   export let blocked: string | null = null;
   /** Do's pitch class in the exercise's key, for naming notes in solfege. */
@@ -261,6 +262,9 @@
         </div>
       {/if}
 
+      <!-- What the page itself asks (a piece: which part, and what plays along). -->
+      <slot name="setup" />
+
       <div class="flex flex-col gap-2 border-t border-sr-hairline pt-3">
         <div class="row" role="group" aria-label="Strictness">
           <span>Strictness</span>
@@ -404,9 +408,9 @@
         {:else}
           <button class="sr-btn text-sm py-2.5" on:click={() => (resultsOpen = false)}>See it on the music</button>
         {/if}
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid {onNewExercise ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onStart}>Try again</button>
-          <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onNewExercise}>New exercise</button>
+          {#if onNewExercise}<button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onNewExercise}>New exercise</button>{/if}
         </div>
         <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={changeSettings}>Change settings and try again</button>
         {#if onSend || onSave}

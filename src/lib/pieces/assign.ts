@@ -53,8 +53,13 @@ export type PieceAssignment = {
   strictness: Strictness;
 };
 
-/** Why this part cannot be a student's over these bars, or null if it can. */
-export function partProblem(score: PieceScore, partId: string, from: number, to: number): string | null {
+/**
+ * Why this part cannot be a student's over these bars, or null if it can.
+ * `oneMeter` false lets the meter change (practice on the whole piece: the
+ * notes are timed from the model, and only an assignment's click counts in
+ * one meter).
+ */
+export function partProblem(score: PieceScore, partId: string, from: number, to: number, oneMeter = true): string | null {
   const part = score.parts.find((p) => p.id === partId);
   if (!part) return "Choose a part.";
   if (from < 0 || to >= score.measures.length || from > to) return "Choose the bars.";
@@ -67,7 +72,7 @@ export function partProblem(score: PieceScore, partId: string, from: number, to:
     }
   }
   const first = score.measures[from].time;
-  for (let m = from + 1; m <= to; m++) {
+  for (let m = from + 1; oneMeter && m <= to; m++) {
     const t = score.measures[m].time;
     if (t.beats !== first.beats || t.beatType !== first.beatType) {
       return `The meter changes in bar ${score.measures[m].label}. Choose bars in one meter.`;
@@ -77,8 +82,8 @@ export function partProblem(score: PieceScore, partId: string, from: number, to:
 }
 
 /** The parts a student may choose over these bars. */
-export function partsFor(score: PieceScore, from: number, to: number): string[] {
-  return score.parts.filter((p) => !partProblem(score, p.id, from, to)).map((p) => p.id);
+export function partsFor(score: PieceScore, from: number, to: number, oneMeter = true): string[] {
+  return score.parts.filter((p) => !partProblem(score, p.id, from, to, oneMeter)).map((p) => p.id);
 }
 
 /** Why these bars cannot be assigned, or null: one meter, and at least one part a student can take. */
