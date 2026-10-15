@@ -184,6 +184,10 @@ export class PracticeRunner {
   get repeat(): number {
     return this.state.repeat;
   }
+  /** Whether the pass playing now is followed by another pass of it. */
+  get repeatsNext(): boolean {
+    return this.active && this.state.repeat + 1 < this.settings.repeats;
+  }
 
   private changed() {
     this.hooks.onChange?.({

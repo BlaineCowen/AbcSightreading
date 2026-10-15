@@ -258,6 +258,23 @@ any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
+### Drill and loop repeats
+
+A pass that repeats (a drill's repeat, or Loop) starts the next pass when
+the music's last beat is over (AbcjsSingle `endPassOnGrid`, from abcjs's
+beat callback), anchored on the beat grid, and lets the old pass's audio
+ring out under it. It used to wait for the audio buffer to end, which
+includes the last note's release (about 0.2 s): every repeat came about
+0.4 of a beat late, off the beat with no count-in, and a click on the beat
+after the music landed 200 ms before the count-in (Blaine, 15 October 2026:
+"the metronome clicks over itself"). No click sounds past the music now,
+and a repeat's cursor and click are moved on by however late they started
+(`startLoopRepeat`), or they fell about 20 ms further behind the music each
+pass. A pass that does not repeat still ends with its audio. `bun run
+scripts/check-drill-clicks.ts` (`COUNT_IN=off`, `BPM=`) logs every click
+and every pass's music on the audio clock: one click a beat, each pass on a
+click.
+
 ### Curriculum tracks ("courses" on the site)
 
 On the page they are **courses** (My courses, Choose courses, Instrument

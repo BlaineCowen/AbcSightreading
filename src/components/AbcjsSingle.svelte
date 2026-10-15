@@ -2310,7 +2310,11 @@
         const musicBeat = beatNumber >= inCount ? beat.beatInBar : undefined;
         const musicBar = Math.floor((metronomeBeats.lastClickedBeat - inCount) / Math.max(1, beatsPerMeasure));
         // A Grade run books its clicks on the audio clock (startGradeTimeline).
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && !gradeQuiet && !gradeTimeline) {
+        // The beat after the last is the end of the music, not a beat of it:
+        // a click there landed just before a repeat's count-in (Blaine, 15
+        // October 2026: "the metronome clicks over itself").
+        if (beatNumber >= totalBeats) endPassOnGrid(totalBeats);
+        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && beatNumber < totalBeats && !gradeQuiet && !gradeTimeline) {
           playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
           // The next beat's word, a beat ahead, while there is a next beat of music.
           const next = metronomeBeats.lastClickedBeat + 1;
@@ -2604,6 +2608,7 @@
       // Ignore nodes we already replaced or stopped by hand.
       if (node !== sourceNode) return;
       if (!isPlaying) return;
+      if (passEndedOnGrid === node) return;
       // A drill counts its passes, so it decides before the endless loop does.
       if (drillRunning) return advanceDrill();
       if (looping) startLoopRepeat();
@@ -2644,10 +2649,43 @@
    * the (now skipped) downbeat of the count-in, so the pass after this one
    * anchors on the end of its audio exactly as before.
    */
+  /**
+   * The audio time the next pass starts, when the pass was ended on the beat
+   * grid (endPassOnGrid) rather than by the audio running out.
+   */
+  let nextPassZero: number | null = null;
+  /** The pass endPassOnGrid already ended, so its `onended` does nothing. */
+  let passEndedOnGrid: AudioBufferSourceNode | null = null;
+
+  /**
+   * The music's last beat is over: a pass that repeats starts the next one
+   * now, on the beat. The audio runs on past it with the last note's release
+   * (about 0.2 s), and waiting for it to end put every repeat that much late:
+   * off the beat with no count-in, and a stray click before the count-in
+   * with one. A pass that does not repeat still ends with its audio, so the
+   * last note rings out.
+   */
+  function endPassOnGrid(totalBeats: number) {
+    const node = sourceNode;
+    if (!node || !isPlaying || gradeTimeline || passEndedOnGrid === node) return;
+    const repeats = drillRunning ? !!runner?.repeatsNext : looping;
+    if (!repeats) return;
+    passEndedOnGrid = node;
+    const zero = startTime + totalBeats * (60 / tempo);
+    // Out of abcjs's callback, which the repeat stops and starts again.
+    setTimeout(() => {
+      if (node !== sourceNode || !isPlaying) return;
+      nextPassZero = zero;
+      if (drillRunning) advanceDrill();
+      else startLoopRepeat();
+    });
+  }
+
   function startLoopRepeat() {
     // The node that just ended is spent; drop it before scheduling its successor
     // so stopSourceNode() inside stopMusic() can't try to stop it again.
-    const nextZero = startTime + getTimelineDuration();
+    const nextZero = nextPassZero ?? startTime + getTimelineDuration();
+    nextPassZero = null;
     const from = passCountInOverride === false ? getCountInDuration() : 0;
     sourceNode = null;
     timingCallbacks?.stop();
@@ -2657,7 +2695,11 @@
       return;
     }
     // 0 is a full reset, as before; past the count-in it is a seek to the first note.
-    timingCallbacks?.start(from, "seconds");
+    // Started a little after the pass's anchor (the callback that ended the
+    // last pass, a timer), the cursor and click are moved on by as much, or
+    // they fell later behind the music with every repeat.
+    const late = Math.min(0.25, Math.max(0, audioContext.currentTime - (startTime + from)));
+    timingCallbacks?.start(from + late, "seconds");
 
     // The pass that just ended left the cursor collapsed past the last note and
     // the page scrolled to the final system. Put both back now, during the
@@ -2780,6 +2822,8 @@
    */
   function stopMusic() {
     isPlaying = false;
+    // A repeat that redraws the score plays afresh (playMusic, after this).
+    nextPassZero = null;
     pausedAt = 0;
     startTime = 0;
     stopSourceNode();
