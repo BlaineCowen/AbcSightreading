@@ -56,6 +56,11 @@ export class SectionPlayer {
     return !!this.buffer;
   }
 
+  /** The sound last rendered (Hear your take plays it again under the take). */
+  get audio(): AudioBuffer | null {
+    return this.buffer;
+  }
+
   /** Renders the sound, unless it is the one already rendered. */
   async prepare(sound: SectionSound): Promise<void> {
     const key = JSON.stringify(sound);

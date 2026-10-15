@@ -391,6 +391,21 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
   console.log(`graded: ${result}`);
   if (!(await page.$("#piece-paper .grade-good, #piece-paper .grade-ok, #piece-paper .grade-bad"))) fail("grade: no marks on the music");
   await shot(page, "8-grade-result");
+
+  // Hear your take: the run's recording plays back, the music under it on request, the score following.
+  if (!(await clickIncludes(page, "Hear your take"))) fail("take: no Hear your take after a Pitch & rhythm run");
+  await page.waitForFunction(() => !!document.querySelector('[aria-label="Where in your take"]') && !!document.querySelector('button[aria-label="Pause"]'), { timeout: 15000 }).catch(() => fail("take: it never started playing"));
+  if (!(await clickText(page, "With the music"))) fail("take: no With the music");
+  await page.waitForFunction(() => Number((document.querySelector('[aria-label="Where in your take"]') as HTMLInputElement | null)?.value ?? 0) > 0.05, { timeout: 15000 }).catch(() => fail("take: it never moved on"));
+  await page.waitForFunction(() => !!document.querySelector("#piece-paper .piece-now"), { timeout: 15000 }).catch(() => {});
+  const lit = await page.evaluate(() => document.querySelectorAll("#piece-paper .piece-now").length);
+  const takeLine = await page.evaluate(() => document.querySelector('[aria-label="Where in your take"]')?.parentElement?.textContent?.replace(/\s+/g, " ").trim() ?? "");
+  console.log(`take: ${lit} drawn elements lit, "${takeLine}"`);
+  if (!lit) fail("take: the score does not follow the take");
+  await shot(page, "9-grade-take");
+  await page.evaluate(() => (document.querySelector('button[aria-label="Stop playing your take"]') as HTMLButtonElement | null)?.click());
+  await sleep(300);
+  if (await page.$("#piece-paper .piece-now")) fail("take: a note stayed lit after stopping the take");
   await page.close();
 }
 

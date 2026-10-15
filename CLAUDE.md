@@ -1784,7 +1784,13 @@ the bars in play: Pitch & rhythm (the sound made with the other parts, every
 part with yours quietly, or a cappella) or Note by note (each note lit, Pip
 on it, and the other parts' notes under it played as it comes up, never your
 own pitch class), in the key chosen, letter names. Practice: nothing is
-kept. `check-piece-viewer.ts` covers all of it (fake microphone: the run
+kept on the server. Each practice run is recorded in this browser
+(grade-recording) and the results offer **Hear your take** (15 October 2026,
+Blaine: hear back grades in My music): the Unison page's `TakePlayer`, with
+"With the music" playing the run's own sound as heard (SectionPlayer's
+buffer, kept at the run's end as `takeSound`, `TakeMusic.buffer` and
+`bufferAt`) and the click; the note line and cursor follow it. Note by note
+has no music under it. Gone with a new run or Close. `check-piece-viewer.ts` covers all of it (fake microphone: the run
 starts, runs and grades; `PIP_SHOTS=` pictures Pip). Pip rides just left of
 the note now, on both pages (Blaine: behind the cursor, not on the note).
 

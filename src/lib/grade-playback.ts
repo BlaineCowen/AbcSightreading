@@ -49,6 +49,13 @@ export type TakeMusic = {
   countInBeats: number;
   beats: number;
   clickSound: ClickSound;
+  /**
+   * The sound already made (My music's SectionPlayer buffer, every part at
+   * the levels heard in the run): used as it is, not rendered from `abc`.
+   */
+  buffer?: AudioBuffer;
+  /** When the buffer's first sample was heard, on the page's clock (a lead-in starts before t0); t0 if unset. */
+  bufferAt?: number;
 };
 
 export class TakePlayer {
@@ -91,7 +98,7 @@ export class TakePlayer {
     if (this.musicSpec) {
       const m = this.musicSpec;
       [this.music] = await Promise.all([
-        renderAbcBuffer(this.ctx, m.abc, { bpm: m.bpm, volumeMultiplier: m.volumeMultiplier, transpose: m.transpose }).catch(() => null),
+        m.buffer ?? renderAbcBuffer(this.ctx, m.abc, { bpm: m.bpm, volumeMultiplier: m.volumeMultiplier, transpose: m.transpose }).catch(() => null),
         this.bank.load(this.ctx),
       ]);
     }
@@ -141,7 +148,7 @@ export class TakePlayer {
         const src = this.ctx.createBufferSource();
         src.buffer = this.music;
         src.connect(this.musicGain);
-        const into = (at - m.t0) / 1000;
+        const into = (at - (m.bufferAt ?? m.t0)) / 1000;
         if (into >= 0) src.start(when, into);
         else src.start(when - into, 0);
         this.sources.push(src);
