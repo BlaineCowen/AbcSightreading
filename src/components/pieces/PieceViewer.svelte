@@ -36,6 +36,8 @@
   import Eye from "lucide-svelte/icons/eye";
   import EyeOff from "lucide-svelte/icons/eye-off";
   import Pencil from "lucide-svelte/icons/pencil";
+  import Minus from "lucide-svelte/icons/minus";
+  import Plus from "lucide-svelte/icons/plus";
   import { INSTRUMENTS } from "../../lib/instruments";
   import { abcForPiece, type PieceAbc } from "../../lib/pieces/write-abc";
   import { loadPiece, updatePiece } from "../../lib/pieces/client";
@@ -150,6 +152,16 @@
     if (moved?.semis !== tr) moved = { semis: tr, score: transposeScore(score!, tr) };
     return moved.score;
   }
+  /** The key it is heard in (rules.ts `sound`): null sounds as drawn. */
+  let soundKey: number | null = null;
+  $: sr = asg ? 0 : soundKey ?? transpose;
+  let heardScore: { semis: number; score: PieceScore } | null = null;
+  /** The music as it sounds: playback, starting pitches, tapped notes, and what Grade listens for. */
+  function heard(): PieceScore {
+    if (sr === tr) return music();
+    if (heardScore?.semis !== sr) heardScore = { semis: sr, score: transposeScore(score!, sr) };
+    return heardScore.score;
+  }
   /** The director's count-in before the music (an assignment always counts in). */
   let countInOn = true;
   /** A practice mix: this part loud and the rest soft; null for the teacher's own mix. */
@@ -240,6 +252,11 @@
           return m < 0 ? null : { bar: Number(score!.measures[m].label), tick: t };
         },
         paused: () => pausedMs,
+        /** The key lines of the music as drawn and as heard. */
+        keys: () => {
+          const ks = (abc = "") => [...new Set(abc.match(/K:[^\]\n]*/g) ?? [])].join(" ");
+          return { drawn: ks(drawn?.abc), heard: score ? ks(sectionSound().abc) : "" };
+        },
       };
     }
     return () => {
@@ -258,6 +275,7 @@
       parts = partSettingsFor(loaded.score, loaded.parts);
       settings = loaded.settings;
       transpose = settings.transpose;
+      soundKey = settings.sound;
       const firstTempo = score.measures.find((m) => m.tempo)?.tempo;
       scoreBpm = bpm = firstTempo ?? 100;
       to = score.measures.length - 1;
@@ -379,7 +397,8 @@
   }
 
   const LETTERS = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
-  const letterOf = (midi: number) => LETTERS[((Math.round(midi) % 12) + 12) % 12];
+  /** A sounding pitch named as the music shows it (the written key may differ from the heard one). */
+  $: letterOf = (midi: number) => LETTERS[((Math.round(midi + tr - sr) % 12) + 12) % 12];
 
   function drawTrace(trace: GradeTrace) {
     const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
@@ -495,7 +514,7 @@
   $: practiceParts = score && !asg ? partOrder.filter((x) => partsFor(score!, from, to, false).includes(x.p.id)) : [];
   $: practiceBlocked = !score || asg ? null : practiceParts.length ? null : "No part here is one line to sing: each plays chords or two voices at once.";
   /** Do's and the tonic's pitch class as the music sounds (the key moved by the transposition). */
-  $: doPc = writtenKey ? ((((writtenKey.fifths * 7 + tr) % 12) + 12) % 12) : 0;
+  $: doPc = writtenKey ? ((((writtenKey.fifths * 7 + sr) % 12) + 12) % 12) : 0;
   $: tonicPc = writtenKey?.mode === "minor" ? (doPc + 9) % 12 : doPc;
   const PART_KEY = () => `abc-piece-grade-part-${id}`;
 
@@ -574,7 +593,7 @@
     gradeCursorTo(-1);
     const inTime = $tuner.gradeMode === "performance";
     const order = playedBars(score.measures, from, to);
-    const schedule = scheduleForPiece(music(), myPart, from, to, order);
+    const schedule = scheduleForPiece(heard(), myPart, from, to, order);
     gradeNotes = schedule.notes;
     if (!gradeNotes.length) return;
     if (inTime) {
@@ -643,12 +662,12 @@
    */
   function playOthersUnder(n: GradeNote) {
     if (practiceHearing === "acappella" || !score || !myPart) return;
-    const mine = music().parts.find((p) => p.id === myPart);
+    const mine = heard().parts.find((p) => p.id === myPart);
     const at = mine?.notes[n.cursor]?.start;
     if (at === undefined) return;
     const pc = ((n.midi % 12) + 12) % 12;
     const chord = new Set<number>();
-    music().parts.forEach((p) => {
+    heard().parts.forEach((p) => {
       if (p.id === myPart || levelOf(p.id) === 0) return;
       for (const x of p.notes) {
         if (!x.rest && x.midi !== undefined && x.start <= at && at < x.start + x.length && ((x.midi % 12) + 12) % 12 !== pc) chord.add(x.midi);
@@ -805,7 +824,7 @@
     if (!drawn || !renderedTune || !score) return;
     const els = drawnElements(renderedTune, drawn.staves);
     for (const v of drawn.voices) {
-      const notes = music().parts[v.part].notes;
+      const notes = heard().parts[v.part].notes;
       (els.get(v.id) ?? []).forEach((el, k) => {
         const i = v.elements[k];
         if (i === undefined || i < 0 || notes[i].rest) return;
@@ -935,7 +954,7 @@
 
   // ── Assignment playback: the lead-in to the last graded bar, on the audio clock ──
   function sectionSound(forGrade = false) {
-    const all = abcForPiece(music(), {
+    const all = abcForPiece(heard(), {
       ...abcOptions(score!.parts.map((_, i) => i)),
       from: playFrom,
       to,
@@ -1196,7 +1215,7 @@
     for (const { p, i } of partOrder) {
       if (levelOf(p.id) === 0) continue;
       let first: { start: number; midi?: number } | null = null;
-      for (const n of music().parts[i].notes) {
+      for (const n of heard().parts[i].notes) {
         if (n.rest || n.measure < playFrom || n.measure > to || n.start + n.length <= at) continue;
         if (!first || n.start < first.start) first = n;
       }
@@ -1239,6 +1258,15 @@
     settings = { ...settings, transpose: semis };
     saveSettings();
   }
+  /** The key it is heard in, apart from the one drawn; null sounds as drawn. Nothing is drawn again. */
+  function setSound(semis: number | null) {
+    soundKey = semis;
+    pause();
+    if (!owner) return;
+    settings = { ...settings, sound: semis };
+    saveSettings();
+  }
+  $: soundApart = soundKey !== null && soundKey !== transpose;
 
   function saveSettings() {
     void updatePiece(id, { settings }).then(() => (status = "")).catch((e) => (status = (e as Error).message));
@@ -1488,8 +1516,8 @@
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
           <div class="set-group-pills">
             <button type="button" class="set-pill" aria-expanded={settingPop === "key"} on:click={(e) => togglePop("key", e)}>
-              <span class="set-pill-k">Key</span>{keyShort(transpose)}
-              {#if transpose}<span class="set-pill-dot" title="Moved from the written key"></span>{/if}
+              <span class="set-pill-k">Key</span>{keyShort(transpose)}{#if soundApart}, sounds in {keyShort(soundKey ?? 0)}{/if}
+              {#if transpose || soundApart}<span class="set-pill-dot" title="Moved from the written key"></span>{/if}
               <ChevronDown size={14} class="set-pill-chev" aria-hidden="true" />
             </button>
             <button type="button" class="set-pill" aria-expanded={settingPop === "parts"} on:click={(e) => togglePop("parts", e)}>
@@ -1528,14 +1556,30 @@
         <div in:popIn out:popOut class="set-pop {settingPop === 'parts' ? 'set-pop-wide' : ''}" style="--pop-left: {popLeft}px" role="dialog" aria-label={POP_TITLE[settingPop]}>
           <p class="set-pop-title">{POP_TITLE[settingPop]}</p>
           {#if settingPop === "key"}
-            <div class="flex flex-wrap gap-1.5" role="group" aria-label="Key">
+            <p class="key-row-label" id="key-written">The music</p>
+            <div class="flex flex-wrap gap-1.5" role="group" aria-labelledby="key-written">
               {#each Array.from({ length: MAX_TRANSPOSE * 2 + 1 }, (_, k) => MAX_TRANSPOSE - k) as semis}
                 <button type="button" class="sr-tok text-sm" class:sr-on={transpose === semis} aria-pressed={transpose === semis} on:click={() => setTranspose(semis)}>
                   {keyShort(semis)}<span class="tok-sub">{semis === 0 ? "as written" : `${semis > 0 ? "up" : "down"} ${Math.abs(semis)}`}</span>
                 </button>
               {/each}
             </div>
-            <p class="text-xs text-sr-faint mt-3">The music is drawn and played in the key chosen{owner ? ", and the piece keeps it" : ""}. Assignments are always as written.</p>
+            <p class="key-row-label" id="key-sound">The sound</p>
+            <div class="flex flex-wrap items-center gap-1.5" role="group" aria-labelledby="key-sound">
+              <button type="button" class="sr-tok text-sm" class:sr-on={!soundApart} aria-pressed={!soundApart} on:click={() => setSound(null)}>
+                Same as the music
+              </button>
+              {#if soundApart && soundKey !== null}
+                <span class="key-step">
+                  <button type="button" class="icon-btn" aria-label="Sound a semitone lower" disabled={soundKey <= -MAX_TRANSPOSE} on:click={() => setSound(soundKey === transpose + 1 ? transpose - 1 : (soundKey ?? 0) - 1)}><Minus size={16} aria-hidden="true" /></button>
+                  <span class="key-step-name" aria-live="polite">{keyShort(soundKey)}<span class="tok-sub">{soundKey === 0 ? "as written" : `${soundKey > 0 ? "up" : "down"} ${Math.abs(soundKey)}`}</span></span>
+                  <button type="button" class="icon-btn" aria-label="Sound a semitone higher" disabled={soundKey >= MAX_TRANSPOSE} on:click={() => setSound(soundKey === transpose - 1 ? transpose + 1 : (soundKey ?? 0) + 1)}><Plus size={16} aria-hidden="true" /></button>
+                </span>
+              {:else}
+                <button type="button" class="sr-tok text-sm" on:click={() => setSound(transpose >= MAX_TRANSPOSE ? transpose - 1 : transpose + 1)}>Another key</button>
+              {/if}
+            </div>
+            <p class="text-xs text-sr-faint mt-3">The music is drawn in one key and can be heard in another: read it in the original and sing it lower, say. Grade listens for the key you hear{owner ? ". The piece keeps both" : ""}. Assignments are always as written.</p>
           {:else if settingPop === "parts"}
             <ul class="flex flex-col divide-y divide-sr-hairline">
               {#each partOrder as { p, s } (p.id)}
@@ -2025,6 +2069,15 @@
     font-size: 17px;
     margin-bottom: 0.625rem;
   }
+  .key-row-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sr-faint);
+    margin: 0 0 0.375rem;
+  }
+  .key-row-label + div + .key-row-label { margin-top: 0.875rem; }
+  .key-step { display: inline-flex; align-items: center; gap: 0.25rem; }
+  .key-step-name { min-width: 8.5rem; text-align: center; font-weight: 700; font-size: 14px; }
   .set-pop-foot {
     position: sticky;
     bottom: -1.125rem;

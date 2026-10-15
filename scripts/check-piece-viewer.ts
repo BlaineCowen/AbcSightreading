@@ -221,6 +221,37 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
   console.log(`key signatures per staff after the move: ${sigs.join(" ")}`);
   if (!sigs.length || new Set(sigs).size !== 1) fail(`director: key signatures differ from line to line (${sigs.join(" ")})`);
 
+  // The sound in another key: up 2, with the music still drawn down 2.
+  await pill(page, "Key");
+  await sleep(300);
+  // Another key starts a semitone above the music (down 1), then up three more to up 2.
+  const soundTapped = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('[aria-labelledby="key-sound"] button')].find((x) => /Another key/.test(x.textContent ?? ""));
+    (b as HTMLButtonElement | undefined)?.click();
+    return !!b;
+  });
+  if (!soundTapped) fail("director: no sound key to choose");
+  for (let k = 0; k < 3; k++) {
+    await sleep(250);
+    await page.evaluate(() => (document.querySelector('[aria-label="Sound a semitone higher"]') as HTMLButtonElement | null)?.click());
+  }
+  await sleep(600);
+  const keys = await page.evaluate(() => (window as any).__pieceDebug.keys());
+  console.log(`keys: drawn ${keys.drawn}, heard ${keys.heard}`);
+  if (!keys.heard || keys.heard === keys.drawn) fail(`director: the sound is in the drawn key (${keys.drawn} / ${keys.heard})`);
+  if (!patches.some((x: any) => x.settings?.sound === 2 && x.settings?.transpose === -2)) fail("director: the sound key was not saved");
+  const sigs2: number[] = await page.evaluate(() => [...document.querySelectorAll("#piece-paper .abcjs-key-signature")].map((k) => k.querySelectorAll("path").length));
+  if (sigs2.join() !== sigs.join()) fail(`director: choosing the sound redrew the music (${sigs.join(" ")} -> ${sigs2.join(" ")})`);
+  const pillText = await page.evaluate(() => [...document.querySelectorAll(".set-pill")].find((b) => /Key/.test(b.textContent ?? ""))?.textContent?.replace(/\s+/g, " ").trim() ?? "");
+  if (!/sounds in/.test(pillText)) fail(`director: the Key pill reads "${pillText}"`);
+  await shot(page, "1c-director-sound-key", true);
+  await page.evaluate(() => [...document.querySelectorAll('[aria-labelledby="key-sound"] button')].find((x) => /Same as the music/.test(x.textContent ?? ""))?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await sleep(400);
+  const back = await page.evaluate(() => (window as any).__pieceDebug.keys());
+  if (back.heard !== back.drawn) fail(`director: Same as the music still sounds apart (${back.drawn} / ${back.heard})`);
+  if (!patches.some((x: any) => x.settings?.sound === null)) fail("director: Same as the music was not saved");
+  await clickText(page, "Done");
+
   // Practice mixes, offered to class libraries; and into one.
   await pill(page, "Parts");
   await sleep(300);

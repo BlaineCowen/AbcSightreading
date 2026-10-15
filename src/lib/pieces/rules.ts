@@ -59,15 +59,29 @@ export function partSettingsFor(score: PieceScore, stored: unknown): PartSetting
  */
 export const PIECE_KEY = "$piece";
 export const MAX_TRANSPOSE = 6;
-export type PieceSettings = { transpose: number; practiceMixes: boolean };
-export const DEFAULT_PIECE_SETTINGS: PieceSettings = { transpose: 0, practiceMixes: false };
+/**
+ * `transpose` is the key the music is drawn in; `sound` the key it is heard
+ * in (both semitones from the file's), null to sound as it is drawn (Blaine,
+ * 15 October 2026: transpose the written music and the audio separately).
+ * Settings saved before `sound` existed read as null.
+ */
+export type PieceSettings = { transpose: number; sound: number | null; practiceMixes: boolean };
+export const DEFAULT_PIECE_SETTINGS: PieceSettings = { transpose: 0, sound: null, practiceMixes: false };
+
+const isShift = (v: unknown) => Number.isInteger(v) && Math.abs(v as number) <= MAX_TRANSPOSE;
 
 export function checkPieceSettings(v: unknown): PieceSettings | null {
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
-  if (!Number.isInteger(o.transpose) || Math.abs(o.transpose as number) > MAX_TRANSPOSE) return null;
+  if (!isShift(o.transpose)) return null;
+  if (o.sound !== undefined && o.sound !== null && !isShift(o.sound)) return null;
   if (typeof o.practiceMixes !== "boolean") return null;
-  return { transpose: o.transpose as number, practiceMixes: o.practiceMixes };
+  return { transpose: o.transpose as number, sound: (o.sound as number | null | undefined) ?? null, practiceMixes: o.practiceMixes };
+}
+
+/** Semitones from the file's key the music is heard in. */
+export function soundShift(s: Pick<PieceSettings, "transpose" | "sound">): number {
+  return s.sound ?? s.transpose;
 }
 
 /** The piece's settings from its stored `parts`, the defaults where there are none. */
