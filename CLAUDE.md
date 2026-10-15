@@ -275,6 +275,15 @@ scripts/check-drill-clicks.ts` (`COUNT_IN=off`, `BPM=`) logs every click
 and every pass's music on the audio clock: one click a beat, each pass on a
 click.
 
+Where a drill is shows on the music (`DrillBadge.svelte`, 15 October 2026,
+Blaine: "better indicators ... like the count in"): at the top-right of the
+score as the count-in is at its top-left, in its colours, "Exercise 2 of
+4", "Pass 1 of 3" with a dot a pass, and while a new exercise is read
+("Read it") its seconds on a draining ring. Kept in full screen. Where
+there is no room above the staff (a phone) it stays off the music and the
+playback bar's line says it; the line that sat above the score is gone.
+Never name a class `ring`: it is Tailwind's ring utility (a box-shadow).
+
 ### Curriculum tracks ("courses" on the site)
 
 On the page they are **courses** (My courses, Choose courses, Instrument
