@@ -1737,7 +1737,12 @@ and practice mixes, Bars, and for the owner Class libraries), a toolbar over
 the score (Starting pitches, Listen and grade) and the shared PlaybackBar
 (Count-in and Click in its extra slot). A tapped note is where Play starts
 (marked, named in a chip; tapped while playing, it jumps there), Pause keeps
-the place, and a new tempo carries on from it. Repeats are followed: the
+the place, and a new tempo carries on from it. Where Play starts is a
+line the height of the system (score-dom `cursorLine`, 15 October 2026,
+Blaine: the start was hard to see): at the paused place, the tapped note,
+or the first note of the bars in play, labelled under it; while playing a
+blue line follows the music instead. Loop goes round to the top of the
+bars in play, not to the tapped note (Blaine). Repeats are followed: the
 whole piece's sound plays them (write-abc), so the cursor, a start from a
 note and grading read the sound's time through `src/lib/pieces/timeline.ts`
 (`playedBars`, `Timeline`; tests `pieces-timeline.test.ts`), and

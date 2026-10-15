@@ -61,7 +61,7 @@
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { tuner } from "../../lib/tuner/store";
   import { scheduleForPiece, beatsInBar, beatUnitsOf } from "../../lib/pieces/schedule";
-  import { barBoxes, barFromEvent, barHits, clearBarHits, fadeOutside, noteElements, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
+  import { barBoxes, barFromEvent, barHits, clearBarHits, cursorLine, fadeOutside, noteElements, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
   import { SectionPlayer } from "../../lib/pieces/section-player";
   import { TICKS } from "../../lib/pieces/model";
   import { attemptsLeft, attemptsLine, bestOf, marksOf, type Mark } from "../../lib/pieces/attempts";
@@ -413,8 +413,10 @@
     const heardAt = player.play(() => {
       isPlaying = false;
       stopCursor();
+      markStart();
     }, sectionClicks(true));
     isPlaying = true;
+    markStart();
     if (!(practicing && $tuner.gradeCursor === "off")) followCursor();
     const leadInMs = ((score.measures[from].start - score.measures[leadIn].start) / TICKS) * (60_000 / bpm);
     return heardAt + leadInMs;
@@ -847,15 +849,40 @@
     startAt = at;
     markStart();
   }
-  /** The tapped note shows where playback starts. */
+  const paperSvg = () => document.querySelector("#piece-paper svg") as SVGSVGElement | null;
+
+  /**
+   * Where Play starts, marked on the music: a line the height of the system
+   * at the paused place, the tapped note (its notes orange too), or the first
+   * note of the bars in play. Hidden while playing, when the cursor moves.
+   */
   function markStart() {
     for (const e of startEls) e.classList.remove("piece-start");
     startEls = [];
-    if (!startAt) return;
-    const t = startAt.tick;
-    startEls = items.filter((x) => x.note.start === t && x.note.measure === startAt!.bar && !x.note.rest).flatMap((x) => x.svg);
-    if (!startEls.length) startEls = items.filter((x) => x.note.start === t).flatMap((x) => x.svg);
-    for (const e of startEls) e.classList.add("piece-start");
+    if (!score || !items.length) return;
+    if (isPlaying) {
+      cursorLine(paperSvg(), [], "piece-start-line");
+      return;
+    }
+    let at: Element[] = [];
+    let label = "Start";
+    const pausedTick = pausedMs !== null && timeline ? timeline.tickAt(pausedMs) : null;
+    if (pausedTick !== null) {
+      at = soundingAt(items, pausedTick);
+      label = "Paused";
+    } else if (startAt) {
+      const t = startAt.tick;
+      startEls = items.filter((x) => x.note.start === t && x.note.measure === startAt!.bar && !x.note.rest).flatMap((x) => x.svg);
+      if (!startEls.length) startEls = items.filter((x) => x.note.start === t).flatMap((x) => x.svg);
+      for (const e of startEls) e.classList.add("piece-start");
+      at = startEls;
+    } else {
+      const bar = asg ? leadIn : from;
+      const inBar = items.filter((x) => x.note.measure === bar);
+      const first = Math.min(...inBar.map((x) => x.note.start));
+      at = inBar.filter((x) => x.note.start === first).flatMap((x) => x.svg);
+    }
+    cursorLine(paperSvg(), at, "piece-start-line", label);
   }
   $: barChoices = score ? score.measures.map((m, i) => ({ i, label: m.label })) : [];
 
@@ -898,6 +925,7 @@
   function markBars() {
     if (!score) return;
     fadeOutside(items, from, to, asg ? leadIn : from);
+    markStart();
     if (!shadedOnce && (asg || excerpt)) {
       shadedOnce = true;
       const first = items.find((it) => it.note.measure === playFrom)?.svg[0];
@@ -974,9 +1002,11 @@
     cancelAnimationFrame(cursorFrame);
     const step = () => {
       const t = sectionTick();
+      const was = lit[0];
       for (const e of lit) e.classList.remove("piece-now");
       lit = t === null ? [] : soundingAt(items, t);
       for (const e of lit) e.classList.add("piece-now");
+      if (lit[0] !== was) cursorLine(paperSvg(), lit, "piece-play-line");
       const head = lit[0] as HTMLElement | undefined;
       if (head) {
         const r = head.getBoundingClientRect();
@@ -991,6 +1021,7 @@
     cancelAnimationFrame(cursorFrame);
     for (const e of lit) e.classList.remove("piece-now");
     lit = [];
+    cursorLine(paperSvg(), [], "piece-play-line");
   }
 
   /**
@@ -1011,10 +1042,12 @@
     const heardAt = player.play(() => {
       isPlaying = false;
       stopCursor();
-      // Looping goes back to where it started: the tapped note, or the top.
-      if (looping && !grading && !practicing) void playSection();
+      markStart();
+      // Looping goes back to the top of the bars in play, even from a tapped note.
+      if (looping && !grading && !practicing) void playSection(0);
     }, sectionClicks(countIn), offset);
     isPlaying = true;
+    markStart();
     followCursor();
     return heardAt;
   }
@@ -1048,17 +1081,20 @@
     player.stop();
     stopCursor();
     isPlaying = false;
+    markStart();
   }
   /** The playback bar's Pause: Play carries on from here. */
   function pauseHere() {
     const ms = player.elapsedMs();
     pause();
     pausedMs = ms !== null && ms > 0 ? ms : pausedMs;
+    markStart();
   }
   /** Stop: back to where Play starts (the tapped note, or the top). */
   function stopHere() {
     pause();
     pausedMs = null;
+    markStart();
   }
   /** Back to start: the top, the tapped note let go. */
   function rewind() {
@@ -1070,6 +1106,7 @@
   function pauseAll() {
     pause();
     pausedMs = null;
+    markStart();
   }
 
   // ── Parts ───────────────────────────────────────────────────────────────
@@ -2059,6 +2096,10 @@
 
   /* A tapped note: where Play starts. */
   :global(#piece-paper .piece-start), :global(#piece-paper .piece-start path) { fill: #e07a1f; }
+  /* Where Play starts, and the playing cursor: a line the height of the system. */
+  :global(#piece-paper .piece-start-line rect) { fill: #e07a1f; }
+  :global(#piece-paper .piece-start-line text) { fill: #e07a1f; font: 700 11px Nunito, sans-serif; }
+  :global(#piece-paper .piece-play-line rect) { fill: var(--sr-action); opacity: 0.45; }
   .start-chip {
     display: inline-flex;
     align-items: center;

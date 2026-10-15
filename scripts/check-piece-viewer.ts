@@ -247,7 +247,40 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
   await page.close();
 }
 
-// Tap a note to play from it; Pause carries on; Listen and grade.
+// Where Play starts is a line on the music; playing, a line follows the
+// notes; Loop from a tapped note goes back to the top, not the note.
+{
+  const page = await open("", "director loop");
+  if (!(await page.$("#piece-paper .piece-start-line rect"))) fail("start line: no line where Play starts");
+  const notes = await page.evaluate(() => document.querySelectorAll("#piece-paper .abcjs-note").length);
+  if (!(await tapNote(page, notes - 1))) fail("loop: no note to tap");
+  const chip = await startChip(page);
+  const tappedBar = Number(/bar (\d+)/.exec(chip)?.[1] ?? 0);
+  await page.evaluate(() => {
+    const f = document.querySelector(".playback-bar input[type=number]") as HTMLInputElement;
+    f.value = "200";
+    f.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.evaluate(() => (document.querySelector('[aria-label="Toggle loop"]') as HTMLButtonElement)?.click());
+  await page.evaluate(() => (document.querySelector('[aria-label="Play"]') as HTMLButtonElement)?.click());
+  await page.waitForSelector("#piece-paper .piece-play-line rect", { timeout: 20000 }).catch(() => fail("cursor: no line follows the music"));
+  if (await page.$("#piece-paper .piece-start-line rect")) fail("start line: still shown while playing");
+  // Round again: the tapped bar ends, then the count-in, then the top.
+  let wrapped: { bar: number } | null = null;
+  for (let i = 0; i < 40 && !wrapped; i++) {
+    await sleep(250);
+    const at = await page.evaluate(() => (window as any).__pieceDebug?.position?.() ?? null);
+    if (at && at.bar < tappedBar - 2) wrapped = at;
+  }
+  console.log(`loop: tapped bar ${tappedBar}, came round to bar ${wrapped?.bar}`);
+  if (!wrapped || wrapped.bar > 2) fail(`loop: came round to bar ${wrapped?.bar}, not the top`);
+  await page.evaluate(() => (document.querySelector('[aria-label="Stop"]') as HTMLButtonElement)?.click());
+  await sleep(300);
+  if (!(await page.$("#piece-paper .piece-start-line rect"))) fail("start line: not back after Stop");
+  await shot(page, "5a-start-line", true);
+  await page.close();
+}
+
 {
   const page = await open("", "director playback");
   if (await startChip(page)) fail("playback: a start point before any note was tapped");
