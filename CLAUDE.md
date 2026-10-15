@@ -1739,7 +1739,13 @@ semitones, saved with the piece: `src/lib/pieces/transpose.ts` moves the
 model itself, keys and notes spelled as the new key spells them, and the
 music is drawn and played from that; abcjs's `visualTranspose` drew line 1's
 key and another on every later line; tests `pieces-transpose.test.ts`; an
-assignment is always as written, since it is graded so), Choose bars by tapping the first and last
+assignment is always as written, since it is graded so; the sound can be
+in a key of its own, `PieceSettings.sound`, null to sound as drawn, 15
+October 2026, Blaine: transpose the written music and the audio
+separately: the Key popover's second row, The sound, Same as the music or a
+key stepped up and down; playback, starting pitches, tapped notes and what
+Grade listens for come from `heard()`, the drawing from `music()`, and
+Grade names notes as drawn), Choose bars by tapping the first and last
 bar on the music (`barHits`), and Full screen (fullscreen.ts, as the practice
 pages). Practice mixes: one part loud and the rest at `MIX_SOFT` (rules.ts
 `mixLevel`); "Offer practice mixes in class libraries" lets the students of
