@@ -79,6 +79,7 @@
   import UpgradeNotice from "./UpgradeNotice.svelte";
   import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import CountInBadge from "./CountInBadge.svelte";
+  import DrillBadge from "./DrillBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
@@ -5936,6 +5937,16 @@
     <div class="focus-score relative w-full">
       <!-- "1, 2, Ready, Go" at the top-left of the music, above the first staff. -->
       <CountInBadge />
+      <!-- Where a drill is: exercise, pass, the seconds left to read it. -->
+      <DrillBadge
+        running={drillRunning}
+        index={drillIndex}
+        exercises={runCap ?? drillExercises}
+        pass={drillRepeat}
+        passes={drillRepeats}
+        countdown={drillCountdown}
+        readSeconds={drillPreviewSeconds}
+      />
       <!-- The score's own toolbar: how it is shown (Display), the drill, the
            video, and grading (kept in full screen: a class grades its clapping
            on the TV). Display and Drill open under it (toolPop). -->
@@ -6392,11 +6403,7 @@
           </div>
         {/if}
       </div>
-      {#if drillStatusLine}
-        <p class="focus-hide no-print mt-2 text-sm text-sr-action-fg bg-sr-tint rounded px-3 py-2">
-          {drillStatusLine}
-        </p>
-      {/if}
+      <!-- The drill's place is on the music (DrillBadge) and in the playback bar. -->
       <!-- Before the first exercise, say what to do: the page used to open on an
            empty white card. Outside #paper, which abcjs empties when it draws. -->
       {#if !originalTuneString && !isLoading}
