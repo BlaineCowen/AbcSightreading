@@ -1826,7 +1826,10 @@ bars in play, not to the tapped note (Blaine). A loop's next pass is booked on t
 clock on the beat the last bar ends (`bookLoop`, SectionPlayer `play`'s
 `at`), its count-in or first note landing on the next beat while the pass
 before rings out; it waited for the release to end and came in about 320 ms
-late (16 October 2026). Loop with the whole piece in play asks for the bars
+late (16 October 2026); a repeat does not count in again (the count-in is the
+first pass's), which made every repeat wait a bar. The click has a volume
+slider in the playback bar, the metronome's own setting (`metronomeVolume`),
+live while playing (SectionPlayer `setClickVolume`). Loop with the whole piece in play asks for the bars
 on the music, first then last, and plays them round (`toggleLoop`); a chip
 says what is looping, with Change. The playback bar's Layout menu
 (score-view.ts, kept as "pieces"): size, bars per line, line spacing; a

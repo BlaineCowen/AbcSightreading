@@ -219,6 +219,24 @@ if (process.env.LOOP) {
     await clickText(page, "Cancel");
     await sleep(200);
     if (await page.evaluate(() => !!document.querySelector("[data-loop-chip]") || !!document.querySelector(".choose-hint"))) fail("loop: Cancel left Loop on");
+    // The click's volume: the bar's slider, live.
+    const gains = await page.evaluate(async () => {
+      const d = (window as any).__pieceDebug;
+      const slider = document.querySelector("input[aria-label='Click volume']") as HTMLInputElement | null;
+      if (!slider) return null;
+      d.play();
+      await new Promise((r) => setTimeout(r, 1500));
+      const before = d.clickGain();
+      slider.value = "0.2";
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 200));
+      const after = d.clickGain();
+      d.stop();
+      return { before, after };
+    });
+    if (!gains) fail("click volume: no slider in the playback bar");
+    else if (Math.abs((gains.after ?? -1) - 0.4) > 0.01) fail(`click volume: the slider at 0.2 left the click's gain at ${gains.after} (was ${gains.before})`);
+    else console.log(`  click volume: gain ${gains.before} -> ${gains.after} while playing`);
     await shot(page, "loop-chosen");
     await page.close();
   }
@@ -256,7 +274,8 @@ if (process.env.LOOP) {
     if (passes.length < 3) fail(`count-in ${countIn ? "on" : "off"}: only ${passes.length} passes`);
     for (let i = 1; i < passes.length; i++) {
       const prev = passes[i - 1], cur = passes[i];
-      // The music of the pass before ends here; the next pass's count-in (or music) begins on it.
+      // The music of the pass before ends here; the next pass's music begins on it (no count-in again).
+      if (cur.countInMs) fail(`pass ${i + 1} counted in again (${cur.countInMs} ms)`);
       const end = prev.audio + (prev.totalMs - prev.offsetMs) / 1000;
       const off = (cur.audio - cur.countInMs / 1000 - end) * 1000;
       console.log(`  count-in ${countIn ? "on " : "off"}: pass ${i + 1} begins ${off.toFixed(1)} ms from the beat after the last bar`);

@@ -97,6 +97,24 @@ export class SectionPlayer {
   }
 
   private clicks: OscillatorNode[] = [];
+  /** Every click goes through this, so its volume can change while the music plays. */
+  private clickGain: GainNode | null = null;
+  private clickVolume = 0.5;
+
+  /** The click's volume, 0 to 1 (the metronome's own setting; 0.5 is as it always was). */
+  setClickVolume(v: number) {
+    this.clickVolume = Math.max(0, Math.min(1, v));
+    if (this.clickGain) this.clickGain.gain.value = this.clickVolume * 2;
+  }
+
+  private clickOut(ctx: AudioContext): GainNode {
+    if (!this.clickGain || this.clickGain.context !== ctx) {
+      this.clickGain = ctx.createGain();
+      this.clickGain.gain.value = this.clickVolume * 2;
+      this.clickGain.connect(ctx.destination);
+    }
+    return this.clickGain;
+  }
   /** Passes left to ring out under a loop's next pass (stopped by stop()). */
   private ringing: AudioBufferSourceNode[] = [];
 
@@ -108,7 +126,7 @@ export class SectionPlayer {
     gain.gain.setValueAtTime(0.0001, at);
     gain.gain.exponentialRampToValueAtTime(kind === "down" ? 0.5 : kind === "beat" ? 0.32 : 0.16, at + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(this.clickOut(ctx));
     osc.start(at);
     osc.stop(at + 0.08);
     this.clicks.push(osc);
