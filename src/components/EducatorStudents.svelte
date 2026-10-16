@@ -289,8 +289,8 @@
 
   {#if loaded && seats.total === 0}
     <p class="text-sm text-sr-ink-2 rounded-md border border-sr-hairline bg-sr-raise p-3">
-      The Educator plan is not active, so no one new can join your classes. The students already in them keep their accounts.
-      <a class="underline text-sr-action-fg" href="/account#plan">Renew Educator</a>
+      Students join your classes once the Educator plan is active on this account, with a code or through a school quote. Students already in a class keep their accounts.
+      <a class="underline text-sr-action-fg" href="/account#plan">Get the Educator plan</a>
     </p>
   {/if}
 
