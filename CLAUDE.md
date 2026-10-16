@@ -1973,7 +1973,8 @@ then "unsymmetrical"): one full-width card to pick up the last exercise
 (step 1 for a newcomer) with Unison and Choral as pills inside it; a row of
 equal tiles (My music, My courses, Classes or abcTuner, Can you sing it?; a
 student's are My library, abcTuner and the challenge); the founders offer
-as one slim strip; then the earlier exercises (four, then Show all). The
+as a modal the first time a teacher who may join comes home ("Not now"
+remembered in this browser, `abc-founders-offer-v1`), then a solid peach strip; then the earlier exercises (four, then Show all). The
 navbar's practice pages and abcTuner are one Practice menu on desktop
 (Navbar.svelte), beside My music or My library; the phone menu lists all.
 
