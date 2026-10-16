@@ -1948,6 +1948,12 @@ no-store`): Continue (the last exercise), Unison and Choral, Recent
 exercises, My courses (the subscribed sets and instrument courses, with
 Choose courses; the navbar's Tracks left for here and the footer's Courses), a student's
 assignments, an educator's classes, and Account and settings.
+Laid out for focus (16 October 2026, Blaine: "so messy"): one big card to
+pick up the last exercise (step 1 for a newcomer) with Unison and Choral as
+pills inside it, the earlier exercises under it (four, then Show all), and
+everything else in a narrow side column (under it on a phone): Classes,
+one offer at a time (the founders card while a teacher may join, else Can
+you sing it?), My courses, and links to My music and the account.
 
 Recent exercises are kept on the account (`RecentExercise`, the last
 `MAX_RECENT` = 20; `/api/recent`; rules in `src/lib/recent-exercises.ts`,
