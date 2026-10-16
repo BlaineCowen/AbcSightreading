@@ -27,6 +27,10 @@
   export let assignments: { enrolled: boolean; assignments: any[] } | null = null;
   /** A student's songs: every piece assigned to their classes (server/pieces.ts libraryFor). */
   export let library: { id: string; title: string; composer: string; classes: string[] }[] = [];
+  /** The founding-teacher offer, when this teacher may join (index.astro). */
+  export let founders: { ok: boolean } | null = null;
+  /** Signed in through their district's ClassLink, so Pro is on free this school year. */
+  export let classlink = false;
   /** The server's clock, so the times read the same drawn there and here. */
   export let now = Date.now();
 
@@ -101,6 +105,18 @@
       <span class="text-sm">Two, three and four parts, UIL levels 1 to 5.</span>
     </a>
   </section>
+
+  {#if founders}
+    <!-- The founding-teacher offer (/founders), for a teacher who may join. -->
+    <a class="challenge-card bg-sr-peach text-sr-peach-ink" href="/founders">
+      <span class="flex-1 min-w-0">
+        <span class="block text-xs font-bold uppercase tracking-wide opacity-80">{classlink ? "Pro is on, free this school year through ClassLink" : "Founding teachers"}</span>
+        <span class="block text-lg font-extrabold leading-tight">Put your students on it too</span>
+        <span class="block text-sm">Join as a founding teacher: Educator free through May 31 with 300 student accounts, then half price for as long as you stay.</span>
+      </span>
+      <span class="sr-btn text-sm shrink-0">See the offer</span>
+    </a>
+  {/if}
 
   <!-- The free challenge (/challenge): something to send a choir or a class. -->
   <a class="challenge-card bg-sr-butter text-sr-butter-ink" href="/challenge">

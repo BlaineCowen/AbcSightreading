@@ -13,6 +13,7 @@ import { EDUCATOR_ON_SALE } from "../plan";
 import { PRICES, SEATS_PER_PACK, stripe, stripeWebhookSecret, taxReady } from "./stripe";
 import { becomeEducator } from "./educator";
 import { founderCoupon, isFounder } from "./founders";
+import { grantClasslinkPro } from "./classlink";
 import { recordAffiliateSale, referralFor } from "./codes";
 import { checkoutDiscount } from "../referral";
 import { enabled as freeMonthOn } from "./free-month";
@@ -359,14 +360,17 @@ export const classlinkEnabled = classlink.length > 0;
  * A teacher who arrives through ClassLink is a teacher's account from the
  * start (Blaine, 16 October 2026: the same as anyone else, no plan given), so
  * they cannot join a class as a student by mistake and are offered the
- * Educator plan the usual way, a code or a school quote. Seats still come
+ * Educator plan the usual way, a code or a school quote, with Pro free this
+ * school year (server/classlink.ts; Blaine, 16 October 2026). Seats still come
  * only from the plan. A student (ClassLink's role, through the placeholder
  * email) never becomes one: becomeEducator refuses.
  */
 async function classlinkTeacher(account: { userId: string; providerId: string }) {
   if (account.providerId !== "classlink") return;
   const user = await prisma.user.findUnique({ where: { id: account.userId }, select: { accountType: true } });
-  if (user?.accountType === "standard") await becomeEducator(account.userId);
+  if (user?.accountType !== "standard") return;
+  await becomeEducator(account.userId);
+  await grantClasslinkPro(account.userId);
 }
 
 async function stripStudentTokens(account: { id: string; userId: string; providerId: string; accessToken?: string | null; refreshToken?: string | null; idToken?: string | null }) {
