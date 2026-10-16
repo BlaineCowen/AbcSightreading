@@ -273,6 +273,8 @@
         /** Each pass's music start on the audio clock, and how long its music is. */
         passes: () => passLog,
         play: () => play(),
+        /** The click's gain as it plays (the slider moves it live). */
+        clickGain: () => (player as unknown as { clickGain: GainNode | null }).clickGain?.gain.value ?? null,
         stop: () => stopHere(),
         /** The key lines of the music as drawn and as heard. */
         keys: () => {
@@ -1196,6 +1198,8 @@
    * Plays the section from `offsetMs` into it (null: where Play starts);
    * returns when the music is heard (performance.now ms).
    */
+  $: player.setClickVolume($tuner.metronomeVolume);
+
   /** Dev only: each pass's start on the audio clock (check-piece-viewer.ts LOOP=1). */
   let passLog: { audio: number; offsetMs: number; totalMs: number; countInMs: number }[] = [];
 
@@ -1207,8 +1211,8 @@
 
   /**
    * Books the loop's next pass on the beat the last bar ends (`endAudio` on the
-   * audio clock): its count-in, or its first note with the count-in off,
-   * lands on the next beat, and this pass rings out under it.
+   * audio clock): its first note lands on the next beat, with no count-in
+   * again, and this pass rings out under it.
    */
   function bookLoop() {
     clearTimeout(loopTimer);
@@ -1218,7 +1222,9 @@
     const endAudio = s.audio + (timeline.totalMs - s.offsetMs) / 1000;
     const wait = (endAudio - player.context().currentTime) * 1000 - LOOP_LEAD_MS;
     loopTimer = setTimeout(() => {
-      if (pass === passId && looping && isPlaying && !grading && !practicing) void playSection(0, true, endAudio);
+      // Straight back to the top: the count-in is for the first pass only (it
+      // made every repeat wait a bar, which sounded like a delay).
+      if (pass === passId && looping && isPlaying && !grading && !practicing) void playSection(0, false, endAudio);
     }, Math.max(0, wait));
   }
 
@@ -1951,6 +1957,10 @@
         {/if}
         <button type="button" class="fs-keep flex-shrink-0 rounded-full px-3 h-11 xl:h-8 text-sm font-bold {clickOn ? 'opacity-100' : 'opacity-50'}"
           aria-pressed={clickOn} title={clickOn ? "Click on: turn it off" : "Click off: turn it on"} on:click={toggleClick}>Click</button>
+        <!-- The click's volume: the metronome's own setting, shared with the practice pages; live while playing. -->
+        <input type="range" min="0" max="1" step="0.05" value={$tuner.metronomeVolume}
+          on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
+          class="fs-keep w-16 h-10 xl:h-auto accent-sr-bar-on" aria-label="Click volume" title="Click volume (the count-in too)" />
       </svelte:fragment>
     </PlaybackBar>
 
