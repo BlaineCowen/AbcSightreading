@@ -1,5 +1,6 @@
 ---
 import { enabled as freeMonthOn } from "../lib/server/free-month";
+import { open as foundersOpen } from "../lib/server/founders";
 import Layout from "../layouts/Layout.astro";
 import { EDUCATOR_ON_SALE, GENERATION_LIMITS } from "../lib/plan";
 import { PLAN_OFFERS } from "../lib/seo";
@@ -64,7 +65,8 @@ const plans = [
       "Assignments, and the practice time each student actually spent",
       "More seats: 25 for $25 a year",
     ],
-    cta: EDUCATOR_ON_SALE ? { href: "/account#plan", label: "Get Educator" } : null,
+    // Before Educator is on sale, founding teachers get it free (/founders).
+    cta: EDUCATOR_ON_SALE ? { href: "/account#plan", label: "Get Educator" } : foundersOpen() ? { href: "/founders", label: "Free this year for founding teachers" } : null,
     soon: !EDUCATOR_ON_SALE,
     featured: EDUCATOR_ON_SALE,
   },

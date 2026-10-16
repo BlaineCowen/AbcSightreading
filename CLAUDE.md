@@ -1618,6 +1618,23 @@ presets once; the server dedupes by name + creation time.
   practice pages for signed-in accounts that can claim it, and a badge on
   /pricing's Pro card. `FREE_MONTH_UNTIL` (an ISO date) ends the offer by
   itself after that day, and the note then says "until <date>".
+- **Founding teachers** (16 October 2026; rules `src/lib/founders.ts`,
+  tests `founders.test.ts`; server `src/lib/server/founders.ts`,
+  `/api/founders`, the page `/founders` with `FoundersJoin.svelte`; the
+  pricing page's Educator card links it while Educator is not on sale).
+  A teacher's account with a confirmed, non-throwaway email joins once
+  before the offer closes (`FOUNDERS_CLOSE`, default 31 January 2027;
+  `FOUNDERS_ENABLED=0` switches it off) and gets Educator free through
+  31 May 2027 with 300 seats: an AccessGrant under the access code
+  `FOUNDINGTEACHERS` (maxUses 0, so typing it gives nothing; the grant is
+  what marks a founder) and a SeatGrant of 200 beside the plan's 100, both
+  ending with it. After that, Educator bought with a card on that account
+  carries the Stripe coupon `founding_teacher_50` (50% off, forever; made
+  on first use) through `getCheckoutSessionParams` in auth.ts, in place of
+  the usual code box. Not yet applied to a Pro to Educator upgrade of an
+  existing subscription, nor to school quotes. Checked end to end on a
+  local server with a throwaway account (16 October 2026); the coupon is
+  untested until Educator goes on sale.
 - Assignments and practice time (rules `src/lib/practice.ts`, tests
   `practice.test.ts`; server `src/lib/server/practice.ts`): a teacher assigns a
   class one preset (step, UIL level or saved - a saved one is copied in) for N

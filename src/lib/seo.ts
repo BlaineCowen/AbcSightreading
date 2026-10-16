@@ -14,6 +14,7 @@ export const PUBLIC_PAGES = [
   "/how-to-use",
   "/uil-sight-reading",
   "/pricing",
+  "/founders",
   "/why-abc-sight-reading",
   "/tuner",
   "/challenge",
