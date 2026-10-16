@@ -1474,7 +1474,15 @@ empty; 13 October 2026, Blaine: adding students without Google Classroom was
 not clear) offers three ways: They join with a code (the address and code in
 steps, Copy the join link, Show on the board: the code full screen for a
 projector), I make their logins (paste names or a CSV, print the cards, which
-sit on the class), and Google Classroom where it is set up. A class with no
+sit on the class), and Google Classroom where it is set up. **Print login cards**
+(16 October 2026, Blaine: by class or all together, easily): on each class
+with logins the teacher made, and "for all classes" at the top. Passwords
+are stored one way, so printing makes new ones (`POST
+/api/classes/<id>/cards`; the teacher is told first, and students who made
+their own login are left out); eight cards to a letter page with the steps
+to sign in, each class from a new page. The cards print from the end of
+<body> (`toBody`): inside the Classes tab they printed blank, since
+globals.css hides every `.tab-panel` in print. A class with no
 code says how to get one. `bun run scripts/demo-classes.ts` lists, creates or
 removes "Demo: ..." classes with roster-made students on a teacher's account.
 

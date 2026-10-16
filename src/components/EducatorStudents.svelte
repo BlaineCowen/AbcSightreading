@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { Copy, KeyRound, UserMinus, Printer, Upload, Monitor, X } from "lucide-svelte";
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
@@ -62,6 +62,8 @@
   let rosterText = "";
   let busy = false;
   let cards: Card[] = [];
+  /** Where the cards came from: new students just added (the class shows its own Print), or printing (the top bar has it). */
+  let cardsFrom: "added" | "printed" = "added";
 
   $: parsed = parseRoster(rosterText);
   const origin = typeof location !== "undefined" ? location.origin : "";
@@ -228,6 +230,7 @@
       problem = data.error ?? "Could not add those students.";
       return;
     }
+    cardsFrom = "added";
     cards = data.created.map((c: { name: string; username: string; password: string }) => ({ ...c, className: cls.name, joinCode: data.joinCode }));
     notice = `Added ${data.created.length} student${data.created.length === 1 ? "" : "s"} to ${cls.name}. Print their login cards now: the passwords are not shown again.`;
     rosterText = "";
@@ -247,6 +250,7 @@
       problem = data.error ?? "Could not reset the password.";
       return;
     }
+    cardsFrom = "added";
     cards = [{ name: s.name, username: data.username, password: data.password, className: cls.name, joinCode: cls.joinCode ?? "" }];
     notice = `New password for ${s.name}: ${data.password}`;
   }
@@ -259,6 +263,67 @@
     const res = await fetch(`/api/classes/${cls.id}/students/${s.id}`, { method: "DELETE" });
     if (!res.ok) problem = (await res.json().catch(() => ({}))).error ?? "Could not remove them.";
     await load();
+  }
+
+  /** Students with a login the teacher made: the ones a card can be printed for. */
+  const madeLogins = (cls: Cls) => cls.students.filter((s) => s.managed && s.username).length;
+  $: printable = classes.filter((c) => madeLogins(c) > 0);
+  let printing = false;
+
+  /**
+   * Login cards for one class or every class (Blaine, 16 October 2026).
+   * Passwords are stored one way, so printing makes new ones; the teacher is
+   * told first. Each class starts on a new page.
+   */
+  async function printCards(list: Cls[]) {
+    const n = list.reduce((sum, c) => sum + madeLogins(c), 0);
+    if (!n) return;
+    const where = list.length === 1 ? list[0].name : `${list.length} classes`;
+    if (!confirm(`Print login cards for ${n} student${n === 1 ? "" : "s"} in ${where}?\n\nEach gets a new password on the card, and their old one stops working. Students who made their own login with the code are not included.`)) return;
+    printing = true;
+    problem = notice = "";
+    const made: Card[] = [];
+    try {
+      for (const cls of list) {
+        const res = await fetch(`/api/classes/${cls.id}/cards`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? `Could not make the cards for ${cls.name}.`);
+        for (const c of data.cards) made.push({ ...c, className: data.className, joinCode: data.joinCode });
+      }
+    } catch (e) {
+      problem = (e as Error).message;
+    }
+    printing = false;
+    if (!made.length) return;
+    cards = made;
+    cardsFrom = "printed";
+    notice = `${made.length} login card${made.length === 1 ? "" : "s"} ready. If the print window closed too soon, use Print again: the old passwords no longer work.`;
+    await tick();
+    window.print();
+  }
+
+  /** The cards by class, for a page break between classes. */
+  $: cardGroups = cards.reduce<{ className: string; cards: Card[] }[]>((groups, c) => {
+    const last = groups[groups.length - 1];
+    if (last && last.className === c.className) last.cards.push(c);
+    else groups.push({ className: c.className, cards: [c] });
+    return groups;
+  }, []);
+
+  /**
+   * The cards print from the end of <body>: inside the Classes tab they never
+   * printed, since globals.css hides every .tab-panel in print (a blank page
+   * from 11 October, when /account got its tabs, to 16 October 2026).
+   */
+  function toBody(node: HTMLElement) {
+    document.body.appendChild(node);
+    document.body.classList.add("printing-cards");
+    return {
+      destroy: () => {
+        node.remove();
+        document.body.classList.remove("printing-cards");
+      },
+    };
   }
 
   const copy = (text: string) => navigator.clipboard?.writeText(text).then(() => (notice = "Copied."));
@@ -298,7 +363,14 @@
     {#if creating}
       <AssignmentWizard classes={classes.map((c) => ({ id: c.id, name: c.name }))} {resume} saved={savedPresets} onDone={() => (resume = null)} onCancel={() => ((creating = false), (resume = null))} />
     {:else}
-      <button class="sr-btn self-start text-sm" on:click={() => (creating = true)}>Create assignment</button>
+      <div class="flex flex-wrap gap-2">
+        <button class="sr-btn text-sm" on:click={() => (creating = true)}>Create assignment</button>
+        {#if printable.length > 1}
+          <button class="sr-btn-quiet text-sm flex items-center gap-1" disabled={printing} on:click={() => printCards(printable)}>
+            <Printer size={14} /> {printing ? "Making the cards…" : "Print login cards for all classes"}
+          </button>
+        {/if}
+      </div>
     {/if}
   {/if}
 
@@ -385,7 +457,7 @@
           </div>
         {/if}
 
-        {#if cards.some((c) => c.className === cls.name)}
+        {#if cardsFrom === "added" && cards.some((c) => c.className === cls.name)}
           <div class="flex flex-wrap items-center gap-2 rounded-md bg-sr-tint p-3">
             <span class="text-sm text-sr-ink">The new logins are ready. Print the cards now: the passwords are not shown again.</span>
             <button class="sr-btn text-sm flex items-center gap-1" on:click={() => window.print()}><Printer size={14} /> Print login cards</button>
@@ -461,6 +533,9 @@
         {:else}
           <div class="flex flex-wrap items-center gap-2">
             <button class="sr-btn-quiet text-sm" on:click={() => openAdd(cls)}>Add students</button>
+            {#if madeLogins(cls)}
+              <button class="sr-btn-quiet text-sm flex items-center gap-1" disabled={printing} on:click={() => printCards([cls])}><Printer size={14} /> Print login cards</button>
+            {/if}
             {#if cls.joinCode}<button class="sr-btn-quiet text-sm flex items-center gap-1" on:click={() => (boardFor = cls)}><Monitor size={14} /> Show join code</button>{/if}
             {#if googleEnabled && cls.classroom}
               <button class="sr-btn-quiet text-sm" disabled={classroomState === "syncing"} on:click={() => syncClassroom(cls)}>Sync with Google Classroom</button>
@@ -486,19 +561,26 @@
   </div>
 {/if}
 
-<!-- Login cards: only these print. -->
+<!-- Login cards: only these print, eight to a letter page, each class from a new page. -->
 {#if cards.length}
-  <div class="login-cards hidden print:grid">
-    {#each cards as c}
-      <div class="card">
-        <div class="class">{c.className}</div>
-        <div class="name">{c.name}</div>
-        <dl>
-          <dt>Website</dt><dd>{origin.replace(/^https?:\/\//, "")}/login?mode=student</dd>
-          <dt>Class code</dt><dd class="mono">{c.joinCode}</dd>
-          <dt>Username</dt><dd class="mono">{c.username}</dd>
-          <dt>Password</dt><dd class="mono">{c.password}</dd>
-        </dl>
+  <div class="login-cards hidden print:block" use:toBody>
+    {#each cardGroups as g, gi}
+      <div class="card-page" class:new-page={gi > 0}>
+        {#each g.cards as c}
+          <div class="card">
+            <div class="card-head"><span class="brand">abcSightReading</span><span class="class">{c.className}</span></div>
+            <div class="name">{c.name}</div>
+            <ol class="how">
+              <li>Go to <b>{site()}/login</b></li>
+              <li>Tap <b>Student</b>, then type:</li>
+            </ol>
+            <dl>
+              <dt>Class code</dt><dd class="mono">{c.joinCode}</dd>
+              <dt>Username</dt><dd class="mono">{c.username}</dd>
+              <dt>Password</dt><dd class="mono">{c.password}</dd>
+            </dl>
+          </div>
+        {/each}
       </div>
     {/each}
   </div>
@@ -542,19 +624,22 @@
   .board-code { font-family: ui-monospace, monospace; font-size: clamp(3rem, 12vw, 11rem); font-weight: 800; letter-spacing: 0.08em; color: var(--sr-action-fg); }
   .board-hint { margin-top: 2rem; font-size: 0.9rem; color: var(--sr-faint); }
   @media print {
-    :global(body *) { visibility: hidden; }
-    .login-cards, .login-cards * { visibility: visible; }
+    /* Only the cards: everything else on the page is left out. */
+    :global(body.printing-cards > *:not(.login-cards)) { display: none !important; }
     .login-cards {
-      position: absolute; left: 0; top: 0; width: 100%;
-      grid-template-columns: repeat(2, 1fr); gap: 0.25in; padding: 0.25in;
+      width: 100%;
       color: #000; background: #fff; font-family: system-ui, sans-serif;
     }
-    .card { border: 1px dashed #999; border-radius: 8px; padding: 0.2in; break-inside: avoid; }
-    .class { font-size: 10pt; color: #555; }
-    .name { font-size: 14pt; font-weight: 700; margin: 2pt 0 6pt; }
-    dl { display: grid; grid-template-columns: auto 1fr; gap: 2pt 8pt; margin: 0; font-size: 11pt; }
+    .card-page { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; padding: 0.3in; }
+    .card-page.new-page { break-before: page; }
+    .card { height: 2.45in; box-sizing: border-box; border: 1px dashed #aaa; padding: 0.18in 0.22in; break-inside: avoid; display: flex; flex-direction: column; gap: 4pt; }
+    .card-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 9pt; color: #555; }
+    .brand { font-weight: 800; color: #2f6fe0; }
+    .name { font-size: 15pt; font-weight: 800; }
+    .how { margin: 0; padding-left: 14pt; font-size: 9.5pt; color: #333; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: 2pt 10pt; margin: 2pt 0 0; font-size: 10pt; }
     dt { color: #555; }
     dd { margin: 0; }
-    .mono { font-family: ui-monospace, monospace; font-size: 12pt; }
+    .mono { font-family: ui-monospace, monospace; font-size: 12.5pt; font-weight: 700; }
   }
 </style>
