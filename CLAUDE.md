@@ -1811,7 +1811,10 @@ all of it on the dev server through `/dev/piece` (dev only, 404 elsewhere),
 which draws PieceViewer while the script answers its API with a piece read
 from MusicXML (by default a three-part round in the shape of Ghost of John).
 
-**Laid out as the practice pages** (14 October 2026, Blaine): the owner's
+**Laid out as the practice pages** (14 October 2026, Blaine; matched again 16
+October: the practice pages' width, the title centred, Assign to a class
+ending the settings row as New exercise does, Listen and grade in peach,
+the playback bar's metronome icon, volume and Click pill): the owner's
 and a library song's view have the settings pills (Key, Parts with the mixer
 and practice mixes, Bars, and for the owner Class libraries), a toolbar over
 the score (Starting pitches, Listen and grade) and the shared PlaybackBar
