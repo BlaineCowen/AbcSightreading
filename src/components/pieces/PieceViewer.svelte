@@ -31,6 +31,7 @@
   import { cubicOut } from "svelte/easing";
   import ChevronDown from "lucide-svelte/icons/chevron-down";
   import X from "lucide-svelte/icons/x";
+  import Repeat from "lucide-svelte/icons/repeat";
   import Volume2 from "lucide-svelte/icons/volume-2";
   import VolumeX from "lucide-svelte/icons/volume-x";
   import Eye from "lucide-svelte/icons/eye";
@@ -1341,17 +1342,42 @@
   }
 
   // ── Choosing bars by tapping the music ───────────────────────────────────
-  function startChoosing() {
+  /** Choosing the bars to loop (Loop pressed): once chosen, it plays them round. */
+  let choosingLoop = false;
+  function startChoosing(forLoop = false) {
     pause();
     const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
     barHits(svg, barBoxes(svg, items));
     choosing = true;
+    choosingLoop = forLoop;
     anchor = null;
   }
   function stopChoosing() {
     clearBarHits(document.querySelector("#piece-paper svg"));
     choosing = false;
+    choosingLoop = false;
     anchor = null;
+  }
+
+  /**
+   * Loop (Blaine, 16 October 2026: "click a loop button and select start and
+   * end easily"): on with the whole piece in play, it asks for the bars on
+   * the music, first then last, and plays them round; on with bars already
+   * chosen, it loops those. A teacher's assignment loops its own bars.
+   */
+  function toggleLoop() {
+    looping = !looping;
+    if (looping && !excerpt && !asg && !practicing && !grading) startChoosing(true);
+    else if (!looping && choosingLoop) stopChoosing();
+  }
+  function loopWholePiece() {
+    stopChoosing();
+    wholePiece();
+    void play();
+  }
+  function cancelChoosing() {
+    if (choosingLoop) looping = false;
+    stopChoosing();
   }
   function onScoreClick(e: MouseEvent) {
     if (!choosing) return;
@@ -1361,8 +1387,13 @@
       anchor = bar;
       setRange(bar, bar);
     } else {
+      const loopIt = choosingLoop;
       setRange(anchor, bar);
       stopChoosing();
+      if (loopIt) {
+        setStart(null);
+        void play();
+      }
     }
   }
 
@@ -1825,8 +1856,17 @@
     <!-- The score's toolbar, as the practice pages': where Play starts, Starting pitches, Listen and grade. -->
     <div class="score-tools no-print focus-hide">
       {#if choosing}
-        <span class="choose-hint mr-auto" role="status">{anchor === null ? "Tap the first bar in the music" : "Now tap the last bar"}</span>
-        <button type="button" class="sr-tok text-xs" on:click={stopChoosing}>Cancel</button>
+        <span class="choose-hint mr-auto" role="status">
+          {anchor === null ? (choosingLoop ? "Loop: tap the first bar in the music" : "Tap the first bar in the music") : "Now tap the last bar (the same one again for one bar)"}
+        </span>
+        {#if choosingLoop}<button type="button" class="sr-tok text-xs" on:click={loopWholePiece}>Loop the whole piece</button>{/if}
+        <button type="button" class="sr-tok text-xs" on:click={cancelChoosing}>Cancel</button>
+      {:else if looping && !asg}
+        <span class="start-chip mr-auto" data-loop-chip>
+          <Repeat size={14} aria-hidden="true" />
+          {excerpt ? `Looping bars ${score.measures[from].label} to ${score.measures[to].label}` : "Looping the whole piece"}
+          <button type="button" class="chip-link" on:click={() => startChoosing(true)}>Change</button>
+        </span>
       {:else if startAt}
         <span class="start-chip mr-auto">
           Plays from bar {score.measures[startAt.bar].label}{beatLabel(startAt)}
@@ -1877,7 +1917,7 @@
       onRestart={rewind}
       onBpmChange={(b) => (bpm = b)}
       onBpmCommit={(b) => void setTempo(b)}
-      onToggleLoop={() => (looping = !looping)}
+      onToggleLoop={toggleLoop}
       settingsLink={() => location.href}
       onPrint={() => window.print()}
     >
@@ -2341,6 +2381,7 @@
     border-radius: 999px;
   }
   .start-chip button:hover { background: rgb(0 0 0 / 0.08); }
+  .start-chip button.chip-link { width: auto; padding: 0 0.6rem; text-decoration: underline; text-underline-offset: 2px; }
   .tok-sub { margin-left: 0.35rem; font-size: 11px; font-weight: 600; opacity: 0.65; }
   .hear {
     display: flex;

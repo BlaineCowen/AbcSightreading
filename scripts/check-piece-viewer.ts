@@ -177,6 +177,33 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
 // Loop: the next pass is booked on the beat the last bar ends (bookLoop). It
 // used to wait for the sound's release to end and start "a moment from now".
 if (process.env.LOOP) {
+  // Loop with the whole piece in play asks for the bars on the music, then plays them round.
+  {
+    const page = await open("", "loop: choose bars");
+    await page.evaluate(() => (document.querySelector("button[title='Loop']") as HTMLButtonElement)?.click());
+    await sleep(300);
+    const hint = await page.evaluate(() => document.querySelector(".choose-hint")?.textContent?.trim() ?? "");
+    if (!/Loop: tap the first bar/.test(hint)) fail(`loop: pressing Loop did not ask for bars ("${hint}")`);
+    await page.evaluate(() => {
+      for (const bar of [2, 5]) document.querySelector(`#piece-paper [data-bar="${bar}"]`)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await page.waitForFunction(() => (window as any).__pieceDebug.passes().length >= 1, { timeout: 20000 }).catch(() => {});
+    // Past the count-in.
+    await page.waitForFunction(() => (window as any).__pieceDebug.position() !== null, { timeout: 15000 }).catch(() => {});
+    const chip = await page.evaluate(() => document.querySelector("[data-loop-chip]")?.textContent?.replace(/\s+/g, " ").trim() ?? "");
+    if (!/Looping bars 3 to 6/.test(chip)) fail(`loop: after tapping bars 3 and 6 the chip says "${chip}"`);
+    const pos = await page.evaluate(() => (window as any).__pieceDebug.position());
+    if (!pos || pos.bar < 3 || pos.bar > 6) fail(`loop: not playing inside bars 3 to 6 (${JSON.stringify(pos)})`);
+    else console.log(`  loop: Loop asked for bars, looping bars 3 to 6, playing bar ${pos.bar}`);
+    // Cancel while choosing again turns Loop off.
+    await page.evaluate(() => [...document.querySelectorAll("[data-loop-chip] button")].find((b) => b.textContent?.trim() === "Change")?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await sleep(200);
+    await clickText(page, "Cancel");
+    await sleep(200);
+    if (await page.evaluate(() => !!document.querySelector("[data-loop-chip]") || !!document.querySelector(".choose-hint"))) fail("loop: Cancel left Loop on");
+    await shot(page, "loop-chosen");
+    await page.close();
+  }
   for (const countIn of [false, true]) {
     const page = await open("", `loop, count-in ${countIn ? "on" : "off"}`);
     await page.evaluate((c: boolean) => {
