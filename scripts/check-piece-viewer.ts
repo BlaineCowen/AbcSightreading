@@ -195,6 +195,24 @@ if (process.env.LOOP) {
     const pos = await page.evaluate(() => (window as any).__pieceDebug.position());
     if (!pos || pos.bar < 3 || pos.bar > 6) fail(`loop: not playing inside bars 3 to 6 (${JSON.stringify(pos)})`);
     else console.log(`  loop: Loop asked for bars, looping bars 3 to 6, playing bar ${pos.bar}`);
+    // Layout shifts (Blaine: may they throw the cursor off?): while playing, the
+    // window narrows and a chip comes and goes above the score; the playing
+    // line must stay on the note it marks, on screen.
+    const gap = async () =>
+      page.evaluate(() => {
+        const line = document.querySelector("#piece-paper .piece-play-line rect")?.getBoundingClientRect();
+        const note = document.querySelector("#piece-paper .piece-now")?.getBoundingClientRect();
+        return line && note ? Math.round(note.left - line.right) : null;
+      });
+    const before = await gap();
+    await page.setViewport({ width: 900, height: 900 });
+    await page.evaluate(() => document.querySelector(".score-tools")?.insertAdjacentHTML("beforebegin", '<div id="shift" style="height:120px"></div>'));
+    await sleep(700);
+    const after = await gap();
+    await page.evaluate(() => document.getElementById("shift")?.remove());
+    await page.setViewport({ width: 1280, height: 900 });
+    console.log(`  layout shift: line to note ${before}px before, ${after}px after narrowing and pushing the score down`);
+    if (before === null || after === null || Math.abs(after) > 12) fail(`layout shift: the playing line is ${after}px from its note`);
     // Cancel while choosing again turns Loop off.
     await page.evaluate(() => [...document.querySelectorAll("[data-loop-chip] button")].find((b) => b.textContent?.trim() === "Change")?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await sleep(200);
