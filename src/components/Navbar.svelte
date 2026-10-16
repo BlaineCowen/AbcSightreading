@@ -4,6 +4,7 @@
   import { Sun, Moon, CircleUser } from "lucide-svelte";
   import { nextNavState, type NavScroll } from "../lib/nav-reveal";
   import { signedInUser } from "../lib/auth-client";
+  import ChevronDown from "lucide-svelte/icons/chevron-down";
   import CircleQuestionMark from "lucide-svelte/icons/circle-question-mark";
   import { startTour, tourPageFor } from "../lib/tour";
   let isNavbarOpen = false;
@@ -16,17 +17,34 @@
    * Reading" - and the full ones in the phone menu, where there is room.
    */
   const pages = [
-    { href: "/sightreading", short: "Unison", full: "Unison Sight Reading" },
-    { href: "/choral-sightreading", short: "Choral", full: "Choral Sight Reading" },
-    { href: "/piano-sightreading", short: "Piano", full: "Piano Sight Reading" },
-    { href: "/ensemble-sightreading", short: "Ensemble", full: "Ensemble Sight Reading" },
-    { href: "/tuner", short: "abcTuner", full: "abcTuner" },
+    { href: "/sightreading", short: "Unison", full: "Unison Sight Reading", line: "One line, or rhythm alone" },
+    { href: "/choral-sightreading", short: "Choral", full: "Choral Sight Reading", line: "Two to four parts, UIL levels" },
+    { href: "/piano-sightreading", short: "Piano", full: "Piano Sight Reading", line: "A tune over an accompaniment" },
+    { href: "/ensemble-sightreading", short: "Ensemble", full: "Ensemble Sight Reading", line: "Band, strings and voices together" },
+    { href: "/tuner", short: "abcTuner", full: "abcTuner", line: "Tuner, metronome, drone and more" },
   ];
   // client:only, so the path is there from the first render.
   const here =
     typeof window === "undefined" ? "" : window.location.pathname.replace(/\/+$/, "") || "/";
   /** A practice page has a walkthrough (tour.ts): Take the tour, here too. */
   const tourHere = tourPageFor(here) !== null;
+  /**
+   * On the desktop bar they are one Practice menu (Blaine, 16 October 2026:
+   * the bar was getting cluttered); the phone menu lists them all.
+   */
+  const isHere = (href: string) => here === href || here.startsWith(href + "/");
+  const practiceHere = pages.some((p) => isHere(p.href));
+  let practiceOpen = false;
+  let practiceMenu: HTMLElement;
+  const closeOnOutside = (e: PointerEvent) => {
+    if (practiceOpen && practiceMenu && !practiceMenu.contains(e.target as Node)) practiceOpen = false;
+  };
+  const closeOnEsc = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && practiceOpen) {
+      practiceOpen = false;
+      practiceMenu?.querySelector("button")?.focus();
+    }
+  };
 
   /**
    * Light/dark toggle. Only pages that opt in to the dark theme (`themable` on
@@ -61,14 +79,12 @@
   let account: { email: string; accountType: "standard" | "educator" | "student" } | null | undefined = undefined;
   signedInUser().then((u) => (account = u));
   /** Signed in, their own music too: My music (a student's songs are My library). */
-  $: links = account
-    ? [
-        ...pages,
-        account.accountType === "student"
-          ? { href: "/library", short: "My library", full: "My library" }
-          : { href: "/pieces", short: "My music", full: "My music" },
-      ]
-    : pages;
+  $: mine = !account
+    ? null
+    : account.accountType === "student"
+      ? { href: "/library", short: "My library", full: "My library", line: "" }
+      : { href: "/pieces", short: "My music", full: "My music", line: "" };
+  $: links = mine ? [...pages, mine] : pages;
   $: nextHere = encodeURIComponent(here || "/");
 
   let navbar: HTMLElement;
@@ -95,7 +111,11 @@
     darkQuery.addEventListener("change", syncWithOs);
     navScroll = { anchorY: Math.max(window.scrollY, 0), visible: true };
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("pointerdown", closeOnOutside);
+    window.addEventListener("keydown", closeOnEsc);
     return () => {
+      window.removeEventListener("pointerdown", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEsc);
       window.removeEventListener("scroll", handleScroll);
       darkQuery?.removeEventListener("change", syncWithOs);
     };
@@ -175,15 +195,37 @@
 
       <!-- Desktop menu -->
       <div class="hidden md:flex items-center gap-1.5">
-        {#each links as page}
-          <a
-            href={page.href}
-            class="sr-navlink text-[15px]"
-            aria-current={(here === page.href || here.startsWith(page.href + "/")) ? "page" : undefined}
+        <div class="relative" bind:this={practiceMenu}>
+          <button
+            class="sr-navlink text-[15px] inline-flex items-center gap-1"
+            aria-current={practiceHere ? "page" : undefined}
+            aria-expanded={practiceOpen}
+            aria-haspopup="true"
+            on:click={() => (practiceOpen = !practiceOpen)}
           >
-            {page.short}
-          </a>
-        {/each}
+            Practice <ChevronDown size={16} class="transition-transform {practiceOpen ? 'rotate-180' : ''}" />
+          </button>
+          {#if practiceOpen}
+            <div class="practice-menu" role="menu">
+              {#each pages as page, i}
+                {#if i === pages.length - 1}<div class="practice-rule" aria-hidden="true"></div>{/if}
+                <a
+                  href={page.href}
+                  role="menuitem"
+                  class="practice-item {isHere(page.href) ? 'is-here' : ''}"
+                  aria-current={isHere(page.href) ? "page" : undefined}
+                  on:click={() => (practiceOpen = false)}
+                >
+                  <span class="block font-extrabold">{page.short}</span>
+                  <span class="block text-[13px] font-semibold text-sr-muted">{page.line}</span>
+                </a>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if mine}
+          <a href={mine.href} class="sr-navlink text-[15px]" aria-current={isHere(mine.href) ? "page" : undefined}>{mine.short}</a>
+        {/if}
         {#if tourHere}
           <button
             class="w-10 h-10 flex items-center justify-center rounded-full text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
@@ -258,6 +300,34 @@
 </nav>
 
 <style lang="css">
+  .practice-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 17rem;
+    padding: 0.4rem;
+    border-radius: 20px;
+    background: var(--sr-raise);
+    box-shadow: 0 18px 48px -18px rgba(30, 70, 160, 0.45), 0 0 0 1px var(--sr-hairline);
+    animation: practice-in 140ms ease-out;
+  }
+  @keyframes practice-in {
+    from { opacity: 0; transform: translate(-50%, -4px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .practice-menu { animation: none; }
+  }
+  .practice-item {
+    display: block;
+    padding: 0.55rem 0.85rem;
+    border-radius: 14px;
+    color: var(--sr-ink);
+    line-height: 1.25;
+  }
+  .practice-item:hover, .practice-item:focus-visible { background: var(--sr-track); }
+  .practice-item.is-here { background: var(--sr-tint); color: var(--sr-action-fg); }
+  .practice-rule { height: 1px; margin: 0.3rem 0.85rem; background: var(--sr-hairline-2); }
   .navbar-menu {
     transform: translateX(-100%);
     transition: transform 0.3s ease;

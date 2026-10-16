@@ -2,8 +2,12 @@
   import { onMount } from "svelte";
   import { whenLabel, type RecentExercise } from "../lib/recent-exercises";
   import { BUILTIN_SETS } from "../lib/curriculum/catalogue";
-  import { trackById, TRACK_COLOR_CLASS, iconFor } from "../lib/curriculum/tracks";
-  import { INSTRUMENT_ICON, INSTRUMENT_PATHS } from "../lib/curriculum/instrument-icons";
+  import { trackById } from "../lib/curriculum/tracks";
+  import Music from "lucide-svelte/icons/music";
+  import Library from "lucide-svelte/icons/library";
+  import BookOpen from "lucide-svelte/icons/book-open";
+  import Users from "lucide-svelte/icons/users";
+  import AudioLines from "lucide-svelte/icons/audio-lines";
   import StudentAssignments from "./StudentAssignments.svelte";
   import PipFace from "./PipFace.svelte";
   import { FIRST_STEP_HREF } from "../lib/tour";
@@ -61,228 +65,147 @@
       ? "Unlimited exercises"
       : `${allowance.remaining ?? 0} of ${allowance.limit} exercises left this month`;
 
-  /** A subscribed set or track as a card: where it opens, its name and colour, and a drawing for an instrument. */
-  type Card = { id: string; name: string; level: string; href: string; color: string; icon: string | null };
+  /** A subscribed set or track: its name and where it opens. */
+  type Card = { id: string; name: string; level: string; href: string };
   $: cards = tracks.flatMap((id): Card[] => {
     const set = BUILTIN_SETS.find((s) => s.id === id);
-    if (set) return [{ id, name: set.name, level: set.level, href: set.href, color: TRACK_COLOR_CLASS[set.color], icon: null }];
+    if (set) return [{ id, name: set.name, level: set.level, href: set.href }];
     const t = trackById[id];
     if (!t) return [];
-    return [{ id, name: t.name, level: t.level, href: `/curriculum/${t.id}`, color: TRACK_COLOR_CLASS[t.color], icon: iconFor(t) }];
+    return [{ id, name: t.name, level: t.level, href: `/curriculum/${t.id}` }];
   });
-  const iconPaths = (key: string) => INSTRUMENT_PATHS[INSTRUMENT_ICON[key]?.icon ?? ""] ?? [];
+  /** Students have three tiles (library, tuner, challenge); everyone else four. */
+  $: tileCount = accountType === "student" ? 3 : 4;
 </script>
 
 <!--
-  One thing first: back into practice (the last exercise, or step 1 for a
-  newcomer), with a fresh Unison or Choral beside it; the rest of what they
-  wrote under it. Everything else sits in a quiet column at the side (under it
-  on a phone), and only one offer shows at a time. Blaine, 16 October 2026:
-  the page was eight full-width blocks of equal weight.
+  Symmetrical and focused (Blaine, 16 October 2026: "so messy", then "I just
+  don't like how unsymmetrical it is"): one full-width card to pick up the
+  last exercise (step 1 for a newcomer), with a fresh Unison or Choral in it;
+  a row of equal tiles, My music first; at most one offer, as a slim strip;
+  then the earlier exercises.
 -->
-<div class="home w-full max-w-5xl mx-auto px-4 py-6 sm:py-8 flex flex-col gap-6">
+<div class="home w-full max-w-5xl mx-auto px-4 py-6 sm:py-8 flex flex-col gap-5">
   <header>
     <h1 class="text-3xl sm:text-4xl font-bold text-sr-ink">Welcome back{firstName ? `, ${firstName}` : ""}</h1>
     {#if planLine}<p class="mt-1 text-sm font-semibold text-sr-muted">{planLine}</p>{/if}
   </header>
 
-  <div class="layout">
-    <div class="main flex flex-col gap-6 min-w-0">
-      <!-- Back into practice: where they left off, or where a newcomer starts (tour.ts Quick start). -->
-      <section class="hero" aria-label="Practice">
-        {#if last}
-          <span class="text-xs font-bold uppercase tracking-wide opacity-80">Pick up where you left off</span>
-          <a class="hero-main" href={last.link}>
-            <span class="min-w-0">
-              <span class="block text-2xl font-extrabold leading-tight">{last.title}</span>
-              <span class="block text-sm opacity-90 truncate">{last.detail}</span>
-            </span>
-            <span class="hero-go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" /></svg>
-            </span>
-          </a>
-        {:else if accountType !== "student"}
-          <span class="text-xs font-bold uppercase tracking-wide opacity-80">Start here</span>
-          <a class="hero-main" href={FIRST_STEP_HREF}>
-            <span class="min-w-0">
-              <span class="block text-2xl font-extrabold leading-tight">abcStepByStep, step 1</span>
-              <span class="block text-sm opacity-90">A short rhythm first. Each step adds one new thing.</span>
-            </span>
-            <span class="hero-go" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" /></svg>
-            </span>
-          </a>
-        {:else}
-          <span class="text-xs font-bold uppercase tracking-wide opacity-80">Practice</span>
-          <span class="block text-2xl font-extrabold leading-tight">Write yourself an exercise</span>
-        {/if}
-        <div class="hero-new">
-          <span class="text-sm font-semibold opacity-90">{last || accountType !== "student" ? "Or start a new one:" : ""}</span>
-          <a class="new-pill" href="/sightreading">Unison <span class="opacity-75 font-semibold">one line</span></a>
-          <a class="new-pill" href="/choral-sightreading">Choral <span class="opacity-75 font-semibold">parts</span></a>
-        </div>
-      </section>
-
-      {#if accountType === "student"}
-        <StudentAssignments initial={assignments} />
-        {#if library.length}
-          <!-- Songs their teachers assigned, whole and any part, to practise any time. -->
-          <section aria-labelledby="library-h">
-            <div class="section-head">
-              <h2 id="library-h">My library</h2>
-              {#if library.length > 4}<a class="sr-link text-sm" href="/library">All {library.length} songs</a>{/if}
-            </div>
-            <ul class="list">
-              {#each library.slice(0, 4) as p (p.id)}
-                <li>
-                  <a class="row group" href="/pieces/{p.id}">
-                    <span class="page-tag bg-sr-peach text-sr-peach-ink">Song</span>
-                    <span class="min-w-0 flex-1">
-                      <span class="block font-bold text-sr-ink truncate group-hover:underline">{p.title}</span>
-                      <span class="block text-sm text-sr-muted truncate">{[p.composer, p.classes.join(", ")].filter(Boolean).join(" · ")}</span>
-                    </span>
-                  </a>
-                </li>
-              {/each}
-            </ul>
-          </section>
-        {/if}
-      {/if}
-
-      <!-- The exercises they wrote before the last, each reopening exactly as it was. -->
-      {#if earlier.length}
-        <section aria-labelledby="recent-h">
-          <div class="section-head">
-            <h2 id="recent-h">Recent</h2>
-            {#if earlier.length > SHOWN}
-              <button class="sr-link text-sm" on:click={() => (showAll = !showAll)}>{showAll ? "Show fewer" : `Show all ${earlier.length}`}</button>
-            {/if}
-          </div>
-          <ul class="list">
-            {#each shown as r (r.id)}
-              <li class="row">
-                <span class="page-tag {r.page === 'choral' ? 'bg-sr-sky text-sr-sky-ink' : 'bg-sr-mint text-sr-mint-ink'}">{r.page === "choral" ? "Choral" : "Unison"}</span>
-                <a class="min-w-0 flex-1 group" href={r.link}>
-                  <span class="block font-bold text-sr-ink truncate group-hover:underline">{r.title}</span>
-                  <span class="block text-sm text-sr-muted truncate">{r.detail}</span>
-                </a>
-                <span class="when text-xs text-sr-faint whitespace-nowrap">{whenLabel(r.createdAt, now)}</span>
-                <button class="forget" on:click={() => forget(r.id)} aria-label="Remove {r.title} from recent exercises" title="Remove">×</button>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {:else if !last && accountType !== "student"}
-        <p class="text-sm text-sr-muted px-1">Every exercise you write shows up here, ready to open again.</p>
-      {/if}
+  <!-- Back into practice: where they left off, or where a newcomer starts (tour.ts Quick start). -->
+  <section class="hero" aria-label="Practice">
+    {#if last || accountType !== "student"}
+      <span class="text-xs font-bold uppercase tracking-wide opacity-80">{last ? "Pick up where you left off" : "Start here"}</span>
+      <a class="hero-main" href={last ? last.link : FIRST_STEP_HREF}>
+        <span class="min-w-0">
+          <span class="block text-2xl sm:text-3xl font-extrabold leading-tight">{last ? last.title : "abcStepByStep, step 1"}</span>
+          <span class="block text-sm opacity-90 truncate">{last ? last.detail : "A short rhythm first. Each step adds one new thing."}</span>
+        </span>
+        <span class="hero-go" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor" /></svg>
+        </span>
+      </a>
+    {:else}
+      <span class="block text-2xl font-extrabold leading-tight">Write yourself an exercise</span>
+    {/if}
+    <div class="hero-new">
+      <span class="text-sm font-semibold opacity-90">Or start a new one:</span>
+      <a class="new-pill" href="/sightreading">Unison <span class="opacity-75 font-semibold">one line</span></a>
+      <a class="new-pill" href="/choral-sightreading">Choral <span class="opacity-75 font-semibold">parts</span></a>
     </div>
+  </section>
 
-    <aside class="side flex flex-col gap-4" aria-label="More">
-      {#if accountType === "educator"}
-        <section class="side-card">
-          <h2>Classes</h2>
-          <p class="text-sm text-sr-muted">Students, assignments and what each class has passed.</p>
-          <div class="flex flex-wrap gap-2 mt-1">
-            <a class="sr-btn text-sm" href="/account?assign=new#students">New assignment</a>
-            <a class="sr-btn-quiet text-sm" href="/account#students">Open classes</a>
-          </div>
-        </section>
-      {/if}
-
-      {#if founders}
-        <!-- The founding-teacher offer (/founders), for a teacher who may join; it stands in for the challenge. -->
-        <a class="side-card offer bg-sr-peach text-sr-peach-ink" href="/founders">
-          <span class="text-xs font-bold uppercase tracking-wide opacity-80">{classlink ? "Pro is on free through ClassLink" : "Founding teachers"}</span>
-          <span class="text-lg font-extrabold leading-tight">Educator free this school year</span>
-          <span class="text-sm">Bring your students: 300 accounts free through May 31, then half price for as long as you stay.</span>
-          <span class="text-sm font-extrabold underline underline-offset-2">See the offer</span>
-        </a>
-      {:else}
-        <!-- The free challenge (/challenge): something to send a choir or a class. -->
-        <a class="side-card offer bg-sr-butter text-sr-butter-ink" href="/challenge">
-          <span class="flex items-center gap-3">
-            <PipFace class="w-12 h-12 shrink-0" />
-            <span class="text-lg font-extrabold leading-tight">Can you sing it?</span>
+  <!-- Equal tiles: their music, their courses, their classes (or the tuner), the challenge. -->
+  <section class="tiles" style="--n: {tileCount}" aria-label="Your things">
+    {#if accountType === "student"}
+      <a class="tile bg-sr-peach text-sr-peach-ink" href="/library">
+        <Library size={26} aria-hidden="true" />
+        <span class="tile-title">My library</span>
+        <span class="tile-line">{library.length ? `${library.length} song${library.length === 1 ? "" : "s"} from your classes` : "Songs your teachers give you"}</span>
+      </a>
+    {:else}
+      <a class="tile bg-sr-peach text-sr-peach-ink" href="/pieces">
+        <Music size={26} aria-hidden="true" />
+        <span class="tile-title">My music</span>
+        <span class="tile-line">Your own pieces: play any part, loop the hard bars</span>
+      </a>
+      <!-- The sets and instrument courses they follow; each name opens its course. -->
+      <div class="tile bg-sr-mint text-sr-mint-ink">
+        <BookOpen size={26} aria-hidden="true" />
+        <a class="tile-title hover:underline" href="/curriculum">My courses</a>
+        {#if cards.length}
+          <span class="flex flex-wrap gap-1.5">
+            {#each cards as c (c.id)}<a class="chip" href={c.href}>{c.name}</a>{/each}
           </span>
-          <span class="text-sm">Eight random notes, graded as you sing, with a video to share. Send it to your {accountType === "student" ? "friends" : "singers"}.</span>
-        </a>
-      {/if}
+        {:else}
+          <a class="tile-line underline underline-offset-2" href="/curriculum">Choose a course</a>
+        {/if}
+      </div>
+    {/if}
+    {#if accountType === "educator"}
+      <a class="tile bg-sr-sky text-sr-sky-ink" href="/account#students">
+        <Users size={26} aria-hidden="true" />
+        <span class="tile-title">Classes</span>
+        <span class="tile-line">Students, assignments and progress</span>
+      </a>
+    {:else}
+      <a class="tile bg-sr-sky text-sr-sky-ink" href="/tuner">
+        <AudioLines size={26} aria-hidden="true" />
+        <span class="tile-title">abcTuner</span>
+        <span class="tile-line">Tuner, metronome, drone and more</span>
+      </a>
+    {/if}
+    <a class="tile bg-sr-butter text-sr-butter-ink" href="/challenge">
+      <PipFace class="w-[26px] h-[26px]" />
+      <span class="tile-title">Can you sing it?</span>
+      <span class="tile-line">A free challenge to send your {accountType === "student" ? "friends" : "singers"}</span>
+    </a>
+  </section>
 
-      {#if accountType !== "student"}
-        <!-- The sets and instrument courses they follow (they used to be behind the navbar's Tracks). -->
-        <section class="side-card" aria-labelledby="tracks-h">
-          <div class="section-head !mb-1">
-            <h2 id="tracks-h">My courses</h2>
-            <a class="sr-link text-sm" href="/curriculum">{cards.length ? "Change" : "Choose"}</a>
-          </div>
-          {#if cards.length === 0}
-            <p class="text-sm text-sr-muted">Choose a course and its steps appear in the preset menu.</p>
-          {:else}
-            <ul class="flex flex-col">
-              {#each cards as c (c.id)}
-                <li>
-                  <a class="link-row group" href={c.href}>
-                    <span class="badge {c.color}">
-                      {#if c.icon && iconPaths(c.icon).length}
-                        <svg width="22" height="22" viewBox="0 0 512 512" aria-hidden="true">
-                          <g fill="currentColor" transform={INSTRUMENT_ICON[c.icon]?.upright ? "rotate(-38 256 256)" : undefined}>
-                            {#each iconPaths(c.icon) as d}<path {d} />{/each}
-                          </g>
-                        </svg>
-                      {:else}<span aria-hidden="true">♪</span>{/if}
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block font-bold text-sr-ink leading-tight truncate group-hover:underline">{c.name}</span>
-                      <span class="block text-xs text-sr-muted truncate">{c.level}</span>
-                    </span>
-                  </a>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </section>
+  {#if founders}
+    <!-- The founding-teacher offer (/founders), for a teacher who may join. -->
+    <a class="offer" href="/founders">
+      <span class="offer-tag">{classlink ? "Pro is on through ClassLink" : "Founding teachers"}</span>
+      <span class="offer-text text-sm text-sr-ink-2"><b class="text-sr-ink">Educator free this school year</b>, with 300 student accounts, then half price for as long as you stay.</span>
+      <span class="text-sm font-extrabold text-sr-action-fg whitespace-nowrap">See the offer →</span>
+    </a>
+  {/if}
 
-        <nav class="side-card" aria-label="More to practise">
-          <a class="link-row group" href="/pieces">
-            <span class="min-w-0">
-              <span class="block font-bold text-sr-ink group-hover:underline">My music</span>
-              <span class="block text-xs text-sr-muted">Your own pieces, any part, loop the hard bars</span>
-            </span>
-          </a>
-          {#if founders}
-            <a class="link-row group" href="/challenge">
-              <span class="min-w-0">
-                <span class="block font-bold text-sr-ink group-hover:underline">Can you sing it?</span>
-                <span class="block text-xs text-sr-muted">A free challenge to send your singers</span>
-              </span>
+  {#if accountType === "student"}
+    <StudentAssignments initial={assignments} />
+  {/if}
+
+  <!-- The exercises they wrote before the last, each reopening exactly as it was. -->
+  {#if earlier.length}
+    <section aria-labelledby="recent-h">
+      <div class="section-head">
+        <h2 id="recent-h">Recent</h2>
+        {#if earlier.length > SHOWN}
+          <button class="sr-link text-sm" on:click={() => (showAll = !showAll)}>{showAll ? "Show fewer" : `Show all ${earlier.length}`}</button>
+        {/if}
+      </div>
+      <ul class="list">
+        {#each shown as r (r.id)}
+          <li class="row">
+            <span class="page-tag {r.page === 'choral' ? 'bg-sr-sky text-sr-sky-ink' : 'bg-sr-mint text-sr-mint-ink'}">{r.page === "choral" ? "Choral" : "Unison"}</span>
+            <a class="min-w-0 flex-1 group" href={r.link}>
+              <span class="block font-bold text-sr-ink truncate group-hover:underline">{r.title}</span>
+              <span class="block text-sm text-sr-muted truncate">{r.detail}</span>
             </a>
-          {/if}
-          <a class="link-row group" href="/account">
-            <span class="min-w-0">
-              <span class="block font-bold text-sr-ink group-hover:underline">Account and settings</span>
-              <span class="block text-xs text-sr-muted">Plan, rhythm syllables{accountType === "educator" ? ", classes" : ""}</span>
-            </span>
-          </a>
-        </nav>
-      {/if}
-    </aside>
-  </div>
+            <span class="when text-xs text-sr-faint whitespace-nowrap">{whenLabel(r.createdAt, now)}</span>
+            <button class="forget" on:click={() => forget(r.id)} aria-label="Remove {r.title} from recent exercises" title="Remove">×</button>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 </div>
 
 <style>
-  .layout {
-    display: grid;
-    gap: 1.5rem;
-    align-items: start;
-  }
-  @media (min-width: 900px) {
-    .layout { grid-template-columns: minmax(0, 1fr) 19rem; gap: 2rem; }
-  }
   .hero {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    padding: 1.4rem 1.5rem 1.25rem;
+    padding: 1.5rem 1.75rem 1.3rem;
     border-radius: 28px;
     background: var(--sr-action);
     color: var(--sr-action-ink);
@@ -298,8 +221,8 @@
     flex: none;
     display: grid;
     place-items: center;
-    width: 3.25rem;
-    height: 3.25rem;
+    width: 3.5rem;
+    height: 3.5rem;
     border-radius: 999px;
     background: var(--sr-action-ink);
     color: var(--sr-action);
@@ -329,61 +252,77 @@
     background: color-mix(in srgb, var(--sr-action-ink) 18%, transparent);
   }
   .new-pill:hover { background: color-mix(in srgb, var(--sr-action-ink) 28%, transparent); }
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  @media (min-width: 900px) {
+    .tiles { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+  }
+  .tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+    padding: 1.1rem 1.15rem 1.2rem;
+    border-radius: 24px;
+    min-height: 9.5rem;
+    transition: transform 120ms ease;
+  }
+  a.tile:hover { transform: translateY(-2px); }
+  .tile :global(svg) { margin-bottom: 0.35rem; }
+  .tile-title { font-size: 1.1rem; font-weight: 800; line-height: 1.2; }
+  .tile-line { font-size: 0.85rem; line-height: 1.35; opacity: 0.9; }
+  .chip {
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+  }
+  .chip:hover { background: color-mix(in srgb, currentColor 22%, transparent); }
+  .offer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+    padding: 0.8rem 1.1rem;
+    border-radius: 20px;
+    background: var(--sr-panel);
+    box-shadow: inset 0 0 0 2px var(--sr-peach);
+  }
+  .offer:hover { background: var(--sr-tint); }
+  .offer-text { flex: 1 1 18rem; min-width: 0; }
+  .offer-tag {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    background: var(--sr-peach);
+    color: var(--sr-peach-ink);
+  }
   .section-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    margin-bottom: 0.5rem;
+    margin: 0.25rem 0 0.5rem;
     padding: 0 0.25rem;
   }
-  .section-head h2, .side-card h2 {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--sr-ink);
-  }
+  .section-head h2 { font-size: 1.05rem; font-weight: 700; color: var(--sr-ink); }
   .list {
     display: flex;
     flex-direction: column;
     background: var(--sr-panel);
     border-radius: 24px;
-    padding: 0.25rem 1rem;
+    padding: 0.25rem 1.1rem;
     box-shadow: var(--sr-card-shadow);
   }
   .list > li + li { border-top: 1px solid var(--sr-hairline-2); }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.7rem 0;
-  }
-  .side-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 1rem 1.1rem;
-    border-radius: 24px;
-  }
-  /* An offer brings its own pastel. */
-  .side-card:not(.offer) { background: var(--sr-panel); }
-  .side-card.offer { gap: 0.4rem; }
-  a.side-card.offer:hover { filter: brightness(0.98); }
-  .link-row {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.45rem 0;
-  }
-  .badge {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 12px;
-    font-weight: 800;
-    font-size: 1.1rem;
-  }
+  .row { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0; }
   .page-tag {
     font-size: 11px;
     font-weight: 800;
@@ -403,9 +342,10 @@
   .forget:hover { background: var(--sr-track); color: var(--sr-ink); }
   @media (max-width: 480px) {
     .when { display: none; }
+    .tile { min-height: 8.5rem; padding: 1rem; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .hero-go { transition: none; }
-    .hero-main:hover .hero-go { transform: none; }
+    .hero-go, .tile { transition: none; }
+    .hero-main:hover .hero-go, a.tile:hover { transform: none; }
   }
 </style>
