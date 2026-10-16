@@ -140,6 +140,12 @@ const classlink =
               authorizationUrl: "https://launchpad.classlink.com/oauth2/v2/auth",
               tokenUrl: "https://launchpad.classlink.com/oauth2/v2/token",
               scopes: ["profile"],
+              // ClassLink's portal registers one redirect URI, the same page
+              // as the LaunchPad tile's launch URL, and does not let it be
+              // edited, so the sign-in comes back to /classlink, which hands
+              // the code on to our own callback (src/pages/classlink.astro).
+              // Only the production address is registered.
+              redirectURI: `${url}/classlink`,
               pkce: false,
               getUserInfo: async (tokens) => {
                 const res = await fetch("https://nodeapi.classlink.com/v2/my/info", { headers: { Authorization: `Bearer ${tokens.accessToken}` } });
