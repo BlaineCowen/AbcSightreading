@@ -7,7 +7,13 @@ import { classlinkEnabled } from "../lib/server/auth";
  * it starts a ClassLink sign-in at once, and the student or teacher lands on
  * their home page signed in. ClassLink cannot send people straight to our
  * sign-in callback, which only accepts a sign-in this site began.
+ *
+ * It is also where ClassLink sends the sign-in back (the one redirect URI its
+ * portal registered, auth.ts `redirectURI`): with a code or an error in the
+ * address, it goes on to Better Auth's callback with the same query.
  */
+const back = Astro.url.searchParams;
+if (back.has("code") || back.has("error")) return Astro.redirect(`/api/auth/callback/classlink${Astro.url.search}`, 302);
 ---
 
 <Layout noindex title="Signing in with ClassLink | abcSightReading" themable>

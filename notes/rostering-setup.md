@@ -127,7 +127,11 @@ if you want to *send* mail as @abc-sightreading.com.
 - [ ] **3b. Create the app** in the Partner Portal, as an OAuth2 / OpenID
       Connect SSO app:
   - Name: abcSightReading
-  - Redirect URIs (all three):
+  - Redirect URIs: the portal (October 2026) took only one and copied the
+    Launch URL into it, `https://www.abc-sightreading.com/classlink`, with
+    no way to edit it. The code sends that as the redirect URI and the page
+    hands the code on to Better Auth's callback, so it works; only
+    production can sign in with ClassLink. Were the portal to take more, these:
     - `https://www.abc-sightreading.com/api/auth/callback/classlink`
     - `https://dev.abc-sightreading.com/api/auth/callback/classlink`
     - `http://localhost:4321/api/auth/callback/classlink`
