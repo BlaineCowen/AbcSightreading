@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
 
   /**
-   * The owner's codes. Access codes give a plan free for a while (beta
+   * The owner's page: founding-teacher applications to approve, then codes. Access codes give a plan free for a while (beta
    * testers); affiliate codes give an advertiser's audience a discount and
    * the advertiser a share of each first-year payment, paid out by hand.
    */
@@ -13,7 +13,13 @@
   type Sale = { id: string; amountPaid: number; commission: number; description: string; createdAt: number; paidOutAt: number | null };
   type Affiliate = { id: string; name: string; code: string; percentOff: number; commissionPercent: number; active: boolean; sales: Sale[]; earned: number; owed: number };
 
+  type Application = {
+    id: string; name: string; email: string; school: string; district: string; role: string; proofUrl: string; note: string;
+    status: "pending" | "approved" | "declined"; createdAt: number; decidedAt: number | null;
+  };
+
   let codes: Code[] = [];
+  let applications: Application[] = [];
   let affiliates: Affiliate[] = [];
   let problem = "";
   let notice = "";
@@ -30,7 +36,7 @@
     return body;
   }
   async function load() {
-    [codes, affiliates] = await Promise.all([api("/api/admin/codes"), api("/api/admin/affiliates")]);
+    [codes, affiliates, applications] = await Promise.all([api("/api/admin/codes"), api("/api/admin/affiliates"), api("/api/admin/founders")]);
   }
   onMount(() => load().catch((e) => (problem = e.message)));
 
@@ -58,6 +64,11 @@
   const markPaid = (a: Affiliate) => {
     if (confirm(`Mark ${dollars(a.owed)} to ${a.name} as paid today?`)) run(() => api(`/api/admin/affiliates/${a.id}`, { method: "PATCH", body: JSON.stringify({ paidOut: true }) }), "Marked paid.");
   };
+  /** Approving joins them as a founding teacher and emails them; declining only marks it. */
+  const decide = (a: Application, approve: boolean) =>
+    run(() => api("/api/admin/founders", { method: "POST", body: JSON.stringify({ id: a.id, approve }) }), approve ? `${a.name || a.email} is a founding teacher.` : "Declined.");
+  $: pending = applications.filter((a) => a.status === "pending");
+  $: decided = applications.filter((a) => a.status !== "pending");
   const toggle = (a: Affiliate) => run(() => api(`/api/admin/affiliates/${a.id}`, { method: "PATCH", body: JSON.stringify({ active: !a.active }) }), a.active ? "Turned off." : "Turned on.");
   const copy = (t: string) => navigator.clipboard?.writeText(t).then(() => (notice = "Copied."));
 
@@ -69,6 +80,40 @@
 <div class="w-full max-w-3xl flex flex-col gap-6">
   {#if notice}<p class="text-sm text-sr-ink-2" role="status">{notice}</p>{/if}
   {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
+
+  <section id="founders" class="bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-4">
+    <div>
+      <h2 class="text-lg font-semibold text-sr-ink">Founding teachers{pending.length ? ` · ${pending.length} waiting` : ""}</h2>
+      <p class="text-sm text-sr-muted">A school email or ClassLink joins at once. These signed up with a personal email: open their link, and approve if it shows they teach there. Approving joins them and emails them.</p>
+    </div>
+    {#each pending as a (a.id)}
+      <div class="rounded-md border border-sr-hairline bg-sr-raise p-3 text-sm flex flex-col gap-1">
+        <div class="flex justify-between gap-2 flex-wrap">
+          <span class="font-semibold text-sr-ink">{a.name || "(no name)"} <span class="font-normal text-sr-ink-2 break-all">{a.email}</span></span>
+          <span class="text-xs text-sr-muted">{day(a.createdAt)}</span>
+        </div>
+        <p class="text-sr-ink-2">{a.role} · {a.school} · {a.district}</p>
+        <a class="text-sr-action-fg underline break-all" href={a.proofUrl} target="_blank" rel="noopener noreferrer nofollow">{a.proofUrl}</a>
+        {#if a.note}<p class="text-sr-muted">{a.note}</p>{/if}
+        <div class="flex gap-2 mt-1">
+          <button class="sr-btn text-sm" on:click={() => decide(a, true)} disabled={busy}>Approve</button>
+          <button class="sr-btn-quiet text-sm" on:click={() => decide(a, false)} disabled={busy}>Decline</button>
+        </div>
+      </div>
+    {:else}
+      <p class="text-sm text-sr-muted">Nobody waiting.</p>
+    {/each}
+    {#if decided.length}
+      <details class="text-sm">
+        <summary class="cursor-pointer text-sr-ink-2">Decided ({decided.length})</summary>
+        <ul class="mt-2 flex flex-col gap-1">
+          {#each decided as a (a.id)}
+            <li class="text-sr-ink-2"><span class={a.status === "approved" ? "text-sr-ink font-semibold" : "text-sr-danger"}>{a.status}</span> · {a.name || a.email} · {a.school}{a.decidedAt ? ` · ${day(a.decidedAt)}` : ""}</li>
+          {/each}
+        </ul>
+      </details>
+    {/if}
+  </section>
 
   <section class="bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-4">
     <div>

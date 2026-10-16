@@ -1636,7 +1636,17 @@ presets once; the server dedupes by name + creation time.
   ending with it. After that, Educator bought with a card on that account
   carries the Stripe coupon `founding_teacher_50` (50% off, forever; made
   on first use) through `getCheckoutSessionParams` in auth.ts, in place of
-  the usual code box. Not yet applied to a Pro to Educator upgrade of an
+  the usual code box. **Only teachers** (16 October 2026, Blaine: how do we
+  prove someone is a teacher?): a founder's students get Pro, so a
+  stranger with 300 seats could hand out 300 free Pros. A school email
+  (`isSchoolEmail`: isd/usd district names, k12, schools, sd and a number,
+  a public-schools .edu, edu/sch/school abroad; never a university .edu or
+  personal mail) or a ClassLink sign-in joins at once; anyone else applies
+  (`FounderApplication`: school, district, role, a page that lists them),
+  `FEEDBACK_TO` is emailed, and the owner approves on /admin, which joins
+  them and emails them. One founder per person (`emailKey`, as the free
+  month). A founder whose Pro subscription still renews is told so on
+  joining. Not yet applied to a Pro to Educator upgrade of an
   existing subscription, nor to school quotes. Checked end to end on a
   local server with a throwaway account (16 October 2026); the coupon is
   untested until Educator goes on sale.
