@@ -246,11 +246,17 @@ body {
 
 /* The playback cursor. Drawn by hand in AbcjsSingle and AbcjsChoral rather than
    by abcjs, so the rule lives here instead of inside one component's <style>. */
+/* The playing cursor on every score page, as My music's (src/lib/score-cursor.ts):
+   a soft bar the height of the system behind the music, and the notes being
+   played turned blue. */
 .abcjs-cursor {
-  stroke: #2f6fe0;
-  stroke-width: 2;
+  stroke: var(--sr-action);
+  stroke-width: 4;
+  stroke-opacity: 0.45;
+  stroke-linecap: round;
   pointer-events: none;
 }
+svg .sr-now { fill: var(--sr-action); }
 
 /* ── Skeletons ──────────────────────────────────────────────────────────────
    Shared because the same shapes are needed in two places that cannot share a

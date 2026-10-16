@@ -2315,6 +2315,18 @@ Full-length pieces honour it in every section. It rides in links
 (`solfegeOff=`), presets and the "edited" signature, and is in the full-screen
 Annotations menu.
 
+## The playing cursor
+
+One look on every score page (16 October 2026, Blaine: My music's cursor is
+the better one, match the others to it): a soft blue bar the height of the
+whole system, just left of the notes and behind the music, and the notes
+being played turned blue, a held part staying lit while another moves.
+`src/lib/score-cursor.ts` (`makeCursor`, `placeCursor`, `systemSpan`,
+`NoteLight`; style `.abcjs-cursor` and `.sr-now` in globals.css) for Unison,
+Choral, Piano and Ensemble, placed from abcjs's callbacks; My music draws the
+same from its model (pieces/score-dom.ts `cursorLine`). The Display cursor
+modes (smooth, beat by beat, note by note, off) still say where the bar goes.
+
 ## Score layout
 
 The playback bar's **Layout** menu (both pages, kept in full screen;

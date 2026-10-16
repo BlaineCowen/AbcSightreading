@@ -110,6 +110,7 @@
   import { marksOf } from "../lib/pieces/attempts";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
+  import { NoteLight, makeCursor, placeCursor } from "../lib/score-cursor";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { DETECT_LATENCY_MS } from "../lib/grade";
@@ -2030,6 +2031,8 @@
     const svg = document.querySelector("#paper svg");
     if (!svg) return null;
 
+    // The playing cursor is the shared one, behind the music.
+    if (className === "abcjs-cursor") return makeCursor(svg);
     const cursor = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "line"
@@ -2045,6 +2048,7 @@
 
   /** Parks the playback cursor off-screen (used at stop and at the end). */
   function hidePlaybackCursor() {
+    noteLight.clear();
     if (!playbackCursor) return;
     playbackCursor.setAttribute("x1", "0");
     playbackCursor.setAttribute("x2", "0");
@@ -2255,14 +2259,12 @@
 
   /** Places the cursor at an x with the staff's vertical extent. */
   function movePlaybackCursor(left: number, top: number, height: number) {
-    if (!playbackCursor) return;
-    const x = Math.max(0, left - 2);
-    const overhang = height * 0.15;
-    playbackCursor.setAttribute("x1", String(x));
-    playbackCursor.setAttribute("x2", String(x));
-    playbackCursor.setAttribute("y1", String(top + overhang));
-    playbackCursor.setAttribute("y2", String(top + height + overhang));
+    const svg = document.querySelector("#paper svg");
+    if (!playbackCursor || !svg) return;
+    placeCursor(playbackCursor, svg, left, top, height);
   }
+  /** The notes being played, blue (score-cursor.ts, as My music's). */
+  const noteLight = new NoteLight();
 
   async function attachCursorAndTiming() {
     // Wait for the SVG to land in the DOM before attaching cursors to it.
@@ -2352,6 +2354,7 @@
           }
           playingSystem = system;
         }
+        if (effectiveCursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (effectiveCursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
         movePlaybackCursor(event.left, event.top, event.height);

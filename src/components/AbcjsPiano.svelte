@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { NoteLight, hideCursor as hideBar, makeCursor, placeCursor } from "../lib/score-cursor";
   /**
    * Piano sight reading (src/lib/piano/): a grand staff, a tune over an
    * accompaniment. Every option is on the page at every level, each marked
@@ -238,7 +239,7 @@
     cursorMode = m;
     try { localStorage.setItem(CURSOR_KEY, m); } catch {}
     hideCursor();
-    if (m !== "note") light([]);
+    if (m === "off") light([]);
   }
 
   $: level = pianoLevelById[levelId] ?? PIANO_LEVELS[0];
@@ -349,32 +350,23 @@
   // The cursor (Display): a line over the staves, travelling (smooth), stepping on beats, or on each note.
   let cursorLine: SVGLineElement | null = null;
   let cursorBeats = newMetronomeBeatState();
+  /** The shared cursor (score-cursor.ts, as My music's): a bar the height of the grand staff, behind the music. */
   function moveCursor(left: number, top: number, height: number) {
     const svg = document.querySelector("#paper svg");
     if (!svg) return;
-    if (!cursorLine || !svg.contains(cursorLine)) {
-      cursorLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      cursorLine.setAttribute("class", "abcjs-cursor");
-      svg.appendChild(cursorLine);
-    }
-    const x = Math.max(0, left - 2);
-    const over = height * 0.15;
-    cursorLine.setAttribute("x1", String(x));
-    cursorLine.setAttribute("x2", String(x));
-    cursorLine.setAttribute("y1", String(top - over));
-    cursorLine.setAttribute("y2", String(top + height + over));
+    if (!cursorLine || !svg.contains(cursorLine)) cursorLine = makeCursor(svg);
+    placeCursor(cursorLine, svg, left, top, height);
   }
   function hideCursor() {
-    if (!cursorLine) return;
-    for (const a of ["x1", "x2", "y1", "y2"]) cursorLine.setAttribute(a, "0");
+    hideBar(cursorLine);
   }
-  let lit: Element[] = [];
+  /** The notes being played, blue; a held left hand stays lit under a moving tune. */
+  const noteLight = new NoteLight();
   // Playback keeps the line being played on screen (follow.ts).
   const follower = createFollower();
   function light(els: Element[]) {
-    for (const e of lit) e.classList.remove("piano-now");
-    lit = cursorMode === "off" ? [] : els;
-    for (const e of lit) e.classList.add("piano-now");
+    if (!els.length || cursorMode === "off") noteLight.clear();
+    else noteLight.light(els);
     follower.follow(els);
     // The scrolling line's clock: resynced at each note abcjs reports, run on between them.
     for (const e of els) {
@@ -1005,9 +997,6 @@
     }
   }
 
-  :global(#paper .piano-now) {
-    fill: var(--sr-action);
-  }
   /* The level a choice first appears at: small, beside its name. */
   .chip sup {
     font-size: 10px;

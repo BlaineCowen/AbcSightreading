@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { NoteLight, hideCursor, makeCursor, placeCursor } from "../lib/score-cursor";
   import LiveTeacher from "./LiveTeacher.svelte";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
@@ -924,85 +925,22 @@
       playbackCursor = null;
       return;
     }
-    const line = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "line"
-    );
-    line.setAttribute("class", "abcjs-cursor");
-    ["x1", "y1", "x2", "y2"].forEach((a) => line.setAttribute(a, "0"));
-    svg.appendChild(line);
-    playbackCursor = line as SVGLineElement;
+    // The shared cursor (score-cursor.ts, as My music's), behind the music.
+    playbackCursor = makeCursor(svg);
   }
-
-  /**
-   * Vertical extent of each system, from the top of its first staff to the
-   * bottom of its last. A choral system is four staves, and abcjs reports a
-   * position whose top/height describe only the ONE voice that event belongs
-   * to - so a cursor drawn from it covers a single staff and looks wrong
-   * against SATB. Measured per render, since the SVG is rebuilt each time.
-   */
-  let systemExtents: { top: number; bottom: number }[] = [];
-
-  function measureSystemExtents() {
-    systemExtents = [];
-    const svg = document.querySelector("#paper svg");
-    if (!svg) return;
-    const byLine = new Map<string, { top: number; bottom: number }>();
-    svg.querySelectorAll(".abcjs-staff").forEach((staff) => {
-      const line = (staff.getAttribute("class") || "").match(/abcjs-l(\d+)/)?.[1];
-      if (line === undefined) return;
-      const box = (staff as SVGGraphicsElement).getBBox();
-      const seen = byLine.get(line);
-      byLine.set(line, {
-        top: seen ? Math.min(seen.top, box.y) : box.y,
-        bottom: seen ? Math.max(seen.bottom, box.y + box.height) : box.y + box.height,
-      });
-    });
-    systemExtents = [...byLine.values()].sort((a, b) => a.top - b.top);
-  }
-
-  /**
-   * The system a reported position belongs to, so the cursor spans its staves.
-   *
-   * Matched by overlap rather than containment: abcjs reports a band that
-   * starts above the top staff line - it leaves room for stems and ledgers -
-   * so testing whether its top sits inside a staff never matched, and every
-   * position fell through to the raw values.
-   */
-  function systemExtentFor(top: number, height: number) {
-    // Measured on first use rather than straight after render: responsive
-    // resizing is still settling at that point.
-    if (systemExtents.length === 0) measureSystemExtents();
-    const bottom = top + height;
-    let best: { top: number; bottom: number } | null = null;
-    let bestOverlap = 0;
-    for (const e of systemExtents) {
-      const overlap = Math.min(bottom, e.bottom) - Math.max(top, e.top);
-      if (overlap > bestOverlap) {
-        bestOverlap = overlap;
-        best = e;
-      }
-    }
-    return best ?? { top, bottom };
-  }
+  /** The notes being played, blue. */
+  const noteLight = new NoteLight();
 
   function hidePlaybackCursor() {
-    if (!playbackCursor) return;
-    ["x1", "y1", "x2", "y2"].forEach((a) =>
-      playbackCursor!.setAttribute(a, "0")
-    );
+    noteLight.clear();
+    hideCursor(playbackCursor);
   }
 
-  /** Places the cursor at an x, spanning the whole system it falls in. */
+  /** Places the cursor at an x, spanning the whole system it falls in (score-cursor.ts). */
   function movePlaybackCursor(left: number, top: number, height: number) {
-    if (!playbackCursor) return;
-    const span = systemExtentFor(top, height);
-    const overhang = (span.bottom - span.top) * 0.04;
-    const x = Math.max(0, left - 2);
-    playbackCursor.setAttribute("x1", String(x));
-    playbackCursor.setAttribute("x2", String(x));
-    playbackCursor.setAttribute("y1", String(span.top - overhang));
-    playbackCursor.setAttribute("y2", String(span.bottom + overhang));
+    const svg = document.querySelector("#paper svg");
+    if (!playbackCursor || !svg) return;
+    placeCursor(playbackCursor, svg, left, top, height);
   }
 
   /**
@@ -2050,7 +1988,6 @@
     tune[0].setTiming();
     renderedTune = tune[0];
     createPlaybackCursor();
-    systemExtents = [];
     cursorBeats = newMetronomeBeatState();
     await initSynth(renderedTune);
     if (generatedBpm > 0 && bpm !== generatedBpm) {
@@ -2355,6 +2292,7 @@
         }
       },
       onEvent: (event: any) => {
+        if (cursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (cursorMode === "note" && event && typeof event.left === "number") {
           movePlaybackCursor(event.left, event.top, event.height);
         }
@@ -2684,7 +2622,6 @@
       void countGeneration();
       revealScore(document.getElementById("paper"));
       createPlaybackCursor();
-      systemExtents = []; // re-measured lazily once layout has settled
       cursorBeats = newMetronomeBeatState();
 
       generatingStage = "audio";
