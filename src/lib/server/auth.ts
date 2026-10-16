@@ -244,7 +244,12 @@ export const auth = betterAuth({
     account: {
       // A student signs in with Google or ClassLink, but we keep only the link to
       // that account, never its tokens (the ID token carries their email).
-      create: { after: async (account) => stripStudentTokens(account) },
+      create: {
+        after: async (account) => {
+          await stripStudentTokens(account);
+          await classlinkTeacher(account);
+        },
+      },
       update: { after: async (account) => stripStudentTokens(account) },
     },
   },
@@ -338,6 +343,20 @@ export const auth = betterAuth({
 export const googleEnabled = !!(googleId && googleSecret);
 /** Whether "Sign in with ClassLink" should be shown. */
 export const classlinkEnabled = classlink.length > 0;
+
+/**
+ * A teacher who arrives through ClassLink is a teacher's account from the
+ * start (Blaine, 16 October 2026: the same as anyone else, no plan given), so
+ * they cannot join a class as a student by mistake and are offered the
+ * Educator plan the usual way, a code or a school quote. Seats still come
+ * only from the plan. A student (ClassLink's role, through the placeholder
+ * email) never becomes one: becomeEducator refuses.
+ */
+async function classlinkTeacher(account: { userId: string; providerId: string }) {
+  if (account.providerId !== "classlink") return;
+  const user = await prisma.user.findUnique({ where: { id: account.userId }, select: { accountType: true } });
+  if (user?.accountType === "standard") await becomeEducator(account.userId);
+}
 
 async function stripStudentTokens(account: { id: string; userId: string; providerId: string; accessToken?: string | null; refreshToken?: string | null; idToken?: string | null }) {
   if (account.providerId === "credential" || !(account.accessToken || account.refreshToken || account.idToken)) return;
