@@ -253,6 +253,12 @@
           return m < 0 ? null : { bar: Number(score!.measures[m].label), tick: t };
         },
         paused: () => pausedMs,
+        /** Loop on or off and the count-in, as the playback bar sets them. */
+        setLoop: (on: boolean, countIn: boolean) => ((looping = on), (countInOn = countIn)),
+        /** Each pass's music start on the audio clock, and how long its music is. */
+        passes: () => passLog,
+        play: () => play(),
+        stop: () => stopHere(),
         /** The key lines of the music as drawn and as heard. */
         keys: () => {
           const ks = (abc = "") => [...new Set(abc.match(/K:[^\]\n]*/g) ?? [])].join(" ");
@@ -1168,7 +1174,33 @@
    * Plays the section from `offsetMs` into it (null: where Play starts);
    * returns when the music is heard (performance.now ms).
    */
-  async function playSection(offsetMs: number | null = null, countIn = true): Promise<number | null> {
+  /** Dev only: each pass's start on the audio clock (check-piece-viewer.ts LOOP=1). */
+  let passLog: { audio: number; offsetMs: number; totalMs: number; countInMs: number }[] = [];
+
+  /** The loop's next pass, booked just before this one's music ends (pause cancels it). */
+  let loopTimer: ReturnType<typeof setTimeout> | undefined;
+  let passId = 0;
+  /** How long before the music's end the next pass is booked (ms): room for the sound to be found. */
+  const LOOP_LEAD_MS = 400;
+
+  /**
+   * Books the loop's next pass on the beat the last bar ends (`endAudio` on the
+   * audio clock): its count-in, or its first note with the count-in off,
+   * lands on the next beat, and this pass rings out under it.
+   */
+  function bookLoop() {
+    clearTimeout(loopTimer);
+    const pass = ++passId;
+    const s = player.startedAt;
+    if (!s || !timeline) return;
+    const endAudio = s.audio + (timeline.totalMs - s.offsetMs) / 1000;
+    const wait = (endAudio - player.context().currentTime) * 1000 - LOOP_LEAD_MS;
+    loopTimer = setTimeout(() => {
+      if (pass === passId && looping && isPlaying && !grading && !practicing) void playSection(0, true, endAudio);
+    }, Math.max(0, wait));
+  }
+
+  async function playSection(offsetMs: number | null = null, countIn = true, atAudio?: number): Promise<number | null> {
     if (!score) return null;
     if (take.open) closeTake();
     isPreparing = true;
@@ -1184,10 +1216,17 @@
       isPlaying = false;
       stopCursor();
       markStart();
-      // Looping goes back to the top of the bars in play, even from a tapped note.
+      // Looping goes back to the top of the bars in play, even from a tapped
+      // note: normally booked on the beat ahead of time (bookLoop); this is
+      // for a Loop switched on too late for that.
       if (looping && !grading && !practicing) void playSection(0);
-    }, sectionClicks(countIn), offset);
+    }, sectionClicks(countIn), offset, atAudio);
+    if (import.meta.env.DEV && player.startedAt) {
+      const c = sectionClicks(countIn);
+      passLog = [...passLog, { audio: player.startedAt.audio, offsetMs: offset, totalMs: timeline?.totalMs ?? 0, countInMs: c.countIn * c.beatMs }];
+    }
     isPlaying = true;
+    bookLoop();
     markStart();
     followCursor();
     return heardAt;
@@ -1219,6 +1258,8 @@
 
   /** Stops the sound and the cursor (the place is not kept). */
   function pause() {
+    clearTimeout(loopTimer);
+    passId++;
     player.stop();
     stopCursor();
     isPlaying = false;

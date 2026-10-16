@@ -8,6 +8,7 @@
  *   bun run scripts/check-piece-viewer.ts                SHOTS=<dir> screenshots
  *   FILE=<some.musicxml> the piece to open instead
  *   PHONE=1 a phone-sized viewport
+ *   LOOP=1 only the loop: each pass starts on the beat the last bar ends, count-in on and off
  *   PIP_SHOTS=<dir> Pip (pitch-guide.ts) beside a note, fed a pitch a third high, a little flat and in tune
  *
  * Opens the director's view, a student's assignment and the teacher's look at
@@ -173,6 +174,36 @@ const tapNote = async (page: any, k: number) => {
 const startChip = (page: any) => page.evaluate(() => document.querySelector(".start-chip")?.textContent?.replace(/\s+/g, " ").trim() ?? "");
 
 // The director's own view.
+// Loop: the next pass is booked on the beat the last bar ends (bookLoop). It
+// used to wait for the sound's release to end and start "a moment from now".
+if (process.env.LOOP) {
+  for (const countIn of [false, true]) {
+    const page = await open("", `loop, count-in ${countIn ? "on" : "off"}`);
+    await page.evaluate((c: boolean) => {
+      const d = (window as any).__pieceDebug;
+      d.setLoop(true, c);
+      d.play();
+    }, countIn);
+    // Twelve bars at the piece's tempo; three passes.
+    await page.waitForFunction(() => (window as any).__pieceDebug.passes().length >= 3, { timeout: 120000 }).catch(() => {});
+    const passes: { audio: number; offsetMs: number; totalMs: number; countInMs: number }[] = await page.evaluate(() => (window as any).__pieceDebug.passes());
+    await page.evaluate(() => (window as any).__pieceDebug.stop());
+    if (passes.length < 3) fail(`count-in ${countIn ? "on" : "off"}: only ${passes.length} passes`);
+    for (let i = 1; i < passes.length; i++) {
+      const prev = passes[i - 1], cur = passes[i];
+      // The music of the pass before ends here; the next pass's count-in (or music) begins on it.
+      const end = prev.audio + (prev.totalMs - prev.offsetMs) / 1000;
+      const off = (cur.audio - cur.countInMs / 1000 - end) * 1000;
+      console.log(`  count-in ${countIn ? "on " : "off"}: pass ${i + 1} begins ${off.toFixed(1)} ms from the beat after the last bar`);
+      if (Math.abs(off) > 2) fail(`pass ${i + 1} begins ${off.toFixed(1)} ms off the beat`);
+    }
+    await page.close();
+  }
+  await browser.close();
+  console.log(failures ? `${failures} check(s) failed` : "all checks passed");
+  process.exit(failures ? 1 : 0);
+}
+
 {
   const page = await open("", "director");
   await shot(page, "1-director", true);

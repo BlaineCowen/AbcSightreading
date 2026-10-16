@@ -97,6 +97,8 @@ export class SectionPlayer {
   }
 
   private clicks: OscillatorNode[] = [];
+  /** Passes left to ring out under a loop's next pass (stopped by stop()). */
+  private ringing: AudioBufferSourceNode[] = [];
 
   /** A short tick: higher on a downbeat, softer between beats. */
   private tick(ctx: AudioContext, at: number, kind: "down" | "beat" | "sub") {
@@ -118,29 +120,41 @@ export class SectionPlayer {
    * first sample is heard. From the middle, the count-in and the click keep
    * the music's own beat: the count-in is the beats before the first beat at
    * or after the start.
+   *
+   * `at`: the audio-clock moment to begin (the count-in, or the music without
+   * one), for a loop's next pass booked on the beat after the last bar ends;
+   * the pass before is left to ring out under it (its last notes' release).
+   * It used to wait for the buffer to end, release and all, and then start
+   * "a moment from now": every repeat came in late and off the beat.
    */
-  play(onEnded: () => void, clicks: Clicks, offsetMs = 0): number {
+  play(onEnded: () => void, clicks: Clicks, offsetMs = 0, at?: number): number {
     const ctx = this.context();
     if (!this.buffer) throw new Error("Not prepared.");
     if (ctx.state !== "running") void ctx.resume();
-    this.stop();
+    const handover = at !== undefined && at > ctx.currentTime + 0.02;
+    if (handover && this.source) {
+      // Let the last pass ring; its clicks are all behind us.
+      this.ringing.push(this.source);
+      this.source = null;
+      this.clicks = [];
+    } else this.stop();
     const src = ctx.createBufferSource();
     src.buffer = this.buffer;
     src.connect(ctx.destination);
-    const begin = ctx.currentTime + 0.12;
+    const begin = handover ? at! : ctx.currentTime + 0.12;
     const beat = clicks.beatMs / 1000;
     const kStart = Math.ceil((offsetMs - 1) / clicks.beatMs);
     // The music's time t (ms from its top) sounds at at + (t - offsetMs) / 1000.
-    const at = clicks.countIn ? begin + (offsetMs - (kStart - clicks.countIn) * clicks.beatMs) / 1000 : begin;
-    for (let k = 0; k < clicks.countIn; k++) this.tick(ctx, at + ((kStart - clicks.countIn + k) * clicks.beatMs - offsetMs) / 1000, k % clicks.beatsPerBar === 0 ? "down" : "beat");
+    const start = clicks.countIn ? begin + (offsetMs - (kStart - clicks.countIn) * clicks.beatMs) / 1000 : begin;
+    for (let k = 0; k < clicks.countIn; k++) this.tick(ctx, start + ((kStart - clicks.countIn + k) * clicks.beatMs - offsetMs) / 1000, k % clicks.beatsPerBar === 0 ? "down" : "beat");
     const first = clicks.firstBeat ?? 0;
     const sub = Math.max(1, clicks.sub ?? 1);
     for (let k = Math.max(0, kStart); k * clicks.beatMs < clicks.throughMs; k++) {
-      const t = at + (k * clicks.beatMs - offsetMs) / 1000;
+      const t = start + (k * clicks.beatMs - offsetMs) / 1000;
       this.tick(ctx, t, (k + first) % clicks.beatsPerBar === 0 ? "down" : "beat");
       for (let j = 1; j < sub; j++) this.tick(ctx, t + (j * beat) / sub, "sub");
     }
-    src.start(at, offsetMs / 1000);
+    src.start(start, offsetMs / 1000);
     src.onended = () => {
       if (this.source === src) {
         this.source = null;
@@ -149,8 +163,8 @@ export class SectionPlayer {
       }
     };
     this.source = src;
-    const perf = performance.now() + (at - ctx.currentTime) * 1000;
-    this.startedAt = { audio: at, perf, offsetMs };
+    const perf = performance.now() + (start - ctx.currentTime) * 1000;
+    this.startedAt = { audio: start, perf, offsetMs };
     return perf + this.latencyMs();
   }
 
@@ -169,6 +183,14 @@ export class SectionPlayer {
       }
     }
     this.clicks = [];
+    for (const r of this.ringing) {
+      try {
+        r.stop();
+      } catch {
+        // already done
+      }
+    }
+    this.ringing = [];
     const src = this.source;
     this.source = null;
     this.startedAt = null;
