@@ -4,7 +4,7 @@ import AdminPanel from "../components/AdminPanel.svelte";
 import { currentUser } from "../lib/server/api";
 import { isAdmin } from "../lib/server/admin";
 
-// The owner's page: access codes and affiliate codes. Anyone else gets a 404,
+// The owner's page: founding-teacher applications, access codes and affiliate codes. Anyone else gets a 404,
 // so it does not advertise that it exists.
 const user = await currentUser(Astro.request).catch(() => null);
 if (!isAdmin(user)) return new Response("Not found", { status: 404 });
@@ -13,7 +13,7 @@ const origin = new URL(Astro.request.url).origin;
 
 <Layout noindex title="Admin | abcSightReading" themable>
   <div class="flex flex-col w-full items-center gap-6 pb-16">
-    <h1 class="text-3xl font-bold text-sr-ink">Codes</h1>
+    <h1 class="text-3xl font-bold text-sr-ink">Admin</h1>
     <AdminPanel client:only="svelte" {origin} />
   </div>
 </Layout>

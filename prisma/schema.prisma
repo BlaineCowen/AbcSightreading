@@ -41,6 +41,7 @@ model User {
   quotes        Quote[]
   planNotices   PlanNotice[]
   freeMonth     FreeMonthClaim?
+  founderApplication FounderApplication?
   practice      PracticeTime[]
   practiceClock PracticeClock?
   grants        AccessGrant[]
@@ -563,6 +564,29 @@ model FreeMonthClaim {
   @@index([browserKey])
   @@index([networkKey, createdAt])
   @@map("free_month_claim")
+}
+
+/// A teacher asking to join the founding teachers (src/lib/founders.ts) whose
+/// email is not a school's and who did not come through ClassLink: their
+/// school and a page that lists them, for the owner to approve on /admin.
+/// Approving joins them; one application per account.
+model FounderApplication {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school    String
+  district  String
+  role      String
+  /// The school's staff page or website that shows they teach there.
+  proofUrl  String
+  note      String    @default("")
+  /// pending, approved or declined.
+  status    String    @default("pending")
+  decidedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@map("founder_application")
 }
 
 // Live practice (src/lib/live.ts): a director's room. Its code never changes

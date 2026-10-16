@@ -45,7 +45,7 @@ const home = viewer
       assignments,
       library,
       // The founding-teacher offer while this teacher may join (or has one step left).
-      founders: founders && (founders.ok || founders.step === "confirm") ? founders : null,
+      founders: founders && (founders.ok || founders.step === "confirm" || founders.step === "apply") ? founders : null,
       classlink,
     }))
   : null;
