@@ -42,7 +42,26 @@
 
   const firstName = (name || "").trim().split(/\s+/)[0] ?? "";
 
+  /**
+   * The founding-teacher offer as a modal, the first time a teacher who may
+   * join comes home (Blaine, 16 October 2026: the strip was hard to see in
+   * dark mode). "Not now" is remembered in this browser; the strip stays.
+   */
+  const OFFER_SEEN = "abc-founders-offer-v1";
+  let offerOpen = false;
+  let offerButton: HTMLAnchorElement;
+  function closeOffer() {
+    offerOpen = false;
+    try { localStorage.setItem(OFFER_SEEN, "1"); } catch {}
+  }
+
   onMount(() => {
+    try {
+      if (founders && !localStorage.getItem(OFFER_SEEN)) {
+        offerOpen = true;
+        setTimeout(() => offerButton?.focus(), 50);
+      }
+    } catch {}
     now = Date.now();
     const tickTimer = setInterval(() => (now = Date.now()), 60_000);
     return () => clearInterval(tickTimer);
@@ -85,6 +104,8 @@
   a row of equal tiles, My music first; at most one offer, as a slim strip;
   then the earlier exercises.
 -->
+<svelte:window on:keydown={(e) => offerOpen && e.key === "Escape" && closeOffer()} />
+
 <div class="home w-full max-w-5xl mx-auto px-4 py-6 sm:py-8 flex flex-col gap-5">
   <header>
     <h1 class="text-3xl sm:text-4xl font-bold text-sr-ink">Welcome back{firstName ? `, ${firstName}` : ""}</h1>
@@ -163,15 +184,36 @@
 
   {#if founders}
     <!-- The founding-teacher offer (/founders), for a teacher who may join. -->
-    <a class="offer" href="/founders">
+    <a class="offer bg-sr-peach text-sr-peach-ink" href="/founders">
       <span class="offer-tag">{classlink ? "Pro is on through ClassLink" : "Founding teachers"}</span>
-      <span class="offer-text text-sm text-sr-ink-2"><b class="text-sr-ink">Educator free this school year</b>, with 300 student accounts, then half price for as long as you stay.</span>
-      <span class="text-sm font-extrabold text-sr-action-fg whitespace-nowrap">See the offer →</span>
+      <span class="offer-text text-sm"><b>Educator free this school year</b>, with 300 student accounts, then half price for as long as you stay.</span>
+      <span class="text-sm font-extrabold whitespace-nowrap underline underline-offset-2">See the offer</span>
     </a>
   {/if}
 
   {#if accountType === "student"}
     <StudentAssignments initial={assignments} />
+  {/if}
+
+  {#if offerOpen}
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="offer-back" on:click|self={closeOffer}>
+      <div class="offer-modal" role="dialog" aria-modal="true" aria-labelledby="offer-h">
+        <div class="offer-top">
+          <span class="text-xs font-extrabold uppercase tracking-wide opacity-80">{classlink ? "Pro is already on through ClassLink" : "Founding teachers"}</span>
+          <h2 id="offer-h" class="text-2xl font-extrabold leading-tight">Bring your students, free this school year</h2>
+        </div>
+        <ul class="offer-list">
+          <li><b>Educator free</b> through May 31, 2027: classes with join codes, assignments, and each student's practice time.</li>
+          <li><b>300 student accounts</b>, safe for every age: no student email, logins you can print.</li>
+          <li><b>Half price after that</b>, for as long as you stay.</li>
+        </ul>
+        <div class="flex flex-wrap gap-2 justify-end">
+          <button type="button" class="sr-btn-quiet" on:click={closeOffer}>Not now</button>
+          <a class="sr-btn" href="/founders" bind:this={offerButton} on:click={closeOffer}>See the offer</a>
+        </div>
+      </div>
+    </div>
   {/if}
 
   <!-- The exercises they wrote before the last, each reopening exactly as it was. -->
@@ -289,10 +331,8 @@
     gap: 0.5rem 0.9rem;
     padding: 0.8rem 1.1rem;
     border-radius: 20px;
-    background: var(--sr-panel);
-    box-shadow: inset 0 0 0 2px var(--sr-peach);
   }
-  .offer:hover { background: var(--sr-tint); }
+  .offer:hover { filter: brightness(0.97); }
   .offer-text { flex: 1 1 18rem; min-width: 0; }
   .offer-tag {
     font-size: 11px;
@@ -301,8 +341,51 @@
     letter-spacing: 0.04em;
     border-radius: 999px;
     padding: 0.2rem 0.6rem;
+    background: color-mix(in srgb, var(--sr-peach-ink) 12%, transparent);
+  }
+  .offer-back {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgb(15 23 42 / 0.55);
+    animation: offer-fade 160ms ease-out;
+  }
+  .offer-modal {
+    width: min(30rem, 100%);
+    border-radius: 28px;
+    overflow: hidden;
+    background: var(--sr-raise);
+    color: var(--sr-ink);
+    box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.5);
+    padding-bottom: 1.25rem;
+    animation: offer-rise 200ms ease-out;
+  }
+  .offer-top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1.4rem 1.5rem 1.2rem;
     background: var(--sr-peach);
     color: var(--sr-peach-ink);
+  }
+  .offer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.1rem 1.5rem 1.25rem 2.6rem;
+    list-style: disc;
+    font-size: 0.95rem;
+    color: var(--sr-ink-2);
+  }
+  .offer-list b { color: var(--sr-ink); }
+  .offer-modal > div:last-child { padding: 0 1.5rem; }
+  @keyframes offer-fade { from { opacity: 0; } }
+  @keyframes offer-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+  @media (prefers-reduced-motion: reduce) {
+    .offer-back, .offer-modal { animation: none; }
   }
   .section-head {
     display: flex;

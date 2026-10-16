@@ -31,11 +31,15 @@
   import { cubicOut } from "svelte/easing";
   import ChevronDown from "lucide-svelte/icons/chevron-down";
   import X from "lucide-svelte/icons/x";
+  import Repeat from "lucide-svelte/icons/repeat";
+  import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../../lib/score-view";
   import Volume2 from "lucide-svelte/icons/volume-2";
   import VolumeX from "lucide-svelte/icons/volume-x";
   import Eye from "lucide-svelte/icons/eye";
   import EyeOff from "lucide-svelte/icons/eye-off";
   import Pencil from "lucide-svelte/icons/pencil";
+  import Minus from "lucide-svelte/icons/minus";
+  import Plus from "lucide-svelte/icons/plus";
   import { INSTRUMENTS } from "../../lib/instruments";
   import { abcForPiece, type PieceAbc } from "../../lib/pieces/write-abc";
   import { loadPiece, updatePiece } from "../../lib/pieces/client";
@@ -52,16 +56,17 @@
   import Mic from "lucide-svelte/icons/mic";
   import { GradeRunner, type GradeTrace } from "../../lib/grade-runner";
   import { STRICTNESS, type GradeNote } from "../../lib/grade";
-  import { drawGradeFeedback, clearGradeFeedback, headOf } from "../../lib/grade-feedback";
+  import { drawGradeFeedback, clearGradeFeedback, headOf, revealTo } from "../../lib/grade-feedback";
   import { PitchGuide } from "../../lib/pitch-guide";
   import { playedBars, Timeline } from "../../lib/pieces/timeline";
   import PlaybackBar from "../PlaybackBar.svelte";
   import GradePanel from "../GradePanel.svelte";
   import { startGradeRecording, type GradeRecording } from "../../lib/grade-recording";
+  import { TakePlayer, noteAt as spanAt } from "../../lib/grade-playback";
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { tuner } from "../../lib/tuner/store";
   import { scheduleForPiece, beatsInBar, beatUnitsOf } from "../../lib/pieces/schedule";
-  import { barBoxes, barFromEvent, barHits, clearBarHits, fadeOutside, noteElements, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
+  import { barBoxes, barFromEvent, barHits, clearBarHits, cursorLine, fadeOutside, noteElements, soundingAt, type NoteEl } from "../../lib/pieces/score-dom";
   import { SectionPlayer } from "../../lib/pieces/section-player";
   import { TICKS } from "../../lib/pieces/model";
   import { attemptsLeft, attemptsLine, bestOf, marksOf, type Mark } from "../../lib/pieces/attempts";
@@ -126,6 +131,19 @@
   let isPreparing = false;
   let looping = false;
   let narrow = false;
+  /**
+   * The Layout menu (score-view.ts, as the practice pages'; Blaine, 16 October
+   * 2026: My music needs layout options): size is what the staff width is
+   * divided by (1.2 on a desktop, 1 on a phone, as before), bars per line
+   * overrides the default (4, 2 on a phone, 3 past six parts), spacing is
+   * %%staffsep. Remembered in this browser for every piece.
+   */
+  let scoreView: ScoreView = { scale: 1.2, bars: null, spacing: "normal" };
+  function changeScoreView(patch: Partial<ScoreView>) {
+    scoreView = { ...scoreView, ...patch };
+    saveScoreView("pieces", scoreView);
+    void render(true);
+  }
 
   let renaming = false;
   let titleDraft = "";
@@ -149,6 +167,16 @@
     if (!tr) return score!;
     if (moved?.semis !== tr) moved = { semis: tr, score: transposeScore(score!, tr) };
     return moved.score;
+  }
+  /** The key it is heard in (rules.ts `sound`): null sounds as drawn. */
+  let soundKey: number | null = null;
+  $: sr = asg ? 0 : soundKey ?? transpose;
+  let heardScore: { semis: number; score: PieceScore } | null = null;
+  /** The music as it sounds: playback, starting pitches, tapped notes, and what Grade listens for. */
+  function heard(): PieceScore {
+    if (sr === tr) return music();
+    if (heardScore?.semis !== sr) heardScore = { semis: sr, score: transposeScore(score!, sr) };
+    return heardScore.score;
   }
   /** The director's count-in before the music (an assignment always counts in). */
   let countInOn = true;
@@ -240,6 +268,17 @@
           return m < 0 ? null : { bar: Number(score!.measures[m].label), tick: t };
         },
         paused: () => pausedMs,
+        /** Loop on or off and the count-in, as the playback bar sets them. */
+        setLoop: (on: boolean, countIn: boolean) => ((looping = on), (countInOn = countIn)),
+        /** Each pass's music start on the audio clock, and how long its music is. */
+        passes: () => passLog,
+        play: () => play(),
+        stop: () => stopHere(),
+        /** The key lines of the music as drawn and as heard. */
+        keys: () => {
+          const ks = (abc = "") => [...new Set(abc.match(/K:[^\]\n]*/g) ?? [])].join(" ");
+          return { drawn: ks(drawn?.abc), heard: score ? ks(sectionSound().abc) : "" };
+        },
       };
     }
     return () => {
@@ -251,6 +290,7 @@
 
   async function load() {
     narrow = window.innerWidth <= 640;
+    scoreView = loadScoreView("pieces", { scale: narrow ? 1 : 1.2, bars: null, spacing: "normal" });
     try {
       const loaded = await loadPiece(id);
       piece = loaded.piece;
@@ -258,6 +298,7 @@
       parts = partSettingsFor(loaded.score, loaded.parts);
       settings = loaded.settings;
       transpose = settings.transpose;
+      soundKey = settings.sound;
       const firstTempo = score.measures.find((m) => m.tempo)?.tempo;
       scoreBpm = bpm = firstTempo ?? 100;
       to = score.measures.length - 1;
@@ -310,7 +351,10 @@
     marked: (scores) => markNotes(scores),
     startTimeline: () => startTimeline(),
     stopTimeline: () => pause(),
-    traced: (trace) => drawTrace(trace),
+    traced: (trace) => {
+      lastTrace = trace;
+      drawTrace(trace);
+    },
   });
 
   $: myAttempts = attemptsRole === "student" ? attempts : [];
@@ -379,7 +423,8 @@
   }
 
   const LETTERS = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
-  const letterOf = (midi: number) => LETTERS[((Math.round(midi) % 12) + 12) % 12];
+  /** A sounding pitch named as the music shows it (the written key may differ from the heard one). */
+  $: letterOf = (midi: number) => LETTERS[((Math.round(midi + tr - sr) % 12) + 12) % 12];
 
   function drawTrace(trace: GradeTrace) {
     const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
@@ -413,8 +458,11 @@
     const heardAt = player.play(() => {
       isPlaying = false;
       stopCursor();
+      markStart();
     }, sectionClicks(true));
+    soundHeardAt = heardAt;
     isPlaying = true;
+    markStart();
     if (!(practicing && $tuner.gradeCursor === "off")) followCursor();
     const leadInMs = ((score.measures[from].start - score.measures[leadIn].start) / TICKS) * (60_000 / bpm);
     return heardAt + leadInMs;
@@ -493,7 +541,7 @@
   $: practiceParts = score && !asg ? partOrder.filter((x) => partsFor(score!, from, to, false).includes(x.p.id)) : [];
   $: practiceBlocked = !score || asg ? null : practiceParts.length ? null : "No part here is one line to sing: each plays chords or two voices at once.";
   /** Do's and the tonic's pitch class as the music sounds (the key moved by the transposition). */
-  $: doPc = writtenKey ? ((((writtenKey.fifths * 7 + tr) % 12) + 12) % 12) : 0;
+  $: doPc = writtenKey ? ((((writtenKey.fifths * 7 + sr) % 12) + 12) % 12) : 0;
   $: tonicPc = writtenKey?.mode === "minor" ? (doPc + 9) % 12 : doPc;
   const PART_KEY = () => `abc-piece-grade-part-${id}`;
 
@@ -524,6 +572,8 @@
   }
 
   function closeGrade() {
+    disposeTake();
+    takeAudio = null;
     gradeRunner.stop();
     clearMarks();
     gradeCursorTo(-1);
@@ -568,11 +618,14 @@
   async function startPracticeRun() {
     if (!score || !myPart || practicing) return;
     pauseAll();
+    disposeTake();
+    takeAudio = null;
+    lastTrace = null;
     clearMarks();
     gradeCursorTo(-1);
     const inTime = $tuner.gradeMode === "performance";
     const order = playedBars(score.measures, from, to);
-    const schedule = scheduleForPiece(music(), myPart, from, to, order);
+    const schedule = scheduleForPiece(heard(), myPart, from, to, order);
     gradeNotes = schedule.notes;
     if (!gradeNotes.length) return;
     if (inTime) {
@@ -583,10 +636,14 @@
         isPreparing = false;
       }
     }
+    // Recorded for Hear your take (kept in this browser only). Nothing may await once the tuner starts.
+    recording = await startGradeRecording();
     initTuner();
     if (tuner.get().engineStatus !== "running") await startTuner();
     if (tuner.get().engineStatus !== "running") {
       status = "The microphone did not start. Allow it in your browser, then try again.";
+      void recording?.stop();
+      recording = null;
       return;
     }
     tuner.setMicHeld(true);
@@ -611,9 +668,115 @@
 
   $: if (practicing && ($gradeRunner.phase === "results" || $gradeRunner.phase === "idle")) endPractice();
   function endPractice() {
+    const ended = $gradeRunner.phase === "results";
     practicing = false;
     pause();
     releaseMic();
+    const rec = recording;
+    recording = null;
+    // The sound as heard in the run, kept: Play may render another before the take is heard.
+    takeSound = $tuner.gradeMode === "performance" ? player.audio : null;
+    void rec?.stop().then((a) => {
+      if (ended) takeAudio = a;
+    });
+  }
+
+  // ── Hear your take (grade-playback.ts): the practice run's recording, the music as heard under it ──
+  /** The last practice run's recording, in this browser only; gone with a new run or Close. */
+  let takeAudio: { blob: Blob; startedAt: number } | null = null;
+  let lastTrace: GradeTrace | null = null;
+  let takeSound: AudioBuffer | null = null;
+  /** When the run's sound was first heard (page time), for the music under the take. */
+  let soundHeardAt = 0;
+  let takePlayer: TakePlayer | null = null;
+  let take = { open: false, loading: false, playing: false, progress: 0, music: false, hasMusic: false, error: null as string | null };
+  let takeNote = -1;
+  let takeFrom = 0;
+  const takeProgress = (t: number) =>
+    takePlayer ? Math.min(1, Math.max(0, (t - takeFrom) / Math.max(1, takePlayer.end - takeFrom))) : 0;
+  $: canHearTake = !!takeAudio && !!lastTrace && $gradeRunner.phase === "results" && gradeOpen && !asg;
+  const paperOf = () => document.querySelector("#piece-paper svg");
+  function disposeTake() {
+    takePlayer?.dispose();
+    takePlayer = null;
+    takeNote = -1;
+    take = { ...take, open: false, loading: false, playing: false, progress: 0 };
+  }
+  async function hearTake() {
+    if (takePlayer) {
+      take = { ...take, open: true };
+      if (takePlayer.playing) return takePlayer.pause();
+      return takePlayer.play(takePlayer.position <= takePlayer.start ? takeFrom : takePlayer.position);
+    }
+    if (!takeAudio || !lastTrace || !score) return;
+    pauseAll();
+    const trace = lastTrace;
+    // Note by note is untimed: no music lines up with it.
+    const timed = trace.mode !== "pitch" && trace.t0 !== undefined && !!takeSound;
+    const time = score.measures[playFrom].time;
+    const beatMs = 60_000 / gradeBpm();
+    const player2 = new TakePlayer(takeAudio, timed
+      ? {
+          abc: "",
+          bpm: bpm,
+          transpose: 0,
+          volumeMultiplier: 1,
+          t0: trace.t0!,
+          beatMs,
+          beatsPerBar: beatsInBar(time),
+          countInBeats: countInMeasures(`${time.beats}/${time.beatType}`) * beatsInBar(time),
+          beats: Math.ceil((timeline?.totalMs ?? 0) / beatMs),
+          clickSound: $tuner.clickSound,
+          buffer: takeSound!,
+          bufferAt: soundHeardAt,
+        }
+      : null);
+    takePlayer = player2;
+    take = { ...take, open: true, loading: true, error: null, hasMusic: timed };
+    try {
+      await player2.load();
+    } catch (e) {
+      console.error("The take could not be played:", e);
+      take = { ...take, loading: false, error: "Your take could not be played back in this browser." };
+      return;
+    }
+    if (takePlayer !== player2) return;
+    player2.setMusic(take.music);
+    player2.onFrame((t) => {
+      const i = spanAt(trace.spans, t);
+      if (i !== takeNote) {
+        takeNote = i;
+        gradeCursorTo(i);
+        revealTo(paperOf(), i);
+        gradeDetailIndex = i >= 0 ? i : null;
+      }
+      take = { ...take, playing: player2.playing, progress: takeProgress(t) };
+    });
+    player2.onEnd(() => {
+      takeNote = -1;
+      gradeCursorTo(-1);
+      revealTo(paperOf(), null);
+      take = { ...take, playing: false, progress: 0 };
+    });
+    take = { ...take, loading: false };
+    takeFrom = Math.max(player2.start, (trace.spans[0]?.from ?? player2.start) - 1200);
+    await player2.play(takeFrom);
+    take = { ...take, playing: true };
+  }
+  function takeMusic(on: boolean) {
+    take = { ...take, music: on };
+    takePlayer?.setMusic(on);
+  }
+  function takeSeek(frac: number) {
+    if (!takePlayer) return;
+    takePlayer.seek(takeFrom + frac * (takePlayer.end - takeFrom));
+    take = { ...take, progress: frac };
+  }
+  function closeTake() {
+    takePlayer?.pause();
+    gradeCursorTo(-1);
+    revealTo(paperOf(), null);
+    take = { ...take, open: false, playing: false };
   }
 
   /** Note by note: the note waited on, lit and in view, Pip on it, and the other parts' notes under it. */
@@ -621,8 +784,8 @@
   function gradeCursorTo(i: number) {
     for (const e of gradeLit) e.classList.remove("piece-now");
     gradeLit = [];
-    const n = i >= 0 && practicing ? gradeNotes[i] : null;
-    guideTo(n);
+    const n = i >= 0 && (practicing || take.open) ? gradeNotes[i] : null;
+    guideTo(practicing ? n : null);
     if (!n || !myPart) return;
     gradeLit = (drawnFor(myPart).get(n.cursor)?.absEl?.elemset ?? []) as Element[];
     for (const e of gradeLit) e.classList.add("piece-now");
@@ -641,12 +804,12 @@
    */
   function playOthersUnder(n: GradeNote) {
     if (practiceHearing === "acappella" || !score || !myPart) return;
-    const mine = music().parts.find((p) => p.id === myPart);
+    const mine = heard().parts.find((p) => p.id === myPart);
     const at = mine?.notes[n.cursor]?.start;
     if (at === undefined) return;
     const pc = ((n.midi % 12) + 12) % 12;
     const chord = new Set<number>();
-    music().parts.forEach((p) => {
+    heard().parts.forEach((p) => {
       if (p.id === myPart || levelOf(p.id) === 0) return;
       for (const x of p.notes) {
         if (!x.rest && x.midi !== undefined && x.start <= at && at < x.start + x.length && ((x.midi % 12) + 12) % 12 !== pc) chord.add(x.midi);
@@ -746,6 +909,7 @@
   }
 
   onDestroy(() => {
+    takePlayer?.dispose();
     gradeRunner.stop();
     player.destroy();
     pitchGuide?.destroy();
@@ -803,7 +967,7 @@
     if (!drawn || !renderedTune || !score) return;
     const els = drawnElements(renderedTune, drawn.staves);
     for (const v of drawn.voices) {
-      const notes = music().parts[v.part].notes;
+      const notes = heard().parts[v.part].notes;
       (els.get(v.id) ?? []).forEach((el, k) => {
         const i = v.elements[k];
         if (i === undefined || i < 0 || notes[i].rest) return;
@@ -847,15 +1011,40 @@
     startAt = at;
     markStart();
   }
-  /** The tapped note shows where playback starts. */
+  const paperSvg = () => document.querySelector("#piece-paper svg") as SVGSVGElement | null;
+
+  /**
+   * Where Play starts, marked on the music: a line the height of the system
+   * at the paused place, the tapped note (its notes orange too), or the first
+   * note of the bars in play. Hidden while playing, when the cursor moves.
+   */
   function markStart() {
     for (const e of startEls) e.classList.remove("piece-start");
     startEls = [];
-    if (!startAt) return;
-    const t = startAt.tick;
-    startEls = items.filter((x) => x.note.start === t && x.note.measure === startAt!.bar && !x.note.rest).flatMap((x) => x.svg);
-    if (!startEls.length) startEls = items.filter((x) => x.note.start === t).flatMap((x) => x.svg);
-    for (const e of startEls) e.classList.add("piece-start");
+    if (!score || !items.length) return;
+    if (isPlaying) {
+      cursorLine(paperSvg(), [], "piece-start-line");
+      return;
+    }
+    let at: Element[] = [];
+    let label = "Start";
+    const pausedTick = pausedMs !== null && timeline ? timeline.tickAt(pausedMs) : null;
+    if (pausedTick !== null) {
+      at = soundingAt(items, pausedTick);
+      label = "Paused";
+    } else if (startAt) {
+      const t = startAt.tick;
+      startEls = items.filter((x) => x.note.start === t && x.note.measure === startAt!.bar && !x.note.rest).flatMap((x) => x.svg);
+      if (!startEls.length) startEls = items.filter((x) => x.note.start === t).flatMap((x) => x.svg);
+      for (const e of startEls) e.classList.add("piece-start");
+      at = startEls;
+    } else {
+      const bar = asg ? leadIn : from;
+      const inBar = items.filter((x) => x.note.measure === bar);
+      const first = Math.min(...inBar.map((x) => x.note.start));
+      at = inBar.filter((x) => x.note.start === first).flatMap((x) => x.svg);
+    }
+    cursorLine(paperSvg(), at, "piece-start-line", label);
   }
   $: barChoices = score ? score.measures.map((m, i) => ({ i, label: m.label })) : [];
 
@@ -865,20 +1054,23 @@
       partOrder.map((x) => [x.i, asg && myPart === x.p.id ? `${x.s.name} (you)` : x.s.name]),
     );
     // The whole piece always shows; the bars in play are marked by fading the rest.
-    const perLine = narrow ? 2 : score && score.parts.length > 6 ? 3 : 4;
+    const perLine = scoreView.bars ?? (narrow ? 2 : score && score.parts.length > 6 ? 3 : 4);
     return { parts: partIdx, programs, names, barsPerLine: perLine, tempo: scoreBpm };
   }
 
-  async function render() {
+  /** Draws the piece. `keepPlace`: a layout change, which keeps playing from where it was. */
+  async function render(keepPlace = false) {
     if (!score) return;
+    const wasPlaying = keepPlace && isPlaying;
+    const here = keepPlace ? (isPlaying ? player.elapsedMs() : pausedMs) : null;
     pause();
     const abcjs = (await import("abcjs")).default;
     const shown = shownParts.length ? shownParts : [0];
     drawn = abcForPiece(music(), abcOptions(shown));
     const box = document.getElementById("piece-box");
-    const staffwidth = Math.max(300, Math.floor((box?.clientWidth ?? 760) / (narrow ? 1 : 1.25)) - 30);
+    const staffwidth = Math.max(300, Math.floor((box?.clientWidth ?? 760) / scoreView.scale) - 30);
     document.getElementById("piece-paper")?.removeAttribute("style");
-    const [tune] = abcjs.renderAbc("piece-paper", drawn.abc, {
+    const [tune] = abcjs.renderAbc("piece-paper", withLineSpacing(drawn.abc, scoreView.spacing), {
       add_classes: true,
       clickListener: (abcElem: unknown) => onNoteClick(abcElem),
       responsive: "resize",
@@ -892,12 +1084,16 @@
     anchor = null;
     markBars();
     markStart();
+    if (here !== null && here > 0) pausedMs = here;
+    if (wasPlaying) await playSection(here !== null ? Math.max(0, here) : null, false);
+    else markStart();
   }
 
   /** The bars in play: the rest fade (an assignment's lead-in less); scrolled to the first time. */
   function markBars() {
     if (!score) return;
     fadeOutside(items, from, to, asg ? leadIn : from);
+    markStart();
     if (!shadedOnce && (asg || excerpt)) {
       shadedOnce = true;
       const first = items.find((it) => it.note.measure === playFrom)?.svg[0];
@@ -907,7 +1103,7 @@
 
   // ── Assignment playback: the lead-in to the last graded bar, on the audio clock ──
   function sectionSound(forGrade = false) {
-    const all = abcForPiece(music(), {
+    const all = abcForPiece(heard(), {
       ...abcOptions(score!.parts.map((_, i) => i)),
       from: playFrom,
       to,
@@ -974,9 +1170,11 @@
     cancelAnimationFrame(cursorFrame);
     const step = () => {
       const t = sectionTick();
+      const was = lit[0];
       for (const e of lit) e.classList.remove("piece-now");
       lit = t === null ? [] : soundingAt(items, t);
       for (const e of lit) e.classList.add("piece-now");
+      if (lit[0] !== was) cursorLine(paperSvg(), lit, "piece-play-line");
       const head = lit[0] as HTMLElement | undefined;
       if (head) {
         const r = head.getBoundingClientRect();
@@ -991,14 +1189,42 @@
     cancelAnimationFrame(cursorFrame);
     for (const e of lit) e.classList.remove("piece-now");
     lit = [];
+    cursorLine(paperSvg(), [], "piece-play-line");
   }
 
   /**
    * Plays the section from `offsetMs` into it (null: where Play starts);
    * returns when the music is heard (performance.now ms).
    */
-  async function playSection(offsetMs: number | null = null, countIn = true): Promise<number | null> {
+  /** Dev only: each pass's start on the audio clock (check-piece-viewer.ts LOOP=1). */
+  let passLog: { audio: number; offsetMs: number; totalMs: number; countInMs: number }[] = [];
+
+  /** The loop's next pass, booked just before this one's music ends (pause cancels it). */
+  let loopTimer: ReturnType<typeof setTimeout> | undefined;
+  let passId = 0;
+  /** How long before the music's end the next pass is booked (ms): room for the sound to be found. */
+  const LOOP_LEAD_MS = 400;
+
+  /**
+   * Books the loop's next pass on the beat the last bar ends (`endAudio` on the
+   * audio clock): its count-in, or its first note with the count-in off,
+   * lands on the next beat, and this pass rings out under it.
+   */
+  function bookLoop() {
+    clearTimeout(loopTimer);
+    const pass = ++passId;
+    const s = player.startedAt;
+    if (!s || !timeline) return;
+    const endAudio = s.audio + (timeline.totalMs - s.offsetMs) / 1000;
+    const wait = (endAudio - player.context().currentTime) * 1000 - LOOP_LEAD_MS;
+    loopTimer = setTimeout(() => {
+      if (pass === passId && looping && isPlaying && !grading && !practicing) void playSection(0, true, endAudio);
+    }, Math.max(0, wait));
+  }
+
+  async function playSection(offsetMs: number | null = null, countIn = true, atAudio?: number): Promise<number | null> {
     if (!score) return null;
+    if (take.open) closeTake();
     isPreparing = true;
     try {
       await player.prepare(sectionSound());
@@ -1011,10 +1237,19 @@
     const heardAt = player.play(() => {
       isPlaying = false;
       stopCursor();
-      // Looping goes back to where it started: the tapped note, or the top.
-      if (looping && !grading && !practicing) void playSection();
-    }, sectionClicks(countIn), offset);
+      markStart();
+      // Looping goes back to the top of the bars in play, even from a tapped
+      // note: normally booked on the beat ahead of time (bookLoop); this is
+      // for a Loop switched on too late for that.
+      if (looping && !grading && !practicing) void playSection(0);
+    }, sectionClicks(countIn), offset, atAudio);
+    if (import.meta.env.DEV && player.startedAt) {
+      const c = sectionClicks(countIn);
+      passLog = [...passLog, { audio: player.startedAt.audio, offsetMs: offset, totalMs: timeline?.totalMs ?? 0, countInMs: c.countIn * c.beatMs }];
+    }
     isPlaying = true;
+    bookLoop();
+    markStart();
     followCursor();
     return heardAt;
   }
@@ -1045,20 +1280,25 @@
 
   /** Stops the sound and the cursor (the place is not kept). */
   function pause() {
+    clearTimeout(loopTimer);
+    passId++;
     player.stop();
     stopCursor();
     isPlaying = false;
+    markStart();
   }
   /** The playback bar's Pause: Play carries on from here. */
   function pauseHere() {
     const ms = player.elapsedMs();
     pause();
     pausedMs = ms !== null && ms > 0 ? ms : pausedMs;
+    markStart();
   }
   /** Stop: back to where Play starts (the tapped note, or the top). */
   function stopHere() {
     pause();
     pausedMs = null;
+    markStart();
   }
   /** Back to start: the top, the tapped note let go. */
   function rewind() {
@@ -1070,6 +1310,7 @@
   function pauseAll() {
     pause();
     pausedMs = null;
+    markStart();
   }
 
   // ── Parts ───────────────────────────────────────────────────────────────
@@ -1122,17 +1363,42 @@
   }
 
   // ── Choosing bars by tapping the music ───────────────────────────────────
-  function startChoosing() {
+  /** Choosing the bars to loop (Loop pressed): once chosen, it plays them round. */
+  let choosingLoop = false;
+  function startChoosing(forLoop = false) {
     pause();
     const svg = document.querySelector("#piece-paper svg") as SVGSVGElement | null;
     barHits(svg, barBoxes(svg, items));
     choosing = true;
+    choosingLoop = forLoop;
     anchor = null;
   }
   function stopChoosing() {
     clearBarHits(document.querySelector("#piece-paper svg"));
     choosing = false;
+    choosingLoop = false;
     anchor = null;
+  }
+
+  /**
+   * Loop (Blaine, 16 October 2026: "click a loop button and select start and
+   * end easily"): on with the whole piece in play, it asks for the bars on
+   * the music, first then last, and plays them round; on with bars already
+   * chosen, it loops those. A teacher's assignment loops its own bars.
+   */
+  function toggleLoop() {
+    looping = !looping;
+    if (looping && !excerpt && !asg && !practicing && !grading) startChoosing(true);
+    else if (!looping && choosingLoop) stopChoosing();
+  }
+  function loopWholePiece() {
+    stopChoosing();
+    wholePiece();
+    void play();
+  }
+  function cancelChoosing() {
+    if (choosingLoop) looping = false;
+    stopChoosing();
   }
   function onScoreClick(e: MouseEvent) {
     if (!choosing) return;
@@ -1142,8 +1408,13 @@
       anchor = bar;
       setRange(bar, bar);
     } else {
+      const loopIt = choosingLoop;
       setRange(anchor, bar);
       stopChoosing();
+      if (loopIt) {
+        setStart(null);
+        void play();
+      }
     }
   }
 
@@ -1159,7 +1430,7 @@
     for (const { p, i } of partOrder) {
       if (levelOf(p.id) === 0) continue;
       let first: { start: number; midi?: number } | null = null;
-      for (const n of music().parts[i].notes) {
+      for (const n of heard().parts[i].notes) {
         if (n.rest || n.measure < playFrom || n.measure > to || n.start + n.length <= at) continue;
         if (!first || n.start < first.start) first = n;
       }
@@ -1202,6 +1473,15 @@
     settings = { ...settings, transpose: semis };
     saveSettings();
   }
+  /** The key it is heard in, apart from the one drawn; null sounds as drawn. Nothing is drawn again. */
+  function setSound(semis: number | null) {
+    soundKey = semis;
+    pause();
+    if (!owner) return;
+    settings = { ...settings, sound: semis };
+    saveSettings();
+  }
+  $: soundApart = soundKey !== null && soundKey !== transpose;
 
   function saveSettings() {
     void updatePiece(id, { settings }).then(() => (status = "")).catch((e) => (status = (e as Error).message));
@@ -1451,8 +1731,8 @@
           <span class="set-group-label" aria-hidden="true"><span class="set-group-dot tone-sky"></span>Music</span>
           <div class="set-group-pills">
             <button type="button" class="set-pill" aria-expanded={settingPop === "key"} on:click={(e) => togglePop("key", e)}>
-              <span class="set-pill-k">Key</span>{keyShort(transpose)}
-              {#if transpose}<span class="set-pill-dot" title="Moved from the written key"></span>{/if}
+              <span class="set-pill-k">Key</span>{keyShort(transpose)}{#if soundApart}, sounds in {keyShort(soundKey ?? 0)}{/if}
+              {#if transpose || soundApart}<span class="set-pill-dot" title="Moved from the written key"></span>{/if}
               <ChevronDown size={14} class="set-pill-chev" aria-hidden="true" />
             </button>
             <button type="button" class="set-pill" aria-expanded={settingPop === "parts"} on:click={(e) => togglePop("parts", e)}>
@@ -1491,14 +1771,30 @@
         <div in:popIn out:popOut class="set-pop {settingPop === 'parts' ? 'set-pop-wide' : ''}" style="--pop-left: {popLeft}px" role="dialog" aria-label={POP_TITLE[settingPop]}>
           <p class="set-pop-title">{POP_TITLE[settingPop]}</p>
           {#if settingPop === "key"}
-            <div class="flex flex-wrap gap-1.5" role="group" aria-label="Key">
+            <p class="key-row-label" id="key-written">The music</p>
+            <div class="flex flex-wrap gap-1.5" role="group" aria-labelledby="key-written">
               {#each Array.from({ length: MAX_TRANSPOSE * 2 + 1 }, (_, k) => MAX_TRANSPOSE - k) as semis}
                 <button type="button" class="sr-tok text-sm" class:sr-on={transpose === semis} aria-pressed={transpose === semis} on:click={() => setTranspose(semis)}>
                   {keyShort(semis)}<span class="tok-sub">{semis === 0 ? "as written" : `${semis > 0 ? "up" : "down"} ${Math.abs(semis)}`}</span>
                 </button>
               {/each}
             </div>
-            <p class="text-xs text-sr-faint mt-3">The music is drawn and played in the key chosen{owner ? ", and the piece keeps it" : ""}. Assignments are always as written.</p>
+            <p class="key-row-label" id="key-sound">The sound</p>
+            <div class="flex flex-wrap items-center gap-1.5" role="group" aria-labelledby="key-sound">
+              <button type="button" class="sr-tok text-sm" class:sr-on={!soundApart} aria-pressed={!soundApart} on:click={() => setSound(null)}>
+                Same as the music
+              </button>
+              {#if soundApart && soundKey !== null}
+                <span class="key-step">
+                  <button type="button" class="icon-btn" aria-label="Sound a semitone lower" disabled={soundKey <= -MAX_TRANSPOSE} on:click={() => setSound(soundKey === transpose + 1 ? transpose - 1 : (soundKey ?? 0) - 1)}><Minus size={16} aria-hidden="true" /></button>
+                  <span class="key-step-name" aria-live="polite">{keyShort(soundKey)}<span class="tok-sub">{soundKey === 0 ? "as written" : `${soundKey > 0 ? "up" : "down"} ${Math.abs(soundKey)}`}</span></span>
+                  <button type="button" class="icon-btn" aria-label="Sound a semitone higher" disabled={soundKey >= MAX_TRANSPOSE} on:click={() => setSound(soundKey === transpose - 1 ? transpose + 1 : (soundKey ?? 0) + 1)}><Plus size={16} aria-hidden="true" /></button>
+                </span>
+              {:else}
+                <button type="button" class="sr-tok text-sm" on:click={() => setSound(transpose >= MAX_TRANSPOSE ? transpose - 1 : transpose + 1)}>Another key</button>
+              {/if}
+            </div>
+            <p class="text-xs text-sr-faint mt-3">The music is drawn in one key and can be heard in another: read it in the original and sing it lower, say. Grade listens for the key you hear{owner ? ". The piece keeps both" : ""}. Assignments are always as written.</p>
           {:else if settingPop === "parts"}
             <ul class="flex flex-col divide-y divide-sr-hairline">
               {#each partOrder as { p, s } (p.id)}
@@ -1581,8 +1877,17 @@
     <!-- The score's toolbar, as the practice pages': where Play starts, Starting pitches, Listen and grade. -->
     <div class="score-tools no-print focus-hide">
       {#if choosing}
-        <span class="choose-hint mr-auto" role="status">{anchor === null ? "Tap the first bar in the music" : "Now tap the last bar"}</span>
-        <button type="button" class="sr-tok text-xs" on:click={stopChoosing}>Cancel</button>
+        <span class="choose-hint mr-auto" role="status">
+          {anchor === null ? (choosingLoop ? "Loop: tap the first bar in the music" : "Tap the first bar in the music") : "Now tap the last bar (the same one again for one bar)"}
+        </span>
+        {#if choosingLoop}<button type="button" class="sr-tok text-xs" on:click={loopWholePiece}>Loop the whole piece</button>{/if}
+        <button type="button" class="sr-tok text-xs" on:click={cancelChoosing}>Cancel</button>
+      {:else if looping && !asg}
+        <span class="start-chip mr-auto" data-loop-chip>
+          <Repeat size={14} aria-hidden="true" />
+          {excerpt ? `Looping bars ${score.measures[from].label} to ${score.measures[to].label}` : "Looping the whole piece"}
+          <button type="button" class="chip-link" on:click={() => startChoosing(true)}>Change</button>
+        </span>
       {:else if startAt}
         <span class="start-chip mr-auto">
           Plays from bar {score.measures[startAt.bar].label}{beatLabel(startAt)}
@@ -1633,7 +1938,9 @@
       onRestart={rewind}
       onBpmChange={(b) => (bpm = b)}
       onBpmCommit={(b) => void setTempo(b)}
-      onToggleLoop={() => (looping = !looping)}
+      onToggleLoop={toggleLoop}
+      {scoreView}
+      onScoreView={changeScoreView}
       settingsLink={() => location.href}
       onPrint={() => window.print()}
     >
@@ -1659,6 +1966,11 @@
         {doPc}
         nameOf={letterOf}
         detail={gradeDetail}
+        onHearTake={canHearTake ? hearTake : null}
+        {take}
+        onTakeMusic={takeMusic}
+        onTakeSeek={takeSeek}
+        onTakeClose={closeTake}
       >
         <div slot="setup" class="flex flex-col gap-3 border-t border-sr-hairline pt-3">
           <div class="flex flex-col gap-1.5" role="radiogroup" aria-label="Your part">
@@ -1988,6 +2300,15 @@
     font-size: 17px;
     margin-bottom: 0.625rem;
   }
+  .key-row-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sr-faint);
+    margin: 0 0 0.375rem;
+  }
+  .key-row-label + div + .key-row-label { margin-top: 0.875rem; }
+  .key-step { display: inline-flex; align-items: center; gap: 0.25rem; }
+  .key-step-name { min-width: 8.5rem; text-align: center; font-weight: 700; font-size: 14px; }
   .set-pop-foot {
     position: sticky;
     bottom: -1.125rem;
@@ -2059,6 +2380,10 @@
 
   /* A tapped note: where Play starts. */
   :global(#piece-paper .piece-start), :global(#piece-paper .piece-start path) { fill: #e07a1f; }
+  /* Where Play starts, and the playing cursor: a line the height of the system. */
+  :global(#piece-paper .piece-start-line rect) { fill: #e07a1f; }
+  :global(#piece-paper .piece-start-line text) { fill: #e07a1f; font: 700 11px Nunito, sans-serif; }
+  :global(#piece-paper .piece-play-line rect) { fill: var(--sr-action); opacity: 0.45; }
   .start-chip {
     display: inline-flex;
     align-items: center;
@@ -2079,6 +2404,7 @@
     border-radius: 999px;
   }
   .start-chip button:hover { background: rgb(0 0 0 / 0.08); }
+  .start-chip button.chip-link { width: auto; padding: 0 0.6rem; text-decoration: underline; text-underline-offset: 2px; }
   .tok-sub { margin-left: 0.35rem; font-size: 11px; font-weight: 600; opacity: 0.65; }
   .hear {
     display: flex;

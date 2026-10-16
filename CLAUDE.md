@@ -258,6 +258,32 @@ any two eighths in a row used to count, so pairs back to back chained into one
 held pitch (up to 18 notes). A note that opens a pair or follows one now moves
 when anything lets it. `tests/unit/unison-line-shape.test.ts` holds those rates.
 
+### Drill and loop repeats
+
+A pass that repeats (a drill's repeat, or Loop) starts the next pass when
+the music's last beat is over (AbcjsSingle `endPassOnGrid`, from abcjs's
+beat callback), anchored on the beat grid, and lets the old pass's audio
+ring out under it. It used to wait for the audio buffer to end, which
+includes the last note's release (about 0.2 s): every repeat came about
+0.4 of a beat late, off the beat with no count-in, and a click on the beat
+after the music landed 200 ms before the count-in (Blaine, 15 October 2026:
+"the metronome clicks over itself"). No click sounds past the music now,
+and a repeat's cursor and click are moved on by however late they started
+(`startLoopRepeat`), or they fell about 20 ms further behind the music each
+pass. A pass that does not repeat still ends with its audio. `bun run
+scripts/check-drill-clicks.ts` (`COUNT_IN=off`, `BPM=`) logs every click
+and every pass's music on the audio clock: one click a beat, each pass on a
+click.
+
+Where a drill is shows on the music (`DrillBadge.svelte`, 15 October 2026,
+Blaine: "better indicators ... like the count in"): at the top-right of the
+score as the count-in is at its top-left, in its colours, "Exercise 2 of
+4", "Pass 1 of 3" with a dot a pass, and while a new exercise is read
+("Read it") its seconds on a draining ring. Kept in full screen. Where
+there is no room above the staff (a phone) it stays off the music and the
+playback bar's line says it; the line that sat above the score is gone.
+Never name a class `ring`: it is Tailwind's ring utility (a box-shadow).
+
 ### Curriculum tracks ("courses" on the site)
 
 On the page they are **courses** (My courses, Choose courses, Instrument
@@ -1377,8 +1403,8 @@ camera and a synthesized singer, note 3 a step high first (corrected) and
 note 5 an octave down (still first try); checks every outcome, the link's
 seed, a recorded video, no sideways scroll, Hear do playing do, and New
 notes drawing different notes. Clean in every level, both voices, both
-themes (14 October 2026). Tests: `challenge.test.ts`. Not yet tried on a
-real phone.
+themes (14 October 2026). Tests: `challenge.test.ts`. Blaine tried it on his phone
+and it looked right; it went to main the same day (14 October 2026).
 
 Advertised on the home page: a butter card under the landing page's hero
 (and "Just here for fun?" in the hero), and a card on the signed-in home,
@@ -1448,7 +1474,15 @@ empty; 13 October 2026, Blaine: adding students without Google Classroom was
 not clear) offers three ways: They join with a code (the address and code in
 steps, Copy the join link, Show on the board: the code full screen for a
 projector), I make their logins (paste names or a CSV, print the cards, which
-sit on the class), and Google Classroom where it is set up. A class with no
+sit on the class), and Google Classroom where it is set up. **Print login cards**
+(16 October 2026, Blaine: by class or all together, easily): on each class
+with logins the teacher made, and "for all classes" at the top. Passwords
+are stored one way, so printing makes new ones (`POST
+/api/classes/<id>/cards`; the teacher is told first, and students who made
+their own login are left out); eight cards to a letter page with the steps
+to sign in, each class from a new page. The cards print from the end of
+<body> (`toBody`): inside the Classes tab they printed blank, since
+globals.css hides every `.tab-panel` in print. A class with no
 code says how to get one. `bun run scripts/demo-classes.ts` lists, creates or
 removes "Demo: ..." classes with roster-made students on a teacher's account.
 
@@ -1753,7 +1787,13 @@ semitones, saved with the piece: `src/lib/pieces/transpose.ts` moves the
 model itself, keys and notes spelled as the new key spells them, and the
 music is drawn and played from that; abcjs's `visualTranspose` drew line 1's
 key and another on every later line; tests `pieces-transpose.test.ts`; an
-assignment is always as written, since it is graded so), Choose bars by tapping the first and last
+assignment is always as written, since it is graded so; the sound can be
+in a key of its own, `PieceSettings.sound`, null to sound as drawn, 15
+October 2026, Blaine: transpose the written music and the audio
+separately: the Key popover's second row, The sound, Same as the music or a
+key stepped up and down; playback, starting pitches, tapped notes and what
+Grade listens for come from `heard()`, the drawing from `music()`, and
+Grade names notes as drawn), Choose bars by tapping the first and last
 bar on the music (`barHits`), and Full screen (fullscreen.ts, as the practice
 pages). Practice mixes: one part loud and the rest at `MIX_SOFT` (rules.ts
 `mixLevel`); "Offer practice mixes in class libraries" lets the students of
@@ -1777,7 +1817,22 @@ and practice mixes, Bars, and for the owner Class libraries), a toolbar over
 the score (Starting pitches, Listen and grade) and the shared PlaybackBar
 (Count-in and Click in its extra slot). A tapped note is where Play starts
 (marked, named in a chip; tapped while playing, it jumps there), Pause keeps
-the place, and a new tempo carries on from it. Repeats are followed: the
+the place, and a new tempo carries on from it. Where Play starts is a
+line the height of the system (score-dom `cursorLine`, 15 October 2026,
+Blaine: the start was hard to see): at the paused place, the tapped note,
+or the first note of the bars in play, labelled under it; while playing a
+blue line follows the music instead. Loop goes round to the top of the
+bars in play, not to the tapped note (Blaine). A loop's next pass is booked on the audio
+clock on the beat the last bar ends (`bookLoop`, SectionPlayer `play`'s
+`at`), its count-in or first note landing on the next beat while the pass
+before rings out; it waited for the release to end and came in about 320 ms
+late (16 October 2026). Loop with the whole piece in play asks for the bars
+on the music, first then last, and plays them round (`toggleLoop`); a chip
+says what is looping, with Change. The playback bar's Layout menu
+(score-view.ts, kept as "pieces"): size, bars per line, line spacing; a
+change while playing carries on from the same place. `LOOP=1
+scripts/check-piece-viewer.ts` checks all three, and that the playing line
+stays on its note through a layout shift. Repeats are followed: the
 whole piece's sound plays them (write-abc), so the cursor, a start from a
 note and grading read the sound's time through `src/lib/pieces/timeline.ts`
 (`playedBars`, `Timeline`; tests `pieces-timeline.test.ts`), and
@@ -1787,7 +1842,13 @@ the bars in play: Pitch & rhythm (the sound made with the other parts, every
 part with yours quietly, or a cappella) or Note by note (each note lit, Pip
 on it, and the other parts' notes under it played as it comes up, never your
 own pitch class), in the key chosen, letter names. Practice: nothing is
-kept. `check-piece-viewer.ts` covers all of it (fake microphone: the run
+kept on the server. Each practice run is recorded in this browser
+(grade-recording) and the results offer **Hear your take** (15 October 2026,
+Blaine: hear back grades in My music): the Unison page's `TakePlayer`, with
+"With the music" playing the run's own sound as heard (SectionPlayer's
+buffer, kept at the run's end as `takeSound`, `TakeMusic.buffer` and
+`bufferAt`) and the click; the note line and cursor follow it. Note by note
+has no music under it. Gone with a new run or Close. `check-piece-viewer.ts` covers all of it (fake microphone: the run
 starts, runs and grades; `PIP_SHOTS=` pictures Pip). Pip rides just left of
 the note now, on both pages (Blaine: behind the cursor, not on the note).
 
@@ -1920,7 +1981,8 @@ then "unsymmetrical"): one full-width card to pick up the last exercise
 (step 1 for a newcomer) with Unison and Choral as pills inside it; a row of
 equal tiles (My music, My courses, Classes or abcTuner, Can you sing it?; a
 student's are My library, abcTuner and the challenge); the founders offer
-as one slim strip; then the earlier exercises (four, then Show all). The
+as a modal the first time a teacher who may join comes home ("Not now"
+remembered in this browser, `abc-founders-offer-v1`), then a solid peach strip; then the earlier exercises (four, then Show all). The
 navbar's practice pages and abcTuner are one Practice menu on desktop
 (Navbar.svelte), beside My music or My library; the phone menu lists all.
 
@@ -2261,6 +2323,18 @@ last part on keeps its syllables (none at all is the system's own button).
 Full-length pieces honour it in every section. It rides in links
 (`solfegeOff=`), presets and the "edited" signature, and is in the full-screen
 Annotations menu.
+
+## The playing cursor
+
+One look on every score page (16 October 2026, Blaine: My music's cursor is
+the better one, match the others to it): a soft blue bar the height of the
+whole system, just left of the notes and behind the music, and the notes
+being played turned blue, a held part staying lit while another moves.
+`src/lib/score-cursor.ts` (`makeCursor`, `placeCursor`, `systemSpan`,
+`NoteLight`; style `.abcjs-cursor` and `.sr-now` in globals.css) for Unison,
+Choral, Piano and Ensemble, placed from abcjs's callbacks; My music draws the
+same from its model (pieces/score-dom.ts `cursorLine`). The Display cursor
+modes (smooth, beat by beat, note by note, off) still say where the bar goes.
 
 ## Score layout
 

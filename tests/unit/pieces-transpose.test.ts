@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { letterSteps, movedFifths, transposePitch, transposeScore } from "../../src/lib/pieces/transpose";
 import { midiOfPitch, type PieceScore, type Pitch } from "../../src/lib/pieces/model";
+import { checkPieceSettings, checkPieceUpdate, soundShift } from "../../src/lib/pieces/rules";
 
 const P = (step: Pitch["step"], alter: number, octave: number): Pitch => ({ step, alter, octave });
 
@@ -68,5 +69,24 @@ describe("moving a piece into another key", () => {
     expect(t.parts[0].notes[0].midi).toBe(64);
     expect(t.parts[0].notes[1]).toEqual(score.parts[0].notes[1]);
     expect(transposeScore(score, 0)).toBe(score);
+  });
+});
+
+describe("the music in one key, the sound in another", () => {
+  test("settings saved before the sound key read as sounding with the music", () => {
+    const old = checkPieceSettings({ transpose: -2, practiceMixes: false });
+    expect(old).toEqual({ transpose: -2, sound: null, practiceMixes: false });
+    expect(soundShift(old!)).toBe(-2);
+  });
+  test("a sound key of its own is kept and heard", () => {
+    const s = checkPieceSettings({ transpose: -2, sound: 3, practiceMixes: true })!;
+    expect(s.sound).toBe(3);
+    expect(soundShift(s)).toBe(3);
+    expect(soundShift({ transpose: 4, sound: 0 })).toBe(0);
+  });
+  test("a sound key past the range, or not a whole number, is refused", () => {
+    expect(checkPieceSettings({ transpose: 0, sound: 7, practiceMixes: false })).toBeNull();
+    expect(checkPieceSettings({ transpose: 0, sound: 1.5, practiceMixes: false })).toBeNull();
+    expect(checkPieceUpdate({ settings: { transpose: 0, sound: "up", practiceMixes: false } }, []).ok).toBe(false);
   });
 });

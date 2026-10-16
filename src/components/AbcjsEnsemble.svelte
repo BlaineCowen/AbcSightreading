@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { NoteLight, hideCursor, makeCursor, placeCursor } from "../lib/score-cursor";
   /**
    * Ensemble sight reading (src/lib/ensemble/): a teacher picks the
    * instruments and voices, and gets a chorale for them, each on its own staff
@@ -328,11 +329,24 @@
   }
 
   // ── Playback ──────────────────────────────────────────────────────────────
-  let lit: Element[] = [];
-  function light(els: Element[]) {
-    for (const e of lit) e.classList.remove("ensemble-now");
-    lit = els;
-    for (const e of lit) e.classList.add("ensemble-now");
+  /**
+   * The notes being played, blue, and the cursor bar the height of the
+   * system at them, as My music's (score-cursor.ts); a held part stays lit
+   * while another moves. Empty clears both.
+   */
+  const noteLight = new NoteLight();
+  let cursorBar: SVGLineElement | null = null;
+  function light(els: Element[], at?: { left: number; top: number; height: number }) {
+    if (!els.length) {
+      noteLight.clear();
+      hideCursor(cursorBar);
+      return;
+    }
+    noteLight.light(els);
+    const svg = document.querySelector("#paper svg");
+    if (!svg || !at || typeof at.left !== "number") return;
+    if (!cursorBar || !svg.contains(cursorBar)) cursorBar = makeCursor(svg);
+    placeCursor(cursorBar, svg, at.left, at.top, at.height);
   }
 
   async function buildSynth() {
@@ -348,7 +362,7 @@
       extraMeasuresAtBeginning: countInMeasures(meter),
       beatSubdivisions: 16,
       onBeat: (beat: number) => showCountIn(meter, beat),
-      onEvent: (event: any) => light((event?.elements ?? []).flat()),
+      onEvent: (event: any) => light((event?.elements ?? []).flat(), event),
       onFinished: () => {
         isPlaying = false;
         light([]);
@@ -722,7 +736,6 @@
     .set-pop-foot { bottom: calc(-1.125rem - env(safe-area-inset-bottom, 0px)); }
     .set-scrim { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(21, 33, 58, 0.35); }
   }
-  :global(#paper .ensemble-now) { fill: var(--sr-action); }
 
   /* The instrument picker: a row an instrument, its count between − and +. */
   .inst-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0.25rem 0.15rem 0.6rem; border-radius: 999px; background: var(--sr-track); }

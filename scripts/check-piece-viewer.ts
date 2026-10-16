@@ -8,6 +8,7 @@
  *   bun run scripts/check-piece-viewer.ts                SHOTS=<dir> screenshots
  *   FILE=<some.musicxml> the piece to open instead
  *   PHONE=1 a phone-sized viewport
+ *   LOOP=1 only the loop: each pass starts on the beat the last bar ends, count-in on and off
  *   PIP_SHOTS=<dir> Pip (pitch-guide.ts) beside a note, fed a pitch a third high, a little flat and in tune
  *
  * Opens the director's view, a student's assignment and the teacher's look at
@@ -173,6 +174,101 @@ const tapNote = async (page: any, k: number) => {
 const startChip = (page: any) => page.evaluate(() => document.querySelector(".start-chip")?.textContent?.replace(/\s+/g, " ").trim() ?? "");
 
 // The director's own view.
+// Loop: the next pass is booked on the beat the last bar ends (bookLoop). It
+// used to wait for the sound's release to end and start "a moment from now".
+if (process.env.LOOP) {
+  // Loop with the whole piece in play asks for the bars on the music, then plays them round.
+  {
+    const page = await open("", "loop: choose bars");
+    await page.evaluate(() => (document.querySelector("button[title='Loop']") as HTMLButtonElement)?.click());
+    await sleep(300);
+    const hint = await page.evaluate(() => document.querySelector(".choose-hint")?.textContent?.trim() ?? "");
+    if (!/Loop: tap the first bar/.test(hint)) fail(`loop: pressing Loop did not ask for bars ("${hint}")`);
+    await page.evaluate(() => {
+      for (const bar of [2, 5]) document.querySelector(`#piece-paper [data-bar="${bar}"]`)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await page.waitForFunction(() => (window as any).__pieceDebug.passes().length >= 1, { timeout: 20000 }).catch(() => {});
+    // Past the count-in.
+    await page.waitForFunction(() => (window as any).__pieceDebug.position() !== null, { timeout: 15000 }).catch(() => {});
+    const chip = await page.evaluate(() => document.querySelector("[data-loop-chip]")?.textContent?.replace(/\s+/g, " ").trim() ?? "");
+    if (!/Looping bars 3 to 6/.test(chip)) fail(`loop: after tapping bars 3 and 6 the chip says "${chip}"`);
+    const pos = await page.evaluate(() => (window as any).__pieceDebug.position());
+    if (!pos || pos.bar < 3 || pos.bar > 6) fail(`loop: not playing inside bars 3 to 6 (${JSON.stringify(pos)})`);
+    else console.log(`  loop: Loop asked for bars, looping bars 3 to 6, playing bar ${pos.bar}`);
+    // Layout shifts (Blaine: may they throw the cursor off?): while playing, the
+    // window narrows and a chip comes and goes above the score; the playing
+    // line must stay on the note it marks, on screen.
+    const gap = async () =>
+      page.evaluate(() => {
+        const line = document.querySelector("#piece-paper .piece-play-line rect")?.getBoundingClientRect();
+        const note = document.querySelector("#piece-paper .piece-now")?.getBoundingClientRect();
+        return line && note ? Math.round(note.left - line.right) : null;
+      });
+    const before = await gap();
+    await page.setViewport({ width: 900, height: 900 });
+    await page.evaluate(() => document.querySelector(".score-tools")?.insertAdjacentHTML("beforebegin", '<div id="shift" style="height:120px"></div>'));
+    await sleep(700);
+    const after = await gap();
+    await page.evaluate(() => document.getElementById("shift")?.remove());
+    await page.setViewport({ width: 1280, height: 900 });
+    console.log(`  layout shift: line to note ${before}px before, ${after}px after narrowing and pushing the score down`);
+    if (before === null || after === null || Math.abs(after) > 12) fail(`layout shift: the playing line is ${after}px from its note`);
+    // Cancel while choosing again turns Loop off.
+    await page.evaluate(() => [...document.querySelectorAll("[data-loop-chip] button")].find((b) => b.textContent?.trim() === "Change")?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await sleep(200);
+    await clickText(page, "Cancel");
+    await sleep(200);
+    if (await page.evaluate(() => !!document.querySelector("[data-loop-chip]") || !!document.querySelector(".choose-hint"))) fail("loop: Cancel left Loop on");
+    await shot(page, "loop-chosen");
+    await page.close();
+  }
+  // Layout: bars per line and size from the playback bar's Layout menu (score-view.ts).
+  {
+    const page = await open("", "layout");
+    const lines = () => page.evaluate(() => new Set([...document.querySelectorAll("#piece-paper .abcjs-staff")].map((e) => [...e.classList].find((c) => /^abcjs-l\d+$/.test(c)))).size);
+    const before = await lines();
+    const openLayout = async () => {
+      await page.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /^Layout/.test(b.textContent?.trim() ?? "")) as HTMLButtonElement)?.click());
+      await sleep(250);
+    };
+    await openLayout();
+    await clickText(page, "2");
+    await sleep(800);
+    const two = await lines();
+    console.log(`  layout: ${before} lines at Auto (4 bars), ${two} at 2 bars a line`);
+    if (two !== before * 2) fail(`layout: 2 bars a line drew ${two} lines (Auto drew ${before})`);
+    await shot(page, "layout-2-bars");
+    await clickText(page, "Auto");
+    await page.evaluate(() => localStorage.removeItem("sr-score-view-pieces"));
+    await page.close();
+  }
+  for (const countIn of [false, true]) {
+    const page = await open("", `loop, count-in ${countIn ? "on" : "off"}`);
+    await page.evaluate((c: boolean) => {
+      const d = (window as any).__pieceDebug;
+      d.setLoop(true, c);
+      d.play();
+    }, countIn);
+    // Twelve bars at the piece's tempo; three passes.
+    await page.waitForFunction(() => (window as any).__pieceDebug.passes().length >= 3, { timeout: 120000 }).catch(() => {});
+    const passes: { audio: number; offsetMs: number; totalMs: number; countInMs: number }[] = await page.evaluate(() => (window as any).__pieceDebug.passes());
+    await page.evaluate(() => (window as any).__pieceDebug.stop());
+    if (passes.length < 3) fail(`count-in ${countIn ? "on" : "off"}: only ${passes.length} passes`);
+    for (let i = 1; i < passes.length; i++) {
+      const prev = passes[i - 1], cur = passes[i];
+      // The music of the pass before ends here; the next pass's count-in (or music) begins on it.
+      const end = prev.audio + (prev.totalMs - prev.offsetMs) / 1000;
+      const off = (cur.audio - cur.countInMs / 1000 - end) * 1000;
+      console.log(`  count-in ${countIn ? "on " : "off"}: pass ${i + 1} begins ${off.toFixed(1)} ms from the beat after the last bar`);
+      if (Math.abs(off) > 2) fail(`pass ${i + 1} begins ${off.toFixed(1)} ms off the beat`);
+    }
+    await page.close();
+  }
+  await browser.close();
+  console.log(failures ? `${failures} check(s) failed` : "all checks passed");
+  process.exit(failures ? 1 : 0);
+}
+
 {
   const page = await open("", "director");
   await shot(page, "1-director", true);
@@ -221,6 +317,37 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
   console.log(`key signatures per staff after the move: ${sigs.join(" ")}`);
   if (!sigs.length || new Set(sigs).size !== 1) fail(`director: key signatures differ from line to line (${sigs.join(" ")})`);
 
+  // The sound in another key: up 2, with the music still drawn down 2.
+  await pill(page, "Key");
+  await sleep(300);
+  // Another key starts a semitone above the music (down 1), then up three more to up 2.
+  const soundTapped = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('[aria-labelledby="key-sound"] button')].find((x) => /Another key/.test(x.textContent ?? ""));
+    (b as HTMLButtonElement | undefined)?.click();
+    return !!b;
+  });
+  if (!soundTapped) fail("director: no sound key to choose");
+  for (let k = 0; k < 3; k++) {
+    await sleep(250);
+    await page.evaluate(() => (document.querySelector('[aria-label="Sound a semitone higher"]') as HTMLButtonElement | null)?.click());
+  }
+  await sleep(600);
+  const keys = await page.evaluate(() => (window as any).__pieceDebug.keys());
+  console.log(`keys: drawn ${keys.drawn}, heard ${keys.heard}`);
+  if (!keys.heard || keys.heard === keys.drawn) fail(`director: the sound is in the drawn key (${keys.drawn} / ${keys.heard})`);
+  if (!patches.some((x: any) => x.settings?.sound === 2 && x.settings?.transpose === -2)) fail("director: the sound key was not saved");
+  const sigs2: number[] = await page.evaluate(() => [...document.querySelectorAll("#piece-paper .abcjs-key-signature")].map((k) => k.querySelectorAll("path").length));
+  if (sigs2.join() !== sigs.join()) fail(`director: choosing the sound redrew the music (${sigs.join(" ")} -> ${sigs2.join(" ")})`);
+  const pillText = await page.evaluate(() => [...document.querySelectorAll(".set-pill")].find((b) => /Key/.test(b.textContent ?? ""))?.textContent?.replace(/\s+/g, " ").trim() ?? "");
+  if (!/sounds in/.test(pillText)) fail(`director: the Key pill reads "${pillText}"`);
+  await shot(page, "1c-director-sound-key", true);
+  await page.evaluate(() => [...document.querySelectorAll('[aria-labelledby="key-sound"] button')].find((x) => /Same as the music/.test(x.textContent ?? ""))?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await sleep(400);
+  const back = await page.evaluate(() => (window as any).__pieceDebug.keys());
+  if (back.heard !== back.drawn) fail(`director: Same as the music still sounds apart (${back.drawn} / ${back.heard})`);
+  if (!patches.some((x: any) => x.settings?.sound === null)) fail("director: Same as the music was not saved");
+  await clickText(page, "Done");
+
   // Practice mixes, offered to class libraries; and into one.
   await pill(page, "Parts");
   await sleep(300);
@@ -247,7 +374,40 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
   await page.close();
 }
 
-// Tap a note to play from it; Pause carries on; Listen and grade.
+// Where Play starts is a line on the music; playing, a line follows the
+// notes; Loop from a tapped note goes back to the top, not the note.
+{
+  const page = await open("", "director loop");
+  if (!(await page.$("#piece-paper .piece-start-line rect"))) fail("start line: no line where Play starts");
+  const notes = await page.evaluate(() => document.querySelectorAll("#piece-paper .abcjs-note").length);
+  if (!(await tapNote(page, notes - 1))) fail("loop: no note to tap");
+  const chip = await startChip(page);
+  const tappedBar = Number(/bar (\d+)/.exec(chip)?.[1] ?? 0);
+  await page.evaluate(() => {
+    const f = document.querySelector(".playback-bar input[type=number]") as HTMLInputElement;
+    f.value = "200";
+    f.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.evaluate(() => (document.querySelector('[aria-label="Toggle loop"]') as HTMLButtonElement)?.click());
+  await page.evaluate(() => (document.querySelector('[aria-label="Play"]') as HTMLButtonElement)?.click());
+  await page.waitForSelector("#piece-paper .piece-play-line rect", { timeout: 20000 }).catch(() => fail("cursor: no line follows the music"));
+  if (await page.$("#piece-paper .piece-start-line rect")) fail("start line: still shown while playing");
+  // Round again: the tapped bar ends, then the count-in, then the top.
+  let wrapped: { bar: number } | null = null;
+  for (let i = 0; i < 40 && !wrapped; i++) {
+    await sleep(250);
+    const at = await page.evaluate(() => (window as any).__pieceDebug?.position?.() ?? null);
+    if (at && at.bar < tappedBar - 2) wrapped = at;
+  }
+  console.log(`loop: tapped bar ${tappedBar}, came round to bar ${wrapped?.bar}`);
+  if (!wrapped || wrapped.bar > 2) fail(`loop: came round to bar ${wrapped?.bar}, not the top`);
+  await page.evaluate(() => (document.querySelector('[aria-label="Stop"]') as HTMLButtonElement)?.click());
+  await sleep(300);
+  if (!(await page.$("#piece-paper .piece-start-line rect"))) fail("start line: not back after Stop");
+  await shot(page, "5a-start-line", true);
+  await page.close();
+}
+
 {
   const page = await open("", "director playback");
   if (await startChip(page)) fail("playback: a start point before any note was tapped");
@@ -327,6 +487,21 @@ const startChip = (page: any) => page.evaluate(() => document.querySelector(".st
   console.log(`graded: ${result}`);
   if (!(await page.$("#piece-paper .grade-good, #piece-paper .grade-ok, #piece-paper .grade-bad"))) fail("grade: no marks on the music");
   await shot(page, "8-grade-result");
+
+  // Hear your take: the run's recording plays back, the music under it on request, the score following.
+  if (!(await clickIncludes(page, "Hear your take"))) fail("take: no Hear your take after a Pitch & rhythm run");
+  await page.waitForFunction(() => !!document.querySelector('[aria-label="Where in your take"]') && !!document.querySelector('button[aria-label="Pause"]'), { timeout: 15000 }).catch(() => fail("take: it never started playing"));
+  if (!(await clickText(page, "With the music"))) fail("take: no With the music");
+  await page.waitForFunction(() => Number((document.querySelector('[aria-label="Where in your take"]') as HTMLInputElement | null)?.value ?? 0) > 0.05, { timeout: 15000 }).catch(() => fail("take: it never moved on"));
+  await page.waitForFunction(() => !!document.querySelector("#piece-paper .piece-now"), { timeout: 15000 }).catch(() => {});
+  const lit = await page.evaluate(() => document.querySelectorAll("#piece-paper .piece-now").length);
+  const takeLine = await page.evaluate(() => document.querySelector('[aria-label="Where in your take"]')?.parentElement?.textContent?.replace(/\s+/g, " ").trim() ?? "");
+  console.log(`take: ${lit} drawn elements lit, "${takeLine}"`);
+  if (!lit) fail("take: the score does not follow the take");
+  await shot(page, "9-grade-take");
+  await page.evaluate(() => (document.querySelector('button[aria-label="Stop playing your take"]') as HTMLButtonElement | null)?.click());
+  await sleep(300);
+  if (await page.$("#piece-paper .piece-now")) fail("take: a note stayed lit after stopping the take");
   await page.close();
 }
 
