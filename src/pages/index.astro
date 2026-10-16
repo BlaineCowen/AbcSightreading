@@ -10,6 +10,8 @@ import { myAssignments } from "../lib/server/practice";
 import { libraryFor } from "../lib/server/pieces";
 import { subscriptionsFrom } from "../lib/curriculum/catalogue";
 import { MAX_RECENT, type RecentExercise } from "../lib/recent-exercises";
+import { founderStatus } from "../lib/server/founders";
+import { viaClasslink } from "../lib/server/classlink";
 
 /**
  * The site's root: the landing page for anyone signed out (and every crawler),
@@ -32,7 +34,9 @@ const home = viewer
       generationStatus(viewer.id).catch(() => null),
       accountType === "student" ? myAssignments(viewer.id) : null,
       accountType === "student" ? libraryFor(viewer.id).catch(() => []) : [],
-    ]).then(([rows, pref, allowance, assignments, library]) => ({
+      accountType === "student" ? null : founderStatus(viewer.id).catch(() => null),
+      accountType === "student" ? false : viaClasslink(viewer.id).catch(() => false),
+    ]).then(([rows, pref, allowance, assignments, library, founders, classlink]) => ({
       recent: rows.map((r): RecentExercise => ({
         id: r.id, page: r.page as RecentExercise["page"], title: r.title, detail: r.detail, link: r.link, createdAt: r.createdAt.getTime(),
       })),
@@ -40,6 +44,9 @@ const home = viewer
       allowance: allowance && { limit: allowance.limit, remaining: allowance.remaining },
       assignments,
       library,
+      // The founding-teacher offer while this teacher may join (or has one step left).
+      founders: founders && (founders.ok || founders.step === "confirm") ? founders : null,
+      classlink,
     }))
   : null;
 ---

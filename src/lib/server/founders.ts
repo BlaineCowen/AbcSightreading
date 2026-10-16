@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { stripe } from "./stripe";
 import { becomeEducator } from "./educator";
+import { viaClasslink } from "./classlink";
 import { INCLUDED_SEATS } from "../seats";
 import { isDisposable } from "../free-month";
 import { FOUNDER_DISCOUNT, FOUNDER_SEATS, founderDecision, founderEndsAt, foundersOpen } from "../founders";
@@ -56,7 +57,9 @@ export async function founderStatus(userId: string | null) {
     open: open(),
     signedIn: true,
     accountType: user.accountType ?? "standard",
-    emailVerified: !!user.emailVerified,
+    // ClassLink leaves the email unconfirmed (it never links accounts by it),
+    // but the district stands behind the teacher who signs in through it.
+    emailVerified: !!user.emailVerified || (await viaClasslink(userId)),
     disposable: isDisposable(user.email),
     already: await isFounder(userId),
   });

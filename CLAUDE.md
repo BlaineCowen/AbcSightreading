@@ -1475,7 +1475,12 @@ student account (a `databaseHooks.user.create` rule: a student email is a
 student account), a teacher their district email but never linked to an
 existing account by it, and an educator account from the start (auth.ts
 `classlinkTeacher`; no plan comes with it, so students join once the
-Educator plan is on, by a code or a school quote, as for anyone).
+Educator plan is on, by a code or a school quote, as for anyone), with Pro
+free through 31 May 2027 (`grantClasslinkPro`, src/lib/server/classlink.ts:
+an AccessGrant under the untypable code `CLASSLINKTEACHERS`). A ClassLink
+teacher counts as confirmed for the founding-teacher offer (ClassLink leaves
+the email unconfirmed), and the signed-in home shows any teacher who may
+join a founders card (index.astro `founders`, HomeDashboard).
 Signing in through ClassLink was tested end to end on 16 October 2026 with
 ClassLink's test district (cltest): a teacher and a student account made, the
 student with no email and no tokens kept, signing in again reusing each.
