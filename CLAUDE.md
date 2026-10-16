@@ -1814,7 +1814,17 @@ line the height of the system (score-dom `cursorLine`, 15 October 2026,
 Blaine: the start was hard to see): at the paused place, the tapped note,
 or the first note of the bars in play, labelled under it; while playing a
 blue line follows the music instead. Loop goes round to the top of the
-bars in play, not to the tapped note (Blaine). Repeats are followed: the
+bars in play, not to the tapped note (Blaine). A loop's next pass is booked on the audio
+clock on the beat the last bar ends (`bookLoop`, SectionPlayer `play`'s
+`at`), its count-in or first note landing on the next beat while the pass
+before rings out; it waited for the release to end and came in about 320 ms
+late (16 October 2026). Loop with the whole piece in play asks for the bars
+on the music, first then last, and plays them round (`toggleLoop`); a chip
+says what is looping, with Change. The playback bar's Layout menu
+(score-view.ts, kept as "pieces"): size, bars per line, line spacing; a
+change while playing carries on from the same place. `LOOP=1
+scripts/check-piece-viewer.ts` checks all three, and that the playing line
+stays on its note through a layout shift. Repeats are followed: the
 whole piece's sound plays them (write-abc), so the cursor, a start from a
 note and grading read the sound's time through `src/lib/pieces/timeline.ts`
 (`playedBars`, `Timeline`; tests `pieces-timeline.test.ts`), and

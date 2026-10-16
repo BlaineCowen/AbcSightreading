@@ -32,6 +32,7 @@
   import ChevronDown from "lucide-svelte/icons/chevron-down";
   import X from "lucide-svelte/icons/x";
   import Repeat from "lucide-svelte/icons/repeat";
+  import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../../lib/score-view";
   import Volume2 from "lucide-svelte/icons/volume-2";
   import VolumeX from "lucide-svelte/icons/volume-x";
   import Eye from "lucide-svelte/icons/eye";
@@ -130,6 +131,19 @@
   let isPreparing = false;
   let looping = false;
   let narrow = false;
+  /**
+   * The Layout menu (score-view.ts, as the practice pages'; Blaine, 16 October
+   * 2026: My music needs layout options): size is what the staff width is
+   * divided by (1.2 on a desktop, 1 on a phone, as before), bars per line
+   * overrides the default (4, 2 on a phone, 3 past six parts), spacing is
+   * %%staffsep. Remembered in this browser for every piece.
+   */
+  let scoreView: ScoreView = { scale: 1.2, bars: null, spacing: "normal" };
+  function changeScoreView(patch: Partial<ScoreView>) {
+    scoreView = { ...scoreView, ...patch };
+    saveScoreView("pieces", scoreView);
+    void render(true);
+  }
 
   let renaming = false;
   let titleDraft = "";
@@ -276,6 +290,7 @@
 
   async function load() {
     narrow = window.innerWidth <= 640;
+    scoreView = loadScoreView("pieces", { scale: narrow ? 1 : 1.2, bars: null, spacing: "normal" });
     try {
       const loaded = await loadPiece(id);
       piece = loaded.piece;
@@ -1039,20 +1054,23 @@
       partOrder.map((x) => [x.i, asg && myPart === x.p.id ? `${x.s.name} (you)` : x.s.name]),
     );
     // The whole piece always shows; the bars in play are marked by fading the rest.
-    const perLine = narrow ? 2 : score && score.parts.length > 6 ? 3 : 4;
+    const perLine = scoreView.bars ?? (narrow ? 2 : score && score.parts.length > 6 ? 3 : 4);
     return { parts: partIdx, programs, names, barsPerLine: perLine, tempo: scoreBpm };
   }
 
-  async function render() {
+  /** Draws the piece. `keepPlace`: a layout change, which keeps playing from where it was. */
+  async function render(keepPlace = false) {
     if (!score) return;
+    const wasPlaying = keepPlace && isPlaying;
+    const here = keepPlace ? (isPlaying ? player.elapsedMs() : pausedMs) : null;
     pause();
     const abcjs = (await import("abcjs")).default;
     const shown = shownParts.length ? shownParts : [0];
     drawn = abcForPiece(music(), abcOptions(shown));
     const box = document.getElementById("piece-box");
-    const staffwidth = Math.max(300, Math.floor((box?.clientWidth ?? 760) / (narrow ? 1 : 1.25)) - 30);
+    const staffwidth = Math.max(300, Math.floor((box?.clientWidth ?? 760) / scoreView.scale) - 30);
     document.getElementById("piece-paper")?.removeAttribute("style");
-    const [tune] = abcjs.renderAbc("piece-paper", drawn.abc, {
+    const [tune] = abcjs.renderAbc("piece-paper", withLineSpacing(drawn.abc, scoreView.spacing), {
       add_classes: true,
       clickListener: (abcElem: unknown) => onNoteClick(abcElem),
       responsive: "resize",
@@ -1066,6 +1084,9 @@
     anchor = null;
     markBars();
     markStart();
+    if (here !== null && here > 0) pausedMs = here;
+    if (wasPlaying) await playSection(here !== null ? Math.max(0, here) : null, false);
+    else markStart();
   }
 
   /** The bars in play: the rest fade (an assignment's lead-in less); scrolled to the first time. */
@@ -1918,6 +1939,8 @@
       onBpmChange={(b) => (bpm = b)}
       onBpmCommit={(b) => void setTempo(b)}
       onToggleLoop={toggleLoop}
+      {scoreView}
+      onScoreView={changeScoreView}
       settingsLink={() => location.href}
       onPrint={() => window.print()}
     >

@@ -222,6 +222,26 @@ if (process.env.LOOP) {
     await shot(page, "loop-chosen");
     await page.close();
   }
+  // Layout: bars per line and size from the playback bar's Layout menu (score-view.ts).
+  {
+    const page = await open("", "layout");
+    const lines = () => page.evaluate(() => new Set([...document.querySelectorAll("#piece-paper .abcjs-staff")].map((e) => [...e.classList].find((c) => /^abcjs-l\d+$/.test(c)))).size);
+    const before = await lines();
+    const openLayout = async () => {
+      await page.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /^Layout/.test(b.textContent?.trim() ?? "")) as HTMLButtonElement)?.click());
+      await sleep(250);
+    };
+    await openLayout();
+    await clickText(page, "2");
+    await sleep(800);
+    const two = await lines();
+    console.log(`  layout: ${before} lines at Auto (4 bars), ${two} at 2 bars a line`);
+    if (two !== before * 2) fail(`layout: 2 bars a line drew ${two} lines (Auto drew ${before})`);
+    await shot(page, "layout-2-bars");
+    await clickText(page, "Auto");
+    await page.evaluate(() => localStorage.removeItem("sr-score-view-pieces"));
+    await page.close();
+  }
   for (const countIn of [false, true]) {
     const page = await open("", `loop, count-in ${countIn ? "on" : "off"}`);
     await page.evaluate((c: boolean) => {
