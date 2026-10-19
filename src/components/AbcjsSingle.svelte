@@ -1954,6 +1954,7 @@
     await createSynth.prime();
     // This gets the entire playable audio file.
     audioBuffer = await createSynth.getAudioBuffer();
+    audioKey = audibleKeyOf(drawnSource);
 
     const bufferSeconds = audioBuffer?.duration ?? 0;
     const peak = audioBuffer ? peakAmplitude(audioBuffer) : 0;
@@ -2470,13 +2471,37 @@
 
       await attachCursorAndTiming();
 
-      // Reset audio buffer since tempo may have changed
-      audioBuffer = null;
-      createSynth = null;
+      // The audio is kept when nothing audible changed: a redraw for the
+      // annotations, the layout, a resize or a drill pass's labels used to
+      // throw it away, and the next Play rendered the whole tune again
+      // (abcjs's prime), 100-500 ms before a note sounded.
+      if (audioKey !== audibleKeyOf(updatedTuneString)) {
+        audioBuffer = null;
+        createSynth = null;
+      }
     } catch (err) {
       console.error("Error rerendering tune:", err);
     }
   }
+
+  /**
+   * What the audio buffer is made from: the tempo, the playback transposition,
+   * the rhythm sound's gain (initAudio) and the drawn tune with what is never
+   * played taken out - lyric lines and text annotations ("^ta", the rhythm
+   * syllables). Chord symbols and dynamics stay in, since they sound.
+   */
+  function audibleKeyOf(abc: string) {
+    const heard = abc
+      .split("\n")
+      .filter((line) => !/^\s*[wW]:/.test(line))
+      .join("\n")
+      .replace(/"[\^_<>@][^"]*"/g, "");
+    return [tempo, transposeSemitones, rhythmOnly ? rhythmSoundId : "", heard].join("\u0001");
+  }
+  /** audibleKeyOf the tune the current audio buffer was rendered from; null with no buffer. */
+  let audioKey: string | null = null;
+  /** The source of the score drawn last (drawEven), before the layout's own lines. */
+  let drawnSource = "";
 
   /**
    * Draws the score with its bars shared out evenly over the lines. The bars
@@ -2485,6 +2510,7 @@
    * it is drawn once more with no more a line than abcjs managed.
    */
   function drawEven(source: string) {
+    drawnSource = source;
     // The room between the lines (the Layout menu) is written into the tune as it is drawn.
     // The copyright under the score (copyright.ts), as drawn and printed only.
     const abc = withCopyright(withMeasureNumbers(withLineSpacing(source, scoreView.spacing), scoreView.measureNumbers));
