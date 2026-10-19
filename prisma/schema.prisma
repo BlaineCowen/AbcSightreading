@@ -448,6 +448,8 @@ model PracticeTime {
 
   @@index([studentId, day])
   @@index([assignmentId])
+  /// The daily cron's delete of practice past keeping (deleteOldPractice).
+  @@index([day])
   @@map("practice_time")
 }
 

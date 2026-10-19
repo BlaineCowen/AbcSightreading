@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { detectBursts, detectClaps, withoutClickEcho, type ClapBlock } from "../../src/lib/clap-detect";
 import { clapToleranceBeats, gradeClaps, togetherLabel } from "../../src/lib/grade-rhythm";
 import { voicingAt } from "../../src/lib/clap-detect";
-import { gradeSchedule } from "../../src/lib/grade";
+import { gradeSchedule } from "../../src/lib/grade-schedule";
 
 // ── The microphone's blocks, synthesized ─────────────────────────────────────
 const BLOCK = 128 / 48; // ms

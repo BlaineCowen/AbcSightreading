@@ -72,7 +72,7 @@
   import ReaderPill from "./ReaderPill.svelte";
   import { loadReaderId, readerById, readerForTmeaPart, readerForTrack, saveReaderId, stepOnReader, type Reader } from "../lib/readers";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
-  import { setPracticeContext } from "../lib/tools/context";
+  import { setPracticeContext } from "../lib/tools/exercise-info";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
@@ -101,7 +101,8 @@
   import { ClapListener, audioToPage } from "../lib/clap-listener";
   import { detectClaps } from "../lib/clap-detect";
   import { GradeRunner } from "../lib/grade-runner";
-  import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
+  import { STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
+  import { gradeSchedule } from "../lib/grade-schedule";
   import { clapToleranceBeats } from "../lib/grade-rhythm";
   import { clearGradeFeedback, drawGradeFeedback, headOf, revealTo } from "../lib/grade-feedback";
   import { PitchGuide } from "../lib/pitch-guide";
@@ -120,7 +121,7 @@
   import { billingStatus } from "../lib/billing-client";
   import { signedInUser } from "../lib/auth-client";
   import { initTuner, micInput, startTuner, stopTuner } from "../lib/tuner/controller";
-  import { exerciseInfo } from "../lib/tools/context";
+  import { exerciseInfo } from "../lib/tools/exercise-info";
   import { NOTES } from "../lib/tuner/pitch";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
@@ -1735,6 +1736,18 @@
 
   const STORAGE_KEY = "sightReadingOptions";
 
+  // The metronome's part of the saved options, read through a string: $tuner
+  // changes on every microphone frame and every beat, and an object read
+  // straight from it re-ran the save below (localStorage and the address bar)
+  // about 23 times a second. A string that has not changed wakes nothing.
+  $: savedClickJson = JSON.stringify({
+    subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
+    withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
+    ...($tuner.beatLevels ? { beatLevels: [...$tuner.beatLevels] } : {}),
+    ...($tuner.subMask ? { subMask: $tuner.subMask } : {}),
+  });
+  $: savedClick = JSON.parse(savedClickJson);
+
   // Save options whenever they change. The snapshot is also what a preset
   // stores, and what "edited" is measured against.
   $: currentOptions = {
@@ -1772,12 +1785,7 @@
       transposeSemitones,
       masterVolume,
       // The page's one metronome (preset-click.ts).
-      click: {
-        subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
-        withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
-        ...($tuner.beatLevels ? { beatLevels: [...$tuner.beatLevels] } : {}),
-        ...($tuner.subMask ? { subMask: $tuner.subMask } : {}),
-      },
+      click: savedClick,
       run: {
         exercises: drillExercises,
         repeats: drillRepeats,
@@ -1791,15 +1799,25 @@
         repeatCountIn: drillRepeatCountIn,
       } satisfies RunOptions,
     };
+  let lastSavedOptions = "";
   $: {
-    const options = currentOptions;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
-    } catch (e) {
-      console.error("Error saving options:", e);
-    }
-    if (typeof window !== "undefined") {
-      updateUrlFromState();
+    const json = JSON.stringify(currentOptions);
+    // Only when something saved changed: the address bar may be rewritten
+    // only so often (Safari throws past 100 times in 10 seconds).
+    if (json !== lastSavedOptions) {
+      lastSavedOptions = json;
+      try {
+        localStorage.setItem(STORAGE_KEY, json);
+      } catch (e) {
+        console.error("Error saving options:", e);
+      }
+      if (typeof window !== "undefined") {
+        try {
+          updateUrlFromState();
+        } catch (e) {
+          console.error("Error updating the address:", e);
+        }
+      }
     }
   }
 

@@ -102,7 +102,7 @@ describe("minor exercises", () => {
 
 describe("the practice tools in minor", () => {
   test("the tonic is the minor tonic; do moves with the minor solfège", async () => {
-    const { exerciseInfo } = await import("../../src/lib/tools/context");
+    const { exerciseInfo } = await import("../../src/lib/tools/exercise-info");
     const abc = "X:1\nM:4/4\nL:1/4\nK:Am\nA c e A|]\n";
     const la = exerciseInfo(abc)!;
     expect([la.tonicLabel, la.tonicSyllable, la.doLabel]).toEqual(["A", "la", "C"]);

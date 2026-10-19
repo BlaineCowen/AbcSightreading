@@ -1,4 +1,4 @@
-import { writable } from "svelte/store";
+import { get, writable } from "svelte/store";
 import { signedInUser } from "./auth-client";
 import { noteExercise } from "./practice-tracker";
 import { anonymousUsage, generationAllowance, recordAnonymousGeneration, type Tier } from "./plan";
@@ -30,6 +30,12 @@ export async function mayGenerate(): Promise<boolean> {
     if (!a.allowed) refuse({ tier: "anonymous", limit: a.limit, remaining: 0, blocked: true });
     return a.allowed;
   }
+  // Pro, Educator and their students have no limit: once the page knows that
+  // (GenerationLimit loads it as the page opens, and every count returns it),
+  // there is nothing to ask the server before each Generate. The count after
+  // it still goes to the server.
+  const known = get(usage);
+  if (known && known.tier !== "anonymous" && known.limit === null) return true;
   try {
     const res = await fetch("/api/usage");
     if (!res.ok) return true;

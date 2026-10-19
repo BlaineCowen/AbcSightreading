@@ -40,27 +40,43 @@ const subscriptionsOf = (referenceIds: string[]) =>
 const grantsOf = (userId: string) =>
   prisma.accessGrant.findMany({ where: { userId, expiresAt: { gt: new Date() } }, select: { plan: true, expiresAt: true } });
 
-/** The plan of an account without looking at classes it is in: subscriptions, code grants, complimentary. */
-async function ownPlan(user: { id: string; email: string }): Promise<Plan> {
-  const [subscriptions, grants] = await Promise.all([subscriptionsOf([user.id]), grantsOf(user.id)]);
-  return planFrom({ subscriptions, grants, complimentary: complimentary(user.email) });
-}
-
 export async function planFor(userId: string): Promise<Plan> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      enrollments: { select: { class: { select: { user: { select: { id: true, email: true } } } } } },
-    },
-  });
+  // The account and its own subscriptions and grants need only the id, so
+  // they are asked for together: one round trip, not three in a row. Every
+  // practice page asks for the plan several times as it opens (usage,
+  // billing, tracks, the free month).
+  const [user, subscriptions, grants] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        enrollments: { select: { class: { select: { user: { select: { id: true, email: true } } } } } },
+      },
+    }),
+    subscriptionsOf([userId]),
+    grantsOf(userId),
+  ]);
   if (!user) return "free";
-  const own = await ownPlan(user);
+  const own = planFrom({ subscriptions, grants, complimentary: complimentary(user.email) });
   if (own !== "free") return own;
-  const teachers = new Map(user.enrollments.map((e) => [e.class.user.id, e.class.user]));
-  for (const t of teachers.values()) {
-    if ((await ownPlan(t)) === "educator") return planFrom({ subscriptions: [], studentOfEducator: true });
+  // A student of an educator: every teacher at once, in two queries.
+  const teachers = [...new Map(user.enrollments.map((e) => [e.class.user.id, e.class.user])).values()];
+  if (!teachers.length) return "free";
+  const [teacherSubs, teacherGrants] = await Promise.all([
+    subscriptionsOf(teachers.map((t) => t.id)),
+    prisma.accessGrant.findMany({
+      where: { userId: { in: teachers.map((t) => t.id) }, expiresAt: { gt: new Date() } },
+      select: { userId: true, plan: true, expiresAt: true },
+    }),
+  ]);
+  for (const t of teachers) {
+    const plan = planFrom({
+      subscriptions: teacherSubs.filter((s) => s.referenceId === t.id),
+      grants: teacherGrants.filter((g) => g.userId === t.id),
+      complimentary: complimentary(t.email),
+    });
+    if (plan === "educator") return planFrom({ subscriptions: [], studentOfEducator: true });
   }
   return "free";
 }
@@ -77,11 +93,13 @@ export async function hasEducatorPlan(user: { id: string }): Promise<boolean> {
 
 /** This month's allowance, without using any of it. */
 export async function generationStatus(userId: string) {
-  const plan = await planFor(userId);
-  const row = await prisma.generationUsage.findUnique({
-    where: { userId_month: { userId, month: monthKey() } },
-    select: { count: true },
-  });
+  const [plan, row] = await Promise.all([
+    planFor(userId),
+    prisma.generationUsage.findUnique({
+      where: { userId_month: { userId, month: monthKey() } },
+      select: { count: true },
+    }),
+  ]);
   return { plan, ...generationAllowance(plan, row?.count ?? 0) };
 }
 
@@ -92,10 +110,12 @@ export async function generationStatus(userId: string) {
  * allowance after it.
  */
 export async function claimGeneration(userId: string) {
-  const plan = await planFor(userId);
   const month = monthKey();
   const where = { userId_month: { userId, month } };
-  await prisma.generationUsage.upsert({ where, create: { userId, month, count: 0 }, update: {} });
+  const [plan] = await Promise.all([
+    planFor(userId),
+    prisma.generationUsage.upsert({ where, create: { userId, month, count: 0 }, update: {} }),
+  ]);
   const unlimited = generationAllowance(plan, 0).limit === null;
   const limit = generationAllowance(plan, 0).limit ?? 0;
   const { count: updated } = await prisma.generationUsage.updateMany({

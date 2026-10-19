@@ -7,13 +7,13 @@ import {
   guidance,
   solfegeOf,
   centsOffAnyOctave,
-  gradeNotes,
   holdCents,
   letterFor,
   noteScore,
   summarize,
   type NoteResult,
 } from "../../src/lib/grade";
+import { gradeNotes, gradeSchedule } from "../../src/lib/grade-schedule";
 
 const abc = (body: string, key = "C") => `X:1\nM:4/4\nL:1/32\nK:${key}\n${body}\n`;
 const none = { heardNote: false, heardKey: false };
@@ -108,7 +108,6 @@ describe("what the card says", () => {
 import {
   STRICTNESS,
   gradePerformance,
-  gradeSchedule,
   stepsBetween,
 } from "../../src/lib/grade";
 import type { HistoryPoint } from "../../src/lib/tuner/pitch-history";
