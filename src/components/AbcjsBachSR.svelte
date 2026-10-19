@@ -578,7 +578,7 @@
 
     <!-- Preview banner -->
     <div class="w-full bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-md px-3 py-2 mt-3 mb-2 no-print">
-      <strong>Bach SR - Preview.</strong> Phase 1 currently delegates to the existing choral generator.
+      <strong>Bach SR preview.</strong> Phase 1 currently delegates to the existing choral generator.
       Soprano-first chorale algorithm lands in Phase 2.
     </div>
 

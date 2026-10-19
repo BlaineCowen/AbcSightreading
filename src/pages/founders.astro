@@ -16,7 +16,7 @@ const joined = await founderCount().catch(() => 0);
 const price = (99 * (100 - FOUNDER_DISCOUNT)) / 100;
 
 const gets = [
-  { title: "Educator, free this school year", body: "Classes with join codes, assignments, and the practice time each student actually spends. Free through May 31, 2027. No card." },
+  { title: "Educator, free this school year", body: "Classes with join codes, assignments, and each student's practice time. Free through May 31, 2027. No card." },
   { title: `${FOUNDER_SEATS} student accounts`, body: "Safe for every age: no student email, logins you can print for your class, no ads or tracking on student pages." },
   { title: `${FOUNDER_DISCOUNT}% off, for as long as you stay`, body: `After May, Educator is $${price.toFixed(2)} a year instead of $99, every year you renew. Nothing is charged when the free year ends: you choose whether to keep it.` },
 ];

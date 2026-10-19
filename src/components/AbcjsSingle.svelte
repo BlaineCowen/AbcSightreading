@@ -5808,7 +5808,7 @@
                   </div>
 
                   {#if skips.exactOn && skips.patterns.length === 0 && skips.extraSkips.length === 0}
-                    <p class="text-xs text-sr-muted">Stepwise only - no skips.</p>
+                    <p class="text-xs text-sr-muted">Stepwise only, no skips.</p>
                   {/if}
 
                   <p class="text-xs text-sr-faint">Steps are always allowed. Each skip may be sung in any octave.</p>

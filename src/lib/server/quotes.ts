@@ -55,7 +55,7 @@ const longDay = (d: Date) => d.toLocaleDateString("en-US", { month: "long", day:
 function planLine(plan: QuotePlan, seats: number) {
   return plan === "pro"
     ? "One year of abcSightReading Pro: unlimited sight-reading exercises for choirs and ensembles, the practice tools (tuner, metronome, drone, starting pitches) and abcTuner."
-    : `One year of the Educator plan: unlimited sight-reading exercises, practice tools, and ${seats} secure student accounts for all age groups.`;
+    : `One year of the Educator plan: unlimited sight-reading exercises, practice tools, and ${seats} student accounts (no student email, safe for any age).`;
 }
 
 async function notifyOwner(subject: string, lines: string[]) {

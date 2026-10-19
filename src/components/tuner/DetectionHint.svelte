@@ -39,7 +39,7 @@
   {:else}
     <div class="text-xs text-sr-muted bg-sr-panel border border-sr-hairline rounded-lg p-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
       {#if reason === "self-playing"}
-        <span>Paused while the app is sounding a note - tap the lit wedge again to stop it, then sing.</span>
+        <span>Paused while the app is sounding a note. Tap the lit wedge again to stop it, then sing.</span>
       {:else if reason === "quiet"}
         <span>
           Sound is too close to the room noise
@@ -48,7 +48,7 @@
           {/if}
         </span>
       {:else if reason === "silent"}
-        <span>Listening - no sound yet</span>
+        <span>Listening, no sound yet</span>
       {:else}
         <span>Hearing sound, but no steady pitch yet</span>
       {/if}

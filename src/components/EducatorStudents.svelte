@@ -333,7 +333,7 @@
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div>
       <h2 class="text-lg font-semibold text-sr-ink">Students</h2>
-      <p class="text-sm text-sr-muted">Students join a class with its code, or you make their accounts from a list. Secure student accounts for all age groups.</p>
+      <p class="text-sm text-sr-muted">Students join a class with its code, or you make their accounts from a list. Student accounts have no email, so they are safe for any age.</p>
     </div>
     {#if loaded}
       <div class="text-sm text-sr-ink-2 min-w-[12rem]">

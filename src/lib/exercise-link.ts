@@ -65,7 +65,7 @@ export function linkProblemMessage(problem: LinkProblem): string {
     case "invalid":
     case "corrupt":
     default:
-      return "The exercise in this link could not be read - it may have been cut short when it was copied. Its settings are loaded, so Generate writes a new exercise from them.";
+      return "The exercise in this link could not be read. It may have been cut short when it was copied. Its settings are loaded, so Generate writes a new exercise from them.";
   }
 }
 
