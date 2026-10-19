@@ -954,9 +954,11 @@ analysis by synthesis works (his falsetto). The live loop is
 cannot: a man's [o] above G3 read as a woman's [u]). Vowels are only
 trusted below about A4, and rough above E4. It is all from the mic alone; nothing compares
 against the written notes yet.
-Ported from Blaine's standalone tuner project; see `src/lib/tuner/README.md`.
-The detection files are that project's unchanged, so improve detection there
-(its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the
+Ported from Blaine's standalone tuner project, which is retired (18 October
+2026): abcTuner is the tuner now, so improve detection here; see
+`src/lib/tuner/README.md`. Detection pauses while the tab is out of sight
+unless a run holds the microphone (`micHeld`; `TunerEngine.setPaused`, the
+mic left open). Canvases take the
 site's theme colours through `src/lib/tuner/canvas-colors.ts`.
 
 **Grade** (Unison page, pitched, Pro): "Listen and grade" above the score

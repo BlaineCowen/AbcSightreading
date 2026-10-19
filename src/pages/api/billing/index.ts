@@ -26,12 +26,19 @@ import { endingPlanFor } from "../../../lib/server/plan-ending";
 export const GET: APIRoute = async ({ request }) => {
   const user = await currentUser(request);
   if (!user) return json({ error: "Sign in first." }, 401);
-  const subscription = await prisma.subscription.findFirst({
-    where: { referenceId: user.id, status: { in: ["active", "trialing", "past_due"] } },
-    orderBy: { periodEnd: "desc" },
-    select: { stripeSubscriptionId: true, plan: true, status: true, periodEnd: true, cancelAtPeriodEnd: true },
-  });
-  const plan = await planFor(user.id);
+  // Each needs only the account, so they go together (they ran one after
+  // another, 7-9 round trips on every practice page and /account); only the
+  // purchase order waits, for the subscription it belongs to.
+  const [subscription, plan, grant, ending] = await Promise.all([
+    prisma.subscription.findFirst({
+      where: { referenceId: user.id, status: { in: ["active", "trialing", "past_due"] } },
+      orderBy: { periodEnd: "desc" },
+      select: { stripeSubscriptionId: true, plan: true, status: true, periodEnd: true, cancelAtPeriodEnd: true },
+    }),
+    planFor(user.id),
+    currentGrant(user.id),
+    endingPlanFor(user.id),
+  ]);
   // A plan on a school's purchase order: its PO and invoice, not a card.
   const po = subscription?.stripeSubscriptionId
     ? await prisma.quote.findFirst({
@@ -39,8 +46,6 @@ export const GET: APIRoute = async ({ request }) => {
         select: { poNumber: true, school: true, invoiceUrl: true, invoiceDueAt: true, paidAt: true, renews: true },
       })
     : null;
-  const grant = await currentGrant(user.id);
-  const ending = await endingPlanFor(user.id);
   const via =
     plan === "free" ? null
     : subscription ? "subscription"

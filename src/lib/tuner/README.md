@@ -2,8 +2,9 @@
 
 The tuner at `/tuner` and the practice pages' tuner widget.
 
-Ported from Blaine's standalone tuner project (`~/Projects/tuner`, Next.js).
-The detection is that project's, unchanged apart from import paths:
+Ported from Blaine's standalone tuner project (`~/Projects/tuner`, Next.js),
+which is retired (18 October 2026): this is the tuner now, and detection is
+changed here. As ported:
 
 - `autocorrelation.ts` - McLeod Pitch Method, keeping every key maximum as a
   candidate rather than committing to one per frame
@@ -23,5 +24,9 @@ read-only view of the analyser for it, which detection never sees), `store.ts` (
 page), `scale-challenge-runner.ts` (the challenge hook as a class), and
 `canvas-colors.ts` (theme colours for the canvases, which were black-only).
 
-Improve detection in the tuner project's terms - its `scripts/pitch-bench.ts`
-benchmark runs against the same files - and copy the change across.
+Since the port: `autocorrelation.ts` keeps its scratch arrays between frames
+(the same output, checked frame for frame), and `TunerEngine.setPaused` stops
+detection in a hidden tab unless Grade or the audio check holds the
+microphone (`controller.ts`). The old project's `scripts/pitch-bench.ts`
+benchmark was not brought across; a change to detection is checked here with
+`scripts/check-grade.ts` and the unit tests.

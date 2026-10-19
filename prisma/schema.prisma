@@ -496,6 +496,8 @@ model AccessGrant {
 
   @@unique([userId, codeId])
   @@index([userId])
+  /// Who joined under a code: founding teachers (founders.ts), a code's uses.
+  @@index([codeId])
   @@map("access_grant")
 }
 

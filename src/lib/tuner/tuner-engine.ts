@@ -57,6 +57,19 @@ export class TunerEngine {
     this.onFrameCallback = callback;
   }
 
+  private paused = false;
+  /**
+   * Stops detecting, with the microphone left open (closing it could ask for
+   * permission again on the way back): a tab out of sight has nobody reading
+   * the tuner. Frames are dropped until it is resumed, and the tracker starts
+   * fresh then, since what it learned is from before the gap.
+   */
+  setPaused(paused: boolean) {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    if (!paused) this.tracker.reset();
+  }
+
   /**
    * The spectrum as it is now, dB per bin, for the Analysis tool to draw.
    * Added here (not in the standalone tuner project): it only reads the
@@ -171,6 +184,7 @@ export class TunerEngine {
     // with the context gone; there is nothing to analyse it against.
     if (!this.onFrameCallback || event.data.type !== "buffer" || !this.audioContext) return;
     this.frameCount++;
+    if (this.paused) return;
     const buffer: Float32Array = event.data.buffer;
     this.lastSamples = buffer;
     const level = rms(buffer);
