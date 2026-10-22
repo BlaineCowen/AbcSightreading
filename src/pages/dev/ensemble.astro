@@ -1,0 +1,15 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import AbcTuner from "../../components/tuner/AbcTuner.svelte";
+
+// Dev server only (scripts/check-ensemble-page.ts): abcTuner with no account,
+// so the Ensemble tab can be opened and driven without Pro. 404 anywhere but
+// `bun run dev`.
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+---
+
+<Layout title="abcTuner (dev)" noindex themable>
+  <div class="flex flex-col w-full items-center gap-4 pb-16 pt-6">
+    <AbcTuner client:only="svelte" />
+  </div>
+</Layout>

@@ -961,6 +961,26 @@ unless a run holds the microphone (`micHeld`; `TunerEngine.setPaused`, the
 mic left open). Canvases take the
 site's theme colours through `src/lib/tuner/canvas-colors.ts`.
 
+**Ensemble** (the abcTuner tab, 22 October 2026; Blaine: OmniPitch's
+polyphonic detector in abcTuner, for out-of-tune parts, playback and
+recording): record a choir, band or orchestra (or open a recording, up to
+three minutes) and, after the take, every note on a piano roll at the pitch
+it was heard, coloured against equal temperament at the tuner's A (Blaine:
+A440, so a choir sagging together shows), each part's lean ("Alto: 17¢
+sharp"), playback with a part alone (its notes separated from the mix) or
+one note alone, and the note played in tune. Choir or Band or orchestra
+picks OmniPitch's voices model or its standard one. `src/lib/ensemble-tuning/`
+(loader `polypitch.ts`, `analyse.ts`, separation workers, `harmonic-pitch.ts`,
+rules `tuning.ts`, tests `ensemble-tuning.test.ts`), the tab
+`EnsembleTuning.svelte` and `EnsembleRoll.svelte`, loaded only when opened.
+The wasm (11 MB, no vocoder) is `public/omnipitch/`, versioned by name;
+how to rebuild it and what was measured are in notes/omnipitch.md (each
+part's lean within a median 2 cents of the singers' own on the Choral
+Singing Dataset quartets; unsure notes dashed, not red). Gates:
+`scripts/check-ensemble-real.ts`, `check-ensemble-tuning.ts`, and
+`check-ensemble-page.ts <wav>` on `/dev/ensemble` (dev only, no account).
+Nothing is uploaded; the take lasts the page's life.
+
 **Grade** (Unison page, pitched, Pro): "Listen and grade" above the score
 opens a strip docked above the playback bar (the page leaves room below the
 score for it). Its setup opens with it (remembered in the tuner store:

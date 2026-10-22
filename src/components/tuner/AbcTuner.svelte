@@ -4,6 +4,7 @@
   import { initTuner, startTuner } from "../../lib/tuner/controller";
   import { droneOn } from "../../lib/tools/state";
   import { timer } from "../../lib/tools/timer";
+  import { ensembleRecording } from "../../lib/ensemble-tuning/state";
   import RadialTuner from "./RadialTuner.svelte";
   import TunerSettings from "./TunerSettings.svelte";
   import VolumeMeter from "./VolumeMeter.svelte";
@@ -23,10 +24,11 @@
    */
   // No Pitches tab: it gives each part its first note from an exercise, and
   // there is no exercise here. It stays in the practice pages' Tools wheel.
-  type Tab = "tuner" | "analysis" | "metro" | "drone" | "timer" | "challenge";
+  type Tab = "tuner" | "analysis" | "ensemble" | "metro" | "drone" | "timer" | "challenge";
   const TABS: [Tab, string][] = [
     ["tuner", "Tuner"],
     ["analysis", "Analysis"],
+    ["ensemble", "Ensemble"],
     ["metro", "Metronome"],
     ["drone", "Drone"],
     ["timer", "Timer"],
@@ -42,6 +44,7 @@
   $: running = {
     tuner: $tuner.engineStatus === "running",
     analysis: false,
+    ensemble: $ensembleRecording,
     metro: $tuner.metronomeRunning,
     drone: $droneOn,
     timer: $timer.running,
@@ -49,6 +52,8 @@
   } as Record<Tab, boolean>;
 
   onMount(initTuner);
+  // The Ensemble tab carries OmniPitch's detector: loaded only when it is opened.
+  const ensembleTab = () => import("./EnsembleTuning.svelte");
 </script>
 
 <div class="w-full max-w-4xl mx-auto px-4 flex flex-col gap-4 pb-10">
@@ -76,6 +81,14 @@
       <DetectionHint />
     {:else if tab === "analysis"}
       <ToolAnalysis large />
+    {:else if tab === "ensemble"}
+      {#await ensembleTab()}
+        <p class="text-sm text-sr-muted">Loading…</p>
+      {:then m}
+        <svelte:component this={m.default} />
+      {:catch}
+        <p class="text-sm text-sr-ink">The Ensemble tab could not load. Reload the page to try again.</p>
+      {/await}
     {:else if tab === "metro"}
       <TunerMetronome />
     {:else if tab === "drone"}
