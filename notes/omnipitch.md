@@ -1,60 +1,42 @@
-# OmniPitch in abcTuner (the Ensemble tab)
+# abcOmniPitch (abcTuner's OmniPitch tab)
 
-`public/omnipitch/polypitch-1.wasm` is OmniPitch's detector
-(`~/Projects/polyphonic-pitch-detector`, Blaine's), built with **default
-features only**: Basic Pitch (Spotify, Apache-2.0) with both models (the
-standard one and the choir fine-tune) and score-informed separation. No
-vocoder: that is Harmelody's, proprietary, and only edits notes.
+The tab frames OmniPitch's own editor (Blaine's
+`~/Projects/polyphonic-pitch-detector`, `polypitch/web`), served as a static
+page from `public/omnipitch/editor/` (`OmniPitchTab.svelte`). It is the
+editor as OmniPitch ships it: Basic Pitch transcription (General, Voices,
+DSP), the Melodyne-style roll, tuning colours against the voices around each
+note, recording, key detection, Correct pitch and the note tools, export,
+all running in the browser (no edit server).
 
-## Rebuilding
+## Syncing it
 
 ```sh
-cd ~/Projects/polyphonic-pitch-detector/polypitch
-PATH="$HOME/.cargo/bin:$PATH" cargo build --release --target wasm32-unknown-unknown
-cp target/wasm32-unknown-unknown/release/polypitch.wasm \
-   ~/Projects/abcSightreading/public/omnipitch/polypitch-2.wasm
+bun run scripts/omnipitch/sync.ts
 ```
 
-Give each build a **new name** and change `POLYPITCH_URL`
-(src/lib/ensemble-tuning/polypitch.ts): vercel.json caches
-`/omnipitch/*.wasm` for a year. Update CREDITS.txt's commit. The loader is a
-port of `polypitch/web/polypitch.js`; a new export there needs porting too.
+copies index.html, polypitch.js, engine-worker.js, the wasm, the demo and
+the Basic Pitch licence, and applies the site's changes (the Recess colours
+and fonts in light and dark, the abc wordmark, the in-browser engine only, a
+versioned wasm name, and the fix to tuningRef's unsorted median). Each change
+is a literal replacement that must find its text, so if OmniPitch's page
+moves one, the sync stops and says which.
 
-## What was measured (22 October 2026)
+The wasm is OmniPitch's own `web/polypitch.wasm`, the **vocoder** build (note
+editing), which includes Harmelody's proprietary phase vocoder; Blaine chose
+that knowingly (22 October 2026). Rebuild it in OmniPitch first
+(`cargo build --release --target wasm32-unknown-unknown --features vocoder`,
+with ../harmelody-poly on its vocoder-poly-mode branch, then copy into web/).
+**When the wasm changes, bump `WASM_NAME` in the sync script**: vercel.json
+caches `/omnipitch/*.wasm` for a year. `VERSION.txt` records the commit.
 
-`bun run scripts/check-ensemble-real.ts` on the Choral Singing Dataset
-quartets OmniPitch built (`data/csd/*_quartet`: one singer a part, each
-part's audio and score kept). Truth: each written note measured from its
-singer alone.
+The site's theme reaches the frame by `?theme=` and by a message
+(`{abcTheme}`) whenever it changes; the editor redraws on it.
 
-- The truth itself is only good to about 5 cents: on a singer alone, two
-  sound readings of a note differ by a median 4-7 cents and by over 25 on
-  3-9% of notes (the score's spans include the moves between notes).
-- Separation alone (OmniPitch's own reading) from the mix: median error
-  7.8 cents, 56% within 10. Octaves and unisons are the hard cases: the upper
-  note of an octave has every harmonic inside the lower note's.
-- So a second reading (`harmonic-pitch.ts`): the note's own harmonics in the
-  mix, leaving out any another note covers. Where the two agree (within 12
-  cents) the note is sure: median 5 cents, 70% within 10, 11% over 25. Where
-  they disagree it is unsure (dashed, left out of the parts' figures) and
-  the harmonic reading is shown (median 10 cents against separation's 19).
-- Parts (`assignParts`): votes from every moment exactly as many notes sound
-  as there are parts, the rest by the nearest line. 88% of notes in the
-  right part from the mix (44% going note by note, where a resting part was
-  taken over by its neighbour and staggered entries split chords).
-- **Each part's lean** (what the tab tells a director): within a median 2
-  cents of the truth, the worst 9, across the 12 parts. Everyone: within 2.
+## Stashed: parts and a director's view
 
-`bun run scripts/check-ensemble-tuning.ts` (synthetic SATB with faults
-planted) and `scripts/check-ensemble-page.ts <wav>` (the tab end to end in
-headless Chrome on /dev/ensemble) are the other gates.
-
-## Not done
-
-- Live view while recording (decided against: after the take only).
-- A pitch reference other than equal temperament at the tuner's A (just
-  intonation against the chord, or the group's own drift as OmniPitch's
-  editor judges).
-- Takes are kept for the page's life only; Save recording downloads a WAV.
-- Measured on quartets (one voice a part). A full choir (several singers a
-  part) blurs each note; OmniPitch has `data/csd/*_choir` to measure that.
+A tab of our own built on the same detector (record, then each part's lean,
+"Alto: 17¢ sharp", a part alone, notes against A440, a second pitch reading
+from uncovered harmonics, and measurement against the Choral Singing Dataset
+quartets: each part's lean within a median 2 cents of its singer's) is on the
+branch `ensemble-parts-idea` (commit 09c51fd), with its notes in
+notes/omnipitch.md there. Blaine stashed it on 22 October 2026: not yet.

@@ -1,0 +1,2021 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>abcOmniPitch</title>
+<style>
+  /* Dark slate, as a DAW: tokens for the page, and the roll's colours (read by the canvas code). */
+  :root {
+    color-scheme: dark;
+    --bg: #0f172a; --panel: #151e32; --raised: #1e293b; --raised-hover: #273449; --fg: #f1f5f9; --muted: #94a3b8;
+    --line: #2a3650; --line-strong: #3b4a66; --accent: #2563eb; --accent-hover: #1d4ed8; --focus: #93c5fd;
+    --row-white: #131c2e; --row-black: #0f1726; --row-out: #0a101c; --row-tonic: #172238; --grid: #1c2638; --grid-strong: #2e3b55;
+    --key-white: #cbd5e1; --key-black: #0b1120; --note: #60a5fa; --note-edge: #bfdbfe; --playhead: #fb923c;
+    --off: #fbbf24; --way-off: #f87171; --curve: #e0f2fe; --wave: #475569; --ghost: #94a3b8; --sel: #ffffff;
+    --rec: #ef4444; --radius: 6px; --ease: cubic-bezier(0.2, 0, 0, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--fg);
+         font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* --- toolbar: groups of controls, each wrapping as a unit --- */
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 2px; font-weight: 650; font-size: 14px; letter-spacing: -0.01em; }
+  .brand svg { width: 22px; height: 22px; }
+  .group { display: flex; align-items: center; gap: 4px; padding: 0 6px; border-left: 1px solid var(--line); min-height: 30px; }
+  .spacer { flex: 1; }
+  button, select, input { font: inherit; color: inherit; }
+  button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 10px;
+         background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); white-space: nowrap;
+         transition: background-color 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease); }
+  button:hover:not(:disabled), .btn:hover { background: var(--raised-hover); border-color: var(--line-strong); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button.icon { width: 30px; padding: 0; }
+  button.on, button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.on:hover:not(:disabled), button[aria-pressed="true"]:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+  #ab { min-width: 5.6em; }
+  .toggle.icon { width: 30px; padding: 0; }
+  /* quick tooltips for the bars: the title's text, shown at once below (or above) the control */
+  #hint { position: fixed; z-index: 10; max-width: 320px; padding: 6px 9px; border-radius: 6px; background: #020617; border: 1px solid var(--line-strong);
+          color: var(--fg); font-size: 12px; line-height: 1.4; pointer-events: none; opacity: 0; transition: opacity 120ms var(--ease); white-space: normal; }
+  #hint.on { opacity: 1; }
+  #hint b { font-weight: 600; }
+  #hint kbd { font: 11px ui-monospace, monospace; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+  #play { width: 34px; padding: 0; border-radius: 50%; background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  #play:hover:not(:disabled) { background: #fff; border-color: #fff; }
+  #play .pause, #play.playing .play { display: none; }
+  #play.playing .pause { display: block; }
+  #play svg { fill: currentColor; stroke: none; }
+  .field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  select, input[type="number"] { height: 30px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 8px; color: var(--fg); }
+  input[type="number"] { width: 4.2em; font-variant-numeric: tabular-nums; }
+  .filename { max-width: 10em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); padding: 0 4px; }
+  .filename:empty { display: none; }
+  #rec .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); }
+  #rec.on { background: var(--rec); border-color: var(--rec); color: #fff; }
+  #rec.on .dot { background: #fff; border-radius: 2px; }
+  /* Hear notes: a checkbox shown as a toggle button */
+  .toggle { position: relative; }
+  .toggle input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+  .toggle:has(input:checked) { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toggle:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+  /* tools: one segmented control; labels give way to icons on narrow windows */
+  #tools { gap: 0; }
+  #tools button { border-radius: 0; margin-left: -1px; gap: 5px; padding: 0 9px; }
+  #tools button:first-of-type { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+  #tools button:last-of-type { border-radius: 0 var(--radius) var(--radius) 0; }
+  #tools button[aria-pressed="true"] { position: relative; z-index: 1; }
+  #tools kbd { display: none; }
+  #tools .t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #tools button { width: 34px; padding: 0; }
+  #tools button[aria-pressed="true"] { width: auto; padding: 0 10px; }
+  #tools button[aria-pressed="true"] .t { position: static; width: auto; height: auto; clip: auto; }
+
+  .unit { color: var(--muted); }
+  /* narrow windows: icons only (names in the tooltips) */
+  @media (max-width: 1100px) {
+    .brand h1, .unit { display: none; } .brand { padding-right: 4px; } .filename { display: none; }
+    #open .lbl, #tools button[aria-pressed="true"] .t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    #open, #tools button[aria-pressed="true"] { width: 34px; padding: 0; }
+  }
+
+  /* --- status bar: one line; long messages end in an ellipsis and show in full on hover --- */
+  footer { display: flex; align-items: center; gap: 14px; height: 28px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+  footer > * { flex: none; }
+  #status { color: var(--fg); opacity: 0.85; flex: 0 1 auto; min-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+  #credit { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 900px) { #credit { display: none; } }
+  .legend { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-left: 6px; }
+  .legend .out { margin-left: 14px; background: var(--row-out); border: 1px solid var(--line-strong); }
+  .legend .ok { background: var(--note); } .legend .off { background: var(--off); } .legend .way { background: var(--way-off); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; } }
+  /* Work in progress: a label and a bar along the top of the roll, a fraction or (no fraction) a sweep. The
+     sweep is a transform animation, so it keeps moving while the main thread runs the detector. */
+  #busy { position: absolute; top: 0; left: 0; right: 0; height: 3px; overflow: hidden; z-index: 2; pointer-events: none; opacity: 0; transition: opacity 200ms; }
+  #busy.on { opacity: 1; }
+  #busy i { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; background: var(--note); transform-origin: 0 0; transition: transform 150ms linear; }
+  #busy.sweep i { width: 30%; animation: sweep 1.1s ease-in-out infinite; transition: none; }
+  @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  #busy-label { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  #busy-label:empty { display: none; }
+  #busy-label::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%;
+                        border: 2px solid var(--note); border-right-color: transparent; animation: spin 0.8s linear infinite; vertical-align: -1px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #wrap { position: relative; flex: 1; min-height: 240px; }
+  /* nothing open yet: what to do, in the middle of the roll */
+  #empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+           color: var(--muted); pointer-events: none; text-align: center; padding: 16px; }
+  #empty[hidden] { display: none; }
+  #empty svg.i { width: 36px; height: 36px; stroke-width: 1.25; opacity: 0.7; }
+  #empty p { margin: 0; font-size: 14px; } #empty b { color: var(--fg); font-weight: 600; }
+  #empty button { pointer-events: auto; height: 26px; padding: 0 8px; vertical-align: baseline; }
+  #empty kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 5px; }
+  body.in-host #empty .host { display: block; }
+  #empty .none-found, #empty.opened .host, #empty.opened .no-host { display: none; } #empty.opened .none-found { display: block; }
+  /* a file dragged over the roll */
+  #wrap.drop::after { content: "Drop to open"; position: absolute; inset: 8px; z-index: 5; display: flex; align-items: center; justify-content: center;
+                      border: 2px dashed var(--note); border-radius: 10px; background: rgba(37, 99, 235, 0.12); color: var(--fg); font-size: 16px; font-weight: 600; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: default; }
+  canvas.dragging { cursor: grabbing; }
+  canvas.on-note { cursor: ns-resize; }
+  canvas.on-note.split { cursor: col-resize; }
+  canvas.on-note.time { cursor: ew-resize; }
+  canvas.draw, canvas.draw.on-note { cursor: crosshair; }
+  #correct { position: absolute; top: 8px; right: 16px; z-index: 3; display: none; background: var(--panel); border: 1px solid var(--line);
+             border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: 13px; }
+  #correct.open { display: grid; grid-template-columns: auto 160px 3em; gap: 6px 10px; align-items: center; }
+  #correct .what { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+  #correct output { text-align: right; font-variant-numeric: tabular-nums; }
+  #correct .check { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  #c-split-n, #correct #c-wait { color: var(--muted); }
+  #c-wait:empty { display: none; }
+  #export { position: absolute; top: 8px; right: 16px; z-index: 3; display: none; flex-direction: column; gap: 6px; background: var(--panel);
+            border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: 13px; width: 300px; }
+  #export.open { display: flex; }
+  #export button { text-align: left; height: auto; padding: 8px 10px; display: block; white-space: normal; }
+  #export small { color: var(--muted); display: block; font-size: 11px; }
+  #restore { display: none; gap: 6px; align-items: center; padding: 2px 2px 2px 10px; border-radius: var(--radius); background: var(--raised); color: var(--fg); }
+  #restore button { height: 22px; padding: 0 8px; }
+  #restore.on { display: inline-flex; }
+  .host { display: none; }
+  body.in-host .host { display: inline-flex; align-items: center; }
+  body.in-host .no-host { display: none; }
+  #transfer .lbl { min-width: 8.2em; text-align: left; font-variant-numeric: tabular-nums; } /* the time ticking doesn't move the bar */
+  #transfer.armed { background: var(--off); border-color: var(--off); color: #111; }
+  #transfer.on { background: var(--rec); border-color: var(--rec); color: #fff; }
+  #host-info { color: var(--muted); font-size: 12px; }
+  #wheel { position: absolute; width: 208px; height: 208px; margin: -104px 0 0 -104px; pointer-events: none; display: none;
+           transform: scale(0.85); opacity: 0; transition: transform 90ms ease-out, opacity 90ms ease-out; z-index: 2; }
+  #wheel.open { display: block; }
+  #wheel.shown { transform: scale(1); opacity: 1; }
+  #wheel .seg { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+  #wheel .seg.hot { fill: var(--note); stroke: var(--note-edge); }
+  #wheel .seg.current { stroke: var(--note); stroke-width: 2; }
+  #wheel text { font: 600 13px system-ui, sans-serif; fill: var(--fg); text-anchor: middle; dominant-baseline: middle; }
+  #wheel text.key { font: 10px ui-monospace, monospace; fill: var(--muted); }
+  #wheel text.name { font: 600 11px system-ui, sans-serif; fill: var(--muted); }
+  #wheel text.name.aimed { fill: var(--fg); }
+  #wheel .ico { fill: none; stroke: var(--fg); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  #wheel .hot-label { fill: #fff; }
+  #wheel .ico.hot-label { fill: none; stroke: #fff; }
+  #wheel .hub { fill: var(--bg); stroke: var(--line); }
+  #tip { position: absolute; pointer-events: none; padding: 4px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font-size: 12px; white-space: nowrap; display: none; }
+  #help { position: absolute; top: 8px; right: 16px; z-index: 4; display: none; background: var(--panel); border: 1px solid var(--line);
+          border-radius: 8px; padding: 14px 18px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: 13px; line-height: 1.45;
+          width: min(680px, calc(100% - 32px)); max-height: calc(100% - 16px); overflow: auto; }
+  #help.open { display: block; }
+  #help h2 { font-size: 14px; margin: 0 0 6px; }
+  #help h3 { font-size: 12px; margin: 12px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  #help dl { display: grid; grid-template-columns: 9.5em 1fr; gap: 3px 12px; margin: 0; }
+  #help dt { font-weight: 600; white-space: nowrap; }
+  #help dd { margin: 0; }
+  #help kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+  #help .close { float: right; }
+  #credit a { color: inherit; }
+
+  /* ---- abcSightReading (scripts/omnipitch/sync.ts): Recess colours and fonts, light and dark ---- */
+  @font-face { font-family: "Fredoka"; font-weight: 300 700; font-display: swap; src: url("/fonts/fredoka-v17-latin.woff2") format("woff2"); }
+  @font-face { font-family: "Nunito"; font-weight: 200 1000; font-display: swap; src: url("/fonts/nunito-v32-latin.woff2") format("woff2"); }
+  :root {
+    color-scheme: light;
+    --bg: #eaf0f9; --panel: #ffffff; --raised: #f0f5fc; --raised-hover: #dce8ff; --fg: #15213a; --muted: #56637f;
+    --line: #d8e2f1; --line-strong: #c3d0e6; --accent: #2f6fe0; --accent-hover: #1e56c0; --focus: #2f6fe0;
+    --row-white: #f7f9fd; --row-black: #edf2fa; --row-out: #e1e7f1; --row-tonic: #e3edff; --grid: #e3e9f3; --grid-strong: #c9d4e6;
+    --key-white: #ffffff; --key-black: #34405e; --note: #2f6fe0; --note-edge: #1e56c0; --playhead: #f0803c;
+    --off: #e89a0c; --way-off: #e0443a; --curve: #15213a; --wave: #aab8d0; --ghost: #8793ad; --sel: #15213a;
+    --rec: #c2352b; --radius: 10px; --hint-bg: #15213a; --hint-fg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark;
+    --bg: #111113; --panel: #1b1b1f; --raised: #232328; --raised-hover: #2a2a30; --fg: #f4f4f6; --muted: #a4a4ae;
+    --line: #34343b; --line-strong: #45454e; --accent: #5c9dff; --accent-hover: #78adff; --focus: #8dbaff;
+    --row-white: #1d1d22; --row-black: #18181c; --row-out: #121215; --row-tonic: #1f2a3d; --grid: #26262c; --grid-strong: #3a3a43;
+    --key-white: #d8d8de; --key-black: #111113; --note: #5c9dff; --note-edge: #c9e4ff; --playhead: #ffb38a;
+    --off: #fbbf24; --way-off: #ff8a7a; --curve: #f4f4f6; --wave: #55555f; --ghost: #a4a4ae; --sel: #ffffff;
+    --rec: #ff6b5b; --hint-bg: #020617; --hint-fg: #f4f4f6; } }
+  :root[data-theme="dark"] { color-scheme: dark;
+    --bg: #111113; --panel: #1b1b1f; --raised: #232328; --raised-hover: #2a2a30; --fg: #f4f4f6; --muted: #a4a4ae;
+    --line: #34343b; --line-strong: #45454e; --accent: #5c9dff; --accent-hover: #78adff; --focus: #8dbaff;
+    --row-white: #1d1d22; --row-black: #18181c; --row-out: #121215; --row-tonic: #1f2a3d; --grid: #26262c; --grid-strong: #3a3a43;
+    --key-white: #d8d8de; --key-black: #111113; --note: #5c9dff; --note-edge: #c9e4ff; --playhead: #ffb38a;
+    --off: #fbbf24; --way-off: #ff8a7a; --curve: #f4f4f6; --wave: #55555f; --ghost: #a4a4ae; --sel: #ffffff;
+    --rec: #ff6b5b; --hint-bg: #020617; --hint-fg: #f4f4f6; }
+  body { font-family: "Nunito", system-ui, sans-serif; font-size: 13.5px; font-weight: 600; }
+  button, select, input { font-weight: 700; }
+  .brand { font-family: "Fredoka", "Nunito", sans-serif; font-size: 17px; font-weight: 600; letter-spacing: 0; }
+  .brand .abc { font-style: italic; color: var(--accent); margin-right: 1px; }
+  #hint { background: var(--hint-bg); color: var(--hint-fg); }
+  #play:hover:not(:disabled) { background: var(--fg); border-color: var(--fg); opacity: 0.88; }
+  #help h2 { font-family: "Fredoka", "Nunito", sans-serif; font-weight: 600; }
+</style>
+</head>
+<body>
+<!-- Icons: line icons after Lucide (ISC licence), 24 x 24, drawn with currentColor. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-transfer" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></symbol>
+  <symbol id="i-pitch" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
+  <symbol id="i-mod" viewBox="0 0 24 24"><path d="M2 12c1.5-4 3-4 4.5 0s3 4 4.5 0 3-4 4.5 0 3 4 4.5 0"/></symbol>
+  <symbol id="i-drift" viewBox="0 0 24 24"><path d="M3 17c4 0 5-10 9-10s5 7 9 7"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></symbol>
+  <symbol id="i-time" viewBox="0 0 24 24"><path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/></symbol>
+  <symbol id="i-gain" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+</svg>
+<header role="toolbar" aria-label="OmniPitch">
+  <div class="brand"><h1 style="font:inherit;margin:0"><span class="abc">abc</span>OmniPitch</h1></div>
+  <div class="group" aria-label="Audio">
+    <button id="open" class="no-host" title="Open an audio file (⌘O)"><svg class="i" aria-hidden="true"><use href="#i-open"/></svg><span class="lbl">Open</span></button>
+    <input type="file" id="file" accept="audio/*" hidden>
+    <span id="file-name" class="filename no-host"></span>
+    <button id="rec" class="no-host icon" aria-label="Record" title="Record from the microphone or an audio interface, then analyse it (R)"><span class="dot" aria-hidden="true"></span><span class="lbl sr">Record</span></button>
+    <button id="transfer" class="host" title="Arm, then play the song: the track's audio comes in as it plays, and the take then plays from here in its place, following tempo changes"><svg class="i" aria-hidden="true"><use href="#i-transfer"/></svg><span class="lbl">Transfer</span></button>
+    <label class="field" title="Detector: how notes are found. General: Basic Pitch, for any instrument. Voices: Basic Pitch fine-tuned on choir singers. DSP: a harmonic sum, for clean synthetic tones"><select id="method" aria-label="Detector"><option value="bp">General</option><option value="bpv">Voices</option><option value="dsp">DSP</option></select></label>
+    <label class="field no-host" title="How much of the file to analyse, in seconds"><input aria-label="Seconds to analyse" type="number" id="secs" value="60" min="1"><span class="unit">s</span></label>
+  </div>
+  <div class="group" aria-label="Playback">
+    <button id="play" class="no-host" disabled aria-label="Play (Space)" title="Play / pause (Space)"><svg class="i play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg><svg class="i pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+    <button id="ab" disabled aria-pressed="false" title="Switch between the original and the edited audio (E)"><span class="lbl">Original</span></button>
+    <label class="btn toggle icon" title="Hear notes: click a note to hear it alone, separated from the mix (A)"><input type="checkbox" id="solo" checked aria-label="Hear notes"><svg class="i" aria-hidden="true"><use href="#i-speaker"/></svg></label>
+  </div>
+  <div class="group" id="tools" role="group" aria-label="Tool">
+    <button data-tool="pitch" aria-pressed="true" title="Pitch (1): drag a note by steps of the key, Shift-drag by semitones, ⌘-drag for cents, ⌥-drag to duplicate, double-click to tune it"><svg class="i" aria-hidden="true"><use href="#i-pitch"/></svg><span class="t">Pitch</span><kbd>1</kbd></button><button data-tool="mod" aria-pressed="false" title="Modulation (2): drag to scale the vibrato 0–200%, double-click to flatten it"><svg class="i" aria-hidden="true"><use href="#i-mod"/></svg><span class="t">Modulation</span><kbd>2</kbd></button><button data-tool="drift" aria-pressed="false" title="Drift (3): drag to scale the slow pitch wander 0–200%, double-click to straighten it"><svg class="i" aria-hidden="true"><use href="#i-drift"/></svg><span class="t">Drift</span><kbd>3</kbd></button><button data-tool="split" aria-pressed="false" title="Split (4): click a note where it should become two"><svg class="i" aria-hidden="true"><use href="#i-split"/></svg><span class="t">Split</span><kbd>4</kbd></button><button data-tool="time" aria-pressed="false" title="Time (5): drag a note earlier or later, double-click to put it back"><svg class="i" aria-hidden="true"><use href="#i-time"/></svg><span class="t">Time</span><kbd>5</kbd></button><button data-tool="gain" aria-pressed="false" title="Volume (6): drag up or down, double-click to mute"><svg class="i" aria-hidden="true"><use href="#i-gain"/></svg><span class="t">Volume</span><kbd>6</kbd></button><button data-tool="draw" aria-pressed="false" title="Draw (7): drag along a row to add a note that was missed"><svg class="i" aria-hidden="true"><use href="#i-draw"/></svg><span class="t">Draw</span><kbd>7</kbd></button>
+  </div>
+  <div class="group" aria-label="Edit">
+    <button id="undo" class="icon" disabled aria-label="Undo (⌘Z)" title="Undo (⌘Z)"><svg class="i" aria-hidden="true"><use href="#i-undo"/></svg></button>
+    <button id="correct-btn" class="icon" disabled aria-label="Correct pitch" title="Correct pitch: pull the selected notes (or all) toward the nearest note in the key and straighten their drift"><svg class="i" aria-hidden="true"><use href="#i-wand"/></svg></button>
+    <label class="field" title="Key: Correct pitch and double-click tune to its notes, the Pitch tool drags by its steps (Shift-drag for semitones), and rows outside it are darker. Auto guesses it from the notes; Chromatic uses every semitone"><select id="key" aria-label="Key"></select></label>
+    <button id="export-btn" class="no-host icon" disabled aria-label="Export" title="Export: save the edited audio, separated notes or MIDI"><svg class="i" aria-hidden="true"><use href="#i-export"/></svg></button>
+    <button id="reset" class="icon" disabled aria-label="Reset every edit" title="Reset every edit"><svg class="i" aria-hidden="true"><use href="#i-reset"/></svg></button>
+  </div>
+  <div class="spacer"></div>
+  <div class="group" aria-label="View">
+    <button id="fit" class="icon" disabled aria-label="Fit the notes to the window" title="Fit the notes to the window"><svg class="i" aria-hidden="true"><use href="#i-fit"/></svg></button>
+    <button id="help-btn" class="icon" aria-label="Help (?)" title="How to use OmniPitch (?)"><svg class="i" aria-hidden="true"><use href="#i-help"/></svg></button>
+  </div>
+</header>
+<div id="wrap"><div id="busy"><i></i></div><canvas id="roll"></canvas><div id="empty" hidden>
+  <svg class="i" aria-hidden="true"><use href="#i-open"/></svg>
+  <p class="no-host"><b>Drop an audio file here</b>, or <button id="empty-open">Open</button> one, or record with <kbd>R</kbd></p>
+  <p class="host"><b>Arm Transfer, then play the song</b>: the track's audio comes in as it plays</p>
+  <p class="none-found"><b>No notes found</b>. Try another detector, or add notes with the Draw tool <kbd>7</kbd></p>
+</div><div id="export">
+  <button id="x-mix">Edited audio — WAV<small>The whole file, all channels, 24-bit, with every edit</small></button>
+  <button id="x-sel">Selected notes alone — WAV<small id="x-sel-what"></small></button>
+  <button id="x-rest">Everything but the selected notes — WAV<small>The edited mix with those notes taken out</small></button>
+  <button id="x-midi">Notes — MIDI<small id="x-midi-what"></small></button>
+</div><div id="correct">
+  <span class="what" id="correct-what"></span>
+  <label for="c-center">Pitch center</label><input type="range" id="c-center" min="0" max="100" value="0"><output id="c-center-v">0%</output>
+  <label for="c-drift">Pitch drift</label><input type="range" id="c-drift" min="0" max="100" value="0"><output id="c-drift-v">0%</output>
+  <label class="check" title="A note that holds one pitch and then another (a slur heard as one note) is split where it moves, so each pitch is tuned on its own"><input type="checkbox" id="c-split" checked> Split notes that change pitch <span id="c-split-n"></span></label>
+  <span class="what" id="c-key"></span>
+  <span class="what" id="c-wait"></span>
+</div><div id="help" role="dialog" aria-label="How to use OmniPitch">
+  <button class="close icon" id="help-close" aria-label="Close (Esc)" title="Close (Esc)"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>
+  <h2>How to use OmniPitch</h2>
+  <p style="margin:0">Each blob is one note, at the pitch it is sung. The line through it is its pitch curve, its thickness its loudness; its colour shows its tuning against the voices around it: blue within 10¢, amber beyond that, turning red by a quarter tone (50¢) sharp or flat. <b>Correct pitch…</b> and double-click pull notes toward that same tuning, so a choir that has drifted stays together. Click a note to hear it on its own.</p>
+  <h3>Tools <span style="text-transform:none">(keys 1–7, or hold the right mouse button / <kbd>Q</kbd> and flick)</span></h3>
+  <dl>
+    <dt>1 Pitch</dt><dd>Drag up or down by the steps of the key, <kbd>Shift</kbd>-drag by semitones, <kbd>⌘</kbd>-drag for cents. Double-click tunes it to the nearest note in the key.</dd>
+    <dt>2 Modulation</dt><dd>Drag to scale the vibrato, 0–200%. Double-click flattens it.</dd>
+    <dt>3 Drift</dt><dd>The same for slow pitch wander (scoops, sags), keeping the vibrato.</dd>
+    <dt>4 Split</dt><dd>Click where a note should become two.</dd>
+    <dt>5 Time</dt><dd>Drag earlier or later. Double-click puts it back.</dd>
+    <dt>6 Volume</dt><dd>Drag up or down for ±dB. Double-click mutes.</dd>
+    <dt>7 Draw</dt><dd>Drag along a row to add a note the detector missed.</dd>
+  </dl>
+  <h3>Notes</h3>
+  <dl>
+    <dt>Select</dt><dd>Drag a box on empty space; <kbd>Shift</kbd> or <kbd>⌘</kbd>-click adds one; <kbd>⌘A</kbd> selects all. A drag on one edits them all.</dd>
+    <dt>Duplicate</dt><dd><kbd>⌥</kbd>-drag a note or the selection.</dd>
+    <dt>Fix the list</dt><dd><kbd>Delete</kbd> removes a wrong note, <kbd>J</kbd> joins the selected ones.</dd>
+    <dt>Key</dt><dd>Guessed from the notes (Auto), or set it in the toolbar. Rows outside the key are darker. Notes are tuned to the key's notes, but one sung within 30¢ of a note outside it (a leading tone, a chromatic passing note) is taken as meant and stays there. Chromatic uses every semitone.</dd>
+    <dt>Correct pitch…</dt><dd>Pulls the selected notes (or all) toward the nearest note in the key, in the tuning of the voices around them, and straightens their drift. It tunes the pitch each note holds, not its average, so a scoop into a note doesn't pull it off; a note that holds one pitch and then another is split where it moves, and each part tuned.</dd>
+  </dl>
+  <h3>Listening and moving around</h3>
+  <dl>
+    <dt>Play</dt><dd><kbd>Space</kbd>. Click the ruler or waveform to jump. <kbd>E</kbd> switches original / edited, <kbd>A</kbd> turns hearing notes on and off.</dd>
+    <dt>Undo</dt><dd><kbd>⌘Z</kbd></dd>
+    <dt>Scroll</dt><dd>Pans. <kbd>⌘</kbd>-scroll or pinch zooms time, <kbd>Shift</kbd>-scroll zooms pitch, <kbd>⌥</kbd>-drag pans.</dd>
+    <dt>Your own audio</dt><dd>Drop a file on the roll, <b>Open</b> one (<kbd>⌘O</kbd>), or <b>Record</b> (<kbd>R</kbd>). Set the detector first: <b>Voices</b> for singing, <b>General</b> for instruments.</dd>
+  </dl>
+  <p style="margin:12px 0 0;color:var(--muted)"><kbd>?</kbd> opens this, <kbd>Esc</kbd> closes it.</p>
+</div><div id="wheel"></div><div id="tip"></div></div>
+<div id="hint" role="tooltip"></div>
+<footer>
+  <span id="status" role="status" aria-live="polite">Loading…</span>
+  <span id="busy-label"></span>
+  <span id="restore"><span id="restore-what"></span><button id="restore-yes">Restore</button><button id="restore-no">Start fresh</button></span>
+  <span id="host-info" class="host"></span>
+  <span class="spacer"></span>
+  <span id="credit" hidden>Demo: Allegri, <i>Miserere</i>, Ensamble Escénico Vocal (<a href="https://commons.wikimedia.org/wiki/File:Allegri_-_Miserere_Mei,_Deus_-_Ensamble_Esc%C3%A9nico_Vocal_(audio).ogg" target="_blank" rel="noopener">CC BY 3.0</a>)</span>
+  <span class="legend" title="A note's colour is its tuning against the voices around it; darker rows are outside the key">Tuning<i class="ok"></i>in tune<i class="off"></i>10¢ off<i class="way"></i>50¢<i class="out"></i>out of key</span>
+</footer>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search).get("theme");
+  if (q === "dark" || q === "light") document.documentElement.dataset.theme = q;
+  addEventListener("message", function (e) {
+    if (e.origin !== location.origin || !e.data || !e.data.abcTheme) return;
+    document.documentElement.dataset.theme = e.data.abcTheme;
+    dispatchEvent(new Event("resize")); // the roll reads its colours as it draws
+  });
+})();
+</script>
+<script type="module">
+import { loadPolyPitch } from "./polypitch.js";
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const BLACK = new Set([1, 3, 6, 8, 10]);
+const KEYS_W = 56, RULER_H = 24, WAVE_H = 44, TOP = RULER_H + WAVE_H; // ruler, then waveform lane, then roll
+const $ = (id) => document.getElementById(id);
+const setLabel = (id, text) => { $(id).querySelector(".lbl").textContent = text; if ($(id).hasAttribute("aria-label")) $(id).setAttribute("aria-label", text); };
+// Away from a Mac, the shortcuts the page shows say Ctrl and Alt for ⌘ and ⌥ (the handlers take either).
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+if (!MAC) {
+  const pc = (t) => t.replace(/⌘(?=[A-Z])/g, "Ctrl+").replace(/⌘/g, "Ctrl").replace(/⌥/g, "Alt");
+  for (const el of document.querySelectorAll("[title], [aria-label]")) for (const a of ["title", "aria-label"]) if (el.hasAttribute(a)) el.setAttribute(a, pc(el.getAttribute(a)));
+  const walk = document.createTreeWalker($("help"), NodeFilter.SHOW_TEXT);
+  while (walk.nextNode()) walk.currentNode.textContent = pc(walk.currentNode.textContent);
+}
+const cv = $("roll"), g = cv.getContext("2d"), tip = $("tip"), status = $("status");
+// The status bar is one line, so a long message is cut short there: its full text shows on hover.
+new MutationObserver(() => { status.title = status.textContent; }).observe(status, { childList: true, characterData: true, subtree: true });
+
+let notes = [], peaks = null, duration = 0, audio = null, ctx = null, source = null, playStart = 0, playOffset = 0;
+// Editing: each note carries n.shift (semitones). The server (tools/edit_server.py) holds the audio under
+// `session` and renders the edited mix; `original` and `edited` are the two buffers the A/B button switches.
+let session = null, original = null, edited = null, hearEdited = false, history = [], renderSeq = 0;
+let chosen = new Set(); // the selected notes
+// The edited mix is built here: the mono input plus each moved note's change, fetched once per (note, shift)
+// and kept in `deltas`. A note's separation is requested ahead of time (`warm`) so a drag only waits for the
+// vocoder; undo, reset and repeat moves need no request at all.
+let monoIn = null, rate = 44100, notesBody = "[]", notesGen = 0;
+const deltas = new Map(), warmed = new Set();
+// View: time window [t0, t0 + width/pxPerSec], pitch rows from midiTop downward, rowH px per semitone.
+const view = { t0: 0, pxPerSec: 100, midiTop: 96, rowH: 12 };
+
+// What is being worked on, shown by the label beside the status and the bar over the roll: the most urgent
+// of these at a time. Each is null or {label, done?, total?} (no total: the bar sweeps).
+const busy = { render: null, load: null, prep: null };
+function setBusy(kind, v) {
+  busy[kind] = v;
+  const b = busy.render || busy.load || busy.prep, el = $("busy");
+  $("busy-label").textContent = b ? b.label + (b.total && !b.meter ? ` ${b.done}/${b.total}` : "") : ""; // meter: the bar is a level
+  el.classList.toggle("on", !!b); el.classList.toggle("sweep", !!b && !b.total);
+  el.firstChild.style.transform = b && b.total ? `scaleX(${b.done / b.total})` : "";
+  showEmpty();
+}
+// What to do, in the middle of an empty roll: open something, or (a file is open) why there is nothing to edit.
+function showEmpty() {
+  const el = $("empty");
+  el.hidden = notes.length > 0 || !!busy.load;
+  el.classList.toggle("opened", duration > 0);
+}
+// let the page show it (a web view that is hidden, e.g. a closed plugin window, has no frames: then a timer)
+const paint = () => new Promise((r) => { let done = false; const go = () => { if (!done) { done = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 100); });
+
+// Detection runs on the main thread: in a Worker, Chrome on Apple Silicon ran it ~5x slower.
+const pp = await loadPolyPitch("polypitch-v1.wasm");
+status.textContent = "";
+// In the plugin (plugin/, a JUCE web view): the take comes from Transfer instead of a file, the song plays in
+// the host (the playhead follows it), and edits go to the plugin, which plays the edited take in the track.
+const HOST = !!window.__JUCE__?.backend;
+const native = (() => {
+  if (!HOST) return null;
+  let seq = 0; const waiting = new Map();
+  window.__JUCE__.backend.addEventListener("__juce__complete", ({ promiseId, result }) => { waiting.get(promiseId)?.(result); waiting.delete(promiseId); });
+  return (name, ...params) => new Promise((done) => { const resultId = ++seq; /* numeric: JUCE keeps it as an int64 */ waiting.set(resultId, done); window.__JUCE__.backend.emitEvent("__juce__invoke", { name, params, resultId }); });
+})();
+if (HOST) {
+  document.body.classList.add("in-host");
+  // a web view has no console to look at: errors go to the plugin's log
+  addEventListener("error", (e) => native("pp_log", `${e.message} (${e.filename}:${e.lineno})`));
+  addEventListener("unhandledrejection", (e) => native("pp_log", `unhandled: ${e.reason?.stack || e.reason}`));
+}
+const host = { take: null, takeId: 0, saved: null, playing: false, t: null, transfer: 0 }; // the plugin's state
+// The editing engine (see startEngine): its workers load their wasm while the model is built and the notes found.
+const ENGINES = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+let engines = [], engineReady = null, engineSeq = 0;
+const enginePending = new Map();
+let owner = { gen: -1, of: [] }; // notesGen and note index -> the worker that separated it
+const inFlight = [];
+startEngine().catch(() => {}); // (unused when tools/edit_server.py answers instead)
+setBusy("load", { label: "Loading the note detector…" }); await paint();
+pp.basicPitchNotes(new Float32Array(22050), 22050); // first call builds the model (~1 s); do it before a file is chosen
+setBusy("load", null);
+status.textContent = "Ready: choose an audio file";
+// The demo, opened until a file is chosen: the first verse of Allegri's Miserere, five voices, sung by Ensamble
+// Escénico Vocal (Wikimedia Commons, CC BY 3.0), credited beside the status while it is the file open.
+const DEMO = "Allegri - Miserere (demo).m4a";
+async function loadDemo() {
+  try {
+    const blob = await (await fetch("demo/miserere.m4a")).blob();
+    if ($("file").files.length) return; // a file was chosen meanwhile
+    const dt = new DataTransfer(); dt.items.add(new File([blob], DEMO, { type: "audio/mp4" }));
+    $("file").files = dt.files; $("method").value = "bpv";
+    await analyse();
+  } catch { /* no demo: the page still works with a chosen file */ }
+}
+if (!HOST) loadDemo();
+
+async function analyse() {
+  if (HOST) return host.take && analyseAudio(host.take, null);
+  const file = $("file").files[0];
+  if (!file) return;
+  stop();
+  status.textContent = ""; setBusy("load", { label: "Decoding…" }); await paint();
+  tip.style.display = "none";
+  ctx ??= new AudioContext();
+  await analyseAudio(await ctx.decodeAudioData(await file.arrayBuffer()), file);
+}
+async function analyseAudio(decoded, file) { // file: null for a transferred take
+  stopNote();
+  $("credit").hidden = file?.name !== DEMO;
+  $("file-name").textContent = $("file-name").title = file ? file.name.replace(/\.[^.]+$/, "") : "";
+  $("open").removeAttribute("title"); // the name in its tooltip too, for narrow windows that hide it
+  $("open").dataset.tip = `Open an audio file (${MAC ? "⌘O" : "Ctrl+O"})${file ? `. Now open: ${file.name}` : ""}`;
+  const len = HOST ? decoded.length : Math.min(decoded.length, Math.floor(+$("secs").value * decoded.sampleRate));
+  const mono = new Float32Array(len);
+  for (let c = 0; c < decoded.numberOfChannels; c++) {
+    const ch = decoded.getChannelData(c);
+    for (let i = 0; i < len; i++) mono[i] += ch[i] / decoded.numberOfChannels;
+  }
+  audio = decoded; duration = len / decoded.sampleRate; playOffset = 0;
+  peaks = new Float32Array(Math.ceil(len / PEAK_BLOCK)); // max |sample| per block, for the waveform lane
+  for (let i = 0; i < len; i++) peaks[(i / PEAK_BLOCK) | 0] = Math.max(peaks[(i / PEAK_BLOCK) | 0], Math.abs(mono[i]));
+  const loudest = peaks.reduce((a, b) => Math.max(a, b), 1e-9);
+  // Decibel scale (-45..0 dB -> 0..1): recordings with real dynamics look flat on a linear scale.
+  for (let i = 0; i < peaks.length; i++) peaks[i] = Math.max(0, 1 + (20 * Math.log10(peaks[i] / loudest + 1e-9)) / 45);
+  peakRate = decoded.sampleRate / PEAK_BLOCK;
+  setBusy("load", { label: `Finding notes (${$("method").selectedOptions[0].textContent})…` }); await paint();
+  const t0 = performance.now();
+  const method = $("method").value, saved = HOST && host.saved?.method === method ? host.saved : null;
+  notes = saved ? [] : method === "dsp" ? pp.detectNotes(mono, decoded.sampleRate) : pp.basicPitchNotes(mono, decoded.sampleRate, method === "bpv");
+  notes.forEach(prepare);
+  setBusy("load", null);
+  status.textContent = saved ? "" : `${notes.length} notes from ${duration.toFixed(1)} s in ${((performance.now() - t0) / 1000).toFixed(2)} s`;
+  $("play").disabled = $("fit").disabled = false;
+  original = audio; edited = null; hearEdited = false; history = []; session = null;
+  monoIn = mono; rate = decoded.sampleRate; deltas.clear(); warmed.clear(); curves.clear(); solos.clear(); gainsOf.clear(); chosen.clear(); copies = []; keyPick = "auto";
+  notesBody = JSON.stringify(notes.map((n) => [n.start, n.end, n.midi])); notesGen++; notesHash = hash(notesBody);
+  if (saved) { useSaved(saved.data); status.textContent = `${notes.length} notes`; }
+  updateEditButtons();
+  fit();
+  if (file) offerSession(file);
+  else if (!saved) saveSession(); // a fresh take's notes, kept with the song
+  await upload(mono, decoded.sampleRate);
+  if (HOST) render(); // the plugin's edits now (with a saved session it has the parts: nothing is recomputed)
+}
+
+// --- editing ---
+function wavBytes(x, sr) { // 16-bit mono WAV
+  const b = new DataView(new ArrayBuffer(44 + 2 * x.length)), s = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  s(0, "RIFF"); b.setUint32(4, 36 + 2 * x.length, true); s(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+  b.setUint16(22, 1, true); b.setUint32(24, sr, true); b.setUint32(28, 2 * sr, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+  s(36, "data"); b.setUint32(40, 2 * x.length, true);
+  for (let i = 0; i < x.length; i++) b.setInt16(44 + 2 * i, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+  return b.buffer;
+}
+async function upload(mono, sr) {
+  setBusy("prep", { label: "Uploading for editing…" });
+  try {
+    if (HOST || new URLSearchParams(location.search).get("engine") !== "server") throw new Error("the in-browser engine");
+    const r = await fetch("api/upload", { method: "POST", body: wavBytes(mono, sr) });
+    if (!r.ok) throw new Error(await r.text());
+    session = (await r.json()).id;
+  } catch {
+    // No edit server: edit in the browser instead (engine-worker.js, the same engine compiled to wasm).
+    try {
+      setBusy("prep", { label: "Starting the editing engine…" });
+      await startEngine();
+      const r = await engineCall("api/upload", { samples: mono.slice(), sr });
+      if (r.status !== 200) throw new Error(r.text);
+      session = "local";
+    } catch (e) {
+      session = null; setBusy("prep", null); status.textContent += ". Editing is not available in this browser.";
+      return;
+    }
+  }
+  warmAll();
+}
+// The in-browser engine: workers answering the edit server's API (see engine-worker.js), one per spare core
+// (up to 4), each holding the recording. Separation is the slow part (0.2-1 s per 6 s window, one thread), and
+// windows are independent: each group goes to the least busy worker as it is prepared (the Miserere demo,
+// 11 s on one, takes under 4 s on four), and every later request about a note goes to the worker that
+// separated it, where its separation is cached.
+function startEngine() {
+  if (engineReady) return engineReady;
+  engines = Array.from({ length: ENGINES }, () => new Worker("engine-worker.js", { type: "module" }));
+  inFlight.length = 0; inFlight.push(...engines.map(() => 0));
+  engineReady = Promise.all(engines.map((w) => new Promise((ok, fail) => {
+    w.onmessage = ({ data }) => {
+      if (data.ready) return ok();
+      const done = enginePending.get(data.id); enginePending.delete(data.id); done?.(data);
+    };
+    w.onerror = (e) => { engineReady = null; fail(e); };
+  })));
+  return engineReady;
+}
+const callWorker = (k, path, body) => new Promise((done) => {
+  const id = ++engineSeq; inFlight[k]++;
+  enginePending.set(id, (d) => { inFlight[k]--; done(d); }); engines[k].postMessage({ id, path, body });
+});
+const ownerOf = (j) => (owner.gen === notesGen && owner.of[j] !== undefined ? owner.of[j] : -1);
+const leastBusy = () => inFlight.indexOf(Math.min(...inFlight));
+async function engineCall(path, body) {
+  if (path === "api/upload") { // every worker holds the recording
+    const rs = await Promise.all(engines.map((_, k) => callWorker(k, path, k ? { samples: body.samples.slice(), sr: body.sr } : body)));
+    return rs.find((r) => r.status !== 200) || rs[0];
+  }
+  const req = JSON.parse(body);
+  if (owner.gen !== notesGen) owner = { gen: notesGen, of: [] }; // a new note list: nothing separated yet
+  if (path === "api/prepare") { // separated by whichever worker is least busy, which then answers for them
+    const js = req.js || [req.j], k = req.js || ownerOf(req.j) < 0 ? leastBusy() : ownerOf(req.j);
+    js.forEach((j) => (owner.of[j] = k));
+    return callWorker(k, path, body);
+  }
+  if (path === "api/notes" && engines.length > 1) { // a batch: each worker its own notes, then the clips in order
+    const by = new Map();
+    req.edits.forEach((e, i) => { const k = Math.max(0, ownerOf(e[0])); if (!by.has(k)) by.set(k, []); by.get(k).push(i); });
+    if (by.size > 1) {
+      const clips = new Array(req.edits.length);
+      for (const [k, idx, r] of await Promise.all([...by].map(async ([k, idx]) => [k, idx, await callWorker(k, path, JSON.stringify({ ...req, edits: idx.map((i) => req.edits[i]) }))]))) {
+        if (r.status !== 200) return r;
+        for (let q = 0, off = 4; q < idx.length; q++) { const len = new DataView(r.bin, off + 4, 4).getInt32(0, true); clips[idx[q]] = r.bin.slice(off, off + 12 + 2 * len); off += 12 + 2 * len; }
+      }
+      const head = new ArrayBuffer(4); new DataView(head).setInt32(0, clips.length, true);
+      const out = new Uint8Array(4 + clips.reduce((a, c) => a + c.byteLength, 0)); out.set(new Uint8Array(head));
+      let o = 4; for (const c of clips) { out.set(new Uint8Array(c), o); o += c.byteLength; }
+      return { status: 200, bin: out.buffer };
+    }
+    return callWorker([...by.keys()][0] ?? 0, path, body);
+  }
+  const k = req.j === undefined ? 0 : ownerOf(req.j);
+  if (k >= 0) return callWorker(k, path, body);
+  owner.of[req.j] = leastBusy(); // not separated yet: whoever does it keeps it
+  return callWorker(owner.of[req.j], path, body);
+}
+const asResponse = (d) => ({ ok: d.status < 300, status: d.status, json: async () => d.json, arrayBuffer: async () => d.bin, text: async () => d.text ?? "" });
+// A note's edit: shift (semitones), mod and drift (its vibrato and slow wander scaled; 1 = as played), and
+// dt (seconds moved in time, later if positive), gain (dB; MUTE_DB or less is silent).
+const MUTE_DB = -40, MAX_DB = 12;
+const editOf = (n) => [n.shift || 0, n.mod ?? 1, n.drift ?? 1, n.dt || 0, n.gain || 0];
+const isEdited = (n) => Math.abs(n.shift || 0) >= 0.005 || Math.abs((n.mod ?? 1) - 1) >= 0.005 || Math.abs((n.drift ?? 1) - 1) >= 0.005 ||
+  Math.abs(n.dt || 0) >= 0.0005 || Math.abs(n.gain || 0) >= 0.05;
+const linGain = (db) => (db <= MUTE_DB ? 0 : 10 ** (db / 20));
+function edits() { const e = {}; notes.forEach((n, i) => { if (isEdited(n)) e[i] = editOf(n); }); return e; }
+// Copies (⌥-drag): extra sounding notes made from a note's separation, not part of the mix, so not in `notes`
+// (the list the server separates). A copy inherits everything from its source note (contour, measured
+// curve) and has its own edit; it sounds as separation + the change for its edit, added to the mix.
+let copies = [];
+function makeCopy(m) {
+  const src = m.copyOf || m, c = Object.create(src);
+  c.copyOf = src; [c.shift, c.mod, c.drift, c.dt, c.gain] = editOf(m);
+  return c;
+}
+const srcIdx = (n) => notes.indexOf(n.copyOf || n); // the server's index for a note or a copy's source
+const allNotes = () => [...notes, ...copies];
+// Undo state: the note list (splits change it), the copies, and every note's and copy's edit.
+function snapshot() { return { list: notes.slice(), e: notes.map(editOf), cl: copies.slice(), ce: copies.map(editOf) }; }
+function restore(s) {
+  copies = s.cl.slice(); copies.forEach((c, i) => ([c.shift, c.mod, c.drift, c.dt, c.gain] = s.ce[i]));
+  if (s.list.length !== notes.length || s.list.some((n, i) => n !== notes[i])) { notes = s.list.slice(); notesChanged(); }
+  notes.forEach((n, i) => ([n.shift, n.mod, n.drift, n.dt, n.gain] = s.e[i]));
+}
+// A copy's sound: its source's separation plus the change for the copy's edit (none if it has none).
+async function copyParts(c) {
+  const j = srcIdx(c), clip = await soloClip(j);
+  return withGains(j, isEdited(c) ? [clip, await noteDelta(j, editOf(c))] : [clip]);
+}
+// After a split: the server keys its work by each note's crop, so only notes near the split separate again;
+// here everything indexed by note number starts over.
+function notesChanged() {
+  notesBody = JSON.stringify(notes.map((n) => [n.start, n.end, n.midi])); notesGen++; notesHash = hash(notesBody);
+  deltas.clear(); warmed.clear(); curves.clear(); solos.clear(); gainsOf.clear();
+  copies = copies.filter((c) => notes.includes(c.copyOf));
+  for (const n of [...chosen]) if (!notes.includes(n) && !copies.includes(n)) chosen.delete(n);
+  if (session) warmAll();
+}
+function updateEditButtons() {
+  const any = notes.some(isEdited) || copies.length > 0;
+  $("correct-btn").disabled = !notes.length; $("export-btn").disabled = !notes.length; showKey();
+  $("undo").disabled = !history.length; $("reset").disabled = !any; $("ab").disabled = !edited;
+  setLabel("ab", hearEdited ? "Edited" : "Original"); $("ab").setAttribute("aria-pressed", hearEdited);
+}
+function hear(editedSide) { // switch buffers, keeping the play position
+  if (HOST) { hearEdited = editedSide && !!edited; native("pp_hear", hearEdited); updateEditButtons(); return; }
+  const was = !!source; stop();
+  hearEdited = editedSide && !!edited; audio = hearEdited ? edited : original;
+  updateEditButtons(); if (was) play();
+}
+const api = (path, body) => {
+  const text = `{"id":${JSON.stringify(session)},"notes":${notesBody},${body}}`;
+  return session === "local" ? engineCall(path, text).then(asResponse)
+    : fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: text });
+};
+function warm(j) { // separate note j on the server now, before it is moved
+  if (!session || warmed.has(j)) return Promise.resolve();
+  warmed.add(j);
+  return api("api/prepare", `"j":${j}`).catch(() => warmed.delete(j));
+}
+// After upload, separate every note in the background so a note is usually ready before it is touched. The
+// server plans groups of notes that separate together (one fit per ~6 s window); groups nearest the middle
+// of the view go first, six in flight, so the server's process pool (8 workers) keeps spare ones for a hover
+// or press (which jump the queue).
+async function warmAll() {
+  if (!notes.length) { setBusy("prep", null); return; } // nothing to prepare (the engine never answers an empty plan)
+  const sid = session, gen = notesGen, mid = view.t0 + (size().w - KEYS_W) / view.pxPerSec / 2;
+  let groups;
+  try { groups = await (await api("api/plan", `"plan":1`)).json(); } catch { setBusy("prep", null); return; }
+  const at = (g) => Math.min(...g.map((j) => Math.abs(notes[j].start - mid)));
+  groups.sort((a, b) => at(a) - at(b));
+  const prog = { label: "Preparing notes for editing", done: 0, total: notes.length }, live = () => session === sid && notesGen === gen;
+  setBusy("prep", prog);
+  const worker = async () => {
+    while (groups.length && live()) {
+      const g = groups.shift().filter((j) => !warmed.has(j));
+      g.forEach((j) => warmed.add(j));
+      if (g.length) await api("api/prepare", `"js":${JSON.stringify(g)}`).catch(() => g.forEach((j) => warmed.delete(j)));
+      prog.done = Math.min(prog.total, prog.done + g.length); if (live()) setBusy("prep", prog);
+      // each note's measured tuning, now its separation is ready: Basic Pitch's own is only to ~33¢, so
+      // without this its notes rarely show as out of tune
+      if (live()) g.forEach((j) => fetchCurve(j));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(6, 2 * ENGINES) }, worker)); // two groups in flight per engine
+  if (live()) setBusy("prep", null);
+}
+// Note j's measured pitch curve (from its separation), drawn through the blob and edited live by the
+// Modulation and Drift tools: cents from the written note = center + drift + mod, every `dt` s from `t0`.
+const curves = new Map();
+function fetchCurve(j) {
+  if (!session || curves.has(j)) return;
+  curves.set(j, null); // pending
+  api("api/curve", `"j":${j}`).then((r) => (r.ok ? r.json() : Promise.reject())).then((c) => {
+    c.drift = Float32Array.from(c.drift); c.mod = Float32Array.from(c.mod);
+    // Drawn only if it tracked the note: a jump of over 60¢ between 3 ms points (real vibrato moves ~5¢) is a
+    // tracking slip, on a weak or misdetected note, and its drawing would be spikes.
+    c.drawn = c.drift.every((v, i) => !i || Math.abs(v + c.mod[i] - c.drift[i - 1] - c.mod[i - 1]) < 60);
+    Object.assign(c, heldPitch(c));
+    curves.set(j, c); notes[j].curve = c; draw();
+    curveArrived(notes[j]);
+  }).catch(() => curves.delete(j));
+}
+// Where a note is held, from its slow pitch (center + drift): the stretches where it stays put, and the pitch
+// heard, `steady`, their median. The loudness-weighted mean (`center`) is pulled off by scoops into the note
+// and falls off its end; a correction aimed at it moves a scooped note by the size of the scoop. `runs` (each
+// at least 0.12 s) also show a note that holds two pitches, as a slur the detector heard as one note.
+const STEADY_SLOPE = 100; // ¢/s: slower than this, the voice is holding a pitch (a scoop or slide moves faster)
+function heldPitch(c) {
+  const n = c.drift.length, slow = (i) => c.center + c.drift[i], runs = [];
+  if (n < 3 || !c.dt) return { steady: c.center, runs };
+  const k = Math.max(1, Math.round(0.01 / c.dt)); // slope over ±10 ms
+  let run = null;
+  const close = () => {
+    if (run && (run.b - run.a) * c.dt >= 0.12) {
+      const v = Array.from({ length: run.b - run.a }, (_, q) => slow(run.a + q)).sort((x, y) => x - y);
+      runs.push({ t0: c.t0 + run.a * c.dt, t1: c.t0 + run.b * c.dt, level: v[v.length >> 1], frames: v });
+    }
+    run = null;
+  };
+  for (let i = 0; i < n; i++) {
+    const slope = Math.abs(slow(Math.min(n - 1, i + k)) - slow(Math.max(0, i - k))) / ((Math.min(n - 1, i + k) - Math.max(0, i - k)) * c.dt);
+    if (slope > STEADY_SLOPE || (run && Math.abs(slow(i) - slow(run.a)) > 40)) close();
+    if (slope <= STEADY_SLOPE) { run ??= { a: i, b: i }; run.b = i + 1; }
+  }
+  close();
+  // runs a brief wobble broke apart, at the same pitch: one run
+  for (let i = runs.length - 1; i > 0; i--) {
+    const a = runs[i - 1], b = runs[i];
+    if (Math.abs(a.level - b.level) < 40 && b.t0 - a.t1 < 0.08) {
+      a.frames = a.frames.concat(b.frames).sort((x, y) => x - y); a.level = a.frames[a.frames.length >> 1]; a.t1 = b.t1; runs.splice(i, 1);
+    }
+  }
+  const all = runs.flatMap((r) => r.frames).sort((x, y) => x - y);
+  runs.forEach((r) => delete r.frames);
+  return { steady: all.length ? all[all.length >> 1] : c.center, runs };
+}
+// Cents from the held pitch to the mean: what straightening drift (which flattens the curve onto the mean)
+// would move the note by, unless its shift makes up for it.
+const heldOff = (n) => (n.curve ? n.curve.steady - n.curve.center : 0);
+// Drift scaled to d, the pitch heard kept where it was.
+function setDrift(m, d, from = [m.shift || 0, m.drift ?? 1]) {
+  m.drift = d; m.shift = Math.round((from[0] + (from[1] - d) * heldOff(m) / 100) * 10000) / 10000;
+}
+// Cents from the written note at time t with the note's current mod/drift (asPlayed: 1/1), or null.
+function curveCents(n, t, asPlayed = false) {
+  const c = n.curve; if (!c || !c.drift.length) return null;
+  const f = (t - c.t0) / c.dt, i = Math.max(0, Math.min(c.drift.length - 1, Math.floor(f)));
+  const k = Math.min(c.drift.length - 1, i + 1), w = Math.max(0, Math.min(1, f - i));
+  const d = c.drift[i] * (1 - w) + c.drift[k] * w, m = c.mod[i] * (1 - w) + c.mod[k] * w;
+  return asPlayed ? c.center + d + m : c.center + (n.drift ?? 1) * d + (n.mod ?? 1) * m;
+}
+const deltaKey = (j, [semis, mod, drift, dt, gain]) => `${j}:${semis.toFixed(4)}:${mod.toFixed(3)}:${drift.toFixed(3)}:${dt.toFixed(3)}:${gain.toFixed(1)}`;
+// Fetch the changes for many edits at once (render after a big edit): a few batched requests, which the
+// server works through in parallel, instead of one request per note behind the browser's 6-connection limit.
+function fetchDeltas(list) { // [[j, edit], ...]
+  const need = list.filter(([j, ed]) => !deltas.has(deltaKey(j, ed)));
+  const per = Math.max(4, Math.ceil(need.length / 6));
+  for (let i = 0; i < need.length; i += per) {
+    const chunk = need.slice(i, i + per);
+    const body = chunk.map(([j, [semis, mod, drift, dt, gain]]) => [j, +semis.toFixed(4), +mod.toFixed(3), +drift.toFixed(3), +dt.toFixed(3), +linGain(gain).toFixed(4)]);
+    const res = api("api/notes", `"edits":${JSON.stringify(body)}`).then(async (r) => {
+      if (!r.ok) throw new Error(await r.text());
+      const buf = await r.arrayBuffer(), out = [];
+      for (let k = 0, off = 4; k < new DataView(buf).getInt32(0, true); k++) { const c = readClip(buf, off); out.push(c); off = c.next; }
+      return out;
+    });
+    chunk.forEach(([j, ed], k) => {
+      const key = deltaKey(j, ed);
+      deltas.set(key, res.then((out) => out[k]).catch((e) => { deltas.delete(key); throw e; }));
+    });
+  }
+}
+async function noteDelta(j, [semis, mod, drift, dt, gain]) { // {start, data}: the change editing note j makes to the mix
+  const key = deltaKey(j, [semis, mod, drift, dt, gain]);
+  if (!deltas.has(key)) deltas.set(key, (async () => {
+    const r = await api("api/note", `"j":${j},"semis":${semis.toFixed(4)},"mod":${mod.toFixed(3)},"drift":${drift.toFixed(3)},"dt":${dt.toFixed(3)},"gain":${linGain(gain).toFixed(4)}`);
+    if (!r.ok) { deltas.delete(key); throw new Error(await r.text()); }
+    return readClip(await r.arrayBuffer());
+  })());
+  return deltas.get(key);
+}
+function readClip(buf, off = 0) { // the server's {start, data} format: int32 first sample, int32 length, float32 scale, int16s
+  const h = new DataView(buf, off), start = h.getInt32(0, true), len = h.getInt32(4, true), scale = h.getFloat32(8, true) / 32767;
+  const s16 = new Int16Array(buf.slice(off + 12, off + 12 + 2 * len)), data = new Float32Array(len);
+  for (let i = 0; i < len; i++) data[i] = s16[i] * scale;
+  return { start, data, next: off + 12 + 2 * len };
+}
+// --- splitting ---
+// Two notes from one at time t: each keeps its half of the contour, and the edit the note had.
+function splitNote(n, t) { // t: where it is drawn
+  const parts = splitParts(n, t - (n.dt || 0));
+  if (!parts) return false;
+  const before = snapshot();
+  notes.splice(notes.indexOf(n), 1, ...parts);
+  chosen = new Set([parts[1]]); notesChanged(); commit(before);
+  return true;
+}
+// The two notes from n split at t (s, as played), or null; rows: semitones to move each part's written note
+// (a part that holds another pitch is written there, so its separation looks for it there).
+function splitParts(n, t, rows = [0, 0]) {
+  if (n.copyOf) return null; // copies follow their source note
+  const i = n.times.findIndex((x) => x >= t);
+  if (i < 2 || n.times.length - i < 2 || t - n.start < 0.05 || n.end - t < 0.05) return null;
+  const part = (a, b, start, end, r) => {
+    const p = { ...n, start, end, midi: n.midi + r, times: n.times.slice(a, b), cents: n.cents.slice(a, b).map((v) => v - 100 * r), amp: n.amp.slice(a, b), curve: null };
+    let w = 0, c = 0; p.amp.forEach((v, k) => { w += v; c += v * p.cents[k]; });
+    p.freq = 440 * 2 ** ((p.midi - 69) / 12 + (w ? c / w : 0) / 1200);
+    prepare(p); return p;
+  };
+  return [part(0, i, n.start, t, rows[0]), part(i, n.times.length, t, n.end, rows[1])];
+}
+let splitHover = null; // {n, t}: where a click would split
+// --- fixing the note list ---
+// The separation models every listed note, so the list matters beyond the notes being edited: a ghost (a
+// harmonic read as a note) takes energy from the real note, a missed note leaks into its neighbours.
+function deleteNotes(group) { // notes (and their copies) and copies
+  if (!group.length) return;
+  const before = snapshot(), real = group.filter((n) => !n.copyOf);
+  copies = copies.filter((c) => !group.includes(c)); chosen.clear();
+  if (real.length) { notes = notes.filter((n) => !real.includes(n)); notesChanged(); }
+  commit(before);
+  status.textContent = `Deleted ${group.length} note${group.length === 1 ? "" : "s"}`;
+}
+// One note from several: spanning them all, at the pitch of the longest, with their contours end to end and
+// the longest one's edit.
+function joinNotes(group) {
+  group = group.filter((n) => !n.copyOf);
+  if (group.length < 2) return;
+  const before = snapshot(), main = group.reduce((a, b) => (b.end - b.start > a.end - a.start ? b : a));
+  const frames = group.flatMap((n) => [...n.times].map((t, i) => [t, n.cents[i] + 100 * (n.midi - main.midi), n.amp[i]])).sort((a, b) => a[0] - b[0]);
+  const j = { ...main, start: Math.min(...group.map((n) => n.start)), end: Math.max(...group.map((n) => n.end)), velocity: Math.max(...group.map((n) => n.velocity)),
+    times: frames.map((f) => f[0]), cents: frames.map((f) => f[1]), amp: frames.map((f) => f[2]), curve: null };
+  let w = 0, c = 0; j.amp.forEach((v, k) => { w += v; c += v * j.cents[k]; });
+  j.freq = 440 * 2 ** ((main.midi - 69) / 12 + (w ? c / w : 0) / 1200); prepare(j);
+  notes = notes.filter((n) => !group.includes(n)); notes.splice(notes.findIndex((n) => n.start > j.start) >>> 0, 0, j); // (-1 >>> 0: at the end)
+  chosen = new Set([j]); notesChanged(); commit(before);
+}
+// A note drawn by hand: flat at the row's pitch, its loudness from the mix (the server's separation and pitch
+// curve then find what is actually there).
+let drawing = null; // {t0, t1, midi}
+function addNote(t0, t1, midi) {
+  const a = Math.max(0, Math.min(t0, t1)), b = Math.min(duration, Math.max(t0, t1));
+  if (b - a < 0.05) return;
+  const times = []; for (let t = a; t <= b; t += 0.0116) times.push(t);
+  const n = { start: a, end: b, midi, freq: 440 * 2 ** ((midi - 69) / 12), velocity: 0.6, times, cents: times.map(() => 0), amp: times.map(() => 1), drawn: true };
+  prepare(n);
+  const before = snapshot();
+  notes.splice(notes.findIndex((m) => m.start > a) >>> 0, 0, n);
+  chosen = new Set([n]); notesChanged(); commit(before); touch(n);
+}
+// --- hearing one note ---
+// Pressing a note plays it alone, Melodyne-style: its separation from the mix plus its current edit (the edit's
+// change shares the separation's first sample), from just before its start to the end of its tail. A drag
+// that edits the note cuts it off on release, when the edit renders; while a Pitch drag is under way the
+// playback is detuned by the drag so far, a preview of the move.
+const solos = new Map(); // j -> Promise<{start, data}>, the note as separated
+// How note j sits across the channels: each channel's share of its separation (least squares against that
+// channel; the analysis is their mean, so the shares average 1). A note's change is added to each channel at its
+// share, keeping it where it was panned: added alike to every channel, edits made a stereo mix narrow.
+const gainsOf = new Map(); // j -> Promise<number[]>
+function noteGains(j) {
+  const k = original?.numberOfChannels || 1;
+  if (k === 1) return Promise.resolve([1]);
+  if (!gainsOf.has(j)) gainsOf.set(j, soloClip(j).then(({ start, data }) => {
+    let ss = 0;
+    for (const v of data) ss += v * v;
+    return [...Array(k)].map((_, c) => {
+      const x = original.getChannelData(c);
+      let xs = 0;
+      for (let i = Math.max(0, -start); i < data.length && start + i < x.length; i++) xs += x[start + i] * data[i];
+      return ss > 0 ? Math.max(0, Math.min(2, xs / ss)) : 1;
+    });
+  }).catch(() => { gainsOf.delete(j); return Array(k).fill(1); }));
+  return gainsOf.get(j);
+}
+const withGains = (j, clips) => noteGains(j).then((gains) => clips.map((c) => ({ ...c, gains })));
+let audition = null; // {n, src, gain, shift}: n is the note whose shift the Pitch preview follows
+function soloClip(j) {
+  if (!solos.has(j)) solos.set(j, api("api/solo", `"j":${j}`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
+    .then(readClip).catch((e) => { solos.delete(j); throw e; }));
+  return solos.get(j);
+}
+async function hearNote(n, group = [n]) { // n pressed; the group (a selection) plays together
+  stopNote();
+  if (!session || !$("solo").checked || source || host.playing) return; // not over the mix while it plays
+  const mine = audition = { n, src: null, gain: null, shift: n.shift || 0 };
+  let clips;
+  try {
+    clips = await Promise.all(group.map(async (m) => {
+      const j = srcIdx(m), clip = await soloClip(j);
+      return isEdited(m) ? [clip, await noteDelta(j, editOf(m)).catch(() => ({ start: 0, data: [] }))] : [clip];
+    }));
+  } catch { return; }
+  if (audition !== mine) return; // released, or another note pressed, while it loaded
+  // each note as edited = its separation + the edit's change, from where the first now starts
+  const at = (m) => m.start + (m.dt || 0);
+  const t0 = Math.min(...group.map(at)), t1 = Math.max(...group.map((m) => m.end + (m.dt || 0)));
+  const from = Math.max(0, Math.round((t0 - 0.03) * rate)), to = Math.max(from + 1, Math.round((t1 + 0.4) * rate));
+  const y = new Float32Array(to - from);
+  for (const c of clips.flat())
+    for (let i = Math.max(0, c.start - from); i < y.length && i + from - c.start < c.data.length; i++) y[i] += c.data[i + from - c.start];
+  if (HOST) { // out of the track, through the plugin
+    const { scale, pcm } = pcm16(y);
+    mine.src = "plugin"; native("pp_audition", rate, scale, pcm); return;
+  }
+  const buf = ctx.createBuffer(1, y.length, rate); buf.copyToChannel(y, 0);
+  mine.src = ctx.createBufferSource(); mine.src.buffer = buf; mine.gain = ctx.createGain();
+  mine.src.connect(mine.gain).connect(ctx.destination);
+  mine.src.detune.value = ((n.shift || 0) - mine.shift) * 100;
+  mine.src.onended = () => { if (audition === mine) audition = null; };
+  mine.src.start();
+}
+function detuneNote() { // follow a Pitch drag
+  if (HOST) { if (audition?.src) native("pp_detune", ((audition.n.shift || 0) - audition.shift) * 100); return; }
+  if (audition?.src) audition.src.detune.setTargetAtTime(((audition.n.shift || 0) - audition.shift) * 100, ctx.currentTime, 0.01);
+}
+function stopNote() {
+  const a = audition; audition = null;
+  if (!a?.src) return;
+  if (HOST) { native("pp_stop_audition"); return; }
+  a.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.015); a.src.stop(ctx.currentTime + 0.1);
+}
+async function render() {
+  const e = edits(), seq = ++renderSeq, moved = Object.keys(e).length + copies.length;
+  if (HOST) return hostRender(e, seq, moved);
+  if (!moved) { edited = null; hear(false); status.textContent = "No edits"; draw(); return; }
+  if (!session) { status.textContent = "Editing unavailable: no server session"; return; }
+  const t0 = performance.now();
+  const list = Object.entries(e).map(([j, ed]) => [+j, ed]), cps = copies.slice();
+  const copyEdits = cps.filter(isEdited).map((c) => [srcIdx(c), editOf(c)]);
+  // progress only when it is worth showing: several notes not cached yet
+  const fresh = [...list, ...copyEdits].filter(([j, ed]) => !deltas.has(deltaKey(j, ed))).length;
+  fetchDeltas([...list, ...copyEdits]);
+  const prog = { label: "Rendering", done: 0, total: list.length + cps.length }, show = fresh > 3;
+  const tick = (d) => { prog.done++; if (show && seq === renderSeq) setBusy("render", prog); return d; };
+  if (show) setBusy("render", prog);
+  let parts;
+  try {
+    parts = (await Promise.all([...list.map(([j, ed]) => noteDelta(j, ed).then((d) => withGains(j, [d])).then(tick)), ...cps.map((c) => copyParts(c).then(tick))])).flat();
+  } catch (err) { if (seq === renderSeq) { setBusy("render", null); status.textContent = `Render failed: ${err.message}`; } return; }
+  if (seq !== renderSeq) return; // a newer edit superseded this one
+  setBusy("render", null);
+  edited = ctx.createBuffer(original.numberOfChannels, monoIn.length, rate); // every channel, each note at its share
+  for (let c = 0; c < original.numberOfChannels; c++) {
+    const y = original.getChannelData(c).slice(0, monoIn.length);
+    for (const p of parts) addClip(y, p, p.gains?.[c] ?? 1);
+    edited.copyToChannel(y, c);
+  }
+  hear(true);
+  status.textContent = `${moved} edited note(s) · rendered in ${Math.round(performance.now() - t0)} ms`;
+}
+// The plugin's edited take: its original plus parts (each edited note's change, each copy's separation and
+// change), which it keeps by key. A key names the note list and the edit, so parts the plugin already has
+// (from the song it was saved with, or an earlier render) are not computed again.
+function hash(text) { let h = 2166136261; for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619); return (h >>> 0).toString(36); }
+let notesHash = "";
+function pcm16(data) { // the server's clip encoding: int16 x scale / 32767, base64
+  let scale = 0; for (const v of data) scale = Math.max(scale, Math.abs(v)); scale ||= 1;
+  const s = new Int16Array(data.length); for (let i = 0; i < data.length; i++) s[i] = Math.round((data[i] / scale) * 32767);
+  const u8 = new Uint8Array(s.buffer); let bin = "";
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return { scale, pcm: btoa(bin) };
+}
+async function hostRender(e, seq, moved) {
+  if (!session) { status.textContent = "Editing unavailable: the engine has not started"; return; }
+  const t0 = performance.now(), want = new Map(); // key -> () => Promise<clip>
+  const delta = (j, ed) => want.set(`${notesHash}|d2|${deltaKey(j, ed)}`, () => noteDelta(j, ed).then((d) => withGains(j, [d])).then(([d]) => d));
+  for (const [j, ed] of Object.entries(e)) delta(+j, ed);
+  for (const c of copies) {
+    const j = srcIdx(c); want.set(`${notesHash}|s2|${j}`, () => soloClip(j).then((d) => withGains(j, [d])).then(([d]) => d));
+    if (isEdited(c)) delta(j, editOf(c));
+  }
+  const have = new Set(await native("pp_parts"));
+  const need = [...want.keys()].filter((k) => !have.has(k));
+  if (need.length > 3) setBusy("render", { label: "Rendering", done: 0, total: need.length });
+  let done = 0, parts;
+  try {
+    parts = await Promise.all([...want].map(async ([id, get]) => {
+      if (have.has(id)) return { id };
+      const c = await get(); done++; if (need.length > 3 && seq === renderSeq) setBusy("render", { label: "Rendering", done, total: need.length });
+      return { id, start: c.start, gains: c.gains || [1], ...pcm16(c.data) };
+    }));
+  } catch (err) { if (seq === renderSeq) { setBusy("render", null); status.textContent = `Render failed: ${err.message}`; } return; }
+  if (seq !== renderSeq) return;
+  setBusy("render", null);
+  edited = moved ? "plugin" : null; hearEdited = !!moved;
+  await native("pp_edits", parts, hearEdited);
+  updateEditButtons(); draw();
+  status.textContent = moved ? `${moved} edited note(s) · ${need.length ? `rendered in ${Math.round(performance.now() - t0)} ms` : "ready"}` : "No edits";
+}
+function commit(before) { // an edit made: kept for undo, rendered, saved (and no older session offered over it)
+  history.push(before); render(); updateEditButtons(); draw(); $("restore").classList.remove("on"); saveSession();
+}
+$("ab").addEventListener("click", () => hear(!hearEdited));
+$("undo").addEventListener("click", () => { if (!history.length) return; restore(history.pop()); render(); updateEditButtons(); draw(); saveSession(); });
+$("reset").addEventListener("click", () => {
+  const before = snapshot(); notes.forEach((n) => { n.shift = 0; n.mod = 1; n.drift = 1; n.dt = 0; n.gain = 0; });
+  copies.forEach((c) => chosen.delete(c)); copies = []; commit(before);
+});
+let tool = "pitch";
+function setTool(t) {
+  tool = t; splitHover = null; cv.classList.toggle("split", t === "split"); cv.classList.toggle("time", t === "time"); cv.classList.toggle("draw", t === "draw");
+  document.querySelectorAll("#tools button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.tool === t)); draw();
+}
+document.querySelectorAll("#tools button").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+$("file").addEventListener("change", analyse);
+$("open").addEventListener("click", () => $("file").click());
+$("empty-open").addEventListener("click", () => $("file").click());
+// Drop an audio file anywhere on the roll to open it.
+{
+  const wrap = $("wrap"), files = (e) => !HOST && e.dataTransfer?.types.includes("Files");
+  let depth = 0;
+  wrap.addEventListener("dragenter", (e) => { if (files(e)) { depth++; wrap.classList.add("drop"); } });
+  wrap.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; wrap.classList.remove("drop"); } });
+  wrap.addEventListener("dragover", (e) => { if (files(e)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } });
+  wrap.addEventListener("drop", (e) => {
+    if (!files(e)) return;
+    e.preventDefault(); depth = 0; wrap.classList.remove("drop");
+    const file = [...e.dataTransfer.files].find((f) => f.type.startsWith("audio/") || f.type.startsWith("video/") || /\.(wav|aiff?|flac|mp3|m4a|aac|ogg|opus|webm)$/i.test(f.name));
+    if (!file) { status.textContent = "That isn't an audio file"; return; }
+    const dt = new DataTransfer(); dt.items.add(file); $("file").files = dt.files;
+    analyse();
+  });
+}
+
+// --- recording ---
+// Raw samples from the input (no echo cancelling, noise suppression or gain riding, which would bend pitch
+// and level), through an AudioWorklet; on stop they become a 24-bit WAV that loads like a chosen file.
+const REC_WORKLET = `registerProcessor("rec", class extends AudioWorkletProcessor {
+  process(inputs) { const i = inputs[0]; if (i.length) this.port.postMessage(i.map((c) => c.slice(0))); return true; }
+});`;
+let rec = null, recModule = false;
+async function startRecording() {
+  if (!navigator.mediaDevices?.getUserMedia) { status.textContent = "Recording needs a secure page (https or localhost)"; return; }
+  ctx ??= new AudioContext(); await ctx.resume(); stop(); stopNote();
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } } });
+  } catch (e) { status.textContent = `No input: ${e.message}`; return; }
+  if (!recModule) { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([REC_WORKLET], { type: "text/javascript" }))); recModule = true; }
+  const src = ctx.createMediaStreamSource(stream), node = new AudioWorkletNode(ctx, "rec"), mute = ctx.createGain();
+  mute.gain.value = 0; src.connect(node).connect(mute).connect(ctx.destination); // pulled by the graph, not heard (no feedback)
+  const r = rec = { stream, src, node, chunks: [], peak: 0, n: 0, sr: ctx.sampleRate };
+  node.port.onmessage = (e) => { r.chunks.push(e.data); r.n += e.data[0].length; for (const v of e.data[0]) r.peak = Math.max(r.peak, Math.abs(v)); };
+  r.timer = setInterval(() => { // elapsed time, and the input level on the bar (peak since the last tick)
+    const t = Math.floor(r.n / r.sr);
+    setBusy("load", { label: `Recording ${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}${r.peak > 0.99 ? "  CLIPPING" : ""}`, done: Math.round(r.peak * 100), total: 100, meter: true });
+    r.peak = 0;
+  }, 100);
+  setLabel("rec", "Stop"); $("rec").classList.add("on");
+}
+function stopRecording() {
+  const r = rec; rec = null;
+  clearInterval(r.timer); r.src.disconnect(); r.node.disconnect(); r.stream.getTracks().forEach((t) => t.stop());
+  setLabel("rec", "Record"); $("rec").classList.remove("on"); setBusy("load", null);
+  if (!r.n) return;
+  const chans = r.chunks[0].map((_, c) => { const y = new Float32Array(r.n); let o = 0; for (const ch of r.chunks) { y.set(ch[c] || ch[0], o); o += ch[0].length; } return y; });
+  const d = new Date(), pad = (v) => String(v).padStart(2, "0");
+  const file = new File([wavFile(chans, r.sr)], `Recording ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}.wav`, { type: "audio/wav" });
+  const dt = new DataTransfer(); dt.items.add(file); $("file").files = dt.files;
+  analyse();
+}
+$("rec").addEventListener("click", () => (rec ? stopRecording() : startRecording()));
+addEventListener("keydown", (e) => {
+  if (e.code === "KeyR" && !HOST && !e.metaKey && !e.ctrlKey && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") rec ? stopRecording() : startRecording();
+});
+const PEAK_BLOCK = 256;
+let peakRate = 1;
+
+// Mix loudness (0..1) around time t: mean of waveform peaks over +-20 ms.
+function levelAt(t) {
+  const c = Math.round(t * peakRate), r = Math.max(1, Math.round(0.02 * peakRate));
+  let sum = 0, k = 0;
+  for (let i = Math.max(0, c - r); i <= Math.min(peaks.length - 1, c + r); i++) { sum += peaks[i]; k++; }
+  return k ? sum / k : 0;
+}
+
+// Per-note drawing data: smoothed pitch (fractional MIDI) and blob half-thickness (0..1) per frame.
+// Basic Pitch's activation stays near 1 through a sustained note, so thickness also follows the mix's
+// loudness: decays and swells show, though notes sounding together share that envelope.
+function prepare(n) {
+  const k = 3; // moving average over +-3 frames (~35 ms for Basic Pitch) steadies the contour
+  const len = n.times.length, ampMax = Math.max(1e-9, ...n.amp);
+  n.pitch = new Float32Array(len); n.thick = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    let sum = 0, c = 0;
+    for (let j = Math.max(0, i - k); j <= Math.min(len - 1, i + k); j++) { sum += n.cents[j]; c++; }
+    n.pitch[i] = n.midi + sum / c / 100;
+    const own = Math.sqrt(n.amp[i] / ampMax) * Math.min(1, n.velocity * 1.5 + 0.35); // shape within the note, size across notes
+    n.thick[i] = own * (0.3 + 0.7 * levelAt(n.times[i]));
+  }
+  n.centsOff = 1200 * Math.log2(n.freq / (440 * 2 ** ((n.midi - 69) / 12))); // loudness-weighted mean tuning
+}
+// Tuning at time t, in cents, from the note's raw shape (for the tooltip).
+function centsAt(n, t) {
+  let i = 0;
+  while (i + 1 < n.times.length && n.times[i + 1] <= t) i++;
+  return n.cents[i];
+}
+$("method").addEventListener("change", analyse);
+
+// --- geometry ---
+const size = () => ({ w: cv.clientWidth, h: cv.clientHeight });
+const xOf = (t) => KEYS_W + (t - view.t0) * view.pxPerSec;
+const yOf = (m) => TOP + (view.midiTop - m) * view.rowH; // top edge of row m
+const tOf = (x) => view.t0 + (x - KEYS_W) / view.pxPerSec;
+const mOf = (y) => Math.floor(view.midiTop - (y - TOP) / view.rowH) + 1;
+
+function clampView() {
+  const { w, h } = size();
+  const visT = (w - KEYS_W) / view.pxPerSec, visM = (h - TOP) / view.rowH;
+  view.t0 = Math.max(0, Math.min(view.t0, Math.max(0, duration - visT * 0.9)));
+  view.midiTop = Math.max(21 + visM, Math.min(108, view.midiTop));
+}
+
+function fit() {
+  const { w, h } = size();
+  const lo = notes.length ? Math.min(...notes.map((n) => n.midi)) - 2 : 36;
+  const hi = notes.length ? Math.max(...notes.map((n) => n.midi)) + 2 : 84;
+  view.rowH = Math.max(6, Math.min(24, (h - TOP) / (hi - lo + 1)));
+  view.midiTop = hi + Math.max(0, ((h - TOP) / view.rowH - (hi - lo + 1)) / 2);
+  view.pxPerSec = (w - KEYS_W) / Math.max(1, duration);
+  view.t0 = 0;
+  draw();
+}
+$("fit").addEventListener("click", fit);
+
+// --- drawing ---
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function mix(a, b, f) { // blend two #rrggbb colours
+  const p = (c, i) => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16);
+  return "#" + [0, 1, 2].map((i) => Math.round(p(a, i) * (1 - f) + p(b, i) * f).toString(16).padStart(2, "0")).join("");
+}
+function niceStep(pxPerSec) { // seconds between ruler labels, >= ~70 px apart
+  for (const s of [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120]) if (s * pxPerSec >= 70) return s;
+  return 300;
+}
+
+function draw() {
+  showEmpty();
+  const dpr = devicePixelRatio || 1, { w, h } = size();
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = w * dpr; cv.height = h * dpr; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const mLo = Math.floor(view.midiTop - (h - TOP) / view.rowH), mHi = Math.ceil(view.midiTop), key = currentKey();
+
+  // pitch rows
+  for (let m = mLo; m <= mHi; m++) {
+    g.fillStyle = !key ? (BLACK.has(m % 12) ? css("--row-black") : css("--row-white")) // with a key: its notes light, its tonic lighter
+      : !inKey(m, key) ? css("--row-out") : (m - key.tonic) % 12 === 0 ? css("--row-tonic") : css("--row-white");
+    g.fillRect(KEYS_W, yOf(m), w - KEYS_W, view.rowH);
+    if (m % 12 === 0 || m % 12 === 5) { // line under C and F
+      g.fillStyle = m % 12 === 0 ? css("--grid-strong") : css("--grid");
+      g.fillRect(KEYS_W, yOf(m) + view.rowH - 1, w - KEYS_W, 1);
+    }
+  }
+  // time grid
+  const step = niceStep(view.pxPerSec), tEnd = tOf(w);
+  for (let t = Math.ceil(view.t0 / step) * step; t <= tEnd; t += step) {
+    g.fillStyle = css("--grid"); g.fillRect(Math.round(xOf(t)), RULER_H, 1, h - RULER_H);  // through the waveform lane too
+  }
+  // notes: Melodyne-style blobs at their measured pitch
+  g.save(); g.beginPath(); g.rect(KEYS_W, TOP, w - KEYS_W, h - TOP); g.clip();
+  const noteCol = css("--note"), offCol = css("--off"), wayOffCol = css("--way-off"), edgeCol = css("--note-edge"), curveCol = css("--curve");
+  const ghostCol = css("--ghost"), selCol = css("--sel");
+  const focus = noteDrag ? noteDrag.group : null; // while notes are held, the others step back
+  const allCurves = tool === "mod" || tool === "drift";
+  for (const n of allNotes()) {
+    const sh = n.shift || 0, dt = n.dt || 0;
+    if (n.end + Math.max(0, dt) < view.t0 || n.start + Math.min(0, dt) > tEnd || Math.max(n.midi, n.midi + sh) < mLo - 1 || Math.min(n.midi, n.midi + sh) > mHi + 1 || !n.times.length) continue;
+    const len = n.times.length, step = Math.max(1, Math.floor(len / Math.max(2, (n.end - n.start) * view.pxPerSec / 2)));
+    const idx = []; for (let i = 0; i < len; i += step) idx.push(i); if (idx.at(-1) !== len - 1) idx.push(len - 1);
+    const vol = Math.min(1.6, Math.sqrt(linGain(n.gain || 0))); // Volume edits show in the thickness
+    const half = (i, asPlayed) => { // taper over the first and last 40 ms so blobs have rounded ends
+      const edge = Math.min(1, (n.times[i] - n.times[0] + 0.01) / 0.04, (n.times[len - 1] - n.times[i] + 0.01) / 0.04);
+      return Math.max(0.6, (view.rowH / 2 - 1) * n.thick[i] * Math.sqrt(edge) * (asPlayed ? 1 : vol));
+    };
+    // Centreline pitch (fractional MIDI) of frame i: the measured curve when the server has sent it (with the
+    // note's mod/drift applied, or as played), else Basic Pitch's contour.
+    const drawn = n.curve?.drawn;
+    const pitchOf = (i, s, asPlayed) => {
+      const c = drawn ? curveCents(n, n.times[i], asPlayed) : null;
+      return (c === null ? n.pitch[i] : n.midi + c / 100) + s;
+    };
+    const outline = (s, asPlayed) => { // the blob's path, its pitch moved by s semitones (as played: where it was)
+      const yc = (i) => yOf(pitchOf(i, s, asPlayed)) + view.rowH / 2, xt = (i) => xOf(n.times[i] + (asPlayed ? 0 : dt));
+      g.beginPath();
+      idx.forEach((i, k) => (k ? g.lineTo : g.moveTo).call(g, xt(i), yc(i) - half(i, asPlayed)));
+      for (let k = idx.length - 1; k >= 0; k--) g.lineTo(xt(idx[k]), yc(idx[k]) + half(idx[k], asPlayed));
+      g.closePath();
+    };
+    const sel = chosen.has(n), dim = focus && !focus.includes(n) ? 0.3 : 1, muted = (n.gain || 0) <= MUTE_DB;
+    if (isEdited(n) && !n.copyOf) { // how it was played
+      outline(0, true); g.globalAlpha = (sel ? 0.9 : 0.35) * dim; g.setLineDash([3, 3]); g.strokeStyle = ghostCol; g.lineWidth = sel ? 1.5 : 1; g.stroke(); g.setLineDash([]);
+    }
+    outline(sh, false);
+    // Tuning where it now sounds, against the voices around it (tuningRef): in tune up to 10¢, then amber,
+    // turning red by 50¢ (a quarter tone).
+    const p = n.midi + (sungCents(n) - tuningRef(n)) / 100 + sh, cents = Math.abs(p - Math.round(p)) * 100;
+    const tune = (c) => cents <= 10 ? c : cents <= 25 ? offCol : mix(offCol, wayOffCol, Math.min(1, (cents - 25) / 25)); // steps: a blend of blue and amber reads as grey
+    g.globalAlpha = (muted ? 0.08 : sel ? 1 : 0.55 + 0.35 * Math.min(1, n.velocity)) * dim;
+    g.fillStyle = tune(noteCol); g.fill();
+    g.globalAlpha = 0.9 * dim; g.strokeStyle = sel ? selCol : tune(edgeCol); g.lineWidth = sel ? 2 : 1; g.stroke();
+    // Pitch curve, on the note being looked at (all of them with Modulation or Drift): the measured one at its
+    // own resolution (~3 ms) when there is one, within the note.
+    if (view.rowH >= 8 && (allCurves || sel || n === hovered || focus?.includes(n))) {
+      g.globalAlpha = 0.85 * dim; g.strokeStyle = curveCol; g.lineWidth = 1.2; g.beginPath();
+      const c = n.curve;
+      if (c && c.drawn && c.drift.length) {
+        const every = Math.max(1, Math.floor(c.drift.length / Math.max(2, c.drift.length * c.dt * view.pxPerSec)));
+        let first = true;
+        for (let i = 0; i < c.drift.length; i += every) {
+          const t = c.t0 + i * c.dt; if (t < n.start || t > n.end) continue;
+          const y = yOf(n.midi + curveCents(n, t) / 100 + sh) + view.rowH / 2;
+          first ? g.moveTo(xOf(t + dt), y) : g.lineTo(xOf(t + dt), y); first = false;
+        }
+      } else idx.forEach((i, k) => (k ? g.lineTo : g.moveTo).call(g, xOf(n.times[i] + dt), yOf(n.pitch[i] + sh) + view.rowH / 2));
+      g.stroke();
+    }
+    if (splitHover?.n === n) { // where the split would fall
+      const x = Math.round(xOf(splitHover.t)), y = yOf(pitchOf(Math.max(0, n.times.findIndex((v) => v >= splitHover.t - dt)), sh, false));
+      g.globalAlpha = 1; g.fillStyle = selCol; g.fillRect(x - 1, y - view.rowH / 2, 2, view.rowH * 2);
+    }
+    g.globalAlpha = 1;
+  }
+  if (drawing) { // the note being drawn
+    const x0 = xOf(Math.min(drawing.t0, drawing.t1)), x1 = xOf(Math.max(drawing.t0, drawing.t1)), y = yOf(drawing.midi);
+    g.globalAlpha = 0.5; g.fillStyle = noteCol; g.fillRect(x0, y + 1, Math.max(2, x1 - x0), view.rowH - 2);
+    g.globalAlpha = 1; g.strokeStyle = selCol; g.lineWidth = 1; g.setLineDash([4, 3]); g.strokeRect(x0 + 0.5, y + 1.5, Math.max(2, x1 - x0), view.rowH - 3); g.setLineDash([]);
+  }
+  if (marquee) { // selection box
+    const x = Math.min(marquee.x0, marquee.x1), y = Math.min(marquee.y0, marquee.y1);
+    g.globalAlpha = 0.12; g.fillStyle = noteCol; g.fillRect(x, y, Math.abs(marquee.x1 - marquee.x0), Math.abs(marquee.y1 - marquee.y0));
+    g.globalAlpha = 0.8; g.strokeStyle = noteCol; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, Math.abs(marquee.x1 - marquee.x0), Math.abs(marquee.y1 - marquee.y0));
+    g.globalAlpha = 1;
+  }
+  g.restore();
+
+  // waveform lane
+  g.fillStyle = css("--panel"); g.fillRect(KEYS_W, RULER_H, w - KEYS_W, WAVE_H);
+  if (peaks) {
+    g.fillStyle = css("--wave"); const mid = RULER_H + WAVE_H / 2, amp = WAVE_H / 2 - 3;
+    for (let x = KEYS_W; x < w; x++) {
+      const a = Math.max(0, Math.floor(tOf(x) * peakRate)), b = Math.min(peaks.length, Math.ceil(tOf(x + 1) * peakRate));
+      let p = 0; for (let i = a; i < Math.max(b, a + 1) && i < peaks.length; i++) p = Math.max(p, peaks[i]);
+      if (p > 0) g.fillRect(x, mid - p * amp, 1, Math.max(1, 2 * p * amp));
+    }
+  }
+  g.fillStyle = css("--line"); g.fillRect(KEYS_W, TOP - 1, w - KEYS_W, 1);
+
+  // ruler
+  g.fillStyle = css("--panel"); g.fillRect(KEYS_W, 0, w - KEYS_W, RULER_H);
+  g.fillStyle = css("--line"); g.fillRect(KEYS_W, RULER_H - 1, w - KEYS_W, 1);
+  g.fillStyle = css("--muted"); g.font = "11px system-ui, sans-serif"; g.textBaseline = "middle";
+  for (let t = Math.ceil(view.t0 / step) * step; t <= tEnd; t += step) {
+    const label = step < 1 ? t.toFixed(step < 0.5 ? 2 : 1) : `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, "0")}`;
+    g.fillRect(Math.round(xOf(t)), RULER_H - 6, 1, 6); g.fillText(label, xOf(t) + 3, RULER_H / 2);
+  }
+
+  // keyboard
+  g.fillStyle = css("--panel"); g.fillRect(0, 0, KEYS_W, h);
+  for (let m = mLo; m <= mHi; m++) {
+    const y = yOf(m), black = BLACK.has(m % 12);
+    g.fillStyle = black ? css("--key-black") : css("--key-white");
+    g.fillRect(0, y, black ? KEYS_W * 0.62 : KEYS_W - 1, view.rowH);
+    g.fillStyle = css("--line"); g.fillRect(0, y + view.rowH - 1, black ? KEYS_W * 0.62 : KEYS_W - 1, 1);
+    if (m % 12 === 0 && view.rowH >= 7) {
+      g.fillStyle = "#555"; g.font = `${Math.min(11, view.rowH)}px system-ui, sans-serif`;
+      g.fillText(`C${m / 12 - 1}`, KEYS_W - 26, y + view.rowH / 2);
+    }
+  }
+  g.fillStyle = css("--panel"); g.fillRect(0, 0, KEYS_W, TOP);
+  g.fillStyle = css("--muted"); g.font = "10px system-ui, sans-serif"; g.fillText("wave", 8, RULER_H + WAVE_H / 2);
+  g.fillStyle = css("--line"); g.fillRect(KEYS_W - 1, 0, 1, h);
+
+  // playhead
+  const pt = playTime();
+  if (audio && pt >= view.t0 && pt <= tEnd) { g.fillStyle = css("--playhead"); g.fillRect(Math.round(xOf(pt)), 0, 2, h); }
+}
+
+// --- playback ---
+function playTime() { return HOST ? host.t ?? -1 : source ? playOffset + ctx.currentTime - playStart : playOffset; }
+function stop() {
+  if (source) { playOffset = playTime(); source.onended = null; source.stop(); source = null; }
+  $("play").classList.remove("playing"); $("play").setAttribute("aria-label", "Play (Space)");
+}
+function play() {
+  if (!audio) return;
+  if (playOffset >= duration) playOffset = 0;
+  source = ctx.createBufferSource(); source.buffer = audio; source.connect(ctx.destination);
+  source.start(0, playOffset, duration - playOffset); playStart = ctx.currentTime;
+  source.onended = () => { playOffset = duration; source = null; $("play").classList.remove("playing"); $("play").setAttribute("aria-label", "Play (Space)"); draw(); };
+  $("play").classList.add("playing"); $("play").setAttribute("aria-label", "Pause (Space)");
+  requestAnimationFrame(function tick() {
+    if (!source) return;
+    const t = playTime(), { w } = size(), visT = (w - KEYS_W) / view.pxPerSec;
+    if (t > view.t0 + visT * 0.9 || t < view.t0) view.t0 = t - visT * 0.1; // follow the playhead
+    clampView(); draw(); requestAnimationFrame(tick);
+  });
+}
+$("play").addEventListener("click", () => (source ? stop() : (stopNote(), play())));
+addEventListener("keydown", (e) => {
+  if (HOST) { // the song's transport is the host's: Space goes on to it (the web view would keep it)
+    if (e.code === "Space" && !e.repeat && e.target.tagName !== "INPUT") { e.preventDefault(); native("pp_space"); }
+    return;
+  }
+  if (e.code === "Space" && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") { e.preventDefault(); source ? stop() : play(); }
+});
+function seek(t) { const was = !!source; stop(); playOffset = Math.max(0, Math.min(duration, t)); if (was) play(); draw(); }
+
+// --- interaction ---
+cv.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) { // zoom time around the cursor
+    const t = tOf(e.offsetX);
+    view.pxPerSec = Math.max(5, Math.min(2000, view.pxPerSec * Math.exp(-e.deltaY * 0.01)));
+    view.t0 = t - (e.offsetX - KEYS_W) / view.pxPerSec;
+  } else if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { // zoom pitch around the cursor
+    const m = view.midiTop - (e.offsetY - TOP) / view.rowH;
+    view.rowH = Math.max(4, Math.min(40, view.rowH * Math.exp(-e.deltaY * 0.01)));
+    view.midiTop = m + (e.offsetY - TOP) / view.rowH;
+  } else {
+    view.t0 += e.deltaX / view.pxPerSec;
+    view.midiTop -= e.deltaY / view.rowH;
+  }
+  clampView(); draw();
+}, { passive: false });
+
+// The note drawn under (x, y), at its moved pitch if it has been moved.
+function noteAt(x, y) {
+  if (x <= KEYS_W || y <= TOP) return null;
+  const t = tOf(x), m = view.midiTop - (y - TOP) / view.rowH + 0.5; // fractional pitch under the cursor
+  const at = (n) => n.midi + n.centsOff / 100 + (n.shift || 0);
+  return [...copies, ...notes].filter((n) => n.start + (n.dt || 0) <= t && t <= n.end + (n.dt || 0) && Math.abs(at(n) - m) < 0.6)
+    .sort((a, b) => Math.abs(at(a) - m) - Math.abs(at(b) - m))[0] || null;
+}
+const noteName = (m) => `${NAMES[((m % 12) + 12) % 12]}${Math.floor(m / 12) - 1}`;
+const fmtCents = (c) => `${c >= 0 ? "+" : "−"}${Math.abs(Math.round(c))}¢`;
+// Where a note sounds after its shift: nearest note name and the tuning against it.
+function sounding(n) { // tuning from the measured curve's center when the server has sent it
+  const p = n.midi + (n.curve ? n.curve.center : n.centsOff) / 100 + (n.shift || 0), m = Math.round(p);
+  return `${noteName(m)} ${fmtCents((p - m) * 100)}`;
+}
+const fmtTime = (dt) => `${dt >= 0 ? "+" : "−"}${Math.abs(dt) < 1 ? `${Math.round(Math.abs(dt) * 1000)} ms` : `${Math.abs(dt).toFixed(3)} s`}`;
+function fmtShift(s) { return Math.abs(s - Math.round(s)) < 0.005 ? `${s >= 0 ? "+" : "−"}${Math.abs(Math.round(s))} st` : fmtCents(s * 100); }
+
+// --- tool wheel ---
+// A radial menu at the pointer: hold the right button (or Q, or long-press on a touch screen), flick toward a
+// tool, let go. A right-click without moving leaves it open to click a tool; Esc or the hub cancels.
+const WHEEL_TOOLS = [
+  { tool: "pitch", label: "Pitch", key: "1" },
+  { tool: "mod", label: "Modulation", key: "2" },
+  { tool: "drift", label: "Drift", key: "3" },
+  { tool: "split", label: "Split", key: "4" },
+  { tool: "time", label: "Time", key: "5" },
+  { tool: "gain", label: "Volume", key: "6" },
+  { tool: "draw", label: "Draw", key: "7" },
+];
+const R_HUB = 34, R_OUT = 100, wheelEl = $("wheel");
+const wheel = { open: false, mode: null, x: 0, y: 0, hot: -1, moved: false };
+function wedgePath(a0, a1) { // annular sector between R_HUB+4 and R_OUT, angles in degrees, centre (104, 104)
+  const p = (r, a) => `${104 + r * Math.cos(a * Math.PI / 180)} ${104 + r * Math.sin(a * Math.PI / 180)}`;
+  const r0 = R_HUB + 4, big = a1 - a0 > 180 ? 1 : 0;
+  return `M${p(r0, a0)} L${p(R_OUT, a0)} A${R_OUT} ${R_OUT} 0 ${big} 1 ${p(R_OUT, a1)} L${p(r0, a1)} A${r0} ${r0} 0 ${big} 0 ${p(r0, a0)} Z`;
+}
+// Each wedge holds its tool's icon and number key; the hub names the tool aimed at (else the current one), so
+// no label has to fit a wedge.
+function drawWheel() {
+  const seg = 360 / WHEEL_TOOLS.length, gap = 2;
+  const named = WHEEL_TOOLS[wheel.hot] || WHEEL_TOOLS.find((w) => w.tool === tool);
+  wheelEl.innerHTML = `<svg width="208" height="208">${WHEEL_TOOLS.map((w, i) => {
+    const mid = -90 + i * seg, a0 = mid - seg / 2 + gap / 2, a1 = mid + seg / 2 - gap / 2, rl = (R_HUB + R_OUT) / 2 + 2;
+    const lx = 104 + rl * Math.cos(mid * Math.PI / 180), ly = 104 + rl * Math.sin(mid * Math.PI / 180);
+    const hot = i === wheel.hot, cls = `seg${hot ? " hot" : ""}${w.tool === tool ? " current" : ""}`;
+    return `<path class="${cls}" d="${wedgePath(a0, a1)}"><title>${w.label} (${w.key})</title></path>` +
+      `<use href="#i-${w.tool}" x="${lx - 10}" y="${ly - 15}" width="20" height="20" class="ico${hot ? " hot-label" : ""}"/>` +
+      `<text x="${lx}" y="${ly + 14}" class="key${hot ? " hot-label" : ""}">${w.key}</text>`;
+  }).join("")}<circle class="hub" cx="104" cy="104" r="${R_HUB}"/>` +
+    `<text x="104" y="${wheel.hot >= 0 ? 104 : 99}" class="name${wheel.hot >= 0 ? " aimed" : ""}">${named ? named.label : ""}</text>` +
+    (wheel.hot >= 0 ? "" : `<text x="104" y="113" class="key">esc</text>`) + `</svg>`;
+}
+function openWheel(x, y, mode) {
+  const { w, h } = size();
+  wheel.open = true; wheel.mode = mode; wheel.hot = -1; wheel.moved = false;
+  wheel.x = Math.max(R_OUT + 4, Math.min(w - R_OUT - 4, x)); wheel.y = Math.max(R_OUT + 4, Math.min(h - R_OUT - 4, y));
+  wheelEl.style.left = wheel.x + "px"; wheelEl.style.top = wheel.y + "px";
+  drawWheel(); tip.style.display = "none";
+  wheelEl.classList.add("open"); requestAnimationFrame(() => wheelEl.classList.add("shown"));
+}
+function aimWheel(x, y) { // highlight the wedge in the pointer's direction, none inside the hub
+  const dx = x - wheel.x, dy = y - wheel.y, seg = 360 / WHEEL_TOOLS.length;
+  if (Math.hypot(dx, dy) > 8) wheel.moved = true;
+  const hot = Math.hypot(dx, dy) < R_HUB ? -1
+    : Math.floor((((Math.atan2(dy, dx) * 180 / Math.PI + 90 + seg / 2) % 360) + 360) % 360 / seg);
+  if (hot !== wheel.hot) { wheel.hot = hot; drawWheel(); }
+}
+function closeWheel(pick) {
+  if (pick && wheel.hot >= 0) setTool(WHEEL_TOOLS[wheel.hot].tool);
+  wheel.open = false; wheel.mode = null;
+  wheelEl.classList.remove("shown", "open");
+}
+let lastPointer = { x: 200, y: 200 }, pressTimer = 0;
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
+
+let drag = null, noteDrag = null, marquee = null, hovered = null, hoverTimer = 0;
+const KIND = { mod: "Modulation", drift: "Drift" };
+const PX_PER_100 = 150; // Modulation/Drift: drag this far for 100%
+const PX_PER_DB = 5;    // Volume
+const fmtDb = (db) => (db <= MUTE_DB ? "muted" : `${db >= 0 ? "+" : "−"}${Math.abs(db).toFixed(1)} dB`);
+// What a drag with the current tool changes on a note, and that value now.
+// Cents instead of semitones while dragging: ⌘ on a Mac, Ctrl elsewhere (Windows has no ⌘; a Mac's Ctrl-click
+// is a right-click).
+const fine = (e) => e.metaKey || (!MAC && e.ctrlKey);
+const PARAM = { pitch: "shift", time: "dt", gain: "gain", mod: "mod", drift: "drift" };
+const valueOf = (n, kind) => n[PARAM[kind]] ?? (kind === "mod" || kind === "drift" ? 1 : 0);
+// The notes inside the selection box: drawn span and pitch row overlapping it.
+function inBox(m) {
+  const ta = tOf(Math.min(m.x0, m.x1)), tb = tOf(Math.max(m.x0, m.x1));
+  const pa = view.midiTop - (Math.max(m.y0, m.y1) - TOP) / view.rowH + 0.5, pb = view.midiTop - (Math.min(m.y0, m.y1) - TOP) / view.rowH + 0.5;
+  return allNotes().filter((n) => {
+    const dt = n.dt || 0, p = n.midi + n.centsOff / 100 + (n.shift || 0);
+    return n.start + dt <= tb && n.end + dt >= ta && p + 0.5 >= pa && p - 0.5 <= pb;
+  });
+}
+function showTip(e, text) {
+  tip.textContent = text; tip.style.display = "block";
+  tip.style.left = Math.min(e.offsetX + 12, cv.clientWidth - tip.offsetWidth - 4) + "px";
+  tip.style.top = e.offsetY + 14 + "px";
+}
+function touch(n) { const j = srcIdx(n); warm(j); fetchCurve(j); } // a note about to be edited
+cv.addEventListener("pointerdown", (e) => {
+  if (wheel.open) { // left-open wheel: a click picks the wedge under it (or cancels on the hub / outside)
+    aimWheel(e.offsetX, e.offsetY); closeWheel(Math.hypot(e.offsetX - wheel.x, e.offsetY - wheel.y) <= R_OUT); return;
+  }
+  if (e.button === 2) { openWheel(e.offsetX, e.offsetY, "hold"); cv.setPointerCapture(e.pointerId); return; }
+  if (e.offsetY < TOP && e.offsetX > KEYS_W) { if (!HOST) seek(tOf(e.offsetX)); return; }
+  if (tool === "draw" && e.offsetX > KEYS_W && e.button === 0 && !e.altKey) { // a new note along this row
+    const t = tOf(e.offsetX); drawing = { t0: t, t1: t, midi: mOf(e.offsetY) };
+    cv.setPointerCapture(e.pointerId); draw(); return;
+  }
+  const n = noteAt(e.offsetX, e.offsetY);
+  if (n && corr.open) closeCorrect(); // on to another note: the correction is done
+  if (n && tool === "split") { splitNote(n, tOf(e.offsetX)); splitHover = null; return; }
+  if (n && e.altKey && tool !== "split") { // duplicate: copies of the pressed note (or the selection) to drag anywhere
+    const before = snapshot(), src = chosen.has(n) ? [...chosen] : [n], made = src.map(makeCopy);
+    copies.push(...made); chosen = new Set(made);
+    const pressed = made[src.indexOf(n)];
+    noteDrag = { n: pressed, group: made, x: e.clientX, y: e.clientY, kind: "copy", from: made.map((m) => [m.shift, m.dt]), start: made.map(editOf), before, copied: true };
+    made.forEach(touch); hearNote(pressed, made); draw();
+    cv.setPointerCapture(e.pointerId); cv.classList.add("dragging"); return;
+  }
+  if (n && (e.shiftKey || e.metaKey || e.ctrlKey)) { // add to / take from the selection
+    chosen.has(n) ? chosen.delete(n) : chosen.add(n); touch(n); hearNote(n); draw(); return;
+  }
+  if (n) { // a drag edits the pressed note, and the rest of the selection with it
+    if (!chosen.has(n)) chosen = new Set([n]);
+    const group = [...chosen];
+    noteDrag = { n, group, x: e.clientX, y: e.clientY, kind: tool, from: group.map((m) => valueOf(m, tool)), start: group.map(editOf), before: snapshot() };
+    group.forEach(touch); hearNote(n, group); draw();
+  } else if (e.pointerType === "mouse" && e.button === 0 && !e.altKey) { // a selection box
+    stopNote();
+    const add = e.shiftKey || e.metaKey || e.ctrlKey;
+    marquee = { x0: e.offsetX, y0: e.offsetY, x1: e.offsetX, y1: e.offsetY, base: add ? new Set(chosen) : new Set() };
+    if (!add && chosen.size) { chosen.clear(); draw(); }
+  } else {
+    stopNote();
+    drag = { x: e.clientX, y: e.clientY, t0: view.t0, top: view.midiTop };
+    if (e.pointerType !== "mouse") { // touch: a still long-press on empty space opens the wheel
+      const at = { x: e.offsetX, y: e.offsetY };
+      pressTimer = setTimeout(() => {
+        if (!drag || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8) return;
+        view.t0 = drag.t0; view.midiTop = drag.top; drag = null; draw();
+        openWheel(at.x, at.y, "hold");
+      }, 450);
+    }
+  }
+  cv.setPointerCapture(e.pointerId); cv.classList.add("dragging");
+});
+cv.addEventListener("pointermove", (e) => {
+  lastPointer = { x: e.offsetX, y: e.offsetY };
+  if (wheel.open) { aimWheel(e.offsetX, e.offsetY); return; }
+  if (drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 8) clearTimeout(pressTimer);
+  if (drawing) {
+    drawing.t1 = Math.max(0, Math.min(duration, tOf(e.offsetX)));
+    showTip(e, `new ${noteName(drawing.midi)}  ${Math.abs(drawing.t1 - drawing.t0).toFixed(2)} s`); draw(); return;
+  }
+  if (marquee) {
+    marquee.x1 = e.offsetX; marquee.y1 = e.offsetY;
+    chosen = new Set([...marquee.base, ...inBox(marquee)]);
+    showTip(e, `${chosen.size} note${chosen.size === 1 ? "" : "s"} selected`); draw(); return;
+  }
+  if (noteDrag) { // every note in the group moves by the same amount from where it was
+    const { n, group, from, kind } = noteDrag, dy = -(e.clientY - noteDrag.y), many = group.length > 1 ? `  (${group.length} notes)` : "";
+    const set = (f) => group.forEach((m, i) => (m[PARAM[kind]] = f(from[i], m)));
+    if (kind === "copy") { // anywhere: semitones up/down (⌘: cents), time sideways; Shift keeps to one direction
+      let rows = dy / view.rowH, d = (e.clientX - noteDrag.x) / view.pxPerSec;
+      if (e.shiftKey) Math.abs(e.clientX - noteDrag.x) > Math.abs(dy) ? (rows = 0) : (d = 0);
+      const ds = fine(e) ? Math.round(rows * 100) / 100 : Math.round(rows), step = (i) => (fine(e) ? ds : keyStep(group[i].midi + from[i][0], ds));
+      d = Math.max(Math.max(...group.map((m, i) => -m.start - from[i][1])), Math.min(Math.min(...group.map((m, i) => duration - m.end - from[i][1])), d));
+      group.forEach((m, i) => { m.shift = from[i][0] + step(i); m.dt = Math.round((from[i][1] + d) * 1000) / 1000; });
+      showTip(e, `copy: ${noteName(n.midi)} → ${sounding(n)}  ${fmtTime(n.dt)}${many}`);
+      detuneNote();
+    } else if (kind === "pitch") { // steps of the key (each note its own: a harmony moves within the key); Shift: semitones; ⌘: cents (one row = 100¢), switchable mid-drag
+      const rows = dy / view.rowH, d = fine(e) ? Math.round(rows * 100) / 100 : Math.round(rows), semis = fine(e) || e.shiftKey || !currentKey();
+      set((f, m) => f + (semis ? d : keyStep(m.midi + f, d)));
+      showTip(e, `${noteName(n.midi)} → ${sounding(n)}  (moved ${fmtShift(n.shift)})${fine(e) ? "  fine" : semis ? "" : `  in ${keyName(currentKey())}`}${many}`);
+      detuneNote();
+    } else if (kind === "time") { // ms steps, the whole group kept inside the audio
+      let d = (e.clientX - noteDrag.x) / view.pxPerSec;
+      d = Math.max(Math.max(...group.map((m, i) => -m.start - from[i])), Math.min(Math.min(...group.map((m, i) => duration - m.end - from[i])), d));
+      set((f) => Math.round((f + d) * 1000) / 1000);
+      showTip(e, `${noteName(n.midi)} ${fmtTime(n.dt)}  starts ${(n.start + n.dt).toFixed(3)} s${many}`);
+    } else if (kind === "gain") { // 0.5 dB steps; down to MUTE_DB is muted
+      const d = dy / PX_PER_DB;
+      set((f) => Math.max(MUTE_DB, Math.min(MAX_DB, Math.round((f + d) * 2) / 2)));
+      showTip(e, `${noteName(n.midi)} ${fmtDb(n.gain)}${many}`);
+    } else { // Modulation / Drift: scale 0..200%, up = more
+      const v = (f) => Math.max(0, Math.min(2, Math.round((f + dy / PX_PER_100) * 100) / 100));
+      if (kind === "drift") group.forEach((m, i) => setDrift(m, v(from[i]), [noteDrag.start[i][0], from[i]]));
+      else set(v);
+      showTip(e, `${KIND[kind]} ${Math.round(n[kind] * 100)}%${n.curve ? "" : "  (measuring the pitch curve…)"}${many}`);
+    }
+    draw(); return;
+  }
+  if (drag) {
+    view.t0 = drag.t0 - (e.clientX - drag.x) / view.pxPerSec;
+    view.midiTop = drag.top + (e.clientY - drag.y) / view.rowH;
+    clampView(); draw(); tip.style.display = "none"; return;
+  }
+  const n = noteAt(e.offsetX, e.offsetY);
+  cv.classList.toggle("on-note", !!n);
+  const sh = tool === "split" && n ? { n, t: tOf(e.offsetX) } : null;
+  if (sh || splitHover) { splitHover = sh; draw(); }
+  // A pointer resting 150 ms on a note is likely about to edit it: separate it and measure its curve now.
+  if (n !== hovered) { hovered = n; clearTimeout(hoverTimer); if (n) hoverTimer = setTimeout(() => touch(n), 150); draw(); }
+  if (!n) { tip.style.display = "none"; return; }
+  const scaled = ["mod", "drift"].filter((k) => Math.abs((n[k] ?? 1) - 1) >= 0.005).map((k) => `${KIND[k].toLowerCase()} ${Math.round(n[k] * 100)}%`);
+  if (Math.abs(n.dt || 0) >= 0.0005) scaled.push(`time ${fmtTime(n.dt)}`);
+  if (Math.abs(n.gain || 0) >= 0.05) scaled.push(`volume ${fmtDb(n.gain)}`);
+  showTip(e, `${n.copyOf ? "copy of " : ""}${noteName(n.midi)}${n.shift ? ` → ${sounding(n)} (moved ${fmtShift(n.shift)})` : ""}${scaled.length ? `  ${scaled.join(", ")}` : ""}  ` +
+    `${tuningText(n)}${inKey(n.midi + (n.shift || 0)) ? "" : `  (not in ${keyName(currentKey())})`}  ${n.start.toFixed(2)}–${n.end.toFixed(2)} s`);
+});
+const endDrag = () => {
+  clearTimeout(pressTimer);
+  if (wheel.open && wheel.mode === "hold") {
+    // released: pick the aimed tool; a right-click that never moved leaves the wheel open for a click
+    if (wheel.hot >= 0) closeWheel(true);
+    else if (!wheel.moved) wheel.mode = "click";
+    else closeWheel(false);
+    cv.classList.remove("dragging"); return;
+  }
+  if (noteDrag && (noteDrag.copied || noteDrag.group.some((m, i) => editOf(m).some((v, k) => v !== noteDrag.start[i][k])))) {
+    stopNote(); commit(noteDrag.before);
+  }
+  if (marquee) chosen.forEach(touch);
+  if (drawing) { const d = drawing; drawing = null; addNote(d.t0, d.t1, d.midi); }
+  drag = noteDrag = marquee = null; cv.classList.remove("dragging"); tip.style.display = "none"; draw();
+};
+// Double-click: Pitch snaps the note onto the nearest note in the key (scaleFix) (its measured center when known);
+// Modulation / Drift flatten it (or restore it, if it is already flat).
+// Volume mutes (or unmutes); a double-click on a selected note does it to the whole selection.
+cv.addEventListener("dblclick", (e) => {
+  const n = noteAt(e.offsetX, e.offsetY);
+  if (!n || tool === "split") return;
+  const before = snapshot(), group = chosen.has(n) ? [...chosen] : [n];
+  const flip = (k) => (n[k] ?? 1) === 0 ? 1 : 0, muted = (n.gain || 0) <= MUTE_DB, mf = tool !== "pitch" && tool !== "time" && tool !== "gain" && flip(tool);
+  for (const m of group) {
+    if (tool === "pitch") m.shift = Math.round(((m.shift || 0) + scaleFix(m)) * 100) / 100;
+    else if (tool === "time") m.dt = 0;
+    else if (tool === "gain") m.gain = muted ? 0 : MUTE_DB;
+    else if (tool === "drift") setDrift(m, mf);
+    else m[tool] = mf;
+  }
+  commit(before);
+  const many = group.length > 1 ? `  (${group.length} notes)` : "";
+  showTip(e, (tool === "pitch" ? `${noteName(n.midi)} → ${sounding(n)}  (snapped)` : tool === "time" ? `${noteName(n.midi)} back in place`
+    : tool === "gain" ? `${noteName(n.midi)} ${fmtDb(n.gain)}` : `${KIND[tool]} ${Math.round(n[tool] * 100)}%`) + many);
+});
+// A note's tuning as sung, in cents from its written note: the measured curve's center once separated (Basic
+// Pitch's own estimate is only to ~33¢), else the detector's.
+// The pitch heard, cents from the written note: the held pitch as the note's drift edit leaves it.
+function sungCents(n) { return n.curve ? n.curve.center + (n.drift ?? 1) * heldOff(n) : n.centsOff; }
+// What "in tune" means around note n: the tuning the other voices sing at, from A440 in cents, as the
+// duration-weighted median of the notes within 6 s of it. An a cappella group drifts (the Miserere demo sits
+// ~10¢ flat), and against A440 most of its notes would look out of tune; against each other, the ones that are
+// stand out. With few notes nearby, the whole take's.
+function tuningRef(n) {
+  const near = (m) => m.end > n.start - 6 && m.start < n.end + 6;
+  let pool = notes.filter(near);
+  if (pool.length < 6) pool = notes;
+  if (!pool.length) return 0;
+  const offs = pool.map((m) => [m.curve ? m.curve.steady : m.centsOff, m.end - m.start]).sort((a, b) => a[0] - b[0]); // as sung, whatever the edits
+  let half = offs.reduce((t, [, w]) => t + w, 0) / 2;
+  for (const [c, w] of offs) if ((half -= w) <= 0) return c;
+  return offs.at(-1)[0];
+}
+// --- key ---
+// The key notes are tuned and dragged within: guessed from the notes (Krumhansl–Kessler key profiles against
+// the duration-weighted pitch classes, plus twice the share of that weight inside the key's scale: relative
+// major and minor correlate almost alike, and a leading tone sung often tells the minor), or chosen. Minor
+// includes the raised 7th.
+const SCALE = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10, 11] };
+const PROFILE = { major: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88],
+  minor: [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17] };
+const TONIC = { major: ["C", "D♭", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"], minor: ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "G♯", "A", "B♭", "B"] };
+const keyName = (k) => (k ? `${TONIC[k.mode][k.tonic]} ${k.mode}` : "chromatic");
+const NARROW = matchMedia("(max-width: 1100px)"); // the menu's names then short: "B♭", "Gm"
+const keyLabel = (k) => (!NARROW.matches ? (k ? keyName(k) : "Chromatic") : k ? `${TONIC[k.mode][k.tonic]}${k.mode === "minor" ? "m" : ""}` : "All");
+let keyPick = "auto", guessed = { gen: -1, key: null };
+function guessKey() {
+  if (guessed.gen === notesGen) return guessed.key;
+  const w = new Array(12).fill(0);
+  for (const n of notes) w[((n.midi % 12) + 12) % 12] += n.end - n.start;
+  const total = w.reduce((a, b) => a + b, 0) || 1;
+  const match = (a, b) => { const ma = a.reduce((x, y) => x + y) / 12, mb = b.reduce((x, y) => x + y) / 12; let xy = 0, xx = 0, yy = 0;
+    for (let i = 0; i < 12; i++) { xy += (a[i] - ma) * (b[i] - mb); xx += (a[i] - ma) ** 2; yy += (b[i] - mb) ** 2; } return xy / Math.sqrt(xx * yy || 1); };
+  let best = null, top = -Infinity;
+  if (notes.length >= 4) for (const mode of ["major", "minor"]) for (let tonic = 0; tonic < 12; tonic++) {
+    const r = match(w, PROFILE[mode].map((_, i) => PROFILE[mode][(i - tonic + 12) % 12])) + 2 * SCALE[mode].reduce((a, i) => a + w[(i + tonic) % 12], 0) / total;
+    if (r > top) { top = r; best = { tonic, mode }; }
+  }
+  guessed = { gen: notesGen, key: best };
+  return best;
+}
+function currentKey() {
+  if (keyPick === "chromatic") return null;
+  if (keyPick === "auto") return guessKey();
+  const [t, mode] = keyPick.split(" ");
+  return { tonic: +t, mode };
+}
+const inKey = (m, k = currentKey()) => !k || SCALE[k.mode].includes((((Math.round(m) - k.tonic) % 12) + 12) % 12);
+function showKey() { // the menu, with Auto naming its guess
+  const sel = $("key"), auto = `Auto${NARROW.matches ? "" : ":"} ${notes.length >= 4 ? keyLabel(guessKey()) : "–"}`;
+  if (!sel.options.length) {
+    sel.add(new Option("", "auto")); sel.add(new Option("", "chromatic"));
+    for (const mode of ["major", "minor"]) for (let t = 0; t < 12; t++) sel.add(new Option("", `${t} ${mode}`));
+  }
+  for (const o of sel.options) o.textContent = o.value === "auto" ? auto : keyLabel(o.value === "chromatic" ? null : { tonic: +o.value.split(" ")[0], mode: o.value.split(" ")[1] });
+  sel.value = keyPick;
+}
+NARROW.addEventListener("change", showKey);
+$("key").addEventListener("change", (e) => {
+  keyPick = e.target.value; saveSession(); draw();
+  if (corr.open && corr.pc) { corr.applied.clear(); corr.group.forEach((n, i) => correctNote(n, corr.base[i], corr.pc, corr.pd)); render(); updateEditButtons(); }
+  showCorrect();
+});
+// Semitones to step a note at row r by d rows within the key: a row outside it is passed over (with no key, d).
+function keyStep(r, d) {
+  r = Math.round(r);
+  if (!d || !currentKey()) return d;
+  let t = r + d;
+  if (!inKey(t)) t += Math.sign(d);
+  return t - r;
+}
+// Semitones from where n now sounds to the note it is tuned to: the nearest semitone if in the key; between a
+// note outside the key and the key's note beside it, the key's note unless sung within 30¢ of the other (then
+// meant: a leading tone, a chromatic passing note).
+function scaleFix(n) {
+  const p = n.midi + (sungCents(n) - tuningRef(n)) / 100 + (n.shift || 0), r = Math.round(p);
+  if (inKey(r) || Math.abs(p - r) <= 0.3) return r - p;
+  const alt = p > r ? r + 1 : r - 1;
+  return (inKey(alt) ? alt : r) - p;
+}
+// The colour's reading, for the tooltip: how far the note now sits from the tuning around it, and what fixes
+// it (Drift and Modulation reshape the pitch around its average, so they cannot).
+function tuningText(n) {
+  if (!n.curve) return "measuring its tuning…";
+  const c = -nearestFix(n) * 100, r = Math.round(c);
+  if (Math.abs(c) <= 10) return `in tune with the voices around it (${r >= 0 ? "+" : ""}${r}¢)`;
+  return `${Math.abs(r)}¢ ${c > 0 ? "sharp" : "flat"} of the voices around it: double-click with Pitch, or Correct pitch…, to tune it`;
+}
+// Semitones from where a note now sounds (its measured center when known) to the nearest semitone.
+function nearestFix(n) { const p = n.midi + (sungCents(n) - tuningRef(n)) / 100 + (n.shift || 0); return Math.round(p) - p; }
+
+// --- export ---
+function download(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+function wavFile(chans, sr) { // 24-bit PCM, any channel count
+  const n = chans[0].length, k = chans.length, b = new DataView(new ArrayBuffer(44 + 3 * n * k));
+  const s = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  s(0, "RIFF"); b.setUint32(4, 36 + 3 * n * k, true); s(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+  b.setUint16(22, k, true); b.setUint32(24, sr, true); b.setUint32(28, 3 * sr * k, true); b.setUint16(32, 3 * k, true); b.setUint16(34, 24, true);
+  s(36, "data"); b.setUint32(40, 3 * n * k, true);
+  for (let i = 0, o = 44; i < n; i++) for (let c = 0; c < k; c++, o += 3) {
+    const v = Math.round(Math.max(-1, Math.min(1, chans[c][i])) * 8388607);
+    b.setUint8(o, v & 255); b.setUint8(o + 1, (v >> 8) & 255); b.setUint8(o + 2, (v >> 16) & 255);
+  }
+  return new Blob([b.buffer], { type: "audio/wav" });
+}
+const baseName = () => ($("file").files[0]?.name || "audio").replace(/\.[^.]+$/, "");
+const addClip = (y, c, sign = 1) => { for (let i = Math.max(0, -c.start); i < c.data.length && c.start + i < y.length; i++) y[c.start + i] += sign * c.data[i]; };
+async function editedParts() { // every edited note's change, and every copy
+  const list = Object.entries(edits()).map(([j, ed]) => [+j, ed]);
+  fetchDeltas([...list, ...copies.filter(isEdited).map((c) => [srcIdx(c), editOf(c)])]);
+  return (await Promise.all([...list.map(([j, ed]) => noteDelta(j, ed).then((d) => withGains(j, [d]))), ...copies.map(copyParts)])).flat();
+}
+async function asEdited(group) { // the notes alone, as edited: separation + change, on the analysed timeline
+  const y = new Float32Array(monoIn.length);
+  for (const n of group) {
+    const j = srcIdx(n);
+    addClip(y, await soloClip(j));
+    if (isEdited(n)) addClip(y, await noteDelta(j, editOf(n)));
+  }
+  return y;
+}
+async function exporting(label, f) {
+  if (!session) { status.textContent = "Export needs the edit server (tools/edit_server.py)"; return; }
+  closeExport(); setBusy("render", { label });
+  try { await f(); } catch (e) { status.textContent = `Export failed: ${e.message || e}`; } finally { setBusy("render", null); }
+}
+// The edited audio at the file's full length and channel count: each edit's change (computed on the mono mix)
+// is added to every channel at the note's share (noteGains), so audio beyond the analysed part and anything not
+// edited passes through untouched.
+$("x-mix").addEventListener("click", () => exporting("Exporting edited audio…", async () => {
+  const parts = await editedParts();
+  const chans = [...Array(original.numberOfChannels)].map((_, c) => Float32Array.from(original.getChannelData(c)));
+  for (const p of parts) chans.forEach((ch, c) => addClip(ch, p, p.gains?.[c] ?? 1));
+  download(wavFile(chans, rate), `${baseName()} (edited).wav`);
+}));
+$("x-sel").addEventListener("click", () => exporting("Exporting selected notes…", async () => {
+  const y = await asEdited([...chosen]);
+  download(wavFile([y], rate), `${baseName()} (${chosen.size} note${chosen.size === 1 ? "" : "s"}).wav`);
+}));
+$("x-rest").addEventListener("click", () => exporting("Exporting the rest…", async () => {
+  const y = Float32Array.from(monoIn), out = await asEdited([...chosen]);
+  for (const p of await editedParts()) addClip(y, p);
+  for (let i = 0; i < y.length; i++) y[i] -= out[i];
+  download(wavFile([y], rate), `${baseName()} (without ${chosen.size} note${chosen.size === 1 ? "" : "s"}).wav`);
+}));
+// MIDI: one track at 120 bpm (960 ticks a second), each note where and at the semitone it now sounds,
+// velocity from its loudness and Volume edit; muted notes are left out.
+$("x-midi").addEventListener("click", () => {
+  const group = (chosen.size ? [...chosen] : allNotes()).filter((n) => (n.gain || 0) > MUTE_DB), ev = [];
+  for (const n of group) {
+    const m = Math.max(0, Math.min(127, Math.round(n.midi + (n.curve ? n.curve.center : n.centsOff) / 100 + (n.shift || 0))));
+    const v = Math.max(1, Math.min(127, Math.round(127 * Math.min(1, n.velocity) * Math.sqrt(linGain(n.gain || 0)))));
+    ev.push([Math.round((n.start + (n.dt || 0)) * 960), 0x90, m, v], [Math.round((n.end + (n.dt || 0)) * 960), 0x80, m, 0]);
+  }
+  ev.sort((a, b) => a[0] - b[0] || a[1] - b[1]); // note-offs before note-ons at the same tick
+  const bytes = [0x00, 0xff, 0x51, 0x03, 0x07, 0xa1, 0x20]; // tempo 500000 us per quarter
+  const vlq = (v) => { const o = [v & 127]; while ((v >>= 7)) o.unshift((v & 127) | 128); return o; };
+  let last = 0;
+  for (const [t, st, m, v] of ev) { bytes.push(...vlq(t - last), st, m, v); last = t; }
+  bytes.push(0, 0xff, 0x2f, 0);
+  const u32 = (v) => [v >>> 24, (v >> 16) & 255, (v >> 8) & 255, v & 255];
+  const head = [..."MThd"].map((c) => c.charCodeAt(0)).concat(u32(6), [0, 0, 0, 1, 1, 224]); // format 0, 1 track, 480 per quarter
+  const trk = [..."MTrk"].map((c) => c.charCodeAt(0)).concat(u32(bytes.length), bytes);
+  download(new Blob([new Uint8Array([...head, ...trk])], { type: "audio/midi" }), `${baseName()}${chosen.size ? ` (${chosen.size} notes)` : ""}.mid`);
+  closeExport();
+});
+function openExport() {
+  closeCorrect(); openHelp(false);
+  const k = chosen.size;
+  $("x-sel").disabled = $("x-rest").disabled = !k;
+  $("x-sel-what").textContent = k ? `${k} note${k === 1 ? "" : "s"}, separated from the mix, as edited` : "Select notes first";
+  $("x-midi-what").textContent = k ? `The ${k} selected notes, as edited` : `All ${notes.length} notes, as edited`;
+  $("export").classList.add("open"); $("export-btn").classList.add("on");
+}
+function openHelp(on = !$("help").classList.contains("open")) {
+  if (on) { closeExport(); closeCorrect(); }
+  $("help").classList.toggle("open", on); $("help-btn").classList.toggle("on", on);
+}
+$("help-btn").addEventListener("click", () => openHelp());
+$("help-close").addEventListener("click", () => openHelp(false));
+addEventListener("keydown", (e) => { if (e.key === "?" && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") openHelp(); });
+addEventListener("keydown", (e) => { if (e.code === "KeyO" && (e.metaKey || e.ctrlKey) && !HOST) { e.preventDefault(); $("file").click(); } });
+
+// --- quick tooltips for the toolbar and status bar ---
+// Most controls are icons, so their title is their name: it shows at once, below the control, as "Name: what it
+// does" with the shortcut set apart. The title moves to data-tip so the browser's own slow tooltip stays away.
+const hint = $("hint");
+let hintFor = null, hintTimer = 0, hintWarm = 0;
+function hintText(el) {
+  if (el.title) { el.dataset.tip = el.title; el.removeAttribute("title"); }
+  return el.dataset.tip || "";
+}
+function showHint(el) {
+  const text = hintText(el);
+  if (!text || (el.matches("#status, #file-name") && el.scrollWidth <= el.clientWidth)) return; // text cut short: only then
+  const m = text.match(/^(.*?)\s*\(([^()]{1,8})\)(.*)$/s), body = m ? m[1] + m[3] : text, key = m ? m[2] : "";
+  const c = body.indexOf(": "), esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  hint.innerHTML = (c > 0 && c < 28 ? `<b>${esc(body.slice(0, c))}</b>: ${esc(body.slice(c + 2))}` : esc(body)) + (key ? `<kbd>${esc(key)}</kbd>` : "");
+  const r = el.getBoundingClientRect(), hw = hint.offsetWidth, hh = hint.offsetHeight;
+  const below = r.bottom + 6 + hh < innerHeight;
+  hint.style.left = Math.max(6, Math.min(innerWidth - hw - 6, r.left + r.width / 2 - hw / 2)) + "px";
+  hint.style.top = (below ? r.bottom + 6 : r.top - 6 - hh) + "px";
+  hint.classList.add("on"); hintFor = el;
+}
+function hideHint() { clearTimeout(hintTimer); if (hintFor) hintWarm = performance.now(); hintFor = null; hint.classList.remove("on"); }
+for (const bar of document.querySelectorAll("header, footer")) {
+  bar.addEventListener("pointerover", (e) => {
+    const el = e.target.closest("[title], [data-tip]");
+    if (el === hintFor) return;
+    hideHint();
+    if (!el || !bar.contains(el)) return;
+    hintText(el); // take the title now, before the browser's tooltip can show
+    hintTimer = setTimeout(() => showHint(el), performance.now() - hintWarm < 600 ? 0 : 350); // moving along the bar: at once
+  });
+  bar.addEventListener("pointerleave", hideHint);
+  bar.addEventListener("pointerdown", hideHint);
+  bar.addEventListener("focusin", (e) => { const el = e.target.closest("[title], [data-tip]"); if (el && e.target.matches(":focus-visible")) showHint(el); });
+  bar.addEventListener("focusout", hideHint);
+}
+function closeExport() { $("export").classList.remove("open"); $("export-btn").classList.remove("on"); }
+$("export-btn").addEventListener("click", () => ($("export").classList.contains("open") ? closeExport() : openExport()));
+
+// --- sessions ---
+// The note list and every edit are kept in this browser per file (name, size, detector, length analysed), so
+// a reload or reopening the file offers to carry on. Undo history is not kept.
+const SESSION_PREFIX = "polypitch-session:", KEEP_SESSIONS = 8;
+let sessionKey = null;
+function saveSession() {
+  if (!sessionKey && !HOST) return;
+  const plain = (a) => Array.from(a, (v) => Math.round(v * 1e4) / 1e4);
+  const data = { saved: Date.now(), notes: notes.map((n) => ({ start: n.start, end: n.end, midi: n.midi, freq: n.freq, velocity: n.velocity,
+    times: plain(n.times), cents: plain(n.cents), amp: plain(n.amp), edit: editOf(n) })),
+    copies: copies.map((c) => ({ src: notes.indexOf(c.copyOf), edit: editOf(c) })), key: keyPick };
+  if (HOST) { host.saved = { method: $("method").value, data }; native("pp_save", JSON.stringify(host.saved)); return; }
+  try {
+    localStorage.setItem(SESSION_PREFIX + sessionKey, JSON.stringify(data));
+    const all = Object.keys(localStorage).filter((k) => k.startsWith(SESSION_PREFIX))
+      .map((k) => [k, JSON.parse(localStorage.getItem(k)).saved]).sort((a, b) => b[1] - a[1]);
+    all.slice(KEEP_SESSIONS).forEach(([k]) => localStorage.removeItem(k));
+  } catch { /* storage full or blocked: sessions are a convenience */ }
+}
+function useSaved(data) { // a saved note list and its edits
+  notes = data.notes.map((m) => { const n = { ...m }; [n.shift, n.mod, n.drift, n.dt, n.gain] = m.edit; delete n.edit; prepare(n); return n; });
+  copies = (data.copies || []).filter((c) => notes[c.src]).map((c) => { const k = makeCopy(notes[c.src]); [k.shift, k.mod, k.drift, k.dt, k.gain] = c.edit; return k; });
+  history = []; notesBody = JSON.stringify(notes.map((n) => [n.start, n.end, n.midi])); notesHash = hash(notesBody);
+  keyPick = data.key || "auto";
+}
+function offerSession(file) {
+  sessionKey = `${file.name}|${file.size}|${$("method").value}|${$("secs").value}`;
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem(SESSION_PREFIX + sessionKey)); } catch { /* none */ }
+  const n = data ? data.notes.filter((m) => m.edit && (m.edit[0] || m.edit[1] !== 1 || m.edit[2] !== 1 || m.edit[3] || m.edit[4])).length : 0;
+  const split = data && data.notes.length !== notes.length, nc = data?.copies?.length || 0;
+  if (!n && !split && !nc) { $("restore").classList.remove("on"); return; }
+  const mins = Math.round((Date.now() - data.saved) / 60000);
+  $("restore-what").textContent = `${n} edited note${n === 1 ? "" : "s"}${nc ? `, ${nc} cop${nc === 1 ? "y" : "ies"}` : ""}${split ? " and splits" : ""} from ${mins < 1 ? "just now" : mins < 90 ? `${mins} min ago` : new Date(data.saved).toLocaleString()}`;
+  $("restore").classList.add("on");
+  $("restore-yes").onclick = () => { $("restore").classList.remove("on"); useSaved(data); notesChanged(); updateEditButtons(); render(); draw(); };
+  $("restore-no").onclick = () => { $("restore").classList.remove("on"); saveSession(); };
+}
+
+// --- Correct pitch ---
+// Like Melodyne's macro: "Pitch center" moves each note that far (0–100%) from the pitch it holds toward the
+// nearest note in the key, "Pitch drift" flattens its slow wander that much (keeping the held pitch). With "Split
+// notes that change pitch", the first slider move splits notes holding two pitches. It works on the selection,
+// or on every note, from the edits they had when the panel opened; each slider release is one undo step.
+const corr = { open: false, group: [], base: [], before: null, pc: 0, pd: 0, split: false, applied: new Map() };
+function openCorrect() {
+  closeExport(); openHelp(false);
+  corr.open = true; corr.group = chosen.size ? [...chosen] : allNotes(); corr.split = false;
+  corr.base = corr.group.map((n) => [n.shift || 0, n.drift ?? 1]); corr.before = snapshot();
+  corr.group.forEach((n) => fetchCurve(srcIdx(n))); // measured centers, where not fetched yet
+  $("c-center").value = $("c-drift").value = 0; corr.pc = corr.pd = 0; showCorrect();
+  $("correct-what").textContent = chosen.size ? `${corr.group.length} selected note${corr.group.length === 1 ? "" : "s"}` : `All ${corr.group.length} notes (select some to limit it)`;
+  showCorrect();
+  $("correct").classList.add("open"); $("correct-btn").classList.add("on");
+}
+function closeCorrect() { corr.open = false; $("correct").classList.remove("open"); $("correct-btn").classList.remove("on"); }
+function showCorrect() {
+  $("c-key").textContent = `Tuned to ${keyName(currentKey())}, as set in the toolbar`;
+  $("c-center-v").textContent = `${$("c-center").value}%`; $("c-drift-v").textContent = `${$("c-drift").value}%`;
+  const k = corr.split ? 0 : corr.group.filter((n) => splitTimes(n).length).length;
+  $("c-split-n").textContent = corr.split ? "" : k ? `(${k})` : "";
+  const wait = corr.group.filter((n) => !n.curve).length;
+  $("c-wait").textContent = wait ? `Measuring ${wait} note${wait === 1 ? "" : "s"}: they follow as they are ready` : "";
+}
+// Where note n moves from one held pitch to another a semitone or more away (each held at least 0.25 s, on
+// different semitones in the tuning around it): [{t, rows}], rows the semitones from the written note to the
+// pitch held after t.
+function splitTimes(n) {
+  const c = n.curve;
+  if (!c || n.copyOf || c.runs.length < 2) return [];
+  const ref = tuningRef(n), semi = (r) => Math.round((r.level - ref) / 100);
+  const held = c.runs.filter((r) => r.t1 - r.t0 >= 0.25), out = [];
+  for (let i = 1; i < held.length; i++) {
+    const a = held[i - 1], b = held[i];
+    if (Math.abs(b.level - a.level) < 80 || semi(a) === semi(b)) continue;
+    // where the slow pitch crosses halfway between the two
+    const mid = (a.level + b.level) / 2, i0 = Math.round((a.t1 - c.t0) / c.dt), i1 = Math.round((b.t0 - c.t0) / c.dt);
+    let t = (a.t1 + b.t0) / 2;
+    for (let q = i0; q < i1; q++) if ((c.center + c.drift[q] - mid) * (c.center + c.drift[q + 1] - mid) <= 0) { t = c.t0 + (q + 0.5) * c.dt; break; }
+    out.push({ t, rows: semi(b) });
+  }
+  return out;
+}
+// Split the group's notes that change pitch (part of the slider's undo step); the parts are measured again,
+// and corrected as they arrive.
+function splitGroup() {
+  corr.split = true;
+  let any = false;
+  for (const n of corr.group.slice()) {
+    const cuts = splitTimes(n);
+    if (!cuts.length) continue;
+    const base = corr.base[corr.group.indexOf(n)], parts = [];
+    let rest = n;
+    for (const { t, rows } of cuts) { // each cut splits what is left; rows count from n's written note
+      const two = splitParts(rest, t, [rest === n ? heldPitchRow(n, t) : 0, rows - (rest.midi - n.midi)]);
+      if (!two) continue;
+      parts.push(two[0]); rest = two[1];
+    }
+    if (!parts.length) continue;
+    parts.push(rest);
+    notes.splice(notes.indexOf(n), 1, ...parts);
+    const g = corr.group.indexOf(n);
+    corr.group.splice(g, 1, ...parts); corr.base.splice(g, 1, ...parts.map(() => base.slice()));
+    chosen.delete(n); any = true;
+  }
+  if (any) notesChanged();
+}
+// Semitones from the written note to the pitch n holds just before time t.
+function heldPitchRow(n, t) {
+  const r = n.curve.runs.filter((q) => q.t1 <= t).at(-1);
+  return r ? Math.round((r.level - tuningRef(n)) / 100) : 0;
+}
+// One note's correction from its edit when the panel opened: drift scaled down by pd (the pitch heard kept),
+// then moved pc of the way to the nearest note in the key, in the tuning around it.
+function correctNote(n, [s0, d0], pc, pd) {
+  n.shift = s0; n.drift = d0;
+  const fix = scaleFix(n);
+  setDrift(n, Math.round(d0 * (1 - pd) * 100) / 100, [s0, d0]);
+  n.shift = Math.round((n.shift + fix * pc) * 10000) / 10000;
+  corr.applied.set(n, editOf(n).join());
+}
+function applyCorrect() {
+  corr.pc = $("c-center").value / 100; corr.pd = $("c-drift").value / 100;
+  if (!corr.split && $("c-split").checked && (corr.pc || corr.pd)) splitGroup();
+  corr.applied.clear();
+  corr.group.forEach((n, i) => correctNote(n, corr.base[i], corr.pc, corr.pd));
+  showCorrect(); draw();
+}
+// A note's pitch curve has arrived: if Correct pitch set its edit without it (and nothing has changed it
+// since), set it again now its held pitch is known.
+function curveArrived(n) {
+  const i = corr.group.indexOf(n);
+  if (i < 0 || !corr.applied.has(n) || corr.applied.get(n) !== editOf(n).join()) { if (corr.open) showCorrect(); return; }
+  correctNote(n, corr.base[i], corr.pc, corr.pd);
+  if (corr.open) showCorrect();
+  clearTimeout(corr.later); corr.later = setTimeout(() => { render(); updateEditButtons(); saveSession(); }, 150);
+}
+$("correct-btn").addEventListener("click", () => (corr.open ? closeCorrect() : openCorrect()));
+for (const id of ["c-center", "c-drift"]) {
+  $(id).addEventListener("input", applyCorrect);
+  $(id).addEventListener("change", () => { commit(corr.before); corr.before = snapshot(); });
+}
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "KeyE" && !e.metaKey && !e.ctrlKey && edited) hear(!hearEdited);
+  if (e.code === "KeyZ" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $("undo").click(); }
+  const t = { Digit1: "pitch", Digit2: "mod", Digit3: "drift", Digit4: "split", Digit5: "time", Digit6: "gain", Digit7: "draw" }[e.code];
+  if (t && !e.metaKey && !e.ctrlKey) setTool(t);
+  if (e.code === "Escape" && $("help").classList.contains("open")) { openHelp(false); return; }
+  if (e.code === "Escape") { if (wheel.open) closeWheel(false); else if (corr.open || $("export").classList.contains("open")) { closeCorrect(); closeExport(); } else { stopNote(); if (chosen.size) { chosen.clear(); draw(); } } }
+  if (e.code === "KeyA" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); chosen = new Set(notes); draw(); return; }
+  if ((e.code === "Delete" || e.code === "Backspace") && chosen.size && !noteDrag) { e.preventDefault(); stopNote(); deleteNotes([...chosen]); return; }
+  if (e.code === "KeyJ" && !e.metaKey && !e.ctrlKey && chosen.size > 1) { joinNotes([...chosen]); return; }
+  if (e.code === "KeyA" && !e.metaKey && !e.ctrlKey) $("solo").checked = !$("solo").checked;
+  if (e.code === "KeyQ" && !e.repeat && !e.metaKey && !e.ctrlKey && !wheel.open && !noteDrag) openWheel(lastPointer.x, lastPointer.y, "key");
+});
+addEventListener("keyup", (e) => { if (e.code === "KeyQ" && wheel.open && wheel.mode === "key") closeWheel(true); });
+cv.addEventListener("pointerup", endDrag);
+cv.addEventListener("pointercancel", endDrag);
+cv.addEventListener("pointerleave", () => { tip.style.display = "none"; if (hovered || splitHover) { hovered = splitHover = null; draw(); } if (wheel.open && wheel.mode === "key") closeWheel(false); });
+addEventListener("resize", () => { clampView(); draw(); });
+// --- in the plugin ---
+let replaceAt = 0; // when Transfer last asked to be clicked again (to replace a take with edits)
+async function loadTake() { // the take as the plugin serves it: int32 channels, float32 rate, int32 length, int32 id, channels
+  if (host.loading) return;
+  host.loading = true;
+  try { await readTake(); } finally { host.loading = false; }
+}
+async function readTake() {
+  const b = await (await fetch("take.bin")).arrayBuffer();
+  if (b.byteLength < 16) { host.take = null; return; }
+  const h = new DataView(b), k = h.getInt32(0, true), sr = h.getFloat32(4, true), len = h.getInt32(8, true);
+  host.takeId = h.getInt32(12, true);
+  ctx ??= new AudioContext();
+  const buf = ctx.createBuffer(k, len, sr);
+  for (let c = 0; c < k; c++) buf.copyToChannel(new Float32Array(b, 16 + 4 * len * c, len), c);
+  host.take = buf;
+  await analyseAudio(buf, null);
+}
+function showHost(s) {
+  const mins = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  const b = $("transfer"), armed = s.transfer === 1, rec = s.transfer === 2;
+  // a short label on the button; what to do next goes in its tooltip
+  const confirming = !armed && !rec && Date.now() - replaceAt < 3000;
+  setLabel("transfer", rec ? `Transferring ${mins(s.recorded)}` : armed ? "Armed" : confirming ? "Click to replace" : host.take ? "Transfer again" : "Transfer");
+  const tip = rec ? "Transferring: stop the song to finish" : armed ? "Armed: play the song to bring its audio in. Click to disarm"
+    : "Arm, then play the song: the track's audio comes in as it plays, and the take then plays from here in its place, following tempo changes";
+  if (b.dataset.tip !== undefined) b.dataset.tip = tip; else b.title = tip;
+  b.classList.toggle("armed", armed || confirming); b.classList.toggle("on", rec);
+  const speed = s.takeBpm ? s.bpm / s.takeBpm : 1;
+  $("host-info").textContent = !host.take ? "" : Math.abs(speed - 1) < 1e-4 ? `Take at ${s.takeBpm.toFixed(1)} bpm`
+    : `Take at ${s.takeBpm.toFixed(1)} bpm, song at ${s.bpm.toFixed(1)}: following (${speed > 1 ? "+" : "−"}${Math.abs((speed - 1) * 100).toFixed(1)}%)`;
+}
+if (HOST) {
+  setBusy("load", null); status.textContent = "Arm Transfer, then play the part of the song to edit";
+  $("transfer").addEventListener("click", async () => {
+    if (host.transfer === 0 && host.take && !confirmReplace()) return;
+    host.transfer = await native("pp_transfer");
+  });
+  const confirmReplace = () => { // a second click within 3 s replaces a take that has edits
+    if (!notes.some(isEdited) && !copies.length) return true;
+    if (Date.now() - replaceAt < 3000) return true;
+    replaceAt = Date.now(); status.textContent = "Transferring again replaces this take and its edits: click again to go ahead";
+    $("transfer").classList.add("armed"); setLabel("transfer", "Click to replace"); return false;
+  };
+  window.__JUCE__.backend.addEventListener("pp_status", (s) => {
+    const moved = s.t !== host.t || s.playing !== host.playing;
+    Object.assign(host, { playing: s.playing, t: s.t, transfer: s.transfer });
+    showHost(s);
+    if (host.ready && s.take && s.take !== host.takeId && !host.loading) { host.saved = null; loadTake(); } // taken while this page missed the news
+    if (!moved || !host.take) return;
+    if (s.playing && s.t !== null) { // follow the playhead
+      const { w } = size(), visT = (w - KEYS_W) / view.pxPerSec;
+      if (s.t > view.t0 + visT * 0.9 || s.t < view.t0) view.t0 = s.t - visT * 0.1;
+      clampView();
+    }
+    draw();
+  });
+  window.__JUCE__.backend.addEventListener("pp_take", () => { host.saved = null; loadTake(); });
+  window.ppTest = { // for plugin/tests/HostSim
+    state: () => ({ notes: notes.length, session, busy: Object.values(busy).filter(Boolean).map((b) => b.label), status: status.textContent,
+      transfer: $("transfer").textContent, info: $("host-info").textContent, edited: !!edited, hearEdited, t: host.t }),
+    longest: () => notes.reduce((b, n, i) => (n.end - n.start > notes[b].end - notes[b].start ? i : b), 0),
+    span: (j) => [notes[j].start, notes[j].end],
+    shift: (j, semis) => { const before = snapshot(); notes[j].shift = semis; touch(notes[j]); commit(before); },
+    roll: () => cv.toDataURL("image/jpeg", 0.7),
+  };
+  const hello = await native("pp_hello");
+  try { host.saved = hello.session ? JSON.parse(hello.session) : null; } catch { host.saved = null; }
+  document.querySelector("header h1").textContent = `OmniPitch ${hello.version} beta`;
+  host.ready = true;
+  if (hello.take) await loadTake();
+}
+draw();
+</script>
+</body>
+</html>
