@@ -527,6 +527,38 @@ if (process.env.LOOP) {
   console.log(`take: ${lit} drawn elements lit, "${takeLine}"`);
   if (!lit) fail("take: the score does not follow the take");
   await shot(page, "9-grade-take");
+  // A tapped note of the part sung is where the take plays from.
+  const takeAt = () => page.evaluate(() => Number((document.querySelector('[aria-label="Where in your take"]') as HTMLInputElement | null)?.value ?? -1));
+  /** Taps the drawn note nearest the first or last grade mark. */
+  const tapGraded = async (which: "first" | "last") => {
+    const box = await page.evaluate((which) => {
+      const marks = [...document.querySelectorAll("#piece-paper .grade-good, #piece-paper .grade-ok, #piece-paper .grade-bad")];
+      const mark = which === "first" ? marks[0] : marks[marks.length - 1];
+      mark?.scrollIntoView({ block: "center" });
+      const m = mark?.getBoundingClientRect();
+      if (!m) return null;
+      const mx = m.left + m.width / 2;
+      const my = m.top + m.height / 2;
+      let best: DOMRect | null = null;
+      let bestD = Infinity;
+      for (const n of document.querySelectorAll("#piece-paper svg .abcjs-note")) {
+        const r = n.getBoundingClientRect();
+        const d = Math.hypot(r.left + r.width / 2 - mx, r.top + r.height / 2 - my);
+        if (d < bestD) [best, bestD] = [r, d];
+      }
+      return best ? { x: best.left + best.width / 2, y: best.top + best.height / 2 } : null;
+    }, which);
+    if (box) await page.mouse.click(box.x, box.y);
+    await sleep(400);
+  };
+  await page.evaluate(() => (document.querySelector('button[aria-label="Pause"]') as HTMLButtonElement | null)?.click());
+  await sleep(200);
+  await tapGraded("last");
+  const atLast = await takeAt();
+  await tapGraded("first");
+  const atFirst = await takeAt();
+  console.log(`take: a tap on the last note sung moves it to ${atLast.toFixed(2)}, on the first to ${atFirst.toFixed(2)}`);
+  if (!(atLast > 0.5 && atFirst < atLast - 0.3)) fail("take: a tapped note does not move the take there");
   await page.evaluate(() => (document.querySelector('button[aria-label="Stop playing your take"]') as HTMLButtonElement | null)?.click());
   await sleep(300);
   if (await page.$("#piece-paper .piece-now")) fail("take: a note stayed lit after stopping the take");

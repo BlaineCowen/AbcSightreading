@@ -1870,7 +1870,8 @@ Blaine: hear back grades in My music): the Unison page's `TakePlayer`, with
 "With the music" playing the run's own sound as heard (SectionPlayer's
 buffer, kept at the run's end as `takeSound`, `TakeMusic.buffer` and
 `bufferAt`) and the click; the note line and cursor follow it. Note by note
-has no music under it. Gone with a new run or Close. `check-piece-viewer.ts` covers all of it (fake microphone: the run
+has no music under it; a tapped note of the part sung plays it from there,
+as on the Unison page (23 October 2026). Gone with a new run or Close. `check-piece-viewer.ts` covers all of it (fake microphone: the run
 starts, runs and grades; `PIP_SHOTS=` pictures Pip). Pip rides just left of
 the note now, on both pages (Blaine: behind the cursor, not on the note).
 

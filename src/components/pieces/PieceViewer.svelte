@@ -999,6 +999,9 @@
       const k = gradeNotes.findIndex((n) => n.cursor === it.index);
       if (k >= 0) {
         gradeDetailIndex = k;
+        // Hearing the take: a tapped note is where it plays from (as on the Unison page).
+        const span = lastTrace?.spans[k];
+        if (takePlayer && take.open && span) takePlayer.seek(span.from - 150);
         return;
       }
     }
