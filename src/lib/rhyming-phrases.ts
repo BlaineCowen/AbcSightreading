@@ -256,6 +256,32 @@ function soundingWithin(voice: VoiceNote[], from: number, to: number): number[] 
   return out;
 }
 
+/**
+ * Would the top voice on `degree` leave any moment of `from`..`from + length`
+ * sounding two scale degrees a fifth (or fourth) apart and nothing else?
+ */
+function leavesOpenFifth(voices: VoiceNote[][], topIndex: number, from: number, length: number, degree: number): boolean {
+  const times = new Set([from]);
+  voices.forEach((v, vi) => {
+    if (vi === topIndex) return;
+    let t = 0;
+    for (const n of v) {
+      if (t > from && t < from + length) times.add(t);
+      t += n.length;
+    }
+  });
+  for (const t of times) {
+    const d = new Set([((degree % 7) + 7) % 7]);
+    voices.forEach((v, vi) => {
+      const n = vi === topIndex ? undefined : noteAt(v, t);
+      if (n && !n.rest) d.add(((n.degree % 7) + 7) % 7);
+    });
+    const [a, b] = [...d];
+    if (d.size === 2 && [3, 4].includes((((b - a) % 7) + 7) % 7)) return true;
+  }
+  return false;
+}
+
 function noteAt(voice: VoiceNote[], at: number): VoiceNote | undefined {
   let t = 0;
   for (const n of voice) {
@@ -351,6 +377,10 @@ function varyRestatement(
         // the re above the tune (two treble parts written melody first sit a
         // third apart, so the nearest alternative is often the alto's own note).
         if (voices.some((v, vi) => vi !== topIndex && soundingWithin(v, at, at + note.length).some((p) => p > pitch))) return false;
+        // Never the only third taken away: root and fifth alone is an open
+        // fifth, which four parts never sing (part-writer OPEN_FIFTH). Moving
+        // the tune off the third onto the root was 2% of SATB chords at UIL 3.
+        if (voices.length >= 4 && leavesOpenFifth(voices, topIndex, at, note.length, trial.degree)) return false;
         if (prev) {
           const a = [...prevOthers]; a[topIndex] = prev;
           const b = [...others]; b[topIndex] = trial;

@@ -103,6 +103,19 @@ const SEESAW = 2;
 const FRESH = 0.5;
 const NCT_COST = 0.4;
 const INCOMPLETE = 1.1;
+/**
+ * Root and fifth with no third (Blaine: everyone on the root is fine, root and
+ * third is fine, root and fifth without the third is not). His SATB pieces have
+ * none; before this, four parts wrote one in 7-9% of chords at Levels 1-3, most
+ * on weak beats, which INCOMPLETE leaves alone. Priced, not banned, so a spot
+ * nothing else fits still has an answer.
+ */
+const OPEN_FIFTH = 8;
+/** Two pitch classes a fifth (or fourth) apart and nothing else. */
+const openFifth = (notes: Note[]) => {
+  const d = [...new Set(notes.map((n) => mod7(n.degree)))];
+  return d.length === 2 && [3, 4].includes(mod7(d[1] - d[0]));
+};
 // Priced so the chords come out as "Our Hero"'s bass has them: I about half
 // the time, V and V7 a quarter, IV 15%, ii and vi now and then. The parts'
 // own degree shares lean to V (sol, ti, re recur in every part of every piece),
@@ -367,6 +380,7 @@ function writeOnce(o: PartWriterOptions) {
           for (let i = 0; i + 1 < N; i++) cost += pairOf(i).table[notes[i].pitchValue - notes[i + 1].pitchValue] ?? 0;
           if (classes < Math.min(3, N) && !cadence && !first && !weak) cost += INCOMPLETE * (N >= 4 ? 1.5 : 1);
           if (altered && !notes.some((n) => n.degree === altered.degree)) cost += MISSING_ALTERED;
+          if (N >= 4 && openFifth(notes)) cost += OPEN_FIFTH;
           options.push({ chord, tones, notes, nct: chosen.map((c) => c.nct), cost });
           return;
         }

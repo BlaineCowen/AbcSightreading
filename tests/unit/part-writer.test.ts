@@ -105,3 +105,22 @@ test("SATB at Level 3: the alto holds do, the bass sings roots, the chords are f
   expect(bassRoot / bass).toBeGreaterThan(0.6);
   expect(full / all).toBeGreaterThan(0.65);
 }, 120_000);
+
+test("four parts never sing root and fifth without the third, the restated phrase included", () => {
+  // Blaine: everyone on the root is fine, root and third is fine, root and
+  // fifth without the third is not. His SATB pieces have none; before
+  // part-writer OPEN_FIFTH and the restatement's guard, 7-9% of chords at
+  // Levels 1-3 were one. A suspension (an ornament: a 4-3) is not counted.
+  let chordsSeen = 0;
+  let open = 0;
+  for (const ex of write(30, "4 Part Mixed", "UIL 3", 0.1, 1)) {
+    for (const ns of sonorities(ex, ORDER["4 Part Mixed"])) {
+      chordsSeen++;
+      if (ns.some((n) => n.ornament)) continue;
+      const d = [...new Set(ns.map((n) => ((n.degree % 7) + 7) % 7))];
+      if (d.length === 2 && [3, 4].includes((((d[1] - d[0]) % 7) + 7) % 7)) open++;
+    }
+  }
+  expect(chordsSeen).toBeGreaterThan(1000);
+  expect(open / chordsSeen).toBeLessThan(0.01);
+}, 60000);

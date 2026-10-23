@@ -2190,6 +2190,18 @@ costing a voicing without it (`MISSING_ALTERED`). Focus on V/V: 87-100% of
 exercises carry fi across the writers; V7/IV 77-100% (the general writer
 managed 0% at Levels 2-3). Tests `chromatic-drill.test.ts`.
 
+**No open fifths in four parts** (23 October 2026, Blaine's rule: everyone
+on the root is fine, root and third is fine, root and fifth without the
+third is not; his SATB pieces have none). The part writer prices one
+(`OPEN_FIFTH`), weak beats included, where `INCOMPLETE` does not look, and
+the restated phrase's varied tune note may not take away the only third
+(rhyming-phrases `leavesOpenFifth`). SATB at UIL 1-5, 60 exercises each,
+4-3 suspensions not counted: 7.2/5.9/4.3/1.9/2.0% of chords before,
+0.1-0.2% after; the sweep clean. Tenor and bass share a note far less than
+in his pieces (TB 1% against Our Hero's 11%, which opens with everyone on
+the tune in octaves), and the calibrated ranges are why: at UIL 1 they meet
+only on A3 to C4.
+
 **The UIL levels follow UIL's current criteria** (read from uiltexas.org on
 7 October 2026 and checked with Blaine; notes/uil-criteria.md, which ends
 with what is not applied yet). Levels 1-2 are F and G major only, 3/4 and
