@@ -63,7 +63,7 @@ export const endDate = (d: Date) =>
 export function renewHow(e: EndingPlan): string {
   if (e.kind === "card") return "Turn automatic renewal back on from your account page, and it carries on for another year.";
   if (e.kind === "quote") return "Ask for a renewal quote from your account page: it is filled in from last year's, ready to send to purchasing.";
-  if (e.kind === "trial") return "Keep Pro for $19.99 a year from your account page. If you do nothing, you simply go back to the free plan.";
+  if (e.kind === "trial") return "Keep Pro for $19.99 a year from your account page. If you do nothing, you go back to the free plan.";
   return "Buy a year from your account page to keep it.";
 }
 

@@ -448,6 +448,8 @@ model PracticeTime {
 
   @@index([studentId, day])
   @@index([assignmentId])
+  /// The daily cron's delete of practice past keeping (deleteOldPractice).
+  @@index([day])
   @@map("practice_time")
 }
 
@@ -494,6 +496,8 @@ model AccessGrant {
 
   @@unique([userId, codeId])
   @@index([userId])
+  /// Who joined under a code: founding teachers (founders.ts), a code's uses.
+  @@index([codeId])
   @@map("access_grant")
 }
 

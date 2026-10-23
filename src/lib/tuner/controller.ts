@@ -28,7 +28,12 @@ export function initTuner() {
   metronome.onBar = (live) => tuner.setMetronomeLive(live);
   // The time limit: the metronome stopped itself; the page's Start/Stop follows.
   metronome.onTimeUp = () => tuner.setMetronomeRunning(false);
+  // Out of sight, nobody reads the tuner: detection pauses (about 1.5 million
+  // multiply-adds a frame, 23 frames a second) unless a run is listening -
+  // Grade and the audio check hold the microphone (micHeld) and keep going.
+  document.addEventListener("visibilitychange", syncPaused);
   tuner.subscribe((s) => {
+    if (s.micHeld !== last.micHeld) syncPaused();
     if (s.a4 !== last.a4) engine?.setA4(s.a4);
     if (s.sensitivity !== last.sensitivity) engine?.setSensitivity(s.sensitivity);
 
@@ -65,6 +70,10 @@ export function initTuner() {
   metronome.configure(metronomeSettings(tuner.get()));
 }
 
+function syncPaused() {
+  engine?.setPaused(document.visibilityState === "hidden" && !tuner.get().micHeld);
+}
+
 const metronomeSettings = (s: TunerState) => ({
   bpm: s.bpm,
   beatsPerBar: s.beatsPerBar,
@@ -94,6 +103,7 @@ export async function startTuner() {
   engine.setA4(s.a4);
   engine.setSensitivity(s.sensitivity);
   engine.setSelfPlaying(s.playing !== null);
+  syncPaused();
   tuner.setEngineStatus("starting");
   try {
     await engine.start();

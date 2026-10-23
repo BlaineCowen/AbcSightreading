@@ -121,11 +121,6 @@ export async function recordPractice(
     await prisma.practiceTime.create({ data: { studentId: userId, day, assignmentId, page, seconds: credited, exercises } });
   }
 
-  // Now and then, forget what is past keeping.
-  if (Math.random() < 0.02) {
-    const cutoff = new Date(now.getTime() - RETENTION_DAYS * 86_400_000).toISOString().slice(0, 10);
-    await prisma.practiceTime.deleteMany({ where: { day: { lt: cutoff } } });
-  }
   return { logged: true, credited };
 }
 
@@ -285,4 +280,15 @@ export async function openAssignment(userId: string, id: string) {
   const totals = role === "student" ? await totalsFor([a.id], [userId]) : new Map();
   const seconds = totals.get(`${a.id}:${userId}`)?.seconds ?? 0;
   return { ...assignmentView(a), params: a.params, role, seconds };
+}
+
+/**
+ * Forgets practice past keeping (RETENTION_DAYS). Daily, from the cron
+ * (api/cron/po-invoices). It ran inside one student report in fifty, and so
+ * scanned the whole table every minute or so while a class practised.
+ */
+export async function deleteOldPractice(now = new Date()) {
+  const cutoff = new Date(now.getTime() - RETENTION_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const { count } = await prisma.practiceTime.deleteMany({ where: { day: { lt: cutoff } } });
+  return count;
 }

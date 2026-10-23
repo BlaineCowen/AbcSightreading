@@ -72,7 +72,7 @@
   import ReaderPill from "./ReaderPill.svelte";
   import { loadReaderId, readerById, readerForTmeaPart, readerForTrack, saveReaderId, stepOnReader, type Reader } from "../lib/readers";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
-  import { setPracticeContext } from "../lib/tools/context";
+  import { setPracticeContext } from "../lib/tools/exercise-info";
   import SignupHint from "./SignupHint.svelte";
   import GenerationLimit from "./GenerationLimit.svelte";
   import PlanEndingBanner from "./PlanEndingBanner.svelte";
@@ -101,7 +101,8 @@
   import { ClapListener, audioToPage } from "../lib/clap-listener";
   import { detectClaps } from "../lib/clap-detect";
   import { GradeRunner } from "../lib/grade-runner";
-  import { gradeSchedule, STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
+  import { STRICTNESS, type GradeNote, type GradeRest } from "../lib/grade";
+  import { gradeSchedule } from "../lib/grade-schedule";
   import { clapToleranceBeats } from "../lib/grade-rhythm";
   import { clearGradeFeedback, drawGradeFeedback, headOf, revealTo } from "../lib/grade-feedback";
   import { PitchGuide } from "../lib/pitch-guide";
@@ -120,7 +121,7 @@
   import { billingStatus } from "../lib/billing-client";
   import { signedInUser } from "../lib/auth-client";
   import { initTuner, micInput, startTuner, stopTuner } from "../lib/tuner/controller";
-  import { exerciseInfo } from "../lib/tools/context";
+  import { exerciseInfo } from "../lib/tools/exercise-info";
   import { NOTES } from "../lib/tuner/pitch";
   import { applyClick, clickFrom, numberIn } from "../lib/preset-click";
   import { exercisePlays, linkPageTempo, metronomeSounding, setClickWithMusic, toggleMetronome } from "../lib/tools/metronome-link";
@@ -1735,6 +1736,18 @@
 
   const STORAGE_KEY = "sightReadingOptions";
 
+  // The metronome's part of the saved options, read through a string: $tuner
+  // changes on every microphone frame and every beat, and an object read
+  // straight from it re-ran the save below (localStorage and the address bar)
+  // about 23 times a second. A string that has not changed wakes nothing.
+  $: savedClickJson = JSON.stringify({
+    subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
+    withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
+    ...($tuner.beatLevels ? { beatLevels: [...$tuner.beatLevels] } : {}),
+    ...($tuner.subMask ? { subMask: $tuner.subMask } : {}),
+  });
+  $: savedClick = JSON.parse(savedClickJson);
+
   // Save options whenever they change. The snapshot is also what a preset
   // stores, and what "edited" is measured against.
   $: currentOptions = {
@@ -1772,12 +1785,7 @@
       transposeSemitones,
       masterVolume,
       // The page's one metronome (preset-click.ts).
-      click: {
-        subdivision: $tuner.subdivision, accent: $tuner.accent, sound: $tuner.clickSound,
-        withMusic: $tuner.clickWithMusic, volume: $tuner.metronomeVolume,
-        ...($tuner.beatLevels ? { beatLevels: [...$tuner.beatLevels] } : {}),
-        ...($tuner.subMask ? { subMask: $tuner.subMask } : {}),
-      },
+      click: savedClick,
       run: {
         exercises: drillExercises,
         repeats: drillRepeats,
@@ -1791,15 +1799,25 @@
         repeatCountIn: drillRepeatCountIn,
       } satisfies RunOptions,
     };
+  let lastSavedOptions = "";
   $: {
-    const options = currentOptions;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
-    } catch (e) {
-      console.error("Error saving options:", e);
-    }
-    if (typeof window !== "undefined") {
-      updateUrlFromState();
+    const json = JSON.stringify(currentOptions);
+    // Only when something saved changed: the address bar may be rewritten
+    // only so often (Safari throws past 100 times in 10 seconds).
+    if (json !== lastSavedOptions) {
+      lastSavedOptions = json;
+      try {
+        localStorage.setItem(STORAGE_KEY, json);
+      } catch (e) {
+        console.error("Error saving options:", e);
+      }
+      if (typeof window !== "undefined") {
+        try {
+          updateUrlFromState();
+        } catch (e) {
+          console.error("Error updating the address:", e);
+        }
+      }
     }
   }
 
@@ -1936,6 +1954,7 @@
     await createSynth.prime();
     // This gets the entire playable audio file.
     audioBuffer = await createSynth.getAudioBuffer();
+    audioKey = audibleKeyOf(drawnSource);
 
     const bufferSeconds = audioBuffer?.duration ?? 0;
     const peak = audioBuffer ? peakAmplitude(audioBuffer) : 0;
@@ -2452,13 +2471,37 @@
 
       await attachCursorAndTiming();
 
-      // Reset audio buffer since tempo may have changed
-      audioBuffer = null;
-      createSynth = null;
+      // The audio is kept when nothing audible changed: a redraw for the
+      // annotations, the layout, a resize or a drill pass's labels used to
+      // throw it away, and the next Play rendered the whole tune again
+      // (abcjs's prime), 100-500 ms before a note sounded.
+      if (audioKey !== audibleKeyOf(updatedTuneString)) {
+        audioBuffer = null;
+        createSynth = null;
+      }
     } catch (err) {
       console.error("Error rerendering tune:", err);
     }
   }
+
+  /**
+   * What the audio buffer is made from: the tempo, the playback transposition,
+   * the rhythm sound's gain (initAudio) and the drawn tune with what is never
+   * played taken out - lyric lines and text annotations ("^ta", the rhythm
+   * syllables). Chord symbols and dynamics stay in, since they sound.
+   */
+  function audibleKeyOf(abc: string) {
+    const heard = abc
+      .split("\n")
+      .filter((line) => !/^\s*[wW]:/.test(line))
+      .join("\n")
+      .replace(/"[\^_<>@][^"]*"/g, "");
+    return [tempo, transposeSemitones, rhythmOnly ? rhythmSoundId : "", heard].join("\u0001");
+  }
+  /** audibleKeyOf the tune the current audio buffer was rendered from; null with no buffer. */
+  let audioKey: string | null = null;
+  /** The source of the score drawn last (drawEven), before the layout's own lines. */
+  let drawnSource = "";
 
   /**
    * Draws the score with its bars shared out evenly over the lines. The bars
@@ -2467,6 +2510,7 @@
    * it is drawn once more with no more a line than abcjs managed.
    */
   function drawEven(source: string) {
+    drawnSource = source;
     // The room between the lines (the Layout menu) is written into the tune as it is drawn.
     // The copyright under the score (copyright.ts), as drawn and printed only.
     const abc = withCopyright(withMeasureNumbers(withLineSpacing(source, scoreView.spacing), scoreView.measureNumbers));
@@ -5764,7 +5808,7 @@
                   </div>
 
                   {#if skips.exactOn && skips.patterns.length === 0 && skips.extraSkips.length === 0}
-                    <p class="text-xs text-sr-muted">Stepwise only - no skips.</p>
+                    <p class="text-xs text-sr-muted">Stepwise only, no skips.</p>
                   {/if}
 
                   <p class="text-xs text-sr-faint">Steps are always allowed. Each skip may be sung in any octave.</p>

@@ -19,7 +19,10 @@ export default defineConfig({
     maxDuration: 60,
     // No runtime specified - let Vercel decide
   }),
-  integrations: [svelte(), tailwind()],
+  // applyBaseStyles off: globals.css (imported by Layout, so on every page)
+  // already has @tailwind base/components/utilities, and the integration's own
+  // copy sent a second full Tailwind build to every page (about 9.5 KB gz).
+  integrations: [svelte(), tailwind({ applyBaseStyles: false })],
   vite: {
     ssr: {
       // zod is bundled so each importer gets its own copy: better-auth is

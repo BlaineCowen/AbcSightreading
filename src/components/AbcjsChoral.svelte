@@ -117,7 +117,7 @@
   import StepStrip from "./StepStrip.svelte";
   import TourHelpButton from "./tour/TourHelpButton.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
-  import { setPracticeContext } from "../lib/tools/context";
+  import { setPracticeContext } from "../lib/tools/exercise-info";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
 
   // ── Playback state ─────────────────────────────────────────────────────────
@@ -738,6 +738,10 @@
   $: rangesDirty = Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {})
     .some(([name, p]) => rangeDiffers(p.currentRange, rangeTargets[name]));
 
+  // The metronome's part, as its own string: $tuner changes on every
+  // microphone frame and beat, and a string that has not changed wakes nothing.
+  $: clickSig = [$tuner.metronomeVolume, $tuner.clickWithMusic, $tuner.subdivision, $tuner.accent,
+    $tuner.clickSound, $tuner.beatLevels?.join(',') ?? '', $tuner.subMask ?? ''].join('|');
   /**
    * What the controls are set to, for telling "still the preset" from "edited".
    *
@@ -764,8 +768,7 @@
     accidentalsByStep, chromaticFrequency, focusChord,
     lyricSystem, minorSolfege, showChords, cursorMode, instrumentProgram, transposeSemitones,
     [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','), [...lyricsOff].sort().join(','),
-    playbackVolume, $tuner.metronomeVolume, $tuner.clickWithMusic,
-    $tuner.subdivision, $tuner.accent, $tuner.clickSound, $tuner.beatLevels?.join(',') ?? '', $tuner.subMask ?? '',
+    playbackVolume, clickSig,
   ].join('|');
 
   /**

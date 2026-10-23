@@ -32,6 +32,7 @@
   import ChevronDown from "lucide-svelte/icons/chevron-down";
   import X from "lucide-svelte/icons/x";
   import Repeat from "lucide-svelte/icons/repeat";
+  import MetronomeIcon from "../ui/metronomeIcon.svelte";
   import { loadScoreView, saveScoreView, withLineSpacing, type ScoreView } from "../../lib/score-view";
   import Volume2 from "lucide-svelte/icons/volume-2";
   import VolumeX from "lucide-svelte/icons/volume-x";
@@ -1546,7 +1547,7 @@
   }
 </script>
 
-<div class="focus-main w-full max-w-6xl mx-auto px-4 py-6 flex flex-col gap-4" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + {gradeOpen ? '6rem' : '1.5rem'})">
+<div class="focus-main wide w-full max-w-5xl mx-auto px-2 md:px-4 py-6 flex flex-col gap-4" style="padding-bottom: calc(var(--bottom-bar-h, 96px) + env(safe-area-inset-bottom, 0px) + {gradeOpen ? '6rem' : '1.5rem'})">
   {#if error}
     <div class="sr-panel p-6 flex flex-col gap-3">
       <p class="text-sr-ink">{error}</p>
@@ -1581,34 +1582,28 @@
         {#if assignment.role === "teacher"}<p class="text-xs">You are seeing what your students see, and their graded attempts.</p>{/if}
       </header>
     {:else}
-    <header class="flex flex-wrap items-end justify-between gap-3">
-      <div class="min-w-0">
-        <a class="sr-link text-sm" href={library ? "/library" : assignment ? "/account" : "/pieces"}>{library ? "My library" : assignment ? "Classes" : "My music"}</a>
-        {#if library}
-          <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink truncate">{piece.title}</h1>
-        {:else if renaming}
-          <form class="flex gap-2 mt-1" on:submit|preventDefault={saveTitle}>
-            <label class="sr-only" for="piece-title">Title</label>
-            <!-- svelte-ignore a11y-autofocus -->
-            <input id="piece-title" class="title-input" bind:value={titleDraft} maxlength="120" autofocus on:blur={saveTitle} />
-          </form>
-        {:else}
-          <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink flex items-center gap-2">
-            <span class="truncate">{piece.title}</span>
-            <button type="button" class="icon-btn" aria-label="Rename" on:click={() => ((titleDraft = piece?.title ?? ""), (renaming = true))}>
-              <Pencil size={16} aria-hidden="true" />
-            </button>
-          </h1>
-        {/if}
-        <p class="text-sm text-sr-muted">{piece.composer ? `${piece.composer} · ` : ""}{score.parts.length} part{score.parts.length === 1 ? "" : "s"} · {score.measures.length} bars</p>
-        {#if assignment}
-          <p class="text-sm text-sr-muted">From your assignment: bars {score.measures[assignment.settings.from].label} to {score.measures[assignment.settings.to].label}, ready to rehearse.</p>
-        {/if}
-      </div>
-      {#if canAssign}
-        <button type="button" class="sr-btn inline-flex items-center gap-2" aria-expanded={assignOpen} on:click={() => ((assignOpen = !assignOpen), (assignedTo = null))}>
-          <Send size={16} aria-hidden="true" /> Assign to a class
-        </button>
+    <!-- Centred, as the practice pages' titles; the main action (Assign) ends the settings row, as New exercise does there. -->
+    <header class="flex flex-col items-center text-center gap-0.5 focus-hide">
+      <a class="sr-link text-sm" href={library ? "/library" : assignment ? "/account" : "/pieces"}>{library ? "My library" : assignment ? "Classes" : "My music"}</a>
+      {#if library}
+        <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink max-w-full truncate">{piece.title}</h1>
+      {:else if renaming}
+        <form class="flex gap-2 mt-1" on:submit|preventDefault={saveTitle}>
+          <label class="sr-only" for="piece-title">Title</label>
+          <!-- svelte-ignore a11y-autofocus -->
+          <input id="piece-title" class="title-input text-center" bind:value={titleDraft} maxlength="120" autofocus on:blur={saveTitle} />
+        </form>
+      {:else}
+        <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink flex items-center justify-center gap-2 max-w-full">
+          <span class="truncate">{piece.title}</span>
+          <button type="button" class="icon-btn" aria-label="Rename" on:click={() => ((titleDraft = piece?.title ?? ""), (renaming = true))}>
+            <Pencil size={16} aria-hidden="true" />
+          </button>
+        </h1>
+      {/if}
+      <p class="text-sm text-sr-muted">{piece.composer ? `${piece.composer} · ` : ""}{score.parts.length} part{score.parts.length === 1 ? "" : "s"} · {score.measures.length} bars</p>
+      {#if assignment}
+        <p class="text-sm text-sr-muted">From your assignment: bars {score.measures[assignment.settings.from].label} to {score.measures[assignment.settings.to].label}, ready to rehearse.</p>
       {/if}
     </header>
 
@@ -1771,6 +1766,11 @@
           </div>
         {/if}
       </div>
+      {#if canAssign}
+        <button type="button" class="sr-btn setbar-new flex items-center gap-1.5" aria-expanded={assignOpen} on:click={() => ((assignOpen = !assignOpen), (assignedTo = null))}>
+          <Send size={16} aria-hidden="true" /> Assign to a class
+        </button>
+      {/if}
 
       {#if settingPop}
         <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
@@ -1903,7 +1903,8 @@
         <span class="mr-auto text-xs text-sr-muted px-1">Tap a note to play from there.</span>
       {/if}
       <button type="button" class="tool-btn" on:click={startingPitches}><Ear size={16} aria-hidden="true" />Starting pitches</button>
-      <button type="button" class="tool-btn" class:tool-btn-live={gradeOpen} aria-pressed={gradeOpen} on:click={() => (gradeOpen ? closeGrade() : openGrade())}><Mic size={16} aria-hidden="true" />Listen and grade</button>
+      <!-- Peach, as the practice pages' Listen and grade. -->
+      <button type="button" class="inline-flex items-center gap-2 rounded-full px-4 min-h-10 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95" class:grade-live={gradeOpen} aria-pressed={gradeOpen} on:click={() => (gradeOpen ? closeGrade() : openGrade())}><Mic size={16} aria-hidden="true" />Listen and grade</button>
     </div>
     {/if}
 
@@ -1951,16 +1952,19 @@
       onPrint={() => window.print()}
     >
       <svelte:fragment slot="extra">
-        {#if !asg}
-          <button type="button" class="fs-keep flex-shrink-0 rounded-full px-3 h-11 xl:h-8 text-sm font-bold {countInOn ? 'opacity-100' : 'opacity-50'}"
-            aria-pressed={countInOn} title={countInOn ? "Count-in on: turn it off" : "Count-in off: turn it on"} on:click={() => (countInOn = !countInOn)}>Count-in</button>
-        {/if}
-        <button type="button" class="fs-keep flex-shrink-0 rounded-full px-3 h-11 xl:h-8 text-sm font-bold {clickOn ? 'opacity-100' : 'opacity-50'}"
-          aria-pressed={clickOn} title={clickOn ? "Click on: turn it off" : "Click off: turn it on"} on:click={toggleClick}>Click</button>
-        <!-- The click's volume: the metronome's own setting, shared with the practice pages; live while playing. -->
-        <input type="range" min="0" max="1" step="0.05" value={$tuner.metronomeVolume}
-          on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
-          class="fs-keep w-16 h-10 xl:h-auto accent-sr-bar-on" aria-label="Click volume" title="Click volume (the count-in too)" />
+        <!-- As the practice pages' metronome: its icon, its volume, and Click as a pill (peach when on); Count-in beside it. -->
+        <div class="fs-keep flex items-center gap-2">
+          <span class="flex-shrink-0 opacity-80 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8" aria-hidden="true"><MetronomeIcon size={22} /></span>
+          <input type="range" min="0" max="1" step="0.05" value={$tuner.metronomeVolume}
+            on:input={(e) => tuner.setMetronomeVolume(Number(e.currentTarget.value))}
+            class="w-16 h-10 xl:h-auto accent-sr-bar-on" aria-label="Click volume" title="Click volume (the count-in too)" />
+          <button type="button" class="rounded-full px-3 min-h-11 xl:min-h-0 py-2 xl:py-0.5 text-xs font-semibold {clickOn ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+            aria-pressed={clickOn} title={clickOn ? "Click on: turn it off" : "Click off: turn it on"} on:click={toggleClick}>{clickOn ? "Click On" : "Click"}</button>
+          {#if !asg}
+            <button type="button" class="rounded-full px-3 min-h-11 xl:min-h-0 py-2 xl:py-0.5 text-xs font-semibold {countInOn ? 'bg-sr-peach text-sr-peach-ink' : 'bg-sr-bar-btn hover:bg-sr-bar-btn-hi'}"
+              aria-pressed={countInOn} title={countInOn ? "Count-in on: turn it off" : "Count-in off: turn it on"} on:click={() => (countInOn = !countInOn)}>Count-in</button>
+          {/if}
+        </div>
       </svelte:fragment>
     </PlaybackBar>
 
@@ -2212,6 +2216,8 @@
   .set-group { position: relative; display: flex; flex-direction: column; gap: 0.2rem; }
   .set-group::before { content: ""; position: absolute; left: -0.65rem; top: 0.25rem; bottom: 0.25rem; border-left: 1px solid var(--sr-hairline); }
   .set-group-pills { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  @media (max-width: 640px) { .setbar-new { flex: 1; justify-content: center; } }
+  .grade-live { box-shadow: 0 0 0 2px var(--sr-action); }
   .set-group-label {
     display: inline-flex;
     align-items: center;

@@ -45,18 +45,31 @@ const founderCode = () =>
     },
   });
 
-/** Whether this account joined as a founding teacher. */
-export async function isFounder(userId: string) {
+/**
+ * The FOUNDER_CODE access code's id, once it exists (joinFounders makes it).
+ * Kept per server instance once found, since it never changes: every
+ * signed-in home asks.
+ */
+let founderCodeId: string | null = null;
+async function founderCodeIdOrNull() {
+  if (founderCodeId) return founderCodeId;
   const code = await prisma.accessCode.findUnique({ where: { code: FOUNDER_CODE }, select: { id: true } });
-  if (!code) return false;
-  return !!(await prisma.accessGrant.findFirst({ where: { userId, codeId: code.id }, select: { id: true } }));
+  if (code) founderCodeId = code.id;
+  return code?.id ?? null;
 }
 
+/** Whether this account joined as a founding teacher. */
+export async function isFounder(userId: string) {
+  const codeId = await founderCodeIdOrNull();
+  return !!codeId && joinedUnder(userId, codeId);
+}
+
+const joinedUnder = async (userId: string, codeId: string) =>
+  !!(await prisma.accessGrant.findFirst({ where: { userId, codeId }, select: { id: true } }));
+
 /** Whether another account behind the same address (emailKey) has joined. */
-async function personJoined(userId: string, email: string) {
-  const code = await prisma.accessCode.findUnique({ where: { code: FOUNDER_CODE }, select: { id: true } });
-  if (!code) return false;
-  const grants = await prisma.accessGrant.findMany({ where: { codeId: code.id, userId: { not: userId } }, select: { user: { select: { email: true } } } });
+async function personJoined(userId: string, email: string, codeId: string) {
+  const grants = await prisma.accessGrant.findMany({ where: { codeId, userId: { not: userId } }, select: { user: { select: { email: true } } } });
   const key = emailKey(email);
   return grants.some((g) => emailKey(g.user.email) === key);
 }
@@ -65,13 +78,23 @@ async function personJoined(userId: string, email: string) {
  * Whether this account may join, and if not the step in the way.
  * `approved`: the owner approved their application, which stands in for a
  * school email, and holds even if the offer closed while it waited.
+ *
+ * Two round trips: everything that needs only the id at once, then the two
+ * grant lookups that need the account's email (it was seven in a row, on
+ * every signed-in home).
  */
 export async function founderStatus(userId: string | null, opts: { approved?: boolean } = {}) {
   if (!userId) return founderDecision({ open: open(), signedIn: false });
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true, accountType: true } });
+  const [user, classlink, application, codeId] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { email: true, emailVerified: true, accountType: true } }),
+    viaClasslink(userId),
+    prisma.founderApplication.findUnique({ where: { userId }, select: { status: true } }),
+    founderCodeIdOrNull(),
+  ]);
   if (!user) return founderDecision({ open: open(), signedIn: false });
-  const classlink = await viaClasslink(userId);
-  const application = await prisma.founderApplication.findUnique({ where: { userId }, select: { status: true } });
+  const [already, joined] = codeId
+    ? await Promise.all([joinedUnder(userId, codeId), personJoined(userId, user.email, codeId)])
+    : [false, false];
   return founderDecision({
     open: opts.approved || open(),
     signedIn: true,
@@ -80,8 +103,8 @@ export async function founderStatus(userId: string | null, opts: { approved?: bo
     // but the district stands behind the teacher who signs in through it.
     emailVerified: !!user.emailVerified || classlink,
     disposable: isDisposable(user.email),
-    already: await isFounder(userId),
-    personJoined: await personJoined(userId, user.email),
+    already,
+    personJoined: joined,
     proven: opts.approved || classlink || isSchoolEmail(user.email),
     application: (application?.status as "pending" | "approved" | "declined" | undefined) ?? null,
   });

@@ -20,7 +20,7 @@ export const TOUR_STEPS: Record<TourPage, TourStep[]> = {
     { anchor: "preset", title: "Start from a preset", body: "Ready-made levels live here. New to sight reading? abcStepByStep takes you from rhythm alone to singing in parts, one new thing at a time." },
     { anchor: "reader", title: "Who is reading", body: "Voice or instrument. It sets the clef, the range and the sound." },
     { anchor: "settings", title: "Your settings", body: "Each pill shows what is chosen. Tap one to change the key, meter, length, notes or rhythms." },
-    { anchor: "new", title: "New exercise", body: "Writes a fresh exercise from your settings. Every one is new." },
+    { anchor: "new", title: "New exercise", body: "Writes a new exercise from your settings." },
     { anchor: "play", title: "Play it", body: "Hear the exercise with a count-in. Tempo, Loop and the metronome are on this bar too." },
     { anchor: "display", title: "What the score shows", body: "Solfège, note names, rhythm syllables, the cursor and the sound." },
     { anchor: "grade", title: "Listen and grade", body: "Sing it (or clap a rhythm) into the microphone and see each note marked on the music." },

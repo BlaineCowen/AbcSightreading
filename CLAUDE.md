@@ -954,10 +954,23 @@ analysis by synthesis works (his falsetto). The live loop is
 cannot: a man's [o] above G3 read as a woman's [u]). Vowels are only
 trusted below about A4, and rough above E4. It is all from the mic alone; nothing compares
 against the written notes yet.
-Ported from Blaine's standalone tuner project; see `src/lib/tuner/README.md`.
-The detection files are that project's unchanged, so improve detection there
-(its `scripts/pitch-bench.ts`) and copy the change across. Canvases take the
+Ported from Blaine's standalone tuner project, which is retired (18 October
+2026): abcTuner is the tuner now, so improve detection here; see
+`src/lib/tuner/README.md`. Detection pauses while the tab is out of sight
+unless a run holds the microphone (`micHeld`; `TunerEngine.setPaused`, the
+mic left open). Canvases take the
 site's theme colours through `src/lib/tuner/canvas-colors.ts`.
+
+**OmniPitch** (the abcTuner tab, 22 October 2026; Blaine: OmniPitch's own
+editor inside abcTuner, under the abc look): `OmniPitchTab.svelte` frames
+`public/omnipitch/editor/index.html`, OmniPitch's editor copied from
+`~/Projects/polyphonic-pitch-detector` by `bun run scripts/omnipitch/sync.ts`
+with the Recess colours and fonts, the site's theme, the in-browser engine
+only and a versioned wasm (12 MB, the vocoder build; loaded only when the
+tab opens). How to sync, rebuild and bump the wasm: notes/omnipitch.md. A
+part-by-part director's view built on the same detector is stashed on the
+branch `ensemble-parts-idea`. `/dev/tuner` is abcTuner with no account
+(dev server only).
 
 **Grade** (Unison page, pitched, Pro): "Listen and grade" above the score
 opens a strip docked above the playback bar (the page leaves room below the
@@ -1811,7 +1824,10 @@ all of it on the dev server through `/dev/piece` (dev only, 404 elsewhere),
 which draws PieceViewer while the script answers its API with a piece read
 from MusicXML (by default a three-part round in the shape of Ghost of John).
 
-**Laid out as the practice pages** (14 October 2026, Blaine): the owner's
+**Laid out as the practice pages** (14 October 2026, Blaine; matched again 16
+October: the practice pages' width, the title centred, Assign to a class
+ending the settings row as New exercise does, Listen and grade in peach,
+the playback bar's metronome icon, volume and Click pill): the owner's
 and a library song's view have the settings pills (Key, Parts with the mixer
 and practice mixes, Bars, and for the owner Class libraries), a toolbar over
 the score (Starting pitches, Listen and grade) and the shared PlaybackBar

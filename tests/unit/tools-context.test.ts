@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { exerciseInfo } from "../../src/lib/tools/context";
+import { exerciseInfo } from "../../src/lib/tools/exercise-info";
 
 /**
  * The practice tools read the exercise from its ABC: the key's do, the meter,

@@ -24,7 +24,8 @@
  */
 import { solfegeOf } from "../src/lib/grade";
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
-import { STRICTNESS, gradeSchedule } from "../src/lib/grade";
+import { STRICTNESS } from "../src/lib/grade";
+import { gradeSchedule } from "../src/lib/grade-schedule";
 
 const APP = process.env.APP ?? "http://localhost:4321";
 const MODE = (process.env.MODE ?? "performance") as "pitch" | "performance";

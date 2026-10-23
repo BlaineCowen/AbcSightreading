@@ -40,6 +40,9 @@ export const FADE_SECONDS = 1.5;
 /** How quickly the loop gives way to its ending: short enough not to hear, long enough not to click. */
 const HANDOVER_SECONDS = 0.03;
 
+/** Warped buffers kept (PlayAlongAudio `stretched`): a loop and its ending at three tempos. */
+const STRETCHED_KEEP = 6;
+
 export class PlayAlongAudio {
   readonly ctx: AudioContext;
   readonly stream: MediaStream;
@@ -61,7 +64,12 @@ export class PlayAlongAudio {
   private backingBuffers = new Map<string, AudioBuffer>();
   /** Loops' endings (BackingTrack `ending`), by track id. */
   private endingBuffers = new Map<string, AudioBuffer>();
-  /** Backing tracks warped to another tempo, by "id@bpm". */
+  /**
+   * Backing tracks warped to another tempo, by "id@bpm" (and their endings,
+   * "id:end@bpm"), the most recently used last. Each is the whole track, about
+   * 35 MB for 90 s of stereo, so only the last few are kept (STRETCHED_KEEP):
+   * stepping through the tempo choices kept every one until the video closed.
+   */
   private stretched = new Map<string, AudioBuffer>();
   private guideBuffer: AudioBuffer | null = null;
   private sources: AudioScheduledSourceNode[] = [];
@@ -145,10 +153,11 @@ export class PlayAlongAudio {
   private warped(original: AudioBuffer | undefined, key: string, rate: number): AudioBuffer | undefined {
     if (!original || rate === 1) return original;
     let buffer = this.stretched.get(key);
-    if (!buffer) {
-      buffer = stretchBuffer(this.ctx, original, rate);
-      this.stretched.set(key, buffer);
-    }
+    if (buffer) this.stretched.delete(key);
+    else buffer = stretchBuffer(this.ctx, original, rate);
+    this.stretched.set(key, buffer);
+    // Dropping one here never cuts it off: a source that is playing holds its own buffer.
+    while (this.stretched.size > STRETCHED_KEEP) this.stretched.delete(this.stretched.keys().next().value!);
     return buffer;
   }
 

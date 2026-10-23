@@ -12,6 +12,9 @@ const KEY_MAX_RATIO = 0.9;
 const CANDIDATE_RATIO = 0.6;
 const MAX_CANDIDATES = 6;
 
+let sqScratch = new Float64Array(0);
+let nsdfScratch = new Float32Array(0);
+
 /**
  * McLeod Pitch Method, returning every key maximum as a candidate rather than
  * committing to one. A single per-frame choice cannot recover from a frame
@@ -27,12 +30,17 @@ export function detectCandidates(
   const minLag = Math.max(1, Math.floor(sampleRate / MAX_FREQ_HZ));
   const maxLag = Math.min(len - 2, Math.ceil(sampleRate / MIN_FREQ_HZ));
 
-  // Prefix sums of squares so both segment energies are O(1) per lag.
-  const sq = new Float64Array(len + 1);
+  // Prefix sums of squares so both segment energies are O(1) per lag. The
+  // scratch arrays are kept between frames (about 23 a second while the mic
+  // is on) rather than made new each time; every slot used is written first.
+  if (sqScratch.length < len + 1) sqScratch = new Float64Array(len + 1);
+  if (nsdfScratch.length < maxLag + 1) nsdfScratch = new Float32Array(maxLag + 1);
+  const sq = sqScratch;
+  sq[0] = 0;
   for (let i = 0; i < len; i++) sq[i + 1] = sq[i] + buffer[i] * buffer[i];
   if (sq[len] <= 0) return [];
 
-  const nsdf = new Float32Array(maxLag + 1);
+  const nsdf = nsdfScratch;
   for (let lag = 0; lag <= maxLag; lag++) {
     let acf = 0;
     const n = len - lag;

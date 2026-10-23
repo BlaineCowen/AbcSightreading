@@ -326,7 +326,7 @@
       </label>
       <label class="space-y-1 col-span-2 sm:col-span-3 lg:col-span-4">
         <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Source</span>
-        <input bind:value={source} placeholder="Where you read it - year, level, publisher"
+        <input bind:value={source} placeholder="Where you read it: year, level, publisher"
           class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
       </label>
       <div class="flex items-end gap-2 col-span-2">

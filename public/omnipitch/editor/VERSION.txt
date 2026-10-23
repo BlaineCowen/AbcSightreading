@@ -1,0 +1,2 @@
+OmniPitch editor from polyphonic-pitch-detector c35e568, synced 2026-10-23.
+Basic Pitch by Spotify, Apache-2.0 (LICENSE-basic-pitch); the voices model trained on the Choral Singing Dataset (CC BY 4.0).

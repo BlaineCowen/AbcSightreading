@@ -71,7 +71,7 @@
   <div class="offer">
     <p class="badge"><Sparkles size={13} aria-hidden="true" /> Free for 30 days</p>
     <p class="font-display text-xl font-bold leading-tight">Try Pro free for a month</p>
-    <p class="text-sm">Unlimited exercises, Listen and grade, abcTuner and the practice tools. No card, nothing to cancel: after 30 days you simply go back to the free plan.</p>
+    <p class="text-sm">Unlimited exercises, Listen and grade, abcTuner and the practice tools. No card, nothing to cancel: after 30 days you go back to the free plan.</p>
     {#if status.ok}
       <button class="sr-btn self-start" on:click={claim} disabled={busy}>{busy ? "Starting…" : "Start my free month"}</button>
     {:else if status.step === "confirm"}

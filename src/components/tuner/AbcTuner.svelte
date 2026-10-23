@@ -23,10 +23,11 @@
    */
   // No Pitches tab: it gives each part its first note from an exercise, and
   // there is no exercise here. It stays in the practice pages' Tools wheel.
-  type Tab = "tuner" | "analysis" | "metro" | "drone" | "timer" | "challenge";
+  type Tab = "tuner" | "analysis" | "omnipitch" | "metro" | "drone" | "timer" | "challenge";
   const TABS: [Tab, string][] = [
     ["tuner", "Tuner"],
     ["analysis", "Analysis"],
+    ["omnipitch", "OmniPitch"],
     ["metro", "Metronome"],
     ["drone", "Drone"],
     ["timer", "Timer"],
@@ -42,6 +43,7 @@
   $: running = {
     tuner: $tuner.engineStatus === "running",
     analysis: false,
+    omnipitch: false,
     metro: $tuner.metronomeRunning,
     drone: $droneOn,
     timer: $timer.running,
@@ -49,6 +51,8 @@
   } as Record<Tab, boolean>;
 
   onMount(initTuner);
+  // The OmniPitch tab frames OmniPitch's editor (12 MB): loaded only when it is opened.
+  const omniPitchTab = () => import("./OmniPitchTab.svelte");
 </script>
 
 <div class="w-full max-w-4xl mx-auto px-4 flex flex-col gap-4 pb-10">
@@ -76,6 +80,14 @@
       <DetectionHint />
     {:else if tab === "analysis"}
       <ToolAnalysis large />
+    {:else if tab === "omnipitch"}
+      {#await omniPitchTab()}
+        <p class="text-sm text-sr-muted">Loading…</p>
+      {:then m}
+        <svelte:component this={m.default} />
+      {:catch}
+        <p class="text-sm text-sr-ink">The OmniPitch tab could not load. Reload the page to try again.</p>
+      {/await}
     {:else if tab === "metro"}
       <TunerMetronome />
     {:else if tab === "drone"}

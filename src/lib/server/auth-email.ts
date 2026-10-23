@@ -52,7 +52,7 @@ export function resetPasswordEmail(url: string) {
       `To choose a new password, open this link within the hour:`,
       url,
       "",
-      "If that was not you, ignore this email - your password has not changed.",
+      "If that was not you, ignore this email: your password has not changed.",
     ].join("\n"),
   };
 }
