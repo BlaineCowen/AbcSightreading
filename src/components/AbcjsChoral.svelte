@@ -5,7 +5,9 @@
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { tuner } from "../lib/tuner/store";
-  import { drumPatternFor, withClickByBar } from "../lib/playback-click";
+  import { drumPatternFor, scheduleClick, withClickByBar } from "../lib/playback-click";
+  import { SampleBank } from "../lib/tuner/click-sounds";
+  import { eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import { beatLevelsFor } from "../lib/tuner/click-pattern";
   import { assistedLevels, assistsTheClick } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
@@ -22,7 +24,7 @@
   import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import CountInBadge from "./CountInBadge.svelte";
   import { revealNextLine, scrollToReadingPosition, systemAt, systemOf } from "../lib/scroll-to-system";
-  import { countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
+  import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
@@ -124,6 +126,19 @@
   let synthControl: any = null;
   let renderedTune: any = null;
   let isPlaying = false;
+  /**
+   * Where Play starts (start-point.ts): a tapped note, by its place in the
+   * ABC, or null for the top. Play counts in to it; Stop comes back to it;
+   * Back to start forgets it. Loop goes round from the top.
+   */
+  let startChar: number | null = null;
+  /** Paused by the transport (abcjs keeps the place): Play carries on from there. */
+  let pausedHere = false;
+  /** The notes last reached while playing, for the "Paused" line. */
+  let lastEventEls: Element[] = [];
+  /** A count-in into a tapped note: its timers, so Pause or Stop can end it. */
+  let leadIn: ReturnType<typeof setTimeout>[] | null = null;
+  const leadInClicks = new SampleBank();
   let looping = false;
   let mutedVoices: Set<string> = new Set();
   /**
@@ -898,6 +913,10 @@
         add_classes: true,
         responsive: "resize",
         staffwidth,
+        // A tapped note is where Play starts (start-point.ts).
+        clickListener: (abcelem: any) => {
+          if (typeof abcelem?.startChar === "number") void startFromNote(abcelem.startChar);
+        },
         wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
       });
     };
@@ -930,6 +949,9 @@
     }
     // The shared cursor (score-cursor.ts, as My music's), behind the music.
     playbackCursor = makeCursor(svg);
+    // A redraw keeps a tapped note; its line is drawn again.
+    lastEventEls = [];
+    markStart();
   }
   /** The notes being played, blue. */
   const noteLight = new NoteLight();
@@ -1876,11 +1898,131 @@
       const click = exercisePlays(true);
       if (renderedTune && builtClick.split("|")[0] !== String(click)) await initSynth(renderedTune);
       if (!synthControl) return;
+      // A tapped note, and no pause to carry on from: a count-in into it.
+      if (!pausedHere && startChar !== null && (await startLeadIn())) return;
+      pausedHere = false;
       await synthControl.play();
       isPlaying = true;
+      markStart();
     } finally {
       isPreparing = false;
     }
+  }
+
+  /** The tapped note's timing event in the synth's timer (count-in and tempo included), loading it if need be. */
+  async function tappedTiming(): Promise<TimingEvent | null> {
+    if (!synthControl || startChar === null) return null;
+    if (!synthControl.timer) await synthControl.go();
+    return eventForChar(synthControl.timer?.noteTimings, startChar);
+  }
+
+  /**
+   * Moves abcjs's audio and cursor together to `ms` into the playback (its
+   * count-in included). The controller restarts its timer from its own
+   * percent, so that is set too, or the cursor ran from the top.
+   */
+  function seekTo(ms: number) {
+    const timer = synthControl?.timer;
+    if (!timer) return;
+    synthControl.seek(ms / 1000, "seconds");
+    synthControl.setProgress(ms / Math.max(1, timer.lastMoment), timer.lastMoment);
+  }
+
+  /**
+   * Plays from a tapped note with a count-in before it: the count-in's clicks
+   * (when the click is on) and words on the audio clock, then the music from
+   * the note. abcjs's count-in is the first bar of its audio, so it cannot
+   * lead into the middle; this one is booked beside it. False when the note
+   * is the first (the usual count-in does).
+   */
+  async function startLeadIn(): Promise<boolean> {
+    const tapped = await tappedTiming();
+    const timer = synthControl?.timer;
+    if (!tapped || !timer) return false;
+    const beats = countInBeats(playedMeter);
+    const beatSec = (timer.millisecondsPerBeat * timer.beatSubdivisions) / 1000;
+    if (tapped.milliseconds <= beats * beatSec * 1000 + 1) return false;
+    seekTo(tapped.milliseconds);
+    const ctx: AudioContext = abcjs.synth.activeAudioContext();
+    await ctx.resume();
+    const t = tuner.get();
+    const clicking = clickOnFor(t);
+    if (clicking) await Promise.race([leadInClicks.load(ctx), new Promise((r) => setTimeout(r, 1500))]);
+    const out = ctx.createGain();
+    out.gain.value = t.metronomeVolume * 2;
+    out.connect(ctx.destination);
+    const perBar = Math.max(1, beatsOf(playedMeter));
+    const begin = ctx.currentTime + 0.15;
+    leadIn = [];
+    const after = (at: number, run: () => void, early = 0) =>
+      leadIn!.push(setTimeout(run, Math.max(0, (at - early - ctx.currentTime) * 1000)));
+    for (let k = 0; k < beats; k++) {
+      const at = begin + k * beatSec;
+      if (clicking) after(at, () => scheduleClick(ctx, leadInClicks, out, at, t.clickSound, k % perBar === 0 ? "downbeat" : "beat"), 0.1);
+      after(at, () => showCountIn(playedMeter, k));
+    }
+    isPlaying = true;
+    pausedHere = false;
+    // The note in view and the cursor on it, through the count-in.
+    const first = eventElements(tapped)[0];
+    const system = first ? systemOf(first) : null;
+    if (system) scrollToReadingPosition(system);
+    if (cursorMode !== "off" && typeof tapped.left === "number") movePlaybackCursor(tapped.left, tapped.top ?? 0, tapped.height ?? 0);
+    markStart();
+    after(begin + beats * beatSec, () => {
+      leadIn = null;
+      hideCountIn();
+      if (!synthControl) return;
+      synthControl.isStarted = false;
+      void synthControl.play();
+      markStart();
+    });
+    return true;
+  }
+
+  function endLeadIn() {
+    for (const t of leadIn ?? []) clearTimeout(t);
+    leadIn = null;
+    hideCountIn();
+  }
+
+  /**
+   * The line where Play starts: the paused place ("Paused"), else the tapped
+   * note ("Start"), else none. Off while the music plays; on through a
+   * count-in into a tapped note.
+   */
+  function markStart() {
+    const svg = document.querySelector("#paper svg");
+    if (isPlaying && !leadIn) return startLine(svg, [], "");
+    if (!isPlaying && pausedHere && lastEventEls.length) return startLine(svg, lastEventEls, "Paused");
+    const tapped = eventElements(eventForChar(renderedTune?.noteTimings, startChar));
+    startLine(svg, tapped, tapped.length ? "Start" : "");
+  }
+  // The music ending (or a rebuild stopping it) takes the line back to where Play starts.
+  $: if (!isPlaying) markStart();
+
+  /**
+   * A tapped note: where Play starts. Playing, the music goes straight there
+   * (no count-in, as My music's jump); stopped or paused, it is marked, and
+   * Play counts in to it.
+   */
+  async function startFromNote(ch: number) {
+    if (!eventForChar(renderedTune?.noteTimings, ch)) return;
+    startChar = ch;
+    if (leadIn) {
+      endLeadIn();
+      isPlaying = false;
+      await handlePlay();
+      return;
+    }
+    if (isPlaying) {
+      const tapped = await tappedTiming();
+      if (tapped) seekTo(tapped.milliseconds);
+      return;
+    }
+    pausedHere = false;
+    lastEventEls = [];
+    markStart();
   }
 
   /**
@@ -1908,7 +2050,15 @@
   }
 
   async function handlePause() {
+    if (leadIn) {
+      endLeadIn();
+      isPlaying = false;
+      markStart();
+      return;
+    }
     pausePlayback();
+    pausedHere = true;
+    markStart();
   }
 
   /**
@@ -1931,13 +2081,22 @@
     parkCursorAtStart();
   }
 
+  /** Stop: back to where Play starts (the tapped note, or the top). */
   async function handleStop() {
+    endLeadIn();
     rewindToStart();
+    pausedHere = false;
+    lastEventEls = [];
+    markStart();
   }
 
-  /** Back-to-start cues the top and leaves it there; Play starts playback. */
+  /** Back-to-start cues the top and leaves it there, the tapped note let go; Play starts playback. */
   function handleRestart() {
+    endLeadIn();
+    startChar = null;
     rewindToStart();
+    pausedHere = false;
+    markStart();
   }
 
   function handleToggleLoop() {
@@ -2295,6 +2454,7 @@
         }
       },
       onEvent: (event: any) => {
+        if (event?.elements) lastEventEls = event.elements.flat();
         if (cursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (cursorMode === "note" && event && typeof event.left === "number") {
           movePlaybackCursor(event.left, event.top, event.height);
@@ -2621,6 +2781,8 @@
       if (!tune || tune.length === 0) throw new Error("Failed to render ABC notation.");
       tune[0].setTiming();
       renderedTune = tune[0];
+      startChar = null;
+      pausedHere = false;
       // The score is on the page: now it counts.
       void countGeneration();
       revealScore(document.getElementById("paper"));

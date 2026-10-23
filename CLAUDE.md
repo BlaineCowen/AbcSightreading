@@ -2360,6 +2360,25 @@ Choral, Piano and Ensemble, placed from abcjs's callbacks; My music draws the
 same from its model (pieces/score-dom.ts `cursorLine`). The Display cursor
 modes (smooth, beat by beat, note by note, off) still say where the bar goes.
 
+**Where Play starts** (23 October 2026, Blaine's item 9: pausing or clicking
+a note should start there, and show where even with the cursor off;
+`src/lib/start-point.ts`, tests `start-point.test.ts`): on Unison and Choral
+a tapped note is where Play starts, marked by My music's orange line with
+"Start" under it (`startLine`, the line drawing now in `src/lib/score-line.ts`
+so a practice page does not load My music's ABC writer). Play counts in to it,
+on the audio clock beside the timeline's own count-in (which is the first bar
+of the audio and cannot lead into the middle): the clicks when the click is on,
+"1, 2, Ready, Go", then the music from the note with the cursor and click taken
+up there (`startLeadIn` on both pages; Choral also sets the controller's own
+percent, or its timer restarted from the top). A tap while playing jumps there
+with no count-in; Pause leaves a "Paused" line; Stop goes back to the tapped
+note; Back to start and a new exercise forget it; a redraw keeps it (kept by
+its `startChar` in the ABC). Loops and drills still go from the top, and a tap
+does nothing during a Grade run. `bun run scripts/check-start-point.ts`
+(`PAGE=unison|choral`): the count-in, the audio started at the note's offset a
+count-in after Play, nothing lit before it, Paused, Stop, a jump, Back to
+start.
+
 ## Score layout
 
 The playback bar's **Layout** menu (both pages, kept in full screen;

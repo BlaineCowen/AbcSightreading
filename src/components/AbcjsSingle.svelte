@@ -81,6 +81,7 @@
   import CountInBadge from "./CountInBadge.svelte";
   import DrillBadge from "./DrillBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
+  import { eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
@@ -279,6 +280,17 @@
   let audioBuffer: AudioBuffer | null = null; // We will store the generated audio here
   let startTime = 0;
   let pausedAt = 0;
+  /**
+   * Where Play starts (start-point.ts): a tapped note, by its place in the
+   * ABC, or null for the top. Play counts in to it; Stop and the end of the
+   * music come back to it; Back to start forgets it. Loops and drills go
+   * from the top, as before.
+   */
+  let startChar: number | null = null;
+  /** The notes last reached while playing, for the "Paused" line. */
+  let lastEventEls: Element[] = [];
+  /** A count-in into a tapped note: its timers, so Pause or Stop can end it. */
+  let leadIn: ReturnType<typeof setTimeout>[] | null = null;
   let masterVolume = 0.5; // Master volume, 0-1
   let isMuted = false;
   let previousVolume = masterVolume; // To restore volume after unmuting
@@ -2033,6 +2045,8 @@
           // Hearing the take: a tapped note is where it plays from.
           if (i >= 0 && takePlayer && gradeTrace?.spans[i]) takePlayer.seek(gradeTrace.spans[i].from - 150);
         }
+        // Anywhere else, a tapped note is where Play starts.
+        else if (!grading && !drillRunning && typeof event?.startChar === "number") startFromNote(event.startChar);
         // Every note on the rhythm staff is the same placeholder pitch, so
         // playing it back would be meaningless.
         if (rhythmOnly) return;
@@ -2373,6 +2387,7 @@
           }
           playingSystem = system;
         }
+        if (event?.elements) lastEventEls = event.elements.flat();
         if (effectiveCursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (effectiveCursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
@@ -2427,6 +2442,9 @@
       // the callbacks read cursorMode live - without rebuilding the tune.
       beatSubdivisions: 16,
     });
+    // A redraw (layout, tempo, sound) keeps a tapped note; its line is drawn again.
+    lastEventEls = [];
+    markStart();
   }
 
   /**
@@ -2802,6 +2820,13 @@
     // press that bails out above must not silence it.
     exercisePlays(true);
 
+    // A tapped note (and no pause): a count-in into it, then the music from there.
+    const tapped = pausedAt === 0 && passCountInOverride === null && !drillRunning ? tappedEvent() : null;
+    if (tapped && tapped.milliseconds / 1000 > getCountInDuration() + 0.001) {
+      startLeadIn(tapped);
+      return;
+    }
+
     // A pause left us a position on the timeline; anything else starts over.
     let resumeFrom = pausedAt;
     if (resumeFrom >= getTimelineDuration()) resumeFrom = 0;
@@ -2818,6 +2843,7 @@
     }
     pausedAt = 0;
     isPlaying = true;
+    markStart();
 
     // Settle the page during the count-in, not on the downbeat.
     if (fromTheTop) scrollToFirstSystem();
@@ -2837,6 +2863,15 @@
    */
   function pauseMusic() {
     if (!isPlaying) return;
+    // Paused in the count-in to a tapped note: Play counts in to it again.
+    if (leadIn) {
+      endLeadIn();
+      stopSourceNode();
+      isPlaying = false;
+      pausedAt = 0;
+      markStart();
+      return;
+    }
 
     // Where we are on the timeline, count-in included. Works during the
     // count-in too, when the buffer hasn't started sounding yet.
@@ -2850,6 +2885,7 @@
     if (timingCallbacks) {
       timingCallbacks.pause();
     }
+    markStart();
   }
 
   /** Tears down the current buffer source without triggering its onended. */
@@ -2869,6 +2905,7 @@
    * Stops music playback and resets playback state
    */
   function stopMusic() {
+    endLeadIn();
     isPlaying = false;
     // A repeat that redraws the score plays afresh (playMusic, after this).
     nextPassZero = null;
@@ -2879,6 +2916,97 @@
       timingCallbacks.stop();
     }
     hidePlaybackCursor();
+    markStart();
+  }
+
+  /** The tapped note's timing event in this render, or null. */
+  const tappedEvent = (): TimingEvent | null => eventForChar(timingCallbacks?.noteTimings, startChar);
+
+  /**
+   * The line where Play starts: the paused place ("Paused"), else the tapped
+   * note ("Start"), else none (the top, where the cursor is parked). Off
+   * while the music plays; on through a count-in into a tapped note.
+   */
+  function markStart() {
+    const svg = document.querySelector("#paper svg");
+    if (isPlaying && !leadIn) return startLine(svg, [], "");
+    if (!isPlaying && pausedAt > getCountInDuration() && lastEventEls.length) return startLine(svg, lastEventEls, "Paused");
+    const tapped = eventElements(tappedEvent());
+    startLine(svg, tapped, tapped.length ? "Start" : "");
+  }
+
+  /**
+   * A tapped note: where Play starts. Playing, the music goes straight there
+   * (no count-in, as My music's jump); stopped or paused, it is marked, and
+   * Play counts in to it.
+   */
+  function startFromNote(ch: number) {
+    if (!eventForChar(timingCallbacks?.noteTimings, ch)) return;
+    startChar = ch;
+    if (leadIn) {
+      stopMusic();
+      void playMusic();
+      return;
+    }
+    if (isPlaying) {
+      pauseMusic();
+      // Never inside the count-in: the first note's time can round a hair below its end.
+      pausedAt = Math.max(tappedEvent()!.milliseconds / 1000, getCountInDuration());
+      void playMusic();
+      return;
+    }
+    pausedAt = 0;
+    markStart();
+  }
+
+  function endLeadIn() {
+    for (const t of leadIn ?? []) clearTimeout(t);
+    leadIn = null;
+  }
+
+  /**
+   * Plays from a tapped note with a count-in before it, all on the audio
+   * clock: the count-in's clicks (when the click is on) and words, then the
+   * music from the note, with the cursor and the click taken up there. The
+   * timeline's own count-in is its first bar, so it cannot lead into the
+   * middle; this one is booked beside it. Each click is booked a moment
+   * before it sounds, so Pause can still take back the ones to come.
+   */
+  function startLeadIn(tapped: TimingEvent) {
+    const meter = playedMeter();
+    const beats = countInBeats(meter);
+    const beatSec = 60 / tempo;
+    const perBar = Math.max(1, beatsOf(meter));
+    const t = tapped.milliseconds / 1000;
+    const begin = audioContext.currentTime + 0.15;
+    const zero = begin + beats * beatSec - t;
+    if (!scheduleAudioFrom(t, zero)) return;
+    pausedAt = 0;
+    isPlaying = true;
+    leadIn = [];
+    const clicking = passMetronomeOverride ?? $tuner.musicClick;
+    const after = (at: number, run: () => void, early = 0) =>
+      leadIn!.push(setTimeout(run, Math.max(0, (at - early - audioContext.currentTime) * 1000)));
+    for (let k = 0; k < beats; k++) {
+      const at = begin + k * beatSec;
+      if (clicking) after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
+      after(at, () => showCountIn(meter, k));
+    }
+    // The note in view and the cursor on it, through the count-in.
+    const first = eventElements(tapped)[0];
+    const system = first ? systemOf(first) : null;
+    if (system) scrollToReadingPosition(system);
+    playingSystem = system;
+    if (effectiveCursorMode !== "off" && typeof tapped.left === "number") movePlaybackCursor(tapped.left, tapped.top ?? 0, tapped.height ?? 0);
+    markStart();
+    // The music: the cursor and the click take up from the note as it sounds.
+    after(zero + t, () => {
+      leadIn = null;
+      hideCountIn();
+      markStart();
+      const late = Math.min(0.25, Math.max(0, audioContext.currentTime - (zero + t)));
+      timingCallbacks?.start(t + late, "seconds");
+    });
   }
 
   /**
@@ -3191,6 +3319,7 @@
       }
 
       // Reset audio state for new tune
+      startChar = null;
       stopMusic();
       audioBuffer = null; // Force re-initialization
       createSynth = null;
@@ -3964,6 +4093,7 @@
    *  away from you. */
   function handleRestart() {
     if (drillRunning) void stopDrill();
+    startChar = null;
     stopMusic();
     parkPlaybackCursorAtStart();
   }
@@ -4145,6 +4275,7 @@
       if (opened.exercise.kind !== "unison") return;
       const score = opened.exercise.score;
       if (drillRunning) await stopDrill(false);
+      startChar = null;
       stopMusic();
       audioBuffer = null;
       createSynth = null;
