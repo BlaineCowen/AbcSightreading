@@ -5,7 +5,7 @@
 // background preparation of whole groups.
 import { loadPolyPitch } from "./polypitch.js";
 
-const pp = await loadPolyPitch("polypitch-v1.wasm");
+const pp = await loadPolyPitch("polypitch-v2.wasm");
 let session = null, sr = 44100;
 const urgent = [], background = [];
 let running = false;

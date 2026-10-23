@@ -390,7 +390,7 @@ function showEmpty() {
 const paint = () => new Promise((r) => { let done = false; const go = () => { if (!done) { done = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 100); });
 
 // Detection runs on the main thread: in a Worker, Chrome on Apple Silicon ran it ~5x slower.
-const pp = await loadPolyPitch("polypitch-v1.wasm");
+const pp = await loadPolyPitch("polypitch-v2.wasm");
 status.textContent = "";
 // In the plugin (plugin/, a JUCE web view): the take comes from Transfer instead of a file, the song plays in
 // the host (the playhead follows it), and edits go to the plugin, which plays the edited take in the track.
@@ -831,21 +831,23 @@ function addNote(t0, t1, midi) {
 // playback is detuned by the drag so far, a preview of the move.
 const solos = new Map(); // j -> Promise<{start, data}>, the note as separated
 // How note j sits across the channels: each channel's share of its separation (least squares against that
-// channel; the analysis is their mean, so the shares average 1). A note's change is added to each channel at its
-// share, keeping it where it was panned: added alike to every channel, edits made a stereo mix narrow.
+// channel), scaled to average 1, since the analysis is their mean. A note's change is added to each channel at
+// its share, keeping it where it was panned: added alike to every channel, edits made a stereo mix narrow. Only
+// the ratio is used: a soft mask makes the fit read the note several times louder than its separation (a mix
+// holds more of the note than the mask passes), and taken as is, a corrected note came back that much louder.
 const gainsOf = new Map(); // j -> Promise<number[]>
 function noteGains(j) {
   const k = original?.numberOfChannels || 1;
   if (k === 1) return Promise.resolve([1]);
   if (!gainsOf.has(j)) gainsOf.set(j, soloClip(j).then(({ start, data }) => {
-    let ss = 0;
-    for (const v of data) ss += v * v;
-    return [...Array(k)].map((_, c) => {
+    const fit = [...Array(k)].map((_, c) => {
       const x = original.getChannelData(c);
       let xs = 0;
       for (let i = Math.max(0, -start); i < data.length && start + i < x.length; i++) xs += x[start + i] * data[i];
-      return ss > 0 ? Math.max(0, Math.min(2, xs / ss)) : 1;
+      return Math.max(0, xs);
     });
+    const mean = fit.reduce((a, b) => a + b, 0) / k;
+    return mean > 0 ? fit.map((g) => Math.min(2, g / mean)) : Array(k).fill(1);
   }).catch(() => { gainsOf.delete(j); return Array(k).fill(1); }));
   return gainsOf.get(j);
 }
@@ -940,10 +942,10 @@ function pcm16(data) { // the server's clip encoding: int16 x scale / 32767, bas
 async function hostRender(e, seq, moved) {
   if (!session) { status.textContent = "Editing unavailable: the engine has not started"; return; }
   const t0 = performance.now(), want = new Map(); // key -> () => Promise<clip>
-  const delta = (j, ed) => want.set(`${notesHash}|d2|${deltaKey(j, ed)}`, () => noteDelta(j, ed).then((d) => withGains(j, [d])).then(([d]) => d));
+  const delta = (j, ed) => want.set(`${notesHash}|d4|${deltaKey(j, ed)}`, () => noteDelta(j, ed).then((d) => withGains(j, [d])).then(([d]) => d));
   for (const [j, ed] of Object.entries(e)) delta(+j, ed);
   for (const c of copies) {
-    const j = srcIdx(c); want.set(`${notesHash}|s2|${j}`, () => soloClip(j).then((d) => withGains(j, [d])).then(([d]) => d));
+    const j = srcIdx(c); want.set(`${notesHash}|s4|${j}`, () => soloClip(j).then((d) => withGains(j, [d])).then(([d]) => d));
     if (isEdited(c)) delta(j, editOf(c));
   }
   const have = new Set(await native("pp_parts"));

@@ -28,7 +28,7 @@ import { execSync } from "node:child_process";
 const REPO = process.env.OMNIPITCH ?? join(homedir(), "Projects/polyphonic-pitch-detector");
 const WEB = join(REPO, "polypitch/web");
 const OUT = "public/omnipitch/editor";
-const WASM_NAME = "polypitch-v1.wasm";
+const WASM_NAME = "polypitch-v2.wasm";
 
 function patch(file: string, text: string, edits: [string, string][]): string {
   for (const [from, to] of edits) {
