@@ -52,7 +52,7 @@
   import { HEARING_LABEL, levelFor, partsFor, type Hearing, type PieceAssignment } from "../../lib/pieces/assign";
   import { drawnElements } from "../../lib/pieces/write-abc";
   import { playPiano, preloadPiano } from "../../lib/tools/tone";
-  import { countInMeasures } from "../../lib/count-in";
+  import { countInMeasures, countInWordsFor, countInWordNow, hideCountIn } from "../../lib/count-in";
   import Ear from "lucide-svelte/icons/ear";
   import Mic from "lucide-svelte/icons/mic";
   import { GradeRunner, type GradeTrace } from "../../lib/grade-runner";
@@ -1172,6 +1172,7 @@
   function followCursor() {
     cancelAnimationFrame(cursorFrame);
     const step = () => {
+      showCountInWord();
       const t = sectionTick();
       const was = lit[0];
       for (const e of lit) e.classList.remove("piece-now");
@@ -1188,8 +1189,27 @@
     cursorFrame = requestAnimationFrame(step);
   }
 
+  /**
+   * "1, 2, Ready, Go" through the count-in, as the practice pages say it,
+   * from the audio clock (so each word lands with its click as heard). Shown
+   * over the playback bar's tempo: the bars in play may be anywhere down the
+   * piece, so the top of the score is no place for it.
+   */
+  let passCountIn: { words: string[]; beatMs: number; firstK: number } | null = null;
+  function showCountInWord() {
+    const ms = passCountIn ? player.elapsedMs() : null;
+    if (!passCountIn || ms === null) return;
+    const i = Math.floor(ms / passCountIn.beatMs + 1e-6) - passCountIn.firstK;
+    if (i >= passCountIn.words.length) {
+      passCountIn = null;
+      hideCountIn();
+    } else if (i >= 0 && $countInWordNow?.beat !== i) countInWordNow.set({ word: passCountIn.words[i], beat: i });
+  }
+
   function stopCursor() {
     cancelAnimationFrame(cursorFrame);
+    passCountIn = null;
+    hideCountIn();
     for (const e of lit) e.classList.remove("piece-now");
     lit = [];
     cursorLine(paperSvg(), [], "piece-play-line");
@@ -1200,6 +1220,28 @@
    * returns when the music is heard (performance.now ms).
    */
   $: player.setClickVolume($tuner.metronomeVolume);
+
+  /** The music's volume (every part together), as the practice pages' instrument volume; kept in this browser. */
+  const VOLUME_KEY = "abc-piece-volume";
+  let musicVolume = 0.5;
+  let volumeBeforeMute = 0.5;
+  try {
+    const v = Number(localStorage.getItem(VOLUME_KEY));
+    if (localStorage.getItem(VOLUME_KEY) !== null && v >= 0 && v <= 1) musicVolume = volumeBeforeMute = v;
+  } catch {
+    // no storage
+  }
+  $: player.setMusicVolume(musicVolume);
+  function setMusicVolume(v: number) {
+    musicVolume = v;
+    if (v > 0) volumeBeforeMute = v;
+    try {
+      localStorage.setItem(VOLUME_KEY, String(v));
+    } catch {
+      // no storage
+    }
+  }
+  const toggleMusicMute = () => setMusicVolume(musicVolume > 0 ? 0 : volumeBeforeMute || 0.5);
 
   /** Dev only: each pass's start on the audio clock (check-piece-viewer.ts LOOP=1). */
   let passLog: { audio: number; offsetMs: number; totalMs: number; countInMs: number }[] = [];
@@ -1241,6 +1283,12 @@
     makeTimeline();
     const offset = Math.max(0, Math.min(offsetMs ?? startOffset(), (timeline?.totalMs ?? 0) - 1));
     pausedMs = null;
+    const clicks = sectionClicks(countIn);
+    // The count-in's beats are the ones before the first beat at or after the start (SectionPlayer.play).
+    passCountIn = clicks.countIn
+      ? { words: countInWordsFor(clicks.countIn), beatMs: clicks.beatMs, firstK: Math.ceil((offset - 1) / clicks.beatMs) - clicks.countIn }
+      : null;
+    if (!passCountIn) hideCountIn();
     const heardAt = player.play(() => {
       isPlaying = false;
       stopCursor();
@@ -1249,9 +1297,9 @@
       // note: normally booked on the beat ahead of time (bookLoop); this is
       // for a Loop switched on too late for that.
       if (looping && !grading && !practicing) void playSection(0);
-    }, sectionClicks(countIn), offset, atAudio);
+    }, clicks, offset, atAudio);
     if (import.meta.env.DEV && player.startedAt) {
-      const c = sectionClicks(countIn);
+      const c = clicks;
       passLog = [...passLog, { audio: player.startedAt.audio, offsetMs: offset, totalMs: timeline?.totalMs ?? 0, countInMs: c.countIn * c.beatMs }];
     }
     isPlaying = true;
@@ -1952,6 +2000,17 @@
       onPrint={() => window.print()}
     >
       <svelte:fragment slot="extra">
+        <!-- The music's volume, every part together, as the practice pages' instrument volume; kept in full screen. -->
+        <div class="fs-keep flex items-center gap-2">
+          <button type="button" class="flex-shrink-0 opacity-80 hover:opacity-100 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8"
+            on:click={toggleMusicMute} aria-pressed={musicVolume === 0}
+            title={musicVolume === 0 ? "Music off: turn it on" : "Turn the music off"} aria-label={musicVolume === 0 ? "Turn the music on" : "Turn the music off"}>
+            {#if musicVolume === 0}<VolumeX size={22} />{:else}<Volume2 size={22} />{/if}
+          </button>
+          <input type="range" min="0" max="1" step="0.05" value={musicVolume}
+            on:input={(e) => setMusicVolume(Number(e.currentTarget.value))}
+            class="w-16 h-10 xl:h-auto accent-sr-bar-on" aria-label="Music volume" title="Music volume (every part)" />
+        </div>
         <!-- As the practice pages' metronome: its icon, its volume, and Click as a pill (peach when on); Count-in beside it. -->
         <div class="fs-keep flex items-center gap-2">
           <span class="flex-shrink-0 opacity-80 flex items-center justify-center h-11 w-11 xl:h-8 xl:w-8" aria-hidden="true"><MetronomeIcon size={22} /></span>

@@ -19,9 +19,11 @@ export const countInMeasures = (meter: string) => (beatsPerBar(meter) === 2 ? 2 
 
 export const countInBeats = (meter: string) => countInMeasures(meter) * beatsPerBar(meter);
 
-export function countInWords(meter: string): string[] {
-  const beats = countInBeats(meter);
-  // The last two beats are always "Ready, Go"; the numbers count up to them.
+export const countInWords = (meter: string): string[] => countInWordsFor(countInBeats(meter));
+
+/** The words for a count-in of this many beats: the last two are always "Ready, Go"; the numbers count up to them. */
+export function countInWordsFor(beats: number): string[] {
+  if (beats < 2) return beats === 1 ? ["Go"] : [];
   return [...Array.from({ length: beats - 2 }, (_, i) => String(i + 1)), "Ready", "Go"];
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
   import abcjs from "abcjs";
-  import { Minus, Plus, Play, Square, Radio } from "lucide-svelte";
+  import { Minus, Plus, Play, Square, Radio, Maximize, Minimize } from "lucide-svelte";
   import {
     FULL_SCORE,
     HEARTBEAT_MS,
@@ -27,6 +27,7 @@
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { countInBeats, countInWords } from "../lib/count-in";
+  import { createFullscreen } from "../lib/fullscreen";
 
   /**
    * Live practice, the student's side: a director's room, by the address on
@@ -83,7 +84,18 @@
   const SIZES = [0.8, 1, 1.25, 1.5, 1.8, 2.2];
   let sizeIndex = 2;
 
+  /**
+   * Full screen: the music alone across a tablet or a TV, the site's header
+   * and footer gone (the practice pages' full screen, src/lib/fullscreen.ts;
+   * inside the window where the browser has none). F toggles it, Esc leaves.
+   */
+  let fs: ReturnType<typeof createFullscreen> | null = null;
+  let fsOn = false;
+  let offFs: (() => void) | null = null;
+
   onMount(() => {
+    fs = createFullscreen();
+    offFs = fs.active.subscribe((on) => (fsOn = on));
     device = deviceKey();
     const savedSize = Number(store.get("sr-live-size"));
     if (Number.isInteger(savedSize) && savedSize >= 0 && savedSize < SIZES.length) sizeIndex = savedSize;
@@ -445,6 +457,8 @@
   }
 
   onDestroy(() => {
+    offFs?.();
+    fs?.destroy();
     stopLoops();
     stopSound();
     stopFollow();
@@ -507,6 +521,10 @@
       <div class="ml-auto flex items-center gap-1">
         <button class="sr-icon-btn h-10 w-10 flex items-center justify-center" on:click={() => resize(-1)} disabled={sizeIndex === 0} aria-label="Smaller"><Minus size={18} /></button>
         <button class="sr-icon-btn h-10 w-10 flex items-center justify-center" on:click={() => resize(1)} disabled={sizeIndex === SIZES.length - 1} aria-label="Bigger"><Plus size={18} /></button>
+        <button class="sr-icon-btn h-10 w-10 flex items-center justify-center" on:click={() => fs?.toggle()} aria-pressed={fsOn}
+          aria-label={fsOn ? "Leave full screen" : "Full screen"} title={fsOn ? "Leave full screen (Esc)" : "Full screen (F)"} data-live-fullscreen>
+          {#if fsOn}<Minimize size={18} />{:else}<Maximize size={18} />{/if}
+        </button>
       </div>
     </div>
 
@@ -549,6 +567,10 @@
 {/if}
 
 <style>
+  /* Full screen: the music as wide as the screen (the room's page holds it to max-w-5xl). */
+  :global(html.sr-focus .live-room) {
+    max-width: none;
+  }
   .live-chip {
     display: inline-flex;
     align-items: center;

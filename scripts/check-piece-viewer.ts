@@ -387,7 +387,16 @@ if (process.env.LOOP) {
   await clickText(page, "Starting pitches");
   await page.evaluate(() => (document.querySelector('[aria-label="Play"]') as HTMLButtonElement)?.click());
   await page.waitForSelector('[aria-label="Pause"]', { timeout: 20000 }).catch(() => fail("director: Play never started"));
-  await sleep(2500);
+  // "1, 2, Ready, Go" over the playback bar through the count-in, as the practice pages.
+  const words: string[] = [];
+  for (let i = 0; i < 50; i++) {
+    const w = await page.evaluate(() => document.querySelector(".count-in span")?.textContent ?? "");
+    if (w && w !== words[words.length - 1]) words.push(w);
+    await sleep(50);
+  }
+  console.log(`  count-in words: ${words.join(", ") || "none"}`);
+  if (words.slice(-2).join(" ") !== "Ready Go") fail(`director: the count-in said "${words.join(", ")}"`);
+  if (!(await page.$('[aria-label="Music volume"]'))) fail("director: no music volume in the playback bar");
   await shot(page, "1c-director-playing");
   await page.evaluate(() => (document.querySelector('[aria-label="Pause"]') as HTMLButtonElement)?.click());
   await page.close();

@@ -17,7 +17,7 @@ if (raw !== code) return Astro.redirect(`/live/${code}`);
 ---
 
 <Layout noindex childSafe title="Live practice | abcSightReading" description="Your director's exercise on your own device, with only your part." themable>
-  <div class="flex flex-col w-full items-center gap-5 pb-16 max-w-5xl mx-auto">
+  <div class="live-room flex flex-col w-full items-center gap-5 pb-16 max-w-5xl mx-auto">
     <LiveStudent client:only="svelte" initialCode={code} />
   </div>
 </Layout>
