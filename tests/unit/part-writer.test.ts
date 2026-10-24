@@ -85,7 +85,9 @@ test("never crossing, no seconds or sevenths but a suspension, no parallel fifth
             expect(apart).toBeGreaterThanOrEqual(0);
             if (!ns[x].ornament && !ns[y].ornament) expect([1, 6]).not.toContain(apart % 7);
             const prev = ss[k - 1];
-            if (prev && prev[x].pitchValue !== ns[x].pitchValue && prev[y].pitchValue !== ns[y].pitchValue && [0, 4, 7, 11, 14].includes(apart))
+            // The opening on the tune in octaves (octave-opening.ts) is one line, doubled.
+            const doubled = prev && [prev[x], prev[y], ns[x], ns[y]].every((n) => n.doubled);
+            if (prev && !doubled && prev[x].pitchValue !== ns[x].pitchValue && prev[y].pitchValue !== ns[y].pitchValue && [0, 4, 7, 11, 14].includes(apart))
               expect(prev[x].pitchValue - prev[y].pitchValue).not.toBe(apart);
           }
       });

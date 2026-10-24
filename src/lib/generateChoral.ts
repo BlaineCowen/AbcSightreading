@@ -13,6 +13,9 @@ import { bassChromaticFaults } from "./bass-chromatic-check";
 import { parallelFaults } from "./parallel-check";
 import { generateNonChordTones } from "./non-chord-tone-gen";
 import { chordOnsets, varyVoiceRhythms } from "./voice-rhythm";
+import { octaveOpeningProbabilityFor, octaveOpeningSpan } from "./octave-opening";
+import { addPickup } from "./pickup";
+import { beatUnitOf } from "./meter";
 
 /**
  * How often a place where one part could sing a dotted quarter and eighth
@@ -131,6 +134,11 @@ export interface GenerateChoralParams {
    * an appoggiatura or escape tone on eighths, not on quarters.
    */
   stepwiseEighths?: boolean;
+  /**
+   * Open with a one-beat pickup, usually on so, the last bar a beat short to
+   * make up for it (pickup.ts). Left off when nothing fits.
+   */
+  pickup?: boolean;
 }
 
 /** What generateChoralExercise returns. */
@@ -485,7 +493,9 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     try {
       if (melodyFirst || ssaTextureHere || partTexture) {
         if (partTexture) {
-          const written = writeParts({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: partTexture, skipLevel: params.skipLevel });
+          // Four parts may open on the tune in octaves, as "Our Hero" does (octave-opening.ts).
+          const octaveOpening = kindHere === "SATB" ? octaveOpeningSpan(timeSig.tsPerMeasure, octaveOpeningProbabilityFor(params.partWriterLevel)) : 0;
+          const written = writeParts({ key, rhythms: finalRhythms, progression: chordProgression, chords, voiceParts, maxSkip, tsPerMeasure: timeSig.tsPerMeasure, texture: partTexture, skipLevel: params.skipLevel, octaveOpening });
           voiceNotes = written.voiceNotes;
           chordProgression = written.progression;
           break;
@@ -592,22 +602,24 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   // splice, for the same reason that one runs after decoration: it copies the
   // material as actually sung. Declines rather than fails - see the module.
   const restatements: { start: number; length: number }[] = [];
+  // Every join and swapped note keeps the exercise's own leap rules: an
+  // eighth reached and left by step (it checked maxSkip alone, and 6% of
+  // short notes in SSA restatements were leapt to - "too much skip in 8th
+  // notes", Blaine, 7 October 2026), and Level 1's list of skips. The
+  // octave opening and the pickup keep them too.
+  const leapOk = (from: VoiceNote, to: VoiceNote) =>
+    (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
+    (!((melodyFirst || ssa || partTexture) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)) &&
+    // An altered note is reached by step (accidentals by step); a restated
+    // phrase's seam leapt to one now and then.
+    (!accidentalsByStep || !to.accidental || Math.abs(to.pitchValue - from.pitchValue) <= 1);
   const rhymed = applyRhymingPhrases(withUnison, {
     measures,
     tsPerMeasure: timeSig.tsPerMeasure,
     maxSkip,
     ranges: voiceParts.map((vp) => vp.range as [number, number]),
     probability: params.rhymeProbability ?? 0,
-    // Every join and swapped note keeps the exercise's own leap rules: an
-    // eighth reached and left by step (it checked maxSkip alone, and 6% of
-    // short notes in SSA restatements were leapt to - "too much skip in 8th
-    // notes", Blaine, 7 October 2026), and Level 1's list of skips.
-    leapOk: (from, to) =>
-      (!(params.stepwiseEighths ?? false) || (from.length >= 8 && to.length >= 8) || Math.abs(to.pitchValue - from.pitchValue) <= 1) &&
-      (!((melodyFirst || ssa || partTexture) && params.skipLevel) || listedSkip(params.skipLevel!, from, to)) &&
-      // An altered note is reached by step (accidentals by step); a restated
-      // phrase's seam leapt to one now and then.
-      (!accidentalsByStep || !to.accidental || Math.abs(to.pitchValue - from.pitchValue) <= 1),
+    leapOk,
     onRestatement: (start, length) => restatements.push({ start, length }),
   });
 
@@ -652,9 +664,16 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
   // Adjacent rests inside a measure become one rest, so a silent measure reads
   // as a whole rest rather than four quarter rests. Last, after everything
   // time-based has run.
-  const tidied = voiced.map((voice) =>
+  const merged = voiced.map((voice) =>
     mergeRestsWithinMeasures(voice, timeSig.tsPerMeasure)
   );
+
+  // The pickup, if asked for, in front of it all: the bars keep their places,
+  // so it goes in after everything bar-based.
+  const picked = params.pickup
+    ? addPickup(merged, { voiceParts, key, beat: beatUnitOf(timeSig), maxSkip, leapOk })
+    : null;
+  const tidied = picked?.voices ?? merged;
 
   /**
    * Re-write the score with different annotations, without regenerating it.
@@ -677,6 +696,7 @@ function generateChoralExerciseOnce(params: GenerateChoralParams): ChoralExercis
     key,
     timeSig,
     metadata: abcParams,
+    ...(picked ? { pickup: picked.pickup } : {}),
   };
   const render = (
     display: AbcDisplayOptions & { midiProgram?: number } = {}
@@ -716,6 +736,8 @@ export type ChoralRenderInput = {
   key: string;
   timeSig: TimeSignature;
   metadata: AbcMetadata;
+  /** The pickup's length in 32nds (pickup.ts); absent when the first bar is whole. */
+  pickup?: number;
 };
 
 /** Write a generated exercise as ABC with the annotations asked for. */
@@ -730,6 +752,6 @@ export function renderChoral(
     input.key,
     input.timeSig,
     { ...input.metadata, midiProgram: display.midiProgram ?? input.metadata.midiProgram },
-    display
+    input.pickup ? { ...display, pickup: input.pickup } : display
   );
 }

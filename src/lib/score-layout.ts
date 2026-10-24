@@ -50,6 +50,78 @@ export function barCount(abc: string): number {
 }
 
 /**
+ * Whether the tune opens with a pickup: its first voice's first bar shorter
+ * than the meter (a Choral score, every length written out in L:1/32).
+ */
+export function hasPickup(abc: string): boolean {
+  const meter = abc.match(/^M:\s*(\d+)\/(\d+)/m);
+  if (!meter || !/^L:\s*1\/32/m.test(abc)) return false;
+  const bar = (Number(meter[1]) * 32) / Number(meter[2]);
+  const first = abc.split("\n").find((l) => l.startsWith("[V:"));
+  const opening = first?.replace(/^\[V:[^\]]+\]/, "").replace(/"[^"]*"/g, "").replace(/![^!]*!/g, "").split("|")[0];
+  if (!opening) return false;
+  const length = [...opening.matchAll(/[A-Ga-gz][,']*(\d+)/g)].reduce((s, m) => s + Number(m[1]), 0);
+  return length > 0 && length < bar;
+}
+
+/**
+ * A Choral score with a pickup, its lines broken in the ABC itself:
+ * `perLine` whole bars a line, the pickup in front of the first. abcjs's
+ * preferred bars a line count the pickup as a bar (a line came out short),
+ * and its wrapping numbers bars afresh, so the pickup's bar 0 was lost; its
+ * `lineBreaks` list did nothing. Each voice's "[V:..]" line and its "w:"
+ * line are cut at the same bars (a syllable a sung note), and the first
+ * whole bar is numbered 1 (`%%setbarnb 0` after the first voice is named;
+ * in the header, with voices, abcjs throws on it).
+ *
+ * Returns null if the score is not in the shape expected, so the page can
+ * fall back to abcjs's own wrapping.
+ */
+export function withPickupLines(abc: string, perLine: number): string | null {
+  const lines = abc.split("\n");
+  const firstVoice = lines.findIndex((l) => l.startsWith("[V:"));
+  if (firstVoice < 0 || perLine < 1) return null;
+  const head = lines.slice(0, firstVoice);
+  type Voice = { tag: string; bars: string[]; words: string[][] | null };
+  const voices: Voice[] = [];
+  /** Sung notes in a bar: a letter and a length, chord symbols and decorations left out. */
+  const sung = (bar: string) => bar.replace(/"[^"]*"/g, "").replace(/![^!]*!/g, "").match(/[\^_=]*[A-Ga-g][,']*\d+/g)?.length ?? 0;
+  for (let i = firstVoice; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    const tag = line.match(/^\[V:[^\]]+\]/)?.[0];
+    if (!tag) return null;
+    const music = line.slice(tag.length).trim().replace(/\|\]\s*$/, "");
+    const bars = music.split("|").map((b) => b.trim());
+    let words: string[][] | null = null;
+    if (lines[i + 1]?.startsWith("w:")) {
+      const syllables = lines[++i].slice(2).trim().split(/\s+/).filter(Boolean);
+      words = [];
+      let k = 0;
+      for (const bar of bars) {
+        const n = sung(bar);
+        words.push(syllables.slice(k, k + n));
+        k += n;
+      }
+      if (k !== syllables.length) return null;
+    }
+    voices.push({ tag, bars, words });
+  }
+  if (!voices.length || voices.some((v) => v.bars.length !== voices[0].bars.length)) return null;
+  const total = voices[0].bars.length;
+  const out = [...head, voices[0].tag.replace(/^\[(V:[^\]]+)\]$/, "$1"), "%%setbarnb 0"];
+  for (let from = 0; from < total; ) {
+    const to = Math.min(total, from === 0 ? perLine + 1 : from + perLine);
+    for (const v of voices) {
+      out.push(`${v.tag} ${v.bars.slice(from, to).join(" | ")} ${to === total ? "|]" : "|"}`);
+      if (v.words) out.push(`w: ${v.words.slice(from, to).flat().join(" ")}`);
+    }
+    from = to;
+  }
+  return out.join("\n") + "\n";
+}
+
+/**
  * Whether lines drawn are shared out evenly: every line but the last the same,
  * and the last no longer than them and at most one short.
  */

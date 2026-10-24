@@ -345,7 +345,8 @@ function varyRestatement(
   for (let k = 0; k < slots.length && changed < wanted; k++) {
     const { index, at } = slots[(offset + k) % slots.length];
     const note = top[index];
-    if (note.rest || note.accidental) continue;
+    // A note the parts sing together (octave-opening.ts) stays the one line.
+    if (note.rest || note.accidental || note.doubled) continue;
     const prev = lastSounding(top.slice(0, index));
     const next = firstSounding(top.slice(index + 1));
     // Never two in a row - the phrase should still be recognisably the same one.

@@ -34,6 +34,8 @@ import type { Chord, Note, Rhythm, VoiceNote, VoicePart } from "./types";
 import { determineAccidental, labelFor } from "./build-chord-notes";
 import { keySignatures } from "../resources/key-signatures";
 import { listedSkip, type SkipLevel } from "./uil-skips";
+import { generatePossibleNotes } from "./prep-params";
+import { TENOR_REACH } from "./octave-opening";
 
 /** A part's job: its share of time on each degree (do re mi fa so la ti), the cost of each move in diatonic steps. */
 export type Job = { degrees: number[]; move: number[]; bass?: boolean; holdsDo?: boolean };
@@ -189,6 +191,12 @@ export type PartWriterOptions = {
   tsPerMeasure: number;
   texture: Texture;
   skipLevel?: SkipLevel | null;
+  /**
+   * Every part on the tune, in unison or an octave below it, for the notes
+   * starting in this many 32nds from the top (octave-opening.ts). 0 or absent:
+   * the parts are in harmony from the first note.
+   */
+  octaveOpening?: number;
   rand?: () => number;
 };
 
@@ -199,7 +207,8 @@ export function writeParts(o: PartWriterOptions): { voiceNotes: VoiceNote[][]; p
   let last: unknown;
   for (let i = 0; i < ATTEMPTS; i++) {
     try {
-      return writeOnce(o);
+      // An opening in octaves that will not go is let go halfway through the attempts.
+      return writeOnce(i < ATTEMPTS / 2 ? o : { ...o, octaveOpening: 0 });
     } catch (e) {
       last = e;
     }
@@ -221,6 +230,12 @@ function writeOnce(o: PartWriterOptions) {
     const [lo, hi] = v.currentRange ?? v.range;
     return (lo + hi) / 2 - 0.5;
   });
+  const opening = o.octaveOpening ?? 0;
+  /** The notes a part may take in the opening: the tenors a little lower, so they can sing the tune an octave down. */
+  const openingNotes = parts.map((part) =>
+    opening && part.name === "Tenor" ? generatePossibleNotes([part.range[0] - TENOR_REACH, part.range[1]], o.key) : part.possibleNotes,
+  );
+  let wasOpening = false;
   const palette = o.chords.filter((c) => c.sharpScaleDegree == null && c.flatScaleDegree == null && c.symbol in CHORD_COST);
   const home = palette.find((c) => c.symbol === "I") ?? o.progression[0];
   /** How the parts above `v` and `v` itself may sit: the table and the widest gap. */
@@ -259,6 +274,7 @@ function writeOnce(o: PartWriterOptions) {
     const cadence = !!rhythm.isCadenceEnd;
     const final = step === lastStep;
     const first = lines[0].length === 0;
+    const inOpening = onset < opening;
     const intoCadence = cadence || !!(o.rhythms[step + 1] as R | undefined)?.isCadenceEnd;
     const strong = onset % strongEvery === 0 || rhythm.totalValue > 8;
     const continuing = !!rhythm.isPatternNote && !rhythm.isPatternStart;
@@ -320,7 +336,7 @@ function writeOnce(o: PartWriterOptions) {
         const line = lines[v];
         const prev = line.at(-1) ?? null;
         const target = centres[v] + (v === 0 ? o.texture.arch * rise - 1 : v === low ? -1 : 0);
-        return part.possibleNotes.flatMap((n): Cand[] => {
+        return (inOpening ? openingNotes[v] : part.possibleNotes).flatMap((n): Cand[] => {
           let extra = 0;
           // An altered note resolves by step the way it leans (fi up to sol, te
           // down to la), or holds while its chord does.
@@ -372,11 +388,12 @@ function writeOnce(o: PartWriterOptions) {
       const walk = (v: number) => {
         if (v === N) {
           const notes = chosen.map((c) => c.n);
-          if (notes.filter((n) => n.degree === 6).length > 1) return;
+          if (!inOpening && notes.filter((n) => n.degree === 6).length > 1) return;
           if (altered && notes.filter((n) => n.degree === altered.degree).length > 1) return; // never doubled
           const classes = new Set(notes.map((n) => n.degree)).size;
           let cost = chordCost;
-          chosen.forEach((c, i) => (cost += c.cost * (i === 0 ? 1 : 0.7)));
+          // In the opening the parts only double the tune: its shape is the tune's alone.
+          chosen.forEach((c, i) => (cost += c.cost * (i === 0 ? 1 : inOpening ? 0 : 0.7)));
           for (let i = 0; i + 1 < N; i++) cost += pairOf(i).table[notes[i].pitchValue - notes[i + 1].pitchValue] ?? 0;
           if (classes < Math.min(3, N) && !cadence && !first && !weak) cost += INCOMPLETE * (N >= 4 ? 1.5 : 1);
           if (altered && !notes.some((n) => n.degree === altered.degree)) cost += MISSING_ALTERED;
@@ -389,6 +406,16 @@ function writeOnce(o: PartWriterOptions) {
             const above = chosen[v - 1];
             const apart = above.n.pitchValue - c.n.pitchValue;
             const { table, widest } = pairOf(v - 1);
+            // The opening: the upper parts on the tune, the lower ones an octave below it.
+            if (inOpening) {
+              if (chosen[0].n.pitchValue - c.n.pitchValue !== (v >= N / 2 ? 7 : 0)) continue;
+              if (wasOpening) {
+                chosen.push(c);
+                walk(v + 1);
+                chosen.pop();
+                continue;
+              }
+            }
             if (apart < 0 || apart > widest || !(apart in table)) continue;
             if (above.nct && c.nct && apart !== 2 && apart !== 5) continue;
             let ok = true;
@@ -428,6 +455,7 @@ function writeOnce(o: PartWriterOptions) {
         isCadenceEnd: rhythm.isCadenceEnd ?? false,
       };
       if (choice.nct[v]) note.ornament = true;
+      if (inOpening) note.doubled = true;
       return note;
     });
     if (chord !== lastChord) {
@@ -457,6 +485,7 @@ function writeOnce(o: PartWriterOptions) {
     });
     held = chord;
     afterCadence = cadence;
+    wasOpening = inOpening;
     if (!rhythm.isPatternNote || rhythm.isPatternEnd) {
       sung[chordIndex] = chord;
       chordIndex++;

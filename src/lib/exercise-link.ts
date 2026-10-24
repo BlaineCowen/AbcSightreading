@@ -151,6 +151,8 @@ type ChoralInputV1 = {
   /** Only when not the defaults the generator writes. */
   t?: string;
   c?: string;
+  /** The pickup's length (32nds), when there is one. */
+  u?: number;
   p: [string, string, string][];
   n: unknown[][];
 };
@@ -268,6 +270,7 @@ function choralInput(input: ChoralRenderInput): ChoralInputV1 {
   if (metadata.midiProgram !== undefined) encoded.i = metadata.midiProgram;
   if (metadata.title !== defaultTitle(key)) encoded.t = metadata.title;
   if (metadata.composer !== DEFAULT_COMPOSER) encoded.c = metadata.composer;
+  if (input.pickup) encoded.u = input.pickup;
   return encoded;
 }
 
@@ -299,6 +302,7 @@ function readChoralInput(raw: unknown): ChoralRenderInput {
   check(midiProgram === undefined || isInt(midiProgram, 0, 127));
   check(r.t === undefined || isHeaderText(r.t));
   check(r.c === undefined || isHeaderText(r.c));
+  check(r.u === undefined || isInt(r.u, 1, timeSig.tsPerMeasure - 1));
 
   check(Array.isArray(r.p) && r.p.length >= 1 && r.p.length <= 8);
   const voiceParts = (r.p as unknown[]).map((part) => {
@@ -328,6 +332,7 @@ function readChoralInput(raw: unknown): ChoralRenderInput {
       tempo: tempo as number,
       ...(midiProgram === undefined ? {} : { midiProgram: midiProgram as number }),
     },
+    ...(r.u === undefined ? {} : { pickup: r.u as number }),
   };
 }
 

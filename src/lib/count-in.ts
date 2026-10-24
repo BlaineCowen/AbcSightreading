@@ -27,19 +27,25 @@ export function countInWordsFor(beats: number): string[] {
   return [...Array.from({ length: beats - 2 }, (_, i) => String(i + 1)), "Ready", "Go"];
 }
 
-/** The word for this moment of the count-in, or null outside it. `beat` is abcjs's, from 0, fractional between beats. */
-export function countInWord(meter: string, beat: number): string | null {
+/**
+ * The word for this moment of the count-in, or null outside it. `beat` is abcjs's, from 0, fractional between beats.
+ * `pickup`: beats of a pickup, which abcjs plays in the count-in's last beats,
+ * so the words are that many fewer and "Go" falls on the beat before it ("1,
+ * Ready, Go" and the pickup, in 4/4).
+ */
+export function countInWord(meter: string, beat: number, pickup = 0): string | null {
   const whole = Math.floor(beat);
-  if (whole < 0 || whole >= countInBeats(meter)) return null;
-  return countInWords(meter)[whole];
+  const beats = countInBeats(meter) - pickup;
+  if (whole < 0 || whole >= beats) return null;
+  return countInWordsFor(beats)[whole];
 }
 
 /** The word showing now, with its beat so the same word twice still animates. Null hides it. */
 export const countInWordNow = writable<{ word: string; beat: number } | null>(null);
 
 /** Sets the overlay from a beat callback. Cheap to call on every subdivision. */
-export function showCountIn(meter: string, beat: number) {
-  const word = countInWord(meter, beat);
+export function showCountIn(meter: string, beat: number, pickup = 0) {
+  const word = countInWord(meter, beat, pickup);
   const whole = Math.floor(beat);
   countInWordNow.update((now) => {
     if (!word) return now ? null : now;

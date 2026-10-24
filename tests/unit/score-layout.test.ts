@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { barCount, evenLines, isDense, measuresPerLine } from "../../src/lib/score-layout";
+import { barCount, evenLines, hasPickup, isDense, measuresPerLine, withPickupLines } from "../../src/lib/score-layout";
 
 /**
  * How many bars go on a line. abcjs fills each line with the number asked for
@@ -91,3 +91,38 @@ describe("when abcjs breaks the lines itself", () => {
   });
 });
 
+
+describe("a pickup", () => {
+  const abc = [
+    "X:1", "M:4/4", "L:1/32", "%%score [S A]", "V:S clef=treble", "V:A clef=treble", "K:F",
+    '[V:S] "^I"c8 | f16 f8 f4f4 | a32 | g16 g16 | f24 |]',
+    "w: so do do do do mi re re do",
+    "[V:A] c8 | f16 f16 | f32 | e16 e16 | f24 |]",
+    "w: so do do do ti ti do",
+  ].join("\n");
+
+  test("is found from the first bar's length", () => {
+    expect(hasPickup(abc)).toBe(true);
+    expect(hasPickup(abc.replace('"^I"c8 | ', ""))).toBe(false);
+  });
+
+  test("the pickup goes before a full line, each voice and its words cut at the same bars", () => {
+    const out = withPickupLines(abc, 2)!;
+    const body = out.split("\n").slice(out.split("\n").indexOf("%%setbarnb 0") + 1).filter(Boolean);
+    expect(out).toContain("V:S\n%%setbarnb 0");
+    expect(body).toEqual([
+      '[V:S] "^I"c8 | f16 f8 f4f4 | a32 |',
+      "w: so do do do do mi",
+      "[V:A] c8 | f16 f16 | f32 |",
+      "w: so do do do",
+      "[V:S] g16 g16 | f24 |]",
+      "w: re re do",
+      "[V:A] e16 e16 | f24 |]",
+      "w: ti ti do",
+    ]);
+  });
+
+  test("a score it cannot read is left to abcjs's own wrapping", () => {
+    expect(withPickupLines(abc.replace("w: so do do do ti ti do", "w: so do"), 2)).toBeNull();
+  });
+});

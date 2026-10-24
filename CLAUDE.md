@@ -29,7 +29,7 @@ standing ones. Treat any error as a regression.
 ### Tests
 
 `tests/unit/` holds unit tests run with `bun test` (bun's built-in runner; no
-framework to install). 1746 pass, 5 skip, 0 fail (14 October 2026). Stability matters because the
+framework to install). 1804 pass, 5 skip, 0 fail (23 October 2026). Stability matters because the
 generators are randomised: the original 50 were verified over 40 consecutive
 runs, and `stepwise-eighths.test.ts` over 20 - loop any new generator test the
 same way before trusting it.
@@ -2201,6 +2201,44 @@ the restated phrase's varied tune note may not take away the only third
 in his pieces (TB 1% against Our Hero's 11%, which opens with everyone on
 the tune in octaves), and the calibrated ranges are why: at UIL 1 they meet
 only on A3 to C4.
+
+**Four parts open on the tune in octaves** (23 October 2026, Blaine said
+yes; `src/lib/octave-opening.ts`, part-writer `octaveOpening`): SATB at a UIL
+level, half the time at Levels 1-3 and a quarter at 4-5, sings the first bar
+(or its first half, Our Hero's split) soprano and alto on the tune, tenor and
+bass an octave below, then the writer carries on from there by its own rules.
+Copying the tune in after the parts were written almost never fitted at UIL 1
+(the joins needed a fourth; the level skips a third). The tenors may go
+`TENOR_REACH` (2) steps under their calibrated lowest note for the opening
+only, Blaine's permission; nothing else moves the ranges. Those notes are
+`doubled`: decoration, the dotted figure in one part and the restatement's
+varied note leave them alone, and parallel-check does not count them.
+Measured, SATB 40 a level in F: an opening in octaves in 25/40 at UIL 1,
+20 at UIL 3, 10 at UIL 5; no parallels.
+
+**Pickup** (23 October 2026, Blaine: an option, "usually starting on scale
+degree 5"; `src/lib/pickup.ts`, tests `pickup.test.ts`): Choral's Rhythms
+pill, No pickup / Start with a pickup (`pickup=1` in links, `pickup` in
+presets, off by default, never in a full-length piece). One beat before bar
+1, added to the finished parts so nothing else in the writer moves: the tune
+on so 75% of the time (do or mi otherwise, as reachable), the rest on I (or V
+under so in major) reaching their first notes within the exercise's leaps,
+the lowest part on the root, no parallels; into an octave opening the pickup
+is in octaves too. The last bar is a beat short; when a part's last note is
+too short to give one up the exercise keeps no pickup. Its length rides on
+`renderInput.pickup` (links `u`), and `voiceBodyAbc` starts the first bar
+that short. Measured, the tune on so: 30-32 in 40 in G, 16 in F at UIL 1,
+where the sopranos cannot reach the so below do (low D4) and an octave
+opening on do takes a do pickup. abcjs counts a pickup as a bar when it
+wraps lines and numbers bars, so with one the page breaks the lines in the
+ABC itself (score-layout `withPickupLines`, `%%setbarnb 0`, the pickup in
+front of a full line, bar 1 numbered 1; `lineBreaks` did nothing and
+`%%setbarnb` before the first voice crashed the renderer). abcjs sings the
+pickup in the count-in's last beat, so the words are a beat fewer ("1,
+Ready, Go", count-in.ts `pickup`). MusicXML writes it as measure 0,
+implicit. `PICKUP=1 bun run sweep` asks every Choral cell for one;
+`QUERY=pickup=1 PAGE=choral scripts/check-start-point.ts` passes. Live's
+student view still wraps with abcjs, the pickup counted as a bar.
 
 **The UIL levels follow UIL's current criteria** (read from uiltexas.org on
 7 October 2026 and checked with Blaine; notes/uil-criteria.md, which ends

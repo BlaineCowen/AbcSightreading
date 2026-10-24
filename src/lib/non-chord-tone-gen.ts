@@ -767,7 +767,8 @@ export function generateNonChordTones(
 
   for (let i = 0; i < notesToProcess.length; i++) {
     const originalNote = notesToProcess[i];
-    if (onlyAt && !onlyAt.has(i)) {
+    // Every part on the one line (octave-opening.ts): a figure in one part would break it.
+    if ((onlyAt && !onlyAt.has(i)) || originalNote.doubled) {
       outputNotes.push(originalNote);
       continue;
     }

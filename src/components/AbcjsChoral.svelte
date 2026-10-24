@@ -10,7 +10,7 @@
   import { eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import { beatLevelsFor } from "../lib/tuner/click-pattern";
   import { assistedLevels, assistsTheClick } from "../lib/tuner/practice-assistant";
-  import { barCount, drawnLines, evenLines, isDense, measuresPerLine as barsPerLine } from "../lib/score-layout";
+  import { barCount, drawnLines, evenLines, hasPickup, isDense, measuresPerLine as barsPerLine, withPickupLines } from "../lib/score-layout";
   import {
     crossedWholeBeat,
     newMetronomeBeatState,
@@ -439,6 +439,12 @@
    * eighth, and with it off 37% of our short notes did.
    */
   let stepwiseEighths = true;
+  /**
+   * Open with a one-beat pickup, usually on so (pickup.ts; Blaine, 23 October
+   * 2026). Off by default; not for a full-length piece, whose sections are
+   * joined bar to bar.
+   */
+  let pickupNote = false;
   let chromaticFrequency = 1;
   /**
    * One chromatic chord to drill ("5/5" for V/V), or null. See `focusChord` in
@@ -697,7 +703,7 @@
    */
   $: _tabSigs = {
     setup: [selectedVoicing, [...selectedKeys].sort().join(","), selectedTimeSignature, measures, voiceTexture].join("|"),
-    rhythm: [selectedRhythms.map((r) => r.name).sort().join(","), JSON.stringify(Object.entries(rhythmBias).sort())].join("|"),
+    rhythm: [selectedRhythms.map((r) => r.name).sort().join(","), JSON.stringify(Object.entries(rhythmBias).sort()), pickupNote].join("|"),
     harmony: [maxSkip, Math.round(nctProbability * 100), stepwiseEighths, focusChord, accidentalsByStep, chromaticFrequency, [...userAllowedChords].sort().join(",")].join("|"),
     ranges: Object.values(possibleVoicing[selectedVoicing]?.parts ?? {}).map((p) => p.currentRange.join("-")).join(","),
   };
@@ -709,7 +715,7 @@
     voiceTexture !== DEFAULTS.voiceTexture;
   $: rhythmDirty = fromPreset ? _tabSigs.rhythm !== fromPreset.rhythm : JSON.stringify(selectedRhythms.map(r => r.name).sort()) !==
     JSON.stringify([...DEFAULTS.rhythmNames].sort()) ||
-    Object.keys(rhythmBias).length > 0;
+    Object.keys(rhythmBias).length > 0 || pickupNote;
   $: harmonyDirty = fromPreset ? _tabSigs.harmony !== fromPreset.harmony : maxSkip !== DEFAULTS.maxSkip || nctProbability !== DEFAULTS.nctProbability ||
     stepwiseEighths !== DEFAULTS.stepwiseEighths || focusChord !== null ||
     userAllowedChords.size !== currentModeChordNames.length;
@@ -779,7 +785,7 @@
       .map(p => p.currentRange.join('-')).join(','),
     // Everything else a preset keeps (getCurrentParams), so changing any of it
     // says "edited" too.
-    stepwiseEighths, voiceTexture, JSON.stringify(Object.entries(rhythmBias).sort()),
+    stepwiseEighths, voiceTexture, JSON.stringify(Object.entries(rhythmBias).sort()), pickupNote,
     accidentalsByStep, chromaticFrequency, focusChord,
     lyricSystem, minorSolfege, showChords, cursorMode, instrumentProgram, transposeSemitones,
     [...hiddenVoices].sort().join(','), [...mutedVoices].sort().join(','), [...lyricsOff].sort().join(','),
@@ -887,11 +893,16 @@
     // Bars shared out evenly over the lines (score-layout.ts): four bars with
     // words under them were three and a lonely one.
     const abc = typeof renderedString === "string" ? renderedString : "";
+    // A pickup is not a bar of its own on a line (score-layout pickupLineBreaks).
+    const pickup = hasPickup(abc);
+    const bars = barCount(abc);
     return {
+      pickup,
+      bars,
       // Bigger is a narrower staff, which responsive:"resize" scales up to the page.
       staffwidth: Math.max(160, Math.round(Math.min(846, cw - 30) / scoreView.scale)),
       measuresPerLine: barsPerLine({
-        measures: barCount(abc) || measures,
+        measures: (bars - (pickup ? 1 : 0)) || measures,
         narrow: cw < 480,
         dense: isDense({ lyrics: !!lyricSystem, abc }),
         most,
@@ -903,10 +914,13 @@
   async function renderTune() {
     const mod = await import("abcjs");
     const draw = (most?: number) => {
-      const { staffwidth, measuresPerLine } = scoreLayout(most);
+      const { staffwidth, measuresPerLine, pickup } = scoreLayout(most);
+      const shown = withMeasureNumbers(withLineSpacing(renderedString, scoreView.spacing), scoreView.measureNumbers);
+      // A pickup: the lines are broken in the ABC (score-layout withPickupLines).
+      const lined = pickup ? withPickupLines(shown, measuresPerLine) : null;
       // No `scale`: abcjs discards it when responsive:"resize" is set.
       // The copyright under the score (copyright.ts), as drawn and printed only.
-      return mod.renderAbc("paper", withCopyright(withMeasureNumbers(withLineSpacing(renderedString, scoreView.spacing), scoreView.measureNumbers)), {
+      return mod.renderAbc("paper", withCopyright(lined ?? shown), {
         // Gives every staff an abcjs-l<line> / abcjs-v<voice> class, which is how
         // the cursor works out how tall a system is. Without it the SVG carries
         // no staff groups at all and the cursor can only cover one voice.
@@ -917,19 +931,25 @@
         clickListener: (abcelem: any) => {
           if (typeof abcelem?.startChar === "number") void startFromNote(abcelem.startChar);
         },
-        wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine },
+        ...(lined ? {} : { wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: measuresPerLine } }),
       });
+    };
+    /** Bars a line as drawn, the pickup not counted. */
+    const lines = () => {
+      const drawn = drawnLines(document.getElementById("paper"));
+      if (drawn.length && scoreLayout().pickup) drawn[0]--;
+      return drawn;
     };
     // The bars per line are only a preference to abcjs; if it had to break the
     // lines itself, unevenly, draw again with no more a line than it fitted.
     let result = draw();
-    let drawn = drawnLines(document.getElementById("paper"));
+    let drawn = lines();
     // Fewer a line each time until they come out even: on a phone two bars with
     // lyrics may not fit either, and abcjs then broke them 1 + 1 + 2.
     let most = Math.max(...drawn);
     while (!evenLines(drawn) && most >= 1) {
       result = draw(most);
-      drawn = drawnLines(document.getElementById("paper"));
+      drawn = lines();
       most = Math.min(most - 1, Math.max(...drawn));
     }
     styleCopyright(document.getElementById("paper"));
@@ -1001,6 +1021,8 @@
   $: if (!isPlaying) hideCountIn();
 
   let playedMeter = "4/4";
+  /** Beats of the tune's pickup, which abcjs sings in the count-in's last beat (count-in.ts). */
+  let pickupBeats = 0;
 
   function buildAudioParams() {
     // From the store as it is now, not the reactive copies: Play changes the
@@ -1071,6 +1093,7 @@
     transposeSemitones = clampTranspose(Number(p.get("transpose") ?? 0));
     const texture = p.get("texture");
     if (isVoiceTextureMode(texture)) voiceTexture = texture;
+    pickupNote = p.get("pickup") === "1";
     const bias = p.get("bias");
     if (bias) {
       const parsed: Record<string, number> = {};
@@ -1107,6 +1130,7 @@
     p.set("chords", showChords ? "1" : "0");
     p.set("transpose", String(transposeSemitones));
     p.set("texture", voiceTexture);
+    if (pickupNote) p.set("pickup", "1");
     if (hiddenVoices.size) p.set("hide", [...hiddenVoices].join(","));
     if (lyricsOff.size) p.set("solfegeOff", [...lyricsOff].join(","));
     const biasPairs = Object.entries(rhythmBias);
@@ -1540,7 +1564,7 @@
     key: selectedKeys.size === 1 ? keyName([...selectedKeys][0]) : `${selectedKeys.size} keys`,
     meter: selectedTimeSignature,
     length: fullLength ? "Full length" : `${measures} bars`,
-    rhythm: `${selectedRhythms.length} ${selectedRhythms.length === 1 ? "rhythm" : "rhythms"}`,
+    rhythm: `${selectedRhythms.length} ${selectedRhythms.length === 1 ? "rhythm" : "rhythms"}${pickupNote && !fullLength ? " · pickup" : ""}`,
     harmony: (() => {
       // The chords the Harmony box shows switched on (inversions ride along unseen).
       const on = (Object.values(chordGroups) as string[][]).flat().filter((c) => userAllowedChords.has(c)).length;
@@ -1696,6 +1720,7 @@
     // Optional, so presets saved before voice texture existed still load.
     if (isVoiceTextureMode(p.voiceTexture)) voiceTexture = p.voiceTexture;
     rhythmBias = p.rhythmBias ? { ...p.rhythmBias } : {};
+    pickupNote = p.pickup === true;
     // The rest came later: a preset saved before it leaves each one as it is.
     if (typeof p.accidentalsByStep === "boolean") accidentalsByStep = p.accidentalsByStep;
     if (p.chromaticFrequency !== undefined) chromaticFrequency = numberIn(p.chromaticFrequency, 0, 5, chromaticFrequency);
@@ -1737,6 +1762,7 @@
       stepwiseEighths,
       voiceTexture,
       rhythmBias,
+      ...(pickupNote ? { pickup: true } : {}),
       voiceRanges: Object.fromEntries(
         Object.entries(possibleVoicing[selectedVoicing]?.parts ?? {}).map(
           ([name, part]) => [name, part.currentRange as [number, number]]
@@ -2379,6 +2405,8 @@
 
   async function buildSynth(tune: any) {
     playedMeter = meterOf(tune, selectedTimeSignature);
+    // getPickupLength is in whole notes; a beat is a quarter in Choral's simple meters.
+    pickupBeats = Math.round((tune?.getPickupLength?.() ?? 0) * 4);
     const voicesOff = barVoices
       .map((name, i) => (mutedVoices.has(name) ? i : -1))
       .filter((i) => i >= 0);
@@ -2442,7 +2470,7 @@
       // call, which is what makes this glide rather than step.
       onBeat: (beatNumber: number, _totalBeats: number, _totalTime: number, position: any) => {
         // "1, 2, Ready, Go" over the music through the count-in.
-        showCountIn(playedMeter, beatNumber);
+        showCountIn(playedMeter, beatNumber, pickupBeats);
         if (cursorMode !== "smooth" && cursorMode !== "beat") return;
         // Beat mode steps once per beat; smooth takes every callback, which is
         // where abcjs's interpolation between notes shows up.
@@ -2683,6 +2711,7 @@
       stepwiseEighths,
       voiceTexture,
       rhythmBias,
+      pickup: pickupNote && !fullLength,
       chromaticFrequency,
       focusChord: focusChord ?? undefined,
       midiProgram: instrumentProgram,
@@ -3265,6 +3294,25 @@
                 </p>
               </div>
             {/if}
+            <div class="space-y-2 pt-1">
+              <p class="sr-label">Pickup</p>
+              <div class="flex flex-wrap gap-2" role="group" aria-label="Pickup">
+                {#each [false, true] as on}
+                  <button
+                    class="sr-tok {pickupNote === on ? 'sr-on' : ''}"
+                    on:click={() => (pickupNote = on)}
+                    aria-pressed={pickupNote === on}
+                  >{on ? "Start with a pickup" : "No pickup"}</button>
+                {/each}
+              </div>
+              <p class="text-xs text-sr-faint">
+                {fullLength
+                  ? "A full-length piece starts on the downbeat."
+                  : pickupNote
+                    ? "One beat before the first bar, usually on so, and the last bar a beat short to make up for it."
+                    : "The exercise starts on the downbeat."}
+              </p>
+            </div>
             {#if unusableRhythmNames.size > 0}
               <p class="text-xs text-sr-brass">
                 Ringed in amber: selected, but cannot appear in {selectedTimeSignature}.

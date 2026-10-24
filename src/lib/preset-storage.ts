@@ -34,6 +34,8 @@ export interface PresetParams {
   voiceTexture?: "full" | "staggered" | "independent";
   /** Per-rhythm frequency multipliers. Optional, for presets saved before it. */
   rhythmBias?: Record<string, number>;
+  /** Open with a one-beat pickup (pickup.ts). Optional, for presets saved before it. */
+  pickup?: boolean;
   voiceRanges: Record<string, [number, number]>;
   // Everything below is optional, for presets saved before it was kept.
   accidentalsByStep?: boolean;

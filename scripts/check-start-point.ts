@@ -12,7 +12,7 @@
  * - a tap while playing (back on the first line) jumps there at once, no count-in;
  * - Back to start: no line, and Play from the top again.
  *
- *   bun run scripts/check-start-point.ts      # PAGE=unison|choral, APP=http://localhost:4321, SHOTS=<dir>
+ *   bun run scripts/check-start-point.ts      # PAGE=unison|choral, APP=http://localhost:4321, SHOTS=<dir>, QUERY=pickup=1 (Choral)
  */
 import puppeteer, { type Page } from "../marketing/ad/node_modules/puppeteer-core";
 
@@ -65,7 +65,7 @@ await page.evaluateOnNewDocument(() => {
 
 const url =
   PAGE === "choral"
-    ? `${APP}/choral-sightreading`
+    ? `${APP}/choral-sightreading${process.env.QUERY ? `?${process.env.QUERY}` : ""}`
     : `${APP}/sightreading?measures=8&bpm=${BPM}&timeSignature=4/4`;
 await page.goto(url, { waitUntil: "networkidle2" });
 await sleep(1500);

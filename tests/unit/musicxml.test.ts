@@ -273,3 +273,11 @@ describe("tempo in compound meter", () => {
     expect(xml).toContain('<sound tempo="72"/>');
   });
 });
+
+describe("a pickup", () => {
+  test("is measure 0, implicit, so the first whole bar is bar 1", () => {
+    const abc = "X:1\nM:4/4\nL:1/32\nK:F\nc8 | f16 f16 | a32 | f24 |]\n";
+    const xml = abcToMusicXml(abc);
+    expect(xml.match(/<measure[^>]*>/g)).toEqual(['<measure number="0" implicit="yes">', '<measure number="1">', '<measure number="2">', '<measure number="3">']);
+  });
+});
