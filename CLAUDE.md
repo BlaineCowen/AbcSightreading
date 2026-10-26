@@ -1533,7 +1533,10 @@ ClassLink's test district (cltest): a teacher and a student account made, the
 student with no email and no tokens kept, signing in again reusing each.
 ClassLink's portal registered one redirect URI, the launch URL
 (`/classlink`), and would not edit it, so the sign-in comes back there and
-goes on to our callback (auth.ts `redirectURI`); only production can sign in. `/classlink` is the LaunchPad tile's launch URL. A
+goes on to our callback (auth.ts `redirectURI`); only production can sign in. `/classlink` is the LaunchPad tile's launch URL.
+The Sign in with ClassLink button is off on production's /login until a real
+district has signed in with it (login.astro `showClasslink`, 26 October 2026);
+the tile still works, and /founders no longer offers ClassLink. A
 student's Google or ClassLink tokens are never kept (`stripStudentTokens`:
 the ID token holds their email). Each assignment has Share to Google
 Classroom (`shareToClassroomUrl`, no key needed). Whole ClassLink rosters

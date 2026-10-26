@@ -3,6 +3,12 @@ import Layout from "../layouts/Layout.astro";
 import AuthForm from "../components/AuthForm.svelte";
 import { classlinkEnabled, googleEnabled } from "../lib/server/auth";
 import { enabled as freeMonthOn, offerUntil } from "../lib/server/free-month";
+import { serverEnv } from "../lib/server/env";
+
+// The ClassLink button stays off the production login page until a real
+// district has signed in with it (Blaine, 26 October 2026: only ClassLink's
+// test district has). The LaunchPad tile, /classlink, still signs in.
+const showClasslink = classlinkEnabled && serverEnv("VERCEL_ENV") !== "production";
 
 const requested = Astro.url.searchParams.get("mode");
 const mode = requested === "signup" || requested === "forgot" || requested === "student" ? requested : "signin";
@@ -22,7 +28,7 @@ try {
     <AuthForm
       client:only="svelte"
       googleEnabled={googleEnabled}
-      classlinkEnabled={classlinkEnabled}
+      classlinkEnabled={showClasslink}
       mode={mode}
       freeMonth={freeMonthOn()}
       freeMonthUntil={offerUntil()}
