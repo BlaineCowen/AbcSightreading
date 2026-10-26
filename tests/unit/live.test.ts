@@ -20,7 +20,11 @@ import {
   isDeviceKey,
   isLiveCode,
   isLiveOpen,
+  isNewerState,
   liveCodeHint,
+  mergeDevices,
+  pushRetryMs,
+  pushSocketUrl,
   liveEndsAt,
   liveEtag,
   normalizeLiveCode,
@@ -126,6 +130,50 @@ describe("devices and polling", () => {
     expect(pollDelayMs({ hidden: true, failures: 0 })).toBe(6000);
     expect(pollDelayMs({ hidden: false, failures: 1 })).toBe(3000);
     expect(pollDelayMs({ hidden: false, failures: 50 })).toBe(30000);
+  });
+
+  test("a socket's address from the service's, ws for http", () => {
+    expect(pushSocketUrl("https://push.example.dev", "482KTZ", "a1B2c3D4e5F6g7", "B")).toBe(
+      "wss://push.example.dev/rooms/482KTZ/ws?d=a1B2c3D4e5F6g7&p=B",
+    );
+    expect(pushSocketUrl("http://localhost:8787/", "482KTZ", "a1B2c3D4e5F6g7", null)).toBe(
+      "ws://localhost:8787/rooms/482KTZ/ws?d=a1B2c3D4e5F6g7",
+    );
+  });
+
+  test("a pushed state replaces only an older one", () => {
+    const shown = { live: true, version: 5 };
+    expect(isNewerState({ live: true, version: 6 }, shown)).toBe(true);
+    // the same version again: a start or a stop
+    expect(isNewerState({ live: true, version: 5 }, shown)).toBe(true);
+    // a change sent earlier, arriving late
+    expect(isNewerState({ live: true, version: 4 }, shown)).toBe(false);
+    expect(isNewerState({ live: false }, shown)).toBe(true);
+    // waiting: whatever comes on air
+    expect(isNewerState({ live: true, version: 1 }, { live: false, version: -1 })).toBe(true);
+    expect(isNewerState({ live: true }, shown)).toBe(false);
+  });
+
+  test("socket devices and heartbeat devices counted once each", () => {
+    const merged = mergeDevices(
+      [
+        { deviceKey: "beatingDevice01", seenAt: ago(10), part: "S" },
+        { deviceKey: "bothKindsDevice1", seenAt: ago(30), part: "A" },
+      ],
+      [
+        { device: "bothKindsDevice1", part: "T" },
+        { device: "socketDevice0001", part: "B" },
+        { device: "not a device", part: "B" },
+      ],
+      now,
+    );
+    expect(deviceSummary(merged, now)).toEqual({ connected: 3, parts: { S: 1, T: 1, B: 1 } });
+  });
+
+  test("socket retries back off, a minute at most", () => {
+    expect(pushRetryMs(0)).toBe(2000);
+    expect(pushRetryMs(2)).toBe(8000);
+    expect(pushRetryMs(40)).toBe(60_000);
   });
 
   test("a rate limit per key and window", () => {

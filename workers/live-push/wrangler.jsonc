@@ -1,0 +1,13 @@
+// Live push (src/index.ts; notes/live-practice.md, "Push").
+//   bunx wrangler dev        local, with PUSH_SECRET from .dev.vars
+//   bunx wrangler deploy     then: bunx wrangler secret put PUSH_SECRET
+{
+  "name": "abc-live-push",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "Room" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "observability": { "enabled": true }
+}

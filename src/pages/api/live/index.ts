@@ -1,6 +1,18 @@
 import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../lib/server/api";
-import { ensureRoom, goLive, limits, mayRunLive, newRoomCode, roomOf, roomOnAir, tooMany, type RoomShape } from "../../../lib/server/live";
+import {
+  ensureRoom,
+  goLive,
+  limits,
+  mayRunLive,
+  newRoomCode,
+  notifyGone,
+  notifyRoom,
+  roomOf,
+  roomOnAir,
+  tooMany,
+  type RoomShape,
+} from "../../../lib/server/live";
 import { formatLiveCode, livePath } from "../../../lib/live";
 
 /**
@@ -43,7 +55,14 @@ export const POST: APIRoute = async ({ request }) => {
   const allowed = await mayRunLive(user);
   if (!allowed.ok) return allowed.response;
   const body = ((await readJson(request)) ?? {}) as { page?: unknown; action?: unknown };
-  if (body.action === "new-code") return json({ room: shape(await newRoomCode(user.id)) });
+  if (body.action === "new-code") {
+    const old = await roomOf(user.id);
+    const room = await newRoomCode(user.id);
+    if (old) await notifyGone(old.code);
+    return json({ room: shape(room) });
+  }
   const page = body.page === "unison" || body.page === "ensemble" ? body.page : "choral";
-  return json({ room: shape(await goLive(user.id, page)) });
+  const room = await goLive(user.id, page);
+  await notifyRoom(room.code);
+  return json({ room: shape(room) });
 };

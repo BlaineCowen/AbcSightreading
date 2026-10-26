@@ -8,7 +8,10 @@
  * teacher has Pro: COMP_EMAILS=live-teacher@example.test on the dev server.
  * The teacher account is made on first run. PAGE=ensemble runs it on the
  * Ensemble page (each device a player's part); PAGE=unison runs it on the
- * Unison page; SHOTS=<dir> saves screenshots; THEME=light|dark.
+ * Unison page; SHOTS=<dir> saves screenshots; THEME=light|dark. PUSH=1 when
+ * the dev server has the push service (workers/live-push, `wrangler dev`, and
+ * LIVE_PUSH_URL, LIVE_PUSH_SECRET, PUBLIC_LIVE_PUSH_URL): the devices must sit
+ * on sockets, polling and beating no more than the safety net.
  *
  * Checks: the room's address is the same every time (the poster's); a device
  * on it while Live is off waits, and turns to the exercise by itself when
@@ -27,6 +30,8 @@ const PASSWORD = process.env.PASSWORD ?? "LiveTest!2026pw";
 const PAGE = process.env.PAGE === "unison" ? "unison" : process.env.PAGE === "ensemble" ? "ensemble" : "choral";
 /** Pages with parts to choose between. */
 const PARTS = PAGE !== "unison";
+/** The dev server has the push service (LIVE_PUSH_URL, PUBLIC_LIVE_PUSH_URL): devices should sit on sockets. */
+const PUSH = process.env.PUSH === "1";
 const SHOTS = process.env.SHOTS ?? "";
 const THEME = process.env.THEME ?? "";
 const theme = (p: any) => (THEME ? p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: THEME }]) : null);
@@ -149,6 +154,31 @@ if (SHOTS) await s2.page.screenshot({ path: `${SHOTS}/live-student-bass.png` });
 await within(teacher, () => document.querySelector("[data-live-connected]")?.textContent?.trim() === "2", 12000);
 const connected = await teacher.$eval("[data-live-connected]", (el: Element) => el.textContent?.trim());
 check(connected === "2", `the teacher's panel counts the 2 devices (${connected})`);
+
+// ── Push: devices on a socket barely touch the site ──────────────────────
+if (PUSH) {
+  // A quiet stretch: polling would be 8 polls and a heartbeat a device; on a
+  // socket, nothing but perhaps the safety poll.
+  const counts = [s1, s2].map((s) => {
+    const n = { poll: 0, beat: 0 };
+    s.page.on("request", (r: any) => {
+      const u = r.url();
+      if (u.includes(`/api/live/${code}/beat`)) n.beat++;
+      else if (u.includes(`/api/live/${code}?`)) n.poll++;
+    });
+    return n;
+  });
+  await sleep(12_000);
+  for (const [i, n] of counts.entries()) {
+    check(n.poll <= 1 && n.beat === 0, `student ${i + 1} on the socket: ${n.poll} polls and ${n.beat} heartbeats in 12 s`);
+  }
+  // Past the heartbeat window (40 s) the database no longer counts them: the
+  // panel's count is the sockets'.
+  await sleep(34_000);
+  await sleep(4_500);
+  const bySocket = await teacher.$eval("[data-live-connected]", (el: Element) => el.textContent?.trim());
+  check(bySocket === "2", `the panel still counts 2 once heartbeats have lapsed, from the sockets (${bySocket})`);
+}
 
 // ── A new exercise reaches both ───────────────────────────────────────────
 await teacher.keyboard.press("Escape");

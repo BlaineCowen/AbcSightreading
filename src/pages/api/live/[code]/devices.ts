@@ -1,8 +1,8 @@
 import type { APIRoute } from "astro";
 import { currentUser, json } from "../../../../lib/server/api";
 import { prisma } from "../../../../lib/server/db";
-import { limits, noRoom, ownRoom, roomOnAir, tooMany } from "../../../../lib/server/live";
-import { DEVICE_WINDOW_MS, deviceSummary, liveEndsAt, shouldExtend } from "../../../../lib/live";
+import { limits, noRoom, ownRoom, pushedDevices, roomOnAir, tooMany } from "../../../../lib/server/live";
+import { DEVICE_WINDOW_MS, deviceSummary, liveEndsAt, mergeDevices, shouldExtend } from "../../../../lib/live";
 
 /**
  * The teacher's panel, every few seconds: how many devices are following and
@@ -23,9 +23,14 @@ export const GET: APIRoute = async ({ request, params }) => {
     endsAt = liveEndsAt(s.startedAt, now);
     await prisma.liveRoom.update({ where: { id: s.id }, data: { endsAt } });
   }
-  const devices = await prisma.liveDevice.findMany({
-    where: { roomId: s.id, seenAt: { gt: new Date(now.getTime() - DEVICE_WINDOW_MS) } },
-    select: { seenAt: true, part: true },
-  });
-  return json({ ...deviceSummary(devices, now), open, version: s.version, endsAt: endsAt.getTime() });
+  // Devices polling say they are there with heartbeats; devices on a socket
+  // are counted by the push service. A device in both counts once.
+  const [beating, pushed] = await Promise.all([
+    prisma.liveDevice.findMany({
+      where: { roomId: s.id, seenAt: { gt: new Date(now.getTime() - DEVICE_WINDOW_MS) } },
+      select: { deviceKey: true, seenAt: true, part: true },
+    }),
+    open ? pushedDevices(s.code) : Promise.resolve([]),
+  ]);
+  return json({ ...deviceSummary(mergeDevices(beating, pushed, now), now), open, version: s.version, endsAt: endsAt.getTime() });
 };

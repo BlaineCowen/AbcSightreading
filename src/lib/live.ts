@@ -110,6 +110,61 @@ export function pollDelayMs(o: { hidden: boolean; failures: number; waiting?: bo
   return Math.min(30000, base * 2 ** Math.min(o.failures, 5));
 }
 
+// ── Push ──────────────────────────────────────────────────────────────────
+
+/**
+ * With a socket open to the push service (workers/live-push), every change
+ * reaches the device the moment the director makes it, so the device polls
+ * only as a safety net against a message lost in a reconnect, and sends no
+ * heartbeat: the open socket is what the director's panel counts. Polling at
+ * 1.5 s cost a CDN request a phone every 1.5 s, about 18,000 for a class of
+ * thirty in a quarter of an hour; on push it is a few dozen.
+ */
+export const PUSH_SAFETY_POLL_MS = 30 * 1000;
+/** A device's keep-alive on its socket, answered by the service without waking the room. */
+export const PUSH_PING_MS = 25 * 1000;
+/** How long a device waits before trying the socket again, by failures in a row: polling carries on meanwhile. */
+export const pushRetryMs = (failures: number) => Math.min(60_000, 2000 * 2 ** Math.min(failures, 5));
+
+/** A device's socket address, from the service's base address (http(s) or ws(s)). */
+export function pushSocketUrl(base: string, code: string, device: string, part: string | null): string {
+  const url = new URL(`/rooms/${code}/ws`, base.replace(/^http/, "ws"));
+  url.searchParams.set("d", device);
+  if (part) url.searchParams.set("p", part);
+  return url.toString();
+}
+
+/**
+ * Whether a state pushed to a device is newer than what it shows: a later
+ * version, the same one with another start (or none), or the room going off
+ * or on air. Two changes sent close together can arrive out of order; an
+ * older score must never replace a newer one.
+ */
+export function isNewerState(
+  pushed: { live?: unknown; version?: unknown },
+  shown: { live: boolean; version: number },
+): boolean {
+  if (pushed.live === false) return true;
+  if (typeof pushed.version !== "number") return false;
+  return !shown.live || pushed.version >= shown.version;
+}
+
+/**
+ * The director's count, from both kinds of device: those on a socket (seen
+ * now, by the push service) and those polling with heartbeats (the
+ * database). A device in both is counted once, by its socket.
+ */
+export function mergeDevices(
+  beating: { deviceKey: string; seenAt: Date; part: string | null }[],
+  pushed: { device: string; part: string | null }[],
+  now: Date,
+): { seenAt: Date; part: string | null }[] {
+  const byKey = new Map<string, { seenAt: Date; part: string | null }>();
+  for (const d of beating) byKey.set(d.deviceKey, { seenAt: d.seenAt, part: d.part });
+  for (const d of pushed) if (isDeviceKey(d.device)) byKey.set(d.device, { seenAt: now, part: d.part });
+  return [...byKey.values()];
+}
+
 /** The ETag for a session's state: its version, its play, and whether it is open. */
 export const liveEtag = (s: { version: number; playId: string | null; open: boolean }) =>
   `"v${s.version}-${s.playId ?? "0"}-${s.open ? "o" : "x"}"`;

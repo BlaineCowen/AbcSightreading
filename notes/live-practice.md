@@ -80,9 +80,67 @@ exercises replace the old with a "New exercise" badge; the part is kept.
   `src/pages/live/poster.astro`; QR from `src/lib/qr.ts`
   (`qrcode-generator`, MIT).
 
+## Push (26 October 2026)
+
+Polling cost a CDN request a phone every 1.5 s: about 18,000 for a class of
+thirty in a quarter of an hour, which Vercel counts even when the CDN answers
+(10 M a month on Pro, then about $2 a million). At a thousand teachers using
+Live most days that is hundreds of dollars a month. So devices now sit on a
+WebSocket to a Cloudflare Durable Object, one per room
+(`workers/live-push/`), and the site tells the room whenever the director
+changes anything:
+
+- `notifyRoom(code)` (server/live.ts) after a publish, a start or stop, Live
+  on and Live off sends `roomState(code)` (the poll's own answer) to
+  `POST /rooms/<code>/publish`; the room sends it to every socket.
+  `notifyGone` after a new code tells the old room's devices and closes them.
+- A device on a socket polls every 30 s (`PUSH_SAFETY_POLL_MS`) as a safety
+  net, sends no heartbeat, and keeps the socket alive with a "ping" every 25 s
+  that the service answers without waking the room. Its part goes up the
+  socket. `isNewerState` stops a late poll answer or a late push putting an
+  older score back.
+- The director's count (`/devices`) merges the sockets
+  (`GET /rooms/<code>/presence`) with the heartbeat devices (`mergeDevices`).
+- Without the service (no `PUBLIC_LIVE_PUSH_URL`, or the socket cannot open:
+  a school network that blocks WebSockets) a device polls and beats exactly as
+  before, and retries the socket with backoff (`pushRetryMs`).
+
+Measured with `PUSH=1 scripts/check-live.ts`: 0 polls and 0 heartbeats a
+device in a quiet 12 s (8 polls and a heartbeat before), a new exercise on
+both devices 0.3 s after the click (0.6 to 1.4 s before), and the count still
+2 from the sockets once the heartbeat window has passed.
+
+Cost on Cloudflare: Durable Objects with SQLite storage run on the free
+Workers plan (limits per day); past those, the $5 a month Workers Paid plan.
+A hibernating socket is not billed while it waits, and a change costs one
+request plus a message a device.
+
+**To switch it on** (once):
+
+1. `cd workers/live-push && bunx wrangler login && bunx wrangler deploy`;
+   note the URL it prints (`https://abc-live-push.<account>.workers.dev`).
+2. Make a long random secret and give it to both sides:
+   `bunx wrangler secret put PUSH_SECRET`, and in Vercel (Preview and
+   Production) `LIVE_PUSH_SECRET` = the same.
+3. In Vercel (Preview and Production): `LIVE_PUSH_URL` and
+   `PUBLIC_LIVE_PUSH_URL` = the URL from step 1. `PUBLIC_` is read at build
+   time, so redeploy after setting it.
+
+Until then the site behaves exactly as before.
+
 ## Testing
 
 - `bun run test` (live.test.ts included) and `bunx astro check`.
+- With push, run the worker beside the dev server and pass the three
+  variables (the secret is in `workers/live-push/.dev.vars`, local only):
+
+  ```sh
+  cd workers/live-push && bunx wrangler dev --port 8787 --ip 127.0.0.1
+  # the dev server below, plus:
+  LIVE_PUSH_URL=http://127.0.0.1:8787 PUBLIC_LIVE_PUSH_URL=http://127.0.0.1:8787 \
+  LIVE_PUSH_SECRET=<.dev.vars PUSH_SECRET>
+  APP=http://localhost:4472 PUSH=1 bun run scripts/check-live.ts
+  ```
 - End to end, `scripts/check-live.ts` (puppeteer-core, Chrome): one director
   and two phone-sized devices on a dev server **on a local database, never the
   shared one**. 23 checks: one permanent code; a device on the link while Live
@@ -123,7 +181,6 @@ migration was never applied anywhere shared and is gone.
 - The director picks or locks parts for devices.
 - Grading in a live room (the data rules for students with no account first).
 - Unison's playback transpose and instrument are not sent.
-- Server-sent events instead of polling, if Vercel's limits allow.
 
 ## Open questions for Blaine
 

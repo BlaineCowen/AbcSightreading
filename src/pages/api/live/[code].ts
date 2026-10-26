@@ -1,16 +1,8 @@
 import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../lib/server/api";
 import { prisma } from "../../../lib/server/db";
-import { clientKey, directorName, goOffAir, limits, noRoom, offAir, ownRoom, roomOnAir, tooMany } from "../../../lib/server/live";
-import {
-  checkPublish,
-  isDeviceKey,
-  isLiveCode,
-  isLivePlay,
-  liveEndsAt,
-  liveEtag,
-  normalizeLiveCode,
-} from "../../../lib/live";
+import { clientKey, goOffAir, limits, noRoom, notifyRoom, offAir, ownRoom, roomOnAir, roomState, tooMany } from "../../../lib/server/live";
+import { checkPublish, isDeviceKey, isLiveCode, liveEndsAt, normalizeLiveCode } from "../../../lib/live";
 
 /**
  * One live room, by its code: the address on the director's poster.
@@ -18,8 +10,9 @@ import {
  * GET ?since=<version>: anyone with the code, no account. Off air it answers
  *   { live: false, director } and the device waits; on air
  *   { live: true, version, play } and, when the version is not `since`, the
- *   score too: { abc, settings, page }. Polled every 1.5 s by each student's
- *   device, so the usual answer is a few bytes and one small query, and
+ *   score too: { abc, settings, page }. Polled every 1.5 s by a student's
+ *   device without a socket to the push service (every 30 s with one, as a
+ *   safety net), so the usual answer is a few bytes and one small query, and
  *   Vercel's CDN may answer it for a second (below): every device in a room
  *   asks the same address, so a class of thirty costs about one query a
  *   second, not twenty.
@@ -49,34 +42,14 @@ export const GET: APIRoute = async ({ request, params, url, clientAddress }) => 
     return noRoom();
   }
 
-  const light = await prisma.liveRoom.findUnique({
-    where: { code },
-    select: { version: true, play: true, endsAt: true, endedAt: true, teacherId: true },
-  });
-  if (!light) {
+  const since = url.searchParams.has("since") ? Number(url.searchParams.get("since")) : undefined;
+  const state = await roomState(code, since);
+  if (!state) {
     if (!limits.missesPerAddress(address)) return tooMany();
     return noRoom();
   }
-  const open = roomOnAir(light);
-  const play = open && isLivePlay(light.play) ? light.play : null;
-  const etag = liveEtag({ version: light.version, playId: play?.id ?? null, open });
-  if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: pollHeaders(etag) });
-
-  if (!open) {
-    const director = await directorName(light.teacherId);
-    return new Response(JSON.stringify({ live: false, director }), { status: 200, headers: pollHeaders(etag) });
-  }
-
-  const since = Number(url.searchParams.get("since"));
-  const base = { live: true, version: light.version, play };
-  if (url.searchParams.has("since") && since === light.version) {
-    return new Response(JSON.stringify(base), { status: 200, headers: pollHeaders(etag) });
-  }
-  const full = await prisma.liveRoom.findUnique({ where: { code }, select: { abc: true, settings: true, page: true } });
-  return new Response(JSON.stringify({ ...base, abc: full?.abc ?? "", settings: full?.settings ?? null, page: full?.page }), {
-    status: 200,
-    headers: pollHeaders(etag),
-  });
+  if (request.headers.get("if-none-match") === state.etag) return new Response(null, { status: 304, headers: pollHeaders(state.etag) });
+  return new Response(JSON.stringify(state.body), { status: 200, headers: pollHeaders(state.etag) });
 };
 
 export const PUT: APIRoute = async ({ request, params }) => {
@@ -98,6 +71,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
     data: { abc, settings, version: { increment: 1 }, endsAt: liveEndsAt(s.startedAt, now) },
     select: { version: true },
   });
+  await notifyRoom(s.code);
   return json({ version: updated.version });
 };
 
@@ -106,6 +80,9 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   if (!user) return json({ error: "Sign in first." }, 401);
   const s = await ownRoom(params.code, user.id);
   if (!s) return noRoom();
-  if (roomOnAir(s)) await goOffAir(s.id);
+  if (roomOnAir(s)) {
+    await goOffAir(s.id);
+    await notifyRoom(s.code);
+  }
   return json({ ok: true });
 };

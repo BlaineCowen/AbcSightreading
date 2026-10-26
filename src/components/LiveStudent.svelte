@@ -5,7 +5,12 @@
   import {
     FULL_SCORE,
     HEARTBEAT_MS,
+    PUSH_PING_MS,
+    PUSH_SAFETY_POLL_MS,
     clockOffset,
+    isNewerState,
+    pushRetryMs,
+    pushSocketUrl,
     extractVoice,
     formatLiveCode,
     isLiveCode,
@@ -124,6 +129,7 @@
       if (location.pathname !== livePath(c)) history.replaceState(null, "", livePath(c));
       void measureClock();
       sendBeat();
+      connectPush();
     }
   }
 
@@ -150,17 +156,95 @@
     if (beatTimer) clearInterval(beatTimer);
     pollTimer = null;
     beatTimer = null;
+    closePush();
   }
 
   function schedulePoll() {
     if (pollTimer) clearTimeout(pollTimer);
     if (phase !== "live" && phase !== "waiting") return;
-    pollTimer = setTimeout(() => void poll(false), pollDelayMs({ hidden: document.hidden, failures, waiting: phase === "waiting" }));
+    // On a socket every change arrives as it is made: the poll is only a safety net.
+    const delay = pushOpen ? PUSH_SAFETY_POLL_MS : pollDelayMs({ hidden: document.hidden, failures, waiting: phase === "waiting" });
+    pollTimer = setTimeout(() => void poll(false), delay);
   }
 
   function onVisibility() {
-    // Back in view: check at once rather than wait out the slow hidden poll.
-    if (!document.hidden && (phase === "live" || phase === "waiting")) void poll(false);
+    if (document.hidden || (phase !== "live" && phase !== "waiting")) return;
+    // Back in view: check at once rather than wait out the slow hidden poll,
+    // and reopen a socket the phone closed while it slept.
+    void poll(false);
+    if (!socket) connectPush();
+  }
+
+  // ── Push (workers/live-push) ───────────────────────────────────────────
+  /** The push service, when the site has one; without it the device polls as it always did. */
+  const PUSH_URL = (import.meta.env.PUBLIC_LIVE_PUSH_URL as string | undefined) ?? "";
+  let socket: WebSocket | null = null;
+  let pushOpen = false;
+  let pushFailures = 0;
+  let pushRetry: ReturnType<typeof setTimeout> | null = null;
+  let pingTimer: ReturnType<typeof setInterval> | null = null;
+
+  function connectPush() {
+    if (!PUSH_URL || socket || !code || !device || (phase !== "live" && phase !== "waiting")) return;
+    if (pushRetry) clearTimeout(pushRetry);
+    pushRetry = null;
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(pushSocketUrl(PUSH_URL, code, device, part));
+    } catch {
+      pushFailures++;
+      return;
+    }
+    socket = ws;
+    ws.onopen = () => {
+      if (socket !== ws) return;
+      pushOpen = true;
+      pushFailures = 0;
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send("ping"), PUSH_PING_MS);
+      // Anything changed between the last poll and the socket opening.
+      void poll(false);
+    };
+    ws.onmessage = (e) => {
+      if (socket !== ws || typeof e.data !== "string" || e.data === "pong") return;
+      let data: any;
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      if (data?.gone) {
+        leave("This live link no longer works. Ask your director for the new one.");
+        return;
+      }
+      if (isNewerState(data, { live: phase === "live", version })) void apply(data, false);
+    };
+    ws.onclose = () => {
+      if (socket !== ws) return;
+      socket = null;
+      const wasOpen = pushOpen;
+      pushOpen = false;
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = null;
+      if (!code || (phase !== "live" && phase !== "waiting")) return;
+      // Polling and heartbeats take over until the socket is back.
+      schedulePoll();
+      if (wasOpen) sendBeat();
+      pushRetry = setTimeout(connectPush, pushRetryMs(pushFailures++));
+    };
+  }
+
+  function closePush() {
+    if (pushRetry) clearTimeout(pushRetry);
+    if (pingTimer) clearInterval(pingTimer);
+    pushRetry = null;
+    pingTimer = null;
+    const ws = socket;
+    socket = null;
+    pushOpen = false;
+    try {
+      ws?.close();
+    } catch {}
   }
 
   /** Live off: put the music away and wait. The part is kept for when it comes back. */
@@ -197,24 +281,7 @@
       const data = await res.json();
       failures = 0;
       online = true;
-      if (data.live === false) {
-        director = typeof data.director === "string" ? data.director : "";
-        if (phase !== "waiting") wait();
-        schedulePoll();
-        return true;
-      }
-      if (phase !== "live") {
-        phase = "live";
-        if (!beatTimer) beatTimer = setInterval(sendBeat, HEARTBEAT_MS);
-        if (!first) sendBeat();
-      }
-      if (typeof data.abc === "string" && data.version !== version) {
-        const firstScore = version < 0 || !abc;
-        version = data.version;
-        settings = data.settings ?? null;
-        await useScore(data.abc, !firstScore);
-      }
-      handlePlay(isLivePlay(data.play) ? data.play : null);
+      await apply(data, first);
     } catch {
       failures++;
       online = false;
@@ -227,8 +294,32 @@
     return true;
   }
 
+  /** What the room shows now, from a poll or the socket. */
+  async function apply(data: any, first: boolean) {
+    // A poll answered before a push can land after it: never go back a version.
+    if (!first && !isNewerState(data, { live: phase === "live", version })) return;
+    if (data.live === false) {
+      director = typeof data.director === "string" ? data.director : "";
+      if (phase !== "waiting") wait();
+      return;
+    }
+    if (phase !== "live") {
+      phase = "live";
+      if (!beatTimer) beatTimer = setInterval(sendBeat, HEARTBEAT_MS);
+      if (!first) sendBeat();
+    }
+    if (typeof data.abc === "string" && data.version !== version) {
+      const firstScore = version < 0 || !abc;
+      version = data.version;
+      settings = data.settings ?? null;
+      await useScore(data.abc, !firstScore);
+    }
+    handlePlay(isLivePlay(data.play) ? data.play : null);
+  }
+
+  /** Says this device is there, for the director's count. On a socket the socket says it. */
   async function sendBeat() {
-    if (phase !== "live" || !device) return;
+    if (phase !== "live" || !device || pushOpen) return;
     try {
       const res = await fetch(`/api/live/${code}/beat`, {
         method: "POST",
@@ -262,6 +353,7 @@
     choosing = false;
     for (const key of partKeys(code, voices)) store.set(key, id);
     sendBeat();
+    if (pushOpen) socket?.send(JSON.stringify({ type: "part", part: id }));
     stopSound();
     tick().then(draw);
   }
