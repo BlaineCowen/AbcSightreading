@@ -184,6 +184,51 @@ const top: { offset: number }[] = await page.evaluate(() => (window as any).__mu
 if (!top[0] || top[0].offset > 0.05) fail(`after Back to start Play began ${top[0]?.offset.toFixed(2)} s in`);
 await press(page, "Stop");
 
+// 6. A note after the downbeat counts in to its bar's downbeat, the notes
+// before it silent: it comes in later than the bar's first note would, by
+// exactly the time between them (Blaine, 27 October 2026).
+/** Taps note `n` (abcjs-n<n>) of a bar on line 1 that has a note on its downbeat and another after it. */
+async function tapInBar(n: number) {
+  const box = await page.evaluate((k) => {
+    document.querySelectorAll("[data-tapped]").forEach((e) => e.removeAttribute("data-tapped"));
+    const notes = [...document.querySelectorAll("#paper svg .abcjs-note.abcjs-l1")];
+    const bar = (e: Element) => /abcjs-m(\d+)/.exec(e.getAttribute("class") ?? "")?.[1];
+    const firsts = notes.filter((e) => e.classList.contains("abcjs-n0"));
+    const m = firsts.map(bar).find((b) => notes.some((e) => bar(e) === b && e.classList.contains("abcjs-n1")));
+    const el = notes.find((e) => bar(e) === m && e.classList.contains(`abcjs-n${k}`));
+    el?.scrollIntoView({ block: "center" });
+    const r = el?.querySelector("path")?.getBoundingClientRect();
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+  }, n);
+  if (!box) throw new Error(`no bar on line 2 with a second note`);
+  await page.mouse.click(box.x, box.y);
+  await sleep(300);
+}
+/** Play from the tapped note: how long after Play the music sounds, and from where. */
+async function playFromTap() {
+  await page.evaluate(() => {
+    (window as any).__music.length = 0;
+    (window as any).__playAt = performance.now();
+  });
+  await press(page, "Play");
+  await page.waitForFunction(() => (window as any).__music.length > 0, { timeout: 20000 });
+  const [m] = await page.evaluate(() => (window as any).__music);
+  const playAt: number = await page.evaluate(() => (window as any).__playAt);
+  await sleep(300);
+  await press(page, "Stop");
+  await sleep(300);
+  return { wait: (m.perf + (m.at - m.now) * 1000 - playAt) / 1000, offset: m.offset as number };
+}
+await tapInBar(0);
+const downbeat = await playFromTap();
+await tapInBar(1);
+const later = await playFromTap();
+const expect = later.offset - downbeat.offset;
+const got = later.wait - downbeat.wait;
+console.log(`  off the downbeat: ${expect.toFixed(2)} s into its bar, came in ${got.toFixed(2)} s later than the downbeat's note`);
+if (expect <= 0) fail("the second note of the bar played from no later than the first");
+else if (Math.abs(got - expect) > 0.08) fail(`a note ${expect.toFixed(2)} s into its bar came in ${got.toFixed(2)} s later, not on its beat`);
+
 await browser.close();
 console.log(failures ? `${failures} failed` : "all checks passed");
 process.exit(failures ? 1 : 0);

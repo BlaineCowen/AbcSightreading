@@ -7,7 +7,7 @@
   import { tuner } from "../lib/tuner/store";
   import { drumPatternFor, scheduleClick, withClickByBar } from "../lib/playback-click";
   import { SampleBank } from "../lib/tuner/click-sounds";
-  import { eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
+  import { barStartOf, eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import { beatLevelsFor } from "../lib/tuner/click-pattern";
   import { assistedLevels, assistsTheClick } from "../lib/tuner/practice-assistant";
   import { barCount, drawnLines, evenLines, hasPickup, isDense, measuresPerLine as barsPerLine, withPickupLines } from "../lib/score-layout";
@@ -1956,10 +1956,12 @@
 
   /**
    * Plays from a tapped note with a count-in before it: the count-in's clicks
-   * (when the click is on) and words on the audio clock, then the music from
-   * the note. abcjs's count-in is the first bar of its audio, so it cannot
-   * lead into the middle; this one is booked beside it. False when the note
-   * is the first (the usual count-in does).
+   * (when the click is on) and words on the audio clock into the downbeat of
+   * the note's bar, the bar's notes before it kept silent (as rests, the click
+   * going on through them), then the music from the note, so a note off the
+   * downbeat comes in on its own beat. abcjs's count-in is the first bar of
+   * its audio, so it cannot lead into the middle; this one is booked beside
+   * it. False when the note is the first (the usual count-in does).
    */
   async function startLeadIn(): Promise<boolean> {
     const tapped = await tappedTiming();
@@ -1987,6 +1989,15 @@
       if (clicking) after(at, () => scheduleClick(ctx, leadInClicks, out, at, t.clickSound, k % perBar === 0 ? "downbeat" : "beat"), 0.1);
       after(at, () => showCountIn(playedMeter, k));
     }
+    // The bar's beats before the note: silent but for the click (abcjs's own
+    // click, in its drum track, comes in with the music at the note).
+    const gap = (tapped.milliseconds - barStartOf(timer.noteTimings, tapped)) / 1000;
+    const rests = Math.max(0, Math.ceil(gap / beatSec - 0.001));
+    if (rests) after(begin + beats * beatSec, hideCountIn);
+    for (let k = 0; k < rests && clicking; k++) {
+      const at = begin + (beats + k) * beatSec;
+      after(at, () => scheduleClick(ctx, leadInClicks, out, at, t.clickSound, k % perBar === 0 ? "downbeat" : "beat"), 0.1);
+    }
     isPlaying = true;
     pausedHere = false;
     // The note in view and the cursor on it, through the count-in.
@@ -1995,7 +2006,7 @@
     if (system) scrollToReadingPosition(system);
     if (cursorMode !== "off" && typeof tapped.left === "number") movePlaybackCursor(tapped.left, tapped.top ?? 0, tapped.height ?? 0);
     markStart();
-    after(begin + beats * beatSec, () => {
+    after(begin + beats * beatSec + gap, () => {
       leadIn = null;
       hideCountIn();
       if (!synthControl) return;

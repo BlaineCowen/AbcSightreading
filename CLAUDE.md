@@ -2432,7 +2432,11 @@ so a practice page does not load My music's ABC writer). Play counts in to it,
 on the audio clock beside the timeline's own count-in (which is the first bar
 of the audio and cannot lead into the middle): the clicks when the click is on,
 "1, 2, Ready, Go", then the music from the note with the cursor and click taken
-up there (`startLeadIn` on both pages; Choral also sets the controller's own
+up there. The count-in leads to the downbeat of the note's bar, and the bar's
+notes before it are silent, as rests, the click going on through them
+(`barStartOf`; 27 October 2026, Blaine: start from the measure's beat 1 with
+rests before the note), so a note off the beat comes in on its own beat
+(`startLeadIn` on both pages; Choral also sets the controller's own
 percent, or its timer restarted from the top). A tap while playing jumps there
 with no count-in; Pause leaves a "Paused" line; Stop goes back to the tapped
 note; Back to start and a new exercise forget it; a redraw keeps it (kept by
@@ -2440,7 +2444,15 @@ its `startChar` in the ABC). Loops and drills still go from the top, and a tap
 does nothing during a Grade run. `bun run scripts/check-start-point.ts`
 (`PAGE=unison|choral`): the count-in, the audio started at the note's offset a
 count-in after Play, nothing lit before it, Paused, Stop, a jump, Back to
-start.
+start, and a bar's second note coming in later than its first by the time
+between them.
+
+A tapped note on Unison sounds at once (`playNote`, `Tone.immediate()`): at
+Tone's default time, 0.1 s ahead, its one-voice synth went on sounding the
+note tapped before for that long ("sometimes it plays the previous note",
+27 October 2026). abcjs picks the right note; a tap reaches it twice (touch,
+then the browser's mouse click), so the same note within `SAME_TAP_MS` sounds
+once.
 
 ## Score layout
 

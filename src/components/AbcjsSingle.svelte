@@ -81,7 +81,7 @@
   import CountInBadge from "./CountInBadge.svelte";
   import DrillBadge from "./DrillBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
-  import { eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
+  import { barStartOf, eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
@@ -588,8 +588,19 @@
     // score silent, and stopping this component's later onMount callbacks
     // (the reflow on resize, opening a linked exercise) from ever running.
     toneSynth ??= new Tone.Synth().toDestination();
-    toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n");
+    // Now, not at Tone's default time (its clock plus a 0.1 s look-ahead). The
+    // synth is one voice with a 1 s release, so a note tapped soon after
+    // another kept sounding the other for that 0.1 s before changing pitch:
+    // "sometimes it plays the previous note" (Blaine, 27 October 2026).
+    toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n", Tone.immediate());
   };
+  /**
+   * A tap reaches abcjs twice, as a touch and then as the mouse click the
+   * browser makes of it, and each would sound the note again on top of the
+   * first. The same note within this many ms is the same tap.
+   */
+  const SAME_TAP_MS = 600;
+  let lastTap: { el: unknown; at: number } | null = null;
 
   /**
    * Resolve saved rhythm names against what the meter's kind offers - see
@@ -2050,6 +2061,9 @@
         // Every note on the rhythm staff is the same placeholder pitch, so
         // playing it back would be meaningless.
         if (rhythmOnly) return;
+        const now = performance.now();
+        if (lastTap && lastTap.el === event && now - lastTap.at < SAME_TAP_MS) return;
+        lastTap = { el: event, at: now };
         if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
@@ -2966,11 +2980,14 @@
 
   /**
    * Plays from a tapped note with a count-in before it, all on the audio
-   * clock: the count-in's clicks (when the click is on) and words, then the
-   * music from the note, with the cursor and the click taken up there. The
-   * timeline's own count-in is its first bar, so it cannot lead into the
-   * middle; this one is booked beside it. Each click is booked a moment
-   * before it sounds, so Pause can still take back the ones to come.
+   * clock: the count-in's clicks (when the click is on) and words into the
+   * downbeat of the note's bar, the bar's notes before it kept silent (as
+   * rests, with the click going on through them), then the music from the
+   * note, with the cursor and the click taken up there. So a note off the
+   * downbeat comes in on its own beat. The timeline's own count-in is its
+   * first bar, so it cannot lead into the middle; this one is booked beside
+   * it. Each click is booked a moment before it sounds, so Pause can still
+   * take back the ones to come.
    */
   function startLeadIn(tapped: TimingEvent) {
     const meter = playedMeter();
@@ -2978,8 +2995,12 @@
     const beatSec = 60 / tempo;
     const perBar = Math.max(1, beatsOf(meter));
     const t = tapped.milliseconds / 1000;
+    const bar = barStartOf(timingCallbacks?.noteTimings, tapped) / 1000;
+    // The bar's beats before the note, sounded by the clicks booked here; from
+    // the note on, the timeline's own beat callbacks click.
+    const rests = Math.max(0, Math.ceil((t - bar) / beatSec - 0.001));
     const begin = audioContext.currentTime + 0.15;
-    const zero = begin + beats * beatSec - t;
+    const zero = begin + beats * beatSec - bar;
     if (!scheduleAudioFrom(t, zero)) return;
     pausedAt = 0;
     isPlaying = true;
@@ -2991,6 +3012,11 @@
       const at = begin + k * beatSec;
       if (clicking) after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
       after(at, () => showCountIn(meter, k));
+    }
+    if (rests) after(begin + beats * beatSec, hideCountIn);
+    for (let k = 0; k < rests && clicking; k++) {
+      const at = begin + (beats + k) * beatSec;
+      after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
     }
     // The note in view and the cursor on it, through the count-in.
     const first = eventElements(tapped)[0];

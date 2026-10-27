@@ -17,6 +17,8 @@ export type TimingEvent = {
   type?: string;
   milliseconds: number;
   startCharArray?: number[];
+  /** abcjs marks the first event after each barline. */
+  measureStart?: boolean;
   elements?: Element[][];
   left?: number | null;
   top?: number;
@@ -27,6 +29,21 @@ export type TimingEvent = {
 export function eventForChar(timings: TimingEvent[] | null | undefined, startChar: number | null): TimingEvent | null {
   if (!timings || startChar === null) return null;
   return timings.find((e) => e.type === "event" && e.startCharArray?.includes(startChar)) ?? null;
+}
+
+/**
+ * When the bar a note falls in starts, in ms: the last event abcjs marks as a
+ * bar's first at or before it (a rest or a tied-over note is an event too).
+ * Play from a tapped note counts in to this downbeat, the notes before the
+ * tapped one in its bar kept silent, so the note comes in on its own beat
+ * (Blaine, 27 October 2026). The note's own time where nothing is marked.
+ */
+export function barStartOf(timings: TimingEvent[] | null | undefined, e: TimingEvent): number {
+  let at = -1;
+  for (const x of timings ?? []) {
+    if (x.type === "event" && x.measureStart && x.milliseconds <= e.milliseconds + 1) at = Math.max(at, x.milliseconds);
+  }
+  return at >= 0 ? at : e.milliseconds;
 }
 
 /** The drawn elements of a timing event, flattened. */
