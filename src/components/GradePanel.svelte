@@ -107,6 +107,14 @@
     resultsOpen = false;
     setupOpen = true;
   };
+  /**
+   * The page's grade button pressed while Grade is already open (the results
+   * put away to the strip, say): the setup again, for another run. It used to
+   * do nothing there, since the panel was already open.
+   */
+  export function reopen() {
+    if (v.phase === "idle" || v.phase === "results") changeSettings();
+  }
   function onKey(e: KeyboardEvent) {
     if (e.key !== "Escape") return;
     if (resultsShown) resultsOpen = false;

@@ -4739,7 +4739,13 @@
     stopTuner();
   }
 
+  let gradePanel: GradePanel | undefined;
   async function openGrade() {
+    // Already open (the results on the strip, or tucked away): bring the setup back for another run.
+    if (gradeOpen) {
+      gradePanel?.reopen();
+      return;
+    }
     // A sung run's click follows the page's metronome: off unless the page
     // clicks with the music, and subdivided when it does. It used to keep a
     // click of its own, on every beat by default, so a singer with the
@@ -5466,6 +5472,7 @@
   <ToolsWheel />
   {#if gradeOpen}
     <GradePanel
+      bind:this={gradePanel}
       runner={gradeRunner}
       allowed={gradeAllowed}
       signedIn={gradeSignedIn}

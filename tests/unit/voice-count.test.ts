@@ -20,11 +20,14 @@ describe("the counting voice", () => {
     expect(countWords("kodaly", 3, 0, true)).toEqual(["ti", "ti", "ti"]);
   });
 
-  test("too fast to say, a subdivision is left out and the beat is counted plainly", () => {
+  test("the voice counts the beats only, never the subdivisions, at any speed", () => {
     expect(wordAt("counting", 4, 1, 0, false, 0.1)).toBeNull();
+    expect(wordAt("counting", 4, 1, 0, false, 0.5)).toBeNull();
     expect(wordAt("counting", 4, 0, 2, false, 0.1)).toBe("3");
+    expect(wordAt("counting", 2, 0, 3, false, 0.5)).toBe("4");
+    expect(wordAt("counting", 3, 0, 1, true, 0.5)).toBe("2");
     expect(wordAt("kodaly", 4, 0, 0, false, 0.1)).toBe("ta");
-    expect(wordAt("kodaly", 4, 1, 0, false, 0.2)).toBe("ki");
+    expect(wordAt("kodaly", 4, 1, 0, false, 0.2)).toBeNull();
     expect(countWords("counting", 8, 0, false).slice(1).every((w) => w === null)).toBe(true);
   });
 

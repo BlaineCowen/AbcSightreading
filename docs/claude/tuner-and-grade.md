@@ -67,7 +67,9 @@ ta, ti-ti, ti ki ti ki, tri o la) is espeak-ng's plain robot (Blaine's pick),
 built by `bun run scripts/voice/build.ts` into public/voice/robot/ with each
 word's lead-in (loudness to half its peak) in manifest.json; a word starts that
 early so its vowel lands on the beat, and the word before is cut as it comes
-in. Subdivisions are said only when a slot is 0.15 s or longer. On Unison the
+in. It says the beats only (1, 2, 3, 4, or ta), never the subdivisions,
+which the click carries (`wordAt`; Blaine, 27 October 2026; the panel's
+button reads "1 2 3 4"). On Unison the
 beat's word is said a beat ahead (`sayNextBeat`), since its click is placed as
 abcjs reaches each beat; Choral's click is abcjs's drum track and has no voice
 yet. The metronome times beat 1 on its first tick, once the context runs: the
@@ -218,7 +220,9 @@ late; sharp or flat; let go early; for claps: in time, early or late,
 missed, stray) and Easy / Standard / Strict, which grades the same run again
 at once (`GradeRunner.regrade`: it keeps the pitch frames or the claps it
 heard). "See it on the music" puts the results away to the strip, whose
-Results button brings them back.
+Results button brings them back. The page's Listen / Clap and grade button
+pressed while Grade is open opens the setup again (GradePanel `reopen`); it
+did nothing there before (27 October 2026).
 
 **One clock for the beat** (12 October 2026, after learnmusic.fun's Rhythm
 Hero): a run in time books every click on the audio clock before it sounds,

@@ -43,9 +43,6 @@ export function voiceFrom(value: unknown): VoiceSettings {
   return { mode, system, volume: Number.isFinite(v) && v >= 0 && v <= 1 ? v : DEFAULT_VOICE.volume };
 }
 
-/** A subdivision is said only when its slot is at least this long; faster, only the beats are counted. */
-export const MIN_SPOKEN_SLOT_S = 0.15;
-
 /**
  * The word for each slot of a beat (`grid` slots), beat `beat` (from 0) of
  * the bar. `compound` beats are dotted quarters. Slots with nothing to say
@@ -65,14 +62,13 @@ export function countWords(system: VoiceSystem, grid: number, beat: number, comp
 }
 
 /**
- * The word to say at `slot` of a beat: its word, or (a subdivision too short
- * to say) none - but the beat's own word is always said, as Kodály's "ta" when
- * only the beats are counted.
+ * The word to say at `slot` of a beat: the beat's own word on the beat ("1",
+ * or Kodály's "ta"), and nothing on a subdivision, which the click carries
+ * (Blaine, 27 October 2026: the voice counts 1, 2, 3, 4, not the
+ * subdivisions). `grid` and `slotSeconds` are kept for the callers.
  */
-export function wordAt(system: VoiceSystem, grid: number, slot: number, beat: number, compound: boolean, slotSeconds: number): string | null {
-  if (slot > 0 && slotSeconds < MIN_SPOKEN_SLOT_S) return null;
-  if (slot === 0 && slotSeconds < MIN_SPOKEN_SLOT_S) return countWords(system, 1, beat, compound)[0];
-  return countWords(system, grid, beat, compound)[slot] ?? null;
+export function wordAt(system: VoiceSystem, _grid: number, slot: number, beat: number, compound: boolean, _slotSeconds: number): string | null {
+  return slot === 0 ? countWords(system, 1, beat, compound)[0] : null;
 }
 
 /**

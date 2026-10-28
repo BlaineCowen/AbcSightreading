@@ -53,7 +53,7 @@
   <div class="flex flex-col gap-1.5">
     <span class={label}>Counting voice</span>
     <div class="flex flex-wrap gap-2" role="group" aria-label="Counting voice">
-      {#each [["off", "Off"], ["counting", "1 e & a"], ["kodaly", "Kodály"]] as [id, text]}
+      {#each [["off", "Off"], ["counting", "1 2 3 4"], ["kodaly", "Kodály"]] as [id, text]}
         <button type="button" class="{tok} {voiceChoice === id ? 'sr-on' : ''}" aria-pressed={voiceChoice === id}
           on:click={() => pickVoice(id)}>{text}</button>
       {/each}
