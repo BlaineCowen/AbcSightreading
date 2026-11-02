@@ -10,6 +10,13 @@ import type { ClapNote } from "../grade-rhythm";
 
 const CLASSES = ["g-right", "g-close", "g-miss"];
 
+/**
+ * How a round is drawn: two bars to a line (Blaine, 2 November 2026: four
+ * bars on one line were too narrow), so four bars are two lines at the size
+ * two bars are drawn.
+ */
+export const roundLayout = (bars: number) => (bars > 2 ? { wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: 2 } } : {});
+
 function drawn(paper: Element | null | undefined): Element[] {
   return [...(paper?.querySelectorAll(".abcjs-note, .abcjs-rest") ?? [])];
 }

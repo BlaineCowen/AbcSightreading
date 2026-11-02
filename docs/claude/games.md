@@ -99,14 +99,19 @@ key). While the room plays a game, LiveStudent shows `LiveGame.svelte`
 instead of the music and reports the name as its part, so the director's
 device count lists the players.
 
-## Your own setups (2 November 2026)
+## Custom setups (2 November 2026)
+
+The preset is called just **Custom** in both menus (Blaine: the longer
+"Your own: meters, rhythms, ties…" read badly). A round of four bars is
+drawn two bars to a line (`roundLayout` in rhythm-marks.ts), on the big
+screen and in a phone's review: four on one line were too narrow.
 
 Blaine: ta and ti-ti is too limiting; which steps and skips, which note to
-start on. The rhythm game's menu ends with **Your own** (`RhythmSetup.svelte`):
+start on. The rhythm game's menu ends with **Custom** (`RhythmSetup.svelte`):
 meters (one kind at a time, as on the Unison page), the figures with the
 Unison page's picker groups and note pictures, ties across the barline, and
 rhythm syllables printed under the notes; `roundParams` keeps only the figures
-that fit the meter drawn. Catch the tune's menu ends with **Your own**
+that fit the meter drawn. Catch the tune's menu ends with **Custom**
 (`TuneSetup.svelte`): the notes (low so to high mi), the moves allowed
 (repeat, step, skip, 4th, 5th, 6th, octave: tune-path's `allowedMoves`,
 optional, so Octavo's levels are unchanged), the notes a tune may start on,

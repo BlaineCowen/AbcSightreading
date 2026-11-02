@@ -327,7 +327,7 @@
       <span>Notes</span>
       <select class="sr-select" value={li} on:change={(e) => setLevel(Number(e.currentTarget.value))} disabled={game?.phase === "playing" || game?.phase === "answering"} data-tune-level>
         {#each PATH_LEVELS as l, i (l.name)}<option value={i}>{l.name}: {l.notes.join(" ")}</option>{/each}
-        <option value={-1}>Your own: notes, moves, start…</option>
+        <option value={-1}>Custom</option>
       </select>
     </label>
     <label class="set speed">

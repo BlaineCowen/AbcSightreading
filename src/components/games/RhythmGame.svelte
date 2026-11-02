@@ -22,7 +22,7 @@
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
   import { scoreRhythm, type RhythmScore } from "../../lib/games/game-score";
   import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
-  import { markNotes, markShares, noteShares } from "../../lib/games/rhythm-marks";
+  import { markNotes, markShares, noteShares, roundLayout } from "../../lib/games/rhythm-marks";
   import { roomLag, countInLag } from "../../lib/games/game-lag";
   import { countInBarsFor, isFinal, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
   import { answers as fetchAnswers, closeRoom, measureOffset, newRound, openRoom, players as fetchPlayers, publishGame, type HostRoom } from "../../lib/games/host-room";
@@ -54,7 +54,7 @@
   $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
   const setStrictness = (id: string) => (strictness = id as Strictness);
 
-  type Exercise = { abc: string; meter: string; beatsPerBar: number; beatUnits: number; schedule: ReturnType<typeof gradeSchedule> };
+  type Exercise = { abc: string; bars: number; meter: string; beatsPerBar: number; beatUnits: number; schedule: ReturnType<typeof gradeSchedule> };
   let exercise: Exercise | null = null;
   let loading = false;
   let problem = "";
@@ -70,7 +70,7 @@
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? "Could not write a rhythm.");
       const abc: string = data.data[0];
-      return { abc, meter: r.meter, beatsPerBar: r.beatsPerBar, beatUnits: beatUnitOf(r.meter), schedule: gradeSchedule(abc) };
+      return { abc, bars, meter: r.meter, beatsPerBar: r.beatsPerBar, beatUnits: beatUnitOf(r.meter), schedule: gradeSchedule(abc) };
     } catch (e) {
       problem = e instanceof Error ? e.message : "Could not write a rhythm.";
       return null;
@@ -82,7 +82,7 @@
   async function draw() {
     await tick();
     if (!paper || !exercise) return;
-    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true });
+    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true, ...roundLayout(exercise.bars) });
   }
 
   /** Each note's mark on the music (rhythm-marks.ts): green right, butter close, red missed. */
@@ -358,7 +358,7 @@
     <label class="set"><span>Rhythms</span>
       <select bind:value={levelId} disabled={running} data-rhythm-level>
         {#each RHYTHM_LEVELS as l, i (l.id)}<option value={l.id}>{i + 1}. {l.name}</option>{/each}
-        <option value="custom">Your own: meters, rhythms, ties…</option>
+        <option value="custom">Custom</option>
       </select>
     </label>
     <label class="set"><span>Bars</span>

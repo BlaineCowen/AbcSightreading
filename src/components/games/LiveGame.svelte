@@ -28,7 +28,7 @@
   import { countInWordsFor } from "../../lib/count-in";
   import { scoreRhythm, scoreTune, teamStandings, type RhythmScore } from "../../lib/games/game-score";
   import { gradeSchedule } from "../../lib/grade-schedule";
-  import { markNotes } from "../../lib/games/rhythm-marks";
+  import { markNotes, roundLayout } from "../../lib/games/rhythm-marks";
   import { playStep } from "../../lib/games/game-audio";
   import { sylOf } from "../../lib/games/tune-path";
 
@@ -190,7 +190,7 @@
       review = scoreRhythm({ round: r, schedule, beatUnits: v.beatUnits, taps, strictness: v.strictness, roomLagMs: v.roomLag });
       await tick();
       if (!reviewPaper) return;
-      abcjs.renderAbc(reviewPaper, v.abc, { responsive: "resize", staffwidth: 360, scale: 1.2, paddingtop: 4, paddingbottom: 4, add_classes: true });
+      abcjs.renderAbc(reviewPaper, v.abc, { responsive: "resize", staffwidth: 360, scale: 1.2, paddingtop: 4, paddingbottom: 4, add_classes: true, ...roundLayout(r.bars) });
       markNotes(reviewPaper, review.result.notes);
     } catch {
       review = null;

@@ -26,7 +26,7 @@ export const GAME_TEMPOS = [60, 72, 84, 96, 108, 120];
 export const GAME_BARS = [2, 4];
 
 /** A teacher's own set (RhythmSetup.svelte): their meters and figures. */
-export const customLevel = (meters: string[], rhythms: string[]): RhythmLevel => ({ id: "custom", name: "Your own", meters, rhythms });
+export const customLevel = (meters: string[], rhythms: string[]): RhythmLevel => ({ id: "custom", name: "Custom", meters, rhythms });
 
 /**
  * What /api/generate takes for a round: rhythm only, as the Unison page asks
