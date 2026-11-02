@@ -332,8 +332,9 @@
     </label>
     <label class="set speed">
       <span>Speed</span>
-      <input type="range" class="sr-range" min="0.5" max="3" step="0.25" bind:value={gap} aria-label="Seconds a note" data-tune-speed />
-      <span class="tabular-nums">{gap} s a note</span>
+      <span class="pace" aria-hidden="true" title="Slower">🐢</span>
+      <input type="range" class="sr-range" min="0.5" max="3" step="0.25" bind:value={gap} aria-label="Speed" aria-valuetext="{gap} seconds a note" title="{gap} s a note" data-tune-speed />
+      <span class="pace" aria-hidden="true" title="Faster">🐇</span>
     </label>
     {#if mode === "solo"}
       <div class="flex gap-2" role="group" aria-label="When to check">
@@ -418,6 +419,7 @@
   .settings { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; justify-content: center; }
   .set { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); }
   .speed input { width: 7.5rem; direction: rtl; }
+  .speed .pace { font-size: 1.3rem; line-height: 1; }
   .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
   .head { display: flex; align-items: center; gap: 0.8rem; justify-content: center; }
   .caught { font-family: var(--font-display, inherit); font-weight: 700; background: var(--sr-mint); color: var(--sr-mint-ink); border-radius: 999px; padding: 0.2rem 0.8rem; }

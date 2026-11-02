@@ -60,7 +60,10 @@ says which way the tune went) or All at once (Check, fix, Show the tune);
 hints dim the notes the last one cannot reach. Do is middle C. The tune plays
 at 2 seconds a note by default, set with the Speed slider (0.5 to 3 s, right
 is faster; `sr-catch-gap`), on this device and on the big screen alike
-(Blaine, 2 November 2026: 0.75 s was too quick).
+(Blaine, 2 November 2026: 0.75 s was too quick). The slider has a turtle at
+the slow end and a hare at the fast end and no number beside it (Blaine: a
+number changing inline is bad UI); the seconds are in its title and
+`aria-valuetext`.
 
 Hosted: the big screen plays the tune and shows the empty board; devices
 fill in the board and Send; the big screen reveals when everyone has sent or
