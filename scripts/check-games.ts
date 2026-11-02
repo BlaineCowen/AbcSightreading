@@ -344,13 +344,19 @@ if (GAME === "solo" || GAME === "both") {
 
   await p.goto(`${APP}/games/catch-the-tune`, { waitUntil: "networkidle2" });
   const tune: number[] = await p.waitForFunction(() => (window as any).__catchGame?.tune, { timeout: 10000 }).then(() => p.evaluate(() => (window as any).__catchGame.tune));
-  // Each note: a wrong tap first on note 2 (if there is another row), then the right ones.
+  // A tap only writes the note in; Check judges. Note 2 wrong (if there is another row), the rest right.
   const wrong = await p.$$eval(`[data-col="1"]`, (els: Element[], want: number) => els.map((e) => Number(e.getAttribute("data-step"))).find((x) => x !== want), tune[1]);
-  if (wrong !== undefined) await p.click(`[data-col="1"][data-step="${wrong}"]`);
-  const said = await p.$eval(".said", (e: Element) => e.textContent ?? "");
-  check(/Not that one/.test(said), `solo tune: a wrong note is told (${said.trim()})`);
-  for (let c = 1; c < tune.length; c++) await p.click(`[data-col="${c}"][data-step="${tune[c]}"]`);
-  // The catch card: one wrong try on note 2 earns two stars, not three.
+  for (let c = 1; c < tune.length; c++) await p.click(`[data-col="${c}"][data-step="${c === 1 && wrong !== undefined ? wrong : tune[c]}"]`);
+  if (wrong !== undefined) {
+    check(!(await p.$(".cell.wrong")) && !(await p.$("[data-tune-win]")), "solo tune: nothing is judged before Check");
+    await p.click("[data-tune-check]");
+    const said = await p.$eval(".said", (e: Element) => e.textContent ?? "");
+    check(!!(await p.$(`.cell.wrong[data-col="1"]`)) && /of \d+ right/.test(said), `solo tune: Check marks the wrong note (${said.trim()})`);
+    await p.click(`[data-col="1"][data-step="${tune[1]}"]`);
+    check(!(await p.$(".cell.wrong")) && !(await p.$(`.cell.right[data-col="1"]`)), "solo tune: a fixed note is not judged until the next Check");
+  }
+  await p.click("[data-tune-check]");
+  // The catch card: one failed check earns two stars, not three.
   const caught = await p.waitForSelector("[data-tune-win]", { timeout: 3000 }).then((el) => el!.evaluate((e: Element) => `${e.getAttribute("data-tune-win")} stars: ${e.querySelector(".win-title")?.textContent}`)).catch(() => "");
   check(caught.startsWith(wrong === undefined ? "3 stars" : "2 stars"), `solo tune: caught (${caught})`);
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-tune-solo.png` });

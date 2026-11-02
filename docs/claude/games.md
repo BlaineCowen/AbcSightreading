@@ -55,9 +55,13 @@ so below, do, on the piano) and plays a tune of five to eight notes; find
 each note on a board of a column a note and a row a syllable (a note the
 level leaves out is a thin empty row, so a move over it reads as a skip),
 the first given. Seven levels: steps on do re mi, + so, + la, below do, high
-do, + fa, leaps. Solo: Each note (right or not at each tap; a second miss
-says which way the tune went) or All at once (Check, fix, Show the tune);
-hints tint the notes the last one can reach, in the column being worked on
+do, + fa, leaps. Solo: a tap writes the note into its column, any column,
+and nothing is judged until **Check**, which marks each note right or wrong;
+a note changed after a Check loses its mark until the next one; Show the
+tune after a failed Check (Blaine, 2 November 2026: one way only; the Each
+note mode, which judged every tap, is gone). A tap sounds its note, but not
+while the tune is playing (the tune keeps going; a second note on top of it
+confused). Stars count failed Checks. Hints tint the notes the last one can reach, in the column being worked on
 (nothing is dimmed: Blaine, 2 November 2026, dimming gave too much away). Do is middle C. The tune plays
 at 2 seconds a note by default, set with the Speed slider (0.5 to 3 s, right
 is faster; `sr-catch-gap`), on this device and on the big screen alike

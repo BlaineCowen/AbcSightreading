@@ -15,8 +15,8 @@
   export let first: number;
   /** Each column's chosen step (the first is the given note), null while empty. */
   export let chosen: (number | null)[] = [];
-  /** After a check: each column right or not. */
-  export let marks: boolean[] | null = null;
+  /** After a check: each column right or not (null: changed since, not judged). */
+  export let marks: (boolean | null)[] | null = null;
   /** The tune, shown where a column was wrong (the reveal). */
   export let answer: number[] | null = null;
   /** The share of a room right, under each column (the big screen's reveal). */
