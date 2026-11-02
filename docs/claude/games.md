@@ -68,7 +68,10 @@ two wrong tries or failed Checks, one after more), the clean catches in a
 row, the tunes caught, and Next tune; a short confetti fall, none under
 reduced motion. The games' piano plays at full gain (`PIANO_VOLUME` 1 in
 game-audio.ts, the Tools piano's 0.5 doubled) to carry over a room's
-speakers. The slider has a turtle at
+speakers. Repeats are weighted by level (`makePath`): 1.1 on
+the steps-only levels, so about half of Steps tunes have one, and 0.3 above,
+where skips and leaps are being taught (about 30%); a flat 0.35 left Steps
+at 6% and Blaine never heard one. The slider has a turtle at
 the slow end and a hare at the fast end and no number beside it (Blaine: a
 number changing inline is bad UI); the seconds are in its title and
 `aria-valuetext`.
