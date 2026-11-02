@@ -27,8 +27,23 @@
 
   /** Where do sits: middle C, so low so is G3 and high mi E5, in every voice's reach an octave either way. */
   const DO_MIDI = 60;
-  /** Seconds a note in the tune. */
-  const GAP = 0.75;
+  /**
+   * Seconds a note in the tune: 2 by default (Blaine, 2 November 2026: it was
+   * 0.75, too quick to catch), set with the Speed slider, remembered here.
+   */
+  const GAP_KEY = "sr-catch-gap";
+  let gap = (() => {
+    try {
+      const v = Number(localStorage.getItem(GAP_KEY));
+      return v >= 0.5 && v <= 3 ? v : 2;
+    } catch {
+      return 2;
+    }
+  })();
+  const saveGap = (v: number) => {
+    try { localStorage.setItem(GAP_KEY, String(v)); } catch {}
+  };
+  $: saveGap(gap);
 
   let mode: "solo" | "class" = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("host") === "1" ? "class" : "solo";
   /** A level from the menu, or -1 for the teacher's own (TuneSetup), remembered in this browser. */
@@ -112,7 +127,7 @@
     stopSound();
     heard = true;
     playing = true;
-    const p = playKeyAndTune({ steps, doMidi: DO_MIDI, gap: GAP, withKey, onNote: (i) => (nowCol = i < 0 ? null : i) });
+    const p = playKeyAndTune({ steps, doMidi: DO_MIDI, gap, withKey, onNote: (i) => (nowCol = i < 0 ? null : i) });
     player = p;
     await p.done;
     if (player === p) stopSound();
@@ -315,6 +330,11 @@
         <option value={-1}>Your own: notes, moves, start…</option>
       </select>
     </label>
+    <label class="set speed">
+      <span>Speed</span>
+      <input type="range" class="sr-range" min="0.5" max="3" step="0.25" bind:value={gap} aria-label="Seconds a note" data-tune-speed />
+      <span class="tabular-nums">{gap} s a note</span>
+    </label>
     {#if mode === "solo"}
       <div class="flex gap-2" role="group" aria-label="When to check">
         <button class="sr-tok" class:sr-on={check === "each"} aria-pressed={check === "each"} on:click={() => ((check = "each"), fresh())}>Each note</button>
@@ -397,6 +417,7 @@
   .tabs { display: flex; gap: 0.5rem; justify-content: center; }
   .settings { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; justify-content: center; }
   .set { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); }
+  .speed input { width: 7.5rem; direction: rtl; }
   .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
   .head { display: flex; align-items: center; gap: 0.8rem; justify-content: center; }
   .caught { font-family: var(--font-display, inherit); font-weight: 700; background: var(--sr-mint); color: var(--sr-mint-ink); border-radius: 999px; padding: 0.2rem 0.8rem; }
