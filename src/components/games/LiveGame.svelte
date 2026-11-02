@@ -10,16 +10,25 @@
    * server's clock (Live's clock offset) and the taps go to the big screen
    * when the round ends.
    * Catch the tune: the board to fill in (TuneGrid), sent with Send.
-   * Then this player's points and place. The name is made up from the
-   * device (game-names.ts); nothing else about the student is sent.
+   * Then this player's points and place, and for a rhythm the rhythm itself
+   * with their own taps marked (what they missed), scored here by the same
+   * rules as the big screen from what it sends back after the round.
+   *
+   * Names: a made-up one from the device (game-names.ts), or one the student
+   * types before the game starts, checked here and again on the server; the
+   * teacher can remove it from the big screen, which puts the made-up one
+   * back. Nothing else about the student is sent.
    */
-  import { onDestroy } from "svelte";
+  import { onDestroy, tick } from "svelte";
+  import abcjs from "abcjs";
   import TuneGrid from "./TuneGrid.svelte";
   import PipFace from "../PipFace.svelte";
-  import { playerName, playerTag } from "../../lib/games/game-names";
-  import { rhythmTimes, type LiveGame } from "../../lib/games/live-game";
+  import { cleanName, nameKey, nameProblem, NAME_MAX, playerName, playerTag } from "../../lib/games/game-names";
+  import { isFinal, rhythmTimes, type LiveGame } from "../../lib/games/live-game";
   import { countInWordsFor } from "../../lib/count-in";
-  import { scoreTune } from "../../lib/games/game-score";
+  import { scoreRhythm, scoreTune, teamStandings, type RhythmScore } from "../../lib/games/game-score";
+  import { gradeSchedule } from "../../lib/grade-schedule";
+  import { markNotes } from "../../lib/games/rhythm-marks";
   import { playStep } from "../../lib/games/game-audio";
   import { sylOf } from "../../lib/games/tune-path";
 
@@ -28,11 +37,48 @@
   export let device: string;
   /** How far the server's clock is ahead of this one, ms (LiveStudent's measureClock). */
   export let offset = 0;
+  /** The name this device plays under: LiveStudent reports it as the device's part, so the big screen lists it. */
+  export let name = "";
 
-  $: me = playerName(device);
+  // ── The player's name ──────────────────────────────────────────────────
+  const NAME_KEY = "sr-game-name";
+  let typed = (() => {
+    try { return localStorage.getItem(NAME_KEY) ?? ""; } catch { return ""; }
+  })();
+  let draft = typed;
+  let nameNote = "";
+  $: made = playerName(device);
+  /** The teacher removed this device's name: back to the made-up one (a function, so `typed` is only read here). */
+  function checkRemoved(blocked: string[] | undefined) {
+    if (!typed || !(blocked ?? []).includes(nameKey(typed))) return;
+    nameNote = "Your teacher asked for a different name.";
+    typed = "";
+    draft = "";
+    try { localStorage.removeItem(NAME_KEY); } catch {}
+  }
+  $: checkRemoved(game.blocked);
+  $: me = typed || made;
+  $: name = me;
+  $: canRename = game.phase === "lobby" || game.number === 0;
+  $: draftProblem = draft.trim() ? nameProblem(draft) : null;
+  function saveName() {
+    const n = cleanName(draft);
+    if (!n) {
+      typed = "";
+    } else if (nameProblem(n)) {
+      return;
+    } else typed = n;
+    nameNote = "";
+    try { typed ? localStorage.setItem(NAME_KEY, typed) : localStorage.removeItem(NAME_KEY); } catch {}
+  }
+
+
   $: tag = playerTag(device);
   $: place = (game.board ?? []).findIndex((r) => r.tag === tag);
   $: mine = place >= 0 ? game.board![place] : null;
+  $: final = isFinal(game);
+  $: myTeam = game.teams?.find((t) => t.members.includes(me));
+  $: standings = game.teams?.length ? teamStandings(game.board ?? [], game.teams) : [];
   const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
   // A new round starts clean.
@@ -92,6 +138,8 @@
     tap(e.timeStamp);
   }
   function onKey(e: KeyboardEvent) {
+    // A space typed into the name box is a space, not a tap.
+    if (e.target instanceof HTMLElement && e.target.closest("input, textarea, [contenteditable]")) return;
     if ((e.code === "Space" || e.key === " ") && !e.repeat && game.kind === "rhythm") {
       e.preventDefault();
       pressed = true;
@@ -105,7 +153,7 @@
       const res = await fetch(`/api/live/${code}/game/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device, round: game.round, answer }),
+        body: JSON.stringify({ device, round: game.round, answer, name: typed || undefined }),
       });
       sent = res.ok ? "yes" : "failed";
     } catch {
@@ -128,6 +176,27 @@
   }
   const sendTune = () => post({ notes: chosen.map((x) => x ?? 0), ms: Date.now() - (answeringSince || Date.now()) });
   $: result = game.kind === "tune" && game.phase === "results" && tune?.tune && sent === "yes" ? scoreTune(chosen.map((x) => x ?? 0), tune.tune, 0, 0) : null;
+  // ── A rhythm's review: this player's own taps on the rhythm ─────────────
+  let reviewPaper: HTMLDivElement;
+  let review: RhythmScore | null = null;
+  let reviewed = "";
+  $: if (game.kind === "rhythm" && game.phase === "results" && game.rhythm?.review && sent === "yes" && reviewed !== game.round) void showReview();
+  async function showReview() {
+    const r = game.rhythm!;
+    const v = r.review!;
+    reviewed = game.round;
+    try {
+      const schedule = gradeSchedule(v.abc);
+      review = scoreRhythm({ round: r, schedule, beatUnits: v.beatUnits, taps, strictness: v.strictness, roomLagMs: v.roomLag });
+      await tick();
+      if (!reviewPaper) return;
+      abcjs.renderAbc(reviewPaper, v.abc, { responsive: "resize", staffwidth: 360, scale: 1.2, paddingtop: 4, paddingbottom: 4, add_classes: true });
+      markNotes(reviewPaper, review.result.notes);
+    } catch {
+      review = null;
+    }
+  }
+
   $: secondsLeft = tune?.answerBy ? Math.max(0, Math.ceil((tune.answerBy - serverNow()) / 1000)) : null;
   let ticker: ReturnType<typeof setInterval> | null = setInterval(() => (secondsLeft = tune?.answerBy ? Math.max(0, Math.ceil((tune.answerBy - serverNow()) / 1000)) : null), 500);
   onDestroy(() => ticker && clearInterval(ticker));
@@ -136,7 +205,11 @@
 <svelte:window on:keydown={onKey} on:keyup={() => (pressed = false)} />
 
 <div class="game">
-  <p class="me">You are <b data-player-name={me}>{me}</b>{#if mine}{` · ${mine.points} points · ${ordinal(place + 1)}`}{/if}</p>
+  <p class="me">
+    You are <b data-player-name={me}>{me}</b>{#if mine}{` · ${mine.points} points · ${ordinal(place + 1)}`}{/if}
+    {#if myTeam}<span class="team team-{myTeam.id}" data-my-team={myTeam.id}>{myTeam.name} team</span>{/if}
+  </p>
+  {#if game.number > 0}<p class="round">Round {game.number}{game.total ? ` of ${game.total}` : ""}</p>{/if}
 
   {#if game.phase === "lobby"}
     <div class="wait sr-panel">
@@ -144,6 +217,29 @@
       <p class="font-display text-2xl font-bold">{game.kind === "rhythm" ? "Rhythm game" : "Catch the tune"}</p>
       <p class="text-sr-ink-2">Watch the big screen. The game starts from there.</p>
     </div>
+  {/if}
+  {#if canRename}
+    <form class="name sr-panel" on:submit|preventDefault={saveName}>
+      <label for="game-name" class="text-sm font-bold text-sr-ink-2">Your name on the board</label>
+      <div class="flex gap-2">
+        <input id="game-name" class="name-input" bind:value={draft} maxlength={NAME_MAX} placeholder={made} autocomplete="off" autocapitalize="words" data-game-name />
+        <button class="sr-btn px-4" type="submit" disabled={!!draftProblem || cleanName(draft) === typed} data-game-name-save>Use</button>
+      </div>
+      {#if draftProblem}<p class="text-sm text-sr-danger" role="alert">{draftProblem}</p>
+      {:else if nameNote}<p class="text-sm text-sr-danger" role="status">{nameNote}</p>
+      {:else}<p class="text-xs text-sr-muted">Leave it empty to be {made}. Your teacher can see and remove names.</p>{/if}
+    </form>
+  {/if}
+
+  {#if final && mine}
+    <div class="wait sr-panel final">
+      <p class="font-display text-3xl font-bold">Final: {ordinal(place + 1)}</p>
+      <p class="text-sr-ink-2 font-bold">{mine.points} points{#if myTeam && standings.length}{` · the ${myTeam.name} team came ${ordinal(standings.findIndex((t) => t.id === myTeam?.id) + 1)}`}{/if}</p>
+    </div>
+  {/if}
+
+  {#if game.phase === "lobby"}
+    <!-- the name form above -->
   {:else if game.kind === "rhythm"}
     {#if game.phase === "playing" && sent === "no"}
       <p class="word" aria-live="assertive">{word || "Tap along with the count-in, then the rhythm"}</p>
@@ -168,6 +264,13 @@
         <p class="font-display text-5xl font-bold tabular-nums" data-my-points={mine.last}>+{mine.last}</p>
         <p class="text-sr-ink-2 font-bold">{mine.points} points in all</p>
       </div>
+      {#if game.rhythm?.review}
+        <div class="review sr-panel" data-review>
+          <p class="text-sm font-bold text-sr-ink-2" data-review-beats={review?.result.beatsRight ?? ""}>{review ? `Your taps: ${review.result.beatsRight} of ${review.result.beats} beats right` : "Your taps"}</p>
+          <div class="review-paper" bind:this={reviewPaper}></div>
+          <p class="text-xs text-sr-muted">Green: in time. Yellow: a little early or late. Red: missed.</p>
+        </div>
+      {/if}
     {:else}
       <div class="wait sr-panel">
         <p class="font-display text-xl font-bold">{sent === "yes" ? "Sent. Watch the big screen." : sent === "sending" ? "Sending…" : sent === "failed" ? "That did not send." : "Watch the big screen."}</p>
@@ -201,7 +304,21 @@
 
 <style>
   .game { display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 40rem; margin: 0 auto; padding: 0 0.5rem 2rem; }
-  .me { text-align: center; color: var(--sr-ink-2); }
+  .me { text-align: center; color: var(--sr-ink-2); display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.4rem; }
+  .round { text-align: center; font-size: 0.85rem; font-weight: 800; color: var(--sr-muted); margin-top: -0.6rem; }
+  .team { font-size: 0.8rem; font-weight: 800; border-radius: 999px; padding: 0.1rem 0.6rem; }
+  .team-mint { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .team-peach { background: var(--sr-peach); color: var(--sr-peach-ink); }
+  .team-butter { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .team-sky { background: var(--sr-sky); color: var(--sr-sky-ink); }
+  .name { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.9rem 1rem; }
+  .name-input { flex: 1; min-width: 0; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); border-radius: 14px; padding: 0.55rem 0.8rem; font-size: 1.1rem; font-weight: 700; }
+  .final { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .review { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.9rem 1rem; }
+  .review-paper { background: #fff; border-radius: 14px; }
+  .review-paper :global(.g-right) { fill: #2fb383; }
+  .review-paper :global(.g-close) { fill: #e0a100; }
+  .review-paper :global(.g-miss) { fill: #e5484d; }
   .wait { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 2rem 1rem; text-align: center; }
   .word { text-align: center; font-family: var(--font-display, inherit); font-weight: 700; font-size: 1.5rem; color: var(--sr-ink); min-height: 2.2rem; }
   .hint { text-align: center; font-size: 0.9rem; color: var(--sr-muted); }

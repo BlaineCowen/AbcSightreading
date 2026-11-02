@@ -92,6 +92,56 @@ key). While the room plays a game, LiveStudent shows `LiveGame.svelte`
 instead of the music and reports the name as its part, so the director's
 device count lists the players.
 
+## Your own setups (2 November 2026)
+
+Blaine: ta and ti-ti is too limiting; which steps and skips, which note to
+start on. The rhythm game's menu ends with **Your own** (`RhythmSetup.svelte`):
+meters (one kind at a time, as on the Unison page), the figures with the
+Unison page's picker groups and note pictures, ties across the barline, and
+rhythm syllables printed under the notes; `roundParams` keeps only the figures
+that fit the meter drawn. Catch the tune's menu ends with **Your own**
+(`TuneSetup.svelte`): the notes (low so to high mi), the moves allowed
+(repeat, step, skip, 4th, 5th, 6th, octave: tune-path's `allowedMoves`,
+optional, so Octavo's levels are unchanged), the notes a tune may start on,
+ending on do or anywhere, and the length; a set no tune fits says so
+(`canMakeTune`). Both are remembered in the browser (`sr-rhythm-game-own`,
+`sr-catch-custom`).
+
+## Class features (2 November 2026)
+
+- **Names**: a student may type their own before the game starts
+  (`sr-game-name`); `nameProblem` (game-names.ts) checks it on the device and
+  again on the server (answer.ts), undoing disguises (digits, symbols,
+  spacing, accents), with distinctive roots found anywhere and short words
+  only as whole words, so Bob, Nigel, Cassidy, Essex and Scunthorpe pass
+  (tests list both kinds). The teacher removes any name with its × on the big
+  screen: it joins the game's `blocked`, the device goes back to its made-up
+  name, and the board and teams show that name (`blockName`, from the
+  answers' `fallback`). A space typed in the name box is not a tap.
+- **Rounds**: 3, 5, 10, 20 or Endless (`total`); after the last round,
+  Final results on the big screen (Play again) and on each phone.
+- **Teams**: Off, 2, 3 or 4 (Mint, Peach, Butter, Sky). Everyone in the room
+  when the first round starts is dealt at random; latecomers join the
+  smallest team (`dealTeams`, `joinTeam`). Teams rank by points per player
+  (`teamStandings`), so a bigger team does not win by size.
+- **What a student missed** (the rhythm): after a round the big screen sends
+  the rhythm back with how it was scored (`rhythm.review`: the ABC, the
+  strictness, the room's lag), and each phone scores its own taps by the
+  same rules and draws the rhythm with them marked (`rhythm-marks.ts`: green
+  in time, yellow early or late, red missed). Nothing more is uploaded than
+  the taps already were, so it costs nothing. The big screen marks each note
+  by the share of the class who had it.
+- **The tune board on a phone**: one-letter names in a narrow column and
+  every cell 44 px tall (it was a wide shape, 25 px tall with seven notes).
+- **A phone stuck on the last tune**: after failed polls a device backed off
+  up to 30 s; in a game it now waits at most 5 s while in view
+  (`pollDelayMs` `game`). Five tunes in a row followed fine on a steady
+  connection, so the backoff (and the stale dev cache of that day) is the
+  likely cause rather than the game's own logic.
+- `VITE_CACHE_DIR` gives a second dev server its own Vite cache
+  (astro.config.mjs): sharing node_modules/.vite left the first serving
+  "504 Outdated Optimize Dep" and blank pages.
+
 ## Not yet
 
 - The big screen does not play the rhythm itself (it would give it away);

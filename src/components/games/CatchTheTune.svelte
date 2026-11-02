@@ -16,12 +16,14 @@
   import { onDestroy } from "svelte";
   import PipFace from "../PipFace.svelte";
   import TuneGrid from "./TuneGrid.svelte";
+  import TuneSetup from "./TuneSetup.svelte";
   import GameHost from "./GameHost.svelte";
-  import { PATH_LEVELS, makePath, nextFrom, stepsOf, sylOf } from "../../lib/games/tune-path";
+  import { PATH_LEVELS, canMakeTune, makePath, nextFrom, stepsOf, sylOf, type PathLevel } from "../../lib/games/tune-path";
   import { playKeyAndTune, playStep } from "../../lib/games/game-audio";
-  import { addRound, scoreTune, shareRight } from "../../lib/games/game-score";
+  import { scoreTune, shareRight } from "../../lib/games/game-score";
+  import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
   import { answers as fetchAnswers, closeRoom, measureOffset, newRound, openRoom, players as fetchPlayers, publishGame, type HostRoom } from "../../lib/games/host-room";
-  import type { BoardRow, LiveGame, TuneAnswer } from "../../lib/games/live-game";
+  import { isFinal, type BoardRow, type LiveGame, type TuneAnswer } from "../../lib/games/live-game";
 
   /** Where do sits: middle C, so low so is G3 and high mi E5, in every voice's reach an octave either way. */
   const DO_MIDI = 60;
@@ -29,9 +31,30 @@
   const GAP = 0.75;
 
   let mode: "solo" | "class" = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("host") === "1" ? "class" : "solo";
+  /** A level from the menu, or -1 for the teacher's own (TuneSetup), remembered in this browser. */
   let li = 0;
-  $: level = PATH_LEVELS[li];
+  const CUSTOM_KEY = "sr-catch-custom";
+  let custom: PathLevel = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? "null");
+      if (saved?.notes?.length && Array.isArray(saved.length)) return saved as PathLevel;
+    } catch {}
+    return { ...PATH_LEVELS[2], name: "Custom" };
+  })();
+  const saveCustom = (l: PathLevel) => {
+    try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(l)); } catch {}
+  };
+  $: saveCustom(custom);
+  // A new set of your own: a tune from it at once (solo), when one can be made.
+  let lastCustom = "";
+  $: if (li < 0 && mode === "solo" && JSON.stringify(custom) !== lastCustom) {
+    lastCustom = JSON.stringify(custom);
+    if (canMakeTune(custom)) fresh();
+  }
+  const levelNow = () => (li < 0 ? custom : PATH_LEVELS[li]);
+  $: level = li < 0 ? custom : PATH_LEVELS[li];
   $: inPlay = stepsOf(level);
+  $: usable = canMakeTune(level);
 
   // ── On this device ───────────────────────────────────────────────────
   let check: "each" | "all" = "each";
@@ -52,8 +75,8 @@
 
   function fresh() {
     stopSound();
-    // By index: this first runs as the component starts, before `level` is set.
-    tune = makePath(PATH_LEVELS[li]);
+    // levelNow(), not `level`: this first runs as the component starts, before `level` is set.
+    tune = makePath(levelNow());
     chosen = tune.map((s, i) => (i === 0 ? s : null));
     marks = null;
     reveal = false;
@@ -157,6 +180,12 @@
   let answeringFrom = 0;
   let secondsLeft = 0;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** Setup (GameHost): rounds in the game, null endless; teams, 0 off; who is in the room. */
+  let total: number | null = 10;
+  let teamCount = 0;
+  let joined: string[] = [];
+  /** Each device's made-up name by tag, from the answers: where a removed name goes. */
+  const fallbacks = new Map<string, string>();
 
   async function host() {
     opening = true;
@@ -171,8 +200,24 @@
     }
     room = r.room;
     offset = await measureOffset();
+    await newGame();
+  }
+
+  /** A new game in the room: the board cleared, setup open again (the room's answers are cleared too). */
+  async function newGame() {
+    if (!room) return;
+    stopPoll();
     board = [];
-    game = { kind: "tune", round: newRound(), number: 0, phase: "lobby", board };
+    share = null;
+    game = { kind: "tune", round: newRound(), number: 0, phase: "lobby", board, total, blocked: game?.blocked };
+    await publishGame(room.code, game);
+  }
+
+  async function block(name: string) {
+    if (!room || !game) return;
+    const out = blockName(game, board, name, fallbacks);
+    board = out.board;
+    game = { ...game, blocked: out.blocked, teams: out.teams ?? game.teams, board };
     await publishGame(room.code, game);
   }
 
@@ -184,7 +229,8 @@
     stopPoll();
     share = null;
     answerCount = 0;
-    hostTune = makePath(PATH_LEVELS[li]);
+    hostTune = makePath(levelNow());
+    const teams = game.number === 0 ? teamsForStart(game, joined, teamCount) : game.teams;
     game = {
       kind: "tune",
       round: newRound(),
@@ -192,6 +238,9 @@
       phase: "playing",
       tune: { steps: inPlay, length: hostTune.length, first: hostTune[0], answerBy: null },
       board,
+      total: game.number === 0 ? total : game.total,
+      blocked: game.blocked,
+      teams,
     };
     await publishGame(room.code, game);
     await hear(true, hostTune);
@@ -222,11 +271,13 @@
     const limit = (game.tune?.answerBy ?? answeringFrom) - answeringFrom;
     const scored = got.map((a) => {
       const ans = a.answer as TuneAnswer;
-      return { tag: a.tag, name: a.name, notes: ans.notes, points: scoreTune(ans.notes, hostTune, ans.ms, limit).points };
+      fallbacks.set(a.tag, a.fallback);
+      return { tag: a.tag, name: a.name, fallback: a.fallback, notes: ans.notes, points: scoreTune(ans.notes, hostTune, ans.ms, limit).points };
     });
     share = shareRight(scored.map((s) => s.notes), hostTune);
-    board = addRound(board, scored);
-    game = { ...game, phase: "results", tune: { ...game.tune!, tune: hostTune }, board };
+    const out = afterRound(game, board, scored);
+    board = out.board;
+    game = { ...game, phase: "results", tune: { ...game.tune!, tune: hostTune }, board, teams: out.teams ?? game.teams };
     await publishGame(room.code, game);
   }
 
@@ -259,8 +310,9 @@
   <div class="settings">
     <label class="set">
       <span>Notes</span>
-      <select class="sr-select" value={li} on:change={(e) => setLevel(Number(e.currentTarget.value))} disabled={game?.phase === "playing" || game?.phase === "answering"}>
+      <select class="sr-select" value={li} on:change={(e) => setLevel(Number(e.currentTarget.value))} disabled={game?.phase === "playing" || game?.phase === "answering"} data-tune-level>
         {#each PATH_LEVELS as l, i (l.name)}<option value={i}>{l.name}: {l.notes.join(" ")}</option>{/each}
+        <option value={-1}>Your own: notes, moves, start…</option>
       </select>
     </label>
     {#if mode === "solo"}
@@ -271,6 +323,10 @@
       <label class="flex items-center gap-2 text-sm font-bold text-sr-ink-2"><input type="checkbox" class="sr-check h-4 w-4" bind:checked={hints} /> Hints</label>
     {/if}
   </div>
+
+  {#if li < 0 && !(game && (game.phase === "playing" || game.phase === "answering"))}
+    <TuneSetup bind:level={custom} />
+  {/if}
 
   {#if mode === "solo"}
     <div class="head">
@@ -302,11 +358,11 @@
       {/if}
     </div>
   {:else}
-    <GameHost {room} {board} showBoard={game?.phase !== "playing" && game?.phase !== "answering"} onEnd={endGame}>
+    <GameHost {room} {game} {board} showBoard={game?.phase !== "playing" && game?.phase !== "answering"} onEnd={endGame} onBlock={block} bind:total bind:teamCount bind:joined>
       <div class="sr-panel stage">
         {#if !game || game.phase === "lobby"}
           <p class="font-display text-2xl font-bold text-center">Ready when everyone has joined</p>
-          <div class="flex justify-center"><button class="sr-btn px-8 py-3 text-lg" on:click={startRound} data-game-start>Play a tune</button></div>
+          <div class="flex justify-center"><button class="sr-btn px-8 py-3 text-lg" on:click={startRound} disabled={!usable} data-game-start>Play a tune</button></div>
         {:else}
           <div class="head">
             <PipFace class="w-12 h-12 shrink-0" />
@@ -323,7 +379,11 @@
               <button class="sr-btn" on:click={revealRound} data-game-reveal>Show the tune</button>
             {:else if game.phase === "results"}
               <button class="sr-btn-quiet" on:click={() => hear(false, hostTune)}>Hear it</button>
-              <button class="sr-btn px-6" on:click={startRound} data-game-start>Next tune</button>
+              {#if isFinal(game)}
+                <button class="sr-btn px-6" on:click={newGame} data-game-new>Play again</button>
+              {:else}
+                <button class="sr-btn px-6" on:click={startRound} disabled={!usable} data-game-start>Next tune</button>
+              {/if}
             {/if}
           </div>
         {/if}

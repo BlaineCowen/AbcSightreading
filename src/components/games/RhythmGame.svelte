@@ -1,8 +1,10 @@
 <script lang="ts">
   /**
    * The rhythm game (Games, 2 November 2026): a few bars of rhythm drawn big,
-   * a two-bar count-in (listen, then tap with the clicks), then tap the
-   * rhythm on the spacebar or the pad while the metronome keeps the beat.
+   * the count-in ("1, 2, Ready, Go", tapped along with), then tap the rhythm
+   * on the spacebar or the pad while the metronome keeps the beat. The
+   * rhythms are an abcStepByStep step's, or the teacher's own (RhythmSetup:
+   * meters, figures, ties, syllables).
    * Graded by Clap and grade's rules (grade-rhythm.ts, beat by beat), the
    * lag taken off from the count-in's taps (game-lag.ts).
    *
@@ -15,11 +17,14 @@
   import abcjs from "abcjs";
   import TapPad from "../TapPad.svelte";
   import GameHost from "./GameHost.svelte";
-  import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
+  import RhythmSetup from "./RhythmSetup.svelte";
+  import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
-  import { scoreRhythm, addRound, type RhythmScore } from "../../lib/games/game-score";
+  import { scoreRhythm, type RhythmScore } from "../../lib/games/game-score";
+  import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
+  import { markNotes, markShares, noteShares } from "../../lib/games/rhythm-marks";
   import { roomLag, countInLag } from "../../lib/games/game-lag";
-  import { countInBarsFor, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
+  import { countInBarsFor, isFinal, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
   import { answers as fetchAnswers, closeRoom, measureOffset, newRound, openRoom, players as fetchPlayers, publishGame, type HostRoom } from "../../lib/games/host-room";
   import { gradeSchedule } from "../../lib/grade-schedule";
   import { beatUnitOf } from "../../lib/meter";
@@ -29,11 +34,24 @@
   import { countInWordsFor } from "../../lib/count-in";
 
   let mode: "solo" | "class" = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("host") === "1" ? "class" : "solo";
+  /** An abcStepByStep step, or "custom" for the teacher's own (remembered in this browser). */
   let levelId = RHYTHM_LEVELS[0].id;
   let bars = 2;
   let bpm = 84;
   let strictness: Strictness = "standard";
-  $: level = rhythmLevel(levelId);
+  const OWN_KEY = "sr-rhythm-game-own";
+  let own = (() => {
+    try {
+      const o = JSON.parse(localStorage.getItem(OWN_KEY) ?? "null");
+      if (Array.isArray(o?.meters) && o.meters.length && Array.isArray(o?.rhythms)) return o as { meters: string[]; rhythms: string[]; ties: boolean; syllables: string };
+    } catch {}
+    return { meters: ["4/4"], rhythms: [...RHYTHM_LEVELS[Math.min(5, RHYTHM_LEVELS.length - 1)].rhythms], ties: false, syllables: "off" };
+  })();
+  const saveOwn = (o: typeof own) => {
+    try { localStorage.setItem(OWN_KEY, JSON.stringify(o)); } catch {}
+  };
+  $: saveOwn(own);
+  $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
   const setStrictness = (id: string) => (strictness = id as Strictness);
 
   type Exercise = { abc: string; meter: string; beatsPerBar: number; beatUnits: number; schedule: ReturnType<typeof gradeSchedule> };
@@ -46,7 +64,8 @@
     loading = true;
     problem = "";
     try {
-      const r = roundParams(level, { bars, bpm });
+      if (!level.rhythms.length) throw new Error("Choose at least one rhythm.");
+      const r = roundParams(level, levelId === "custom" ? { bars, bpm, ties: own.ties, syllables: own.syllables } : { bars, bpm });
       const res = await fetch("/api/generate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(r.params) });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error ?? "Could not write a rhythm.");
@@ -66,16 +85,8 @@
     abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true });
   }
 
-  /** Each note's mark on the music: green right, butter close, peach missed. */
-  function mark(result: RhythmScore["result"] | null) {
-    const heads = [...(paper?.querySelectorAll(".abcjs-note") ?? [])];
-    heads.forEach((el, i) => {
-      el.classList.remove("g-right", "g-close", "g-miss");
-      const n = result?.notes[i];
-      if (!n) return;
-      el.classList.add(n.missed ? "g-miss" : n.rhythm >= 90 ? "g-right" : "g-close");
-    });
-  }
+  /** Each note's mark on the music (rhythm-marks.ts): green right, butter close, red missed. */
+  const mark = (result: RhythmScore["result"] | null) => markNotes(paper, result?.notes ?? null);
 
   // ── Running a round (both modes) ───────────────────────────────────────
   let running = false;
@@ -128,7 +139,7 @@
   let taps: number[] = [];
   let solo: RhythmScore | null = null;
   let round: RhythmRound | null = null;
-  let total = 0;
+  let soloTotal = 0;
   let rounds = 0;
 
   async function soloNew() {
@@ -156,7 +167,7 @@
       if (!running || !round) return;
       stopTimeline();
       solo = scoreRhythm({ round, schedule: ex.schedule, beatUnits: ex.beatUnits, taps, strictness, deviceLagMs: $tuner.tapLatencyMs });
-      total += solo.points;
+      soloTotal += solo.points;
       rounds++;
       mark(solo.result);
     }, (endSec - ctx.currentTime) * 1000 + 500);
@@ -166,6 +177,7 @@
     if (running && mode === "solo") taps = [...taps, t];
   }
   function onKey(e: KeyboardEvent) {
+    if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
     if ((e.code === "Space" || e.key === " ") && !e.repeat && running && mode === "solo") {
       e.preventDefault();
       onTap(e.timeStamp);
@@ -184,6 +196,12 @@
   let answerCount = 0;
   let roomScore: number | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** Setup (GameHost): rounds in the game, null endless; teams, 0 off; who is in the room. */
+  let total: number | null = 10;
+  let teamCount = 0;
+  let joined: string[] = [];
+  /** Each device's made-up name by tag, from the answers: where a removed name goes. */
+  const fallbacks = new Map<string, string>();
   const serverNow = () => Date.now() + offset;
 
   async function host() {
@@ -200,8 +218,24 @@
     room = r.room;
     strictness = "easy";
     offset = await measureOffset();
+    await newGame();
+  }
+
+  /** A new game in the room: the board cleared, setup open again (the room's answers are cleared too). */
+  async function newGame() {
+    if (!room) return;
+    stopPoll();
     board = [];
-    game = { kind: "rhythm", round: newRound(), number: 0, phase: "lobby", board };
+    roomScore = null;
+    game = { kind: "rhythm", round: newRound(), number: 0, phase: "lobby", board, total, blocked: game?.blocked };
+    await publishGame(room.code, game);
+  }
+
+  async function block(name: string) {
+    if (!room || !game) return;
+    const out = blockName(game, board, name, fallbacks);
+    board = out.board;
+    game = { ...game, blocked: out.blocked, teams: out.teams ?? game.teams, board };
     await publishGame(room.code, game);
   }
 
@@ -220,7 +254,18 @@
     mark(null);
     const at = serverNow() + LEAD_MS;
     const r: RhythmRound = { bpm, meter: ex.meter, beatsPerBar: ex.beatsPerBar, bars, at };
-    game = { kind: "rhythm", round: newRound(), number: game.number + 1, phase: "playing", rhythm: r, board };
+    const teams = game.number === 0 ? teamsForStart(game, joined, teamCount) : game.teams;
+    game = {
+      kind: "rhythm",
+      round: newRound(),
+      number: game.number + 1,
+      phase: "playing",
+      rhythm: r,
+      board,
+      total: game.number === 0 ? total : game.total,
+      blocked: game.blocked,
+      teams,
+    };
     if (!(await publishGame(room.code, game))) {
       problem = "Could not start the round. Check the connection and try again.";
       return;
@@ -255,14 +300,25 @@
     const t = rhythmTimes(r);
     const lags = got.map((a) => countInLag((a.answer as RhythmAnswer).taps, t.tapClicks, t.beatMs).lag);
     const room0 = roomLag(lags);
-    const scored = got.map((a) => ({
-      tag: a.tag,
-      name: a.name,
-      points: scoreRhythm({ round: r, schedule: ex.schedule, beatUnits: ex.beatUnits, taps: (a.answer as RhythmAnswer).taps, strictness, roomLagMs: room0 }).points,
-    }));
+    const scored = got.map((a) => {
+      fallbacks.set(a.tag, a.fallback);
+      const score = scoreRhythm({ round: r, schedule: ex.schedule, beatUnits: ex.beatUnits, taps: (a.answer as RhythmAnswer).taps, strictness, roomLagMs: room0 });
+      return { tag: a.tag, name: a.name, fallback: a.fallback, points: score.points, notes: score.result.notes };
+    });
     roomScore = scored.length ? Math.round(scored.reduce((s, x) => s + x.points, 0) / scored.length) : null;
-    board = addRound(board, scored);
-    game = { ...game, phase: "results", board };
+    // The class's share right on each note, on the big screen's music.
+    markShares(paper, noteShares(scored.map((x) => x.notes)));
+    const out = afterRound(game, board, scored);
+    board = out.board;
+    // The rhythm goes back to every device with how it was scored, so each
+    // marks its own taps on it (LiveGame), with nothing more sent in.
+    game = {
+      ...game,
+      phase: "results",
+      board,
+      teams: out.teams ?? game.teams,
+      rhythm: { ...r, review: { abc: ex.abc, strictness, roomLag: room0, beatUnits: ex.beatUnits } },
+    };
     await publishGame(room.code, game);
   }
   function stopPoll() {
@@ -300,8 +356,9 @@
 
   <div class="settings" class:locked={running}>
     <label class="set"><span>Rhythms</span>
-      <select bind:value={levelId} disabled={running}>
+      <select bind:value={levelId} disabled={running} data-rhythm-level>
         {#each RHYTHM_LEVELS as l, i (l.id)}<option value={l.id}>{i + 1}. {l.name}</option>{/each}
+        <option value="custom">Your own: meters, rhythms, ties…</option>
       </select>
     </label>
     <label class="set"><span>Bars</span>
@@ -317,6 +374,10 @@
     </div>
   </div>
 
+  {#if levelId === "custom" && !running}
+    <RhythmSetup bind:meters={own.meters} bind:rhythms={own.rhythms} bind:ties={own.ties} bind:syllables={own.syllables} />
+  {/if}
+
   {#if mode === "class" && !room}
     <div class="sr-panel p-6 flex flex-col items-center gap-3 text-center">
       <p class="font-display text-2xl font-bold">Play it with your class</p>
@@ -330,15 +391,20 @@
     </div>
   {:else}
     {#if room}
-      <GameHost {room} {board} showBoard={!running && game?.phase !== "answering"} onEnd={endGame}>
+      <GameHost {room} {game} {board} showBoard={!running && game?.phase !== "answering"} onEnd={endGame} onBlock={block} bind:total bind:teamCount bind:joined>
         <div class="flex flex-wrap items-center justify-center gap-3">
           {#if game?.phase === "answering"}
             <p class="font-bold text-sr-ink-2">Scoring… <span data-answered={answerCount}>{answerCount}</span> sent</p>
           {:else if !running}
-            <button class="sr-btn px-8 py-3 text-lg" on:click={hostRound} disabled={loading} data-game-start>{game?.number ? "Next round" : "Start a round"}</button>
+            {#if game && isFinal(game)}
+              <button class="sr-btn px-8 py-3 text-lg" on:click={newGame} data-game-new>Play again</button>
+            {:else}
+              <button class="sr-btn px-8 py-3 text-lg" on:click={hostRound} disabled={loading} data-game-start>{game?.number ? "Next round" : "Start a round"}</button>
+            {/if}
             {#if roomScore !== null}<p class="font-display text-xl font-bold" data-room-score={roomScore}>The class: {roomScore}%</p>{/if}
           {/if}
         </div>
+        {#if game?.phase === "results"}<p class="text-center text-sm text-sr-muted">On the music: green, most of the class had it; yellow, about half; red, most missed it.</p>{/if}
       </GameHost>
     {:else}
       <div class="flex flex-wrap items-center justify-center gap-3">
@@ -348,7 +414,7 @@
           <button class="sr-btn px-8 py-3 text-lg" on:click={soloPlay} data-game-play>{solo ? "Try again" : "Play"}</button>
           <button class="sr-btn-quiet" on:click={soloNew} disabled={loading}>New rhythm</button>
         {/if}
-        {#if rounds}<span class="score-pill" aria-label="Average">{Math.round(total / rounds)}% over {rounds}</span>{/if}
+        {#if rounds}<span class="score-pill" aria-label="Average">{Math.round(soloTotal / rounds)}% over {rounds}</span>{/if}
       </div>
     {/if}
 

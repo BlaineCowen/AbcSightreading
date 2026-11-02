@@ -104,10 +104,13 @@ export const isDeviceKey = (key: unknown): key is string => typeof key === "stri
  * slower hidden, slower again while the room is off air (a page left open on
  * the poster's address all day costs little), backing off on errors.
  */
-export function pollDelayMs(o: { hidden: boolean; failures: number; waiting?: boolean }): number {
+export function pollDelayMs(o: { hidden: boolean; failures: number; waiting?: boolean; game?: boolean }): number {
   const base = o.waiting ? (o.hidden ? 20000 : 4000) : o.hidden ? 6000 : 1500;
   if (o.failures <= 0) return base;
-  return Math.min(30000, base * 2 ** Math.min(o.failures, 5));
+  // In a class game a round lasts seconds: a phone that missed a poll or two
+  // on a shaky network must not sit 30 s on the last tune (Blaine, 2 November
+  // 2026: "stays on the previous option").
+  return Math.min(o.game && !o.hidden ? 5000 : 30000, base * 2 ** Math.min(o.failures, 5));
 }
 
 // ── Push ──────────────────────────────────────────────────────────────────

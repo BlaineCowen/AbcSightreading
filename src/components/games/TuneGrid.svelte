@@ -113,10 +113,17 @@
   .cell.answer { border: 3px dashed var(--c); color: var(--c); background: var(--sr-raise); }
   .cell:disabled { cursor: default; }
   .share { text-align: center; font-size: 0.8rem; font-weight: 800; color: var(--sr-ink-2); }
+  /* A phone (Blaine, 2 November 2026: seven notes were cluttered there): the
+     names to one letter in a narrow column, and every cell a thumb's height
+     (44 px) whatever its width, rather than a wide shape that left 25 px. */
   @media (max-width: 520px) {
     .long { display: none; }
     .short { display: inline; }
-    .board { gap: 4px; }
-    .cell { min-height: 2rem; border-radius: 9px; }
+    .board { gap: 4px; grid-template-columns: 1.4rem repeat(var(--cols), minmax(0, 1fr)); }
+    .name { font-size: 0.95rem; padding-right: 0; text-align: center; }
+    .name.off { font-size: 0.7rem; }
+    .num { font-size: 0.75rem; }
+    .cell { aspect-ratio: auto; height: 2.75rem; min-height: 0; border-radius: 10px; border-width: 1.5px; font-size: 0.9rem; }
+    .offrow { height: 4px; }
   }
 </style>

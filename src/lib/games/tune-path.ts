@@ -40,6 +40,12 @@ export type PathLevel = {
   length: [number, number];
   /** The biggest move in scale steps: 1 steps, 2 skips, 4 do to so, 7 an octave. */
   maxMove: number;
+  /**
+   * Exactly which moves, in scale steps (0 a repeat, 1 a step, 2 a skip, 3 a
+   * 4th, 4 a 5th, 5 a 6th, 7 an octave), when a teacher chose them (abcSR's
+   * custom setup, 2 November 2026); without it, every move up to maxMove.
+   */
+  allowedMoves?: number[];
   /** The note this level brings in: every tune uses it. */
   newNote?: string;
   /** The notes a tune may start on (default do, mi and so, where the set has them). */
@@ -65,7 +71,7 @@ export const stepsOf = (level: PathLevel) => [...new Set(level.notes.map(stepOf)
 
 /** Where a tune can go next from a note: the level's notes no further than its biggest move. */
 export function nextFrom(level: PathLevel, step: number): number[] {
-  return stepsOf(level).filter((s) => Math.abs(s - step) <= level.maxMove);
+  return stepsOf(level).filter((s) => (level.allowedMoves ? level.allowedMoves.includes(Math.abs(s - step)) : Math.abs(s - step) <= level.maxMove));
 }
 
 /** A tune (steps) for a level: its next fixed tune, or a made-up one that starts on one of its starts and ends on do, using its bigger moves and its new note. */
@@ -84,17 +90,23 @@ export function makePath(level: PathLevel, rand = Math.random, turn = 0): number
       const here = tune[i - 1];
       const repeated = tune[i - 2] === here;
       const options = nextFrom(level, here).filter((s) => !(s === here && repeated));
+      // A custom set of notes and moves can leave a note with nowhere to go.
+      if (!options.length) break;
       // Steps most often, repeats now and then, the bigger moves less.
       const weight = (s: number) => [0.35, 2, 1.4, 0.8, 1][Math.abs(s - here)] ?? 0.5;
       const total = options.reduce((a, s) => a + weight(s), 0);
       let x = rand() * total;
       tune.push(options.find((s) => (x -= weight(s)) < 0) ?? options[options.length - 1]);
     }
+    if (tune.length < level.length[0]) continue;
     if (end !== null && allowed.includes(end) && tune[tune.length - 1] !== end) continue;
     if (fresh !== null && !tune.includes(fresh)) continue;
     best ??= tune;
     const biggest = Math.max(...tune.slice(1).map((s, i) => Math.abs(s - tune[i])));
-    if (biggest >= Math.min(level.maxMove, 3)) return tune;
+    if (biggest >= Math.min(level.allowedMoves ? Math.max(...level.allowedMoves) : level.maxMove, 3)) return tune;
   }
   return best ?? [startSet[0]];
 }
+
+/** Whether a level can make a tune at all (a custom one may not: notes no allowed move can join). */
+export const canMakeTune = (level: PathLevel) => makePath(level).length >= level.length[0];

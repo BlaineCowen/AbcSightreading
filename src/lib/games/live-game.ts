@@ -19,8 +19,15 @@ export type RhythmRound = {
   meter: string;
   beatsPerBar: number;
   bars: number;
-  /** When the count-in starts, in server milliseconds. Two bars: listen, then tap with the clicks. */
+  /** When the count-in starts, in server milliseconds ("1, 2, Ready, Go", tapped along with). */
   at: number;
+  /**
+   * In the results only: the rhythm and how it was scored, so each device
+   * marks its own taps on it (game-score.ts scoreRhythm, the same as the big
+   * screen): what a student missed shows on their own screen, and nothing
+   * more is sent than the taps already were.
+   */
+  review?: { abc: string; strictness: "easy" | "standard" | "strict"; roomLag: number | null; beatUnits: number };
 };
 
 export type TuneRound = {
@@ -36,7 +43,11 @@ export type TuneRound = {
 };
 
 /** A player on the board: `tag` is playerTag(device), how a device finds its own row. */
-export type BoardRow = { tag: string; name: string; points: number; last: number };
+export type BoardRow = { tag: string; name: string; points: number; last: number; team?: string };
+
+/** A team (Teams mode): its name, and its players by name. */
+export type Team = { id: string; name: string; members: string[] };
+export const TEAM_NAMES = ["Mint", "Peach", "Butter", "Sky"] as const;
 
 export type LiveGame = {
   kind: GameKind;
@@ -47,8 +58,14 @@ export type LiveGame = {
   phase: GamePhase;
   rhythm?: RhythmRound;
   tune?: TuneRound;
-  /** Everyone's points so far, best first: a device finds its own row by its name. */
+  /** Everyone's points so far, best first: a device finds its own row by its tag. */
   board?: BoardRow[];
+  /** How many rounds the game has; null or absent, it goes on until the teacher ends it. */
+  total?: number | null;
+  /** Names the teacher removed (nameKey): those devices go back to their made-up names. */
+  blocked?: string[];
+  /** Teams mode: the teams, dealt out when the first round starts. */
+  teams?: Team[];
 };
 
 type Checked<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -92,10 +109,30 @@ export function checkGame(body: unknown): Checked<LiveGame> {
     const tune = ints(t.tune, 16, STEP_LO, STEP_HI);
     if (tune && game.phase === "results") game.tune.tune = tune;
   }
+  if (b.total !== undefined && b.total !== null) {
+    const total = num(b.total, 1, 100);
+    if (total !== null) game.total = Math.round(total);
+  }
+  if (Array.isArray(b.blocked)) game.blocked = b.blocked.filter((n): n is string => typeof n === "string").slice(0, 400).map((n) => n.slice(0, 32).toLowerCase());
+  if (Array.isArray(b.teams)) {
+    game.teams = b.teams.slice(0, 4).flatMap((t) =>
+      t && typeof t.id === "string" && typeof t.name === "string" && Array.isArray(t.members)
+        ? [{ id: t.id.slice(0, 12), name: t.name.slice(0, 16), members: t.members.filter((m): m is string => typeof m === "string").slice(0, 400).map((m) => m.slice(0, 28)) }]
+        : []
+    );
+  }
+  if (game.rhythm && b.rhythm?.review && game.phase === "results") {
+    const v = b.rhythm.review;
+    const strictness = v.strictness === "easy" || v.strictness === "strict" ? v.strictness : "standard";
+    const beatUnits = num(v.beatUnits, 1, 64);
+    if (typeof v.abc === "string" && v.abc.length <= 20_000 && beatUnits !== null) {
+      game.rhythm.review = { abc: v.abc, strictness, roomLag: v.roomLag === null ? null : num(v.roomLag, -500, 500), beatUnits };
+    }
+  }
   if (Array.isArray(b.board)) {
     game.board = b.board.slice(0, MAX_BOARD).flatMap((r) =>
       r && typeof r.name === "string" && typeof r.tag === "string" && Number.isFinite(r.points)
-        ? [{ tag: r.tag.slice(0, 12), name: r.name.slice(0, 28), points: Math.round(r.points), last: Math.round(Number(r.last) || 0) }]
+        ? [{ tag: r.tag.slice(0, 12), name: r.name.slice(0, 28), points: Math.round(r.points), last: Math.round(Number(r.last) || 0), ...(typeof r.team === "string" ? { team: r.team.slice(0, 12) } : {}) }]
         : []
     );
   }
@@ -114,6 +151,8 @@ export const isLiveGame = (v: unknown): v is LiveGame => checkGame(v).ok;
 /** A rhythm's taps, in server milliseconds; a tune's notes and how long it took. */
 export type RhythmAnswer = { taps: number[] };
 export type TuneAnswer = { notes: number[]; ms: number };
+/** The game is over when its last round's results are up. */
+export const isFinal = (g: LiveGame) => g.phase === "results" && !!g.total && g.number >= g.total;
 export type GameAnswer = RhythmAnswer | TuneAnswer;
 
 /** More taps than any round has notes, with room for a busy student. */

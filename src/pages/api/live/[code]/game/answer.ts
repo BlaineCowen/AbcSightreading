@@ -4,17 +4,18 @@ import { prisma } from "../../../../../lib/server/db";
 import { clientKey, limits, noRoom, offAir, roomByCode, roomOnAir, tooMany } from "../../../../../lib/server/live";
 import { isDeviceKey, isLiveCode, normalizeLiveCode } from "../../../../../lib/live";
 import { checkAnswer, type LiveGame } from "../../../../../lib/games/live-game";
-import { playerName, playerTag } from "../../../../../lib/games/game-names";
+import { cleanName, nameKey, nameProblem, playerName, playerTag } from "../../../../../lib/games/game-names";
 
 /**
  * A student's device answering a round of the room's game: POST { device,
- * round, answer }. No account; the name is the device's made-up one
- * (game-names.ts), nothing else. Taken while the round is playing or its
+ * round, answer, name? }. No account. The name is the one the student typed
+ * if it passes the check (game-names.ts nameProblem) and the teacher has not
+ * removed it, else the device's made-up one; nothing else about them. Taken while the round is playing or its
  * answers are coming in; sent again, it replaces the device's last answer.
  */
 export const POST: APIRoute = async ({ request, params, clientAddress }) => {
   const code = normalizeLiveCode(params.code ?? "");
-  const body = ((await readJson(request)) ?? {}) as { device?: unknown; round?: unknown; answer?: unknown };
+  const body = ((await readJson(request)) ?? {}) as { device?: unknown; round?: unknown; answer?: unknown; name?: unknown };
   if (!isLiveCode(code) || !isDeviceKey(body.device) || typeof body.round !== "string") return json({ error: "Not an answer for this room." }, 400);
   if (!limits.answerPerDevice(`${code}:${body.device}`)) return tooMany();
   if (!limits.pollPerAddress(clientKey(request, clientAddress))) return tooMany();
@@ -27,7 +28,8 @@ export const POST: APIRoute = async ({ request, params, clientAddress }) => {
   if (game.phase !== "playing" && game.phase !== "answering") return json({ error: "That round is over." }, 409);
   const checked = checkAnswer(game.kind, body.answer);
   if (!checked.ok) return json({ error: checked.error }, 400);
-  const name = playerName(body.device);
+  const typed = typeof body.name === "string" ? cleanName(body.name) : "";
+  const name = typed && !nameProblem(typed) && !(game.blocked ?? []).includes(nameKey(typed)) ? typed : playerName(body.device);
   await prisma.liveGameAnswer.upsert({
     where: { roomId_round_deviceKey: { roomId: s.id, round: game.round, deviceKey: body.device } },
     create: { roomId: s.id, round: game.round, deviceKey: body.device, name, answer: checked.value },

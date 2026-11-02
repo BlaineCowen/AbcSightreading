@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { checkAnswer, checkGame, publicGame, rhythmTimes, type LiveGame, type RhythmRound } from "../../src/lib/games/live-game";
 import { countInLag, LAG_MAX_MS, roomLag } from "../../src/lib/games/game-lag";
 import { addRound, scoreRhythm, scoreTune, shareRight, TUNE_SPEED_BONUS } from "../../src/lib/games/game-score";
-import { distinctNames, playerName } from "../../src/lib/games/game-names";
+import { playerName, playerTag } from "../../src/lib/games/game-names";
 import { RHYTHM_LEVELS, roundParams } from "../../src/lib/games/rhythm-levels";
 import type { GradeNote } from "../../src/lib/grade";
 
@@ -127,11 +127,11 @@ describe("what the room holds", () => {
 });
 
 describe("names and levels", () => {
-  test("a device keeps its name; two the same are told apart", () => {
+  test("a device keeps its made-up name and its tag; the tag never shows the key", () => {
     expect(playerName("abcdefghijkl")).toBe(playerName("abcdefghijkl"));
     expect(playerName("abcdefghijkl")).toMatch(/^\w+ \w+$/);
-    const keys = ["abcdefghijkl", "abcdefghijkl".replace("a", "z")];
-    expect(new Set(distinctNames(keys).values()).size).toBe(2);
+    expect(playerTag("abcdefghijkl")).toBe(playerTag("abcdefghijkl"));
+    expect(playerTag("abcdefghijkl")).not.toContain("abcdef");
   });
   test("the levels are abcStepByStep's rhythm steps, each one writable", () => {
     expect(RHYTHM_LEVELS.length).toBeGreaterThanOrEqual(10);
@@ -139,5 +139,62 @@ describe("names and levels", () => {
     const p = roundParams(RHYTHM_LEVELS[0], { bars: 2, bpm: 90 });
     expect(p.params.rhythms.length).toBe(2);
     expect(p.beatsPerBar).toBe(4);
+  });
+});
+
+describe("typed names", () => {
+  const { nameProblem } = require("../../src/lib/games/game-names");
+  test("real names pass, however they are spelled", () => {
+    for (const n of ["Bob", "Cassidy", "Nigel", "Essex", "Dickens", "Analise", "Hellen", "Titus", "Shiitake", "Scunthorpe", "Grape", "Cumberbatch", "José", "Zoë", "O'Neil", "Anne-Marie", "Kai 2", "Mr. Bean", "Sussex"])
+      expect({ n, problem: nameProblem(n) }).toEqual({ n, problem: null });
+  });
+  test("rude ones are caught through the usual disguises", () => {
+    for (const n of ["fuck", "Fuuuck", "f.u.c.k", "sh1t", "a$$", "Big Booty", "boobs", "Dick", "Pu55y", "n1gga", "ass hat", "SEX", "hitler"])
+      expect({ n, caught: !!nameProblem(n) }).toEqual({ n, caught: true });
+  });
+  test("too short, too long, or symbols", () => {
+    expect(nameProblem("A")).toBeTruthy();
+    expect(nameProblem("A very long name indeed")).toBeTruthy();
+    expect(nameProblem("<script>")).toBeTruthy();
+  });
+});
+
+describe("teams and removed names", () => {
+  const { dealTeams, joinTeam, teamStandings } = require("../../src/lib/games/game-score");
+  const { afterRound, blockName, teamsForStart } = require("../../src/lib/games/host-game");
+  test("players are dealt evenly; a latecomer joins the smallest team", () => {
+    const teams = dealTeams(["A", "B", "C", "D", "E"], 2, () => 0.5);
+    expect(teams.map((t: any) => t.members.length).sort()).toEqual([2, 3]);
+    const { team } = joinTeam(teams, "F");
+    expect(team.members).toContain("F");
+    expect(teams.find((t: any) => t.id === team.id).members.length).toBe(2);
+  });
+  test("a team's standing is per player, so a bigger team does not win by size", () => {
+    const teams = [{ id: "mint", name: "Mint", members: ["A", "B", "C"] }, { id: "sky", name: "Sky", members: ["D"] }];
+    const board = [
+      { tag: "a", name: "A", points: 100, last: 0, team: "mint" }, { tag: "b", name: "B", points: 50, last: 0, team: "mint" },
+      { tag: "c", name: "C", points: 0, last: 0, team: "mint" }, { tag: "d", name: "D", points: 90, last: 0, team: "sky" },
+    ];
+    expect(teamStandings(board, teams).map((t: any) => [t.id, t.average])).toEqual([["sky", 90], ["mint", 50]]);
+  });
+  test("a removed name shows as the device's made-up one, now and after", () => {
+    const game: any = { kind: "tune", round: "r-1111", number: 1, phase: "results" };
+    let { board } = afterRound(game, [], [{ tag: "x", name: "Rude", fallback: "Mint Otter", points: 100 }]);
+    const removed = blockName(game, board, "rude", new Map([["x", "Mint Otter"]]));
+    expect(removed.board[0].name).toBe("Mint Otter");
+    expect(removed.blocked).toEqual(["rude"]);
+    const next = afterRound({ ...game, blocked: removed.blocked }, removed.board, [{ tag: "x", name: "RUDE", fallback: "Mint Otter", points: 50 }]);
+    expect(next.board[0]).toMatchObject({ name: "Mint Otter", points: 150 });
+  });
+  test("teams are dealt once, from players not removed", () => {
+    const teams = teamsForStart({ blocked: ["rude"] } as any, ["A", "B", "Rude", "C"], 2);
+    expect(teams.flatMap((t: any) => t.members).sort()).toEqual(["A", "B", "C"]);
+    expect(teamsForStart(null, ["A"], 0)).toBeUndefined();
+  });
+  test("a round's scores join players to teams", () => {
+    const game: any = { kind: "tune", round: "r-1111", number: 1, phase: "results", teams: [{ id: "mint", name: "Mint", members: ["A"] }, { id: "sky", name: "Sky", members: [] }] };
+    const { board, teams } = afterRound(game, [], [{ tag: "a", name: "A", fallback: "x", points: 10 }, { tag: "n", name: "New", fallback: "y", points: 20 }]);
+    expect(board.find((r: any) => r.name === "New").team).toBe("sky");
+    expect(teams.find((t: any) => t.id === "sky").members).toEqual(["New"]);
   });
 });

@@ -1,6 +1,6 @@
 import { ladder } from "../ladder";
-import { selectableRhythms } from "../selectable-rhythms";
-import { beatsOf, timeSignaturesFor } from "../meter";
+import { selectableRhythmsFor } from "../selectable-rhythms";
+import { beatsOf, meterKindOf, timeSignaturesFor } from "../meter";
 
 /**
  * The rhythm game's levels: abcStepByStep's rhythm steps (ladder.ts), each
@@ -25,9 +25,19 @@ export const rhythmLevel = (id: string | null | undefined) => RHYTHM_LEVELS.find
 export const GAME_TEMPOS = [60, 72, 84, 96, 108, 120];
 export const GAME_BARS = [2, 4];
 
-/** What /api/generate takes for a round of this level: rhythm only, as the Unison page asks for it. */
-export function roundParams(level: RhythmLevel, o: { bars: number; bpm: number; meter?: string }) {
+/** A teacher's own set (RhythmSetup.svelte): their meters and figures. */
+export const customLevel = (meters: string[], rhythms: string[]): RhythmLevel => ({ id: "custom", name: "Your own", meters, rhythms });
+
+/**
+ * What /api/generate takes for a round: rhythm only, as the Unison page asks
+ * for it. One meter drawn from the level's, and the figures that fit it.
+ * `ties`: notes may run across the barline; `syllables`: a syllable system's
+ * id printed under the notes, or "off".
+ */
+export function roundParams(level: RhythmLevel, o: { bars: number; bpm: number; meter?: string; ties?: boolean; syllables?: string }) {
   const meter = o.meter && level.meters.includes(o.meter) ? o.meter : level.meters[Math.floor(Math.random() * level.meters.length)];
+  const fit = selectableRhythmsFor(meterKindOf(meter)).filter((r) => level.rhythms.includes(r.name));
+  const syllables = o.syllables && o.syllables !== "off" ? o.syllables : null;
   return {
     meter,
     beatsPerBar: beatsOf(meter),
@@ -41,16 +51,16 @@ export function roundParams(level: RhythmLevel, o: { bars: number; bpm: number; 
       measures: o.bars,
       maxSkip: 4,
       range: { min: 20, max: 30 },
-      rhythms: selectableRhythms.filter((r) => level.rhythms.includes(r.name)),
-      selectedRhythms: level.rhythms,
+      rhythms: fit,
+      selectedRhythms: fit.map((r) => r.name),
       scaleDegrees: [1],
       selectedSharpDegrees: [],
       selectedFlatDegrees: [],
       key: "C",
       rhythmOnly: true,
-      showRhythmSyllables: false,
-      syllableSystemId: "kodaly",
-      allowTiesAcrossBarline: false,
+      showRhythmSyllables: !!syllables,
+      syllableSystemId: syllables ?? "kodaly",
+      allowTiesAcrossBarline: !!o.ties,
       partsObject: { numofParts: 1, parts: { Unison: { order: 0, smallName: "U" } } },
     },
   };

@@ -116,6 +116,27 @@ if (GAME === "rhythm" || GAME === "both") {
   }
   await teacher.waitForFunction((n: number) => Number(document.querySelector("[data-players]")?.getAttribute("data-players")) >= n, { timeout: 20000 }, kids.length).catch(() => null);
   check((await players()) === kids.length, `rhythm: the big screen counts ${kids.length} players (${await players()})`);
+
+  // Names: device 1 types its own; device 2 tries a rude one, which is refused.
+  const typeName = async (p: any, name: string) => {
+    await p.click("[data-game-name]", { clickCount: 3 });
+    await p.type("[data-game-name]", name);
+  };
+  await typeName(pages[0], "Maya R");
+  await pages[0].click("[data-game-name-save]");
+  check((await pages[0].$eval("[data-player-name]", (e: Element) => e.getAttribute("data-player-name"))) === "Maya R", "names: a student's own name is taken");
+  await typeName(pages[1], "Sh1t head");
+  const refused = await pages[1].$eval("[data-game-name-save]", (e: Element) => (e as HTMLButtonElement).disabled);
+  check(refused, "names: a rude name is refused on the device");
+  const rude = await pages[1].evaluate(async () => {
+    const res = await fetch(location.pathname.replace("/live/", "/api/live/") + "/game/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    return res.status;
+  });
+  check(rude === 400, `names: an empty answer is refused by the server (${rude})`);
+  await teacher.waitForFunction(() => [...document.querySelectorAll("[data-block]")].some((e) => e.getAttribute("data-block") === "Maya R"), { timeout: 15000 }).catch(() => null);
+  check(!!(await teacher.$('[data-block="Maya R"]')), "names: the big screen lists the typed name");
+  // Two teams, five rounds.
+  await teacher.click('[data-teams="2"]');
   if (SHOTS) await teacher.screenshot({ path: `${SHOTS}/games-rhythm-lobby.png` });
 
   await teacher.click("[data-game-start]");
@@ -175,6 +196,23 @@ if (GAME === "rhythm" || GAME === "both") {
   check(board.every((b, i) => i === 0 || board[i - 1].points >= b.points), "rhythm: the board is best first");
   const shown = await pages[0].waitForFunction(() => !!document.querySelector("[data-my-points]"), { timeout: 15000 }).then(() => true).catch(() => false);
   check(shown, "rhythm: a device shows its points");
+  check(board.some((b) => b.name === "Maya R"), "names: the typed name is on the board");
+  // Teams: every device on one of two, both used.
+  const teamsSeen = await Promise.all(pages.map((p) => p.$eval("[data-my-team]", (e: Element) => e.getAttribute("data-my-team")).catch(() => null)));
+  check(teamsSeen.every(Boolean) && new Set(teamsSeen).size === 2, `teams: each device is on a team, two teams used (${teamsSeen.join(", ")})`);
+  // The review: the late device sees the rhythm with its own marks, one beat not right.
+  const review = await pages[3].waitForFunction(() => document.querySelector("[data-review-beats]")?.getAttribute("data-review-beats"), { timeout: 15000 }).then((h: any) => h.jsonValue()).catch(() => "");
+  const marks = await pages[3].evaluate(() => ({ red: document.querySelectorAll("[data-review] .g-miss").length, yellow: document.querySelectorAll("[data-review] .g-close").length, green: document.querySelectorAll("[data-review] .g-right").length }));
+  console.log(`  late device's review: ${review} beats right; marks ${JSON.stringify(marks)}`);
+  check(review !== "" && marks.green > 0 && marks.red + marks.yellow > 0, "review: the late device sees what it missed, marked on the rhythm");
+  const exactReview = await pages[1].waitForFunction(() => document.querySelectorAll("[data-review] .g-right").length > 0, { timeout: 15000 }).then(() => true).catch(() => false);
+  const exactMarks = await pages[1].evaluate(() => document.querySelectorAll("[data-review] .g-miss, [data-review] .g-close").length);
+  check(exactReview && exactMarks === 0, `review: an exact device sees every note green (${exactMarks} not)`);
+  // The teacher removes the typed name: the board and device 1 go back to its made-up name.
+  await teacher.evaluate(() => (document.querySelector('[aria-label="Remove the name Maya R"]') as HTMLButtonElement)?.click());
+  const renamed = await pages[0].waitForFunction(() => document.querySelector("[data-player-name]")?.getAttribute("data-player-name") !== "Maya R", { timeout: 15000 }).then(() => true).catch(() => false);
+  const boardNow = await teacher.evaluate(() => (window as any).__rhythmGame.board.map((r: any) => r.name));
+  check(renamed && !boardNow.includes("Maya R"), `names: the teacher removes a name, and it is gone from the board and the device (${boardNow.join(", ")})`);
   if (SHOTS) {
     await teacher.screenshot({ path: `${SHOTS}/games-rhythm-results.png` });
     await pages[3].screenshot({ path: `${SHOTS}/games-rhythm-device.png` });
@@ -189,49 +227,72 @@ if (GAME === "rhythm" || GAME === "both") {
 // ── Catch the tune ─────────────────────────────────────────────────────────
 if (GAME === "tune" || GAME === "both") {
   check(await openRoom("/games/catch-the-tune"), "tune: the big screen opens the room");
+  // The teacher's own set: high do added, and 4ths; three rounds.
+  await teacher.select("[data-tune-level]", "-1");
+  await teacher.waitForSelector("[data-tune-setup]");
+  const clickChip = (label: string, group: string) =>
+    teacher.evaluate((l: string, g: string) => ([...document.querySelectorAll(`[data-tune-setup] [aria-label="${g}"] button`)].find((b) => b.textContent?.trim() === l) as HTMLButtonElement)?.click(), label, group);
+  await clickChip("high do", "Notes");
+  await clickChip("4th", "Moves");
+  check(!(await teacher.$("[data-tune-problem]")), "tune: the teacher's own set makes tunes");
+  await teacher.evaluate(() => ([...document.querySelectorAll('[aria-label="Rounds"] button')].find((b) => b.textContent?.trim() === "3") as HTMLButtonElement)?.click());
+
   const pages = await Promise.all([1, 2, 3].map((n) => device(n + 10, (n - 2) * 2000)));
   for (const [i, p] of pages.entries()) {
     check(await p.waitForSelector("[data-player-name]", { timeout: 20000 }).then(() => true).catch(() => false), `tune: device ${i + 1} joins the game`);
   }
   await teacher.waitForFunction((n: number) => Number(document.querySelector("[data-players]")?.getAttribute("data-players")) >= n, { timeout: 45000 }, pages.length).catch(() => null);
-  await teacher.click("[data-game-start]");
-  await teacher.waitForFunction(() => (window as any).__catchGame?.game?.phase === "answering", { timeout: 60000 });
-  const tune: number[] = await teacher.evaluate(() => (window as any).__catchGame.hostTune);
-  console.log(`  the tune: ${tune.join(" ")}`);
-  for (const [i, p] of pages.entries()) {
-    await p.waitForSelector("[data-game-send]", { timeout: 15000 });
-    const answer = tune.map((s, c) => (i === 2 && c === 2 ? (tune.includes(s + 1) || s + 1 <= Math.max(...tune) ? s + 1 : s - 1) : s));
-    for (let c = 1; c < answer.length; c++) {
-      const sel = `[data-col="${c}"][data-step="${answer[c]}"]`;
-      const ok = await p.$(sel);
-      if (!ok) {
-        // The wrong note is off the board: use any other row.
-        const other = await p.$$eval(`[data-col="${c}"]`, (els: Element[], want: number) => els.map((e) => Number(e.getAttribute("data-step"))).find((x) => x !== want), tune[c]);
-        await p.click(`[data-col="${c}"][data-step="${other}"]`);
-      } else await p.click(sel);
+
+  for (let round = 1; round <= 3; round++) {
+    await teacher.click("[data-game-start]");
+    await teacher.waitForFunction(() => (window as any).__catchGame?.game?.phase === "answering", { timeout: 60000 });
+    const { tune, steps } = await teacher.evaluate(() => ({ tune: (window as any).__catchGame.hostTune as number[], steps: (window as any).__catchGame.game.tune.steps as number[] }));
+    console.log(`  round ${round}: ${tune.join(" ")} on ${steps.length} notes`);
+    if (round === 1) {
+      check(tune.every((s) => steps.includes(s)) && steps.includes(7), "tune: the round uses the teacher's notes (high do among them)");
+      for (let c = 1; c < tune.length; c++) check(Math.abs(tune[c] - tune[c - 1]) <= 3, `tune: a move of ${Math.abs(tune[c] - tune[c - 1])} is one the teacher allowed`);
     }
-    await p.click("[data-game-send]");
+    for (const [i, p] of pages.entries()) {
+      // Every phone follows the new tune: its columns, and nothing picked but the first note.
+      const ready = await p.waitForFunction((n: number) => {
+        const cols = new Set([...document.querySelectorAll("[data-col]")].map((e) => e.getAttribute("data-col")));
+        return cols.size === n && !!document.querySelector("[data-game-send]") && document.querySelectorAll("[data-col][aria-pressed='true']").length === 1;
+      }, { timeout: 15000 }, tune.length).then(() => true).catch(() => false);
+      check(ready, `tune: round ${round}, device ${i + 1} shows the new tune's board, empty`);
+      if (round === 1 && i === 2 && SHOTS) await p.screenshot({ path: `${SHOTS}/games-tune-phone-answering.png` });
+      const answer = tune.map((s, c) => (round === 1 && i === 2 && c === 2 ? null : s));
+      for (let c = 1; c < answer.length; c++) {
+        const want = answer[c];
+        if (want === null) {
+          const other = await p.$$eval(`[data-col="${c}"]`, (els: Element[], t: number) => els.map((e) => Number(e.getAttribute("data-step"))).find((x) => x !== t), tune[c]);
+          await p.click(`[data-col="${c}"][data-step="${other}"]`);
+        } else await p.click(`[data-col="${c}"][data-step="${want}"]`);
+      }
+      await p.click("[data-game-send]");
+    }
+    const revealed = await teacher.waitForFunction(() => (window as any).__catchGame?.game?.phase === "results", { timeout: 20000 }).then(() => true).catch(() => false);
+    check(revealed, `tune: round ${round} revealed once everyone sent`);
+    if (round === 1) {
+      const board = await teacher.evaluate(() => (window as any).__catchGame.board as { name: string; last: number }[]);
+      const names = await Promise.all(pages.map((p) => p.evaluate(() => document.querySelector("[data-player-name]")?.getAttribute("data-player-name"))));
+      const pts = names.map((n) => board.find((b) => b.name === n)?.last ?? -1);
+      check(pts[0] >= 100 && pts[1] >= 100 && pts[2] >= 0 && pts[2] < 100, `tune: right answers score 100 or more, a wrong note less (${pts.join(", ")})`);
+      for (const [i, p] of pages.entries()) {
+        const seen: string[] = await p.evaluate(() => (window as any).__seen);
+        const early = seen.filter((t) => /"phase":"(playing|answering|lobby)"/.test(t) && /"tune":\{[^}]*"tune":\[/.test(t));
+        check(early.length === 0, `tune: device ${i + 1} was never sent the tune before the results`);
+      }
+    }
   }
-  const revealed = await teacher.waitForFunction(() => (window as any).__catchGame?.game?.phase === "results", { timeout: 20000 }).then(() => true).catch(() => false);
-  check(revealed, "tune: the big screen reveals once everyone has sent");
-  const board = await teacher.evaluate(() => (window as any).__catchGame.board as { name: string; last: number }[]);
-  console.log(`  board: ${board.map((b) => `${b.name} ${b.last}`).join(", ")}`);
-  const names = await Promise.all(pages.map((p) => p.evaluate(() => document.querySelector("[data-player-name]")?.getAttribute("data-player-name"))));
-  const pts = names.map((n) => board.find((b) => b.name === n)?.last ?? -1);
-  check(pts[0] >= 100 && pts[1] >= 100, `tune: the right answers score 100 or more (${pts[0]}, ${pts[1]})`);
-  check(pts[2] >= 0 && pts[2] < 100, `tune: the wrong note costs (${pts[2]})`);
-  for (const [i, p] of pages.entries()) {
-    const seen: string[] = await p.evaluate(() => (window as any).__seen);
-    const early = seen.filter((t) => /"phase":"(playing|answering|lobby)"/.test(t) && /"tune":\{[^}]*"tune":\[/.test(t));
-    check(early.length === 0, `tune: device ${i + 1} was never sent the tune before the results (${seen.length} states)`);
-  }
-  const marked = await pages[2].waitForFunction(() => !!document.querySelector("[data-my-points]"), { timeout: 15000 }).then(() => true).catch(() => false);
-  check(marked, "tune: a device shows its result");
+  const finalHost = await teacher.waitForSelector("[data-game-new]", { timeout: 10000 }).then(() => true).catch(() => false);
+  const finalPhone = await pages[0].waitForFunction(() => /Final:/.test(document.querySelector(".game")?.textContent ?? ""), { timeout: 15000 }).then(() => true).catch(() => false);
+  check(finalHost && finalPhone, "tune: after round 3 of 3, final results on the big screen (Play again) and the phones");
   if (SHOTS) {
-    await teacher.screenshot({ path: `${SHOTS}/games-tune-results.png` });
+    await teacher.screenshot({ path: `${SHOTS}/games-tune-results.png`, fullPage: true });
     await pages[2].screenshot({ path: `${SHOTS}/games-tune-device.png` });
   }
   await teacher.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /End game/.test(b.textContent ?? "")) as HTMLButtonElement)?.click());
+  for (const p of pages) await p.browserContext().close();
   await sleep(1000);
 }
 
@@ -270,6 +331,16 @@ if (GAME === "solo" || GAME === "both") {
   const solo = await p.waitForSelector("[data-solo-score]", { timeout: 15000 }).then((el) => el?.evaluate((e) => Number(e.getAttribute("data-solo-score")))).catch(() => null);
   check(solo === 100, `solo rhythm: the spacebar in time, 150 ms behind the speakers, scores 100 (${solo})`);
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-rhythm-solo.png` });
+
+  // The teacher's own rhythms: 6/8, its figures, Kodály syllables under the notes.
+  await p.select("[data-rhythm-level]", "custom");
+  await p.waitForSelector("[data-rhythm-setup]");
+  await p.evaluate(() => ([...document.querySelectorAll('[data-rhythm-setup] [aria-label="Meters"] button')].find((b) => b.textContent?.trim() === "6/8") as HTMLButtonElement)?.click());
+  await p.evaluate(() => ([...document.querySelectorAll('[data-rhythm-setup] [aria-label="Syllables under the notes"] button')].find((b) => /Kod/.test(b.textContent ?? "")) as HTMLButtonElement)?.click());
+  await p.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /New rhythm/.test(b.textContent ?? "")) as HTMLButtonElement)?.click());
+  const own = await p.waitForFunction(() => (window as any).__rhythmGame?.exercise?.meter === "6/8", { timeout: 20000 }).then(() => p.evaluate(() => (window as any).__rhythmGame.exercise.abc as string)).catch(() => "");
+  check(/M:6\/8/.test(own) && /"_/.test(own), "solo rhythm: your own set writes 6/8 with syllables under the notes");
+  if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-rhythm-own.png`, fullPage: true });
 
   await p.goto(`${APP}/games/catch-the-tune`, { waitUntil: "networkidle2" });
   const tune: number[] = await p.waitForFunction(() => (window as any).__catchGame?.tune, { timeout: 10000 }).then(() => p.evaluate(() => (window as any).__catchGame.tune));

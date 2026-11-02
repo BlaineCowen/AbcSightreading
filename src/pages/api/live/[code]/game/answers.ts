@@ -2,13 +2,14 @@ import type { APIRoute } from "astro";
 import { currentUser, json } from "../../../../../lib/server/api";
 import { prisma } from "../../../../../lib/server/db";
 import { limits, noRoom, ownRoom, tooMany } from "../../../../../lib/server/live";
-import { playerTag } from "../../../../../lib/games/game-names";
+import { playerName, playerTag } from "../../../../../lib/games/game-names";
 
 /**
  * The host's page reading a round's answers, about once a second while they
- * come in: GET ?round=<id> -> { answers: [{ tag, name, answer }] }. Only
+ * come in: GET ?round=<id> -> { answers: [{ tag, name, fallback, answer }] }. Only
  * the room's own director. The host scores them (game-score.ts). Each is
- * named by its device's tag (game-names.ts playerTag), never its key.
+ * named by its device's tag (game-names.ts playerTag), never its key, with
+ * its made-up name (`fallback`), for a name the teacher removes.
  */
 export const GET: APIRoute = async ({ request, params, url }) => {
   const user = await currentUser(request);
@@ -22,5 +23,5 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     select: { deviceKey: true, name: true, answer: true },
     orderBy: { createdAt: "asc" },
   });
-  return json({ answers: rows.map((r) => ({ tag: playerTag(r.deviceKey), name: r.name, answer: r.answer })) });
+  return json({ answers: rows.map((r) => ({ tag: playerTag(r.deviceKey), name: r.name, fallback: playerName(r.deviceKey), answer: r.answer })) });
 };

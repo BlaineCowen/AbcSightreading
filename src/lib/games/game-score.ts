@@ -2,7 +2,7 @@ import { gradeClaps, type ClapResult } from "../grade-rhythm";
 import type { GradeNote, GradeRest, Strictness } from "../grade";
 import { countInLag, LAG_MAX_MS } from "./game-lag";
 import { FORGIVE_MAX_MS } from "../grade-rhythm";
-import { rhythmTimes, type BoardRow, type RhythmRound } from "./live-game";
+import { TEAM_NAMES, rhythmTimes, type BoardRow, type RhythmRound, type Team } from "./live-game";
 
 /**
  * A round's points in the games (Games, 2 November 2026): a rhythm by the
@@ -75,11 +75,12 @@ export function scoreTune(answer: number[], tune: number[], ms: number, limitMs:
 }
 
 /** The board after a round: everyone's total, best first; ties keep the earlier order. A player is their tag (game-names.ts playerTag). */
-export function addRound(board: BoardRow[], round: { tag: string; name: string; points: number }[]): BoardRow[] {
+export function addRound(board: BoardRow[], round: { tag: string; name: string; points: number; team?: string }[]): BoardRow[] {
   const rows = new Map(board.map((r) => [r.tag, { ...r, last: 0 }]));
   for (const r of round) {
-    const row = rows.get(r.tag) ?? { tag: r.tag, name: r.name, points: 0, last: 0 };
+    const row: BoardRow = rows.get(r.tag) ?? { tag: r.tag, name: r.name, points: 0, last: 0 };
     row.name = r.name;
+    if (r.team) row.team = r.team;
     row.points += r.points;
     row.last = r.points;
     rows.set(r.tag, row);
@@ -90,4 +91,49 @@ export function addRound(board: BoardRow[], round: { tag: string; name: string; 
 /** Each note's share of the room right, for the reveal (the first note is given, so it is always right). */
 export function shareRight(answers: number[][], tune: number[]): number[] {
   return tune.map((s, i) => (i === 0 || answers.length === 0 ? 1 : answers.filter((a) => a[i] === s).length / answers.length));
+}
+
+// ── Teams ─────────────────────────────────────────────────────────────────
+
+/**
+ * Teams mode (Blaine, 2 November 2026): everyone in the room when the first
+ * round starts is dealt at random into `count` teams, as evenly as can be;
+ * anyone who joins later goes to the smallest (`joinTeam`).
+ */
+export function dealTeams(names: string[], count: number, rand = Math.random): Team[] {
+  const n = Math.max(2, Math.min(TEAM_NAMES.length, Math.round(count)));
+  const shuffled = [...new Set(names)];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const teams: Team[] = TEAM_NAMES.slice(0, n).map((name) => ({ id: name.toLowerCase(), name, members: [] }));
+  shuffled.forEach((name, i) => teams[i % n].members.push(name));
+  return teams;
+}
+
+/** The team a player is on, by name. */
+export const teamOf = (teams: Team[] | undefined, name: string) => teams?.find((t) => t.members.includes(name));
+
+/** A player not on a team yet joins the smallest one. Returns the teams (new arrays) and theirs. */
+export function joinTeam(teams: Team[], name: string): { teams: Team[]; team: Team } {
+  const found = teamOf(teams, name);
+  if (found) return { teams, team: found };
+  const smallest = teams.reduce((a, b) => (b.members.length < a.members.length ? b : a));
+  const next = teams.map((t) => (t.id === smallest.id ? { ...t, members: [...t.members, name] } : t));
+  return { teams: next, team: next.find((t) => t.id === smallest.id)! };
+}
+
+/**
+ * The teams' standing: each team's points per player who has scored (so a
+ * bigger team does not win by size), best first.
+ */
+export function teamStandings(board: BoardRow[], teams: Team[]) {
+  return teams
+    .map((t) => {
+      const rows = board.filter((r) => r.team === t.id);
+      const total = rows.reduce((s, r) => s + r.points, 0);
+      return { ...t, players: rows.length, total, average: rows.length ? Math.round(total / rows.length) : 0 };
+    })
+    .sort((a, b) => b.average - a.average);
 }

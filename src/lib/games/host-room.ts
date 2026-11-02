@@ -39,7 +39,7 @@ export async function players(code: string): Promise<string[]> {
   return Object.keys(data.parts ?? {}).filter(Boolean).sort();
 }
 
-export type RoundAnswer = { tag: string; name: string; answer: GameAnswer };
+export type RoundAnswer = { tag: string; name: string; fallback: string; answer: GameAnswer };
 export async function answers(code: string, round: string): Promise<RoundAnswer[]> {
   const res = await fetch(`/api/live/${code}/game/answers?round=${encodeURIComponent(round)}`).catch(() => null);
   if (!res?.ok) return [];

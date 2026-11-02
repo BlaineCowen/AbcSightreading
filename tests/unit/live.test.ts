@@ -130,6 +130,8 @@ describe("devices and polling", () => {
     expect(pollDelayMs({ hidden: true, failures: 0 })).toBe(6000);
     expect(pollDelayMs({ hidden: false, failures: 1 })).toBe(3000);
     expect(pollDelayMs({ hidden: false, failures: 50 })).toBe(30000);
+    // In a class game, never long behind while the page is in view.
+    expect(pollDelayMs({ hidden: false, failures: 50, game: true })).toBe(5000);
   });
 
   test("a socket's address from the service's, ws for http", () => {

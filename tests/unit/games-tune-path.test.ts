@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PATH_LEVELS, makePath, nextFrom, semiOf, shortOf, stepOf, sylOf, type PathLevel } from "../../src/lib/games/tune-path";
+import { PATH_LEVELS, canMakeTune, makePath, nextFrom, semiOf, shortOf, stepOf, sylOf, type PathLevel } from "../../src/lib/games/tune-path";
 
 // Octavo Academy's own tests for these rules (tests/ear-games.test.ts there), copied with them.
 describe("Catch the tune's tunes", () => {
@@ -44,5 +44,28 @@ describe("Catch the tune's tunes", () => {
     const level: PathLevel = { name: "x", moves: "steps", notes: ["do", "re", "mi"], length: [3, 3], maxMove: 1, tunes: [["mi", "re", "do"], ["do", "re", "mi"]] };
     expect(makePath(level, Math.random, 0)).toEqual([2, 1, 0]);
     expect(makePath(level, Math.random, 1)).toEqual([0, 1, 2]);
+  });
+});
+
+describe("a teacher's own set (abcSR's custom setup)", () => {
+  test("only the moves chosen: steps and 5ths", () => {
+    const level: PathLevel = { name: "x", moves: "", notes: ["do", "re", "mi", "fa", "so"], length: [6, 6], maxMove: 4, allowedMoves: [1, 4], starts: ["so"] };
+    for (let k = 0; k < 200; k++) {
+      const t = makePath(level);
+      expect(t[0]).toBe(4);
+      t.slice(1).forEach((s, i) => expect([1, 4]).toContain(Math.abs(s - t[i])));
+      expect(t[t.length - 1]).toBe(0);
+    }
+  });
+  test("no repeats unless chosen", () => {
+    const level: PathLevel = { name: "x", moves: "", notes: ["do", "re", "mi"], length: [5, 5], maxMove: 1, allowedMoves: [1] };
+    for (let k = 0; k < 100; k++) {
+      const t = makePath(level);
+      t.slice(1).forEach((s, i) => expect(s).not.toBe(t[i]));
+    }
+  });
+  test("a set no move can join makes no tune, and says so", () => {
+    const level: PathLevel = { name: "x", moves: "", notes: ["do", "so"], length: [5, 5], maxMove: 1, allowedMoves: [1] };
+    expect(canMakeTune(level)).toBe(false);
   });
 });

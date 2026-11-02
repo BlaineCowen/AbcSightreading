@@ -65,7 +65,16 @@
   let part: string | null = null;
   /** A class game the room is playing (Games): shown instead of the music; the device's part is then its player name. */
   let game: Game | null = null;
-  $: beatPart = game ? playerName(device) : part;
+  /** The name this device plays a game under (LiveGame: typed, or made up). */
+  let gameName = "";
+  $: beatPart = game ? gameName || playerName(device) : part;
+  // A new name is told to the big screen's list at once.
+  let toldName = "";
+  $: if (game && gameName && gameName !== toldName) {
+    toldName = gameName;
+    sendBeat();
+    if (pushOpen) socket?.send(JSON.stringify({ type: "part", part: gameName }));
+  }
   let choosing = false;
   let online = true;
   let fresh = false;
@@ -169,7 +178,7 @@
     if (pollTimer) clearTimeout(pollTimer);
     if (phase !== "live" && phase !== "waiting") return;
     // On a socket every change arrives as it is made: the poll is only a safety net.
-    const delay = pushOpen ? PUSH_SAFETY_POLL_MS : pollDelayMs({ hidden: document.hidden, failures, waiting: phase === "waiting" });
+    const delay = pushOpen ? PUSH_SAFETY_POLL_MS : pollDelayMs({ hidden: document.hidden, failures, waiting: phase === "waiting", game: !!game });
     pollTimer = setTimeout(() => void poll(false), delay);
   }
 
@@ -648,7 +657,7 @@
         <button class="sr-btn-quiet mt-3 w-full" on:click={() => pick(FULL_SCORE)} data-live-pick={FULL_SCORE}>The full score</button>
       </div>
     {:else if game}
-      <LiveGame {game} {code} {device} {offset} />
+      <LiveGame {game} {code} {device} {offset} bind:name={gameName} />
     {:else if !abc}
       <div class="sr-panel p-6 text-center">
         <p class="text-lg font-semibold text-sr-ink">You're in.</p>
