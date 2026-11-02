@@ -21,7 +21,7 @@ import { formatLiveCode, livePath } from "../../../lib/live";
  * GET  -> { room: { code, display, path, live, page, version, endsAt } | null }:
  *         a reloaded page carries on while Live is on. `?make=1` makes the
  *         room (off air) if there is none, for the poster.
- * POST { page: "choral" | "unison" | "ensemble" }: Live on (Pro or Educator), making the
+ * POST { page: "choral" | "unison" | "ensemble" | "game" }: Live on (Pro or Educator), making the
  *         room the first time. POST { action: "new-code" }: a new code, off
  *         air; the old address stops working.
  */
@@ -61,7 +61,8 @@ export const POST: APIRoute = async ({ request }) => {
     if (old) await notifyGone(old.code);
     return json({ room: shape(room) });
   }
-  const page = body.page === "unison" || body.page === "ensemble" ? body.page : "choral";
+  // "game": a class game (Games), whose state is published to .../game.
+  const page = body.page === "unison" || body.page === "ensemble" || body.page === "game" ? body.page : "choral";
   const room = await goLive(user.id, page);
   await notifyRoom(room.code);
   return json({ room: shape(room) });

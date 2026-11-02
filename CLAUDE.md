@@ -99,6 +99,7 @@ regression.
 | Accounts, classes, students, rostering, gradebook, assignments, plans, Stripe, codes, free month, founders | `docs/claude/accounts-and-billing.md` |
 | Your own music (pieces), piece assignments, graded attempts | `docs/claude/pieces.md` |
 | Live practice rooms and the push worker | `docs/claude/live.md` |
+| Games: the rhythm game and Catch the tune, solo and hosted in a live room | `docs/claude/games.md` |
 | Practice page UI: failure banner, first visit and tour, home page, load times, SEO, full screen, copyright, settings row, playing cursor, start point, score layout | `docs/claude/practice-page-ui.md` |
 
 ## Look: "Recess"

@@ -4,6 +4,7 @@ import { hasPremium } from "./plan";
 import { accountTypeFor } from "./students";
 import { Prisma } from "../../generated/prisma/client";
 import { serverEnv } from "./env";
+import { publicGame, type LiveGame } from "../games/live-game";
 import { generateLiveCode, isLiveCode, isLiveOpen, isLivePlay, liveEndsAt, liveEtag, normalizeLiveCode, rateLimiter } from "../live";
 
 /**
@@ -141,8 +142,18 @@ export async function roomState(code: string, since?: number) {
   if (!open) return { etag, body: { live: false as const, director: await directorName(light.teacherId) } };
   const base = { live: true as const, version: light.version, play };
   if (since === light.version) return { etag, body: base };
-  const full = await prisma.liveRoom.findUnique({ where: { code }, select: { abc: true, settings: true, page: true } });
-  return { etag, body: { ...base, abc: full?.abc ?? "", settings: full?.settings ?? null, page: full?.page } };
+  const full = await prisma.liveRoom.findUnique({ where: { code }, select: { abc: true, settings: true, page: true, game: true } });
+  // A class game (src/lib/games/live-game.ts): public as stored, checked again on the way out.
+  const game = full?.page === "game" && full.game ? publicGame(full.game as unknown as LiveGame) : null;
+  return { etag, body: { ...base, abc: full?.abc ?? "", settings: full?.settings ?? null, page: full?.page, ...(game ? { game } : {}) } };
+}
+
+// ── Class games (src/lib/games/live-game.ts) ────────────────────────────
+
+/** Class games' answers are kept a day at most: they are only a round's scores. */
+export async function deleteOldGameAnswers(now = new Date()) {
+  const { count } = await prisma.liveGameAnswer.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } } });
+  return count;
 }
 
 // ── Push (workers/live-push) ─────────────────────────────────────────────
@@ -216,6 +227,8 @@ export const limits = {
   pollPerAddress: rateLimiter(6000, 60_000),
   missesPerAddress: rateLimiter(30, 60_000),
   beatPerDevice: rateLimiter(12, 60_000),
+  /** A device's game answers: one a round, sent again at most a few times. */
+  answerPerDevice: rateLimiter(30, 60_000),
   teacher: rateLimiter(240, 60_000),
 };
 

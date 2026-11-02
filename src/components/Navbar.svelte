@@ -58,7 +58,9 @@
     : account.accountType === "student"
       ? { href: "/library", short: "My library", full: "My library", line: "" }
       : { href: "/pieces", short: "My music", full: "My music", line: "" };
-  $: links = mine ? [...pages, mine] : pages;
+  /** The games (Blaine, 2 November 2026: a section of its own up top). */
+  const games = { href: "/games", short: "Games", full: "Games", line: "" };
+  $: links = mine ? [...pages, games, mine] : [...pages, games];
   $: nextHere = encodeURIComponent(here || "/");
 
   let navbar: HTMLElement;
@@ -182,6 +184,7 @@
             </div>
           {/if}
         </div>
+        <a href={games.href} class="sr-navlink text-[15px]" aria-current={isHere(games.href) ? "page" : undefined}>{games.short}</a>
         {#if mine}
           <a href={mine.href} class="sr-navlink text-[15px]" aria-current={isHere(mine.href) ? "page" : undefined}>{mine.short}</a>
         {/if}

@@ -33,6 +33,9 @@
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { countInBeats, countInWords } from "../lib/count-in";
   import { createFullscreen } from "../lib/fullscreen";
+  import LiveGame from "./games/LiveGame.svelte";
+  import { isLiveGame, type LiveGame as Game } from "../lib/games/live-game";
+  import { playerName } from "../lib/games/game-names";
 
   /**
    * Live practice, the student's side: a director's room, by the address on
@@ -60,6 +63,9 @@
   let settings: LiveSettings | null = null;
   let voices: LiveVoice[] = [];
   let part: string | null = null;
+  /** A class game the room is playing (Games): shown instead of the music; the device's part is then its player name. */
+  let game: Game | null = null;
+  $: beatPart = game ? playerName(device) : part;
   let choosing = false;
   let online = true;
   let fresh = false;
@@ -190,7 +196,7 @@
     pushRetry = null;
     let ws: WebSocket;
     try {
-      ws = new WebSocket(pushSocketUrl(PUSH_URL, code, device, part));
+      ws = new WebSocket(pushSocketUrl(PUSH_URL, code, device, beatPart));
     } catch {
       pushFailures++;
       return;
@@ -312,7 +318,18 @@
       const firstScore = version < 0 || !abc;
       version = data.version;
       settings = data.settings ?? null;
-      await useScore(data.abc, !firstScore);
+      const wasGame = !!game;
+      game = data.page === "game" && isLiveGame(data.game) ? data.game : null;
+      // The director's count names a player by their part: tell it when a game starts or ends.
+      if (wasGame !== !!game) {
+        sendBeat();
+        if (pushOpen) socket?.send(JSON.stringify({ type: "part", part: beatPart }));
+        if (game && !clockKnown) void measureClock();
+      }
+      if (game) {
+        stopSound();
+        stopFollow();
+      } else await useScore(data.abc, !firstScore);
     }
     handlePlay(isLivePlay(data.play) ? data.play : null);
   }
@@ -324,7 +341,7 @@
       const res = await fetch(`/api/live/${code}/beat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device, part }),
+        body: JSON.stringify({ device, part: beatPart }),
       });
       if (res.status === 409) void poll(false);
     } catch {}
@@ -620,7 +637,7 @@
       </div>
     </div>
 
-    {#if choosing}
+    {#if choosing && !game}
       <div class="sr-panel p-5">
         <p class="font-display text-xl font-bold text-sr-ink mb-3">Which part do you sing?</p>
         <div class="grid grid-cols-2 gap-3 sr-pastels">
@@ -630,6 +647,8 @@
         </div>
         <button class="sr-btn-quiet mt-3 w-full" on:click={() => pick(FULL_SCORE)} data-live-pick={FULL_SCORE}>The full score</button>
       </div>
+    {:else if game}
+      <LiveGame {game} {code} {device} {offset} />
     {:else if !abc}
       <div class="sr-panel p-6 text-center">
         <p class="text-lg font-semibold text-sr-ink">You're in.</p>
@@ -637,7 +656,7 @@
       </div>
     {/if}
 
-    {#if abc && part && !choosing}
+    {#if abc && part && !choosing && !game}
       <div class="flex flex-wrap items-center gap-2">
         <p class="text-sm text-sr-muted font-semibold">{heading}</p>
         {#if fresh}<span class="live-fresh" role="status">New exercise</span>{/if}
@@ -646,7 +665,7 @@
         </button>
       </div>
     {/if}
-    <div class="live-paper sr-sheet p-2 sm:p-4" class:hidden={!abc || !part || choosing}>
+    <div class="live-paper sr-sheet p-2 sm:p-4" class:hidden={!abc || !part || choosing || !!game}>
       <div bind:this={paper} id="live-paper" data-live-version={version}></div>
     </div>
   </div>
