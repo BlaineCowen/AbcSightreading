@@ -6,9 +6,11 @@
    * given. The levels are Octavo's (tune-path.ts): steps on do re mi, then
    * so, la, below do, high do, fa, leaps.
    *
-   * Two ways to play. On this device: Each note (right or not at every tap,
-   * a hint after two misses) or All at once (fill every column, Check, fix
-   * the marked ones). With your class (Pro to host): the big screen plays
+   * Two ways to play. On this device: fill the board, Check, fix the marked
+   * ones (Blaine, 2 November 2026: a tap only writes the note in, and only
+   * Check says what is right; there was an Each note mode that judged every
+   * tap). A tap sounds its note, except while the tune plays, where a second
+   * note on top confused. With your class (Pro to host): the big screen plays
    * the tune and shows the empty board; every student fills it in on their
    * own device at /live/<code> (LiveGame.svelte) and sends it; the board
    * then shows the tune, each note's share right and the points.
@@ -72,19 +74,17 @@
   $: usable = canMakeTune(level);
 
   // ── On this device ───────────────────────────────────────────────────
-  let check: "each" | "all" = "each";
   let hints = true;
   let tune: number[] = makePath(PATH_LEVELS[0]);
   let chosen: (number | null)[] = [];
-  let marks: boolean[] | null = null;
+  /** After a Check, each column right or not; a column changed since is null until the next Check. */
+  let marks: (boolean | null)[] | null = null;
   let reveal = false;
   let done = false;
   let heard = false;
   let said = "";
-  let misses = 0;
-  let missAt: { col: number; n: number } | null = null;
   let caught = 0;
-  /** Checks that found a wrong note (All at once), and clean catches in a row. */
+  /** Checks that found a wrong note, and clean catches in a row. */
   let failedChecks = 0;
   let streak = 0;
   let stars = 0;
@@ -102,8 +102,6 @@
     done = false;
     heard = false;
     said = "";
-    misses = 0;
-    missAt = null;
     failedChecks = 0;
     stars = 0;
   }
@@ -117,7 +115,7 @@
   $: filled = chosen.length > 0 && chosen.every((x) => x !== null);
   const reachable = (col: number): number[] | null => {
     if (!hints || col <= 0) return null;
-    const before = check === "each" ? tune[col - 1] : chosen[col - 1];
+    const before = chosen[col - 1];
     return before === null || before === undefined ? null : nextFrom(level, before);
   };
 
@@ -139,31 +137,13 @@
     if (player === p) stopSound();
   }
 
+  /** A tap writes the note in, anywhere on the board; nothing is judged until Check. */
   function tap(col: number, step: number) {
-    playStep(step, DO_MIDI);
+    if (!playing) playStep(step, DO_MIDI);
     if (done || col === 0) return;
-    if (check === "all") {
-      chosen = chosen.map((x, i) => (i === col ? step : x));
-      if (marks) marks = marks.map((m, i) => (i === col ? step === tune[col] : m));
-      said = "";
-      return;
-    }
-    if (col !== at) return;
-    if (step === tune[col]) {
-      chosen = chosen.map((x, i) => (i === col ? step : x));
-      missAt = null;
-      said = "";
-      if (chosen.every((x) => x !== null)) finish(misses === 0);
-      return;
-    }
-    misses++;
-    const n = missAt?.col === col ? missAt.n + 1 : 1;
-    missAt = { col, n };
-    const from = tune[col - 1];
-    const want = tune[col];
-    const size = Math.abs(want - from) === 1 ? "step" : Math.abs(want - from) === 2 ? "skip" : "leap";
-    const way = want === from ? "stayed on the same note" : `went ${want > from ? "up" : "down"} a ${size}`;
-    said = n >= 2 ? `From ${sylOf(from)}, the tune ${way}.` : "Not that one. Listen again and try once more.";
+    chosen = chosen.map((x, i) => (i === col ? step : x));
+    if (marks) marks = marks.map((m, i) => (i === col ? null : m));
+    said = "";
   }
 
   function checkAll() {
@@ -178,8 +158,7 @@
   function finish(clean: boolean) {
     done = true;
     caught++;
-    const errors = check === "each" ? misses : failedChecks;
-    stars = clean ? 3 : errors <= 2 ? 2 : 1;
+    stars = clean ? 3 : failedChecks <= 2 ? 2 : 1;
     streak = clean ? streak + 1 : 0;
     said = "";
     setTimeout(() => void hear(false), 500);
@@ -349,10 +328,6 @@
       <span class="pace" aria-hidden="true" title="Faster">🐇</span>
     </label>
     {#if mode === "solo"}
-      <div class="flex gap-2" role="group" aria-label="When to check">
-        <button class="sr-tok" class:sr-on={check === "each"} aria-pressed={check === "each"} on:click={() => ((check = "each"), fresh())}>Each note</button>
-        <button class="sr-tok" class:sr-on={check === "all"} aria-pressed={check === "all"} on:click={() => ((check = "all"), fresh())}>All at once</button>
-      </div>
       <label class="flex items-center gap-2 text-sm font-bold text-sr-ink-2"><input type="checkbox" class="sr-check h-4 w-4" bind:checked={hints} /> Hints</label>
     {/if}
   </div>
@@ -371,7 +346,7 @@
           {#each [1, 2, 3] as n}<svg viewBox="0 0 24 24" class:lit={n <= stars} style="--d: {n * 120}ms" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" /></svg>{/each}
         </div>
         <div class="win-stats">
-          <span class="sr-tok">{stars === 3 ? "No wrong notes" : check === "each" ? `${misses} wrong ${misses === 1 ? "try" : "tries"}` : `${failedChecks} ${failedChecks === 1 ? "check" : "checks"} to fix`}</span>
+          <span class="sr-tok">{stars === 3 ? "Right first check" : `${failedChecks} ${failedChecks === 1 ? "check" : "checks"} to fix`}</span>
           {#if streak > 1}<span class="sr-tok streak">{streak} perfect in a row</span>{/if}
           <span class="sr-tok">{caught} {caught === 1 ? "tune" : "tunes"} caught</span>
         </div>
@@ -391,7 +366,7 @@
     </div>
     <div class="flex flex-wrap gap-2 justify-center">
       <button class="sr-btn" on:click={() => (playing ? stopSound() : hear(true))}>{playing ? "Stop" : heard ? "Hear it again" : "Hear the tune"}</button>
-      {#if check === "all" && !done}<button class="sr-btn-quiet" on:click={checkAll} disabled={!filled}>Check</button>{/if}
+      {#if !done}<button class="sr-btn-quiet" on:click={checkAll} disabled={!filled} data-tune-check>Check</button>{/if}
       {#if !done && marks}<button class="sr-btn-quiet" on:click={showTune}>Show the tune</button>{/if}
       {#if done}<button class="sr-btn" on:click={fresh}>New tune</button>{/if}
     </div>
