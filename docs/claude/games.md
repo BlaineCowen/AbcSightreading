@@ -61,7 +61,17 @@ hints tint the notes the last one can reach, in the column being worked on
 (nothing is dimmed: Blaine, 2 November 2026, dimming gave too much away). Do is middle C. The tune plays
 at 2 seconds a note by default, set with the Speed slider (0.5 to 3 s, right
 is faster; `sr-catch-gap`), on this device and on the big screen alike
-(Blaine, 2 November 2026: 0.75 s was too quick). The slider has a turtle at
+(Blaine, 2 November 2026: 0.75 s was too quick). A catch shows a mint card in place of
+the prompt (Blaine, 2 November 2026: a better success screen): Pip, "Perfect
+catch!" or "You caught it!", stars (three with no wrong note, two with one or
+two wrong tries or failed Checks, one after more), the clean catches in a
+row, the tunes caught, and Next tune; a short confetti fall, none under
+reduced motion. The games' piano plays at full gain (`PIANO_VOLUME` 1 in
+game-audio.ts, the Tools piano's 0.5 doubled) to carry over a room's
+speakers. Repeats are weighted by level (`makePath`): 1.1 on
+the steps-only levels, so about half of Steps tunes have one, and 0.3 above,
+where skips and leaps are being taught (about 30%); a flat 0.35 left Steps
+at 6% and Blaine never heard one. The slider has a turtle at
 the slow end and a hare at the fast end and no number beside it (Blaine: a
 number changing inline is bad UI); the seconds are in its title and
 `aria-valuetext`.

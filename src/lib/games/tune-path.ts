@@ -82,6 +82,8 @@ export function makePath(level: PathLevel, rand = Math.random, turn = 0): number
   const startSet = starts.length ? starts : allowed;
   const end = level.endOn === null ? null : stepOf(level.endOn ?? "do");
   const fresh = level.newNote ? stepOf(level.newNote) : null;
+  const biggestMove = level.allowedMoves ? Math.max(...level.allowedMoves) : level.maxMove;
+  const repeatWeight = biggestMove <= 1 ? 1.1 : 0.3;
   let best: number[] | null = null;
   for (let tries = 0; tries < 600; tries++) {
     const n = level.length[0] + Math.floor(rand() * (level.length[1] - level.length[0] + 1));
@@ -92,8 +94,11 @@ export function makePath(level: PathLevel, rand = Math.random, turn = 0): number
       const options = nextFrom(level, here).filter((s) => !(s === here && repeated));
       // A custom set of notes and moves can leave a note with nowhere to go.
       if (!options.length) break;
-      // Steps most often, repeats now and then, the bigger moves less.
-      const weight = (s: number) => [0.35, 2, 1.4, 0.8, 1][Math.abs(s - here)] ?? 0.5;
+      // Steps most often, the bigger moves less. Repeats belong to the
+      // steps-only levels, where the ear is learning to hear "same" (Blaine,
+      // 2 November 2026: 6% of Steps tunes had one, too rare there); higher up
+      // the moves being taught are skips and leaps, so repeats stay rare.
+      const weight = (s: number) => [repeatWeight, 2, 1.4, 0.8, 1][Math.abs(s - here)] ?? 0.5;
       const total = options.reduce((a, s) => a + weight(s), 0);
       let x = rand() * total;
       tune.push(options.find((s) => (x -= weight(s)) < 0) ?? options[options.length - 1]);

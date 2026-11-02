@@ -350,8 +350,9 @@ if (GAME === "solo" || GAME === "both") {
   const said = await p.$eval(".said", (e: Element) => e.textContent ?? "");
   check(/Not that one/.test(said), `solo tune: a wrong note is told (${said.trim()})`);
   for (let c = 1; c < tune.length; c++) await p.click(`[data-col="${c}"][data-step="${tune[c]}"]`);
-  const caught = await p.$eval(".said", (e: Element) => e.textContent ?? "");
-  check(/caught the tune/.test(caught), `solo tune: caught (${caught.trim()})`);
+  // The catch card: one wrong try on note 2 earns two stars, not three.
+  const caught = await p.waitForSelector("[data-tune-win]", { timeout: 3000 }).then((el) => el!.evaluate((e: Element) => `${e.getAttribute("data-tune-win")} stars: ${e.querySelector(".win-title")?.textContent}`)).catch(() => "");
+  check(caught.startsWith(wrong === undefined ? "3 stars" : "2 stars"), `solo tune: caught (${caught})`);
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-tune-solo.png` });
   await ctx.close();
 }
