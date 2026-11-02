@@ -263,3 +263,18 @@ or sixteenths), 2 on a phone, and shared out so lines are even (4 bars dense is
 lines itself when the notes need room, so after drawing each page reads the
 split (`drawnLines`) and, if it came out ragged, draws once more capped at the
 most bars abcjs fitted on a line.
+
+**Following the music on Choral** (1 November 2026, Blaine: turn on beat 3,
+not 4, and the next system should always be visible): half a bar before a
+line ends (beat 3 in 4/4, at least a beat; `lineTurnMs`, abcjs's
+`lineEndAnticipation`, set at the tempo the synth was built at) the next
+line is brought fully on screen (`revealNextLine`); when a line starts it is
+placed by `scrollToPlayingLine` (scroll-to-system.ts, tests
+`scroll-to-system.test.ts`): the usual margin above it, shrinking to 12 px
+(the navbar hides on a scroll down) until the line after it clears the
+playback bar. Where even that will not fit, the line being sung stays whole.
+Measured at 1280 wide, Choral's default size, 16 bars of SATB: at 900 tall
+both lines whole at every line; at 720 tall a system is about 345 px, two
+do not fit, and the next line shows about three quarters (a quarter before)
+until the turn at beat 3. A smaller default size (0.9 looked fine to Blaine)
+would fit both; left at 1x for now.

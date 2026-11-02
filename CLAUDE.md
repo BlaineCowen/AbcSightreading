@@ -112,7 +112,10 @@ Layout.astro). Every colour is a `--sr-` token in `src/styles/globals.css`
 `sr-tab`, `sr-btn`, `sr-panel`, `sr-pastels` for a grid of cards...) carry
 the shapes: pills and 28px cards. Use tokens, never Tailwind's own palette
 (`slate-600` and the like), or the dark theme breaks. The score paper stays
-white in both themes.
+white in both themes. The site is light only for now (Blaine, 1 November
+2026): Layout writes `data-theme="light"` on <html>, which every dark rule is
+guarded against, and the navbar's toggle is gone; the dark block stays for
+when it comes back.
 
 ## Deploys
 

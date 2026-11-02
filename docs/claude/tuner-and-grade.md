@@ -325,6 +325,11 @@ and Grade must find exactly those. It reads the page through a dev-only
 `window.__gradeDebug`, and prints where the clean onsets landed (for
 `DETECT_LATENCY_MS`).
 
+The results and the setup leave the troubleshooting lines off for now
+(Blaine, 1 November 2026): the delay taken as the speakers', the sounds
+not counted, and Check timing's ms (it says "Checked" and nothing more).
+The numbers are still kept and graded by; only the words are gone.
+
 **Timing check** (13 October 2026, `scripts/check-tap-timing.ts`): Check
 timing, in the Clap and grade setup for both inputs, plays eight clicks on
 the audio clock and stores how late this device's claps (`clapLatencyMs`) or

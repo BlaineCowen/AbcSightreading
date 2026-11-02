@@ -2364,7 +2364,10 @@
         // a click there landed just before a repeat's count-in (Blaine, 15
         // October 2026: "the metronome clicks over itself").
         if (beatNumber >= totalBeats) endPassOnGrid(totalBeats);
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && beatNumber < totalBeats && !gradeQuiet && !gradeTimeline) {
+        // The count-in clicks whether or not the music does (Blaine, 1 November
+        // 2026: a spoken count-in alone was not enough).
+        const clicking = beatNumber < inCount || (passMetronomeOverride ?? $tuner.musicClick);
+        if (clicking && beat.click && beatNumber < totalBeats && !gradeQuiet && !gradeTimeline) {
           playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
           // The next beat's word, a beat ahead, while there is a next beat of music.
           const next = metronomeBeats.lastClickedBeat + 1;
@@ -3010,7 +3013,7 @@
       leadIn!.push(setTimeout(run, Math.max(0, (at - early - audioContext.currentTime) * 1000)));
     for (let k = 0; k < beats; k++) {
       const at = begin + k * beatSec;
-      if (clicking) after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
+      after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
       after(at, () => showCountIn(meter, k));
     }
     if (rests) after(begin + beats * beatSec, hideCountIn);
@@ -3072,6 +3075,19 @@
     if (word) voiceBank.say(audioContext, metronomeGainNode, word, audioContext.currentTime + secondsPerBeat, first.gain * voice.volume * VOICE_GAIN);
   }
 
+  /** Where a count-in's clicks go: the metronome's level, or the default level while it is at 0. */
+  let countInGainNode: GainNode | null = null;
+  const DEFAULT_METRONOME_VOLUME = 0.5; // the tuner store's default
+  function countInOut(): GainNode {
+    if (metronomeGainNode.gain.value > 0) return metronomeGainNode;
+    if (!countInGainNode) {
+      countInGainNode = audioContext.createGain();
+      countInGainNode.gain.value = DEFAULT_METRONOME_VOLUME * 2;
+      countInGainNode.connect(audioContext.destination);
+    }
+    return countInGainNode;
+  }
+
   function playMetronomeClick(
     isDownbeat: boolean,
     when: number = audioContext ? audioContext.currentTime : 0,
@@ -3081,7 +3097,11 @@
     /** The music's bar, from 0, for the practice assistant (practice-assistant.ts). */
     bar?: number
   ) {
-    if (!audioContext || metronomeGainNode.gain.value === 0) return;
+    if (!audioContext) return;
+    // A count-in (no beat of the music) always sounds, at the default level
+    // when the metronome is turned right down (Blaine, 1 November 2026).
+    const out = beatInBar === undefined ? countInOut() : metronomeGainNode;
+    if (out.gain.value === 0) return;
     const { clickSound, accent, subdivision, beatLevels, subMask, assistant, voice } = tuner.get();
     // Levels set for this many beats, else beat 1 accented as always; then the
     // assistant's silent bars and dropped beats. A Grade run keeps its own click.
@@ -3102,7 +3122,7 @@
     const slotSeconds = secondsPerBeat / gridOf(grid);
     for (const e of beatEvents(level, grid, gradeSubdivision ? null : subMask)) {
       const at = when + e.at * secondsPerBeat;
-      if (!speak || voice.mode === "both") scheduleClick(audioContext, clickBank, metronomeGainNode, at, clickSound, e.level, e.gain);
+      if (!speak || voice.mode === "both") scheduleClick(audioContext, clickBank, out, at, clickSound, e.level, e.gain);
       // The beat's own word was said a beat ahead (sayNextBeat), so it could start early.
       if (speak && e.slot > 0) {
         const word = wordAt(voice.system, gridOf(grid), e.slot, beatInBar!, compound, slotSeconds);
@@ -3805,6 +3825,10 @@
       return;
     }
     runCap = left !== null && left !== undefined && left < drillExercises ? left : null;
+    // The Drill box goes away so the music is in view (Blaine, 1 November
+    // 2026); the badge on the score says where the drill is, and the Drill
+    // button opens the box again to stop it.
+    closePops(false);
     await tick();
     drillStartBpm = bpm;
     drillFirstSolfege = showSolfege;
@@ -5326,7 +5350,7 @@
       }
       const ms = Math.round(lags[lags.length >> 1]);
       tuner.setGrade(viaMic ? { clapLatencyMs: ms } : { tapLatencyMs: ms });
-      timingNote = `Checked: on this device ${viaMic ? "claps are heard" : "taps land"} ${ms} ms after the click. Grading counts from there now.`;
+      timingNote = "Checked. Grading allows for this device now.";
     }, toPage(T0 + 12 * beatSec) + 400 - performance.now());
   }
   /** Taps during Check timing with the spacebar or the pad (null when not checking taps). */

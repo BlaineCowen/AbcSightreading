@@ -95,6 +95,13 @@ there is no room above the staff (a phone) it stays off the music and the
 playback bar's line says it; the line that sat above the score is gone.
 Never name a class `ring`: it is Tailwind's ring utility (a box-shadow).
 
+Start drill closes the Drill box (`closePops`), so the music is in view;
+the Drill button opens it again to stop (Blaine, 1 November 2026). The
+count-in always clicks on Unison, the Click off or a pass with the
+metronome off included (a pass whose count-in is skipped has none), and
+from a tapped note too; with the metronome turned right down it clicks at
+the default level (`countInOut`). It was the words alone with the Click off.
+
 ### Curriculum tracks ("courses" on the site)
 
 On the page they are **courses** (My courses, Choose courses, Instrument

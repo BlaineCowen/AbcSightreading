@@ -23,7 +23,7 @@
   import UpgradeNotice from "./UpgradeNotice.svelte";
   import FreeMonthPromo from "./FreeMonthPromo.svelte";
   import CountInBadge from "./CountInBadge.svelte";
-  import { revealNextLine, scrollToReadingPosition, systemAt, systemOf } from "../lib/scroll-to-system";
+  import { revealNextLine, scrollToPlayingLine, systemAt, systemOf } from "../lib/scroll-to-system";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
@@ -1024,6 +1024,12 @@
   /** Beats of the tune's pickup, which abcjs sings in the count-in's last beat (count-in.ts). */
   let pickupBeats = 0;
 
+  /** How long before a line ends the next comes into view: half a bar, at least a beat. */
+  function lineTurnMs() {
+    const beats = Math.max(1, beatsOf(playedMeter));
+    return Math.round((Math.max(1, beats / 2) * 60000) / Math.max(20, Number(bpm) || 60));
+  }
+
   function buildAudioParams() {
     // From the store as it is now, not the reactive copies: Play changes the
     // store and builds in the same breath, before those catch up.
@@ -2003,7 +2009,7 @@
     // The note in view and the cursor on it, through the count-in.
     const first = eventElements(tapped)[0];
     const system = first ? systemOf(first) : null;
-    if (system) scrollToReadingPosition(system);
+    if (system) scrollToPlayingLine(system);
     if (cursorMode !== "off" && typeof tapped.left === "number") movePlaybackCursor(tapped.left, tapped.top ?? 0, tapped.height ?? 0);
     markStart();
     after(begin + beats * beatSec + gap, () => {
@@ -2500,19 +2506,22 @@
         }
         // Follow the music a whole line at a time. A new line (the first after
         // a start or a loop, or one the early turn below missed) comes to the
-        // reading position. `nearest`, used before, moved the page only as far
-        // as the next note, so a new line barely showed.
+        // reading position, with the line after it in view below it
+        // (scrollToPlayingLine). `nearest`, used before, moved the page only as
+        // far as the next note, so a new line barely showed.
         const system = systemOf(event?.elements?.[0]?.[0]);
         if (system && system !== playingSystem) {
           const first = system === document.querySelector("#paper .abcjs-staff-wrapper");
-          scrollToReadingPosition(first ? document.getElementById("paper") : system);
+          const paper = document.getElementById("paper");
+          scrollToPlayingLine(system, first && paper ? paper : system);
           playingSystem = system;
           turnedTo = null;
         }
       },
-      // Half a second before the line ends, bring the next line fully on
-      // screen, so it is there when the eye gets to it.
-      lineEndAnticipation: 500,
+      // Half a bar before the line ends (beat 3 in 4/4, never less than a
+      // beat), bring the next line fully on screen, so the eye can read ahead
+      // into it (Blaine, 1 November 2026; it was half a second, about beat 4).
+      lineEndAnticipation: lineTurnMs(),
       // abcjs calls this whenever the next note sits at a new height, which in
       // four parts can happen within a line; so it turns only when that height
       // falls in a different line from the one playing.

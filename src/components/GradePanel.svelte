@@ -314,9 +314,8 @@
           <div class="row">
             <span>Timing</span>
             <button class="{timingChecked ? 'sr-tok text-xs px-2.5 py-1' : 'sr-btn text-xs px-3 py-1.5'}" on:click={onCheckTiming} title="{viaMic ? 'Clap' : 'Tap'} along with eight clicks, so this device's delay is measured">{timingChecked ? "Check again" : "Check timing"}</button>
-            <span class="text-xs text-sr-muted basis-full sm:basis-auto">{timingNote ?? (timingChecked
-              ? `Checked: on this device ${viaMic ? "claps are heard" : "taps land"} ${$tuner[viaMic ? "clapLatencyMs" : "tapLatencyMs"]} ms after the click. Check again on a new screen, TV or speaker.`
-              : `Not checked on this device yet: ${viaMic ? "clap" : "tap"} along with eight clicks (15 seconds). Until then some lateness is taken as the speakers' delay, and a TV's delay can hide early ${viaMic ? "claps" : "taps"}.`)}</span>
+            <!-- The check's own progress only; the explanation of delays is left off for now (Blaine, 1 November 2026). -->
+            {#if timingNote}<span class="text-xs text-sr-muted basis-full sm:basis-auto">{timingNote}</span>{/if}
           </div>
         {/if}
         {#if !rhythmOnly}
@@ -387,14 +386,9 @@
         {#if v.perf?.drift !== undefined && Math.abs(v.perf.drift) >= 15}
           <p class="note">Your tuning drifted {Math.abs(v.perf.drift)} cents {v.perf.drift > 0 ? "sharp" : "flat"} by the end{$tuner.gradeStrictness === "strict" ? "." : "; each note was judged in tune with where you were."}</p>
         {/if}
-        {#if claps && claps.lagForgiven && claps.lagMs !== 0}
-          <p class="text-xs text-sr-muted">Timing not checked on this device: {claps.forgivenMs > 0 ? `${claps.forgivenMs} ms of steady lateness was taken as the speakers' delay${claps.lagMs > claps.forgivenMs ? ` (you ran ${claps.lagMs} ms late)` : ""}` : `you ran ${-claps.lagMs} ms early, and early is never a delay`}. Check timing (before Start) to grade it exactly.</p>
-        {/if}
+        <!-- The troubleshooting lines (the delay taken as the speakers', the sounds not counted) are left off for now (Blaine, 1 November 2026). -->
         {#if claps?.soundedLikeClass}
           <p class="note"><Sparkles size={14} class="inline -mt-0.5" /> This sounded like a whole class. For a room, choose <b>The class</b> before you start.</p>
-        {/if}
-        {#if claps?.ignored && claps.ignored.voiced + claps.ignored.merged > 0}
-          <p class="text-xs text-sr-muted">Not counted against you: {[claps.ignored.voiced && `${claps.ignored.voiced} chanted syllable${claps.ignored.voiced === 1 ? "" : "s"}`, claps.ignored.merged && ($tuner.gradeWho === "class" ? `${claps.ignored.merged} late claps folded into the class's clap` : `${claps.ignored.merged} double sound${claps.ignored.merged === 1 ? "" : "s"} heard as one clap`)].filter(Boolean).join(" and ")}.</p>
         {/if}
         <p class="text-xs text-sr-muted">
           {#if v.perf}On the music: a wrong note shows the note you sang beside it, and the line is your pitch, blue on the note, red off it. An arrow means early or late. Tap a note for details.{:else}On the music: an arrow means a clap came early or late; a cross, a stray clap. Tap a note for details.{/if}
