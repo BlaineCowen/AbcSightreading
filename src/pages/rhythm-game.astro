@@ -1,16 +1,5 @@
 ---
-import Layout from "../layouts/Layout.astro";
-import Abcjs from "../components/Abcjs.svelte";
-import NotFound from "../components/NotFound.astro";
-import { currentUser } from "../lib/server/api";
-import { isAdmin } from "../lib/server/admin";
-
-// Not finished (no instructions yet), so the owner's for now, like /write:
-// open on the dev server and to admins, a 404 to everyone else.
-const allowed = import.meta.env.DEV || isAdmin(await currentUser(Astro.request).catch(() => null));
-if (!allowed) Astro.response.status = 404;
+// The old rhythm game (an unfinished prototype, owner only) is the Games
+// section's rhythm game now.
+return Astro.redirect("/games/rhythm", 301);
 ---
-
-<Layout noindex title={allowed ? "Rhythm Game | abcSightReading" : "Page not found | abcSightReading"} themable={!allowed}>
-  {allowed ? <Abcjs client:only="svelte" /> : <NotFound />}
-</Layout>

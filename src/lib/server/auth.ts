@@ -17,6 +17,7 @@ import { grantClasslinkPro } from "./classlink";
 import { recordAffiliateSale, referralFor } from "./codes";
 import { checkoutDiscount } from "../referral";
 import { enabled as freeMonthOn } from "./free-month";
+import { devSignIn, devSignInOn } from "./dev-sign-in";
 
 /**
  * A paid seat pack (src/pages/api/billing/seats.ts starts the checkout): 25
@@ -310,6 +311,8 @@ export const auth = betterAuth({
     }),
     ...classlink,
     ...billing,
+    // The dev server's one-tap sign-in (dev-sign-in.ts); never in a real build.
+    ...(devSignInOn() ? [devSignIn()] : []),
   ],
   hooks: {
     // Students do not buy plans: they may be children, and their class gives

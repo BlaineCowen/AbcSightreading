@@ -617,6 +617,8 @@ model LiveRoom {
   settings  Json?
   /// "Start together": when the count-in begins, on the server clock (LivePlay).
   play      Json?
+  /// A class game the room is playing while `page` is "game" (src/lib/games/live-game.ts LiveGame): public, never a tune's answer before its results.
+  game      Json?
   /// When Live was last turned on.
   startedAt DateTime     @default(now())
   /// On air until then, unless ended sooner; activity pushes it back.
@@ -626,6 +628,7 @@ model LiveRoom {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   devices   LiveDevice[]
+  answers   LiveGameAnswer[]
 
   @@map("live_room")
 }
@@ -643,4 +646,23 @@ model LiveDevice {
   @@unique([roomId, deviceKey])
   @@index([roomId, seenAt])
   @@map("live_device")
+}
+
+// A device's answer to one round of a class game (Games): a rhythm's taps or
+// a tune's notes, under the device's made-up name. Nothing about the student;
+// gone when the room starts a new game, and after a day (the daily cron).
+model LiveGameAnswer {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  round     String
+  deviceKey String
+  name      String
+  answer    Json
+  createdAt DateTime @default(now())
+
+  @@unique([roomId, round, deviceKey])
+  @@index([roomId, round])
+  @@index([createdAt])
+  @@map("live_game_answer")
 }

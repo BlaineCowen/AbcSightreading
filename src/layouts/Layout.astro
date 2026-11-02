@@ -13,7 +13,7 @@ import "abcjs/abcjs-audio.css";
 interface Props {
   title: string;
   description?: string;
-  /** Opt in to the dark theme. Only pages built on the --sr- tokens can. */
+  /** Built on the --sr- tokens (the dark theme is off for now: the page is always light). */
   themable?: boolean;
   /** Keep this page out of search results: accounts, sign-in, tools. */
   noindex?: boolean;
@@ -79,7 +79,10 @@ const feedbackConfigured = !!readFeedbackEmail(
 ---
 
 <!doctype html>
-<html lang="en" data-preview={production ? undefined : ""}>
+<!-- Always light (Blaine, 1 November 2026: no dark mode for now). The dark
+     tokens in globals.css stay, but every one of them is guarded by
+     :not([data-theme="light"]) or [data-theme="dark"], so none applies. -->
+<html lang="en" data-theme="light" data-preview={production ? undefined : ""}>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
@@ -125,18 +128,12 @@ const feedbackConfigured = !!readFeedbackEmail(
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
-    <!-- Before first paint, so a saved theme never flashes the other one.
-         Nothing saved means no attribute, and the OS setting decides. -->
     <script is:inline>
       // Tone.js prints a banner to the console on load unless this is set.
       window.TONE_SILENCE_LOGGING = true;
       // The address as it arrived, before a practice page writes its settings
       // into it: the first-visit welcome reads it (src/lib/tour.ts).
       window.__srArrival = { search: location.search, hash: location.hash };
-      try {
-        var t = localStorage.getItem("sr-theme");
-        if (t === "dark" || t === "light") document.documentElement.dataset.theme = t;
-      } catch (e) {}
     </script>
     <!-- Vercel Web Analytics: page views, on every page (they all use this
          layout). Counts nothing locally - it only reports from a Vercel
@@ -164,6 +161,7 @@ const feedbackConfigured = !!readFeedbackEmail(
         <a class="hover:text-sr-action-fg" href="/curriculum">Courses</a>
         <a class="hover:text-sr-action-fg" href="/pricing">Pricing</a>
         <a class="hover:text-sr-action-fg" href="/tuner">abcTuner</a>
+        <a class="hover:text-sr-action-fg" href="/games">Games</a>
         <a class="hover:text-sr-action-fg" href="/why-abc-sight-reading">Why abcSightReading</a>
         <a class="hover:text-sr-action-fg" href="/privacy">Privacy</a>
         <a class="hover:text-sr-action-fg" href="/terms">Terms</a>

@@ -81,6 +81,7 @@
   import CountInBadge from "./CountInBadge.svelte";
   import DrillBadge from "./DrillBadge.svelte";
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
+  import { barStartOf, eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
@@ -279,6 +280,17 @@
   let audioBuffer: AudioBuffer | null = null; // We will store the generated audio here
   let startTime = 0;
   let pausedAt = 0;
+  /**
+   * Where Play starts (start-point.ts): a tapped note, by its place in the
+   * ABC, or null for the top. Play counts in to it; Stop and the end of the
+   * music come back to it; Back to start forgets it. Loops and drills go
+   * from the top, as before.
+   */
+  let startChar: number | null = null;
+  /** The notes last reached while playing, for the "Paused" line. */
+  let lastEventEls: Element[] = [];
+  /** A count-in into a tapped note: its timers, so Pause or Stop can end it. */
+  let leadIn: ReturnType<typeof setTimeout>[] | null = null;
   let masterVolume = 0.5; // Master volume, 0-1
   let isMuted = false;
   let previousVolume = masterVolume; // To restore volume after unmuting
@@ -576,8 +588,19 @@
     // score silent, and stopping this component's later onMount callbacks
     // (the reflow on resize, opening a linked exercise) from ever running.
     toneSynth ??= new Tone.Synth().toDestination();
-    toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n");
+    // Now, not at Tone's default time (its clock plus a 0.1 s look-ahead). The
+    // synth is one voice with a 1 s release, so a note tapped soon after
+    // another kept sounding the other for that 0.1 s before changing pitch:
+    // "sometimes it plays the previous note" (Blaine, 27 October 2026).
+    toneSynth.triggerAttackRelease(Tone.Frequency(midi, "midi").toFrequency(), "8n", Tone.immediate());
   };
+  /**
+   * A tap reaches abcjs twice, as a touch and then as the mouse click the
+   * browser makes of it, and each would sound the note again on top of the
+   * first. The same note within this many ms is the same tap.
+   */
+  const SAME_TAP_MS = 600;
+  let lastTap: { el: unknown; at: number } | null = null;
 
   /**
    * Resolve saved rhythm names against what the meter's kind offers - see
@@ -2033,9 +2056,14 @@
           // Hearing the take: a tapped note is where it plays from.
           if (i >= 0 && takePlayer && gradeTrace?.spans[i]) takePlayer.seek(gradeTrace.spans[i].from - 150);
         }
+        // Anywhere else, a tapped note is where Play starts.
+        else if (!grading && !drillRunning && typeof event?.startChar === "number") startFromNote(event.startChar);
         // Every note on the rhythm staff is the same placeholder pitch, so
         // playing it back would be meaningless.
         if (rhythmOnly) return;
+        const now = performance.now();
+        if (lastTap && lastTap.el === event && now - lastTap.at < SAME_TAP_MS) return;
+        lastTap = { el: event, at: now };
         if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
@@ -2336,7 +2364,10 @@
         // a click there landed just before a repeat's count-in (Blaine, 15
         // October 2026: "the metronome clicks over itself").
         if (beatNumber >= totalBeats) endPassOnGrid(totalBeats);
-        if ((passMetronomeOverride ?? $tuner.musicClick) && beat.click && beatNumber < totalBeats && !gradeQuiet && !gradeTimeline) {
+        // The count-in clicks whether or not the music does (Blaine, 1 November
+        // 2026: a spoken count-in alone was not enough).
+        const clicking = beatNumber < inCount || (passMetronomeOverride ?? $tuner.musicClick);
+        if (clicking && beat.click && beatNumber < totalBeats && !gradeQuiet && !gradeTimeline) {
           playMetronomeClick(beat.isDownbeat, undefined, musicBeat, beatsPerMeasure, musicBar);
           // The next beat's word, a beat ahead, while there is a next beat of music.
           const next = metronomeBeats.lastClickedBeat + 1;
@@ -2373,6 +2404,7 @@
           }
           playingSystem = system;
         }
+        if (event?.elements) lastEventEls = event.elements.flat();
         if (effectiveCursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (effectiveCursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
@@ -2427,6 +2459,9 @@
       // the callbacks read cursorMode live - without rebuilding the tune.
       beatSubdivisions: 16,
     });
+    // A redraw (layout, tempo, sound) keeps a tapped note; its line is drawn again.
+    lastEventEls = [];
+    markStart();
   }
 
   /**
@@ -2802,6 +2837,13 @@
     // press that bails out above must not silence it.
     exercisePlays(true);
 
+    // A tapped note (and no pause): a count-in into it, then the music from there.
+    const tapped = pausedAt === 0 && passCountInOverride === null && !drillRunning ? tappedEvent() : null;
+    if (tapped && tapped.milliseconds / 1000 > getCountInDuration() + 0.001) {
+      startLeadIn(tapped);
+      return;
+    }
+
     // A pause left us a position on the timeline; anything else starts over.
     let resumeFrom = pausedAt;
     if (resumeFrom >= getTimelineDuration()) resumeFrom = 0;
@@ -2818,6 +2860,7 @@
     }
     pausedAt = 0;
     isPlaying = true;
+    markStart();
 
     // Settle the page during the count-in, not on the downbeat.
     if (fromTheTop) scrollToFirstSystem();
@@ -2837,6 +2880,15 @@
    */
   function pauseMusic() {
     if (!isPlaying) return;
+    // Paused in the count-in to a tapped note: Play counts in to it again.
+    if (leadIn) {
+      endLeadIn();
+      stopSourceNode();
+      isPlaying = false;
+      pausedAt = 0;
+      markStart();
+      return;
+    }
 
     // Where we are on the timeline, count-in included. Works during the
     // count-in too, when the buffer hasn't started sounding yet.
@@ -2850,6 +2902,7 @@
     if (timingCallbacks) {
       timingCallbacks.pause();
     }
+    markStart();
   }
 
   /** Tears down the current buffer source without triggering its onended. */
@@ -2869,6 +2922,7 @@
    * Stops music playback and resets playback state
    */
   function stopMusic() {
+    endLeadIn();
     isPlaying = false;
     // A repeat that redraws the score plays afresh (playMusic, after this).
     nextPassZero = null;
@@ -2879,6 +2933,109 @@
       timingCallbacks.stop();
     }
     hidePlaybackCursor();
+    markStart();
+  }
+
+  /** The tapped note's timing event in this render, or null. */
+  const tappedEvent = (): TimingEvent | null => eventForChar(timingCallbacks?.noteTimings, startChar);
+
+  /**
+   * The line where Play starts: the paused place ("Paused"), else the tapped
+   * note ("Start"), else none (the top, where the cursor is parked). Off
+   * while the music plays; on through a count-in into a tapped note.
+   */
+  function markStart() {
+    const svg = document.querySelector("#paper svg");
+    if (isPlaying && !leadIn) return startLine(svg, [], "");
+    if (!isPlaying && pausedAt > getCountInDuration() && lastEventEls.length) return startLine(svg, lastEventEls, "Paused");
+    const tapped = eventElements(tappedEvent());
+    startLine(svg, tapped, tapped.length ? "Start" : "");
+  }
+
+  /**
+   * A tapped note: where Play starts. Playing, the music goes straight there
+   * (no count-in, as My music's jump); stopped or paused, it is marked, and
+   * Play counts in to it.
+   */
+  function startFromNote(ch: number) {
+    if (!eventForChar(timingCallbacks?.noteTimings, ch)) return;
+    startChar = ch;
+    if (leadIn) {
+      stopMusic();
+      void playMusic();
+      return;
+    }
+    if (isPlaying) {
+      pauseMusic();
+      // Never inside the count-in: the first note's time can round a hair below its end.
+      pausedAt = Math.max(tappedEvent()!.milliseconds / 1000, getCountInDuration());
+      void playMusic();
+      return;
+    }
+    pausedAt = 0;
+    markStart();
+  }
+
+  function endLeadIn() {
+    for (const t of leadIn ?? []) clearTimeout(t);
+    leadIn = null;
+  }
+
+  /**
+   * Plays from a tapped note with a count-in before it, all on the audio
+   * clock: the count-in's clicks (when the click is on) and words into the
+   * downbeat of the note's bar, the bar's notes before it kept silent (as
+   * rests, with the click going on through them), then the music from the
+   * note, with the cursor and the click taken up there. So a note off the
+   * downbeat comes in on its own beat. The timeline's own count-in is its
+   * first bar, so it cannot lead into the middle; this one is booked beside
+   * it. Each click is booked a moment before it sounds, so Pause can still
+   * take back the ones to come.
+   */
+  function startLeadIn(tapped: TimingEvent) {
+    const meter = playedMeter();
+    const beats = countInBeats(meter);
+    const beatSec = 60 / tempo;
+    const perBar = Math.max(1, beatsOf(meter));
+    const t = tapped.milliseconds / 1000;
+    const bar = barStartOf(timingCallbacks?.noteTimings, tapped) / 1000;
+    // The bar's beats before the note, sounded by the clicks booked here; from
+    // the note on, the timeline's own beat callbacks click.
+    const rests = Math.max(0, Math.ceil((t - bar) / beatSec - 0.001));
+    const begin = audioContext.currentTime + 0.15;
+    const zero = begin + beats * beatSec - bar;
+    if (!scheduleAudioFrom(t, zero)) return;
+    pausedAt = 0;
+    isPlaying = true;
+    leadIn = [];
+    const clicking = passMetronomeOverride ?? $tuner.musicClick;
+    const after = (at: number, run: () => void, early = 0) =>
+      leadIn!.push(setTimeout(run, Math.max(0, (at - early - audioContext.currentTime) * 1000)));
+    for (let k = 0; k < beats; k++) {
+      const at = begin + k * beatSec;
+      after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
+      after(at, () => showCountIn(meter, k));
+    }
+    if (rests) after(begin + beats * beatSec, hideCountIn);
+    for (let k = 0; k < rests && clicking; k++) {
+      const at = begin + (beats + k) * beatSec;
+      after(at, () => playMetronomeClick(k % perBar === 0, at), 0.1);
+    }
+    // The note in view and the cursor on it, through the count-in.
+    const first = eventElements(tapped)[0];
+    const system = first ? systemOf(first) : null;
+    if (system) scrollToReadingPosition(system);
+    playingSystem = system;
+    if (effectiveCursorMode !== "off" && typeof tapped.left === "number") movePlaybackCursor(tapped.left, tapped.top ?? 0, tapped.height ?? 0);
+    markStart();
+    // The music: the cursor and the click take up from the note as it sounds.
+    after(zero + t, () => {
+      leadIn = null;
+      hideCountIn();
+      markStart();
+      const late = Math.min(0.25, Math.max(0, audioContext.currentTime - (zero + t)));
+      timingCallbacks?.start(t + late, "seconds");
+    });
   }
 
   /**
@@ -2918,6 +3075,19 @@
     if (word) voiceBank.say(audioContext, metronomeGainNode, word, audioContext.currentTime + secondsPerBeat, first.gain * voice.volume * VOICE_GAIN);
   }
 
+  /** Where a count-in's clicks go: the metronome's level, or the default level while it is at 0. */
+  let countInGainNode: GainNode | null = null;
+  const DEFAULT_METRONOME_VOLUME = 0.5; // the tuner store's default
+  function countInOut(): GainNode {
+    if (metronomeGainNode.gain.value > 0) return metronomeGainNode;
+    if (!countInGainNode) {
+      countInGainNode = audioContext.createGain();
+      countInGainNode.gain.value = DEFAULT_METRONOME_VOLUME * 2;
+      countInGainNode.connect(audioContext.destination);
+    }
+    return countInGainNode;
+  }
+
   function playMetronomeClick(
     isDownbeat: boolean,
     when: number = audioContext ? audioContext.currentTime : 0,
@@ -2927,7 +3097,11 @@
     /** The music's bar, from 0, for the practice assistant (practice-assistant.ts). */
     bar?: number
   ) {
-    if (!audioContext || metronomeGainNode.gain.value === 0) return;
+    if (!audioContext) return;
+    // A count-in (no beat of the music) always sounds, at the default level
+    // when the metronome is turned right down (Blaine, 1 November 2026).
+    const out = beatInBar === undefined ? countInOut() : metronomeGainNode;
+    if (out.gain.value === 0) return;
     const { clickSound, accent, subdivision, beatLevels, subMask, assistant, voice } = tuner.get();
     // Levels set for this many beats, else beat 1 accented as always; then the
     // assistant's silent bars and dropped beats. A Grade run keeps its own click.
@@ -2948,7 +3122,7 @@
     const slotSeconds = secondsPerBeat / gridOf(grid);
     for (const e of beatEvents(level, grid, gradeSubdivision ? null : subMask)) {
       const at = when + e.at * secondsPerBeat;
-      if (!speak || voice.mode === "both") scheduleClick(audioContext, clickBank, metronomeGainNode, at, clickSound, e.level, e.gain);
+      if (!speak || voice.mode === "both") scheduleClick(audioContext, clickBank, out, at, clickSound, e.level, e.gain);
       // The beat's own word was said a beat ahead (sayNextBeat), so it could start early.
       if (speak && e.slot > 0) {
         const word = wordAt(voice.system, gridOf(grid), e.slot, beatInBar!, compound, slotSeconds);
@@ -3191,6 +3365,7 @@
       }
 
       // Reset audio state for new tune
+      startChar = null;
       stopMusic();
       audioBuffer = null; // Force re-initialization
       createSynth = null;
@@ -3650,6 +3825,10 @@
       return;
     }
     runCap = left !== null && left !== undefined && left < drillExercises ? left : null;
+    // The Drill box goes away so the music is in view (Blaine, 1 November
+    // 2026); the badge on the score says where the drill is, and the Drill
+    // button opens the box again to stop it.
+    closePops(false);
     await tick();
     drillStartBpm = bpm;
     drillFirstSolfege = showSolfege;
@@ -3964,6 +4143,7 @@
    *  away from you. */
   function handleRestart() {
     if (drillRunning) void stopDrill();
+    startChar = null;
     stopMusic();
     parkPlaybackCursorAtStart();
   }
@@ -4145,6 +4325,7 @@
       if (opened.exercise.kind !== "unison") return;
       const score = opened.exercise.score;
       if (drillRunning) await stopDrill(false);
+      startChar = null;
       stopMusic();
       audioBuffer = null;
       createSynth = null;
@@ -4582,7 +4763,13 @@
     stopTuner();
   }
 
+  let gradePanel: GradePanel | undefined;
   async function openGrade() {
+    // Already open (the results on the strip, or tucked away): bring the setup back for another run.
+    if (gradeOpen) {
+      gradePanel?.reopen();
+      return;
+    }
     // A sung run's click follows the page's metronome: off unless the page
     // clicks with the music, and subdivided when it does. It used to keep a
     // click of its own, on every beat by default, so a singer with the
@@ -5163,7 +5350,7 @@
       }
       const ms = Math.round(lags[lags.length >> 1]);
       tuner.setGrade(viaMic ? { clapLatencyMs: ms } : { tapLatencyMs: ms });
-      timingNote = `Checked: on this device ${viaMic ? "claps are heard" : "taps land"} ${ms} ms after the click. Grading counts from there now.`;
+      timingNote = "Checked. Grading allows for this device now.";
     }, toPage(T0 + 12 * beatSec) + 400 - performance.now());
   }
   /** Taps during Check timing with the spacebar or the pad (null when not checking taps). */
@@ -5309,6 +5496,7 @@
   <ToolsWheel />
   {#if gradeOpen}
     <GradePanel
+      bind:this={gradePanel}
       runner={gradeRunner}
       allowed={gradeAllowed}
       signedIn={gradeSignedIn}

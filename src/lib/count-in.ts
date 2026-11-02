@@ -19,25 +19,33 @@ export const countInMeasures = (meter: string) => (beatsPerBar(meter) === 2 ? 2 
 
 export const countInBeats = (meter: string) => countInMeasures(meter) * beatsPerBar(meter);
 
-export function countInWords(meter: string): string[] {
-  const beats = countInBeats(meter);
-  // The last two beats are always "Ready, Go"; the numbers count up to them.
+export const countInWords = (meter: string): string[] => countInWordsFor(countInBeats(meter));
+
+/** The words for a count-in of this many beats: the last two are always "Ready, Go"; the numbers count up to them. */
+export function countInWordsFor(beats: number): string[] {
+  if (beats < 2) return beats === 1 ? ["Go"] : [];
   return [...Array.from({ length: beats - 2 }, (_, i) => String(i + 1)), "Ready", "Go"];
 }
 
-/** The word for this moment of the count-in, or null outside it. `beat` is abcjs's, from 0, fractional between beats. */
-export function countInWord(meter: string, beat: number): string | null {
+/**
+ * The word for this moment of the count-in, or null outside it. `beat` is abcjs's, from 0, fractional between beats.
+ * `pickup`: beats of a pickup, which abcjs plays in the count-in's last beats,
+ * so the words are that many fewer and "Go" falls on the beat before it ("1,
+ * Ready, Go" and the pickup, in 4/4).
+ */
+export function countInWord(meter: string, beat: number, pickup = 0): string | null {
   const whole = Math.floor(beat);
-  if (whole < 0 || whole >= countInBeats(meter)) return null;
-  return countInWords(meter)[whole];
+  const beats = countInBeats(meter) - pickup;
+  if (whole < 0 || whole >= beats) return null;
+  return countInWordsFor(beats)[whole];
 }
 
 /** The word showing now, with its beat so the same word twice still animates. Null hides it. */
 export const countInWordNow = writable<{ word: string; beat: number } | null>(null);
 
 /** Sets the overlay from a beat callback. Cheap to call on every subdivision. */
-export function showCountIn(meter: string, beat: number) {
-  const word = countInWord(meter, beat);
+export function showCountIn(meter: string, beat: number, pickup = 0) {
+  const word = countInWord(meter, beat, pickup);
   const whole = Math.floor(beat);
   countInWordNow.update((now) => {
     if (!word) return now ? null : now;

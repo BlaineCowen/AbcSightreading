@@ -56,6 +56,12 @@ export interface VoiceNote extends Note {
    * the first phrase had none.
    */
   ornament?: boolean;
+  /**
+   * Sung with the tune in unison or octaves, every part on it (octave-opening.ts,
+   * and a pickup into such an opening). parallel-check leaves two such notes
+   * moving together alone: a doubled line is a texture, not a fault.
+   */
+  doubled?: boolean;
   wasRaised?: boolean; // true if accidental="natural" means raised (e.g. Bb→Bnat in F major)
   /** Chord symbol annotation displayed above this note (e.g. "I", "V7", "vi").
    *  Typically only set on the chord-start note of the highest voice. */

@@ -204,6 +204,8 @@ function toFragment(svg, id) {
 /** Line thickness and overhang (staff-spaces) for the rests that need one. */
 const LINE_THICKNESS = 0.24;
 const LINE_OVERHANG = 1.1;
+/** The half and whole rest's block is 1.5 staff-spaces wide (LilyPond's glyph, 375 units at 0.004). */
+const REST_BLOCK = 1.5;
 
 /**
  * A half or whole rest without its line is a smudge.
@@ -223,8 +225,14 @@ function withRestLine(frag, id, below) {
   const tx = Number(m[1]);
   const baseline = Number(m[2]);
   const left = tx - LINE_OVERHANG;
-  const right = x0 + vbW + LINE_OVERHANG;
+  // The line runs under the rest only: a dotted half rest's dot sits in the
+  // space above it, as on a staff, rather than the line reaching on past the
+  // dot (Blaine, 2 November 2026: it looked wrong).
+  const right = tx + REST_BLOCK + LINE_OVERHANG;
   const width = right - left;
+  // LilyPond's crop leaves room after a dot; the dot (112 units) ends the icon.
+  const glyphs = [...frag.body.matchAll(/<g transform="translate\(([-\d.]+),/g)].map((g) => Number(g[1]));
+  const vbRight = glyphs.length > 1 ? Math.max(right, Math.max(...glyphs.slice(1)) + 112 * 0.004) : right;
   const y = below
     ? baseline - LINE_THICKNESS * 0.25
     : y0 - LINE_THICKNESS * 0.75;
@@ -233,7 +241,7 @@ function withRestLine(frag, id, below) {
   const height = below
     ? baseline - y0 + LINE_THICKNESS * 0.75
     : y0 + vbH - y;
-  return { viewBox: [left, top, width, height], body: frag.body + line };
+  return { viewBox: [left, top, vbRight - left, height], body: frag.body + line };
 }
 
 const DECORATE = {

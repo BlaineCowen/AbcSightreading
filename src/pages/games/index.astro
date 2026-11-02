@@ -1,0 +1,57 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PipFace from "../../components/PipFace.svelte";
+
+/**
+ * Games (2 November 2026): a rhythm game and Catch the tune, each played on
+ * one device or by a whole class, every student on their own device at the
+ * director's live code (src/lib/games/, docs/claude/games.md).
+ */
+const games = [
+  {
+    href: "/games/rhythm",
+    title: "Tap the rhythm",
+    blurb: "Read a few bars of rhythm and tap them in time with the click. The steps follow abcStepByStep, from ta and ti-ti to sixteenths.",
+    tint: "bg-sr-peach text-sr-peach-ink",
+  },
+  {
+    href: "/games/catch-the-tune",
+    title: "Catch the tune",
+    blurb: "Hear the key, then a short tune. Find each note on the board in solfège: steps first, then skips, below do, high do and leaps.",
+    tint: "bg-sr-sky text-sr-sky-ink",
+  },
+];
+---
+
+<Layout
+  title="Music Games for the Classroom | abcSightReading"
+  description="A rhythm game and a solfège ear-training game. Play on one device, or host on the big screen while every student plays on their own phone or laptop."
+  themable
+>
+  <div class="max-w-5xl mx-auto pb-16 flex flex-col gap-8">
+    <section class="text-center flex flex-col items-center gap-3">
+      <PipFace class="w-16 h-16" />
+      <h1 class="font-display text-4xl sm:text-5xl font-bold text-sr-ink">Games</h1>
+      <p class="text-lg text-sr-ink-2 max-w-2xl">
+        Play on this device, or put the game on the big screen: every student joins at your live code on their own
+        phone, tablet or laptop, and the board shows who got it.
+      </p>
+    </section>
+    <div class="grid gap-5 sm:grid-cols-2">
+      {games.map((g) => (
+        <div class={`sr-panel p-6 flex flex-col gap-3 ${g.tint}`}>
+          <h2 class="font-display text-3xl font-bold">{g.title}</h2>
+          <p class="text-base flex-1">{g.blurb}</p>
+          <div class="flex flex-wrap gap-2">
+            <a class="sr-btn" href={g.href}>Play</a>
+            <a class="sr-btn-quiet bg-sr-raise" href={`${g.href}?host=1`}>Host with your class</a>
+          </div>
+        </div>
+      ))}
+    </div>
+    <p class="text-sm text-sr-muted text-center">
+      Playing is free. Hosting a class is part of Pro. Students need no account: they join at
+      <b>abc-sightreading.com/live</b> with your code, the same one as your Live poster.
+    </p>
+  </div>
+</Layout>

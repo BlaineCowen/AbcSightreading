@@ -24,6 +24,10 @@ export default defineConfig({
   // copy sent a second full Tailwind build to every page (about 9.5 KB gz).
   integrations: [svelte(), tailwind({ applyBaseStyles: false })],
   vite: {
+    // A second dev server (a check on a local database) gets its own cache with
+    // VITE_CACHE_DIR: sharing node_modules/.vite, its re-optimising left the
+    // first serving "504 Outdated Optimize Dep" and blank pages (2 November 2026).
+    ...(process.env.VITE_CACHE_DIR ? { cacheDir: process.env.VITE_CACHE_DIR } : {}),
     ssr: {
       // zod is bundled so each importer gets its own copy: better-auth is
       // bundled and needs zod 4, but an external `zod` resolves at runtime to

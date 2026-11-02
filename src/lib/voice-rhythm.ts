@@ -110,6 +110,8 @@ export function varyVoiceRhythms(voices: VoiceNote[][], opts: VoiceRhythmOptions
         const t = starts[vi][i];
         if (a.rest || b.rest || a.length !== QUARTER || b.length !== QUARTER) continue;
         if (a.isCadenceEnd || b.isCadenceEnd) continue;
+        // Every part on the one line (octave-opening.ts): none of them leaves it.
+        if (a.doubled || b.doubled) continue;
         if (t % QUARTER !== 0 || (t % opts.tsPerMeasure) + 2 * QUARTER > opts.tsPerMeasure) continue;
         if (!oneChord(opts.onsets, t, 2 * QUARTER)) continue;
         const c = nextSung(v, i + 1);

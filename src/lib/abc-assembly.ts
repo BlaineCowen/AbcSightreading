@@ -39,6 +39,12 @@ export interface AbcDisplayOptions {
    * gets it when absent or empty, which is the score exactly as it was.
    */
   lyricsOff?: string[];
+  /**
+   * Not an annotation: how long the pickup before the first bar is, in 32nds
+   * (pickup.ts), so the first barline falls after it. Absent or 0, the first
+   * bar is whole.
+   */
+  pickup?: number;
 }
 
 // Interface for additional metadata needed for the ABC header
@@ -225,7 +231,9 @@ export function voiceBodyAbc(
 
 
   let partString = "";
-  let measureCount = 0;
+  // A pickup is the end of a bar: the first barline comes after it.
+  const pickup = display.pickup ?? 0;
+  let measureCount = pickup > 0 && pickup < beatsPerMeasure ? beatsPerMeasure - pickup : 0;
   /** Where the current note starts, from the top of the piece. */
   let at = 0;
 

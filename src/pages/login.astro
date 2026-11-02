@@ -3,6 +3,13 @@ import Layout from "../layouts/Layout.astro";
 import AuthForm from "../components/AuthForm.svelte";
 import { classlinkEnabled, googleEnabled } from "../lib/server/auth";
 import { enabled as freeMonthOn, offerUntil } from "../lib/server/free-month";
+import { serverEnv } from "../lib/server/env";
+import { devSignInAllowedFrom, devSignInEmail } from "../lib/server/dev-sign-in";
+
+// The ClassLink button stays off the production login page until a real
+// district has signed in with it (Blaine, 26 October 2026: only ClassLink's
+// test district has). The LaunchPad tile, /classlink, still signs in.
+const showClasslink = classlinkEnabled && serverEnv("VERCEL_ENV") !== "production";
 
 const requested = Astro.url.searchParams.get("mode");
 const mode = requested === "signup" || requested === "forgot" || requested === "student" ? requested : "signin";
@@ -15,14 +22,27 @@ try {
   const raw = next.pathname === "/account" ? next.searchParams.get("code") : null;
   if (raw && /^[A-Za-z0-9-]{3,30}$/.test(raw)) code = raw.toUpperCase();
 } catch {}
+
+// The dev server's one-tap sign-in (dev-sign-in.ts): this computer or a Tailscale device only.
+let devEmail: string | null = null;
+try {
+  devEmail = devSignInEmail() && devSignInAllowedFrom(Astro.clientAddress) ? devSignInEmail() : null;
+} catch {}
+const next = Astro.url.searchParams.get("next") ?? "/";
+const devNext = next.startsWith("/") && !next.startsWith("//") ? next : "/";
 ---
 
 <Layout noindex title="Sign in | abcSightReading" themable>
   <div class="flex flex-col w-full items-center pt-2 pb-16">
+    {devEmail && (
+      <button id="dev-sign-in" type="button" data-next={devNext} class="sr-btn mb-4 px-6 py-3">
+        Sign in as {devEmail} <span class="opacity-70 text-xs font-bold ml-1">dev server</span>
+      </button>
+    )}
     <AuthForm
       client:only="svelte"
       googleEnabled={googleEnabled}
-      classlinkEnabled={classlinkEnabled}
+      classlinkEnabled={showClasslink}
       mode={mode}
       freeMonth={freeMonthOn()}
       freeMonthUntil={offerUntil()}
@@ -30,3 +50,16 @@ try {
     />
   </div>
 </Layout>
+
+<script>
+  const devButton = document.getElementById("dev-sign-in");
+  devButton?.addEventListener("click", async () => {
+    devButton.setAttribute("disabled", "");
+    const res = await fetch("/api/dev/sign-in", { method: "POST" });
+    if (res.ok) location.href = devButton.dataset.next ?? "/";
+    else {
+      devButton.removeAttribute("disabled");
+      devButton.textContent = "Could not sign in: " + ((await res.json().catch(() => ({}))).error ?? res.status);
+    }
+  });
+</script>

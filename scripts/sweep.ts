@@ -130,6 +130,8 @@ for (const [levelName, preset] of Object.entries<any>(uilPresets)) {
               voiceTexture: "full", stepwiseEighths: STEPWISE,
               // As the page asks: two treble parts at Levels 1-2 are written melody first.
               melodyFirst: melodyFirstFor(levelName), skipLevel: skipLevelFor(levelName), breathRests: !preset.noRests, cadenceTypes: preset.allowedCadenceTypes, dottedOnStrongBeats: !!preset.dottedOnStrongBeats, ssaLevel: ssaLevelFor(levelName), partWriterLevel: preset.level,
+              // PICKUP=1: every Choral exercise asks for a pickup (pickup.ts).
+              pickup: process.env.PICKUP === "1",
             } as any).voiceNotes);
           });
         }

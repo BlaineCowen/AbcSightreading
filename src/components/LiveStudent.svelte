@@ -1,11 +1,16 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from "svelte";
   import abcjs from "abcjs";
-  import { Minus, Plus, Play, Square, Radio } from "lucide-svelte";
+  import { Minus, Plus, Play, Square, Radio, Maximize, Minimize } from "lucide-svelte";
   import {
     FULL_SCORE,
     HEARTBEAT_MS,
+    PUSH_PING_MS,
+    PUSH_SAFETY_POLL_MS,
     clockOffset,
+    isNewerState,
+    pushRetryMs,
+    pushSocketUrl,
     extractVoice,
     formatLiveCode,
     isLiveCode,
@@ -27,6 +32,10 @@
   import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
   import { styleCopyright, withCopyright } from "../lib/copyright";
   import { countInBeats, countInWords } from "../lib/count-in";
+  import { createFullscreen } from "../lib/fullscreen";
+  import LiveGame from "./games/LiveGame.svelte";
+  import { isLiveGame, type LiveGame as Game } from "../lib/games/live-game";
+  import { playerName } from "../lib/games/game-names";
 
   /**
    * Live practice, the student's side: a director's room, by the address on
@@ -54,6 +63,18 @@
   let settings: LiveSettings | null = null;
   let voices: LiveVoice[] = [];
   let part: string | null = null;
+  /** A class game the room is playing (Games): shown instead of the music; the device's part is then its player name. */
+  let game: Game | null = null;
+  /** The name this device plays a game under (LiveGame: typed, or made up). */
+  let gameName = "";
+  $: beatPart = game ? gameName || playerName(device) : part;
+  // A new name is told to the big screen's list at once.
+  let toldName = "";
+  $: if (game && gameName && gameName !== toldName) {
+    toldName = gameName;
+    sendBeat();
+    if (pushOpen) socket?.send(JSON.stringify({ type: "part", part: gameName }));
+  }
   let choosing = false;
   let online = true;
   let fresh = false;
@@ -83,7 +104,18 @@
   const SIZES = [0.8, 1, 1.25, 1.5, 1.8, 2.2];
   let sizeIndex = 2;
 
+  /**
+   * Full screen: the music alone across a tablet or a TV, the site's header
+   * and footer gone (the practice pages' full screen, src/lib/fullscreen.ts;
+   * inside the window where the browser has none). F toggles it, Esc leaves.
+   */
+  let fs: ReturnType<typeof createFullscreen> | null = null;
+  let fsOn = false;
+  let offFs: (() => void) | null = null;
+
   onMount(() => {
+    fs = createFullscreen();
+    offFs = fs.active.subscribe((on) => (fsOn = on));
     device = deviceKey();
     const savedSize = Number(store.get("sr-live-size"));
     if (Number.isInteger(savedSize) && savedSize >= 0 && savedSize < SIZES.length) sizeIndex = savedSize;
@@ -112,6 +144,7 @@
       if (location.pathname !== livePath(c)) history.replaceState(null, "", livePath(c));
       void measureClock();
       sendBeat();
+      connectPush();
     }
   }
 
@@ -138,17 +171,95 @@
     if (beatTimer) clearInterval(beatTimer);
     pollTimer = null;
     beatTimer = null;
+    closePush();
   }
 
   function schedulePoll() {
     if (pollTimer) clearTimeout(pollTimer);
     if (phase !== "live" && phase !== "waiting") return;
-    pollTimer = setTimeout(() => void poll(false), pollDelayMs({ hidden: document.hidden, failures, waiting: phase === "waiting" }));
+    // On a socket every change arrives as it is made: the poll is only a safety net.
+    const delay = pushOpen ? PUSH_SAFETY_POLL_MS : pollDelayMs({ hidden: document.hidden, failures, waiting: phase === "waiting", game: !!game });
+    pollTimer = setTimeout(() => void poll(false), delay);
   }
 
   function onVisibility() {
-    // Back in view: check at once rather than wait out the slow hidden poll.
-    if (!document.hidden && (phase === "live" || phase === "waiting")) void poll(false);
+    if (document.hidden || (phase !== "live" && phase !== "waiting")) return;
+    // Back in view: check at once rather than wait out the slow hidden poll,
+    // and reopen a socket the phone closed while it slept.
+    void poll(false);
+    if (!socket) connectPush();
+  }
+
+  // ── Push (workers/live-push) ───────────────────────────────────────────
+  /** The push service, when the site has one; without it the device polls as it always did. */
+  const PUSH_URL = (import.meta.env.PUBLIC_LIVE_PUSH_URL as string | undefined) ?? "";
+  let socket: WebSocket | null = null;
+  let pushOpen = false;
+  let pushFailures = 0;
+  let pushRetry: ReturnType<typeof setTimeout> | null = null;
+  let pingTimer: ReturnType<typeof setInterval> | null = null;
+
+  function connectPush() {
+    if (!PUSH_URL || socket || !code || !device || (phase !== "live" && phase !== "waiting")) return;
+    if (pushRetry) clearTimeout(pushRetry);
+    pushRetry = null;
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(pushSocketUrl(PUSH_URL, code, device, beatPart));
+    } catch {
+      pushFailures++;
+      return;
+    }
+    socket = ws;
+    ws.onopen = () => {
+      if (socket !== ws) return;
+      pushOpen = true;
+      pushFailures = 0;
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send("ping"), PUSH_PING_MS);
+      // Anything changed between the last poll and the socket opening.
+      void poll(false);
+    };
+    ws.onmessage = (e) => {
+      if (socket !== ws || typeof e.data !== "string" || e.data === "pong") return;
+      let data: any;
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      if (data?.gone) {
+        leave("This live link no longer works. Ask your director for the new one.");
+        return;
+      }
+      if (isNewerState(data, { live: phase === "live", version })) void apply(data, false);
+    };
+    ws.onclose = () => {
+      if (socket !== ws) return;
+      socket = null;
+      const wasOpen = pushOpen;
+      pushOpen = false;
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = null;
+      if (!code || (phase !== "live" && phase !== "waiting")) return;
+      // Polling and heartbeats take over until the socket is back.
+      schedulePoll();
+      if (wasOpen) sendBeat();
+      pushRetry = setTimeout(connectPush, pushRetryMs(pushFailures++));
+    };
+  }
+
+  function closePush() {
+    if (pushRetry) clearTimeout(pushRetry);
+    if (pingTimer) clearInterval(pingTimer);
+    pushRetry = null;
+    pingTimer = null;
+    const ws = socket;
+    socket = null;
+    pushOpen = false;
+    try {
+      ws?.close();
+    } catch {}
   }
 
   /** Live off: put the music away and wait. The part is kept for when it comes back. */
@@ -185,24 +296,7 @@
       const data = await res.json();
       failures = 0;
       online = true;
-      if (data.live === false) {
-        director = typeof data.director === "string" ? data.director : "";
-        if (phase !== "waiting") wait();
-        schedulePoll();
-        return true;
-      }
-      if (phase !== "live") {
-        phase = "live";
-        if (!beatTimer) beatTimer = setInterval(sendBeat, HEARTBEAT_MS);
-        if (!first) sendBeat();
-      }
-      if (typeof data.abc === "string" && data.version !== version) {
-        const firstScore = version < 0 || !abc;
-        version = data.version;
-        settings = data.settings ?? null;
-        await useScore(data.abc, !firstScore);
-      }
-      handlePlay(isLivePlay(data.play) ? data.play : null);
+      await apply(data, first);
     } catch {
       failures++;
       online = false;
@@ -215,13 +309,48 @@
     return true;
   }
 
+  /** What the room shows now, from a poll or the socket. */
+  async function apply(data: any, first: boolean) {
+    // A poll answered before a push can land after it: never go back a version.
+    if (!first && !isNewerState(data, { live: phase === "live", version })) return;
+    if (data.live === false) {
+      director = typeof data.director === "string" ? data.director : "";
+      if (phase !== "waiting") wait();
+      return;
+    }
+    if (phase !== "live") {
+      phase = "live";
+      if (!beatTimer) beatTimer = setInterval(sendBeat, HEARTBEAT_MS);
+      if (!first) sendBeat();
+    }
+    if (typeof data.abc === "string" && data.version !== version) {
+      const firstScore = version < 0 || !abc;
+      version = data.version;
+      settings = data.settings ?? null;
+      const wasGame = !!game;
+      game = data.page === "game" && isLiveGame(data.game) ? data.game : null;
+      // The director's count names a player by their part: tell it when a game starts or ends.
+      if (wasGame !== !!game) {
+        sendBeat();
+        if (pushOpen) socket?.send(JSON.stringify({ type: "part", part: beatPart }));
+        if (game && !clockKnown) void measureClock();
+      }
+      if (game) {
+        stopSound();
+        stopFollow();
+      } else await useScore(data.abc, !firstScore);
+    }
+    handlePlay(isLivePlay(data.play) ? data.play : null);
+  }
+
+  /** Says this device is there, for the director's count. On a socket the socket says it. */
   async function sendBeat() {
-    if (phase !== "live" || !device) return;
+    if (phase !== "live" || !device || pushOpen) return;
     try {
       const res = await fetch(`/api/live/${code}/beat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device, part }),
+        body: JSON.stringify({ device, part: beatPart }),
       });
       if (res.status === 409) void poll(false);
     } catch {}
@@ -250,6 +379,7 @@
     choosing = false;
     for (const key of partKeys(code, voices)) store.set(key, id);
     sendBeat();
+    if (pushOpen) socket?.send(JSON.stringify({ type: "part", part: id }));
     stopSound();
     tick().then(draw);
   }
@@ -445,6 +575,8 @@
   }
 
   onDestroy(() => {
+    offFs?.();
+    fs?.destroy();
     stopLoops();
     stopSound();
     stopFollow();
@@ -507,10 +639,14 @@
       <div class="ml-auto flex items-center gap-1">
         <button class="sr-icon-btn h-10 w-10 flex items-center justify-center" on:click={() => resize(-1)} disabled={sizeIndex === 0} aria-label="Smaller"><Minus size={18} /></button>
         <button class="sr-icon-btn h-10 w-10 flex items-center justify-center" on:click={() => resize(1)} disabled={sizeIndex === SIZES.length - 1} aria-label="Bigger"><Plus size={18} /></button>
+        <button class="sr-icon-btn h-10 w-10 flex items-center justify-center" on:click={() => fs?.toggle()} aria-pressed={fsOn}
+          aria-label={fsOn ? "Leave full screen" : "Full screen"} title={fsOn ? "Leave full screen (Esc)" : "Full screen (F)"} data-live-fullscreen>
+          {#if fsOn}<Minimize size={18} />{:else}<Maximize size={18} />{/if}
+        </button>
       </div>
     </div>
 
-    {#if choosing}
+    {#if choosing && !game}
       <div class="sr-panel p-5">
         <p class="font-display text-xl font-bold text-sr-ink mb-3">Which part do you sing?</p>
         <div class="grid grid-cols-2 gap-3 sr-pastels">
@@ -520,6 +656,8 @@
         </div>
         <button class="sr-btn-quiet mt-3 w-full" on:click={() => pick(FULL_SCORE)} data-live-pick={FULL_SCORE}>The full score</button>
       </div>
+    {:else if game}
+      <LiveGame {game} {code} {device} {offset} bind:name={gameName} />
     {:else if !abc}
       <div class="sr-panel p-6 text-center">
         <p class="text-lg font-semibold text-sr-ink">You're in.</p>
@@ -527,7 +665,7 @@
       </div>
     {/if}
 
-    {#if abc && part && !choosing}
+    {#if abc && part && !choosing && !game}
       <div class="flex flex-wrap items-center gap-2">
         <p class="text-sm text-sr-muted font-semibold">{heading}</p>
         {#if fresh}<span class="live-fresh" role="status">New exercise</span>{/if}
@@ -536,7 +674,7 @@
         </button>
       </div>
     {/if}
-    <div class="live-paper sr-sheet p-2 sm:p-4" class:hidden={!abc || !part || choosing}>
+    <div class="live-paper sr-sheet p-2 sm:p-4" class:hidden={!abc || !part || choosing || !!game}>
       <div bind:this={paper} id="live-paper" data-live-version={version}></div>
     </div>
   </div>
@@ -549,6 +687,10 @@
 {/if}
 
 <style>
+  /* Full screen: the music as wide as the screen (the room's page holds it to max-w-5xl). */
+  :global(html.sr-focus .live-room) {
+    max-width: none;
+  }
   .live-chip {
     display: inline-flex;
     align-items: center;

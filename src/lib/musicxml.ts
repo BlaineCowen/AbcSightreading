@@ -64,6 +64,8 @@ export type ScoreModel = {
   percussionSound?: number;
   time: { beats: number; beatType: number };
   parts: XmlPart[];
+  /** The first bar is a pickup: measure 0, marked implicit, so the next is bar 1. */
+  pickup?: boolean;
 };
 
 export type MusicXmlOptions = {
@@ -151,6 +153,7 @@ export function scoreFromAbc(abc: string, options: MusicXmlOptions = {}): ScoreM
     ...(typeof percussionSound === "number" ? { percussionSound } : {}),
     time: meter,
     parts,
+    ...((tune.getPickupLength?.() ?? 0) > 0 ? { pickup: true } : {}),
   };
 }
 
@@ -436,7 +439,7 @@ export function musicXmlFor(score: ScoreModel, options: MusicXmlOptions = {}): s
     const id = `P${index + 1}`;
     line(1, `<part id="${id}">`);
     part.measures.forEach((measure, m) => {
-      line(2, `<measure number="${m + 1}">`);
+      line(2, score.pickup ? (m === 0 ? '<measure number="0" implicit="yes">' : `<measure number="${m}">`) : `<measure number="${m + 1}">`);
       if (m === 0) {
         line(3, "<attributes>");
         line(4, `<divisions>${DIVISIONS}</divisions>`);

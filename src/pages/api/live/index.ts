@@ -1,6 +1,18 @@
 import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../lib/server/api";
-import { ensureRoom, goLive, limits, mayRunLive, newRoomCode, roomOf, roomOnAir, tooMany, type RoomShape } from "../../../lib/server/live";
+import {
+  ensureRoom,
+  goLive,
+  limits,
+  mayRunLive,
+  newRoomCode,
+  notifyGone,
+  notifyRoom,
+  roomOf,
+  roomOnAir,
+  tooMany,
+  type RoomShape,
+} from "../../../lib/server/live";
 import { formatLiveCode, livePath } from "../../../lib/live";
 
 /**
@@ -9,7 +21,7 @@ import { formatLiveCode, livePath } from "../../../lib/live";
  * GET  -> { room: { code, display, path, live, page, version, endsAt } | null }:
  *         a reloaded page carries on while Live is on. `?make=1` makes the
  *         room (off air) if there is none, for the poster.
- * POST { page: "choral" | "unison" | "ensemble" }: Live on (Pro or Educator), making the
+ * POST { page: "choral" | "unison" | "ensemble" | "game" }: Live on (Pro or Educator), making the
  *         room the first time. POST { action: "new-code" }: a new code, off
  *         air; the old address stops working.
  */
@@ -43,7 +55,15 @@ export const POST: APIRoute = async ({ request }) => {
   const allowed = await mayRunLive(user);
   if (!allowed.ok) return allowed.response;
   const body = ((await readJson(request)) ?? {}) as { page?: unknown; action?: unknown };
-  if (body.action === "new-code") return json({ room: shape(await newRoomCode(user.id)) });
-  const page = body.page === "unison" || body.page === "ensemble" ? body.page : "choral";
-  return json({ room: shape(await goLive(user.id, page)) });
+  if (body.action === "new-code") {
+    const old = await roomOf(user.id);
+    const room = await newRoomCode(user.id);
+    if (old) await notifyGone(old.code);
+    return json({ room: shape(room) });
+  }
+  // "game": a class game (Games), whose state is published to .../game.
+  const page = body.page === "unison" || body.page === "ensemble" || body.page === "game" ? body.page : "choral";
+  const room = await goLive(user.id, page);
+  await notifyRoom(room.code);
+  return json({ room: shape(room) });
 };

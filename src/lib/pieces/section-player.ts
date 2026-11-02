@@ -107,6 +107,24 @@ export class SectionPlayer {
     if (this.clickGain) this.clickGain.gain.value = this.clickVolume * 2;
   }
 
+  /** The music's volume, 0 to 1 (0.5 as written), through one gain so it changes while it plays. */
+  private musicGain: GainNode | null = null;
+  private musicVolume = 0.5;
+
+  setMusicVolume(v: number) {
+    this.musicVolume = Math.max(0, Math.min(1, v));
+    if (this.musicGain) this.musicGain.gain.value = this.musicVolume * 2;
+  }
+
+  private musicOut(ctx: AudioContext): GainNode {
+    if (!this.musicGain || this.musicGain.context !== ctx) {
+      this.musicGain = ctx.createGain();
+      this.musicGain.gain.value = this.musicVolume * 2;
+      this.musicGain.connect(ctx.destination);
+    }
+    return this.musicGain;
+  }
+
   private clickOut(ctx: AudioContext): GainNode {
     if (!this.clickGain || this.clickGain.context !== ctx) {
       this.clickGain = ctx.createGain();
@@ -158,7 +176,7 @@ export class SectionPlayer {
     } else this.stop();
     const src = ctx.createBufferSource();
     src.buffer = this.buffer;
-    src.connect(ctx.destination);
+    src.connect(this.musicOut(ctx));
     const begin = handover ? at! : ctx.currentTime + 0.12;
     const beat = clicks.beatMs / 1000;
     const kStart = Math.ceil((offsetMs - 1) / clicks.beatMs);

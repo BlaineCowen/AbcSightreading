@@ -1,0 +1,15 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import RhythmGame from "../../components/games/RhythmGame.svelte";
+---
+
+<Layout
+  title="Tap the Rhythm: a Rhythm Reading Game | abcSightReading"
+  description="Read a few bars of rhythm and tap them in time with the click, alone or as a whole class on your own devices."
+  themable
+>
+  <div class="max-w-4xl mx-auto pb-48 flex flex-col gap-4 items-center">
+    <h1 class="font-display text-3xl sm:text-4xl font-bold text-sr-ink">Tap the rhythm</h1>
+    <RhythmGame client:only="svelte" />
+  </div>
+</Layout>

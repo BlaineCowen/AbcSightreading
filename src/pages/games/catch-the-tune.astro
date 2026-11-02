@@ -1,0 +1,15 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import CatchTune from "../../components/games/CatchTheTune.svelte";
+---
+
+<Layout
+  title="Catch the Tune: a Solfège Ear-Training Game | abcSightReading"
+  description="Hear the key, then a short tune, and find each note in solfège. Alone or as a whole class on your own devices."
+  themable
+>
+  <div class="max-w-4xl mx-auto pb-16 flex flex-col gap-4 items-center">
+    <h1 class="font-display text-3xl sm:text-4xl font-bold text-sr-ink">Catch the tune</h1>
+    <CatchTune client:only="svelte" />
+  </div>
+</Layout>

@@ -8,7 +8,8 @@
 
 const RAMP_S = 0.04;
 let ctx: AudioContext | null = null;
-const audio = () => {
+/** This module's context; the games book their clicks on it too, so the piano and the clicks share one clock. */
+export const audio = () => {
   ctx ??= new AudioContext();
   if (ctx.state !== "running") void ctx.resume();
   return ctx;

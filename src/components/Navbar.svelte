@@ -1,7 +1,7 @@
 <script lang="ts">
   import { isStudentEmail } from "../lib/roster";
   import { onMount } from "svelte";
-  import { Sun, Moon, CircleUser } from "lucide-svelte";
+  import { CircleUser } from "lucide-svelte";
   import { nextNavState, type NavScroll } from "../lib/nav-reveal";
   import { signedInUser } from "../lib/auth-client";
   import ChevronDown from "lucide-svelte/icons/chevron-down";
@@ -47,32 +47,6 @@
   };
 
   /**
-   * Light/dark toggle. Only pages that opt in to the dark theme (`themable` on
-   * Layout) show it - elsewhere it would flip nothing. Until someone toggles,
-   * the OS decides; a toggle is saved and applied before paint by Layout.
-   */
-  const THEME_KEY = "sr-theme";
-  let themable = false;
-  let isDark = false;
-  let darkQuery: MediaQueryList | null = null;
-
-  function effectiveDark() {
-    const forced = document.documentElement.dataset.theme;
-    if (forced === "dark") return true;
-    if (forced === "light") return false;
-    return darkQuery?.matches ?? false;
-  }
-
-  function toggleTheme() {
-    const next = isDark ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem(THEME_KEY, next); } catch {}
-    isDark = next === "dark";
-  }
-
-  const syncWithOs = () => (isDark = effectiveDark());
-
-  /**
    * Sign in, or the account page. Undecided until the session answers, and
    * nothing is drawn meanwhile, so the bar never flashes the wrong one.
    */
@@ -84,7 +58,9 @@
     : account.accountType === "student"
       ? { href: "/library", short: "My library", full: "My library", line: "" }
       : { href: "/pieces", short: "My music", full: "My music", line: "" };
-  $: links = mine ? [...pages, mine] : pages;
+  /** The games (Blaine, 2 November 2026: a section of its own up top). */
+  const games = { href: "/games", short: "Games", full: "Games", line: "" };
+  $: links = mine ? [...pages, games, mine] : [...pages, games];
   $: nextHere = encodeURIComponent(here || "/");
 
   let navbar: HTMLElement;
@@ -105,10 +81,6 @@
   };
 
   onMount(() => {
-    themable = document.body.classList.contains("sr-themable");
-    darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    isDark = effectiveDark();
-    darkQuery.addEventListener("change", syncWithOs);
     navScroll = { anchorY: Math.max(window.scrollY, 0), visible: true };
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("pointerdown", closeOnOutside);
@@ -117,7 +89,6 @@
       window.removeEventListener("pointerdown", closeOnOutside);
       window.removeEventListener("keydown", closeOnEsc);
       window.removeEventListener("scroll", handleScroll);
-      darkQuery?.removeEventListener("change", syncWithOs);
     };
   });
 </script>
@@ -150,16 +121,6 @@
       </a>
 
       <div class="flex items-center gap-1 md:hidden">
-      {#if themable}
-        <button
-          class="w-11 h-11 flex items-center justify-center rounded-full text-sr-ink-2 hover:bg-sr-track transition-colors"
-          on:click={toggleTheme}
-          aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-          title={isDark ? "Light mode" : "Dark mode"}
-        >
-          {#if isDark}<Sun size={20} />{:else}<Moon size={20} />{/if}
-        </button>
-      {/if}
       <!-- Mobile menu button -->
       <button
         class="w-11 h-11 flex items-center justify-center rounded-full text-sr-ink transition-colors {isNavbarOpen ? 'bg-sr-track' : 'hover:bg-sr-track'}"
@@ -223,6 +184,7 @@
             </div>
           {/if}
         </div>
+        <a href={games.href} class="sr-navlink text-[15px]" aria-current={isHere(games.href) ? "page" : undefined}>{games.short}</a>
         {#if mine}
           <a href={mine.href} class="sr-navlink text-[15px]" aria-current={isHere(mine.href) ? "page" : undefined}>{mine.short}</a>
         {/if}
@@ -233,16 +195,6 @@
             aria-label="Take the tour of this page"
             title="Take the tour"
           ><CircleQuestionMark size={19} /></button>
-        {/if}
-        {#if themable}
-          <button
-            class="w-10 h-10 flex items-center justify-center rounded-full text-sr-ink-2 hover:text-sr-action-fg hover:bg-sr-track transition-colors"
-            on:click={toggleTheme}
-            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            title={isDark ? "Light mode" : "Dark mode"}
-          >
-            {#if isDark}<Sun size={18} />{:else}<Moon size={18} />{/if}
-          </button>
         {/if}
         {#if account}
           <a

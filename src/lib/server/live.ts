@@ -3,7 +3,9 @@ import { json } from "./api";
 import { hasPremium } from "./plan";
 import { accountTypeFor } from "./students";
 import { Prisma } from "../../generated/prisma/client";
-import { generateLiveCode, isLiveCode, isLiveOpen, liveEndsAt, normalizeLiveCode, rateLimiter } from "../live";
+import { serverEnv } from "./env";
+import { publicGame, type LiveGame } from "../games/live-game";
+import { generateLiveCode, isLiveCode, isLiveOpen, isLivePlay, liveEndsAt, liveEtag, normalizeLiveCode, rateLimiter } from "../live";
 
 /**
  * Live practice against the database: one room per director, its code for
@@ -122,6 +124,89 @@ export async function directorName(teacherId: string): Promise<string> {
   return (user?.name ?? "").trim().slice(0, 60);
 }
 
+/**
+ * What a device is shown, by the room's code: off air { live: false,
+ * director }; on air { live: true, version, play } and, unless `since` is
+ * the version it has, the score { abc, settings, page }. The poll's answer
+ * and what the push service hands every device are the same thing.
+ */
+export async function roomState(code: string, since?: number) {
+  const light = await prisma.liveRoom.findUnique({
+    where: { code },
+    select: { version: true, play: true, endsAt: true, endedAt: true, teacherId: true },
+  });
+  if (!light) return null;
+  const open = roomOnAir(light);
+  const play = open && isLivePlay(light.play) ? light.play : null;
+  const etag = liveEtag({ version: light.version, playId: play?.id ?? null, open });
+  if (!open) return { etag, body: { live: false as const, director: await directorName(light.teacherId) } };
+  const base = { live: true as const, version: light.version, play };
+  if (since === light.version) return { etag, body: base };
+  const full = await prisma.liveRoom.findUnique({ where: { code }, select: { abc: true, settings: true, page: true, game: true } });
+  // A class game (src/lib/games/live-game.ts): public as stored, checked again on the way out.
+  const game = full?.page === "game" && full.game ? publicGame(full.game as unknown as LiveGame) : null;
+  return { etag, body: { ...base, abc: full?.abc ?? "", settings: full?.settings ?? null, page: full?.page, ...(game ? { game } : {}) } };
+}
+
+// ── Class games (src/lib/games/live-game.ts) ────────────────────────────
+
+/** Class games' answers are kept a day at most: they are only a round's scores. */
+export async function deleteOldGameAnswers(now = new Date()) {
+  const { count } = await prisma.liveGameAnswer.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } } });
+  return count;
+}
+
+// ── Push (workers/live-push) ─────────────────────────────────────────────
+
+/** The push service and the secret it takes from the site; with either missing, devices poll as before. */
+const pushConfig = () => {
+  const url = serverEnv("LIVE_PUSH_URL");
+  const secret = serverEnv("LIVE_PUSH_SECRET");
+  return url && secret ? { url: url.replace(/\/$/, ""), secret } : null;
+};
+
+/** A call to the push service; never throws and never holds the director's request up for long. */
+async function pushCall(path: string, init: RequestInit = {}): Promise<Response | null> {
+  const cfg = pushConfig();
+  if (!cfg) return null;
+  try {
+    return await fetch(`${cfg.url}${path}`, {
+      ...init,
+      headers: { ...init.headers, Authorization: `Bearer ${cfg.secret}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch (e) {
+    console.error("live push:", path, e);
+    return null;
+  }
+}
+
+/**
+ * Tells every device on a socket what the room shows now. Called after each
+ * change the director makes (publish, start, stop, Live on or off); devices
+ * that missed it catch up on their next safety poll.
+ */
+export async function notifyRoom(code: string) {
+  if (!pushConfig()) return;
+  const state = await roomState(code);
+  if (state) await pushCall(`/rooms/${code}/publish`, { method: "POST", body: JSON.stringify(state.body) });
+}
+
+/** A room's old code after a new one is made: its devices are told it is gone, and their sockets closed. */
+export async function notifyGone(code: string) {
+  await pushCall(`/rooms/${code}/publish?close=1`, { method: "POST", body: JSON.stringify({ gone: true }) });
+}
+
+/** The devices on a socket to a room, for the director's count; none when the service cannot say. */
+export async function pushedDevices(code: string): Promise<{ device: string; part: string | null }[]> {
+  const res = await pushCall(`/rooms/${code}/presence`);
+  if (!res?.ok) return [];
+  const data = (await res.json().catch(() => null)) as { devices?: unknown } | null;
+  return Array.isArray(data?.devices)
+    ? data.devices.filter((d): d is { device: string; part: string | null } => !!d && typeof d.device === "string")
+    : [];
+}
+
 export const noRoom = () => json({ error: "No live room has that code." }, 404);
 export const offAir = () => json({ error: "Live is off.", offAir: true }, 409);
 
@@ -142,6 +227,8 @@ export const limits = {
   pollPerAddress: rateLimiter(6000, 60_000),
   missesPerAddress: rateLimiter(30, 60_000),
   beatPerDevice: rateLimiter(12, 60_000),
+  /** A device's game answers: one a round, sent again at most a few times. */
+  answerPerDevice: rateLimiter(30, 60_000),
   teacher: rateLimiter(240, 60_000),
 };
 

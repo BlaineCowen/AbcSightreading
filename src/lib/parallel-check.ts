@@ -9,7 +9,8 @@ import { semitoneOf } from "./non-chord-tone-gen";
  * same way, from a perfect fifth to a perfect fifth or an octave to an
  * octave, compound intervals included, measured in semitones so a diminished
  * fifth to a perfect one is not counted. Unisons are left out: two parts
- * singing one line together (unison-spans.ts) is a texture, not a fault.
+ * singing one line together (unison-spans.ts) is a texture, not a fault, and
+ * so are parts on the tune in octaves (`doubled`, octave-opening.ts).
  *
  * The writers avoid parallels chord to chord, and decoration checks every
  * move a figure makes (non-chord-tone-gen `parallelInFigure`). What is left
@@ -41,6 +42,7 @@ export function parallelFaults(voices: VoiceNote[][], key: string): number {
         if (!a0 || !a1 || !b0 || !b1 || a0 === a1 || b0 === b1) continue;
         if (a0.note.rest || a1.note.rest || b0.note.rest || b1.note.rest) continue;
         if (a0.end !== a1.start || b0.end !== b1.start) continue;
+        if (a0.note.doubled && a1.note.doubled && b0.note.doubled && b1.note.doubled) continue;
         const da = a1.note.pitchValue - a0.note.pitchValue, db = b1.note.pitchValue - b0.note.pitchValue;
         if (da === 0 || db === 0 || Math.sign(da) !== Math.sign(db)) continue;
         const span0 = Math.abs(semitoneOf(a0.note, keyInfo) - semitoneOf(b0.note, keyInfo));

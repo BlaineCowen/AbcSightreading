@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { currentUser, json, readJson } from "../../../../lib/server/api";
 import { prisma } from "../../../../lib/server/db";
-import { limits, noRoom, offAir, ownRoom, roomOnAir, tooMany } from "../../../../lib/server/live";
+import { limits, noRoom, notifyRoom, offAir, ownRoom, roomOnAir, tooMany } from "../../../../lib/server/live";
 import { liveEndsAt, startPlay } from "../../../../lib/live";
 import { Prisma } from "../../../../generated/prisma/client";
 
@@ -22,6 +22,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   const now = Date.now();
   if (body.start !== true) {
     await prisma.liveRoom.update({ where: { id: s.id }, data: { play: Prisma.DbNull } });
+    await notifyRoom(s.code);
     return json({ play: null, serverNow: now });
   }
   if (!s.abc) return json({ error: "Generate an exercise first." }, 400);
@@ -34,5 +35,6 @@ export const POST: APIRoute = async ({ request, params }) => {
     id: `${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`,
   });
   await prisma.liveRoom.update({ where: { id: s.id }, data: { play, endsAt: liveEndsAt(s.startedAt, new Date(now)) } });
+  await notifyRoom(s.code);
   return json({ play, serverNow: Date.now() });
 };

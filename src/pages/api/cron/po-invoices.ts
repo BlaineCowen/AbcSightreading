@@ -5,6 +5,7 @@ import { reviewPoInvoices } from "../../../lib/server/quotes";
 import { reviewEndingPlans } from "../../../lib/server/plan-ending";
 import { deleteOldTakes } from "../../../lib/server/attempts";
 import { deleteOldPractice } from "../../../lib/server/practice";
+import { deleteOldGameAnswers } from "../../../lib/server/live";
 
 /**
  * Daily, from Vercel Cron (vercel.json): plans running on a purchase order.
@@ -13,7 +14,8 @@ import { deleteOldPractice } from "../../../lib/server/practice";
  * one-year quote, a card plan with renewal off, a code's months): an email
  * 30 and 7 days before it ends (reviewEndingPlans). And graded attempts'
  * takes past their 90 days are deleted (deleteOldTakes), and practice time past
- * its 395 days (deleteOldPractice).
+ * its 395 days (deleteOldPractice), and class games' answers past a day
+ * (deleteOldGameAnswers).
  *
  * With CRON_SECRET set, Vercel sends it as a bearer token and nothing else
  * may run this. Without it the check still only acts on what is really due,
@@ -30,5 +32,6 @@ export const GET: APIRoute = async ({ request }) => {
     ending: await reviewEndingPlans(new Date(), site.replace(/\/$/, "")),
     takes: await deleteOldTakes(),
     practice: await deleteOldPractice(),
+    gameAnswers: await deleteOldGameAnswers(),
   });
 };

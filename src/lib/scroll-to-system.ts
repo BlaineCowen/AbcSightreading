@@ -63,6 +63,56 @@ export function scrollToReadingPosition(el: Element | null | undefined) {
   if (worthScrolling(target, window.scrollY)) window.scrollTo({ top: target, behavior: "smooth" });
 }
 
+/**
+ * Left above a line being played when room is short: the navbar hides on a
+ * scroll down, which is the way playback goes.
+ */
+export const PLAYING_CLEARANCE = 12;
+
+/**
+ * Where the page should sit for a line that has just started playing, so the
+ * line after it is in view too (Blaine, 1 November 2026: the next system
+ * should always be visible). The usual margin above the line shrinks, down to
+ * PLAYING_CLEARANCE, until the next line's bottom clears the playback bar;
+ * where even that is not enough the line being played stays whole and the
+ * next shows as far as it can (it is brought fully on screen before the line
+ * ends, revealNextLine). All in document coordinates except `barTop`, which
+ * is in the viewport's.
+ */
+export function playingLineScrollTarget(
+  top: number,
+  nextBottom: number | null,
+  barTop: number,
+  viewportHeight: number
+): number {
+  const roomy = Math.max(NAVBAR_CLEARANCE, viewportHeight * 0.1);
+  if (nextBottom === null) return Math.max(0, top - roomy);
+  const fits = barTop - 8 - (nextBottom - top);
+  const margin = Math.min(roomy, Math.max(PLAYING_CLEARANCE, fits));
+  return Math.max(0, top - margin);
+}
+
+/**
+ * Brings a line that has just started playing to where it and the line after
+ * it can both be read (playingLineScrollTarget). `from` is what to keep in
+ * view at the top: the line itself, or the whole score for the first line
+ * (its title and the count-in badge), which gives way to the line when the
+ * two lines would not fit under it.
+ */
+export function scrollToPlayingLine(line: Element, from: Element = line) {
+  if (typeof window === "undefined") return;
+  const lines = [...document.querySelectorAll("#paper .abcjs-staff-wrapper")];
+  const next = lines[lines.indexOf(line) + 1] ?? null;
+  const barTop = document.querySelector(".playback-bar")?.getBoundingClientRect().top ?? window.innerHeight;
+  const docTop = (el: Element) => el.getBoundingClientRect().top + window.scrollY;
+  const nextBottom = next ? next.getBoundingClientRect().bottom + window.scrollY : null;
+  // The score's top, unless keeping it in view would leave the next line under the bar.
+  const room = nextBottom === null ? Infinity : barTop - 8 - (nextBottom - docTop(from));
+  const keep = from !== line && room < PLAYING_CLEARANCE ? line : from;
+  const target = playingLineScrollTarget(docTop(keep), nextBottom, barTop, window.innerHeight);
+  if (worthScrolling(target, window.scrollY)) window.scrollTo({ top: target, behavior: "smooth" });
+}
+
 /** The line of music an element of the score belongs to. */
 export const systemOf = (el: Element | null | undefined) => el?.closest(".abcjs-staff-wrapper") ?? null;
 

@@ -94,3 +94,13 @@ describe("compound meter counts dotted-quarter beats", () => {
     expect(countInWords("12/8")).toEqual(["1", "2", "Ready", "Go"]);
   });
 });
+
+describe("with a pickup", () => {
+  // abcjs sings a pickup in the count-in's last beat: the words are a beat fewer, "Go" just before it.
+  test("4/4: 1, Ready, Go, and the pickup on beat 4", () => {
+    expect([0, 1, 2, 3].map((b) => countInWord("4/4", b, 1))).toEqual(["1", "Ready", "Go", null]);
+  });
+  test("3/4: Ready, Go, and the pickup on beat 3", () => {
+    expect([0, 1, 2].map((b) => countInWord("3/4", b, 1))).toEqual(["Ready", "Go", null]);
+  });
+});
