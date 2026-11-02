@@ -40,6 +40,13 @@ export function bookClicks(o: { start: number; beats: number; beatSec: number; b
   };
 }
 
+/**
+ * The games' piano level: twice the Tools piano's 0.5 (Blaine, 2 November
+ * 2026: too quiet for a class over the room's speakers). One sample at a
+ * time at full gain, so it cannot clip.
+ */
+const PIANO_VOLUME = 1;
+
 /** Do mi so mi do, so below, do: the key, as Grade gives it (`tonicPattern` in Octavo). */
 export const KEY_PATTERN = [0, 4, 7, 4, 0, -5, 0];
 
@@ -58,9 +65,9 @@ export function playKeyAndTune(o: { steps: number[]; doMidi: number; gap: number
     await preloadPiano([...tune, ...key]);
     if (stopped) return;
     const keyGap = 0.42;
-    key.forEach((m, i) => timers.push(setTimeout(() => { o.onNote?.(-1); playPiano([m], keyGap * 0.9); }, i * keyGap * 1000)));
+    key.forEach((m, i) => timers.push(setTimeout(() => { o.onNote?.(-1); playPiano([m], keyGap * 0.9, 440, PIANO_VOLUME); }, i * keyGap * 1000)));
     const from = key.length ? key.length * keyGap + 0.9 : 0;
-    tune.forEach((m, i) => timers.push(setTimeout(() => { o.onNote?.(i); playPiano([m], o.gap * 0.9); }, (from + i * o.gap) * 1000)));
+    tune.forEach((m, i) => timers.push(setTimeout(() => { o.onNote?.(i); playPiano([m], o.gap * 0.9, 440, PIANO_VOLUME); }, (from + i * o.gap) * 1000)));
     await new Promise((r) => timers.push(setTimeout(r, (from + tune.length * o.gap + 0.2) * 1000)));
   })();
   return {
@@ -74,5 +81,5 @@ export function playKeyAndTune(o: { steps: number[]; doMidi: number; gap: number
 
 /** One note of the tune (a tapped square). */
 export function playStep(step: number, doMidi: number) {
-  void preloadPiano([doMidi + semiOf(step)]).then(() => playPiano([doMidi + semiOf(step)], 0.7));
+  void preloadPiano([doMidi + semiOf(step)]).then(() => playPiano([doMidi + semiOf(step)], 0.7, 440, PIANO_VOLUME));
 }

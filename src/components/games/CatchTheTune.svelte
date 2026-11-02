@@ -84,6 +84,10 @@
   let misses = 0;
   let missAt: { col: number; n: number } | null = null;
   let caught = 0;
+  /** Checks that found a wrong note (All at once), and clean catches in a row. */
+  let failedChecks = 0;
+  let streak = 0;
+  let stars = 0;
   let nowCol: number | null = null;
   let player: ReturnType<typeof playKeyAndTune> | null = null;
   let playing = false;
@@ -100,6 +104,8 @@
     said = "";
     misses = 0;
     missAt = null;
+    failedChecks = 0;
+    stars = 0;
   }
   fresh();
   const setLevel = (i: number) => {
@@ -164,18 +170,24 @@
     marks = chosen.map((x, i) => x === tune[i]);
     const right = marks.filter(Boolean).length - 1;
     const of = tune.length - 1;
-    if (right === of) return finish(true);
+    if (right === of) return finish(failedChecks === 0);
+    failedChecks++;
     said = `${right} of ${of} right. Fix the marked notes, or show the tune.`;
   }
+  /** Stars for a catch: three with no wrong note, two with one or two, one after more. */
   function finish(clean: boolean) {
     done = true;
     caught++;
-    said = clean ? "You caught the whole tune!" : "You caught the tune!";
+    const errors = check === "each" ? misses : failedChecks;
+    stars = clean ? 3 : errors <= 2 ? 2 : 1;
+    streak = clean ? streak + 1 : 0;
+    said = "";
     setTimeout(() => void hear(false), 500);
   }
   function showTune() {
     reveal = true;
     done = true;
+    streak = 0;
     marks = chosen.map((x, i) => x === tune[i]);
   }
 
@@ -350,6 +362,25 @@
   {/if}
 
   {#if mode === "solo"}
+    {#if done && !reveal}
+      <div class="win" role="status" data-tune-win={stars}>
+        <div class="confetti" aria-hidden="true">{#each Array(18) as _, i}<i style="--i: {i}"></i>{/each}</div>
+        <PipFace class="w-20 h-20 win-pip" />
+        <p class="win-title font-display">{stars === 3 ? "Perfect catch!" : "You caught it!"}</p>
+        <div class="stars" aria-label="{stars} of 3 stars">
+          {#each [1, 2, 3] as n}<svg viewBox="0 0 24 24" class:lit={n <= stars} style="--d: {n * 120}ms" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" /></svg>{/each}
+        </div>
+        <div class="win-stats">
+          <span class="sr-tok">{stars === 3 ? "No wrong notes" : check === "each" ? `${misses} wrong ${misses === 1 ? "try" : "tries"}` : `${failedChecks} ${failedChecks === 1 ? "check" : "checks"} to fix`}</span>
+          {#if streak > 1}<span class="sr-tok streak">{streak} perfect in a row</span>{/if}
+          <span class="sr-tok">{caught} {caught === 1 ? "tune" : "tunes"} caught</span>
+        </div>
+        <div class="flex flex-wrap gap-2 justify-center">
+          <button class="sr-btn px-8 py-3 text-lg" on:click={fresh} data-tune-next>Next tune</button>
+          <button class="sr-btn-quiet" on:click={() => (playing ? stopSound() : hear(false))}>{playing ? "Stop" : "Hear it again"}</button>
+        </div>
+      </div>
+    {:else}
     <div class="head">
       <PipFace class="w-12 h-12 shrink-0" />
       <p>
@@ -364,6 +395,7 @@
       {#if !done && marks}<button class="sr-btn-quiet" on:click={showTune}>Show the tune</button>{/if}
       {#if done}<button class="sr-btn" on:click={fresh}>New tune</button>{/if}
     </div>
+    {/if}
     <TuneGrid steps={inPlay} length={tune.length} first={tune[0]} {chosen} {marks} answer={reveal ? tune : null} at={done ? -1 : at} {nowCol} {reachable} disabled={done} ontap={tap} />
     <p class="said" aria-live="polite">{said}</p>
   {:else if !room}
@@ -422,6 +454,27 @@
   .speed .pace { font-size: 1.3rem; line-height: 1; }
   .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
   .head { display: flex; align-items: center; gap: 0.8rem; justify-content: center; }
+  /* The catch (Blaine, 2 November 2026: a better success screen than a line of text). */
+  .win { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.4rem 1rem 1.2rem; border-radius: 28px; background: var(--sr-mint); color: var(--sr-mint-ink); text-align: center; animation: win-in 360ms cubic-bezier(.2, 1.4, .4, 1); }
+  .win :global(.win-pip) { animation: win-hop 700ms ease-out 2; }
+  .win-title { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 700; line-height: 1.1; }
+  .stars { display: flex; gap: 0.4rem; }
+  .stars svg { width: 2.6rem; height: 2.6rem; fill: color-mix(in srgb, var(--sr-mint-ink) 18%, transparent); }
+  .stars svg.lit { fill: var(--sr-butter); stroke: var(--sr-butter-ink); stroke-width: 1.4; stroke-linejoin: round; animation: star-pop 420ms cubic-bezier(.2, 1.6, .4, 1) both; animation-delay: var(--d); }
+  .win-stats { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+  .win-stats .sr-tok { background: var(--sr-raise); font-size: 0.85rem; }
+  .win-stats .streak { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .confetti { position: absolute; inset: 0; pointer-events: none; }
+  .confetti i { position: absolute; top: -10%; left: calc(var(--i) * 5.5% + 2%); width: 9px; height: 14px; border-radius: 3px; opacity: 0; animation: fall 1.6s ease-in calc(var(--i) * 45ms) 1 forwards; }
+  .confetti i:nth-child(4n) { background: var(--sr-peach-ink); }
+  .confetti i:nth-child(4n + 1) { background: var(--sr-action); }
+  .confetti i:nth-child(4n + 2) { background: var(--sr-butter-ink); }
+  .confetti i:nth-child(4n + 3) { background: var(--sr-sky-ink); }
+  @keyframes win-in { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes win-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-18%) rotate(-6deg); } }
+  @keyframes star-pop { from { transform: scale(0) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+  @keyframes fall { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(26rem) rotate(calc(var(--i) * 47deg + 200deg)); } }
+  @media (prefers-reduced-motion: reduce) { .win, .win :global(.win-pip), .stars svg.lit, .confetti i { animation: none; } .confetti { display: none; } }
   .caught { font-family: var(--font-display, inherit); font-weight: 700; background: var(--sr-mint); color: var(--sr-mint-ink); border-radius: 999px; padding: 0.2rem 0.8rem; }
   .said { min-height: 1.5rem; text-align: center; font-weight: 700; color: var(--sr-ink-2); }
   .stage { padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
