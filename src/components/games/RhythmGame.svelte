@@ -19,13 +19,14 @@
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
   import { scoreRhythm, addRound, type RhythmScore } from "../../lib/games/game-score";
   import { roomLag, countInLag } from "../../lib/games/game-lag";
-  import { GAME_COUNT_IN_BARS, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
+  import { countInBarsFor, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
   import { answers as fetchAnswers, closeRoom, measureOffset, newRound, openRoom, players as fetchPlayers, publishGame, type HostRoom } from "../../lib/games/host-room";
   import { gradeSchedule } from "../../lib/grade-schedule";
   import { beatUnitOf } from "../../lib/meter";
   import { audioToPage } from "../../lib/clap-listener";
   import { STRICTNESS, type Strictness } from "../../lib/grade";
   import { tuner } from "../../lib/tuner/store";
+  import { countInWordsFor } from "../../lib/count-in";
 
   let mode: "solo" | "class" = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("host") === "1" ? "class" : "solo";
   let levelId = RHYTHM_LEVELS[0].id;
@@ -86,25 +87,22 @@
 
   /**
    * The count-in's words and the clicks, from `startSec` on the audio clock:
-   * two bars (bar 1 "Listen", bar 2 "Tap with the clicks"), then the music
-   * with the click going on. `pageAt` is the same moment on this page's clock.
+   * "1, 2, Ready, Go" (tapped along with), then the music with the click
+   * going on.
    */
   async function runTimeline(ex: Exercise, startSec: number) {
     await loadClicks();
     const beatSec = 60 / bpm;
-    const countBeats = GAME_COUNT_IN_BARS * ex.beatsPerBar;
+    const countBeats = countInBarsFor(ex.beatsPerBar) * ex.beatsPerBar;
+    const words = countInWordsFor(countBeats);
     const musicBeats = bars * ex.beatsPerBar;
     clicks = bookClicks({ start: startSec, beats: countBeats + musicBeats, beatSec, beatsPerBar: ex.beatsPerBar });
     const ctx = gameAudio();
     const msUntil = (sec: number) => Math.max(0, (sec - ctx.currentTime) * 1000);
-    for (let k = 0; k < countBeats; k++) {
-      const n = (k % ex.beatsPerBar) + 1;
-      wordTimers.push(setTimeout(() => (word = k < ex.beatsPerBar ? `Listen · ${n}` : `Tap · ${n}`), msUntil(startSec + k * beatSec)));
-    }
+    for (let k = 0; k < countBeats; k++) wordTimers.push(setTimeout(() => (word = words[k]), msUntil(startSec + k * beatSec)));
     const musicSec = startSec + countBeats * beatSec;
     const endSec = musicSec + musicBeats * beatSec;
-    wordTimers.push(setTimeout(() => (word = "Go!"), msUntil(musicSec)));
-    wordTimers.push(setTimeout(() => (word = ""), msUntil(musicSec + beatSec)));
+    wordTimers.push(setTimeout(() => (word = ""), msUntil(musicSec)));
     const step = () => {
       progress = Math.max(0, Math.min(1, (ctx.currentTime - musicSec) / (endSec - musicSec)));
       if (ctx.currentTime < endSec && running) raf = requestAnimationFrame(step);
@@ -355,9 +353,10 @@
     {/if}
 
     {#if problem}<p class="text-center text-sm text-sr-danger" role="alert">{problem}</p>{/if}
+    {#if exercise}<p class="how">Tap along with the count-in (1, 2, Ready, Go), then tap the rhythm.</p>{/if}
 
     <div class="stage" class:hidden={!exercise}>
-      {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go!"}>{word}</span></div>{/if}
+      {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
       <div class="paper" bind:this={paper}></div>
       <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
     </div>
@@ -386,6 +385,7 @@
   .word { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 2; }
   .word span { display: inline-block; font-family: var(--font-display, inherit); font-weight: 700; font-size: 1.8rem; background: var(--sr-sky); color: var(--sr-sky-ink); border-radius: 999px; padding: 0.2rem 1.2rem; }
   .word span.go { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .how { text-align: center; font-weight: 700; color: var(--sr-ink-2); }
   .bar { height: 6px; border-radius: 999px; background: var(--sr-track); overflow: hidden; margin-top: 0.5rem; }
   .bar span { display: block; height: 100%; background: var(--sr-action); }
   .result { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 1rem; }

@@ -134,14 +134,20 @@ export function checkAnswer(kind: GameKind, body: unknown): Checked<GameAnswer> 
   return { ok: true, value: { notes, ms: Math.round(ms) } };
 }
 
-/** The count-in: two bars, so bar 1 can be heard and bar 2 tapped with (game-lag.ts). */
-export const GAME_COUNT_IN_BARS = 2;
+/**
+ * The count-in is the site's own (count-in.ts): "1, 2, Ready, Go", a bar, two
+ * in 2/4. Everyone taps along with it, and those taps measure each device's
+ * delay (game-lag.ts). It used to be two bars, "Listen" then "Tap with the
+ * clicks" (Blaine, 2 November 2026: listen to what? just count in).
+ */
+export const countInBarsFor = (beatsPerBar: number) => (beatsPerBar === 2 ? 2 : 1);
 
 /** Where a rhythm round stands, all in server milliseconds. */
 export function rhythmTimes(r: RhythmRound) {
   const beatMs = 60_000 / r.bpm;
   const barMs = beatMs * r.beatsPerBar;
-  const musicAt = r.at + GAME_COUNT_IN_BARS * barMs;
-  const clicks = Array.from({ length: r.beatsPerBar }, (_, i) => r.at + barMs + i * beatMs);
-  return { beatMs, barMs, musicAt, endAt: musicAt + r.bars * barMs, tapClicks: clicks };
+  const countBeats = countInBarsFor(r.beatsPerBar) * r.beatsPerBar;
+  const musicAt = r.at + countBeats * beatMs;
+  const clicks = Array.from({ length: countBeats }, (_, i) => r.at + i * beatMs);
+  return { beatMs, barMs, countBeats, musicAt, endAt: musicAt + r.bars * barMs, tapClicks: clicks };
 }

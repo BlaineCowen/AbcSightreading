@@ -22,13 +22,14 @@ A few bars (2 or 4) of one of abcStepByStep's rhythm steps
 (`rhythm-levels.ts`: every ladder step with `rhythmOnly`, so the game follows
 the curriculum), written by `/api/generate` exactly as the Unison page asks
 for rhythm only (games never count against the monthly allowance), drawn big.
-A two-bar count-in, bar 1 "Listen", bar 2 "Tap with the clicks", then tap the
-rhythm on the spacebar or the pad while the click goes on. Graded by Clap
+The site's own count-in ("1, 2, Ready, Go", a bar; two in 2/4), tapped along
+with, then tap the rhythm on the spacebar or the pad while the click goes on
+(Blaine, 2 November 2026: it was two bars, "Listen" then "Tap with the
+clicks", and "listen to what?"). Graded by Clap
 and grade's rules (`gradeClaps`, beat by beat; `scoreRhythm` in
 `game-score.ts`), the notes marked green, butter or red on the music.
 
-**Lag** (`game-lag.ts`): the count-in's second bar is tapped with the clicks,
-and the median of (tap minus click) is this player's delay: the big screen's
+**Lag** (`game-lag.ts`): everyone taps along with the count-in, and the median of (tap minus click) is this player's delay: the big screen's
 speakers (HDMI, Bluetooth), the sound crossing the room, the device's touch.
 It is taken off (`latencyMs`), clamped to -100..350 ms; each click takes the
 nearest tap within its window (never past three quarters of a beat, so the

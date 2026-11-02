@@ -19,11 +19,16 @@ const play = (lag: number, o: { countIn?: boolean; nudge?: [number, number] } = 
 ];
 
 describe("the round's times", () => {
-  test("two bars of count-in, the second tapped with", () => {
+  test("the count-in is the site's own, a bar of 4/4 (1, 2, Ready, Go), every beat tapped with", () => {
     expect(t.beatMs).toBe(500);
-    expect(t.musicAt).toBe(round.at + 4000);
-    expect(t.tapClicks).toEqual([round.at + 2000, round.at + 2500, round.at + 3000, round.at + 3500]);
+    expect(t.musicAt).toBe(round.at + 2000);
+    expect(t.tapClicks).toEqual([round.at, round.at + 500, round.at + 1000, round.at + 1500]);
     expect(t.endAt).toBe(t.musicAt + 2000);
+  });
+  test("2/4 counts in over two bars, as the practice pages do", () => {
+    const two = rhythmTimes({ ...round, meter: "2/4", beatsPerBar: 2 });
+    expect(two.countBeats).toBe(4);
+    expect(two.musicAt).toBe(round.at + 2000);
   });
 });
 

@@ -4,8 +4,8 @@
  * clockOffset), but three delays no browser reports stay in them: the big
  * screen's speakers (HDMI, Bluetooth), the sound crossing the room, and each
  * device's touch. Together they are steady for each student, so every round
- * measures them: the count-in's second bar is tapped with the clicks, and the
- * median of (tap minus click) is that student's lag. A student who did not
+ * measures them: everyone taps along with the count-in ("1, 2, Ready, Go"),
+ * and the median of (tap minus click) is that student's lag. A student who did not
  * tap it takes the room's lag (the speakers are the same for everyone).
  *
  * Lining up on the first note instead would forgive a wrong first note and

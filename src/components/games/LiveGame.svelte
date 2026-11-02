@@ -4,8 +4,8 @@
    * LiveStudent while the room is playing one. The music and the tune are
    * on the big screen; this is the player's own part of it.
    *
-   * Rhythm: a big pad (or the spacebar). Bar 1 of the count-in is heard,
-   * bar 2 tapped with the clicks (that is how this device's delay is
+   * Rhythm: a big pad (or the spacebar). Tap along with the big screen's
+   * count-in, "1, 2, Ready, Go" (that is how this device's delay is
    * measured, game-lag.ts), then the rhythm. Every tap is stamped on the
    * server's clock (Live's clock offset) and the taps go to the big screen
    * when the round ends.
@@ -17,7 +17,8 @@
   import TuneGrid from "./TuneGrid.svelte";
   import PipFace from "../PipFace.svelte";
   import { playerName, playerTag } from "../../lib/games/game-names";
-  import { GAME_COUNT_IN_BARS, rhythmTimes, type LiveGame } from "../../lib/games/live-game";
+  import { rhythmTimes, type LiveGame } from "../../lib/games/live-game";
+  import { countInWordsFor } from "../../lib/count-in";
   import { scoreTune } from "../../lib/games/game-score";
   import { playStep } from "../../lib/games/game-audio";
   import { sylOf } from "../../lib/games/tune-path";
@@ -67,12 +68,10 @@
     const r = game.rhythm!;
     const t = rhythmTimes(r);
     const inMs = (serverMs: number) => Math.max(0, serverMs - serverNow());
-    timers.push(setTimeout(() => (word = "Get ready"), 0));
-    for (let k = 0; k < GAME_COUNT_IN_BARS * r.beatsPerBar; k++) {
-      const n = (k % r.beatsPerBar) + 1;
-      timers.push(setTimeout(() => (word = k < r.beatsPerBar ? `Listen · ${n}` : `Tap with the clicks · ${n}`), inMs(r.at + k * t.beatMs)));
-    }
-    timers.push(setTimeout(() => (word = "Tap the rhythm!"), inMs(t.musicAt)));
+    const words = countInWordsFor(t.countBeats);
+    timers.push(setTimeout(() => (word = ""), 0));
+    for (let k = 0; k < t.countBeats; k++) timers.push(setTimeout(() => (word = words[k]), inMs(r.at + k * t.beatMs)));
+    timers.push(setTimeout(() => (word = "Tap the rhythm"), inMs(t.musicAt)));
     timers.push(setTimeout(() => {
       word = "";
       void sendTaps();
@@ -147,7 +146,7 @@
     </div>
   {:else if game.kind === "rhythm"}
     {#if game.phase === "playing" && sent === "no"}
-      <p class="word" aria-live="assertive">{word || "Get ready"}</p>
+      <p class="word" aria-live="assertive">{word || "Tap along with the count-in, then the rhythm"}</p>
       <button
         type="button"
         class="pad"

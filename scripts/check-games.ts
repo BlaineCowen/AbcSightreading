@@ -11,7 +11,7 @@
  *
  * Rhythm: four phone-sized devices, each with its clock set wrong (seconds
  * off) and its taps delayed as a TV's speakers and a phone's touch would
- * delay them (0, 120, 300 ms), tap the count-in's second bar and the rhythm,
+ * delay them (0, 120, 300 ms), tap along with the count-in and the rhythm,
  * dispatched at the moments the big screen's round says. Three tap it
  * exactly and must score 100; the fourth taps one note a sixteenth late
  * and must lose that beat. The board must have all four, best first.
@@ -56,16 +56,17 @@ await teacher.setViewport({ width: 1366, height: 900 });
 await teacher.evaluateOnNewDocument(() => {
   for (const k of ["abc-welcome-v1", "abc-tour-unison-v1", "abc-tour-choral-v1"]) localStorage.setItem(k, "done");
 });
-await teacher.goto(`${APP}/login`, { waitUntil: "domcontentloaded" });
-const signedIn = await teacher.evaluate(async (email: string, password: string) => {
+// Solo play needs no account (and may run against a dev server on the shared database).
+if (GAME !== "solo") await teacher.goto(`${APP}/login`, { waitUntil: "domcontentloaded" });
+const signedIn = GAME === "solo" || await teacher.evaluate(async (email: string, password: string) => {
   const post = (path: string, body: object) =>
     fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   let res = await post("/api/auth/sign-in/email", { email, password });
   if (!res.ok) res = await post("/api/auth/sign-up/email", { email, password, name: "Mr. Games" });
   return res.ok;
 }, EMAIL, PASSWORD);
-check(signedIn, "the teacher signs in");
-const code: string = await teacher.evaluate(async () => {
+if (GAME !== "solo") check(signedIn, "the teacher signs in");
+const code: string = GAME === "solo" ? "" : await teacher.evaluate(async () => {
   const { room } = await (await fetch("/api/live?make=1")).json();
   if (room?.live) await fetch(`/api/live/${room.code}`, { method: "DELETE" });
   return room.code;
@@ -124,9 +125,9 @@ if (GAME === "rhythm" || GAME === "both") {
     return { r: g.game.rhythm, notes: g.exercise.schedule.notes.map((n: any) => n.startUnits), beatUnits: g.exercise.beatUnits };
   });
   const beatMs = 60000 / round.r.bpm;
-  const barMs = beatMs * round.r.beatsPerBar;
-  const musicAt = round.r.at + 2 * barMs;
-  const clicks = Array.from({ length: round.r.beatsPerBar }, (_, k) => round.r.at + barMs + k * beatMs);
+  const countBeats = (round.r.beatsPerBar === 2 ? 2 : 1) * round.r.beatsPerBar;
+  const musicAt = round.r.at + countBeats * beatMs;
+  const clicks = Array.from({ length: countBeats }, (_, k) => round.r.at + k * beatMs);
   const onsets = round.notes.map((u: number) => musicAt + (u * beatMs) / round.beatUnits);
   console.log(`  ${round.r.bars} bars of ${round.r.meter} at ${round.r.bpm}, ${onsets.length} notes`);
 
@@ -250,10 +251,10 @@ if (GAME === "solo" || GAME === "both") {
     const g = (window as any).__rhythmGame;
     const r = g.round;
     const beat = 60000 / r.bpm;
-    const bar = beat * r.beatsPerBar;
-    const music = r.at + 2 * bar;
+    const count = (r.beatsPerBar === 2 ? 2 : 1) * r.beatsPerBar;
+    const music = r.at + count * beat;
     const times = [
-      ...Array.from({ length: r.beatsPerBar }, (_, k) => r.at + bar + k * beat),
+      ...Array.from({ length: count }, (_, k) => r.at + k * beat),
       ...g.exercise.schedule.notes.map((n: any) => music + (n.startUnits * beat) / g.exercise.beatUnits),
     ];
     await new Promise((done) => {
