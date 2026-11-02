@@ -57,7 +57,8 @@ level leaves out is a thin empty row, so a move over it reads as a skip),
 the first given. Seven levels: steps on do re mi, + so, + la, below do, high
 do, + fa, leaps. Solo: Each note (right or not at each tap; a second miss
 says which way the tune went) or All at once (Check, fix, Show the tune);
-hints dim the notes the last one cannot reach. Do is middle C. The tune plays
+hints tint the notes the last one can reach, in the column being worked on
+(nothing is dimmed: Blaine, 2 November 2026, dimming gave too much away). Do is middle C. The tune plays
 at 2 seconds a note by default, set with the Speed slider (0.5 to 3 s, right
 is faster; `sr-catch-gap`), on this device and on the big screen alike
 (Blaine, 2 November 2026: 0.75 s was too quick). The slider has a turtle at

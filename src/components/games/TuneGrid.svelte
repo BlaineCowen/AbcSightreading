@@ -24,7 +24,7 @@
   /** The column being worked on, and the one sounding now. */
   export let at = -1;
   export let nowCol: number | null = null;
-  /** The notes a column can hold (the hint), or null for any. */
+  /** The notes a column can hold (the hint), or null for any: lit in the column being worked on, nothing dimmed. */
   export let reachable: (col: number) => number[] | null = () => null;
   export let disabled = false;
   export let ontap: (col: number, step: number) => void = () => {};
@@ -58,7 +58,7 @@
           class:wrong={picked && marks?.[col] === false}
           class:right={picked && marks?.[col] === true && col > 0}
           class:answer={!!answer && answer[col] === r && !picked}
-          class:dim={can !== null && !can.includes(r) && !picked}
+          class:can={col === at && can !== null && can.includes(r) && !picked}
           style="--c: {colorOf(r)}"
           disabled={disabled || col === 0}
           data-col={col}
@@ -107,7 +107,9 @@
   .cell.now { box-shadow: 0 0 0 3px var(--sr-butter); }
   .cell.picked { background: var(--c); border-color: var(--c); }
   .cell.given { opacity: 0.85; }
-  .cell.dim { opacity: 0.3; }
+  /* The hint (Blaine, 2 November 2026: dimming the notes it cannot reach gave
+     too much away): the notes it can reach are tinted, the rest left as they are. */
+  .cell.can { background: color-mix(in srgb, var(--c) 18%, var(--sr-raise)); border-color: color-mix(in srgb, var(--c) 55%, var(--sr-hairline)); }
   .cell.right { box-shadow: 0 0 0 3px var(--sr-mint); }
   .cell.wrong { box-shadow: 0 0 0 3px var(--sr-danger, #e5484d); opacity: 0.75; }
   .cell.answer { border: 3px dashed var(--c); color: var(--c); background: var(--sr-raise); }
