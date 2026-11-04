@@ -34,6 +34,8 @@
   $: rows = Array.from({ length: hi - lo + 1 }, (_, i) => hi - i).map((step) => ({ step, on: steps.includes(step) }));
   $: cols = Array.from({ length }, (_, i) => i);
   $: picks = cols.map((c) => (c === 0 ? first : chosen[c] ?? null));
+  /** Grid rows the outline spans: the numbers, every pitch row, and the shares when shown. */
+  $: rowSpan = 1 + rows.length + (share ? 1 : 0);
 </script>
 
 <div class="board" style="--cols: {length}" role="group" aria-label="The tune: a column for each note, a row for each pitch">
@@ -74,6 +76,10 @@
     <span class="corner"></span>
     {#each cols as col (col)}<span class="share" title="{Math.round(share[col] * 100)}% right">{col === 0 ? "" : `${Math.round(share[col] * 100)}%`}</span>{/each}
   {/if}
+  {#if nowCol !== null && nowCol >= 0 && nowCol < length}
+    <!-- The column sounding now, outlined (Blaine, 4 November 2026: a faint tint was too hard to follow). -->
+    <span class="playing" style="grid-column: {nowCol + 2} / span 1; grid-row: 1 / span {rowSpan}" aria-hidden="true" data-playing-col={nowCol}></span>
+  {/if}
 </div>
 
 <style>
@@ -86,7 +92,18 @@
   }
   .num { text-align: center; font-weight: 800; font-size: 0.85rem; color: var(--sr-muted); border-radius: 999px; padding: 2px 0; }
   .num.cur { color: var(--sr-action-fg); }
-  .num.now { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .num.now { background: var(--sr-action); color: var(--sr-action-ink); }
+  .board { position: relative; }
+  /* Absolute, so it lies over its column's grid area without taking a cell from the board. */
+  .playing {
+    position: absolute;
+    inset: -5px -4px;
+    border: 4px solid var(--sr-action);
+    border-radius: 16px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--sr-action) 22%, transparent);
+    pointer-events: none;
+    z-index: 1;
+  }
   .name { font-family: var(--font-display, inherit); font-weight: 700; color: var(--c); text-align: right; padding-right: 4px; font-size: 1.05rem; }
   .name.off { opacity: 0.35; font-size: 0.8rem; color: var(--sr-muted); }
   .short { display: none; }
@@ -104,7 +121,6 @@
   .cell:not(:disabled):hover { border-color: var(--c); }
   .cell:not(:disabled):active { transform: scale(0.94); }
   .cell.cur { border-color: color-mix(in srgb, var(--sr-action) 45%, var(--sr-hairline)); }
-  .cell.now { box-shadow: 0 0 0 3px var(--sr-butter); }
   .cell.picked { background: var(--c); border-color: var(--c); }
   .cell.given { opacity: 0.85; }
   /* The hint (Blaine, 2 November 2026: dimming the notes it cannot reach gave

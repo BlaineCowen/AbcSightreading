@@ -171,8 +171,10 @@
   $: canAnswer = game.kind === "tune" && game.phase === "answering" && sent !== "yes" && sent !== "sending";
   function pick(col: number, step: number) {
     if (!canAnswer || col === 0) return;
-    playStep(step, 60);
-    chosen = chosen.map((x, i) => (i === col ? step : x));
+    // A tap on the note already written takes it off (Blaine, 4 November 2026).
+    const off = chosen[col] === step;
+    if (!off) playStep(step, 60);
+    chosen = chosen.map((x, i) => (i === col ? (off ? null : step) : x));
   }
   const sendTune = () => post({ notes: chosen.map((x) => x ?? 0), ms: Date.now() - (answeringSince || Date.now()) });
   $: result = game.kind === "tune" && game.phase === "results" && tune?.tune && sent === "yes" ? scoreTune(chosen.map((x) => x ?? 0), tune.tune, 0, 0) : null;

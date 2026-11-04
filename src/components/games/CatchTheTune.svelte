@@ -19,6 +19,8 @@
   import PipFace from "../PipFace.svelte";
   import TuneGrid from "./TuneGrid.svelte";
   import TuneSetup from "./TuneSetup.svelte";
+  import KeyStrip from "./KeyStrip.svelte";
+  import { Check, Eye, Play, RotateCcw, SkipForward, Square } from "lucide-svelte";
   import GameHost from "./GameHost.svelte";
   import { PATH_LEVELS, canMakeTune, makePath, nextFrom, stepsOf, sylOf, type PathLevel } from "../../lib/games/tune-path";
   import { playKeyAndTune, playStep } from "../../lib/games/game-audio";
@@ -46,6 +48,9 @@
     try { localStorage.setItem(GAP_KEY, String(v)); } catch {}
   };
   $: saveGap(gap);
+  /** The slider runs slow to fast, left to right, and fills from the left (Blaine, 4 November 2026): it holds 3.5 minus the seconds a note. */
+  $: pace = 3.5 - gap;
+  $: paceFill = ((pace - 0.5) / 2.5) * 100;
 
   let mode: "solo" | "class" = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("host") === "1" ? "class" : "solo";
   /** A level from the menu, or -1 for the teacher's own (TuneSetup), remembered in this browser. */
@@ -89,6 +94,8 @@
   let streak = 0;
   let stars = 0;
   let nowCol: number | null = null;
+  /** The note of the key sounding (-1 the chord), null when it is not (KeyStrip). */
+  let keyAt: number | null = null;
   let player: ReturnType<typeof playKeyAndTune> | null = null;
   let playing = false;
 
@@ -124,6 +131,7 @@
     player = null;
     playing = false;
     nowCol = null;
+    keyAt = null;
   }
   onDestroy(stopSound);
 
@@ -131,17 +139,25 @@
     stopSound();
     heard = true;
     playing = true;
-    const p = playKeyAndTune({ steps, doMidi: DO_MIDI, gap, withKey, onNote: (i) => (nowCol = i < 0 ? null : i) });
+    const p = playKeyAndTune({ steps, doMidi: DO_MIDI, gap, withKey, onNote: (i) => (nowCol = i < 0 ? null : i), onKey: (k) => (keyAt = k) });
     player = p;
     await p.done;
     if (player === p) stopSound();
   }
 
-  /** A tap writes the note in, anywhere on the board; nothing is judged until Check. */
+  /**
+   * A tap writes the note in, anywhere on the board; nothing is judged until
+   * Check. A tap on a note already written takes it off again (Blaine,
+   * 4 November 2026), silently.
+   */
   function tap(col: number, step: number) {
-    if (!playing) playStep(step, DO_MIDI);
-    if (done || col === 0) return;
-    chosen = chosen.map((x, i) => (i === col ? step : x));
+    if (done || col === 0) {
+      if (!playing) playStep(step, DO_MIDI);
+      return;
+    }
+    const off = chosen[col] === step;
+    if (!playing && !off) playStep(step, DO_MIDI);
+    chosen = chosen.map((x, i) => (i === col ? (off ? null : step) : x));
     if (marks) marks = marks.map((m, i) => (i === col ? null : m));
     said = "";
   }
@@ -324,7 +340,7 @@
     <label class="set speed">
       <span>Speed</span>
       <span class="pace" aria-hidden="true" title="Slower">🐢</span>
-      <input type="range" class="sr-range" min="0.5" max="3" step="0.25" bind:value={gap} aria-label="Speed" aria-valuetext="{gap} seconds a note" title="{gap} s a note" data-tune-speed />
+      <input type="range" class="fill-range" min="0.5" max="3" step="0.25" value={pace} on:input={(e) => (gap = 3.5 - Number(e.currentTarget.value))} style="--p: {paceFill}%" aria-label="Speed" aria-valuetext="{gap} seconds a note" title="{gap} s a note" data-tune-speed />
       <span class="pace" aria-hidden="true" title="Faster">🐇</span>
     </label>
     {#if mode === "solo"}
@@ -351,8 +367,8 @@
           <span class="sr-tok">{caught} {caught === 1 ? "tune" : "tunes"} caught</span>
         </div>
         <div class="flex flex-wrap gap-2 justify-center">
-          <button class="sr-btn px-8 py-3 text-lg" on:click={fresh} data-tune-next>Next tune</button>
-          <button class="sr-btn-quiet" on:click={() => (playing ? stopSound() : hear(false))}>{playing ? "Stop" : "Hear it again"}</button>
+          <button class="sr-btn big" on:click={fresh} data-tune-next><SkipForward size={22} aria-hidden="true" /> Next tune</button>
+          <button class="sr-btn-quiet big" on:click={() => (playing ? stopSound() : hear(false))}>{#if playing}<Square size={22} aria-hidden="true" /> Stop{:else}<RotateCcw size={22} aria-hidden="true" /> Hear it again{/if}</button>
         </div>
       </div>
     {:else}
@@ -364,15 +380,21 @@
       </p>
       {#if caught}<span class="caught" aria-label="Tunes caught">{caught}</span>{/if}
     </div>
-    <div class="flex flex-wrap gap-2 justify-center">
-      <button class="sr-btn" on:click={() => (playing ? stopSound() : hear(true))}>{playing ? "Stop" : heard ? "Hear it again" : "Hear the tune"}</button>
-      {#if !done}<button class="sr-btn-quiet" on:click={checkAll} disabled={!filled} data-tune-check>Check</button>{/if}
-      {#if !done && marks}<button class="sr-btn-quiet" on:click={showTune}>Show the tune</button>{/if}
-      {#if done}<button class="sr-btn" on:click={fresh}>New tune</button>{/if}
-    </div>
     {/if}
+    {#if !done || playing}<KeyStrip at={keyAt} tune={nowCol !== null} />{/if}
     <TuneGrid steps={inPlay} length={tune.length} first={tune[0]} {chosen} {marks} answer={reveal ? tune : null} at={done ? -1 : at} {nowCol} {reachable} disabled={done} ontap={tap} />
     <p class="said" aria-live="polite">{said}</p>
+    {#if !(done && !reveal)}
+      <!-- Under the board, big, with icons (Blaine, 4 November 2026: above it they were out of a short student's reach on a wall screen). -->
+      <div class="controls">
+        <button class="sr-btn big" on:click={() => (playing ? stopSound() : hear(true))} data-tune-hear>
+          {#if playing}<Square size={22} aria-hidden="true" /> Stop{:else if heard}<RotateCcw size={22} aria-hidden="true" /> Hear it again{:else}<Play size={22} aria-hidden="true" /> Hear the tune{/if}
+        </button>
+        {#if !done}<button class="sr-btn big check" on:click={checkAll} disabled={!filled} data-tune-check><Check size={22} aria-hidden="true" /> Check</button>{/if}
+        {#if !done && marks}<button class="sr-btn-quiet big" on:click={showTune}><Eye size={22} aria-hidden="true" /> Show the tune</button>{/if}
+        {#if done}<button class="sr-btn big" on:click={fresh}><SkipForward size={22} aria-hidden="true" /> New tune</button>{/if}
+      </div>
+    {/if}
   {:else if !room}
     <div class="sr-panel p-6 flex flex-col items-center gap-3 text-center">
       <PipFace class="w-14 h-14" />
@@ -400,13 +422,14 @@
               {:else}Here is the tune.{/if}
             </p>
           </div>
+          <KeyStrip at={keyAt} tune={nowCol !== null} />
           <TuneGrid steps={game.tune?.steps ?? inPlay} length={hostTune.length} first={hostTune[0]} chosen={game.phase === "results" ? hostTune : []} answer={null} {share} {nowCol} disabled />
           <div class="flex flex-wrap gap-2 justify-center">
             {#if game.phase === "answering"}
-              <button class="sr-btn-quiet" on:click={() => hear(false, hostTune)}>{playing ? "Playing…" : "Hear it again"}</button>
-              <button class="sr-btn" on:click={revealRound} data-game-reveal>Show the tune</button>
+              <button class="sr-btn-quiet big" on:click={() => hear(false, hostTune)}><RotateCcw size={22} aria-hidden="true" /> {playing ? "Playing…" : "Hear it again"}</button>
+              <button class="sr-btn big" on:click={revealRound} data-game-reveal><Eye size={22} aria-hidden="true" /> Show the tune</button>
             {:else if game.phase === "results"}
-              <button class="sr-btn-quiet" on:click={() => hear(false, hostTune)}>Hear it</button>
+              <button class="sr-btn-quiet big" on:click={() => hear(false, hostTune)}><Play size={22} aria-hidden="true" /> Hear it</button>
               {#if isFinal(game)}
                 <button class="sr-btn px-6" on:click={newGame} data-game-new>Play again</button>
               {:else}
@@ -425,7 +448,17 @@
   .tabs { display: flex; gap: 0.5rem; justify-content: center; }
   .settings { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; justify-content: center; }
   .set { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); }
-  .speed input { width: 7.5rem; direction: rtl; }
+  .speed input { width: 7.5rem; }
+  /* Filled from the left up to the thumb, in every browser (Safari's own range shows no fill). */
+  .fill-range { -webkit-appearance: none; appearance: none; height: 10px; border-radius: 999px; background: linear-gradient(to right, var(--sr-action) var(--p), var(--sr-track) var(--p)); cursor: pointer; }
+  .fill-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--sr-raise); border: 3px solid var(--sr-action); box-shadow: 0 1px 3px color-mix(in srgb, var(--sr-ink) 25%, transparent); }
+  .fill-range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--sr-raise); border: 3px solid var(--sr-action); }
+  .fill-range::-moz-range-track { background: transparent; }
+  .fill-range:focus-visible { outline: 3px solid var(--sr-action); outline-offset: 3px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; }
+  .big { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 56px; padding: 0.8rem 1.6rem; font-size: 1.15rem; }
+  .big.check { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .big.check:hover:not(:disabled) { background: color-mix(in srgb, var(--sr-mint) 80%, var(--sr-mint-ink)); }
   .speed .pace { font-size: 1.3rem; line-height: 1; }
   .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
   .head { display: flex; align-items: center; gap: 0.8rem; justify-content: center; }

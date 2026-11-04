@@ -49,6 +49,35 @@ note scored 88.
 
 ## Catch the tune (`CatchTheTune.svelte`, `TuneGrid.svelte`)
 
+**4 November 2026 (Blaine's notes on the dev site):**
+- **Piano louder.** The games' piano goes in three times as loud through a
+  limiter (`gamePiano()` in game-audio.ts: gain `PIANO_BOOST` 3, then a
+  DynamicsCompressor at -4 dB, ratio 20, 2 ms attack). Full gain on one
+  sample was the most it could give without clipping. `playPiano` takes an
+  optional output node for this. The paragraph below keeps the older
+  `PIANO_VOLUME` history.
+- **The key is plain.** It opens with do mi so held together, then do mi so
+  mi do so do, 0.5 s apart. `KeyStrip.svelte` sits above the board all the
+  time, so the board never jumps: "First the key", the chord, then each
+  syllable lit as it sounds (`onKey` in `playKeyAndTune`), then "Now the
+  tune".
+- **The playing column is outlined.** A 4 px action-blue frame
+  (`.playing` in TuneGrid) is absolutely positioned on that column's grid
+  area, `grid-column: n / span 1`. Without the span it runs to the right
+  edge, and in normal flow it would take cells from the board. The column
+  number turns solid blue. It was a faint butter ring.
+- **A second tap on a written note clears it**, silently, solo and on a
+  student's device (LiveGame `pick`). check-games tests this.
+- **The controls are under the board**, 56 px tall, with Lucide icons (Play
+  or RotateCcw for hear, Square to stop, Check on mint, Eye for show the
+  tune, SkipForward for the next tune). Above the board they were out of a
+  short student's reach on a wall screen. The big screen's host buttons got
+  the same.
+- **The Speed slider fills from the left** (`.fill-range`, a gradient to the
+  thumb, since Safari's own range shows no fill). It now holds `3.5 - gap`,
+  so the slow end is on the left without `direction: rtl`, which filled it
+  from the right.
+
 Octavo Academy's game (its `CatchTheTune.svelte`; the rules `tune-path.ts`
 copied as they are, with Octavo's tests): Pip gives the key (do mi so mi do,
 so below, do, on the piano) and plays a tune of five to eight notes; find

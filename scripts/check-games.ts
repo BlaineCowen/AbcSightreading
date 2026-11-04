@@ -347,6 +347,10 @@ if (GAME === "solo" || GAME === "both") {
   // A tap only writes the note in; Check judges. Note 2 wrong (if there is another row), the rest right.
   const wrong = await p.$$eval(`[data-col="1"]`, (els: Element[], want: number) => els.map((e) => Number(e.getAttribute("data-step"))).find((x) => x !== want), tune[1]);
   for (let c = 1; c < tune.length; c++) await p.click(`[data-col="${c}"][data-step="${c === 1 && wrong !== undefined ? wrong : tune[c]}"]`);
+  // A second tap on a written note takes it off, and Check waits for the board to be full again.
+  await p.click(`[data-col="2"][data-step="${tune[2]}"]`);
+  check(!(await p.$(`.cell.picked[data-col="2"]`)) && !!(await p.$("[data-tune-check][disabled]")), "solo tune: tapping a written note again clears it");
+  await p.click(`[data-col="2"][data-step="${tune[2]}"]`);
   if (wrong !== undefined) {
     check(!(await p.$(".cell.wrong")) && !(await p.$("[data-tune-win]")), "solo tune: nothing is judged before Check");
     await p.click("[data-tune-check]");
