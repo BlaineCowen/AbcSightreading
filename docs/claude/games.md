@@ -73,6 +73,20 @@ note scored 88.
   tune, SkipForward for the next tune). Above the board they were out of a
   short student's reach on a wall screen. The big screen's host buttons got
   the same.
+- **Later the same day:** the key and the Check result are **floating
+  cards** over the board (`.boardwrap` is relative). The key card ("First
+  the key", the chord, the syllables lit) shows while the key plays and reads
+  "Now the tune" on the first note. Taps go through it. The Check card (peach,
+  "n of m right", Got it) is an `alertdialog`, and any tap on the board also
+  closes it. **A note a Check finds wrong is ruled out**: its square
+  (`ruled`, "col:step") stays red with a cross and can't be tapped, and its
+  column is emptied to fill in again. **The hint splits the working column**
+  into a thick solid border and tint for notes the last one can reach
+  (`.can`), and grey stripes with a dashed border for those it can't
+  (`.cant`). A legend under the board names them. It keeps its space when
+  idle, so the buttons don't jump. This reverses the 2 November "nothing
+  dimmed" rule at Blaine's request: he couldn't tell a legal skip from an
+  illegal one.
 - **The Speed slider fills from the left** (`.fill-range`, a gradient to the
   thumb, since Safari's own range shows no fill). It now holds `3.5 - gap`,
   so the slow end is on the left without `direction: rtl`, which filled it

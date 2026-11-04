@@ -354,10 +354,13 @@ if (GAME === "solo" || GAME === "both") {
   if (wrong !== undefined) {
     check(!(await p.$(".cell.wrong")) && !(await p.$("[data-tune-win]")), "solo tune: nothing is judged before Check");
     await p.click("[data-tune-check]");
-    const said = await p.$eval(".said", (e: Element) => e.textContent ?? "");
-    check(!!(await p.$(`.cell.wrong[data-col="1"]`)) && /of \d+ right/.test(said), `solo tune: Check marks the wrong note (${said.trim()})`);
+    const said = await p.$eval("[data-tune-said]", (e: Element) => e.querySelector(".cc-title")?.textContent ?? "");
+    const ruledOut = !!(await p.$(`.cell.ruled[data-col="1"][data-step="${wrong}"]:disabled`)) && !(await p.$(`.cell.picked[data-col="1"]`));
+    check(ruledOut && /of \d+ right/.test(said), `solo tune: Check rules out the wrong note, red and untappable, and empties its column (${said.trim()})`);
+    await p.click("[data-tune-said-ok]");
+    check(!(await p.$("[data-tune-said]")), "solo tune: the Check card closes with Got it");
     await p.click(`[data-col="1"][data-step="${tune[1]}"]`);
-    check(!(await p.$(".cell.wrong")) && !(await p.$(`.cell.right[data-col="1"]`)), "solo tune: a fixed note is not judged until the next Check");
+    check(!!(await p.$(`.cell.ruled[data-col="1"]`)) && !(await p.$(`.cell.right[data-col="1"]`)), "solo tune: the ruled-out square stays red, and a fixed note is not judged until the next Check");
   }
   await p.click("[data-tune-check]");
   // The catch card: one failed check earns two stars, not three.

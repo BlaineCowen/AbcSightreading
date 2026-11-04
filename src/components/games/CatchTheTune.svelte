@@ -88,6 +88,8 @@
   let done = false;
   let heard = false;
   let said = "";
+  /** Squares a Check found wrong ("col:step"): they stay red and cannot be picked again. */
+  let ruled: string[] = [];
   let caught = 0;
   /** Checks that found a wrong note, and clean catches in a row. */
   let failedChecks = 0;
@@ -105,6 +107,7 @@
     tune = makePath(levelNow());
     chosen = tune.map((s, i) => (i === 0 ? s : null));
     marks = null;
+    ruled = [];
     reveal = false;
     done = false;
     heard = false;
@@ -164,11 +167,16 @@
 
   function checkAll() {
     marks = chosen.map((x, i) => x === tune[i]);
+    // Each wrong note is ruled out and its column emptied, to be filled again.
+    ruled = [...ruled, ...chosen.flatMap((x, i) => (marks![i] === false && x !== null ? [`${i}:${x}`] : []))];
+    const wrongCols = marks.map((m, i) => (m === false ? i : -1)).filter((i) => i >= 0);
+    chosen = chosen.map((x, i) => (wrongCols.includes(i) ? null : x));
+    marks = marks.map((m) => (m === false ? null : m));
     const right = marks.filter(Boolean).length - 1;
     const of = tune.length - 1;
     if (right === of) return finish(failedChecks === 0);
     failedChecks++;
-    said = `${right} of ${of} right. Fix the marked notes, or show the tune.`;
+    said = `${right} of ${of} right`;
   }
   /** Stars for a catch: three with no wrong note, two with one or two, one after more. */
   function finish(clean: boolean) {
@@ -381,9 +389,26 @@
       {#if caught}<span class="caught" aria-label="Tunes caught">{caught}</span>{/if}
     </div>
     {/if}
-    {#if !done || playing}<KeyStrip at={keyAt} tune={nowCol !== null} />{/if}
-    <TuneGrid steps={inPlay} length={tune.length} first={tune[0]} {chosen} {marks} answer={reveal ? tune : null} at={done ? -1 : at} {nowCol} {reachable} disabled={done} ontap={tap} />
-    <p class="said" aria-live="polite">{said}</p>
+    <div class="boardwrap">
+      <TuneGrid steps={inPlay} length={tune.length} first={tune[0]} {chosen} {marks} {ruled} answer={reveal ? tune : null} at={done ? -1 : at} {nowCol} {reachable} disabled={done} ontap={tap} />
+      <KeyStrip at={keyAt} tune={nowCol === 0} />
+      {#if said}
+        <!-- The Check's result, floating over the board (Blaine, 4 November 2026); any tap closes it. -->
+        <div class="checkcard" role="alertdialog" aria-labelledby="cc-title" data-tune-said>
+          <span id="cc-title" class="cc-title font-display">{said}</span>
+          <span class="cc-body">The red squares are ruled out. Fill those notes in again, or show the tune.</span>
+          <button type="button" class="sr-btn big cc-ok" on:click={() => (said = "")} data-tune-said-ok><Check size={22} aria-hidden="true" /> Got it</button>
+        </div>
+      {/if}
+    </div>
+    {#if hints && !done}
+      <!-- Held in place while it has nothing to show, so the buttons under it do not jump. -->
+      <p class="legend" aria-hidden="true" style:visibility={at > 0 && chosen[at - 1] !== null ? "visible" : "hidden"}>
+        <span><i class="sw can"></i> Can come next</span>
+        <span><i class="sw cant"></i> Too far from the last note</span>
+        {#if ruled.length}<span><i class="sw out">✕</i> Ruled out by Check</span>{/if}
+      </p>
+    {/if}
     {#if !(done && !reveal)}
       <!-- Under the board, big, with icons (Blaine, 4 November 2026: above it they were out of a short student's reach on a wall screen). -->
       <div class="controls">
@@ -422,8 +447,10 @@
               {:else}Here is the tune.{/if}
             </p>
           </div>
-          <KeyStrip at={keyAt} tune={nowCol !== null} />
-          <TuneGrid steps={game.tune?.steps ?? inPlay} length={hostTune.length} first={hostTune[0]} chosen={game.phase === "results" ? hostTune : []} answer={null} {share} {nowCol} disabled />
+          <div class="boardwrap">
+            <TuneGrid steps={game.tune?.steps ?? inPlay} length={hostTune.length} first={hostTune[0]} chosen={game.phase === "results" ? hostTune : []} answer={null} {share} {nowCol} disabled />
+            <KeyStrip at={keyAt} tune={nowCol === 0} />
+          </div>
           <div class="flex flex-wrap gap-2 justify-center">
             {#if game.phase === "answering"}
               <button class="sr-btn-quiet big" on:click={() => hear(false, hostTune)}><RotateCcw size={22} aria-hidden="true" /> {playing ? "Playing…" : "Hear it again"}</button>
@@ -484,6 +511,18 @@
   @keyframes fall { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(26rem) rotate(calc(var(--i) * 47deg + 200deg)); } }
   @media (prefers-reduced-motion: reduce) { .win, .win :global(.win-pip), .stars svg.lit, .confetti i { animation: none; } .confetti { display: none; } }
   .caught { font-family: var(--font-display, inherit); font-weight: 700; background: var(--sr-mint); color: var(--sr-mint-ink); border-radius: 999px; padding: 0.2rem 0.8rem; }
-  .said { min-height: 1.5rem; text-align: center; font-weight: 700; color: var(--sr-ink-2); }
+  .boardwrap { position: relative; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; justify-content: center; font-size: 0.85rem; font-weight: 700; color: var(--sr-ink-2); margin: -0.25rem 0 0; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .sw { display: inline-grid; place-items: center; width: 1.6rem; height: 1.1rem; border-radius: 5px; font-style: normal; font-size: 0.7rem; font-weight: 900; }
+  .sw.can { border: 3px solid var(--sr-action); background: color-mix(in srgb, var(--sr-action) 30%, var(--sr-raise)); }
+  .sw.cant { border: 2px dashed color-mix(in srgb, var(--sr-muted) 60%, transparent); background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--sr-muted) 28%, var(--sr-raise)) 0 4px, var(--sr-raise) 4px 8px); }
+  .sw.out { border: 2px solid var(--sr-danger, #e5484d); color: var(--sr-danger, #e5484d); background: color-mix(in srgb, var(--sr-danger, #e5484d) 16%, var(--sr-raise)); }
+  .checkcard { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; width: min(22rem, calc(100% - 1rem)); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.1rem 1.3rem; border: 0; border-radius: 24px; background: var(--sr-peach); color: var(--sr-peach-ink); text-align: center; box-shadow: 0 14px 40px color-mix(in srgb, var(--sr-ink) 28%, transparent); animation: card-in 220ms cubic-bezier(.2, 1.4, .4, 1); }
+  .cc-title { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+  .cc-body { font-weight: 700; font-size: 0.95rem; }
+  .cc-ok { margin-top: 0.2rem; min-height: 48px; }
+  @keyframes card-in { from { transform: translate(-50%, -50%) scale(0.85); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .checkcard { animation: none; } }
   .stage { padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
 </style>
