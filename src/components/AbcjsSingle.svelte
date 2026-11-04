@@ -3719,6 +3719,12 @@
           } catch (e) {
             console.error("Practice run: generation failed", e);
           }
+          // The new exercise is read from the top (Blaine, 4 November 2026):
+          // the page stayed where the last pass ended, often its last line,
+          // and only went up once the exercise began to play, after the
+          // reading time. scrollToFirstSystem waits for the new score's
+          // layout and checks again, as a redraw can move it.
+          if (drillRunning) scrollToFirstSystem();
         },
         canPlay: () => !error && !!currentTune,
         wait: (seconds) => drillPause(seconds),

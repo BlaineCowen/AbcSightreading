@@ -362,10 +362,22 @@ if (GAME === "solo" || GAME === "both") {
     await p.click(`[data-col="1"][data-step="${tune[1]}"]`);
     check(!!(await p.$(`.cell.ruled[data-col="1"]`)) && !(await p.$(`.cell.right[data-col="1"]`)), "solo tune: the ruled-out square stays red, and a fixed note is not judged until the next Check");
   }
+  const scrollBefore = await p.evaluate(() => window.scrollY);
   await p.click("[data-tune-check]");
   // The catch card: one failed check earns two stars, not three.
   const caught = await p.waitForSelector("[data-tune-win]", { timeout: 3000 }).then((el) => el!.evaluate((e: Element) => `${e.getAttribute("data-tune-win")} stars: ${e.querySelector(".win-title")?.textContent}`)).catch(() => "");
   check(caught.startsWith(wrong === undefined ? "3 stars" : "2 stars"), `solo tune: caught (${caught})`);
+  // A pop-up over the page: fixed, nothing scrolled; confetti only for three stars; the tune not played again by itself.
+  await new Promise((r) => setTimeout(r, 1200));
+  const pop = await p.evaluate(() => ({
+    fixed: getComputedStyle(document.querySelector(".win-back")!).position === "fixed",
+    scrollY: window.scrollY,
+    confetti: !!document.querySelector("[data-confetti]"),
+    playing: /Stop/.test(document.querySelector("[data-tune-hear]")?.textContent ?? ""),
+  }));
+  check(pop.fixed && pop.scrollY === scrollBefore, `solo tune: the catch is a pop-up and the page does not scroll (${scrollBefore} -> ${pop.scrollY})`);
+  check(pop.confetti === caught.startsWith("3 stars"), `solo tune: confetti only for three stars (${pop.confetti})`);
+  check(!pop.playing, "solo tune: the tune does not play again unless asked");
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-tune-solo.png` });
   await ctx.close();
 }

@@ -87,6 +87,17 @@ note scored 88.
   idle, so the buttons don't jump. This reverses the 2 November "nothing
   dimmed" rule at Blaine's request: he couldn't tell a legal skip from an
   illegal one.
+- **The catch is a pop-up** (later on 4 November): a fixed dialog over a
+  dimmed page, so nothing scrolls. It used to replace the prompt above the
+  board, and the page jumped up to it. It has an ✕, Esc, or a tap outside to
+  look at the board, where Hear it again and New tune wait. **Confetti only
+  for three stars**: 70 pieces over the whole screen, each with its own
+  random place, speed, drift and spin (`bits`), in the pastels. A stagger on
+  one formula fell as a dotted diagonal line. **The tune no longer replays
+  by itself** after a catch, only from Hear it again. The stats are plain
+  lines with icons (Target, Flame, Music), not pills, which read as buttons.
+  check-games checks it's fixed, that nothing scrolled, that a two-star catch
+  has no confetti, and that nothing plays.
 - **The Speed slider fills from the left** (`.fill-range`, a gradient to the
   thumb, since Safari's own range shows no fill). It now holds `3.5 - gap`,
   so the slow end is on the left without `direction: rtl`, which filled it

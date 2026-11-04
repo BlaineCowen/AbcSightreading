@@ -20,7 +20,7 @@
   import TuneGrid from "./TuneGrid.svelte";
   import TuneSetup from "./TuneSetup.svelte";
   import KeyStrip from "./KeyStrip.svelte";
-  import { Check, Eye, Play, RotateCcw, SkipForward, Square } from "lucide-svelte";
+  import { Check, Eye, Flame, Music, Play, RotateCcw, SkipForward, Square, Target, X } from "lucide-svelte";
   import GameHost from "./GameHost.svelte";
   import { PATH_LEVELS, canMakeTune, makePath, nextFrom, stepsOf, sylOf, type PathLevel } from "../../lib/games/tune-path";
   import { playKeyAndTune, playStep } from "../../lib/games/game-audio";
@@ -185,8 +185,21 @@
     stars = clean ? 3 : failedChecks <= 2 ? 2 : 1;
     streak = clean ? streak + 1 : 0;
     said = "";
-    setTimeout(() => void hear(false), 500);
+    // The tune plays again only if the student asks (Blaine, 4 November 2026).
+    winOpen = true;
   }
+  /** The catch pop-up is up; closing it leaves the board, the tune caught, and New tune. */
+  let winOpen = false;
+  $: if (!done) winOpen = false;
+  let nextBtn: HTMLButtonElement | null = null;
+  /** Confetti pieces, scattered anew for each three-star catch: where, how fast, which way they drift and spin. */
+  let bits: string[] = [];
+  $: if (winOpen && stars === 3)
+    bits = Array.from({ length: 70 }, () => {
+      const r = Math.random;
+      return `--x:${(r() * 100).toFixed(1)}%;--y:${(-5 - r() * 25).toFixed(0)}vh;--dx:${((r() - 0.5) * 30).toFixed(0)}vw;--dur:${(1.8 + r() * 1.6).toFixed(2)}s;--delay:${(r() * 0.6).toFixed(2)}s;--spin:${Math.round((r() - 0.5) * 1440)}deg;--w:${(7 + r() * 7).toFixed(0)}px;--h:${(10 + r() * 10).toFixed(0)}px`;
+    });
+  $: if (winOpen && nextBtn) nextBtn.focus({ preventScroll: true });
   function showTune() {
     reveal = true;
     done = true;
@@ -361,34 +374,39 @@
   {/if}
 
   {#if mode === "solo"}
-    {#if done && !reveal}
-      <div class="win" role="status" data-tune-win={stars}>
-        <div class="confetti" aria-hidden="true">{#each Array(18) as _, i}<i style="--i: {i}"></i>{/each}</div>
-        <PipFace class="w-20 h-20 win-pip" />
-        <p class="win-title font-display">{stars === 3 ? "Perfect catch!" : "You caught it!"}</p>
-        <div class="stars" aria-label="{stars} of 3 stars">
-          {#each [1, 2, 3] as n}<svg viewBox="0 0 24 24" class:lit={n <= stars} style="--d: {n * 120}ms" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" /></svg>{/each}
-        </div>
-        <div class="win-stats">
-          <span class="sr-tok">{stars === 3 ? "Right first check" : `${failedChecks} ${failedChecks === 1 ? "check" : "checks"} to fix`}</span>
-          {#if streak > 1}<span class="sr-tok streak">{streak} perfect in a row</span>{/if}
-          <span class="sr-tok">{caught} {caught === 1 ? "tune" : "tunes"} caught</span>
-        </div>
-        <div class="flex flex-wrap gap-2 justify-center">
-          <button class="sr-btn big" on:click={fresh} data-tune-next><SkipForward size={22} aria-hidden="true" /> Next tune</button>
-          <button class="sr-btn-quiet big" on:click={() => (playing ? stopSound() : hear(false))}>{#if playing}<Square size={22} aria-hidden="true" /> Stop{:else}<RotateCcw size={22} aria-hidden="true" /> Hear it again{/if}</button>
+    {#if winOpen}
+      <!-- The catch: a pop-up over the page, so nothing scrolls (Blaine, 4 November 2026). Confetti for three stars only. -->
+      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+      <div class="win-back" on:click|self={() => (winOpen = false)}>
+        {#if stars === 3}<div class="confetti" aria-hidden="true" data-confetti>{#each bits as s}<i style={s}></i>{/each}</div>{/if}
+        <div class="win" role="dialog" aria-modal="true" aria-labelledby="win-title" data-tune-win={stars} on:keydown={(e) => e.key === "Escape" && (winOpen = false)}>
+          <button type="button" class="win-x" on:click={() => (winOpen = false)} aria-label="Close and look at the board"><X size={22} aria-hidden="true" /></button>
+          <PipFace class="w-24 h-24 win-pip" />
+          <p id="win-title" class="win-title font-display">{stars === 3 ? "Perfect catch!" : "You caught it!"}</p>
+          <div class="stars" aria-label="{stars} of 3 stars">
+            {#each [1, 2, 3] as n}<svg viewBox="0 0 24 24" class:lit={n <= stars} style="--d: {n * 140}ms" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" /></svg>{/each}
+          </div>
+          <!-- Plain lines, not pills: they are facts, not buttons (Blaine, 4 November 2026). -->
+          <ul class="win-stats">
+            <li><Target size={18} aria-hidden="true" /> {stars === 3 ? "Right on the first check" : `${failedChecks} ${failedChecks === 1 ? "check" : "checks"} to fix it`}</li>
+            {#if streak > 1}<li class="streak"><Flame size={18} aria-hidden="true" /> {streak} perfect in a row</li>{/if}
+            <li><Music size={18} aria-hidden="true" /> {caught} {caught === 1 ? "tune" : "tunes"} caught</li>
+          </ul>
+          <div class="flex flex-wrap gap-2 justify-center">
+            <button class="sr-btn big" bind:this={nextBtn} on:click={fresh} data-tune-next><SkipForward size={22} aria-hidden="true" /> Next tune</button>
+            <button class="sr-btn-quiet big" on:click={() => (playing ? stopSound() : hear(false))}>{#if playing}<Square size={22} aria-hidden="true" /> Stop{:else}<Play size={22} aria-hidden="true" /> Hear it again{/if}</button>
+          </div>
         </div>
       </div>
-    {:else}
+    {/if}
     <div class="head">
       <PipFace class="w-12 h-12 shrink-0" />
       <p>
-        {#if done}Here is the tune.{:else}Hear the key, then {tune.length} notes. It starts on <b>{sylOf(tune[0])}</b>.{/if}
+        {#if done && !reveal}You caught it!{:else if done}Here is the tune.{:else}Hear the key, then {tune.length} notes. It starts on <b>{sylOf(tune[0])}</b>.{/if}
         {#if hints && !done}<span class="block text-sm text-sr-muted">It moves by {level.moves}.</span>{/if}
       </p>
       {#if caught}<span class="caught" aria-label="Tunes caught">{caught}</span>{/if}
     </div>
-    {/if}
     <div class="boardwrap">
       <TuneGrid steps={inPlay} length={tune.length} first={tune[0]} {chosen} {marks} {ruled} answer={reveal ? tune : null} at={done ? -1 : at} {nowCol} {reachable} disabled={done} ontap={tap} />
       <KeyStrip at={keyAt} tune={nowCol === 0} />
@@ -409,9 +427,8 @@
         {#if ruled.length}<span><i class="sw out">✕</i> Ruled out by Check</span>{/if}
       </p>
     {/if}
-    {#if !(done && !reveal)}
-      <!-- Under the board, big, with icons (Blaine, 4 November 2026: above it they were out of a short student's reach on a wall screen). -->
-      <div class="controls">
+    <!-- Under the board, big, with icons (Blaine, 4 November 2026: above it they were out of a short student's reach on a wall screen). -->
+    <div class="controls">
         <button class="sr-btn big" on:click={() => (playing ? stopSound() : hear(true))} data-tune-hear>
           {#if playing}<Square size={22} aria-hidden="true" /> Stop{:else if heard}<RotateCcw size={22} aria-hidden="true" /> Hear it again{:else}<Play size={22} aria-hidden="true" /> Hear the tune{/if}
         </button>
@@ -419,7 +436,6 @@
         {#if !done && marks}<button class="sr-btn-quiet big" on:click={showTune}><Eye size={22} aria-hidden="true" /> Show the tune</button>{/if}
         {#if done}<button class="sr-btn big" on:click={fresh}><SkipForward size={22} aria-hidden="true" /> New tune</button>{/if}
       </div>
-    {/if}
   {:else if !room}
     <div class="sr-panel p-6 flex flex-col items-center gap-3 text-center">
       <PipFace class="w-14 h-14" />
@@ -490,26 +506,32 @@
   .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
   .head { display: flex; align-items: center; gap: 0.8rem; justify-content: center; }
   /* The catch (Blaine, 2 November 2026: a better success screen than a line of text). */
-  .win { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 1.4rem 1rem 1.2rem; border-radius: 28px; background: var(--sr-mint); color: var(--sr-mint-ink); text-align: center; animation: win-in 360ms cubic-bezier(.2, 1.4, .4, 1); }
+  .win-back { position: fixed; inset: 0; z-index: 60; overflow: hidden; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, var(--sr-ink) 35%, transparent); animation: fade 200ms ease; }
+  .win { position: relative; overflow: hidden; width: min(26rem, 100%); display: flex; flex-direction: column; align-items: center; gap: 0.7rem; padding: 1.8rem 1.2rem 1.4rem; border-radius: 32px; background: var(--sr-mint); color: var(--sr-mint-ink); text-align: center; box-shadow: 0 24px 60px color-mix(in srgb, var(--sr-ink) 35%, transparent); animation: win-in 420ms cubic-bezier(.2, 1.5, .4, 1); }
+  .win-x { position: absolute; top: 0.7rem; right: 0.7rem; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; border: 0; background: transparent; color: var(--sr-mint-ink); z-index: 2; }
+  .win-x:hover { background: color-mix(in srgb, var(--sr-mint-ink) 10%, transparent); }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
   .win :global(.win-pip) { animation: win-hop 700ms ease-out 2; }
-  .win-title { font-size: clamp(1.8rem, 5vw, 2.6rem); font-weight: 700; line-height: 1.1; }
+  .win-title { font-size: clamp(2rem, 6vw, 2.8rem); font-weight: 700; line-height: 1.1; }
   .stars { display: flex; gap: 0.4rem; }
   .stars svg { width: 2.6rem; height: 2.6rem; fill: color-mix(in srgb, var(--sr-mint-ink) 18%, transparent); }
   .stars svg.lit { fill: var(--sr-butter); stroke: var(--sr-butter-ink); stroke-width: 1.4; stroke-linejoin: round; animation: star-pop 420ms cubic-bezier(.2, 1.6, .4, 1) both; animation-delay: var(--d); }
-  .win-stats { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
-  .win-stats .sr-tok { background: var(--sr-raise); font-size: 0.85rem; }
-  .win-stats .streak { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .win-stats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; font-weight: 700; font-size: 0.95rem; }
+  .win-stats li { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .win-stats .streak { color: var(--sr-peach-ink); }
   .confetti { position: absolute; inset: 0; pointer-events: none; }
-  .confetti i { position: absolute; top: -10%; left: calc(var(--i) * 5.5% + 2%); width: 9px; height: 14px; border-radius: 3px; opacity: 0; animation: fall 1.6s ease-in calc(var(--i) * 45ms) 1 forwards; }
-  .confetti i:nth-child(4n) { background: var(--sr-peach-ink); }
-  .confetti i:nth-child(4n + 1) { background: var(--sr-action); }
-  .confetti i:nth-child(4n + 2) { background: var(--sr-butter-ink); }
-  .confetti i:nth-child(4n + 3) { background: var(--sr-sky-ink); }
+  /* Three stars: confetti over the whole screen, behind the card. */
+  .confetti i { position: absolute; top: var(--y); left: var(--x); width: var(--w); height: var(--h); border-radius: 3px; opacity: 0; animation: fall var(--dur) cubic-bezier(.25, .2, .55, 1) var(--delay) 1 forwards; }
+  .confetti i:nth-child(5n) { background: var(--sr-butter); }
+  .confetti i:nth-child(5n + 1) { background: var(--sr-action); }
+  .confetti i:nth-child(5n + 2) { background: var(--sr-peach); }
+  .confetti i:nth-child(5n + 3) { background: var(--sr-mint); }
+  .confetti i:nth-child(5n + 4) { background: var(--sr-raise); }
   @keyframes win-in { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   @keyframes win-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-18%) rotate(-6deg); } }
   @keyframes star-pop { from { transform: scale(0) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
-  @keyframes fall { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(26rem) rotate(calc(var(--i) * 47deg + 200deg)); } }
-  @media (prefers-reduced-motion: reduce) { .win, .win :global(.win-pip), .stars svg.lit, .confetti i { animation: none; } .confetti { display: none; } }
+  @keyframes fall { 0% { opacity: 1; transform: translate(0, 0) rotate(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), 125vh) rotate(var(--spin)); } }
+  @media (prefers-reduced-motion: reduce) { .win-back, .win, .win :global(.win-pip), .stars svg.lit, .confetti i { animation: none; } .confetti { display: none; } }
   .caught { font-family: var(--font-display, inherit); font-weight: 700; background: var(--sr-mint); color: var(--sr-mint-ink); border-radius: 999px; padding: 0.2rem 0.8rem; }
   .boardwrap { position: relative; }
   .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; justify-content: center; font-size: 0.85rem; font-weight: 700; color: var(--sr-ink-2); margin: -0.25rem 0 0; }
