@@ -12,8 +12,9 @@
  *   - Emails or domains in WATCH get a louder line ("Jim at MusicFirst").
  *
  * Read only against DATABASE_URL (the shared database; bun loads this repo's
- * .env, so run it from the repo root). Telegram's bot token and chat id come
- * from the HEB bot's .env, the same bot the GWD and HEB alerts use. What was
+ * .env, so run it from the repo root). Telegram's bot token and chat come from
+ * Hermes (~/.hermes/.env: TELEGRAM_BOT_TOKEN, TELEGRAM_HOME_CHANNEL), the bot
+ * on the Mac mini (Blaine, 4 November 2026). What was
  * last reported is kept in ~/.abc-signup-alerts.json.
  *
  *   bun scripts/signup-alerts.ts           # check and send
@@ -41,9 +42,9 @@ function dotenv(path: string): Record<string, string> {
   }
   return out;
 }
-const tg = dotenv(join(homedir(), "Projects/HEB-cart-bot/.env"));
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN ?? tg.TELEGRAM_BOT_TOKEN;
-const CHAT = process.env.TELEGRAM_CHAT_ID ?? tg.TELEGRAM_CHAT_ID ?? tg.TELEGRAM_ALLOWED_USER_ID;
+const tg = dotenv(join(homedir(), ".hermes/.env"));
+const TOKEN = tg.TELEGRAM_BOT_TOKEN;
+const CHAT = tg.TELEGRAM_HOME_CHANNEL;
 
 type State = { since: string; digestDay?: string };
 const state: State | null = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : null;
