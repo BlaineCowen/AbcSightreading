@@ -95,6 +95,15 @@ there is no room above the staff (a phone) it stays off the music and the
 playback bar's line says it; the line that sat above the score is gone.
 Never name a class `ring`: it is Tailwind's ring utility (a box-shadow).
 
+Each new exercise in a drill goes to the top for its reading time (Blaine,
+4 November 2026). The runner's `generate` hook calls `scrollToFirstSystem`,
+so the score's top sits just under the navbar. Before this, the page stayed
+where the last pass ended and only went up when the exercise began to play.
+On a phone, the score's top was left 12 px from the top of the window, under
+the navbar. `scripts/check-drill-scroll.ts` checks exercises 2 and 3 on a
+390 x 700 window. If a headless page fails to load AbcjsSingle with a 504
+on `.vite/deps`, restart the dev server with `--force`.
+
 Start drill closes the Drill box (`closePops`), so the music is in view;
 the Drill button opens it again to stop (Blaine, 1 November 2026). The
 count-in always clicks on Unison, the Click off or a pass with the

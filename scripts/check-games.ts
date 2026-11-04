@@ -347,18 +347,37 @@ if (GAME === "solo" || GAME === "both") {
   // A tap only writes the note in; Check judges. Note 2 wrong (if there is another row), the rest right.
   const wrong = await p.$$eval(`[data-col="1"]`, (els: Element[], want: number) => els.map((e) => Number(e.getAttribute("data-step"))).find((x) => x !== want), tune[1]);
   for (let c = 1; c < tune.length; c++) await p.click(`[data-col="${c}"][data-step="${c === 1 && wrong !== undefined ? wrong : tune[c]}"]`);
+  // A second tap on a written note takes it off, and Check waits for the board to be full again.
+  await p.click(`[data-col="2"][data-step="${tune[2]}"]`);
+  check(!(await p.$(`.cell.picked[data-col="2"]`)) && !!(await p.$("[data-tune-check][disabled]")), "solo tune: tapping a written note again clears it");
+  await p.click(`[data-col="2"][data-step="${tune[2]}"]`);
   if (wrong !== undefined) {
     check(!(await p.$(".cell.wrong")) && !(await p.$("[data-tune-win]")), "solo tune: nothing is judged before Check");
     await p.click("[data-tune-check]");
-    const said = await p.$eval(".said", (e: Element) => e.textContent ?? "");
-    check(!!(await p.$(`.cell.wrong[data-col="1"]`)) && /of \d+ right/.test(said), `solo tune: Check marks the wrong note (${said.trim()})`);
+    const said = await p.$eval("[data-tune-said]", (e: Element) => e.querySelector(".cc-title")?.textContent ?? "");
+    const ruledOut = !!(await p.$(`.cell.ruled[data-col="1"][data-step="${wrong}"]:disabled`)) && !(await p.$(`.cell.picked[data-col="1"]`));
+    check(ruledOut && /of \d+ right/.test(said), `solo tune: Check rules out the wrong note, red and untappable, and empties its column (${said.trim()})`);
+    await p.click("[data-tune-said-ok]");
+    check(!(await p.$("[data-tune-said]")), "solo tune: the Check card closes with Got it");
     await p.click(`[data-col="1"][data-step="${tune[1]}"]`);
-    check(!(await p.$(".cell.wrong")) && !(await p.$(`.cell.right[data-col="1"]`)), "solo tune: a fixed note is not judged until the next Check");
+    check(!!(await p.$(`.cell.ruled[data-col="1"]`)) && !(await p.$(`.cell.right[data-col="1"]`)), "solo tune: the ruled-out square stays red, and a fixed note is not judged until the next Check");
   }
+  const scrollBefore = await p.evaluate(() => window.scrollY);
   await p.click("[data-tune-check]");
   // The catch card: one failed check earns two stars, not three.
   const caught = await p.waitForSelector("[data-tune-win]", { timeout: 3000 }).then((el) => el!.evaluate((e: Element) => `${e.getAttribute("data-tune-win")} stars: ${e.querySelector(".win-title")?.textContent}`)).catch(() => "");
   check(caught.startsWith(wrong === undefined ? "3 stars" : "2 stars"), `solo tune: caught (${caught})`);
+  // A pop-up over the page: fixed, nothing scrolled; confetti only for three stars; the tune not played again by itself.
+  await new Promise((r) => setTimeout(r, 1200));
+  const pop = await p.evaluate(() => ({
+    fixed: getComputedStyle(document.querySelector(".win-back")!).position === "fixed",
+    scrollY: window.scrollY,
+    confetti: !!document.querySelector("[data-confetti]"),
+    playing: /Stop/.test(document.querySelector("[data-tune-hear]")?.textContent ?? ""),
+  }));
+  check(pop.fixed && pop.scrollY === scrollBefore, `solo tune: the catch is a pop-up and the page does not scroll (${scrollBefore} -> ${pop.scrollY})`);
+  check(pop.confetti === caught.startsWith("3 stars"), `solo tune: confetti only for three stars (${pop.confetti})`);
+  check(!pop.playing, "solo tune: the tune does not play again unless asked");
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-tune-solo.png` });
   await ctx.close();
 }

@@ -49,6 +49,60 @@ note scored 88.
 
 ## Catch the tune (`CatchTheTune.svelte`, `TuneGrid.svelte`)
 
+**4 November 2026 (Blaine's notes on the dev site):**
+- **Piano louder.** The games' piano goes in three times as loud through a
+  limiter (`gamePiano()` in game-audio.ts: gain `PIANO_BOOST` 3, then a
+  DynamicsCompressor at -4 dB, ratio 20, 2 ms attack). Full gain on one
+  sample was the most it could give without clipping. `playPiano` takes an
+  optional output node for this. The paragraph below keeps the older
+  `PIANO_VOLUME` history.
+- **The key is plain.** It opens with do mi so held together, then do mi so
+  mi do so do, 0.5 s apart. `KeyStrip.svelte` sits above the board all the
+  time, so the board never jumps: "First the key", the chord, then each
+  syllable lit as it sounds (`onKey` in `playKeyAndTune`), then "Now the
+  tune".
+- **The playing column is outlined.** A 4 px action-blue frame
+  (`.playing` in TuneGrid) is absolutely positioned on that column's grid
+  area, `grid-column: n / span 1`. Without the span it runs to the right
+  edge, and in normal flow it would take cells from the board. The column
+  number turns solid blue. It was a faint butter ring.
+- **A second tap on a written note clears it**, silently, solo and on a
+  student's device (LiveGame `pick`). check-games tests this.
+- **The controls are under the board**, 56 px tall, with Lucide icons (Play
+  or RotateCcw for hear, Square to stop, Check on mint, Eye for show the
+  tune, SkipForward for the next tune). Above the board they were out of a
+  short student's reach on a wall screen. The big screen's host buttons got
+  the same.
+- **Later the same day:** the key and the Check result are **floating
+  cards** over the board (`.boardwrap` is relative). The key card ("First
+  the key", the chord, the syllables lit) shows while the key plays and reads
+  "Now the tune" on the first note. Taps go through it. The Check card (peach,
+  "n of m right", Got it) is an `alertdialog`, and any tap on the board also
+  closes it. **A note a Check finds wrong is ruled out**: its square
+  (`ruled`, "col:step") stays red with a cross and can't be tapped, and its
+  column is emptied to fill in again. **The hint splits the working column**
+  into a thick solid border and tint for notes the last one can reach
+  (`.can`), and grey stripes with a dashed border for those it can't
+  (`.cant`). A legend under the board names them. It keeps its space when
+  idle, so the buttons don't jump. This reverses the 2 November "nothing
+  dimmed" rule at Blaine's request: he couldn't tell a legal skip from an
+  illegal one.
+- **The catch is a pop-up** (later on 4 November): a fixed dialog over a
+  dimmed page, so nothing scrolls. It used to replace the prompt above the
+  board, and the page jumped up to it. It has an ✕, Esc, or a tap outside to
+  look at the board, where Hear it again and New tune wait. **Confetti only
+  for three stars**: 70 pieces over the whole screen, each with its own
+  random place, speed, drift and spin (`bits`), in the pastels. A stagger on
+  one formula fell as a dotted diagonal line. **The tune no longer replays
+  by itself** after a catch, only from Hear it again. The stats are plain
+  lines with icons (Target, Flame, Music), not pills, which read as buttons.
+  check-games checks it's fixed, that nothing scrolled, that a two-star catch
+  has no confetti, and that nothing plays.
+- **The Speed slider fills from the left** (`.fill-range`, a gradient to the
+  thumb, since Safari's own range shows no fill). It now holds `3.5 - gap`,
+  so the slow end is on the left without `direction: rtl`, which filled it
+  from the right.
+
 Octavo Academy's game (its `CatchTheTune.svelte`; the rules `tune-path.ts`
 copied as they are, with Octavo's tests): Pip gives the key (do mi so mi do,
 so below, do, on the piano) and plays a tune of five to eight notes; find

@@ -26,6 +26,11 @@
   export let nowCol: number | null = null;
   /** The notes a column can hold (the hint), or null for any: lit in the column being worked on, nothing dimmed. */
   export let reachable: (col: number) => number[] | null = () => null;
+  /**
+   * Squares a Check found wrong, as "col:step": red with a cross and no longer
+   * tappable, so the same wrong note is not tried twice (Blaine, 4 November 2026).
+   */
+  export let ruled: string[] = [];
   export let disabled = false;
   export let ontap: (col: number, step: number) => void = () => {};
 
@@ -34,6 +39,8 @@
   $: rows = Array.from({ length: hi - lo + 1 }, (_, i) => hi - i).map((step) => ({ step, on: steps.includes(step) }));
   $: cols = Array.from({ length }, (_, i) => i);
   $: picks = cols.map((c) => (c === 0 ? first : chosen[c] ?? null));
+  /** Grid rows the outline spans: the numbers, every pitch row, and the shares when shown. */
+  $: rowSpan = 1 + rows.length + (share ? 1 : 0);
 </script>
 
 <div class="board" style="--cols: {length}" role="group" aria-label="The tune: a column for each note, a row for each pitch">
@@ -48,6 +55,8 @@
       {#each cols as col (col)}
         {@const can = reachable(col)}
         {@const picked = picks[col] === r}
+        {@const out = ruled.includes(`${col}:${r}`)}
+        {@const hinting = col === at && can !== null && !picked && !out}
         <button
           type="button"
           class="cell"
@@ -58,21 +67,27 @@
           class:wrong={picked && marks?.[col] === false}
           class:right={picked && marks?.[col] === true && col > 0}
           class:answer={!!answer && answer[col] === r && !picked}
-          class:can={col === at && can !== null && can.includes(r) && !picked}
+          class:can={hinting && can.includes(r)}
+          class:cant={hinting && !can.includes(r)}
+          class:ruled={out}
           style="--c: {colorOf(r)}"
-          disabled={disabled || col === 0}
+          disabled={disabled || col === 0 || out}
           data-col={col}
           data-step={r}
-          aria-label="Note {col + 1}: {sylOf(r)}"
+          aria-label="Note {col + 1}: {sylOf(r)}{out ? ', ruled out' : hinting ? (can.includes(r) ? ', can come next' : ', too far from the last note') : ''}"
           aria-pressed={picked}
           on:click={() => ontap(col, r)}
-        >{#if picked || (!!answer && answer[col] === r)}<span class="long">{sylOf(r).replace(/^(low|high) /, "")}</span><span class="short">{shortOf(r)}</span>{/if}</button>
+        >{#if out}<span class="x" aria-hidden="true">✕</span>{:else if picked || (!!answer && answer[col] === r)}<span class="long">{sylOf(r).replace(/^(low|high) /, "")}</span><span class="short">{shortOf(r)}</span>{/if}</button>
       {/each}
     {/if}
   {/each}
   {#if share}
     <span class="corner"></span>
     {#each cols as col (col)}<span class="share" title="{Math.round(share[col] * 100)}% right">{col === 0 ? "" : `${Math.round(share[col] * 100)}%`}</span>{/each}
+  {/if}
+  {#if nowCol !== null && nowCol >= 0 && nowCol < length}
+    <!-- The column sounding now, outlined (Blaine, 4 November 2026: a faint tint was too hard to follow). -->
+    <span class="playing" style="grid-column: {nowCol + 2} / span 1; grid-row: 1 / span {rowSpan}" aria-hidden="true" data-playing-col={nowCol}></span>
   {/if}
 </div>
 
@@ -86,7 +101,18 @@
   }
   .num { text-align: center; font-weight: 800; font-size: 0.85rem; color: var(--sr-muted); border-radius: 999px; padding: 2px 0; }
   .num.cur { color: var(--sr-action-fg); }
-  .num.now { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .num.now { background: var(--sr-action); color: var(--sr-action-ink); }
+  .board { position: relative; }
+  /* Absolute, so it lies over its column's grid area without taking a cell from the board. */
+  .playing {
+    position: absolute;
+    inset: -5px -4px;
+    border: 4px solid var(--sr-action);
+    border-radius: 16px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--sr-action) 22%, transparent);
+    pointer-events: none;
+    z-index: 1;
+  }
   .name { font-family: var(--font-display, inherit); font-weight: 700; color: var(--c); text-align: right; padding-right: 4px; font-size: 1.05rem; }
   .name.off { opacity: 0.35; font-size: 0.8rem; color: var(--sr-muted); }
   .short { display: none; }
@@ -104,12 +130,19 @@
   .cell:not(:disabled):hover { border-color: var(--c); }
   .cell:not(:disabled):active { transform: scale(0.94); }
   .cell.cur { border-color: color-mix(in srgb, var(--sr-action) 45%, var(--sr-hairline)); }
-  .cell.now { box-shadow: 0 0 0 3px var(--sr-butter); }
   .cell.picked { background: var(--c); border-color: var(--c); }
   .cell.given { opacity: 0.85; }
   /* The hint (Blaine, 2 November 2026: dimming the notes it cannot reach gave
      too much away): the notes it can reach are tinted, the rest left as they are. */
-  .cell.can { background: color-mix(in srgb, var(--c) 18%, var(--sr-raise)); border-color: color-mix(in srgb, var(--c) 55%, var(--sr-hairline)); }
+  /* Blaine, 4 November 2026: the tint alone did not say which moves were
+     allowed. Now the column being worked on splits plainly: a note the last
+     one can reach has a thick solid border in its colour and a tint; a note
+     it cannot is hatched grey with a dashed border. */
+  .cell.can { background: color-mix(in srgb, var(--c) 30%, var(--sr-raise)); border: 3px solid var(--c); }
+  .cell.cant { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--sr-muted) 28%, var(--sr-raise)) 0 5px, var(--sr-raise) 5px 11px); border: 2px dashed color-mix(in srgb, var(--sr-muted) 60%, transparent); }
+  .cell.ruled { background: color-mix(in srgb, var(--sr-danger, #e5484d) 16%, var(--sr-raise)); border: 3px solid var(--sr-danger, #e5484d); color: var(--sr-danger, #e5484d); opacity: 1; }
+  .cell.ruled:disabled { cursor: not-allowed; }
+  .x { font-size: 1.3rem; font-weight: 900; line-height: 1; }
   .cell.right { box-shadow: 0 0 0 3px var(--sr-mint); }
   .cell.wrong { box-shadow: 0 0 0 3px var(--sr-danger, #e5484d); opacity: 0.75; }
   .cell.answer { border: 3px dashed var(--c); color: var(--c); background: var(--sr-raise); }

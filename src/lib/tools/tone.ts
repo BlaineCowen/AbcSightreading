@@ -76,8 +76,8 @@ export async function preloadPiano(midis: number[]): Promise<boolean> {
   return bufs.every(Boolean);
 }
 
-/** Sound these notes on the piano together for `seconds`, then let them go. */
-export function playPiano(midis: number[], seconds = 1.2, a4 = 440, volume = 0.5) {
+/** Sound these notes on the piano together for `seconds`, then let them go (into `dest`, the speakers by default). */
+export function playPiano(midis: number[], seconds = 1.2, a4 = 440, volume = 0.5, dest?: AudioNode) {
   if (!midis.every((m) => pianoReady.has(m))) {
     midis.forEach((m) => void loadPiano(m));
     return playNotes(midis, seconds, a4, volume);
@@ -89,7 +89,7 @@ export function playPiano(midis: number[], seconds = 1.2, a4 = 440, volume = 0.5
   out.gain.setValueAtTime(level, now);
   out.gain.setValueAtTime(level, now + seconds);
   out.gain.linearRampToValueAtTime(0, now + seconds + 0.18);
-  out.connect(c.destination);
+  out.connect(dest ?? c.destination);
   for (const m of midis) {
     const src = c.createBufferSource();
     src.buffer = pianoReady.get(m)!;
