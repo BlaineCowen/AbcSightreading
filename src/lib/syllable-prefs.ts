@@ -1,4 +1,4 @@
-import { writable } from "svelte/store";
+import { get, writable } from "svelte/store";
 import { signedInUser } from "./auth-client";
 import type { CustomSyllables } from "../resources/rhythm-syllables";
 
@@ -12,13 +12,20 @@ export const syllablesAvailable = writable(false);
 
 let loading: Promise<void> | null = null;
 
-export function loadMySyllables(): Promise<void> {
+/**
+ * Loads the set once; `fresh` asks the server again (a page coming back into
+ * view, since the set may have been changed on /account in another tab).
+ */
+export function loadMySyllables(fresh = false): Promise<void> {
+  if (fresh) loading = null;
   loading ??= (async () => {
     if (!(await signedInUser())) return;
     const res = await fetch("/api/preferences");
     if (!res.ok) throw new Error(`The server said ${res.status}.`);
     const body = await res.json();
-    mySyllables.set(body.rhythmSyllables ?? null);
+    const next = body.rhythmSyllables ?? null;
+    // The same set again keeps the store as it is, so nothing redraws.
+    if (JSON.stringify(next) !== JSON.stringify(get(mySyllables))) mySyllables.set(next);
     syllablesAvailable.set(true);
   })().catch((e) => {
     loading = null;

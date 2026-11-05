@@ -44,7 +44,7 @@ A teacher's own rhythm syllables live in `UserPreference.rhythmSyllables`
 offered as "Mine" on the Unison page. The set is plain data
 (`CustomSyllables` in `rhythm-syllables.ts`) sent with each exercise as
 `customSyllables` beside `syllableSystemId: "custom"`, and turned into a system
-by `customSyllableSystem`. Its first template must equal built-in Kodály figure
+by `customSyllableSystem`. An open Unison page asks for the set again when it comes back into view (`loadMySyllables(true)` on visibilitychange, 5 November 2026), so a set changed on `/account` in another tab reaches it and redraws an exercise in "Mine". Its first template must equal built-in Kodály figure
 for figure - `tests/unit/custom-syllables.test.ts` holds it to that.
 
 Educator accounts and students (`src/lib/server/students.ts`, rules in

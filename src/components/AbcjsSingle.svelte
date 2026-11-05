@@ -1579,10 +1579,17 @@
   /**
    * The teacher's set arrives after the page does. An exercise already written
    * in "Mine" was written in Kodály meanwhile, so write it again in theirs.
+   * The same when the set changes (saved on /account in another tab, then this
+   * one shown again: "I want to change to tikatika but it isn't taking",
+   * Blaine, 5 November 2026).
    */
-  let customLoaded = false;
-  $: if ($mySyllables && !customLoaded) {
-    customLoaded = true;
+  let customLoaded: unknown = null;
+  /** Back in view: the set may have been changed on /account meanwhile. */
+  function freshSyllables() {
+    if (document.visibilityState === "visible") loadMySyllables(true).catch(() => {});
+  }
+  $: if ($mySyllables && $mySyllables !== customLoaded) {
+    customLoaded = $mySyllables;
     if (syllableSystemId === CUSTOM_SYLLABLE_ID && currentScore) {
       writtenSyllableSystem = "";
       if (relabelScore(CUSTOM_SYLLABLE_ID) && currentTune && originalTuneString) rerenderTune();
@@ -4398,6 +4405,7 @@
     // Belt and braces for browsers that coalesce the observer on rotation.
     window.addEventListener("orientationchange", onPaperResize);
     loadMySyllables().catch(() => {});
+    document.addEventListener("visibilitychange", freshSyllables);
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[linkedStepId ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
@@ -5437,6 +5445,7 @@
   }
 
   onDestroy(() => {
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", freshSyllables);
     paperObserver?.disconnect();
     window.removeEventListener("orientationchange", onPaperResize);
     window.removeEventListener("hashchange", onHashChange);
