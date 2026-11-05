@@ -77,7 +77,7 @@ const { total, newRows } = await sql.begin("read only", async (tx) => {
   const since = state?.since ?? now.toISOString();
   const rows = await tx`
     select email, "accountType" as type, "emailVerified" as confirmed, "createdAt" as created,
-           to_char("createdAt" at time zone 'America/Chicago', 'Mon DD, HH12:MI am') as joined
+           to_char(("createdAt" at time zone 'UTC') at time zone 'America/Chicago', 'Mon DD, HH12:MI am') as joined
     from "user" where "accountType" <> 'student' and "createdAt" > ${since}::timestamptz
     order by "createdAt" asc`;
   return { total: t.total as number, newRows: rows as { email: string; type: string; confirmed: boolean; created: Date; joined: string }[] };

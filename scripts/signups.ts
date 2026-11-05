@@ -15,7 +15,7 @@ await sql.begin("read only", async (tx) => {
     from "user" where "accountType" <> 'student'`;
   console.log(`Accounts: ${t.total}  ·  last 7 days: ${t.last7}  ·  last 24 hours: ${t.last24h}\n`);
   const rows = await tx`
-    select to_char("createdAt" at time zone 'America/Chicago', 'Mon DD HH24:MI') as joined,
+    select to_char(("createdAt" at time zone 'UTC') at time zone 'America/Chicago', 'Mon DD HH24:MI') as joined,
            email, "emailVerified" as confirmed, "accountType" as type
     from "user" where "accountType" <> 'student'
     order by "createdAt" desc limit ${limit}`;
