@@ -4,11 +4,11 @@
  * the top, and the place should show even with the cursor off.
  *
  * On the page (dev server), with an eight-bar exercise:
- * - a note on the second line tapped: an orange "Start" line before it;
+ * - a note on the second line tapped: an orange line before it, with no word;
  * - Play: the count-in's words ("1, 2, Ready, Go"), then the music from that
  *   note (the audio started at its offset, one count-in after Play), the note
  *   lit as it sounds, and no note before it;
- * - Pause: a "Paused" line; Stop: back to "Start" on the tapped note;
+ * - Pause: a "Paused" line; Stop: back to the line on the tapped note;
  * - a tap while playing (back on the first line) jumps there at once, no count-in;
  * - Back to start: no line, and Play from the top again.
  *
@@ -103,9 +103,9 @@ async function wordsFor(ms: number) {
 }
 const shot = async (name: string) => SHOTS && page.screenshot({ path: `${SHOTS}/${PAGE}-${name}.png` });
 
-// 1. A note on the second line is tapped: "Start" before it.
+// 1. A note on the second line is tapped: the line before it, with no word.
 await tapNote(1);
-if ((await startLabel(page)) !== "Start") fail(`after a tap the line says "${await startLabel(page)}"`);
+if ((await startLabel(page)) !== "(no label)") fail(`after a tap the line says "${await startLabel(page)}"`);
 await shot("1-start");
 
 // 2. Play: the count-in, then the music from the note.
@@ -140,7 +140,7 @@ if (lit.lines.some((l) => l === 0)) fail("a note on the first line lit: it playe
 if (await startLabel(page)) fail("the start line stayed on while playing");
 await shot("2-playing");
 
-// 3. Pause: "Paused"; Stop: "Start" on the tapped note again.
+// 3. Pause: "Paused"; Stop: the line on the tapped note again.
 await sleep(800);
 await press(page, "Pause");
 await sleep(300);
@@ -148,7 +148,7 @@ if ((await startLabel(page)) !== "Paused") fail(`after Pause the line says "${aw
 await shot("3-paused");
 await press(page, "Stop");
 await sleep(300);
-if ((await startLabel(page)) !== "Start") fail(`after Stop the line says "${await startLabel(page)}"`);
+if ((await startLabel(page)) !== "(no label)") fail(`after Stop the line says "${await startLabel(page)}"`);
 
 // 4. A tap while playing goes straight there, no count-in.
 await page.evaluate(() => ((window as any).__music.length = 0));

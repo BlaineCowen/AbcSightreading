@@ -14,7 +14,7 @@
   import { VoiceBank, wordAt } from "../lib/tuner/voice-count";
   import { VOICE_GAIN } from "../lib/tuner/metronome";
   import { assistedLevels } from "../lib/tuner/practice-assistant";
-  import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
+  import { barCount, drawnLines, evenLines, isDense, measuresPerLine, wordsCrowded } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import {
@@ -2553,13 +2553,19 @@
     let drawn = drawnLines(document.getElementById("paper"));
     // Fewer a line each time until the lines come out even: on a phone two bars
     // with lyrics may not fit either, and abcjs then broke them 1 + 1 + 2.
+    // And fewer again while the words under the notes run into each other
+    // (wordsCrowded): abcjs spaces the notes without them.
     let most = Math.max(...drawn);
-    while (!evenLines(drawn) && most >= 1) {
+    for (;;) {
+      const uneven = !evenLines(drawn);
+      const crowded = !uneven && most > 1 && wordsCrowded(document.getElementById("paper"));
+      if ((!uneven && !crowded) || most < 1) break;
+      if (crowded) most--;
       const paper = document.getElementById("paper");
       if (paper) paper.innerHTML = "";
       visualObj = abcjs.renderAbc("paper", abc, getAbcOptions(most));
       drawn = drawnLines(document.getElementById("paper"));
-      most = Math.min(most - 1, Math.max(...drawn));
+      most = Math.min(uneven ? most - 1 : most, Math.max(...drawn));
     }
     styleCopyright(document.getElementById("paper"));
     return visualObj;
@@ -2941,7 +2947,7 @@
 
   /**
    * The line where Play starts: the paused place ("Paused"), else the tapped
-   * note ("Start"), else none (the top, where the cursor is parked). Off
+   * note (the line alone: Blaine, 5 November 2026, "Start" was clutter), else none (the top, where the cursor is parked). Off
    * while the music plays; on through a count-in into a tapped note.
    */
   function markStart() {
@@ -2949,7 +2955,7 @@
     if (isPlaying && !leadIn) return startLine(svg, [], "");
     if (!isPlaying && pausedAt > getCountInDuration() && lastEventEls.length) return startLine(svg, lastEventEls, "Paused");
     const tapped = eventElements(tappedEvent());
-    startLine(svg, tapped, tapped.length ? "Start" : "");
+    startLine(svg, tapped, "");
   }
 
   /**

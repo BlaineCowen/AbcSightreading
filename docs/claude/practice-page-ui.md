@@ -213,8 +213,7 @@ modes (smooth, beat by beat, note by note, off) still say where the bar goes.
 **Where Play starts** (23 October 2026, Blaine's item 9: pausing or clicking
 a note should start there, and show where even with the cursor off;
 `src/lib/start-point.ts`, tests `start-point.test.ts`): on Unison and Choral
-a tapped note is where Play starts, marked by My music's orange line with
-"Start" under it (`startLine`, the line drawing now in `src/lib/score-line.ts`
+a tapped note is where Play starts, marked by My music's orange line (it said "Start" under it until 5 November 2026, when Blaine called the word clutter; `startLine`, the line drawing now in `src/lib/score-line.ts`
 so a practice page does not load My music's ABC writer). Play counts in to it,
 on the audio clock beside the timeline's own count-in (which is the first bar
 of the audio and cannot lead into the middle): the clicks when the click is on,
@@ -262,7 +261,14 @@ or sixteenths), 2 on a phone, and shared out so lines are even (4 bars dense is
 2 + 2, never 3 + 1). abcjs takes the number as a preference only and breaks
 lines itself when the notes need room, so after drawing each page reads the
 split (`drawnLines`) and, if it came out ragged, draws once more capped at the
-most bars abcjs fitted on a line.
+most bars abcjs fitted on a line. On Unison it also draws with a bar fewer a line, as far
+as one, while two words under the notes are closer than about a space
+(`wordsCrowded`, 5 November 2026, Blaine: tika syllables "aren't aligning"
+with sixteenths). abcjs gives an annotation below the staff no width when it
+spaces notes, so a beat of sixteenths ran "ka ti ka" into "kati ka". An
+invisible spacer (`y`) between the notes was tried and dropped: bare `y` made a
+beat of sixteenths wider than three quarters, and `y5` broke the beam. A dense
+sixteenth exercise in "ti ka" now draws one bar a line on a laptop.
 
 **Following the music on Choral** (1 November 2026, Blaine: turn on beat 3,
 not 4, and the next system should always be visible): half a bar before a

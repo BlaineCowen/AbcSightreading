@@ -132,6 +132,36 @@ export function evenLines(drawn: number[]): boolean {
 }
 
 /**
+ * Whether two words under the notes touch on any line. abcjs gives an
+ * annotation below the staff no width when it spaces the notes, so a beat of
+ * sixteenths with a word under each ran the words together ("kati kati",
+ * Blaine, 5 November 2026). The page draws again with fewer bars a line until
+ * they part. A held count ("1_(2)") is skipped: it is spread over its beats
+ * after drawing. `gap` is in the drawing's own units: about a space at the
+ * syllables' 10pt (2 left "ka ti" reading as "kati"). Browser only.
+ */
+export function wordsCrowded(container: Element | null, gap = 3.5): boolean {
+  if (!container) return false;
+  const rows = new Map<string, { left: number; right: number }[]>();
+  container.querySelectorAll("text.abcjs-annotation").forEach((el) => {
+    const t = el as SVGTextElement;
+    const line = (t.getAttribute("class") ?? "").match(/abcjs-l(\d+)/)?.[1];
+    if (line === undefined) return;
+    const box = t.getBBox();
+    if (!box.width) return;
+    const key = `${line}:${Math.round(box.y)}`;
+    const list = rows.get(key) ?? [];
+    list.push({ left: box.x, right: (t.textContent ?? "").includes("_") ? box.x : box.x + box.width });
+    rows.set(key, list);
+  });
+  for (const list of rows.values()) {
+    list.sort((a, b) => a.left - b.left);
+    for (let i = 1; i < list.length; i++) if (list[i - 1].right + gap > list[i].left) return true;
+  }
+  return false;
+}
+
+/**
  * The bars per line abcjs actually drew, read from the classes it gives each
  * note (abcjs-l<line>, abcjs-m<bar>). Browser only.
  */
