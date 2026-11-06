@@ -2031,7 +2031,7 @@
 
   /**
    * The line where Play starts: the paused place ("Paused"), else the tapped
-   * note ("Start"), else none. Off while the music plays; on through a
+   * note (the line alone: Blaine, 5 November 2026, "Start" was clutter), else none. Off while the music plays; on through a
    * count-in into a tapped note.
    */
   function markStart() {
@@ -2039,7 +2039,7 @@
     if (isPlaying && !leadIn) return startLine(svg, [], "");
     if (!isPlaying && pausedHere && lastEventEls.length) return startLine(svg, lastEventEls, "Paused");
     const tapped = eventElements(eventForChar(renderedTune?.noteTimings, startChar));
-    startLine(svg, tapped, tapped.length ? "Start" : "");
+    startLine(svg, tapped, "");
   }
   // The music ending (or a rebuild stopping it) takes the line back to where Play starts.
   $: if (!isPlaying) markStart();

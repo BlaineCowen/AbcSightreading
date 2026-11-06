@@ -1033,7 +1033,8 @@
       return;
     }
     let at: Element[] = [];
-    let label = "Start";
+    // The line alone where Play starts (Blaine, 5 November 2026: "Start" under it was clutter); "Paused" still says so.
+    let label = "";
     const pausedTick = pausedMs !== null && timeline ? timeline.tickAt(pausedMs) : null;
     if (pausedTick !== null) {
       at = soundingAt(items, pausedTick);

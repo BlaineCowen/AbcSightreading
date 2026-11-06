@@ -14,7 +14,7 @@
   import { VoiceBank, wordAt } from "../lib/tuner/voice-count";
   import { VOICE_GAIN } from "../lib/tuner/metronome";
   import { assistedLevels } from "../lib/tuner/practice-assistant";
-  import { barCount, drawnLines, evenLines, isDense, measuresPerLine } from "../lib/score-layout";
+  import { barCount, drawnLines, evenLines, isDense, measuresPerLine, wordsCrowded } from "../lib/score-layout";
   import { PracticeRunner, rampEndBpm, passOverride, runOptionsFrom, RUN_DEFAULTS, type PassSwitch, type RunOptions } from "../lib/practice-run";
   import { rhythmLabel } from "../lib/rhythm-labels";
   import {
@@ -1579,10 +1579,17 @@
   /**
    * The teacher's set arrives after the page does. An exercise already written
    * in "Mine" was written in Kodály meanwhile, so write it again in theirs.
+   * The same when the set changes (saved on /account in another tab, then this
+   * one shown again: "I want to change to tikatika but it isn't taking",
+   * Blaine, 5 November 2026).
    */
-  let customLoaded = false;
-  $: if ($mySyllables && !customLoaded) {
-    customLoaded = true;
+  let customLoaded: unknown = null;
+  /** Back in view: the set may have been changed on /account meanwhile. */
+  function freshSyllables() {
+    if (document.visibilityState === "visible") loadMySyllables(true).catch(() => {});
+  }
+  $: if ($mySyllables && $mySyllables !== customLoaded) {
+    customLoaded = $mySyllables;
     if (syllableSystemId === CUSTOM_SYLLABLE_ID && currentScore) {
       writtenSyllableSystem = "";
       if (relabelScore(CUSTOM_SYLLABLE_ID) && currentTune && originalTuneString) rerenderTune();
@@ -2553,13 +2560,19 @@
     let drawn = drawnLines(document.getElementById("paper"));
     // Fewer a line each time until the lines come out even: on a phone two bars
     // with lyrics may not fit either, and abcjs then broke them 1 + 1 + 2.
+    // And fewer again while the words under the notes run into each other
+    // (wordsCrowded): abcjs spaces the notes without them.
     let most = Math.max(...drawn);
-    while (!evenLines(drawn) && most >= 1) {
+    for (;;) {
+      const uneven = !evenLines(drawn);
+      const crowded = !uneven && most > 1 && wordsCrowded(document.getElementById("paper"));
+      if ((!uneven && !crowded) || most < 1) break;
+      if (crowded) most--;
       const paper = document.getElementById("paper");
       if (paper) paper.innerHTML = "";
       visualObj = abcjs.renderAbc("paper", abc, getAbcOptions(most));
       drawn = drawnLines(document.getElementById("paper"));
-      most = Math.min(most - 1, Math.max(...drawn));
+      most = Math.min(uneven ? most - 1 : most, Math.max(...drawn));
     }
     styleCopyright(document.getElementById("paper"));
     return visualObj;
@@ -2941,7 +2954,7 @@
 
   /**
    * The line where Play starts: the paused place ("Paused"), else the tapped
-   * note ("Start"), else none (the top, where the cursor is parked). Off
+   * note (the line alone: Blaine, 5 November 2026, "Start" was clutter), else none (the top, where the cursor is parked). Off
    * while the music plays; on through a count-in into a tapped note.
    */
   function markStart() {
@@ -2949,7 +2962,7 @@
     if (isPlaying && !leadIn) return startLine(svg, [], "");
     if (!isPlaying && pausedAt > getCountInDuration() && lastEventEls.length) return startLine(svg, lastEventEls, "Paused");
     const tapped = eventElements(tappedEvent());
-    startLine(svg, tapped, tapped.length ? "Start" : "");
+    startLine(svg, tapped, "");
   }
 
   /**
@@ -4392,6 +4405,7 @@
     // Belt and braces for browsers that coalesce the observer on rotation.
     window.addEventListener("orientationchange", onPaperResize);
     loadMySyllables().catch(() => {});
+    document.addEventListener("visibilitychange", freshSyllables);
     // A link to a ladder step, from the other page's picker or a class's plan.
     const linkedStep = ladderById[linkedStepId ?? ""];
     if (linkedStep) applyLadderStep(linkedStep);
@@ -5431,6 +5445,7 @@
   }
 
   onDestroy(() => {
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", freshSyllables);
     paperObserver?.disconnect();
     window.removeEventListener("orientationchange", onPaperResize);
     window.removeEventListener("hashchange", onHashChange);
