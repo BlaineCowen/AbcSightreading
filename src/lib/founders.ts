@@ -13,6 +13,12 @@ export const FOUNDER_FREE_UNTIL = "2027-05-31";
 export const FOUNDER_SEATS = 300;
 /** Percent off Educator once the free time ends, for as long as they renew. */
 export const FOUNDER_DISCOUNT = 50;
+/**
+ * Everyone joins at once, with no school check (Blaine, 6 November 2026:
+ * "just let anyone be educator for a while until I get too many"). Set it
+ * back to false and personal emails apply again, as founderDecision says.
+ */
+export const FOUNDERS_ANYONE = true;
 /** The last day to join, unless FOUNDERS_CLOSE says otherwise. */
 export const FOUNDERS_CLOSE_DEFAULT = "2027-01-31";
 
@@ -67,6 +73,8 @@ export type FounderCheck = {
   already?: boolean;
   /** Plainly a teacher: signed in through a district's ClassLink, or a school email. */
   proven?: boolean;
+  /** Anyone may join for now, proven or not (FOUNDERS_ANYONE). */
+  anyone?: boolean;
   /** Their application, when they made one (personal email). */
   application?: "pending" | "approved" | "declined" | null;
   /** Another account behind the same address (emailKey) is already a founder. */
@@ -93,7 +101,7 @@ export function founderDecision(c: FounderCheck): FounderDecision {
   if (c.disposable) return { ok: false, reason: "Use your school or personal email to join, not a throwaway address." };
   if (!c.emailVerified) return { ok: false, reason: "Confirm your email first: the link is in the email we sent when you signed up.", step: "confirm" };
   if (c.personJoined) return { ok: false, reason: "Another account with this email address has already joined. Sign in with that one." };
-  if (!c.proven) {
+  if (!c.proven && !c.anyone) {
     if (c.application === "pending") return { ok: false, reason: "Thanks! We're checking your school and will email you, usually within a day.", step: "pending" };
     if (c.application === "declined")
       return { ok: false, reason: "We couldn't confirm you teach at that school. Write to support@abc-sightreading.com and we'll sort it out." };

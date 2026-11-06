@@ -20,6 +20,8 @@
    * presets, or UIL and NYSSMA levels) for that class alone. Ticks are keyed
    * by preset, so changing the list never loses what a class has passed.
    */
+  /** An Educator account (its students join with a code); anyone else is told how to get there. */
+  export let educator = false;
   let problem = "";
   let newName = "";
   let newCourse: string = STEP_BY_STEP;
@@ -119,6 +121,13 @@
   {:else if !$classesAvailable}
     <p class="text-sm text-sr-muted">Sign in to keep track of classes.</p>
   {:else}
+    {#if !educator}
+      <p class="educator-note text-sm">
+        Want your students to practice and grade themselves on their own devices? Founding teachers get the Educator plan free
+        through May 2027, with a join code for each class.
+        <a class="underline font-semibold" href="/founders">Join as a founding teacher</a>
+      </p>
+    {/if}
     <form class="flex flex-wrap gap-2 items-center" on:submit|preventDefault={add}>
       <input
         class="flex-1 min-w-[12rem] max-w-xs border border-sr-hairline bg-sr-raise text-sr-ink rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-sr-action"
@@ -276,5 +285,11 @@
   }
   .icon:hover { color: var(--sr-ink-2); background: var(--sr-track); }
   .icon:disabled { opacity: 0.3; }
+  .educator-note {
+    padding: 0.75rem 1rem;
+    border-radius: 18px;
+    background: var(--sr-butter);
+    color: var(--sr-butter-ink);
+  }
   .checklist { max-height: 26rem; overflow-y: auto; padding-right: 0.25rem; }
 </style>

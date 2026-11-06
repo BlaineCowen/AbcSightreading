@@ -7,7 +7,7 @@ import { INCLUDED_SEATS } from "../seats";
 import { emailKey, isDisposable } from "../free-month";
 import { sendAccountEmail } from "./auth-email";
 import {
-  FOUNDER_DISCOUNT, FOUNDER_SEATS, founderDecision, founderEndsAt, foundersOpen, isSchoolEmail, type FounderApplicationInput,
+  FOUNDER_DISCOUNT, FOUNDER_SEATS, FOUNDERS_ANYONE, founderDecision, founderEndsAt, foundersOpen, isSchoolEmail, type FounderApplicationInput,
 } from "../founders";
 
 /**
@@ -106,6 +106,7 @@ export async function founderStatus(userId: string | null, opts: { approved?: bo
     already,
     personJoined: joined,
     proven: opts.approved || classlink || isSchoolEmail(user.email),
+    anyone: FOUNDERS_ANYONE,
     application: (application?.status as "pending" | "approved" | "declined" | undefined) ?? null,
   });
 }
