@@ -68,7 +68,7 @@ const tabs = [
         </div>
         <div id="panel-classes" role="tabpanel" aria-labelledby="tab-classes" class="tab-panel" hidden>
           {accountType === "educator" && <EducatorStudents client:only="svelte" {googleEnabled} />}
-          <ClassProgress client:only="svelte" />
+          <ClassProgress client:only="svelte" educator={accountType === "educator"} />
         </div>
         <div id="panel-syllables" role="tabpanel" aria-labelledby="tab-syllables" class="tab-panel" hidden>
           <SyllableEditor client:only="svelte" />
