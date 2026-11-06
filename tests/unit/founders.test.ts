@@ -45,6 +45,9 @@ describe("proving a teacher", () => {
   });
   test("confirming the email comes before applying", () => {
     expect(founderDecision({ ...teacher, proven: false, emailVerified: false })).toMatchObject({ step: "confirm" });
+    // While anyone may join, an unproven teacher joins at once; a student still cannot.
+    expect(founderDecision({ ...teacher, proven: false, anyone: true })).toEqual({ ok: true });
+    expect(founderDecision({ ...teacher, proven: false, anyone: true, accountType: "student" }).ok).toBe(false);
   });
   test("one per person: another account behind the same address has joined", () => {
     expect(founderDecision({ ...teacher, personJoined: true }).ok).toBe(false);

@@ -37,7 +37,7 @@ through, and Next with a Practice link (`?step=`, `?track=`, `?nyssma=`,
 `?preset=`, and Choral's `?uil=`). Customize hides, reorders and adds steps
 for that class only (`Class.courseSteps`, a list of preset keys; null is the
 course as written; a new course starts over). Ticks are keyed by preset, so
-no change to the list loses one. A non-Educator account's Classes tab (the checklist only: no join codes, students or gradebook) opens with a butter note pointing to /founders (`educator` prop from account.astro; 6 November 2026, Blaine: Nicholas Likos made two classes on the free month without learning students could join).
+no change to the list loses one. While `FOUNDERS_ANYONE` (src/lib/founders.ts) is true, every confirmed teacher account joins the founders at once, school email or not (6 November 2026, Blaine: "let anyone be educator for a while until I get too many"); set it false and personal emails apply again. A non-Educator account's Classes tab (the checklist only: no join codes, students or gradebook) opens with a butter note pointing to /founders (`educator` prop from account.astro; 6 November 2026, Blaine: Nicholas Likos made two classes on the free month without learning students could join).
 
 A teacher's own rhythm syllables live in `UserPreference.rhythmSyllables`
 (`/api/preferences`, `src/lib/syllable-prefs.ts`), edited on `/account` and
