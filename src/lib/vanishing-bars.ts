@@ -9,7 +9,21 @@
  * abcjs marks everything it draws in a bar with `abcjs-mm<n>` (the bar's
  * number in the whole tune): notes (head, stem, ledger lines inside), rests,
  * beams, lyrics (solfège, syllables), chord symbols. Tests vanishing-bars.test.ts.
+ *
+ * Gentler (Blaine, same day: "only erase 1-4 beats ahead"): instead of the
+ * rest of the bar the moment the music reaches it, each note goes a set
+ * number of beats (1 to 4) before it is sung, with whatever is drawn in its
+ * bar up to it (its lyric, the beam it starts), `makeAheadVanisher`.
  */
+
+/** How far ahead the music goes: the rest of the bar as it is reached, or 1 to 4 beats. */
+export type VanishAhead = "bar" | 1 | 2 | 3 | 4;
+export const AHEAD_CHOICES: VanishAhead[] = ["bar", 1, 2, 3, 4];
+export const aheadLabel = (a: VanishAhead) => (a === "bar" ? "Whole bar" : `${a} beat${a === 1 ? "" : "s"}`);
+export function parseAhead(v: string | null | undefined): VanishAhead {
+  const n = Number(v);
+  return n === 1 || n === 2 || n === 3 || n === 4 ? n : "bar";
+}
 
 export const GONE = "sr-gone";
 
@@ -66,5 +80,53 @@ export function makeVanisher(root: () => ParentNode | null | undefined) {
       last = null;
       showAllBars(root());
     },
+  };
+}
+
+/**
+ * Hides a bar's music drawn at or left of `right` (screen x): a note, and
+ * with it its lyric and a beam starting at it. Notes go left to right, so
+ * this wipes the bar up to the note.
+ */
+export function hideThrough(root: ParentNode, bar: number, right: number) {
+  for (const el of Array.from(root.querySelectorAll(`.abcjs-mm${bar}`))) {
+    if (keep(el.getAttribute("class") ?? "") || el.classList.contains(GONE)) continue;
+    const box = (el as Element).getBoundingClientRect?.();
+    if (box && box.left <= right + 0.5) el.classList.add(GONE);
+  }
+}
+
+type Timing = { milliseconds: number; type?: string; elements?: Element[][] | null };
+
+/**
+ * Each note `aheadMs` before it sounds: called often while playing (a beat
+ * callback) with abcjs's note timings and the time now. Time going back (a
+ * loop's next pass, a jump) brings everything back first.
+ */
+export function makeAheadVanisher(root: () => ParentNode | null | undefined) {
+  let next = 0;
+  let lastNow = -1;
+  const reset = () => {
+    next = 0;
+    lastNow = -1;
+    showAllBars(root());
+  };
+  return {
+    tick(timings: Timing[] | null | undefined, nowMs: number, aheadMs: number) {
+      const r = root();
+      if (!r || !timings || !Number.isFinite(nowMs)) return;
+      if (nowMs < lastNow - 50) reset();
+      lastNow = nowMs;
+      while (next < timings.length && timings[next].milliseconds <= nowMs + aheadMs) {
+        const t = timings[next++];
+        if (t.type !== "event" || !t.elements) continue;
+        const els = t.elements.flat();
+        const bar = barOfElements(els);
+        if (bar === null) continue;
+        const right = Math.max(...els.map((e) => e.getBoundingClientRect?.().right ?? -Infinity));
+        if (Number.isFinite(right)) hideThrough(r, bar, right);
+      }
+    },
+    reset,
   };
 }

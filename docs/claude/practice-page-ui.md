@@ -244,6 +244,16 @@ everything back. Choral wipes only while `isPlaying`: Stop's seek to 0 fires
 the first bar's event and wiped bar 1 again. Checked in headless Chrome at
 120 bpm on both pages: bars wiped behind the cursor, none after Stop.
 
+**How far ahead** (same day, Blaine: the gentler way is to "only erase 1-4
+beats ahead"): under the toggle, Disappears the whole bar at once (the
+above) or 1, 2, 3 or 4 beats ahead (`sr-vanish-ahead`). `makeAheadVanisher`
+runs on the beat callback (Unison `beatCallback`, Choral `onBeat` while
+playing) with abcjs's timer (`noteTimings`, `currentTime`, `qpm`, the meter's
+beat): each note whose time is within the beats ahead goes with everything
+drawn in its bar up to its right edge (`hideThrough`: its lyric, a beam it
+starts). Time going back brings all back. Checked at 60 bpm, 1 beat ahead,
+on both pages.
+
 ## The playing cursor
 
 One look on every score page (16 October 2026, Blaine: My music's cursor is
