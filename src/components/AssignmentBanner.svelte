@@ -1,6 +1,7 @@
 <script lang="ts">
   import { sessionSeconds } from "../lib/practice-tracker";
   import { STAGES, type Stage } from "../lib/portfolio";
+  import { readerById } from "../lib/readers";
 
   /**
    * The assignment a student is working on: what it is, and minutes so far
@@ -12,6 +13,11 @@
   export let fixed = false;
   /** A portfolio checkpoint (portfolio.ts): its stage and tries. */
   export let checkpoint: { stage: Stage; tries: number } | null = null;
+  /** The parts students pick from (assignment-parts.ts), the one picked, and what to say about it. */
+  export let parts: string[] | null = null;
+  export let partId: string | null = null;
+  export let partNote = "";
+  export let onPart: (id: string) => void = () => {};
 
   $: done = Math.floor((assignment.seconds + $sessionSeconds) / 60);
   $: timed = assignment.minutes > 0;
@@ -31,6 +37,17 @@
       <p class="text-sm text-sr-muted shrink-0">{assignment.minutes} min</p>
     {/if}
   </div>
+  {#if parts?.length}
+    <label class="part flex flex-wrap items-center gap-2 text-sm text-sr-ink" class:need={!partId} data-part-picker>
+      <span class="font-semibold">{partId ? "Your part" : "Choose your part first"}</span>
+      <select class="rounded-xl border border-sr-hairline bg-sr-panel text-sr-ink text-sm px-2 min-h-10" value={partId ?? ""} on:change={(e) => e.currentTarget.value && onPart(e.currentTarget.value)}>
+        {#if !partId}<option value="" disabled>Pick one</option>{/if}
+        {#each parts as id}<option value={id}>{readerById[id]?.name ?? id}</option>{/each}
+      </select>
+      <span class="text-xs text-sr-muted">{partId ? "The music is written in your range." : "It sets your clef and range."}</span>
+    </label>
+    {#if partNote}<p class="text-xs text-sr-muted">{partNote}</p>{/if}
+  {/if}
   {#if checkpoint}
     <p class="text-sm text-sr-ink-2" data-checkpoint-note>
       <strong>Portfolio checkpoint.</strong> Sight-read it with Grade{checkpoint.tries === 1 ? ": one try" : `: ${checkpoint.tries} tries`}, each a new exercise.
@@ -48,3 +65,18 @@
     The settings are the assignment's. <a class="underline" href={leave}>Leave the assignment</a>
   </p>
 </div>
+
+<style>
+  .part {
+    padding: 0.5rem 0.65rem;
+    border-radius: 14px;
+    background: var(--sr-sky);
+    --sr-ink: var(--sr-sky-ink);
+    --sr-muted: var(--sr-sky-ink);
+  }
+  .part.need {
+    background: var(--sr-butter);
+    --sr-ink: var(--sr-butter-ink);
+    --sr-muted: var(--sr-butter-ink);
+  }
+</style>

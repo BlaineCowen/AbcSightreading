@@ -111,6 +111,7 @@
   import { clapMarksOf } from "../lib/gradebook";
   import { marksOf } from "../lib/pieces/attempts";
   import { checkpointOf, keepUntil } from "../lib/portfolio";
+  import { partKeys, partReader, partsOf } from "../lib/assignment-parts";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
   import { NoteLight, makeCursor, placeCursor } from "../lib/score-cursor";
@@ -332,6 +333,47 @@
     updateUrlFromState();
     const one = assignedExercise(a.params);
     if (one) await openLinkedExercise(one);
+    // One assignment for every part: the keys as the teacher set them are
+    // concert pitch, and the part last read here is taken up again.
+    assignmentConcertKeys = [...selectedKeys];
+    const parts = partsOf(a.params);
+    const last = loadReaderId();
+    if (parts && last && parts.readers.includes(last)) await choosePart(last);
+  }
+
+  /**
+   * The assignment names parts (assignment-parts.ts): the student picks
+   * theirs, and it brings its clef, sound and range (the teacher's for that
+   * part), a transposing part reads the concert keys in its own, and a
+   * level on the page is placed for it, as Reading as does.
+   */
+  let assignmentConcertKeys: string[] = [];
+  $: assignmentParts = assignment ? partsOf(assignment.params) : null;
+  let partId: string | null = null;
+  let partNote = "";
+  async function choosePart(id: string) {
+    const parts = assignmentParts ?? (assignment ? partsOf(assignment.params) : null);
+    const r = parts && partReader(parts, id);
+    if (!parts || !r) return;
+    partId = id;
+    await chooseReader(id);
+    if (parts.ranges[id]) {
+      rangeAnchor = r.anchor;
+      rangeLimit = { ...r.range };
+      selectedRange = (rangeSpan && placeSpan(rangeSpan, selectedKey, rangeAnchor, rangeLimit)) || { ...r.range };
+    }
+    partNote = "";
+    // A course step writes its own instrument's keys; anything else is concert pitch.
+    if (!activeTrackKey && assignmentConcertKeys.length) {
+      const { keys, missing } = partKeys(assignmentConcertKeys, r);
+      if (keys.length) {
+        selectedKeys = new Set(keys);
+        selectedKey = keys[0];
+      }
+      if (missing.length) partNote = `${missing.join(", ")} cannot be written for ${r.name}, so it is left out.`;
+    }
+    updateUrlFromState();
+    if (currentTune) await handleClick();
   }
 
   onMount(() => {
@@ -3169,6 +3211,11 @@
    */
   async function handleClick() {
     if (grading || fixedExercise) return;
+    // An assignment for every part writes nothing until the part is chosen: it sets the range.
+    if (assignmentParts && !partId) {
+      partNote = "Choose your part first: it sets your clef and range.";
+      return;
+    }
     if (drillRunning) await stopDrill(false);
     await generateExercise();
   }
@@ -5613,7 +5660,7 @@
       <GenerationLimit slot="end" part="counter" />
     </PresetDropdown>
     {/if}
-    {#if assignment}<AssignmentBanner {assignment} fixed={!!fixedExercise} checkpoint={checkpointOf(assignment.params)} />{/if}
+    {#if assignment}<AssignmentBanner {assignment} fixed={!!fixedExercise} checkpoint={checkpointOf(assignment.params)} parts={assignmentParts?.readers ?? null} {partId} {partNote} onPart={choosePart} />{/if}
     {#if assigning}<div class="w-full mt-3 no-print"><AssigningBar getParams={() => ({ ...currentOptions })} exercise={exerciseParam(exerciseHash)} /></div>{/if}
     {#if activeStepId && !assignment}<StepStrip stepId={activeStepId} onSelect={goToStep} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />

@@ -30,6 +30,8 @@ export type AssignDraft = {
   exercise?: string;
   /** A portfolio checkpoint (portfolio.ts), or none. */
   checkpoint?: { stage: string; tries: number } | null;
+  /** The parts students pick from, each with its range (assignment-parts.ts), or none. */
+  parts?: { readers: string[]; ranges: Record<string, { min: number; max: number }> } | null;
   /** Back from the page with what it needed. */
   ready?: boolean;
 };

@@ -9,6 +9,7 @@
  * students may be under 13.
  */
 import { checkCheckpoint, type Checkpoint } from "./portfolio";
+import { checkParts, type AssignParts } from "./assignment-parts";
 import { parsePresetKey } from "./class-validate";
 import { ladderById, type LadderPage } from "./ladder";
 import { UNISON_PRESET_STORE } from "./preset-storage";
@@ -98,6 +99,8 @@ export type AssignmentRequest = {
   custom?: { name: string; params: Record<string, unknown> };
   /** A portfolio checkpoint (portfolio.ts): graded tries kept through the school year. */
   checkpoint?: Checkpoint;
+  /** The parts students pick from, each with its range (assignment-parts.ts). */
+  parts?: AssignParts;
 };
 
 export function checkAssignmentRequest(body: unknown, now = new Date()): Checked<AssignmentRequest> {
@@ -128,6 +131,12 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   const value: AssignmentRequest = { presetKey: b.presetKey as string, minutes, dueAt, note };
   if (isPiece) value.piece = b.piece;
   if (cp.value) value.checkpoint = cp.value;
+  if (!isPiece) {
+    const parts = checkParts(b.parts);
+    if (!parts.ok) return parts;
+    if (parts.value && b.exercise) return { ok: false, error: "Students pick their part when each gets new exercises; one exercise for everyone is in one range." };
+    if (parts.value) value.parts = parts.value;
+  }
   if (!isPiece && b.exercise !== undefined && b.exercise !== null && b.exercise !== "") {
     const exercise = checkPackedExercise(b.exercise);
     if (!exercise) return { ok: false, error: "That exercise could not be read. Write it again and choose it." };

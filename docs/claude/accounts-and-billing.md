@@ -160,6 +160,28 @@ score, rubric per checkpoint, then the changes). `/dev/portfolio` (dev
 server only) draws it with no database; a script answering
 `/api/classes/dev/portfolio` checks it. Privacy page says how long.
 
+**One assignment for every part** (9 November 2026, Blaine: "assign it
+once then the student picks their voice part and it fixes the range
+automatically", the director customising each instrument instead of making
+an assignment per part). Rules `src/lib/assignment-parts.ts` (tests
+`assignment-parts.test.ts`). A Unison sight-reading assignment with new
+exercises (not one exercise for everyone, which is in one range) may carry
+`params.parts = { readers, ranges }`: the readers.ts ids students pick
+from, and a range for any part the teacher moved (only where it differs
+from the part's own). The wizard's last step, Students pick their part
+(`PartsPicker.svelte`: SATB, treble and bass voices, all band, all strings,
+any part on or off, each part's range from and to). On the page the
+AssignmentBanner asks the student to choose their part (New exercise waits
+for it; the part last read in this browser is taken up again);
+`choosePart` runs Reading as's `chooseReader` (clef, sound, transposition,
+a level re-placed for the part), then the teacher's range, and a band or
+string part reads the assignment's keys as concert pitch in its own written
+key (`partKeys`; a key the page cannot write for it, concert E on a B♭
+instrument, is left out and said). `/dev/parts` (dev only) draws the
+picker. Checked in headless Chrome on 9 November: an SATB assignment in F,
+Bass picked with a narrowed range wrote bass clef in F in that range; a
+clarinet read concert F in G.
+
 **Grades to Google Classroom** (`src/lib/server/classroom-grades.ts`,
 `/api/assignments/[id]/classroom`): for a class brought in from Classroom,
 "Post to Google Classroom" makes the assignment coursework there (out of 100,

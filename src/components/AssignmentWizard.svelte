@@ -17,6 +17,7 @@
   import { uploadPiece } from "../lib/pieces/client";
   import { ACCEPTED, isPieceFileName } from "../lib/pieces/rules";
   import AssignPieceForm from "./pieces/AssignPieceForm.svelte";
+  import PartsPicker from "./PartsPicker.svelte";
 
   /**
    * Create an assignment, in the order a teacher thinks of one: what kind
@@ -53,6 +54,10 @@
   let checkpointOn = false;
   let checkpointStage: CheckpointStage = "boy";
   let checkpointTries = 1;
+  /** Students pick their part (assignment-parts.ts): which parts, and each one's range. */
+  let partsOn = false;
+  let partReaders: string[] = ["soprano", "alto", "tenor", "bass"];
+  let partRanges: Record<string, { min: number; max: number }> = {};
   let busy = false;
   let problem = "";
   let sentTo: string[] = [];
@@ -84,6 +89,7 @@
     void loadCourses();
     if (!resume) return;
     ({ presetKey, fixed, minutes, dueAt, note, title, custom, exercise } = resume);
+    if (resume.parts) ({ readers: partReaders, ranges: partRanges } = resume.parts), (partsOn = true);
     if (resume.checkpoint) ({ stage: checkpointStage, tries: checkpointTries } = resume.checkpoint as { stage: CheckpointStage; tries: number }), (checkpointOn = true);
     classIds = resume.classIds.filter((id) => classes.some((c) => c.id === id));
     if (!classIds.length && preselect) classIds = [preselect];
@@ -92,7 +98,9 @@
     root?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  const draft = (): AssignDraft => ({ presetKey, fixed, classIds, minutes, dueAt, note, title, custom, exercise, checkpoint: checkpointOn ? { stage: checkpointStage, tries: checkpointTries } : null });
+  const draft = (): AssignDraft => ({ presetKey, fixed, classIds, minutes, dueAt, note, title, custom, exercise, checkpoint: checkpointOn ? { stage: checkpointStage, tries: checkpointTries } : null, parts: partsOn ? { readers: partReaders, ranges: partRanges } : null });
+  $: partsHere = checkpointHere && !fixed;
+  $: if (!partsHere) partsOn = false;
   $: checkpointHere = pageName === "Unison";
   $: if (!checkpointHere) checkpointOn = false;
   const keptTill = keepUntil().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
@@ -126,11 +134,13 @@
   async function send() {
     problem = "";
     if (!classIds.length) return void (problem = "Choose at least one class.");
+    if (partsOn && !partReaders.length) return void (problem = "Choose the parts students pick from, or untick Students pick their part.");
     busy = true;
     const body = {
       presetKey,
       minutes: checkpointOn && !minutes ? 0 : minutes,
       ...(checkpointOn ? { checkpoint: { stage: checkpointStage, tries: checkpointTries } } : {}),
+      ...(partsOn ? { parts: { readers: partReaders, ranges: partRanges } } : {}),
       dueAt,
       note,
       ...(fixed && exercise ? { exercise } : {}),
@@ -358,6 +368,15 @@
               <button type="button" class="sr-tok" class:sr-on={classIds.includes(c.id)} aria-pressed={classIds.includes(c.id)} on:click={() => toggleClass(c.id)}>{c.name}</button>
             {/each}
           </div>
+        </fieldset>
+      {/if}
+      {#if partsHere}
+        <fieldset class="checkpoint flex flex-col gap-2" data-parts>
+          <label class="text-sm text-sr-ink flex items-center gap-2 font-semibold">
+            <input type="checkbox" bind:checked={partsOn} /> Students pick their part
+          </label>
+          <p class="text-xs text-sr-muted">One assignment for the whole ensemble. Each student chooses their voice part or instrument, and the exercise is written in that part's clef and range.</p>
+          {#if partsOn}<PartsPicker bind:readers={partReaders} bind:ranges={partRanges} />{/if}
         </fieldset>
       {/if}
       {#if checkpointHere}

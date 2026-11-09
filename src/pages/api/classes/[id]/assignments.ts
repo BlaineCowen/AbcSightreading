@@ -30,9 +30,11 @@ export const POST: APIRoute = async ({ request, params }) => {
   const preset = await describePreset(user.id, checked.value);
   if (!preset) return json({ error: "That preset is not one of yours." }, 400);
   if ("error" in preset) return json({ error: preset.error }, 400);
-  // Graded tries are sent from the Unison page only.
+  // Graded tries and parts are on the Unison page only.
   if (checked.value.checkpoint && preset.page !== "unison") return json({ error: "A portfolio checkpoint is sung on the Unison page: choose a step, a level or a Unison preset." }, 400);
-  const stored = checked.value.checkpoint ? { ...((preset.params ?? {}) as object), checkpoint: checked.value.checkpoint } : preset.params;
+  if (checked.value.parts && preset.page !== "unison") return json({ error: "Students pick their part on the Unison page: choose a step, a level or a Unison preset." }, 400);
+  const extra = { ...(checked.value.checkpoint ? { checkpoint: checked.value.checkpoint } : {}), ...(checked.value.parts ? { parts: checked.value.parts } : {}) };
+  const stored = Object.keys(extra).length ? { ...((preset.params ?? {}) as object), ...extra } : preset.params;
   const a = await prisma.assignment.create({
     data: {
       classId: params.id!,
