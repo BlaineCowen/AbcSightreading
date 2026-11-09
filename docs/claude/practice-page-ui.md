@@ -35,6 +35,15 @@ end of each settings row, the navbar (desktop icon, Take the tour on a
 phone), `?tour=1`, or `/how-to-use`. Keep `data-tour` on the controls when
 moving them.
 
+Defaults on a first visit (checked in a fresh browser on production, 9
+November 2026): treble, F major, do mi so, 8 bars, Reading as Any, no
+solfège, no rhythm syllables, counting voice off (`DEFAULT_VOICE`). Quick
+start's step 1 is a rhythm drill and shows ta and ti-ti by design. Blaine:
+annotations stay off by default; the tour's Display step says they can be
+added, and that a teacher can set up their own syllables on the account.
+Anything else someone sees (a tenor's treble-8, say) is their own browser's
+saved settings (`sightReadingOptions`, the reader) or a link's.
+
 abcStepByStep is easier to find: the preset menu opens on it when no
 built-in preset is active (`sectionToOpen`), a mint strip above the
 settings shows the step, what it adds, All steps (`sr-open-presets`, which

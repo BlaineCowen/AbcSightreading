@@ -22,7 +22,7 @@ export const TOUR_STEPS: Record<TourPage, TourStep[]> = {
     { anchor: "settings", title: "Your settings", body: "Each pill shows what is chosen. Tap one to change the key, meter, length, notes or rhythms." },
     { anchor: "new", title: "New exercise", body: "Writes a new exercise from your settings." },
     { anchor: "play", title: "Play it", body: "Hear the exercise with a count-in. Tempo, Loop and the metronome are on this bar too." },
-    { anchor: "display", title: "What the score shows", body: "Solfège, note names, rhythm syllables, the cursor and the sound." },
+    { anchor: "display", title: "What the score shows", body: "The score starts clean. Add solfège, note names or rhythm syllables here, and set up your own syllables (Takadimi, 1 e and a, whatever your class uses) on your account." },
     { anchor: "grade", title: "Listen and grade", body: "Sing it (or clap a rhythm) into the microphone and see each note marked on the music." },
     { anchor: "tools", title: "Practice tools", body: "Tuner, metronome, drone, starting pitches and a timer, without leaving the page." },
   ],
@@ -32,7 +32,7 @@ export const TOUR_STEPS: Record<TourPage, TourStep[]> = {
     { anchor: "settings", title: "Your settings", body: "Key, meter, length, rhythms and chords. Tap a pill to change it." },
     { anchor: "new", title: "New exercise", body: "Writes fresh parts from your settings." },
     { anchor: "play", title: "Play it", body: "Hear every part, or mute and hide parts to practise one line against the others." },
-    { anchor: "display", title: "What the score shows", body: "Solfège, chord symbols, the cursor and the sound." },
+    { anchor: "display", title: "What the score shows", body: "The score starts clean. Add solfège or chord symbols here, and choose the cursor and the sound." },
     { anchor: "tools", title: "Practice tools", body: "Tuner, metronome, drone, starting pitches and a timer." },
   ],
   piano: [
