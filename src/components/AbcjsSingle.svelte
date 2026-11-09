@@ -110,6 +110,7 @@
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { clapMarksOf } from "../lib/gradebook";
   import { marksOf } from "../lib/pieces/attempts";
+  import { checkpointOf, keepUntil } from "../lib/portfolio";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
   import { createFullscreen } from "../lib/fullscreen";
   import { NoteLight, makeCursor, placeCursor } from "../lib/score-cursor";
@@ -306,6 +307,12 @@
   const assigning = !assignmentId && assigningFromUrl();
   /** The assignment gives every student one exercise: no New exercise. */
   $: fixedExercise = assignment ? assignedExercise(assignment.params) : null;
+  /**
+   * A portfolio checkpoint (portfolio.ts), for a student: sight reading under
+   * test conditions, so the exercise is not played before it is sung (Grade
+   * gives the tonic chord and the count-in), and the tries are limited.
+   */
+  $: checkpoint = assignment?.role === "student" ? checkpointOf(assignment.params) : null;
 
   /** Opens an assignment: its preset applied, the settings locked while it is open. */
   async function openAssignment(id: string) {
@@ -2818,6 +2825,10 @@
     if (isPlaying) {
       return;
     }
+    if (checkpoint) {
+      attemptSent = "This is a checkpoint: sight-read it without hearing it first. Grade plays the tonic chord and counts you in.";
+      return;
+    }
 
     // Ensure we have a tune to play.
     if (!currentTune) {
@@ -5236,7 +5247,11 @@
   let pendingAttempt: string | null = null;
   let attemptSent: string | null = null;
   $: keptNote =
-    assignment?.role === "student"
+    checkpoint
+      ? rhythmOnly || $tuner.gradeMode === "performance"
+        ? `Portfolio checkpoint: ${checkpoint.tries === 1 ? "one try" : `${checkpoint.tries} tries`}, each a new exercise. Your score and recording go to your teacher and are kept until ${keepUntil().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}.`
+        : "This is a checkpoint: use Pitch & rhythm. Note by note is practice and is not sent."
+      : assignment?.role === "student"
       ? rhythmOnly || $tuner.gradeMode === "performance"
         ? `Your score goes to your teacher${rhythmOnly && $tuner.gradeClapInput === "keys" ? "" : ", with the recording, kept 90 days"}. Your best try counts.`
         : "Note by note is practice: it is not sent to your teacher. Pitch & rhythm is."
@@ -5598,7 +5613,7 @@
       <GenerationLimit slot="end" part="counter" />
     </PresetDropdown>
     {/if}
-    {#if assignment}<AssignmentBanner {assignment} fixed={!!fixedExercise} />{/if}
+    {#if assignment}<AssignmentBanner {assignment} fixed={!!fixedExercise} checkpoint={checkpointOf(assignment.params)} />{/if}
     {#if assigning}<div class="w-full mt-3 no-print"><AssigningBar getParams={() => ({ ...currentOptions })} exercise={exerciseParam(exerciseHash)} /></div>{/if}
     {#if activeStepId && !assignment}<StepStrip stepId={activeStepId} onSelect={goToStep} />{/if}
     <GenerationLimit part={assignment ? "all" : "alert"} />

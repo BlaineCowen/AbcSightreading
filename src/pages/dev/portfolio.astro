@@ -1,0 +1,21 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Portfolio from "../../components/Portfolio.svelte";
+import AssignmentBanner from "../../components/AssignmentBanner.svelte";
+
+// Dev server only: the class Portfolio and a checkpoint's banner with no
+// account and no database (a check script answers /api/classes/dev/portfolio
+// itself). 404 anywhere but `bun run dev`.
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+---
+
+<Layout noindex title="Portfolio (dev)">
+  <div class="flex flex-col w-full items-center gap-6 pb-16 px-4">
+    <AssignmentBanner
+      client:only="svelte"
+      assignment={{ title: "Step 9 · Notes: Do to so", minutes: 0, note: "", seconds: 0, role: "student", dueAt: null }}
+      checkpoint={{ stage: "boy", tries: 2 }}
+    />
+    <div class="w-full max-w-3xl"><Portfolio client:only="svelte" classId="dev" className="Choir 2" /></div>
+  </div>
+</Layout>

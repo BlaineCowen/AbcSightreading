@@ -137,6 +137,29 @@ by note is practice and is not sent. The setup card says what is kept
 (`keptNote`), the results whether it reached the teacher. The teacher's Best
 column opens the attempt: its recording and the exercise.
 
+**Portfolio checkpoints** (9 November 2026, Blaine: pitch districts a
+Teacher Incentive Allotment growth measure for fine arts; TEA recommends
+portfolios for performance classes, 19 TAC §150.1012: standards-aligned
+work, more than one artifact, a rubric of four or more levels with scoring
+criteria). Rules `src/lib/portfolio.ts` (tests `portfolio.test.ts`). A
+sight-reading assignment on the **Unison page** (graded attempts are sent
+from there only) may be a checkpoint: `params.checkpoint = { stage: boy |
+moy | eoy | other, tries: 1-3 }`, set in the wizard's last step (minutes
+optional then). For a student: Play is off (Grade gives the tonic chord and
+count-in), each try a new exercise, `startAttempt` refuses past the tries,
+and the take is kept until 30 September after the school year (`keepUntil`)
+instead of `TAKE_DAYS`; the cron's orphan sweep skips any take an attempt
+still keeps (it used to delete every take older than 90 days not on its own
+list, which would have wiped them). `PieceAttempt.rubric` (1-4, migration
+20261109000000_portfolio_rubric) is the teacher's level, `PUT
+/api/attempts/<id>/rubric`. The class card's **Portfolio**
+(`Portfolio.svelte`, `GET /api/classes/<id>/portfolio`): students against
+checkpoints in order, best graded try with its recording, rubric 1-4 (the
+score's suggestion outlined), the change first to last, Download CSV (date,
+score, rubric per checkpoint, then the changes). `/dev/portfolio` (dev
+server only) draws it with no database; a script answering
+`/api/classes/dev/portfolio` checks it. Privacy page says how long.
+
 **Grades to Google Classroom** (`src/lib/server/classroom-grades.ts`,
 `/api/assignments/[id]/classroom`): for a class brought in from Classroom,
 "Post to Google Classroom" makes the assignment coursework there (out of 100,

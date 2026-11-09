@@ -2,10 +2,12 @@ import { del, get, head, list } from "@vercel/blob";
 import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { roleIn } from "./practice";
+import { shortUsername } from "./students";
 import { loadScore } from "./pieces";
 import { partsFor, pieceAssignmentOf } from "../pieces/assign";
 import { FINISH_WITHIN_MS, TAKE_DAYS, TAKE_PATH, type AttemptSummary, type Mark } from "../pieces/attempts";
 import { ATTEMPT_MODES, checkExerciseAttempt } from "../gradebook";
+import { checkpointOf, isLevel, keepUntil } from "../portfolio";
 
 /**
  * Graded attempts at an assignment, against the database (rules in
@@ -58,17 +60,23 @@ async function assignmentOf(assignmentId: string) {
 export async function startAttempt(userId: string, assignmentId: string, body: { partId?: unknown; mode?: unknown; exercise?: unknown } = {}) {
   const { a, settings } = await assignmentOf(assignmentId);
   if ((await roleIn(userId, a.classId)) !== "student") throw new AttemptError("Only a student of the class has graded attempts.", 403);
-  const deleteAfter = new Date(Date.now() + TAKE_DAYS * 86_400_000);
+  const checkpoint = checkpointOf(a.params);
+  // A checkpoint's recordings are the portfolio: kept through the school year.
+  const deleteAfter = checkpoint ? keepUntil() : new Date(Date.now() + TAKE_DAYS * 86_400_000);
   if (!settings) {
     const checked = checkExerciseAttempt(body);
     if (!checked.ok) throw new AttemptError(checked.error);
     const { mode, exercise } = checked.value;
+    if (checkpoint) {
+      const before = await prisma.pieceAttempt.count({ where: { assignmentId, studentId: userId } });
+      if (before >= checkpoint.tries) throw new AttemptError(`You have used ${checkpoint.tries === 1 ? "your try" : `all ${checkpoint.tries} tries`} at this checkpoint.`, 409);
+    }
     const row = await prisma.pieceAttempt.create({
       data: { assignmentId, studentId: userId, partId: mode, partName: ATTEMPT_MODES[mode], exercise, deleteAfter },
       select: SUMMARY,
     });
     const used = await prisma.pieceAttempt.count({ where: { assignmentId, studentId: userId } });
-    return { attempt: summaryOf(row), used, max: null };
+    return { attempt: summaryOf(row), used, max: checkpoint?.tries ?? null };
   }
   const partId = body.partId;
   const piece = await prisma.piece.findUnique({ where: { id: settings.pieceId } });
@@ -143,7 +151,7 @@ export async function listAttempts(userId: string, assignmentId: string) {
   });
   return {
     role,
-    max: settings?.maxAttempts ?? null,
+    max: settings?.maxAttempts ?? checkpointOf(a.params)?.tries ?? null,
     attempts: rows.map((r) => ({ ...summaryOf(r), studentId: r.studentId, studentName: r.student.name })),
   };
 }
@@ -186,13 +194,58 @@ export async function deleteOldTakes(now = new Date()) {
   const due = await prisma.pieceAttempt.findMany({ where: { deleteAfter: { lt: now }, recordingPath: { not: null } }, select: { id: true, recordingPath: true } });
   const paths = due.map((d) => d.recordingPath!);
   const cutoff = now.getTime() - TAKE_DAYS * 86_400_000;
+  // A take still kept (a portfolio checkpoint's, kept the school year) is
+  // never left behind, however old: only one no attempt points at is.
+  const kept = new Set(
+    (await prisma.pieceAttempt.findMany({ where: { deleteAfter: { gte: now }, recordingPath: { not: null } }, select: { recordingPath: true } })).map((r) => r.recordingPath!),
+  );
   let cursor: string | undefined;
   do {
     const page = await list({ prefix: "attempts/", cursor, token: t });
-    for (const b of page.blobs) if (b.uploadedAt.getTime() < cutoff && !paths.includes(b.pathname)) paths.push(b.pathname);
+    for (const b of page.blobs) if (b.uploadedAt.getTime() < cutoff && !kept.has(b.pathname) && !paths.includes(b.pathname)) paths.push(b.pathname);
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
   if (paths.length) await del(paths, { token: t });
   if (due.length) await prisma.pieceAttempt.updateMany({ where: { id: { in: due.map((d) => d.id) } }, data: { recordingPath: null } });
   return { deleted: paths.length };
+}
+
+/** The teacher scores a checkpoint try on the rubric (portfolio.ts), or clears it (null). */
+export async function scoreRubric(userId: string, attemptId: string, level: unknown) {
+  if (level !== null && !isLevel(level)) throw new AttemptError("A rubric level is 1 to 4.");
+  const at = await prisma.pieceAttempt.findUnique({ where: { id: attemptId }, include: { assignment: { select: { classId: true, params: true } } } });
+  if (!at || (await roleIn(userId, at.assignment.classId)) !== "teacher") throw new AttemptError("No such attempt.", 404);
+  if (!checkpointOf(at.assignment.params)) throw new AttemptError("Only a portfolio checkpoint is scored on the rubric.");
+  await prisma.pieceAttempt.update({ where: { id: at.id }, data: { rubric: level as number | null } });
+  return { rubric: level };
+}
+
+/**
+ * A class's portfolio: its checkpoints in the order given, each student's
+ * tries at each (portfolio.ts resultOf makes the result).
+ */
+export async function classPortfolio(classId: string) {
+  const [assignments, enrollments] = await Promise.all([
+    prisma.assignment.findMany({ where: { classId }, orderBy: { createdAt: "asc" }, select: { id: true, title: true, params: true, createdAt: true } }),
+    prisma.enrollment.findMany({ where: { classId }, orderBy: { createdAt: "asc" }, select: { student: { select: { id: true, name: true, username: true } } } }),
+  ]);
+  const checkpoints = assignments.flatMap((a) => {
+    const c = checkpointOf(a.params);
+    return c ? [{ id: a.id, title: a.title, stage: c.stage, tries: c.tries, createdAt: a.createdAt.getTime() }] : [];
+  });
+  const rows = checkpoints.length
+    ? await prisma.pieceAttempt.findMany({
+        where: { assignmentId: { in: checkpoints.map((c) => c.id) } },
+        orderBy: { startedAt: "asc" },
+        select: { id: true, assignmentId: true, studentId: true, overall: true, rubric: true, recordingPath: true, startedAt: true, finishedAt: true },
+      })
+    : [];
+  return {
+    checkpoints,
+    students: enrollments.map((e) => ({ id: e.student.id, name: e.student.name, username: shortUsername(e.student.username) })),
+    tries: rows.map((r) => ({
+      id: r.id, assignmentId: r.assignmentId, studentId: r.studentId,
+      overall: r.finishedAt ? r.overall : null, rubric: r.rubric, hasTake: !!r.recordingPath, at: r.startedAt.getTime(),
+    })),
+  };
 }

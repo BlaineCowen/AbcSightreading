@@ -8,6 +8,7 @@
  * exercise counts and dates. No recordings, no device, no address: the
  * students may be under 13.
  */
+import { checkCheckpoint, type Checkpoint } from "./portfolio";
 import { parsePresetKey } from "./class-validate";
 import { ladderById, type LadderPage } from "./ladder";
 import { UNISON_PRESET_STORE } from "./preset-storage";
@@ -95,6 +96,8 @@ export type AssignmentRequest = {
   piece?: unknown;
   exercise?: string;
   custom?: { name: string; params: Record<string, unknown> };
+  /** A portfolio checkpoint (portfolio.ts): graded tries kept through the school year. */
+  checkpoint?: Checkpoint;
 };
 
 export function checkAssignmentRequest(body: unknown, now = new Date()): Checked<AssignmentRequest> {
@@ -104,9 +107,13 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   const key = custom ? null : parsePresetKey(b.presetKey);
   if (!custom && !key) return { ok: false, error: "Choose what to practice." };
   const isPiece = key?.kind === "piece";
-  const minutes = b.minutes === undefined || b.minutes === null || b.minutes === "" ? (isPiece ? 0 : NaN) : Number(b.minutes);
-  if (!Number.isInteger(minutes) || minutes < (isPiece ? 0 : 1) || minutes > MAX_MINUTES) {
-    return { ok: false, error: `Minutes: a whole number from ${isPiece ? 0 : 1} to ${MAX_MINUTES}.` };
+  const cp = isPiece ? { ok: true as const, value: null } : checkCheckpoint(b.checkpoint);
+  if (!cp.ok) return cp;
+  // A piece's goal is the part; a checkpoint's the graded tries: neither needs minutes.
+  const noTime = isPiece || !!cp.value;
+  const minutes = b.minutes === undefined || b.minutes === null || b.minutes === "" ? (noTime ? 0 : NaN) : Number(b.minutes);
+  if (!Number.isInteger(minutes) || minutes < (noTime ? 0 : 1) || minutes > MAX_MINUTES) {
+    return { ok: false, error: `Minutes: a whole number from ${noTime ? 0 : 1} to ${MAX_MINUTES}.` };
   }
   let dueAt: Date | null = null;
   if (b.dueAt !== undefined && b.dueAt !== null && b.dueAt !== "") {
@@ -120,6 +127,7 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   if (note.length > MAX_NOTE) return { ok: false, error: `Notes are at most ${MAX_NOTE} characters.` };
   const value: AssignmentRequest = { presetKey: b.presetKey as string, minutes, dueAt, note };
   if (isPiece) value.piece = b.piece;
+  if (cp.value) value.checkpoint = cp.value;
   if (!isPiece && b.exercise !== undefined && b.exercise !== null && b.exercise !== "") {
     const exercise = checkPackedExercise(b.exercise);
     if (!exercise) return { ok: false, error: "That exercise could not be read. Write it again and choose it." };

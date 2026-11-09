@@ -11,6 +11,7 @@ import { nyssmaById } from "../nyssma-presets";
 import { tmeaLevelOf } from "../tmea-presets";
 import { loadScore } from "./pieces";
 import { shortUsername } from "./students";
+import { checkpointOf } from "../portfolio";
 import { barsLabel, checkPieceAssignment, pieceAssignmentOf } from "../pieces/assign";
 
 /**
@@ -161,6 +162,8 @@ const assignmentView = (a: {
     ...(piece ? { maxAttempts: piece.maxAttempts } : {}),
     // Sight reading: one exercise every student sings, not new ones each time.
     ...(!piece && assignedExercise(a.params) ? { fixed: true } : {}),
+    // A portfolio checkpoint (portfolio.ts): its stage and tries.
+    ...(!piece && checkpointOf(a.params) ? { checkpoint: checkpointOf(a.params), maxAttempts: checkpointOf(a.params)!.tries } : {}),
     // Posted to Google Classroom, and when its grades were last sent there.
     classroom: a.classroomWorkId ? { sentAt: a.gradesSentAt?.getTime() ?? null } : null,
   };
@@ -195,12 +198,13 @@ async function attemptsFor(assignmentIds: string[], studentIds?: string[]) {
 }
 
 function withAttempts(
-  a: { page: string; minutes: number },
+  a: { page: string; minutes: number; params?: unknown },
   time: ReturnType<typeof assignmentProgress>,
   att: { attempts: number; best: number | null; bestId: string | null; part: string | null } | undefined,
 ) {
   // Sight reading: done by its minutes; graded attempts, if any, are its grade.
-  if (a.page !== "piece") return { ...time, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null };
+  // A checkpoint, as a piece: done once a try is graded (and any minutes are in).
+  if (a.page !== "piece" && !checkpointOf(a.params)) return { ...time, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null };
   const graded = att?.best !== null && att?.best !== undefined;
   const timeDone = a.minutes <= 0 || time.status === "done";
   const status = graded && timeDone ? "done" : graded || time.status !== "not-started" || (att?.attempts ?? 0) > 0 ? "in-progress" : "not-started";
