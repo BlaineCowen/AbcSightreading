@@ -254,6 +254,22 @@ chunk the whole chunk goes, with everything drawn in its bar up to the
 chunk's last note (`hideThrough`: lyrics, beams). A note earlier than the
 last brings all back. Checked at 60 bpm, 2-beat chunks, on both pages.
 
+## The Display and Drill menus (9 November 2026)
+
+Blaine: "lets lean up the display and drill ui... It always feels clunk and
+weird to have to scroll inside that menu". Both are rows now (`.pop-rows`,
+`.pop-row`: the setting's name in a 8.5rem column, its choices beside it,
+smaller tokens; one column on a phone), the long explanations moved into
+each row's hover title, and a short hint inline only where a number needs
+one (transpose's key, the speed ramp's tempos). Display: Sound, Transpose,
+Under the notes (Choral: On the score, then Syllables under and Sing minor
+when they apply), Dynamics (Unison), Cursor, and Disappearing as one row
+(Off, Bar, 1 to 4 beats). Drill: Start drill, Exercises, Times each, Speed
+up, Reading time, and **On the repeats** folded shut (`<details>`,
+`drillRepeatsOpen`), its six rows inside. Measured on a 1440 x 900 laptop:
+Display 590 to 389 px tall, Drill 630 to 352, both clear of the playback
+bar; on a phone the Display sheet fits without scrolling.
+
 ## The playing cursor
 
 One look on every score page (16 October 2026, Blaine: My music's cursor is

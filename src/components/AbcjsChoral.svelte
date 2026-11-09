@@ -1,7 +1,7 @@
 <script lang="ts">
   import { NoteLight, hideCursor, makeCursor, placeCursor } from "../lib/score-cursor";
   import TeachMenu from "./TeachMenu.svelte";
-  import { AHEAD_CHOICES, aheadLabel, barOfElements, makeChunkVanisher, makeVanisher, parseAhead, type VanishAhead } from "../lib/vanishing-bars";
+  import { AHEAD_CHOICES, barOfElements, makeChunkVanisher, makeVanisher, parseAhead, type VanishAhead } from "../lib/vanishing-bars";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
@@ -3627,161 +3627,84 @@
           <div in:popIn out:popOut class="set-pop set-pop-tools" role="dialog" aria-label="Display">
             <p class="set-pop-title">Display</p>
             <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-      <!-- Disappearing bars (vanishing-bars.ts): each bar is wiped as the music reaches it. -->
-      <div class="space-y-2 sm:col-span-2">
-        <p class="sr-label">Read ahead</p>
-        <div class="flex flex-wrap items-center gap-2">
-          <button class="sr-tok {vanishBars ? 'sr-on' : ''}" aria-pressed={vanishBars} on:click={() => setVanishBars(!vanishBars)} data-vanish-bars>Disappearing bars</button>
-          <span class="text-xs text-sr-muted">The music disappears as you reach it, so you have to read ahead. It all comes back when you stop.</span>
+      <!-- One row a setting, its name on the left (9 November 2026, as the Unison page). -->
+      <div class="pop-rows">
+        <div class="pop-row" title="The sound it plays on. The exercise stays as it is.">
+          <span class="pop-row-label">Sound</span>
+          <div class="pop-row-ctl">
+            <div class="sr-select">
+              <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
+              <select class="sr-select-input" aria-label="Playback sound" value={instrumentProgram} on:change={onInstrumentSelect}>
+                {#each INSTRUMENTS as instrument}<option value={instrument.program}>{instrument.label}</option>{/each}
+              </select>
+            </div>
+          </div>
         </div>
-        {#if vanishBars}
-          <div class="flex flex-wrap items-center gap-2" role="group" aria-label="How far ahead it disappears">
-            <span class="text-xs text-sr-muted">Disappears</span>
-            {#each AHEAD_CHOICES as a}
-              <button class="sr-tok text-xs {vanishAhead === a ? 'sr-on' : ''}" aria-pressed={vanishAhead === a} on:click={() => setVanishAhead(a)}>{aheadLabel(a)} at a time</button>
+
+        <div class="pop-row" title="Plays higher or lower. The score is unchanged.">
+          <span class="pop-row-label">Transpose</span>
+          <div class="pop-row-ctl" role="group" aria-label="Playback transpose">
+            <button class="pop-step" on:click={() => handleTransposeChange(transposeSemitones - 1)} disabled={transposeSemitones <= MIN_TRANSPOSE} aria-label="Transpose playback down a semitone">−</button>
+            <span class="text-sm tabular-nums w-8 text-center">{transposeSemitones > 0 ? "+" : ""}{transposeSemitones}</span>
+            <button class="pop-step" on:click={() => handleTransposeChange(transposeSemitones + 1)} disabled={transposeSemitones >= MAX_TRANSPOSE} aria-label="Transpose playback up a semitone">+</button>
+            <span class="pop-hint">{transposeLabel(selectedKey, transposeSemitones)}</span>
+            {#if transposeSemitones !== 0}<button class="sr-tok" on:click={() => handleTransposeChange(0)}>Reset</button>{/if}
+          </div>
+        </div>
+
+        <div class="pop-row" title="Tap one to show it, again to hide it.">
+          <span class="pop-row-label">On the score</span>
+          <div class="pop-row-ctl" role="group" aria-label="Annotations">
+            <button class="sr-tok {showChords ? 'sr-on' : ''}" on:click={handleToggleChords} aria-pressed={showChords}>Chord symbols</button>
+            <button class="sr-tok {scoreView.measureNumbers !== false ? 'sr-on' : ''}" on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })} aria-pressed={scoreView.measureNumbers !== false}>Bar numbers</button>
+            {#each lyricSystems as [value, label]}
+              <button class="sr-tok {lyricSystem === value ? 'sr-on' : ''}" on:click={() => handleLyricSystem(value)} aria-pressed={lyricSystem === value}>{label}</button>
             {/each}
           </div>
-        {/if}
-      </div>
-      <div class="space-y-2">
-        <p class="sr-label">Playback sound</p>
-        <div class="sr-select">
-          <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
-          <select
-            class="sr-select-input"
-            aria-label="Playback sound"
-            value={instrumentProgram}
-            on:change={onInstrumentSelect}
-          >
-            {#each INSTRUMENTS as instrument}
-              <option value={instrument.program}>{instrument.label}</option>
-            {/each}
-          </select>
         </div>
-        <p class="text-xs text-sr-faint">
-          Changes the sound straight away. The exercise stays as it is.
-        </p>
-      </div>
-
-      <div class="space-y-2">
-        <p class="sr-label">Playback transpose</p>
-        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
-          <button
-            class="sr-btn-quiet disabled:opacity-40"
-            on:click={() => handleTransposeChange(transposeSemitones - 1)}
-            disabled={transposeSemitones <= MIN_TRANSPOSE}
-            aria-label="Transpose playback down a semitone"
-          >−</button>
-          <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
-            {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
-          </span>
-          <button
-            class="sr-btn-quiet disabled:opacity-40"
-            on:click={() => handleTransposeChange(transposeSemitones + 1)}
-            disabled={transposeSemitones >= MAX_TRANSPOSE}
-            aria-label="Transpose playback up a semitone"
-          >+</button>
-          {#if transposeSemitones !== 0}
-            <button
-              class="sr-btn-quiet"
-              on:click={() => handleTransposeChange(0)}
-            >Reset</button>
-          {/if}
-        </div>
-        <p class="text-xs text-sr-faint">
-          {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
-        </p>
-      </div>
-
-      <div class="space-y-2">
-        <p class="sr-label">Annotations</p>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
-          <button
-            class="sr-tok {showChords ? 'sr-on' : ''}"
-            on:click={handleToggleChords}
-            aria-pressed={showChords}
-          >Chord symbols</button>
-          <button
-            class="sr-tok {scoreView.measureNumbers !== false ? 'sr-on' : ''}"
-            on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })}
-            aria-pressed={scoreView.measureNumbers !== false}
-          >Measure numbers</button>
-          {#each lyricSystems as [value, label]}
-            <button
-              class="sr-tok {lyricSystem === value ? 'sr-on' : ''}"
-              on:click={() => handleLyricSystem(value)}
-              aria-pressed={lyricSystem === value}
-            >{label}</button>
-          {/each}
-        </div>
-        <p class="text-xs text-sr-faint">
-          {#if showChords}
-            Chord symbols above the top staff{lyricSystem ? ", " : "."}
-          {/if}
-          {#if lyricSystem === "movable"}
-            Movable do {lyricWhere}: do is the tonic, so a tune reads the same in
-            every key.
-          {:else if lyricSystem === "fixed"}
-            Fixed do {lyricWhere}: C is do whatever the key.
-          {:else if lyricSystem === "names"}
-            The note names {lyricWhere}.
-          {:else if !showChords}
-            Clean: the same exercise, printed for sight-reading.
-          {/if}
-        </p>
         {#if lyricSystem && lyricVoices.length > 1}
           <!-- Which parts carry the syllables: the basses on solfège while the rest read the notes. -->
-          <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Solfège under">
-            <span class="text-xs text-sr-faint">Under</span>
-            {#each lyricVoices as name}
-              <button
-                class="sr-tok {lyricsOff.has(name) ? '' : 'sr-on'}"
-                aria-pressed={!lyricsOff.has(name)}
-                on:click={() => handleToggleLyricVoice(name)}
-              >{name}</button>
-            {/each}
+          <div class="pop-row" title="Which parts carry the syllables.">
+            <span class="pop-row-label">Syllables under</span>
+            <div class="pop-row-ctl" role="group" aria-label="Solfège under">
+              {#each lyricVoices as name}
+                <button class="sr-tok {lyricsOff.has(name) ? '' : 'sr-on'}" aria-pressed={!lyricsOff.has(name)} on:click={() => handleToggleLyricVoice(name)}>{name}</button>
+              {/each}
+            </div>
           </div>
         {/if}
         {#if lyricSystem === "movable" && [...selectedKeys].some((k) => isMinorKey(k))}
           <!-- How minor is sung: the tonic as la (the relative major's syllables) or as do. -->
-          <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Minor solfège">
-            <span class="text-xs text-sr-faint">Sing minor</span>
-            <button class="sr-tok {minorSolfege === 'la' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'la'}
-              on:click={() => { minorSolfege = "la"; void reRenderAnnotations(); }}>La-based</button>
-            <button class="sr-tok {minorSolfege === 'do' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'do'}
-              on:click={() => { minorSolfege = "do"; void reRenderAnnotations(); }}>Do-based</button>
+          <div class="pop-row" title={minorSolfege === "la" ? "In minor the tonic is la: la ti do re mi fa so." : "In minor the tonic is do: do re me fa so le te."}>
+            <span class="pop-row-label">Sing minor</span>
+            <div class="pop-row-ctl" role="group" aria-label="Minor solfège">
+              <button class="sr-tok {minorSolfege === 'la' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'la'} on:click={() => { minorSolfege = "la"; void reRenderAnnotations(); }}>La-based</button>
+              <button class="sr-tok {minorSolfege === 'do' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'do'} on:click={() => { minorSolfege = "do"; void reRenderAnnotations(); }}>Do-based</button>
+            </div>
           </div>
-          <p class="text-xs text-sr-faint">
-            {minorSolfege === "la" ? "In minor the tonic is la: la ti do re mi fa so." : "In minor the tonic is do: do re me fa so le te."}
-          </p>
         {/if}
-      </div>
 
-      <div class="space-y-2">
-        <p class="sr-label">Cursor</p>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
-          {#each cursorModes as mode}
-            <button
-              class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
-              on:click={() => (cursorMode = mode)}
-              aria-pressed={cursorMode === mode}
-            >{cursorModeLabels[mode]}</button>
-          {/each}
+        <div class="pop-row" title="Smooth travels with the music, beat by beat steps on each beat, note by note waits on each note.">
+          <span class="pop-row-label">Cursor</span>
+          <div class="pop-row-ctl" role="group" aria-label="Cursor">
+            {#each cursorModes as mode}
+              <button class="sr-tok {cursorMode === mode ? 'sr-on' : ''}" on:click={() => (cursorMode = mode)} aria-pressed={cursorMode === mode}>{cursorModeLabels[mode]}</button>
+            {/each}
+          </div>
         </div>
-        <p class="text-xs text-sr-faint">
-          {cursorMode === "off"
-            ? "No cursor during playback."
-            : cursorMode === "smooth"
-              ? "Travels along with the music."
-              : cursorMode === "beat"
-                ? "Steps on every beat."
-                : "Lands on each note and waits there."}
-        </p>
-      </div>
+
+        <!-- Disappearing bars (vanishing-bars.ts): the music goes as it is reached, a bar or a chunk of beats at a time. -->
+        <div class="pop-row" title="The music disappears as you reach it, a bar or a few beats at a time, so you have to read ahead. It all comes back when you stop.">
+          <span class="pop-row-label">Disappearing</span>
+          <div class="pop-row-ctl" role="group" aria-label="Disappearing bars" data-vanish-bars>
+            <button class="sr-tok {!vanishBars ? 'sr-on' : ''}" aria-pressed={!vanishBars} on:click={() => setVanishBars(false)}>Off</button>
+            {#each AHEAD_CHOICES as a}
+              <button class="sr-tok {vanishBars && vanishAhead === a ? 'sr-on' : ''}" aria-pressed={vanishBars && vanishAhead === a} on:click={() => { setVanishBars(true); setVanishAhead(a); }}>{a === "bar" ? "Bar" : `${a} beat${a === 1 ? "" : "s"}`}</button>
+            {/each}
+          </div>
+        </div>
       </div>
             </div>
-            <p class="text-xs text-sr-faint mt-4">These change how the exercise looks and sounds. The notes stay the same.</p>
             <div class="set-pop-foot">
               <button class="sr-tok" on:click={() => closePops()}>Done</button>
             </div>
@@ -4184,5 +4107,17 @@
     height: auto;
     max-width: 100%;
     max-height: 100%;
+  }
+  /* The Display menu: one row a setting, its name on the left (as the Unison page's). */
+  .pop-rows { display: flex; flex-direction: column; gap: 0.35rem; }
+  .pop-row { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.75rem; padding: 0.15rem 0; }
+  .pop-row-label { font-size: 13px; font-weight: 800; color: var(--sr-ink-2); }
+  .pop-row-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+  .pop-row-ctl :global(.sr-tok) { padding: 0.3rem 0.75rem; font-size: 13px; min-height: 2rem; }
+  .pop-hint { font-size: 12px; color: var(--sr-faint); }
+  .pop-step { width: 2rem; height: 2rem; border-radius: 999px; background: var(--sr-track); color: var(--sr-ink-2); font-weight: 800; }
+  .pop-step:disabled { opacity: 0.4; }
+  @media (max-width: 640px) {
+    .pop-row { grid-template-columns: 1fr; gap: 0.25rem; }
   }
 </style>

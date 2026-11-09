@@ -5,7 +5,7 @@
  * browser. Size is the drawn scale (2 is the desktop default: the staff is
  * drawn at half the page's width and abcjs scales it to fill it); bars
  * per line overrides score-layout's choice; spacing is ABC's %%staffsep.
- * Measure numbers (on unless switched off, under Annotations) are drawn
+ * Measure numbers (on unless switched off, Display > Under the notes > Bar numbers) are drawn
  * over every bar but the first.
  */
 export type LineSpacing = "tight" | "normal" | "wide";
