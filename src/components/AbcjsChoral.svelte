@@ -1,6 +1,7 @@
 <script lang="ts">
   import { NoteLight, hideCursor, makeCursor, placeCursor } from "../lib/score-cursor";
-  import LiveTeacher from "./LiveTeacher.svelte";
+  import TeachMenu from "./TeachMenu.svelte";
+  import { AHEAD_CHOICES, barOfElements, makeChunkVanisher, makeVanisher, parseAhead, type VanishAhead } from "../lib/vanishing-bars";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
@@ -27,7 +28,7 @@
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
-  import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
+  import { ASSIGNING_PARAM, RESUME_HREF, assigningFromUrl, saveDraft } from "../lib/assignment-draft";
   import { assignedExercise } from "../lib/practice";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
@@ -1234,6 +1235,24 @@
   let assignment: OpenAssignment | null = null;
   /** Opened from Create assignment, to set one up here (assignment-draft.ts). */
   const assigning = !assignmentId && assigningFromUrl();
+
+  /**
+   * Teach > Assign to a class (Educator), as on the Unison page: a UIL level
+   * left as it is goes as itself (class progress counts it), anything else as
+   * the teacher's own settings; the form opens at its last step.
+   */
+  $: canAssign = $usage?.tier === "educator" && !assignment && !assigning;
+  function assignThis() {
+    const uilKey = activeLevel && !presetEdited ? Object.entries(uilPresets).find(([, v]) => v === activeLevel)?.[0] : undefined;
+    const presetKey = uilKey ? `uil:${uilKey}` : "custom:choral";
+    const title = uilKey ? "" : activePresetLabel || `${selectedVoicing} in ${[...selectedKeys].join(", ")}`;
+    saveDraft({
+      presetKey, fixed: false, classIds: [], minutes: 15, dueAt: "", note: "", title,
+      custom: uilKey ? undefined : { name: title, params: { ...getCurrentParams() } as Record<string, unknown> },
+      ready: true,
+    });
+    location.href = RESUME_HREF;
+  }
   /** The assignment gives every student one exercise: no New exercise. */
   $: fixedExercise = assignment ? assignedExercise(assignment.params) : null;
 
@@ -2085,6 +2104,36 @@
    * Setting isStarted directly is abcjs's own pattern - setWarp does exactly
    * this before restarting.
    */
+  /** Disappearing bars (vanishing-bars.ts), remembered in this browser, as on the Unison page. */
+  const VANISH_KEY = "sr-vanish-bars";
+  let vanishBars = (() => { try { return typeof localStorage !== "undefined" && localStorage.getItem(VANISH_KEY) === "1"; } catch { return false; } })();
+  const vanisher = makeVanisher(() => (typeof document !== "undefined" ? document.getElementById("paper") : null));
+  function setVanishBars(on: boolean) {
+    vanishBars = on;
+    try { localStorage.setItem(VANISH_KEY, on ? "1" : "0"); } catch {}
+    if (!on) resetVanish();
+  }
+  /** How much goes at a time: the whole bar, or a chunk of 1 to 4 beats (vanishing-bars.ts). */
+  const AHEAD_KEY = "sr-vanish-ahead";
+  let vanishAhead: VanishAhead = (() => { try { return parseAhead(typeof localStorage !== "undefined" ? localStorage.getItem(AHEAD_KEY) : null); } catch { return "bar"; } })();
+  const chunkVanisher = makeChunkVanisher(() => (typeof document !== "undefined" ? document.getElementById("paper") : null));
+  function setVanishAhead(a: VanishAhead) {
+    vanishAhead = a;
+    try { localStorage.setItem(AHEAD_KEY, String(a)); } catch {}
+    resetVanish();
+  }
+  function resetVanish() {
+    vanisher.reset();
+    chunkVanisher.reset();
+  }
+  /** A note sounding: its chunk goes when it starts one (abcjs's timer: its note timings and tempo, the meter's beat). */
+  function vanishEvent(timer: any, event: any) {
+    if (!vanishBars || !event?.elements) return;
+    if (vanishAhead === "bar") return vanisher.reach(barOfElements(event.elements.flat()));
+    const qpm = Number(timer?.qpm) || 60;
+    chunkVanisher.reach(timer?.noteTimings, event, (vanishAhead * 60000) / qpm);
+  }
+
   function pausePlayback() {
     if (!synthControl) return;
     synthControl.pause();
@@ -2116,6 +2165,7 @@
   function rewindToStart() {
     if (!synthControl) return;
     pausePlayback();
+    resetVanish();
     synthControl.seek(0);
     // Beat mode steps only when the beat number changes, and this still held
     // the beat we paused on - so after rewinding it would sit out the first
@@ -2479,6 +2529,7 @@
       onFinished: () => {
         isPlaying = false;
         hidePlaybackCursor();
+        resetVanish();
         if (looping && synthControl) {
           synthControl.play().then(() => { isPlaying = true; });
         }
@@ -2500,6 +2551,8 @@
       },
       onEvent: (event: any) => {
         if (event?.elements) lastEventEls = event.elements.flat();
+        // Disappearing bars: the bar the music reaches is wiped (vanishing-bars.ts).
+        if (isPlaying) vanishEvent(synthControl?.timer, event);
         if (cursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (cursorMode === "note" && event && typeof event.left === "number") {
           movePlaybackCursor(event.left, event.top, event.height);
@@ -3568,153 +3621,90 @@
           <Eye size={16} aria-hidden="true" />Display
         </button>
         <!-- Live practice (Pro): every student's device on the director's live link follows this exercise, each on its own part. -->
-        {#if !assignment}
-          <LiveTeacher page="choral" abc={liveAbc} {bpm} title={liveTitle} />
-        {/if}
+        <TeachMenu page="choral" abc={liveAbc} {bpm} liveTitle={liveTitle} live={!assignment} onAssign={canAssign ? assignThis : null} />
         {#if toolPop}
           <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
           <div in:popIn out:popOut class="set-pop set-pop-tools" role="dialog" aria-label="Display">
             <p class="set-pop-title">Display</p>
             <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-      <div class="space-y-2">
-        <p class="sr-label">Playback sound</p>
-        <div class="sr-select">
-          <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
-          <select
-            class="sr-select-input"
-            aria-label="Playback sound"
-            value={instrumentProgram}
-            on:change={onInstrumentSelect}
-          >
-            {#each INSTRUMENTS as instrument}
-              <option value={instrument.program}>{instrument.label}</option>
+      <!-- One row a setting, its name on the left (9 November 2026, as the Unison page). -->
+      <div class="pop-rows">
+        <div class="pop-row" title="The sound it plays on. The exercise stays as it is.">
+          <span class="pop-row-label">Sound</span>
+          <div class="pop-row-ctl">
+            <div class="sr-select">
+              <Volume2 size={14} class="sr-select-ico" aria-hidden="true" />
+              <select class="sr-select-input" aria-label="Playback sound" value={instrumentProgram} on:change={onInstrumentSelect}>
+                {#each INSTRUMENTS as instrument}<option value={instrument.program}>{instrument.label}</option>{/each}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="pop-row" title="Plays higher or lower. The score is unchanged.">
+          <span class="pop-row-label">Transpose</span>
+          <div class="pop-row-ctl" role="group" aria-label="Playback transpose">
+            <button class="pop-step" on:click={() => handleTransposeChange(transposeSemitones - 1)} disabled={transposeSemitones <= MIN_TRANSPOSE} aria-label="Transpose playback down a semitone">−</button>
+            <span class="text-sm tabular-nums w-8 text-center">{transposeSemitones > 0 ? "+" : ""}{transposeSemitones}</span>
+            <button class="pop-step" on:click={() => handleTransposeChange(transposeSemitones + 1)} disabled={transposeSemitones >= MAX_TRANSPOSE} aria-label="Transpose playback up a semitone">+</button>
+            <span class="pop-hint">{transposeLabel(selectedKey, transposeSemitones)}</span>
+            {#if transposeSemitones !== 0}<button class="sr-tok" on:click={() => handleTransposeChange(0)}>Reset</button>{/if}
+          </div>
+        </div>
+
+        <div class="pop-row" title="Tap one to show it, again to hide it.">
+          <span class="pop-row-label">On the score</span>
+          <div class="pop-row-ctl" role="group" aria-label="Annotations">
+            <button class="sr-tok {showChords ? 'sr-on' : ''}" on:click={handleToggleChords} aria-pressed={showChords}>Chord symbols</button>
+            <button class="sr-tok {scoreView.measureNumbers !== false ? 'sr-on' : ''}" on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })} aria-pressed={scoreView.measureNumbers !== false}>Bar numbers</button>
+            {#each lyricSystems as [value, label]}
+              <button class="sr-tok {lyricSystem === value ? 'sr-on' : ''}" on:click={() => handleLyricSystem(value)} aria-pressed={lyricSystem === value}>{label}</button>
             {/each}
-          </select>
+          </div>
         </div>
-        <p class="text-xs text-sr-faint">
-          Changes the sound straight away. The exercise stays as it is.
-        </p>
-      </div>
-
-      <div class="space-y-2">
-        <p class="sr-label">Playback transpose</p>
-        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Playback transpose">
-          <button
-            class="sr-btn-quiet disabled:opacity-40"
-            on:click={() => handleTransposeChange(transposeSemitones - 1)}
-            disabled={transposeSemitones <= MIN_TRANSPOSE}
-            aria-label="Transpose playback down a semitone"
-          >−</button>
-          <span class="px-2 text-sm tabular-nums min-w-[3.5rem] text-center">
-            {transposeSemitones > 0 ? "+" : ""}{transposeSemitones}
-          </span>
-          <button
-            class="sr-btn-quiet disabled:opacity-40"
-            on:click={() => handleTransposeChange(transposeSemitones + 1)}
-            disabled={transposeSemitones >= MAX_TRANSPOSE}
-            aria-label="Transpose playback up a semitone"
-          >+</button>
-          {#if transposeSemitones !== 0}
-            <button
-              class="sr-btn-quiet"
-              on:click={() => handleTransposeChange(0)}
-            >Reset</button>
-          {/if}
-        </div>
-        <p class="text-xs text-sr-faint">
-          {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
-        </p>
-      </div>
-
-      <div class="space-y-2">
-        <p class="sr-label">Annotations</p>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Annotations">
-          <button
-            class="sr-tok {showChords ? 'sr-on' : ''}"
-            on:click={handleToggleChords}
-            aria-pressed={showChords}
-          >Chord symbols</button>
-          <button
-            class="sr-tok {scoreView.measureNumbers !== false ? 'sr-on' : ''}"
-            on:click={() => changeScoreView({ measureNumbers: scoreView.measureNumbers === false })}
-            aria-pressed={scoreView.measureNumbers !== false}
-          >Measure numbers</button>
-          {#each lyricSystems as [value, label]}
-            <button
-              class="sr-tok {lyricSystem === value ? 'sr-on' : ''}"
-              on:click={() => handleLyricSystem(value)}
-              aria-pressed={lyricSystem === value}
-            >{label}</button>
-          {/each}
-        </div>
-        <p class="text-xs text-sr-faint">
-          {#if showChords}
-            Chord symbols above the top staff{lyricSystem ? ", " : "."}
-          {/if}
-          {#if lyricSystem === "movable"}
-            Movable do {lyricWhere}: do is the tonic, so a tune reads the same in
-            every key.
-          {:else if lyricSystem === "fixed"}
-            Fixed do {lyricWhere}: C is do whatever the key.
-          {:else if lyricSystem === "names"}
-            The note names {lyricWhere}.
-          {:else if !showChords}
-            Clean: the same exercise, printed for sight-reading.
-          {/if}
-        </p>
         {#if lyricSystem && lyricVoices.length > 1}
           <!-- Which parts carry the syllables: the basses on solfège while the rest read the notes. -->
-          <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Solfège under">
-            <span class="text-xs text-sr-faint">Under</span>
-            {#each lyricVoices as name}
-              <button
-                class="sr-tok {lyricsOff.has(name) ? '' : 'sr-on'}"
-                aria-pressed={!lyricsOff.has(name)}
-                on:click={() => handleToggleLyricVoice(name)}
-              >{name}</button>
-            {/each}
+          <div class="pop-row" title="Which parts carry the syllables.">
+            <span class="pop-row-label">Syllables under</span>
+            <div class="pop-row-ctl" role="group" aria-label="Solfège under">
+              {#each lyricVoices as name}
+                <button class="sr-tok {lyricsOff.has(name) ? '' : 'sr-on'}" aria-pressed={!lyricsOff.has(name)} on:click={() => handleToggleLyricVoice(name)}>{name}</button>
+              {/each}
+            </div>
           </div>
         {/if}
         {#if lyricSystem === "movable" && [...selectedKeys].some((k) => isMinorKey(k))}
           <!-- How minor is sung: the tonic as la (the relative major's syllables) or as do. -->
-          <div class="flex flex-wrap items-center gap-2 pt-1" role="group" aria-label="Minor solfège">
-            <span class="text-xs text-sr-faint">Sing minor</span>
-            <button class="sr-tok {minorSolfege === 'la' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'la'}
-              on:click={() => { minorSolfege = "la"; void reRenderAnnotations(); }}>La-based</button>
-            <button class="sr-tok {minorSolfege === 'do' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'do'}
-              on:click={() => { minorSolfege = "do"; void reRenderAnnotations(); }}>Do-based</button>
+          <div class="pop-row" title={minorSolfege === "la" ? "In minor the tonic is la: la ti do re mi fa so." : "In minor the tonic is do: do re me fa so le te."}>
+            <span class="pop-row-label">Sing minor</span>
+            <div class="pop-row-ctl" role="group" aria-label="Minor solfège">
+              <button class="sr-tok {minorSolfege === 'la' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'la'} on:click={() => { minorSolfege = "la"; void reRenderAnnotations(); }}>La-based</button>
+              <button class="sr-tok {minorSolfege === 'do' ? 'sr-on' : ''}" aria-pressed={minorSolfege === 'do'} on:click={() => { minorSolfege = "do"; void reRenderAnnotations(); }}>Do-based</button>
+            </div>
           </div>
-          <p class="text-xs text-sr-faint">
-            {minorSolfege === "la" ? "In minor the tonic is la: la ti do re mi fa so." : "In minor the tonic is do: do re me fa so le te."}
-          </p>
         {/if}
-      </div>
 
-      <div class="space-y-2">
-        <p class="sr-label">Cursor</p>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="Cursor">
-          {#each cursorModes as mode}
-            <button
-              class="sr-tok {cursorMode === mode ? 'sr-on' : ''}"
-              on:click={() => (cursorMode = mode)}
-              aria-pressed={cursorMode === mode}
-            >{cursorModeLabels[mode]}</button>
-          {/each}
+        <div class="pop-row" title="Smooth travels with the music, beat by beat steps on each beat, note by note waits on each note.">
+          <span class="pop-row-label">Cursor</span>
+          <div class="pop-row-ctl" role="group" aria-label="Cursor">
+            {#each cursorModes as mode}
+              <button class="sr-tok {cursorMode === mode ? 'sr-on' : ''}" on:click={() => (cursorMode = mode)} aria-pressed={cursorMode === mode}>{cursorModeLabels[mode]}</button>
+            {/each}
+          </div>
         </div>
-        <p class="text-xs text-sr-faint">
-          {cursorMode === "off"
-            ? "No cursor during playback."
-            : cursorMode === "smooth"
-              ? "Travels along with the music."
-              : cursorMode === "beat"
-                ? "Steps on every beat."
-                : "Lands on each note and waits there."}
-        </p>
-      </div>
+
+        <!-- Disappearing bars (vanishing-bars.ts): the music goes as it is reached, a bar or a chunk of beats at a time. -->
+        <div class="pop-row" title="The music disappears as you reach it, a bar or a few beats at a time, so you have to read ahead. It all comes back when you stop.">
+          <span class="pop-row-label">Disappearing</span>
+          <div class="pop-row-ctl" role="group" aria-label="Disappearing bars" data-vanish-bars>
+            <button class="sr-tok {!vanishBars ? 'sr-on' : ''}" aria-pressed={!vanishBars} on:click={() => setVanishBars(false)}>Off</button>
+            {#each AHEAD_CHOICES as a}
+              <button class="sr-tok {vanishBars && vanishAhead === a ? 'sr-on' : ''}" aria-pressed={vanishBars && vanishAhead === a} on:click={() => { setVanishBars(true); setVanishAhead(a); }}>{a === "bar" ? "Bar" : `${a} beat${a === 1 ? "" : "s"}`}</button>
+            {/each}
+          </div>
+        </div>
       </div>
             </div>
-            <p class="text-xs text-sr-faint mt-4">These change how the exercise looks and sounds. The notes stay the same.</p>
             <div class="set-pop-foot">
               <button class="sr-tok" on:click={() => closePops()}>Done</button>
             </div>
@@ -4117,5 +4107,17 @@
     height: auto;
     max-width: 100%;
     max-height: 100%;
+  }
+  /* The Display menu: one row a setting, its name on the left (as the Unison page's). */
+  .pop-rows { display: flex; flex-direction: column; gap: 0.35rem; }
+  .pop-row { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.75rem; padding: 0.15rem 0; }
+  .pop-row-label { font-size: 13px; font-weight: 800; color: var(--sr-ink-2); }
+  .pop-row-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+  .pop-row-ctl :global(.sr-tok) { padding: 0.3rem 0.75rem; font-size: 13px; min-height: 2rem; }
+  .pop-hint { font-size: 12px; color: var(--sr-faint); }
+  .pop-step { width: 2rem; height: 2rem; border-radius: 999px; background: var(--sr-track); color: var(--sr-ink-2); font-weight: 800; }
+  .pop-step:disabled { opacity: 0.4; }
+  @media (max-width: 640px) {
+    .pop-row { grid-template-columns: 1fr; gap: 0.25rem; }
   }
 </style>

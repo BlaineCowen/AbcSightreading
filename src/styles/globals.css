@@ -257,6 +257,9 @@ body {
   pointer-events: none;
 }
 svg .sr-now { fill: var(--sr-action); }
+/* Disappearing bars (vanishing-bars.ts): a bar the music has reached, wiped. */
+svg .sr-gone { opacity: 0; transition: opacity 120ms linear; }
+@media (prefers-reduced-motion: reduce) { svg .sr-gone { transition: none; } }
 /* Where Play starts on a practice page (start-point.ts): a tapped note or the
    paused place, orange as My music's start line, with its label under it. */
 svg .sr-start-line rect { fill: #e07a1f; }

@@ -2691,6 +2691,8 @@ export function createNewSr(params: any) {
 
 /** Rhythms tried for a line over a chord progression before the older walk writes it. */
 const PROGRESSION_RHYTHMS = 6;
+/** Draws of a line over the same rhythm before one that stays on one pitch is kept. */
+const ONE_PITCH_DRAWS = 8;
 
 /** Tries for an exercise that has every selected chromatic note. See createNewSr. */
 const CHROMATIC_ATTEMPTS = 6;
@@ -3073,7 +3075,7 @@ function createNewSrOnce(params: any) {
      * take a line (a chromatic note with nowhere to resolve, say) is drawn
      * again, PROGRESSION_RHYTHMS times, before the older walk writes it.
      */
-    const drawBoth = (): { rhythm: RhythmWithPattern[]; line: any[] } => {
+    const drawOnce = (): { rhythm: RhythmWithPattern[]; line: any[] } => {
       if (useProgressions) {
         for (let a = 0; a < PROGRESSION_RHYTHMS; a++) {
           const rhythm = drawRhythm();
@@ -3083,6 +3085,23 @@ function createNewSrOnce(params: any) {
       }
       const rhythm = drawRhythm();
       return { rhythm, line: walkLine(rhythm) };
+    };
+    /**
+     * One pitch all through is no exercise (9 November 2026: do and mi in a
+     * soprano's, alto's, tenor's or bass's range came out one note for all 8
+     * bars about a time in four, a do more than a skip from any mi repeated
+     * once started on). Drawn again, rhythm and line, up to ONE_PITCH_DRAWS
+     * times while the notes chosen give more than one pitch; the last is kept.
+     */
+    const selectedPitches = new Set(unisonNoteList.filter((n) => (params.scaleDegrees as Set<number>).has(n.degree)).map((n) => n.pitchValue));
+    const drawBoth = (): { rhythm: RhythmWithPattern[]; line: any[] } => {
+      let got = drawOnce();
+      for (let t = 1; t < ONE_PITCH_DRAWS && selectedPitches.size > 1; t++) {
+        const sung = (got.line[1] as Note[]).filter((_, k) => !got.rhythm[k]?.rest).map((n) => n.pitchValue);
+        if (new Set(sung).size > 1) break;
+        got = drawOnce();
+      }
+      return got;
     };
     const walkLine = (rhythm: RhythmWithPattern[]) =>
       generateChordProgression(

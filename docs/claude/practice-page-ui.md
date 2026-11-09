@@ -35,6 +35,15 @@ end of each settings row, the navbar (desktop icon, Take the tour on a
 phone), `?tour=1`, or `/how-to-use`. Keep `data-tour` on the controls when
 moving them.
 
+Defaults on a first visit (checked in a fresh browser on production, 9
+November 2026): treble, F major, do mi so, 8 bars, Reading as Any, no
+solfège, no rhythm syllables, counting voice off (`DEFAULT_VOICE`). Quick
+start's step 1 is a rhythm drill and shows ta and ti-ti by design. Blaine:
+annotations stay off by default; the tour's Display step says they can be
+added, and that a teacher can set up their own syllables on the account.
+Anything else someone sees (a tenor's treble-8, say) is their own browser's
+saved settings (`sightReadingOptions`, the reader) or a link's.
+
 abcStepByStep is easier to find: the preset menu opens on it when no
 built-in preset is active (`sectionToOpen`), a mint strip above the
 settings shows the step, what it adds, All steps (`sr-open-presets`, which
@@ -197,6 +206,69 @@ last part on keeps its syllables (none at all is the system's own button).
 Full-length pieces honour it in every section. It rides in links
 (`solfegeOff=`), presets and the "edited" signature, and is in the full-screen
 Annotations menu.
+
+## The preset row and the Teach pill (9 November 2026)
+
+Blaine: "That top bar is getting really cluttered", then "lets do the teach
+pill". The preset row (PresetDropdown) is three pills: Preset (mint),
+Reading as (sky, Unison only), Class (butter, `.class-pill`, a select sized
+to the class chosen with `field-sizing: content`). Save current and "Saved
+to your account" left the row: saving is the Preset menu's footer, **Save
+these settings** (with where they are kept); the row still offers Save, Save
+as new, Keep as my version and Revert while a preset is edited.
+
+The score toolbar is Display, Drill (Unison), **Teach** and Listen and
+grade. `TeachMenu.svelte` holds Assign to a class (Educator, `usage` tier;
+both pages, `assignThis`), Go live (LiveTeacher with `item`, which binds
+`status` and `student` up) and Make a play-along video (Unison). The menu
+is always in the page and only hidden, so Live keeps its session while it
+is shut; while Live is on, the pill is mint and reads "Live CODE · devices".
+A student account gets the Video button alone, as before. On a phone the
+menu is a sheet above the playback bar. The Ensemble page keeps its own
+Live button. A TypeScript cast inside Svelte 4 markup compiles nowhere but
+passes `astro check`: keep casts in the script.
+
+## Disappearing bars (9 November 2026)
+
+Blaine: "an option to the display for disappearing measures. This will
+erase the measure we get to so you are forced to read it faster". Display >
+Read ahead > **Disappearing bars** on Unison and Choral, kept in this
+browser (`sr-vanish-bars`). `src/lib/vanishing-bars.ts` (tests
+`vanishing-bars.test.ts`): each playing event's bar comes from abcjs's
+`abcjs-mm<n>` class, and that bar's music (notes with their ledger lines,
+rests, beams, lyrics, chord symbols) takes `.sr-gone` (opacity 0,
+globals.css); the clef, key, time signature, bar lines and bar numbers stay.
+A bar earlier than the last (a loop, a repeat, a jump back) brings them all
+back first; Stop, the end, turning it off, and a Grade run ending bring
+everything back. Choral wipes only while `isPlaying`: Stop's seek to 0 fires
+the first bar's event and wiped bar 1 again. Checked in headless Chrome at
+120 bpm on both pages: bars wiped behind the cursor, none after Stop.
+
+**In chunks** (same day, Blaine: not always erasing 2 beats ahead, but "2
+beat chunks that will disappear when the cursor gets there"): under the
+toggle, Disappears a bar at a time (the above) or 1, 2, 3 or 4 beats at a
+time (`sr-vanish-ahead`). `chunksOf` cuts each bar into chunks of that many
+of the meter's beats from its first note (abcjs's `noteTimings`, `qpm`);
+`makeChunkVanisher` runs on each note's event, and when a note starts a new
+chunk the whole chunk goes, with everything drawn in its bar up to the
+chunk's last note (`hideThrough`: lyrics, beams). A note earlier than the
+last brings all back. Checked at 60 bpm, 2-beat chunks, on both pages.
+
+## The Display and Drill menus (9 November 2026)
+
+Blaine: "lets lean up the display and drill ui... It always feels clunk and
+weird to have to scroll inside that menu". Both are rows now (`.pop-rows`,
+`.pop-row`: the setting's name in a 8.5rem column, its choices beside it,
+smaller tokens; one column on a phone), the long explanations moved into
+each row's hover title, and a short hint inline only where a number needs
+one (transpose's key, the speed ramp's tempos). Display: Sound, Transpose,
+Under the notes (Choral: On the score, then Syllables under and Sing minor
+when they apply), Dynamics (Unison), Cursor, and Disappearing as one row
+(Off, Bar, 1 to 4 beats). Drill: Start drill, Exercises, Times each, Speed
+up, Reading time, and **On the repeats** folded shut (`<details>`,
+`drillRepeatsOpen`), its six rows inside. Measured on a 1440 x 900 laptop:
+Display 590 to 389 px tall, Drill 630 to 352, both clear of the playback
+bar; on a phone the Display sheet fits without scrolling.
 
 ## The playing cursor
 

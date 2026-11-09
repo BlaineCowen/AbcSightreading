@@ -203,6 +203,8 @@ model PieceAttempt {
   deleteAfter   DateTime
   /// A sight-reading assignment's attempt: the link to the exercise sung or clapped (each is new). Null for a piece.
   exercise      String?
+  /// A portfolio checkpoint's rubric level (1-4, src/lib/portfolio.ts RUBRIC), given by the teacher. Null until scored.
+  rubric        Int?
 
   @@index([assignmentId, studentId])
   @@map("piece_attempt")

@@ -9,6 +9,8 @@
   import { authClient } from "../lib/auth-client";
   import AssignmentWizard from "./AssignmentWizard.svelte";
   import Gradebook from "./Gradebook.svelte";
+  import Portfolio from "./Portfolio.svelte";
+  import { portfolioShown } from "../lib/portfolio";
 
   /**
    * A class's assignments. Two kinds, kept apart wherever they show:
@@ -57,6 +59,7 @@
   let openId: string | null = null;
   let showWeek = false;
   let showBook = false;
+  let showPortfolio = false;
 
   // ── Google Classroom: post an assignment, then send its grades (classroom-grades.ts) ──
   let gcBusy: string | null = null;
@@ -154,12 +157,14 @@
     {#if students.length}
       <span class="flex items-center gap-3">
         {#if assignments.length}<button class="text-xs text-sr-action-fg font-semibold underline" aria-expanded={showBook} on:click={() => (showBook = !showBook)}>{showBook ? "Hide gradebook" : "Gradebook"}</button>{/if}
+        {#if portfolioShown()}<button class="text-xs text-sr-action-fg font-semibold underline" aria-expanded={showPortfolio} on:click={() => (showPortfolio = !showPortfolio)}>{showPortfolio ? "Hide portfolio" : "Portfolio"}</button>{/if}
         <button class="text-xs text-sr-muted underline" on:click={() => (showWeek = !showWeek)}>{showWeek ? "Hide" : "Practice this week"}</button>
       </span>
     {/if}
   </div>
 
   {#if showBook}<Gradebook {className} {students} {assignments} />{/if}
+  {#if showPortfolio}<Portfolio {classId} {className} />{/if}
 
   {#if showWeek}
     <table class="text-sm w-full">

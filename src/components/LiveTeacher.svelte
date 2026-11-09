@@ -23,6 +23,14 @@
   export let bpm: number;
   export let title = "";
   export let rhythm = false;
+  /** A row of the Teach menu (TeachMenu.svelte) rather than a button of its own. */
+  export let item = false;
+  /** While Live is on: its code and devices, for the Teach pill to show (bind:status). */
+  export let status: { display: string; connected: number } | null = null;
+  /** A student account: nothing to show (bind:student), so the Teach menu can step aside. */
+  export let student = false;
+  $: student = isStudent;
+  $: status = session ? { display: session.display, connected } : null;
 
   type Room = { code: string; display: string; path: string; live: boolean; page: string; version: number };
 
@@ -275,6 +283,22 @@
 
 {#if isStudent}
   <!-- nothing: students follow a session at /live -->
+{:else if item}
+  <button type="button" role="menuitem" class="teach-item" on:click={start} disabled={busy}>
+    {#if session}
+      <span class="live-dot" aria-hidden="true"></span>
+      <span class="flex flex-col text-left">
+        <span class="font-bold">Live is on: {session.display}</span>
+        <span class="text-xs opacity-80">{connected} {connected === 1 ? "device" : "devices"} following. Show the code and QR again</span>
+      </span>
+    {:else}
+      <Radio size={18} aria-hidden="true" />
+      <span class="flex flex-col text-left">
+        <span class="font-bold">Go live {#if allowed === false}<span class="live-pro-tag">Pro</span>{/if}</span>
+        <span class="text-xs opacity-80">Every student's phone or laptop follows this page, each on their own part</span>
+      </span>
+    {/if}
+  </button>
 {:else if session}
   <button
     class="live-btn sr-btn-live-on shrink-0 no-print"

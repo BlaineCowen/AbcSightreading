@@ -1,0 +1,12 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import PartsPicker from "../../components/PartsPicker.svelte";
+
+// Dev server only: the assignment form's part picker (assignment-parts.ts),
+// to see and check it with no account. 404 anywhere but `bun run dev`.
+if (!import.meta.env.DEV) return new Response(null, { status: 404 });
+---
+
+<Layout noindex title="Parts (dev)">
+  <div class="w-full max-w-xl px-4 pb-16"><PartsPicker client:only="svelte" readers={["soprano", "alto", "tenor", "bass"]} /></div>
+</Layout>

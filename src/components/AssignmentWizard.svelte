@@ -12,10 +12,12 @@
   import { courseItems, itemForKey, type CourseItem, type OwnPreset } from "../lib/class-course";
   import { trackById } from "../lib/curriculum/tracks";
   import { MAX_MINUTES, isCustomKey } from "../lib/practice";
+  import { MAX_TRIES, RUBRIC, STAGES, keepUntil, portfolioShown, type Stage as CheckpointStage } from "../lib/portfolio";
   import { clearDraft, designHref, draftComplete, needsPage, saveDraft, type AssignDraft } from "../lib/assignment-draft";
   import { uploadPiece } from "../lib/pieces/client";
   import { ACCEPTED, isPieceFileName } from "../lib/pieces/rules";
   import AssignPieceForm from "./pieces/AssignPieceForm.svelte";
+  import PartsPicker from "./PartsPicker.svelte";
 
   /**
    * Create an assignment, in the order a teacher thinks of one: what kind
@@ -48,6 +50,14 @@
   let title = "";
   let custom: AssignDraft["custom"];
   let exercise: string | undefined;
+  /** A portfolio checkpoint: graded tries kept through the school year (Unison page only). */
+  let checkpointOn = false;
+  let checkpointStage: CheckpointStage = "boy";
+  let checkpointTries = 1;
+  /** Students pick their part (assignment-parts.ts): which parts, and each one's range. */
+  let partsOn = false;
+  let partReaders: string[] = ["soprano", "alto", "tenor", "bass"];
+  let partRanges: Record<string, { min: number; max: number }> = {};
   let busy = false;
   let problem = "";
   let sentTo: string[] = [];
@@ -79,6 +89,8 @@
     void loadCourses();
     if (!resume) return;
     ({ presetKey, fixed, minutes, dueAt, note, title, custom, exercise } = resume);
+    if (resume.parts) ({ readers: partReaders, ranges: partRanges } = resume.parts), (partsOn = true);
+    if (resume.checkpoint) ({ stage: checkpointStage, tries: checkpointTries } = resume.checkpoint as { stage: CheckpointStage; tries: number }), (checkpointOn = true);
     classIds = resume.classIds.filter((id) => classes.some((c) => c.id === id));
     if (!classIds.length && preselect) classIds = [preselect];
     stage = draftComplete(resume) ? "details" : "design";
@@ -86,7 +98,12 @@
     root?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
-  const draft = (): AssignDraft => ({ presetKey, fixed, classIds, minutes, dueAt, note, title, custom, exercise });
+  const draft = (): AssignDraft => ({ presetKey, fixed, classIds, minutes, dueAt, note, title, custom, exercise, checkpoint: checkpointOn ? { stage: checkpointStage, tries: checkpointTries } : null, parts: partsOn ? { readers: partReaders, ranges: partRanges } : null });
+  $: partsHere = checkpointHere && !fixed;
+  $: if (!partsHere) partsOn = false;
+  $: checkpointHere = pageName === "Unison";
+  $: if (!checkpointHere) checkpointOn = false;
+  const keptTill = keepUntil().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
 
   /** Off to the page to set it up or write the exercise; the page brings the teacher back. */
   function toPage() {
@@ -116,11 +133,14 @@
 
   async function send() {
     problem = "";
-    if (!classIds.length) return void (problem = "Choose at least one class.");
+    if (!classIds.length) return void (problem = "Choose a class first: tap its name under Which classes.");
+    if (partsOn && !partReaders.length) return void (problem = "Choose the parts students pick from, or untick Students pick their part.");
     busy = true;
     const body = {
       presetKey,
-      minutes,
+      minutes: checkpointOn && !minutes ? 0 : minutes,
+      ...(checkpointOn ? { checkpoint: { stage: checkpointStage, tries: checkpointTries } } : {}),
+      ...(partsOn ? { parts: { readers: partReaders, ranges: partRanges } } : {}),
       dueAt,
       note,
       ...(fixed && exercise ? { exercise } : {}),
@@ -241,9 +261,9 @@
       <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Start from
         <select class={input} bind:value={presetKey} on:change={changed}>
           <option value="" disabled>Choose…</option>
-          <optgroup label="Set it up yourself">
-            <option value="custom:unison">Custom: one line (Unison page)</option>
-            <option value="custom:choral">Custom: parts (Choral page)</option>
+          <optgroup label="Build your own">
+            <option value="custom:unison">Build my own: one melody everyone reads (Unison page)</option>
+            <option value="custom:choral">Build my own: harmony in parts, SATB (Choral page)</option>
           </optgroup>
           {#each ladderStages() as s}
             <optgroup label="abcStepByStep: {s.stage}">
@@ -270,6 +290,7 @@
             </optgroup>
           {/if}
         </select>
+        {#if !presetKey}<span class="text-xs text-sr-muted">Not sure? Choose <strong>Build my own: one melody</strong>, then pick the key, notes and rhythms yourself. Voice parts come at the last step.</span>{/if}
       </label>
 
       {#if isCustom}
@@ -340,9 +361,14 @@
         <strong>{labelOf}</strong>{fixed ? ", one exercise for everyone" : ", new exercises each time"}
         <button type="button" class="ml-1 sr-link text-sm" on:click={() => (stage = "design")}>Change</button>
       </p>
+      {#if isCustom}
+        <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Title <span class="text-xs text-sr-faint">what students see on their list</span>
+          <input class={input} bind:value={title} maxlength="80" placeholder="Week 6: do to so in G" />
+        </label>
+      {/if}
       {#if classes.length > 1}
         <fieldset class="flex flex-col gap-1">
-          <legend class="text-sm text-sr-ink-2 mb-1">Classes</legend>
+          <legend class="text-sm text-sr-ink-2 mb-1">Which classes? <span class="text-xs text-sr-faint">tap one or more</span></legend>
           <div class="flex flex-wrap gap-2">
             {#each classes as c (c.id)}
               <button type="button" class="sr-tok" class:sr-on={classIds.includes(c.id)} aria-pressed={classIds.includes(c.id)} on:click={() => toggleClass(c.id)}>{c.name}</button>
@@ -350,8 +376,41 @@
           </div>
         </fieldset>
       {/if}
+      {#if partsHere}
+        <fieldset class="checkpoint flex flex-col gap-2" data-parts>
+          <label class="text-sm text-sr-ink flex items-center gap-2 font-semibold">
+            <input type="checkbox" bind:checked={partsOn} /> Students pick their part
+          </label>
+          <p class="text-xs text-sr-muted">One assignment for the whole ensemble. Each student chooses their voice part or instrument, and the exercise is written in that part's clef and range.</p>
+          {#if partsOn}<PartsPicker bind:readers={partReaders} bind:ranges={partRanges} />{/if}
+        </fieldset>
+      {/if}
+      {#if checkpointHere && portfolioShown()}
+        <fieldset class="checkpoint flex flex-col gap-2" data-checkpoint>
+          <label class="text-sm text-sr-ink flex items-center gap-2 font-semibold">
+            <input type="checkbox" bind:checked={checkpointOn} on:change={() => (minutes = checkpointOn ? 0 : 15)} /> Portfolio checkpoint
+          </label>
+          <p class="text-xs text-sr-muted">
+            For a growth record (a TIA portfolio, or your own). Each student sight-reads a new exercise at this level under test conditions; their score and recording are kept until {keptTill}, and you give each a rubric level from 1 to {RUBRIC.length} on the class's Portfolio.
+          </p>
+          {#if checkpointOn}
+            <div class="flex flex-wrap gap-3">
+              <label class="text-sm text-sr-ink-2 flex items-center gap-2">Which
+                <select class={input} bind:value={checkpointStage}>
+                  {#each Object.entries(STAGES) as [k, label]}<option value={k}>{label}</option>{/each}
+                </select>
+              </label>
+              <label class="text-sm text-sr-ink-2 flex items-center gap-2">Tries
+                <select class={input} bind:value={checkpointTries}>
+                  {#each Array.from({ length: MAX_TRIES }, (_, i) => i + 1) as n}<option value={n}>{n}</option>{/each}
+                </select>
+              </label>
+            </div>
+          {/if}
+        </fieldset>
+      {/if}
       <div class="flex flex-wrap gap-3">
-        <label class="text-sm text-sr-ink-2 flex items-center gap-2">Minutes <input class="{input} w-20" type="number" min="1" max={MAX_MINUTES} bind:value={minutes} required /></label>
+        <label class="text-sm text-sr-ink-2 flex items-center gap-2">Minutes{#if checkpointOn} <span class="text-xs text-sr-faint">optional</span>{/if} <input class="{input} w-20" type="number" min={checkpointOn ? 0 : 1} max={MAX_MINUTES} bind:value={minutes} required={!checkpointOn} /></label>
         <label class="text-sm text-sr-ink-2 flex items-center gap-2">Due <input class={input} type="date" min={today} bind:value={dueAt} /></label>
       </div>
       <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Note for students <span class="text-xs text-sr-faint">optional</span>
@@ -359,7 +418,7 @@
       </label>
       {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
       <div class="flex flex-wrap gap-2">
-        <button type="button" class="sr-btn text-sm" disabled={busy || !classIds.length} on:click={send}>
+        <button type="button" class="sr-btn text-sm" disabled={busy} on:click={send}>
           {busy ? "Sending…" : classIds.length > 1 ? `Send to ${classIds.length} classes` : `Send to ${classIds.length ? nameOf(classIds[0]) : "students"}`}
         </button>
         <button type="button" class="sr-btn-quiet text-sm" on:click={() => (stage = "design")}>Back</button>
@@ -380,6 +439,15 @@
 </section>
 
 <style>
+  .checkpoint {
+    border: 1px solid var(--sr-hairline);
+    border-radius: 16px;
+    padding: 0.75rem 0.9rem;
+    background: var(--sr-sky);
+    --sr-ink: var(--sr-sky-ink);
+    --sr-ink-2: var(--sr-sky-ink);
+    --sr-muted: var(--sr-sky-ink);
+  }
   .wizard {
     border: 1px solid var(--sr-hairline);
     border-radius: 20px;

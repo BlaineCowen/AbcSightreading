@@ -434,10 +434,10 @@
       <button class="sr-btn text-sm px-2 py-1" on:click={handleAddClass}>Add</button>
       <button class="text-sm text-sr-muted underline" on:click={() => (addingClass = false)}>Cancel</button>
     {:else}
-      <label class="inline-flex items-center gap-1 text-xs text-sr-muted">
-        Class
+      <label class="class-pill">
+        <span class="class-pill-label">Class</span>
         <select
-          class="bg-sr-track border-0 rounded-full pl-3 pr-8 py-1.5 text-sm font-bold text-sr-ink-2 focus:outline-none focus:ring-2 focus:ring-sr-action"
+          class="class-pill-select"
           value={$selectedClassId ?? ''}
           on:change={onClassChange}
         >
@@ -500,11 +500,6 @@
     {#if onRevert}
       <button class="text-xs text-sr-muted underline" on:click={onRevert} title="Put back the settings “{activeLabel}” was loaded with">Revert</button>
     {/if}
-  {:else}
-    <button
-      class="flex items-center gap-1 border-2 border-dashed border-sr-hairline text-sr-action-fg font-bold rounded-full px-3 py-1.5 text-xs hover:bg-sr-track"
-      on:click={openSaveAs}
-    ><Plus size={14} /> Save current</button>
   {/if}
 
   {#if activeTrackKey && ownVersion && !edited && onKeepVersion}
@@ -513,9 +508,7 @@
     </span>
   {/if}
 
-  {#if synced}
-    <span class="text-xs text-sr-faint" title="Saved to your account, so they follow you to any device">Saved to your account</span>
-  {:else if savedLocally}
+  {#if savedLocally}
     <SignupHint id="save-preset">Saved in this browser only.</SignupHint>
   {/if}
 
@@ -753,7 +746,7 @@
           {#if savedPresets.length === 0 && otherPresets.length === 0}
             <p class="text-sm text-sr-muted px-2 py-4">
               Nothing saved yet. Set things up the way you like, then choose
-              <strong>Save current</strong>.
+              <strong>Save these settings</strong> below.
             </p>
             <p class="px-2 pb-2">
               <SignupHint id="presets-tab" dismissible={false}>With an account, your presets follow you to every device.</SignupHint>
@@ -827,6 +820,55 @@
           {/if}
         {/if}
       </div>
+      <!-- Saving lives here, not on the row (9 November 2026: the row was cluttered). -->
+      <div class="flex items-center gap-2 border-t border-sr-hairline-2 px-3 py-2">
+        <button
+          type="button"
+          class="flex items-center gap-1 text-sr-action-fg font-bold rounded-full px-3 py-1.5 text-sm hover:bg-sr-track"
+          on:click={() => { open = false; openSaveAs(); }}
+          data-save-current
+        ><Plus size={14} /> Save these settings</button>
+        <span class="ml-auto text-xs text-sr-faint">{synced ? "Saved to your account" : "Saved in this browser"}</span>
+      </div>
     </div>
   {/if}
 </div>
+
+<style>
+  /* Class as a pill like Preset and Reading as: the label small, the class bold, butter. */
+  .class-pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 1rem;
+    border-radius: 999px;
+    background: var(--sr-butter);
+    color: var(--sr-butter-ink);
+  }
+  .class-pill:focus-within {
+    box-shadow: 0 0 0 2px var(--sr-action);
+  }
+  .class-pill-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    opacity: 0.75;
+  }
+  .class-pill-select {
+    appearance: none;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' opacity='0.6'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 0.9rem center;
+    border: 0;
+    color: inherit;
+    font-size: 0.875rem;
+    font-weight: 800;
+    padding: 0.5rem 2.2rem 0.5rem 0;
+    max-width: 14rem;
+    /* As wide as the class chosen, not the longest in the list. */
+    field-sizing: content;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .class-pill-select:focus {
+    outline: none;
+  }
+</style>
