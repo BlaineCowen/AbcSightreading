@@ -262,6 +262,19 @@ As shipped, 8 October 2026: 0 failures in 12,960 Unison and NYSSMA sweep
 exercises, the NYSSMA chart clean. The ladder and course checks already
 matched (their steps carry `progressions: maxSkip > 1`).
 
+**Never one pitch all through** (9 November 2026, found walking an SATB
+assignment in F, do and mi, as a Bass): with do and mi alone, a soprano's,
+alto's, tenor's or bass's range holds a do more than a fifth (Max skip 4)
+from any mi (a soprano's F5, a bass's low A2 to F3 the other way), and a
+line started there could only repeat it: 1 exercise in 4 was one note for
+8 bars, from the older walk (the progression writer was not the one). The
+narrow treble default (C4 to G4) never strands one, which is why it went
+unseen. `drawBoth` in generateUnison.ts now draws again, rhythm and line,
+up to `ONE_PITCH_DRAWS` (8) while the line sings one pitch and the notes
+chosen give more than one; measured 60 exercises x 5 ranges x do mi, do so,
+do mi so, do re mi: 0 one-pitch (was 11 to 22 in 60 for do mi). Unit tests,
+snapshots, check:rhythm and the sweep unchanged.
+
 ### Minor keys (Unison)
 
 The Unison page has a second row of keys, the relative minors (Fm Cm Gm Dm

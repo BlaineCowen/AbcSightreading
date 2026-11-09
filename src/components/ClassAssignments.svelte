@@ -10,6 +10,7 @@
   import AssignmentWizard from "./AssignmentWizard.svelte";
   import Gradebook from "./Gradebook.svelte";
   import Portfolio from "./Portfolio.svelte";
+  import { portfolioShown } from "../lib/portfolio";
 
   /**
    * A class's assignments. Two kinds, kept apart wherever they show:
@@ -156,7 +157,7 @@
     {#if students.length}
       <span class="flex items-center gap-3">
         {#if assignments.length}<button class="text-xs text-sr-action-fg font-semibold underline" aria-expanded={showBook} on:click={() => (showBook = !showBook)}>{showBook ? "Hide gradebook" : "Gradebook"}</button>{/if}
-        <button class="text-xs text-sr-action-fg font-semibold underline" aria-expanded={showPortfolio} on:click={() => (showPortfolio = !showPortfolio)}>{showPortfolio ? "Hide portfolio" : "Portfolio"}</button>
+        {#if portfolioShown()}<button class="text-xs text-sr-action-fg font-semibold underline" aria-expanded={showPortfolio} on:click={() => (showPortfolio = !showPortfolio)}>{showPortfolio ? "Hide portfolio" : "Portfolio"}</button>{/if}
         <button class="text-xs text-sr-muted underline" on:click={() => (showWeek = !showWeek)}>{showWeek ? "Hide" : "Practice this week"}</button>
       </span>
     {/if}

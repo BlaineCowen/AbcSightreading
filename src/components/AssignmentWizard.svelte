@@ -12,7 +12,7 @@
   import { courseItems, itemForKey, type CourseItem, type OwnPreset } from "../lib/class-course";
   import { trackById } from "../lib/curriculum/tracks";
   import { MAX_MINUTES, isCustomKey } from "../lib/practice";
-  import { MAX_TRIES, RUBRIC, STAGES, keepUntil, type Stage as CheckpointStage } from "../lib/portfolio";
+  import { MAX_TRIES, RUBRIC, STAGES, keepUntil, portfolioShown, type Stage as CheckpointStage } from "../lib/portfolio";
   import { clearDraft, designHref, draftComplete, needsPage, saveDraft, type AssignDraft } from "../lib/assignment-draft";
   import { uploadPiece } from "../lib/pieces/client";
   import { ACCEPTED, isPieceFileName } from "../lib/pieces/rules";
@@ -385,7 +385,7 @@
           {#if partsOn}<PartsPicker bind:readers={partReaders} bind:ranges={partRanges} />{/if}
         </fieldset>
       {/if}
-      {#if checkpointHere}
+      {#if checkpointHere && portfolioShown()}
         <fieldset class="checkpoint flex flex-col gap-2" data-checkpoint>
           <label class="text-sm text-sr-ink flex items-center gap-2 font-semibold">
             <input type="checkbox" bind:checked={checkpointOn} on:change={() => (minutes = checkpointOn ? 0 : 15)} /> Portfolio checkpoint

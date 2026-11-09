@@ -14,6 +14,14 @@
  * order, with the change from the first to the last. Tests portfolio.test.ts.
  */
 
+/**
+ * Held back from the live site (Blaine, 9 November 2026: "hold off on
+ * portfolio stuff"): the checkpoint option and the class's Portfolio show on
+ * dev and local servers only. The server side stays, unused until then.
+ * Delete this, and its two uses, to put it live.
+ */
+export const portfolioShown = () => typeof location === "undefined" || !/^(www\.)?abc-sightreading\.com$/.test(location.hostname);
+
 export const STAGES = { boy: "Beginning of year", moy: "Middle of year", eoy: "End of year", other: "Checkpoint" } as const;
 export type Stage = keyof typeof STAGES;
 export const MAX_TRIES = 3;
