@@ -228,6 +228,22 @@ menu is a sheet above the playback bar. The Ensemble page keeps its own
 Live button. A TypeScript cast inside Svelte 4 markup compiles nowhere but
 passes `astro check`: keep casts in the script.
 
+## Disappearing bars (9 November 2026)
+
+Blaine: "an option to the display for disappearing measures. This will
+erase the measure we get to so you are forced to read it faster". Display >
+Read ahead > **Disappearing bars** on Unison and Choral, kept in this
+browser (`sr-vanish-bars`). `src/lib/vanishing-bars.ts` (tests
+`vanishing-bars.test.ts`): each playing event's bar comes from abcjs's
+`abcjs-mm<n>` class, and that bar's music (notes with their ledger lines,
+rests, beams, lyrics, chord symbols) takes `.sr-gone` (opacity 0,
+globals.css); the clef, key, time signature, bar lines and bar numbers stay.
+A bar earlier than the last (a loop, a repeat, a jump back) brings them all
+back first; Stop, the end, turning it off, and a Grade run ending bring
+everything back. Choral wipes only while `isPlaying`: Stop's seek to 0 fires
+the first bar's event and wiped bar 1 again. Checked in headless Chrome at
+120 bpm on both pages: bars wiped behind the cursor, none after Stop.
+
 ## The playing cursor
 
 One look on every score page (16 October 2026, Blaine: My music's cursor is

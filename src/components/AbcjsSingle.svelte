@@ -85,6 +85,7 @@
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, RESUME_HREF, assigningFromUrl, saveDraft } from "../lib/assignment-draft";
   import TeachMenu from "./TeachMenu.svelte";
+  import { barOfElements, makeVanisher } from "../lib/vanishing-bars";
   import { assignedExercise } from "../lib/practice";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
@@ -371,6 +372,17 @@
     });
     location.href = RESUME_HREF;
   }
+  /** Disappearing bars (vanishing-bars.ts), remembered in this browser. */
+  const VANISH_KEY = "sr-vanish-bars";
+  let vanishBars = (() => { try { return typeof localStorage !== "undefined" && localStorage.getItem(VANISH_KEY) === "1"; } catch { return false; } })();
+  const vanisher = makeVanisher(() => (typeof document !== "undefined" ? document.getElementById("paper") : null));
+  function setVanishBars(on: boolean) {
+    vanishBars = on;
+    try { localStorage.setItem(VANISH_KEY, on ? "1" : "0"); } catch {}
+    if (!on) vanisher.reset();
+  }
+  // A Grade run ending brings the bars back for its marks.
+  $: if (!grading) vanisher.reset();
   let assignmentConcertKeys: string[] = [];
   $: assignmentParts = assignment ? partsOf(assignment.params) : null;
   let partId: string | null = null;
@@ -2485,6 +2497,8 @@
           playingSystem = system;
         }
         if (event?.elements) lastEventEls = event.elements.flat();
+        // Disappearing bars: the bar the music reaches is wiped (vanishing-bars.ts).
+        if (vanishBars && event?.elements) vanisher.reach(barOfElements(event.elements.flat()));
         if (effectiveCursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (effectiveCursorMode !== "note" || !playbackCursor || !event) return;
         if (typeof event.left !== "number") return;
@@ -2956,6 +2970,7 @@
     if (fromTheTop) scrollToFirstSystem();
 
     if (timingCallbacks) {
+      if (resumeFrom <= 0) vanisher.reset();
       if (resumeFrom > 0) {
         timingCallbacks.start(resumeFrom, "seconds");
       } else {
@@ -3013,6 +3028,7 @@
    */
   function stopMusic() {
     endLeadIn();
+    vanisher.reset();
     isPlaying = false;
     // A repeat that redraws the score plays afresh (playMusic, after this).
     nextPassZero = null;
@@ -4687,6 +4703,7 @@
     // own delay: a few tens of ms on a laptop, far more on Bluetooth), and a
     // singer sings with the click they hear. Kept with a saved run.
     gradeOutputLatencyMs = Math.round((((audioContext as any)?.baseLatency ?? 0) + ((audioContext as any)?.outputLatency ?? 0)) * 1000);
+    vanisher.reset();
     if (!audioContext) {
       const startedAt = performance.now();
       timingCallbacks.start(0);
@@ -6385,6 +6402,16 @@
         <p class="text-xs text-sr-faint">
           {transposeLabel(selectedKey, transposeSemitones)} The score is unchanged.
         </p>
+      </div>
+
+      <!-- Disappearing bars (vanishing-bars.ts): each bar is wiped as the music
+           reaches it, so the reader has to read ahead. Kept in this browser. -->
+      <div class="space-y-2">
+        <p class="sr-label">Read ahead</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button class="sr-tok {vanishBars ? 'sr-on' : ''}" aria-pressed={vanishBars} on:click={() => setVanishBars(!vanishBars)} data-vanish-bars>Disappearing bars</button>
+          <span class="text-xs text-sr-muted">Each bar disappears as the music reaches it, so you have to read a bar ahead. It all comes back when you stop.</span>
+        </div>
       </div>
 
       <!-- Measure numbers in both modes; then the syllables: solfège when

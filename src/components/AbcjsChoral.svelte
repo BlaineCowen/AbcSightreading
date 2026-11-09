@@ -1,6 +1,7 @@
 <script lang="ts">
   import { NoteLight, hideCursor, makeCursor, placeCursor } from "../lib/score-cursor";
   import TeachMenu from "./TeachMenu.svelte";
+  import { barOfElements, makeVanisher } from "../lib/vanishing-bars";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
@@ -2103,6 +2104,16 @@
    * Setting isStarted directly is abcjs's own pattern - setWarp does exactly
    * this before restarting.
    */
+  /** Disappearing bars (vanishing-bars.ts), remembered in this browser, as on the Unison page. */
+  const VANISH_KEY = "sr-vanish-bars";
+  let vanishBars = (() => { try { return typeof localStorage !== "undefined" && localStorage.getItem(VANISH_KEY) === "1"; } catch { return false; } })();
+  const vanisher = makeVanisher(() => (typeof document !== "undefined" ? document.getElementById("paper") : null));
+  function setVanishBars(on: boolean) {
+    vanishBars = on;
+    try { localStorage.setItem(VANISH_KEY, on ? "1" : "0"); } catch {}
+    if (!on) vanisher.reset();
+  }
+
   function pausePlayback() {
     if (!synthControl) return;
     synthControl.pause();
@@ -2134,6 +2145,7 @@
   function rewindToStart() {
     if (!synthControl) return;
     pausePlayback();
+    vanisher.reset();
     synthControl.seek(0);
     // Beat mode steps only when the beat number changes, and this still held
     // the beat we paused on - so after rewinding it would sit out the first
@@ -2497,6 +2509,7 @@
       onFinished: () => {
         isPlaying = false;
         hidePlaybackCursor();
+        vanisher.reset();
         if (looping && synthControl) {
           synthControl.play().then(() => { isPlaying = true; });
         }
@@ -2518,6 +2531,8 @@
       },
       onEvent: (event: any) => {
         if (event?.elements) lastEventEls = event.elements.flat();
+        // Disappearing bars: the bar the music reaches is wiped (vanishing-bars.ts).
+        if (vanishBars && isPlaying && event?.elements) vanisher.reach(barOfElements(event.elements.flat()));
         if (cursorMode !== "off" && event?.elements) noteLight.light(event.elements.flat());
         if (cursorMode === "note" && event && typeof event.left === "number") {
           movePlaybackCursor(event.left, event.top, event.height);
@@ -3593,6 +3608,14 @@
             <p class="set-pop-title">Display</p>
             <div class:opacity-60={!!assignment} {...(assignment ? { inert: true } : {})}>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      <!-- Disappearing bars (vanishing-bars.ts): each bar is wiped as the music reaches it. -->
+      <div class="space-y-2 sm:col-span-2">
+        <p class="sr-label">Read ahead</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button class="sr-tok {vanishBars ? 'sr-on' : ''}" aria-pressed={vanishBars} on:click={() => setVanishBars(!vanishBars)} data-vanish-bars>Disappearing bars</button>
+          <span class="text-xs text-sr-muted">Each bar disappears as the music reaches it, so you have to read a bar ahead. It all comes back when you stop.</span>
+        </div>
+      </div>
       <div class="space-y-2">
         <p class="sr-label">Playback sound</p>
         <div class="sr-select">
