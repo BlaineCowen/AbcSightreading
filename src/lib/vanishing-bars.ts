@@ -10,16 +10,14 @@
  * number in the whole tune): notes (head, stem, ledger lines inside), rests,
  * beams, lyrics (solfège, syllables), chord symbols. Tests vanishing-bars.test.ts.
  *
- * Gentler (Blaine, same day: "only erase 1-4 beats ahead"): instead of the
- * rest of the bar the moment the music reaches it, each note goes a set
- * number of beats (1 to 4) before it is sung, with whatever is drawn in its
- * bar up to it (its lyric, the beam it starts), `makeAheadVanisher`.
+ * Smaller pieces (Blaine, same day): chunks of 1 to 4 beats instead of the
+ * whole bar, each going as the music reaches it, `makeChunkVanisher`.
  */
 
-/** How far ahead the music goes: the rest of the bar as it is reached, or 1 to 4 beats. */
+/** How much goes at a time: the whole bar, or a chunk of 1 to 4 beats. */
 export type VanishAhead = "bar" | 1 | 2 | 3 | 4;
 export const AHEAD_CHOICES: VanishAhead[] = ["bar", 1, 2, 3, 4];
-export const aheadLabel = (a: VanishAhead) => (a === "bar" ? "Whole bar" : `${a} beat${a === 1 ? "" : "s"}`);
+export const aheadLabel = (a: VanishAhead) => (a === "bar" ? "a bar" : `${a} beat${a === 1 ? "" : "s"}`);
 export function parseAhead(v: string | null | undefined): VanishAhead {
   const n = Number(v);
   return n === 1 || n === 2 || n === 3 || n === 4 ? n : "bar";
@@ -99,33 +97,63 @@ export function hideThrough(root: ParentNode, bar: number, right: number) {
 type Timing = { milliseconds: number; type?: string; elements?: Element[][] | null };
 
 /**
- * Each note `aheadMs` before it sounds: called often while playing (a beat
- * callback) with abcjs's note timings and the time now. Time going back (a
- * loop's next pass, a jump) brings everything back first.
+ * The chunks of a tune: each bar cut into `chunkMs` pieces from its first
+ * note, every note keyed `bar:chunk`. Exported for the tests.
  */
-export function makeAheadVanisher(root: () => ParentNode | null | undefined) {
-  let next = 0;
-  let lastNow = -1;
+export function chunksOf(timings: Timing[], chunkMs: number) {
+  const events = timings.filter((t) => t.type === "event" && t.elements);
+  const barOf = new Map<Timing, number>();
+  const barStart = new Map<number, number>();
+  for (const t of events) {
+    const bar = barOfElements(t.elements!.flat());
+    if (bar === null) continue;
+    barOf.set(t, bar);
+    barStart.set(bar, Math.min(barStart.get(bar) ?? Infinity, t.milliseconds));
+  }
+  const keyOf = new Map<Timing, string>();
+  const members = new Map<string, Timing[]>();
+  for (const [t, bar] of barOf) {
+    const key = `${bar}:${Math.floor((t.milliseconds - barStart.get(bar)!) / chunkMs + 1e-6)}`;
+    keyOf.set(t, key);
+    members.set(key, [...(members.get(key) ?? []), t]);
+  }
+  return { keyOf, members, barOf };
+}
+
+/**
+ * Chunks of 1 to 4 beats (Blaine: "like 2 beat chunks that will disappear
+ * when the cursor gets there, forcing them to read ahead"): each note as it
+ * sounds; when it starts a new chunk, the whole chunk goes, with everything
+ * drawn in its bar up to the chunk's last note (its lyrics, its beams). A
+ * note earlier than the last (a loop going round, a jump back) brings
+ * everything back first.
+ */
+export function makeChunkVanisher(root: () => ParentNode | null | undefined) {
+  let cache: { timings: Timing[]; chunkMs: number; chunks: ReturnType<typeof chunksOf> } | null = null;
+  let last: string | null = null;
+  let lastMs = -1;
   const reset = () => {
-    next = 0;
-    lastNow = -1;
+    last = null;
+    lastMs = -1;
     showAllBars(root());
   };
   return {
-    tick(timings: Timing[] | null | undefined, nowMs: number, aheadMs: number) {
+    reach(timings: Timing[] | null | undefined, event: Timing | null | undefined, chunkMs: number) {
       const r = root();
-      if (!r || !timings || !Number.isFinite(nowMs)) return;
-      if (nowMs < lastNow - 50) reset();
-      lastNow = nowMs;
-      while (next < timings.length && timings[next].milliseconds <= nowMs + aheadMs) {
-        const t = timings[next++];
-        if (t.type !== "event" || !t.elements) continue;
-        const els = t.elements.flat();
-        const bar = barOfElements(els);
-        if (bar === null) continue;
-        const right = Math.max(...els.map((e) => e.getBoundingClientRect?.().right ?? -Infinity));
-        if (Number.isFinite(right)) hideThrough(r, bar, right);
-      }
+      if (!r || !timings || !event || !(chunkMs > 0)) return;
+      if (event.milliseconds < lastMs - 50) reset();
+      lastMs = event.milliseconds;
+      if (!cache || cache.timings !== timings || cache.chunkMs !== chunkMs) cache = { timings, chunkMs, chunks: chunksOf(timings, chunkMs) };
+      // The event abcjs hands over is its own timing object; matched by time and elements if it is a copy.
+      const same = cache.chunks.keyOf.has(event) ? event : timings.find((t) => t.milliseconds === event.milliseconds && t.elements?.[0]?.[0] === event.elements?.[0]?.[0]);
+      const key = same ? cache.chunks.keyOf.get(same) : undefined;
+      if (!key || key === last) return;
+      last = key;
+      const chunk = cache.chunks.members.get(key) ?? [];
+      const bar = cache.chunks.barOf.get(chunk[0]);
+      if (bar === undefined) return;
+      const right = Math.max(...chunk.flatMap((t) => t.elements!.flat()).map((e) => e.getBoundingClientRect?.().right ?? -Infinity));
+      if (Number.isFinite(right)) hideThrough(r, bar, right);
     },
     reset,
   };

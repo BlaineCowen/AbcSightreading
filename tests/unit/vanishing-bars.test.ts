@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { GONE, barOfClass, barOfElements, hideBar, makeAheadVanisher, makeVanisher, parseAhead, showAllBars } from "../../src/lib/vanishing-bars";
+import { GONE, barOfClass, barOfElements, hideBar, chunksOf, makeChunkVanisher, makeVanisher, parseAhead, showAllBars } from "../../src/lib/vanishing-bars";
 
 /** Just enough of the DOM: elements with classes, a root that finds them. */
 function el(cls: string, left = 0) {
@@ -58,29 +58,41 @@ describe("disappearing bars", () => {
   });
 });
 
-describe("disappearing a few beats ahead", () => {
-  test("each note goes the chosen time before it sounds, with what is drawn up to it", () => {
-    const n1 = el("abcjs-note abcjs-mm0", 100);
-    const lyric1 = el("abcjs-lyric abcjs-mm0", 98);
-    const beam = el("abcjs-beam-elem abcjs-mm0", 105);
-    const n2 = el("abcjs-note abcjs-mm0", 200);
-    const lyric2 = el("abcjs-lyric abcjs-mm0", 198);
-    const bar = el("abcjs-bar abcjs-mm0", 300);
-    const n3 = el("abcjs-note abcjs-mm1", 320);
-    const els = [n1, lyric1, beam, n2, lyric2, bar, n3];
+describe("disappearing in chunks of beats", () => {
+  // One bar of 4/4 at 60: quarter, quarter, two eighths, quarter; then bar 2.
+  const make = () => {
+    const n = [100, 200, 300, 350, 400].map((x) => el("abcjs-note abcjs-mm0", x));
+    const lyric = el("abcjs-lyric abcjs-mm0", 198);
+    const beam = el("abcjs-beam-elem abcjs-mm0", 305);
+    const bar = el("abcjs-bar abcjs-mm0", 480);
+    const next = el("abcjs-note abcjs-mm1", 520);
+    const els = [...n, lyric, beam, bar, next];
+    const ms = [1000, 2000, 3000, 3500, 4000];
     const timings = [
-      { milliseconds: 2000, type: "event", elements: [[n1]] },
-      { milliseconds: 2500, type: "event", elements: [[n2]] },
-      { milliseconds: 3000, type: "event", elements: [[n3]] },
+      ...n.map((e, i) => ({ milliseconds: ms[i], type: "event", elements: [[e]] })),
+      { milliseconds: 5000, type: "event", elements: [[next]] },
     ] as unknown as { milliseconds: number; type: string; elements: Element[][] }[];
-    const v = makeAheadVanisher(() => root(els));
-    v.tick(timings, 900, 1000); // a beat at 60 ahead: nothing yet
-    expect(gone(els).some(Boolean)).toBe(false);
-    v.tick(timings, 1000, 1000); // the first note's beat ahead
-    expect(gone(els)).toEqual([true, true, true, false, false, false, false]);
-    v.tick(timings, 2100, 1000);
-    expect(gone(els)).toEqual([true, true, true, true, true, false, true]);
-    v.tick(timings, 100, 1000); // round again
+    return { n, lyric, beam, bar, next, els, timings };
+  };
+
+  test("a bar is cut into chunks from its first note", () => {
+    const { timings } = make();
+    const c = chunksOf(timings, 2000);
+    expect(timings.map((t) => c.keyOf.get(t))).toEqual(["0:0", "0:0", "0:1", "0:1", "0:1", "1:0"]);
+  });
+
+  test("a whole chunk goes when the music reaches it, and no sooner", () => {
+    const { els, timings } = make();
+    const v = makeChunkVanisher(() => root(els));
+    v.reach(timings, timings[0], 2000); // beat 1: beats 1 and 2 go
+    expect(gone(els)).toEqual([true, true, false, false, false, true, false, false, false]);
+    v.reach(timings, timings[1], 2000); // beat 2: same chunk, nothing more
+    expect(gone(els).filter(Boolean).length).toBe(3);
+    v.reach(timings, timings[2], 2000); // beat 3: beats 3 and 4 (the eighths, their beam, the last quarter)
+    expect(gone(els)).toEqual([true, true, true, true, true, true, true, false, false]);
+    v.reach(timings, timings[0], 2000); // round again: only the first chunk (two notes and the lyric under beat 2)
+    expect(gone(els).filter(Boolean).length).toBe(3);
+    v.reset();
     expect(gone(els).some(Boolean)).toBe(false);
   });
 
