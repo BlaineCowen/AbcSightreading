@@ -207,6 +207,27 @@ Full-length pieces honour it in every section. It rides in links
 (`solfegeOff=`), presets and the "edited" signature, and is in the full-screen
 Annotations menu.
 
+## The preset row and the Teach pill (9 November 2026)
+
+Blaine: "That top bar is getting really cluttered", then "lets do the teach
+pill". The preset row (PresetDropdown) is three pills: Preset (mint),
+Reading as (sky, Unison only), Class (butter, `.class-pill`, a select sized
+to the class chosen with `field-sizing: content`). Save current and "Saved
+to your account" left the row: saving is the Preset menu's footer, **Save
+these settings** (with where they are kept); the row still offers Save, Save
+as new, Keep as my version and Revert while a preset is edited.
+
+The score toolbar is Display, Drill (Unison), **Teach** and Listen and
+grade. `TeachMenu.svelte` holds Assign to a class (Educator, `usage` tier;
+both pages, `assignThis`), Go live (LiveTeacher with `item`, which binds
+`status` and `student` up) and Make a play-along video (Unison). The menu
+is always in the page and only hidden, so Live keeps its session while it
+is shut; while Live is on, the pill is mint and reads "Live CODE · devices".
+A student account gets the Video button alone, as before. On a phone the
+menu is a sheet above the playback bar. The Ensemble page keeps its own
+Live button. A TypeScript cast inside Svelte 4 markup compiles nowhere but
+passes `astro check`: keep casts in the script.
+
 ## The playing cursor
 
 One look on every score page (16 October 2026, Blaine: My music's cursor is

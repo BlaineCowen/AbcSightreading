@@ -1,5 +1,4 @@
 <script lang="ts">
-  import LiveTeacher from "./LiveTeacher.svelte";
   import { onDestroy, onMount, tick } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
@@ -85,7 +84,7 @@
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, RESUME_HREF, assigningFromUrl, saveDraft } from "../lib/assignment-draft";
-  import ClipboardList from "lucide-svelte/icons/clipboard-list";
+  import TeachMenu from "./TeachMenu.svelte";
   import { assignedExercise } from "../lib/practice";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
@@ -169,7 +168,7 @@
     isMinorKey, minorLabel, minorScaleName, degreesFrom,
   } from "../lib/minor-degrees";
   import { minorSolfegeFrom, type MinorSolfege } from "../resources/solfege";
-  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Clapperboard, Volume2, Eye, Repeat } from "lucide-svelte";
+  import { Piano, Minus, Plus, RefreshCw, ChevronDown, ChevronRight, X, Volume2, Eye, Repeat } from "lucide-svelte";
   import PlaybackBar from "./PlaybackBar.svelte";
   import PlayAlongVideo from "./PlayAlongVideo.svelte";
   import {
@@ -6301,24 +6300,17 @@
           <button class="tool-btn {drillRunning ? 'tool-btn-live' : ''}" aria-expanded={toolPop === 'drill'} on:click={() => toggleTool('drill')}>
             <Repeat size={16} aria-hidden="true" />{drillRunning ? "Drill running" : "Drill"}
           </button>
-          <button
-            class="tool-btn"
-            on:click={openPlayAlong}
-            title={videoAllowed ? "A full-screen play-along, about 1:30, to show or save as a video" : "Play-along videos are part of Pro"}
-          >
-            <Clapperboard size={16} aria-hidden="true" />Video
-            {#if videoAllowed === false}<span class="sr-pro-tag">Pro</span>{/if}
-          </button>
-          <!-- Live practice (Pro): every student's device on the director's live link follows this line. -->
-          {#if !assignment}
-            <LiveTeacher page="unison" abc={liveAbc} bpm={tempo} rhythm={rhythmOnly} />
-          {/if}
-          <!-- Educator: these settings as an assignment, the form opening at its last step. -->
-          {#if canAssign}
-            <button type="button" class="tool-btn assign-this" on:click={assignThis} title="Assign these settings to a class: choose the classes, voice parts and due date next" data-assign-this>
-              <ClipboardList size={16} aria-hidden="true" />Assign
-            </button>
-          {/if}
+          <!-- Teach: Assign (Educator), Live (Pro: every student's device follows this line) and the play-along Video, in one menu. -->
+          <TeachMenu
+            page="unison"
+            abc={liveAbc}
+            bpm={tempo}
+            rhythm={rhythmOnly}
+            live={!assignment}
+            onAssign={canAssign ? assignThis : null}
+            onVideo={openPlayAlong}
+            {videoAllowed}
+          />
         </div>
         <button
           class="inline-flex items-center gap-2 rounded-full px-4 min-h-10 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
@@ -6879,10 +6871,6 @@
 
 <svelte:window on:keydown={onTapKey} on:keyup={onTapKeyUp} />
 <style>
-  .tool-btn.assign-this {
-    background: var(--sr-butter);
-    color: var(--sr-butter-ink);
-  }
   /* The settings row: pills that each open their own popover, then New exercise. */
   .setbar {
     position: relative;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { NoteLight, hideCursor, makeCursor, placeCursor } from "../lib/score-cursor";
-  import LiveTeacher from "./LiveTeacher.svelte";
+  import TeachMenu from "./TeachMenu.svelte";
   import { createFullscreen } from "../lib/fullscreen";
   import { loadScoreView, saveScoreView, withLineSpacing, withMeasureNumbers, type ScoreView } from "../lib/score-view";
   import { styleCopyright, withCopyright } from "../lib/copyright";
@@ -27,7 +27,7 @@
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import AssignmentBanner from "./AssignmentBanner.svelte";
   import AssigningBar from "./AssigningBar.svelte";
-  import { ASSIGNING_PARAM, assigningFromUrl } from "../lib/assignment-draft";
+  import { ASSIGNING_PARAM, RESUME_HREF, assigningFromUrl, saveDraft } from "../lib/assignment-draft";
   import { assignedExercise } from "../lib/practice";
   import { assignmentIdFromUrl, fetchAssignment, type OpenAssignment } from "../lib/assignment-client";
   import { startPractice } from "../lib/practice-tracker";
@@ -1234,6 +1234,24 @@
   let assignment: OpenAssignment | null = null;
   /** Opened from Create assignment, to set one up here (assignment-draft.ts). */
   const assigning = !assignmentId && assigningFromUrl();
+
+  /**
+   * Teach > Assign to a class (Educator), as on the Unison page: a UIL level
+   * left as it is goes as itself (class progress counts it), anything else as
+   * the teacher's own settings; the form opens at its last step.
+   */
+  $: canAssign = $usage?.tier === "educator" && !assignment && !assigning;
+  function assignThis() {
+    const uilKey = activeLevel && !presetEdited ? Object.entries(uilPresets).find(([, v]) => v === activeLevel)?.[0] : undefined;
+    const presetKey = uilKey ? `uil:${uilKey}` : "custom:choral";
+    const title = uilKey ? "" : activePresetLabel || `${selectedVoicing} in ${[...selectedKeys].join(", ")}`;
+    saveDraft({
+      presetKey, fixed: false, classIds: [], minutes: 15, dueAt: "", note: "", title,
+      custom: uilKey ? undefined : { name: title, params: { ...getCurrentParams() } as Record<string, unknown> },
+      ready: true,
+    });
+    location.href = RESUME_HREF;
+  }
   /** The assignment gives every student one exercise: no New exercise. */
   $: fixedExercise = assignment ? assignedExercise(assignment.params) : null;
 
@@ -3568,9 +3586,7 @@
           <Eye size={16} aria-hidden="true" />Display
         </button>
         <!-- Live practice (Pro): every student's device on the director's live link follows this exercise, each on its own part. -->
-        {#if !assignment}
-          <LiveTeacher page="choral" abc={liveAbc} {bpm} title={liveTitle} />
-        {/if}
+        <TeachMenu page="choral" abc={liveAbc} {bpm} liveTitle={liveTitle} live={!assignment} onAssign={canAssign ? assignThis : null} />
         {#if toolPop}
           <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
           <div in:popIn out:popOut class="set-pop set-pop-tools" role="dialog" aria-label="Display">
