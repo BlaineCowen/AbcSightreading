@@ -133,7 +133,7 @@
 
   async function send() {
     problem = "";
-    if (!classIds.length) return void (problem = "Choose at least one class.");
+    if (!classIds.length) return void (problem = "Choose a class first: tap its name under Which classes.");
     if (partsOn && !partReaders.length) return void (problem = "Choose the parts students pick from, or untick Students pick their part.");
     busy = true;
     const body = {
@@ -261,9 +261,9 @@
       <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Start from
         <select class={input} bind:value={presetKey} on:change={changed}>
           <option value="" disabled>Choose…</option>
-          <optgroup label="Set it up yourself">
-            <option value="custom:unison">Custom: one line (Unison page)</option>
-            <option value="custom:choral">Custom: parts (Choral page)</option>
+          <optgroup label="Build your own">
+            <option value="custom:unison">Build my own: one melody everyone reads (Unison page)</option>
+            <option value="custom:choral">Build my own: harmony in parts, SATB (Choral page)</option>
           </optgroup>
           {#each ladderStages() as s}
             <optgroup label="abcStepByStep: {s.stage}">
@@ -290,6 +290,7 @@
             </optgroup>
           {/if}
         </select>
+        {#if !presetKey}<span class="text-xs text-sr-muted">Not sure? Choose <strong>Build my own: one melody</strong>, then pick the key, notes and rhythms yourself. Voice parts come at the last step.</span>{/if}
       </label>
 
       {#if isCustom}
@@ -360,9 +361,14 @@
         <strong>{labelOf}</strong>{fixed ? ", one exercise for everyone" : ", new exercises each time"}
         <button type="button" class="ml-1 sr-link text-sm" on:click={() => (stage = "design")}>Change</button>
       </p>
+      {#if isCustom}
+        <label class="text-sm text-sr-ink-2 flex flex-col gap-1">Title <span class="text-xs text-sr-faint">what students see on their list</span>
+          <input class={input} bind:value={title} maxlength="80" placeholder="Week 6: do to so in G" />
+        </label>
+      {/if}
       {#if classes.length > 1}
         <fieldset class="flex flex-col gap-1">
-          <legend class="text-sm text-sr-ink-2 mb-1">Classes</legend>
+          <legend class="text-sm text-sr-ink-2 mb-1">Which classes? <span class="text-xs text-sr-faint">tap one or more</span></legend>
           <div class="flex flex-wrap gap-2">
             {#each classes as c (c.id)}
               <button type="button" class="sr-tok" class:sr-on={classIds.includes(c.id)} aria-pressed={classIds.includes(c.id)} on:click={() => toggleClass(c.id)}>{c.name}</button>
@@ -412,7 +418,7 @@
       </label>
       {#if problem}<p class="text-sm text-sr-danger" role="alert">{problem}</p>{/if}
       <div class="flex flex-wrap gap-2">
-        <button type="button" class="sr-btn text-sm" disabled={busy || !classIds.length} on:click={send}>
+        <button type="button" class="sr-btn text-sm" disabled={busy} on:click={send}>
           {busy ? "Sending…" : classIds.length > 1 ? `Send to ${classIds.length} classes` : `Send to ${classIds.length ? nameOf(classIds[0]) : "students"}`}
         </button>
         <button type="button" class="sr-btn-quiet text-sm" on:click={() => (stage = "design")}>Back</button>

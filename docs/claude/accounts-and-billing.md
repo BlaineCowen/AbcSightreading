@@ -182,6 +182,24 @@ picker. Checked in headless Chrome on 9 November: an SATB assignment in F,
 Bass picked with a narrowed range wrote bass clef in F in that range; a
 clarinet read concert F in G.
 
+**Assign from the page, and the form read as a new teacher** (9 November
+2026, Blaine: "an easy way for educator accounts to create an assignment
+from a unison sr while they are on the regular page", and walk it as a
+60-year-old teacher would). The Unison page's toolbar (beside Live) has
+**Assign** for an Educator (`usage` tier), not inside an assignment:
+`assignThis` saves a draft (an unedited ladder step, TMEA or NYSSMA level
+goes as itself, so class progress counts it; anything else as
+`custom:unison` with the page's settings and a title from the key and
+notes) and opens the form at its last step (`RESUME_HREF`). In the toolbar,
+not the preset row: there it wrapped to a line of its own after load and
+pushed the page down. From the walk: the custom choices read "Build my
+own: one melody everyone reads (Unison page)" and "Build my own: harmony
+in parts, SATB (Choral page)", first in the menu, with a "Not sure?" line
+under it; the last step shows the Title for a custom one and asks "Which
+classes? tap one or more"; Send is never greyed out for want of a class
+(it says what to do instead); the page's Creating an assignment bar says
+classes, voice parts and due date come on the next step.
+
 **Grades to Google Classroom** (`src/lib/server/classroom-grades.ts`,
 `/api/assignments/[id]/classroom`): for a class brought in from Classroom,
 "Post to Google Classroom" makes the assignment coursework there (out of 100,

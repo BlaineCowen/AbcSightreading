@@ -47,7 +47,7 @@
         {#if fixed}
           Press New exercise until you have one you like. Every student will sing that one.
         {:else if custom}
-          Set it up with the settings above. Students get new exercises at these settings each time.
+          Set it up with the settings above. Students get new exercises at these settings each time. You choose the classes, voice parts and due date on the next step.
         {/if}
       </p>
       {#if problem}<p class="text-sm font-bold" role="alert">{problem}</p>{/if}
