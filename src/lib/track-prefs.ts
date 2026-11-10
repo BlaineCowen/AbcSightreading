@@ -15,6 +15,8 @@ export interface TrackPrefs {
   tracks: string[];
   overrides: Record<string, Record<string, unknown>>;
   canSubscribe: boolean;
+  /** Courses listed because a class this account teaches or joined follows them (/api/tracks). */
+  fromClasses: string[];
 }
 
 const LOCAL_KEY = "sr-subscriptions";
@@ -34,7 +36,7 @@ function saveLocal(list: string[]) {
 }
 
 export const trackPrefs = writable<TrackPrefs>({
-  ready: false, signedIn: false, tracks: [...DEFAULT_SUBSCRIPTIONS], overrides: {}, canSubscribe: false,
+  ready: false, signedIn: false, tracks: [...DEFAULT_SUBSCRIPTIONS], overrides: {}, canSubscribe: false, fromClasses: [],
 });
 
 let loading: Promise<void> | null = null;
@@ -43,14 +45,14 @@ export function loadTrackPrefs(): Promise<void> {
   loading ??= (async () => {
     const local = localList();
     if (!(await signedInUser())) {
-      trackPrefs.set({ ready: true, signedIn: false, tracks: local ?? [...DEFAULT_SUBSCRIPTIONS], overrides: {}, canSubscribe: false });
+      trackPrefs.set({ ready: true, signedIn: false, tracks: local ?? [...DEFAULT_SUBSCRIPTIONS], overrides: {}, canSubscribe: false, fromClasses: [] });
       return;
     }
     const res = await fetch("/api/tracks");
     if (!res.ok) throw new Error(`The server said ${res.status}.`);
     let body = await res.json();
     if (!body.chosen && local) body = await send({ tracks: local });
-    trackPrefs.set({ ready: true, signedIn: true, ...body });
+    trackPrefs.set({ ready: true, signedIn: true, fromClasses: [], ...body });
   })().catch((e) => {
     loading = null;
     trackPrefs.update((p) => ({ ...p, ready: true }));
@@ -72,7 +74,7 @@ async function send(body: Record<string, unknown>) {
 
 async function put(body: Record<string, unknown>) {
   const out = await send(body);
-  trackPrefs.set({ ready: true, signedIn: true, ...out });
+  trackPrefs.set({ ready: true, signedIn: true, fromClasses: [], ...out });
 }
 
 export async function setSubscribed(track: string, subscribed: boolean) {

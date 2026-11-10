@@ -20,10 +20,30 @@ import { Prisma } from "../../generated/prisma/client";
 
 const notSignedIn = () => json({ error: "Sign in to subscribe to a course." }, 401);
 
+/**
+ * The courses of the classes this account teaches or has joined: always
+ * listed, subscribed or not. A band student whose class follows the alto sax
+ * course found the menu empty ("Nothing for Alto saxophone yet"), and so did
+ * the director who had picked the course for the class but never subscribed
+ * (10 November 2026, S&S CISD).
+ */
+async function classCourses(userId: string): Promise<string[]> {
+  const rows = await prisma.class.findMany({
+    where: { OR: [{ userId }, { enrollments: { some: { studentId: userId } } }], course: { not: null } },
+    select: { course: true },
+  });
+  return [...new Set(rows.map((r) => r.course).filter(isSubscribable))];
+}
+
 async function state(userId: string, canSubscribe: boolean) {
-  const pref = await prisma.userPreference.findUnique({ where: { userId } });
+  const [pref, fromClasses] = await Promise.all([
+    prisma.userPreference.findUnique({ where: { userId } }),
+    classCourses(userId),
+  ]);
+  const own = subscriptionsFrom(pref?.curriculumTracks);
   return {
-    tracks: subscriptionsFrom(pref?.curriculumTracks),
+    tracks: [...own, ...fromClasses.filter((t) => !own.includes(t))],
+    fromClasses,
     chosen: Array.isArray(pref?.curriculumTracks),
     overrides: overridesFrom(pref?.trackOverrides),
     canSubscribe,

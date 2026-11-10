@@ -45,6 +45,10 @@
 <div class="flex flex-wrap items-center gap-2 {variant === 'hero' ? 'mt-2' : ''}">
   {#if !ready}
     <span class="h-9 w-32 rounded-full bg-sr-track/60 animate-pulse" aria-hidden="true"></span>
+  {:else if $trackPrefs.fromClasses.includes(trackId)}
+    <!-- Listed because a class follows it (/api/tracks): it stays while the class does. -->
+    <span class="text-sm font-extrabold rounded-full px-4 py-2 inline-flex items-center gap-1.5 bg-sr-raise text-sr-ink ring-2 ring-sr-action"><Check size={15} /> Your class's course</span>
+    <a class="text-sm font-bold underline" href={openHref}>In your presets</a>
   {:else if !free && !$trackPrefs.signedIn}
     <a class="sr-btn text-sm" href="/login?mode=signup&next={here()}">Sign up to subscribe</a>
   {:else if !free && !$trackPrefs.canSubscribe}
