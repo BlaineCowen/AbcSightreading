@@ -1,11 +1,12 @@
 // The editing engine in the browser: tools/edit_server.py's API answered from polypitch.wasm (built with the
 // `vocoder` feature) in this worker, in the server's formats, so the page needs no server. The page posts
-// {id, path, body} (body: the JSON text it would send; for "api/upload", {samples, sr}) and gets back
+// {id, path, body} (body: the JSON text it would send; for "api/upload", {samples, sr} or {channels, sr}) and gets back
 // {id, status, json | bin | text}. Requests queue here: a press, hover or edit of one note jumps ahead of the
 // background preparation of whole groups.
-import { loadPolyPitch } from "./polypitch.js";
+const V = self.location.search; // the page's ENGINE_V: this worker's loader and wasm are of the same version
+const { loadPolyPitch } = await import("./polypitch.js" + V);
 
-const pp = await loadPolyPitch("polypitch-v2.wasm");
+const pp = await loadPolyPitch("polypitch-v3.wasm" + V);
 let session = null, sr = 44100;
 const urgent = [], background = [];
 let running = false;
@@ -43,17 +44,18 @@ const concat = (parts) => {
 
 function handle(path, body) {
   if (path === "api/upload") {
-    sr = body.sr; session = pp.session(body.samples, sr);
+    sr = body.sr; session = pp.session(body.channels || body.samples, sr); // channels: a clip then holds each, one after another
     if (!session) throw new Error("this polypitch.wasm was built without the vocoder feature");
     return { json: { id: "local" } };
   }
   if (!session) return { status: 410, text: "no recording loaded" };
   const req = JSON.parse(body), notes = req.notes;
-  const delta = (j, semis, mod, drift, dt, gain) => clipBytes(session.delta(notes, j, { semis, mod, drift, dt, gain }));
+  // lead, trail: the shifts of the notes j is sung from and into (a legato join glides); null where it joins none
+  const delta = (j, semis, mod, drift, dt, gain, formant = 0, lead = null, trail = null) => clipBytes(session.delta(notes, j, { semis, mod, drift, dt, gain, formant, lead, trail }));
   switch (path) {
     case "api/plan": return { json: plan(notes) };
     case "api/prepare": session.prepare(notes, "js" in req ? req.js : [req.j]); return { status: 204 };
-    case "api/note": return { bin: delta(req.j, req.semis, req.mod ?? 1, req.drift ?? 1, req.dt ?? 0, req.gain ?? 1) };
+    case "api/note": return { bin: delta(req.j, req.semis, req.mod ?? 1, req.drift ?? 1, req.dt ?? 0, req.gain ?? 1, req.formant ?? 0, req.lead ?? null, req.trail ?? null) };
     case "api/notes": {
       const n = new ArrayBuffer(4); new DataView(n).setInt32(0, req.edits.length, true);
       return { bin: concat([n, ...req.edits.map((e) => delta(...e))]) };

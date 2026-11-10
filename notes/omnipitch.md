@@ -14,10 +14,18 @@ all running in the browser (no edit server).
 bun run scripts/omnipitch/sync.ts
 ```
 
-copies index.html, polypitch.js, engine-worker.js, the wasm, the demo and
-the Basic Pitch licence, and applies the site's changes (the Recess colours
-and fonts in light and dark, the abc wordmark, the in-browser engine only, a
-versioned wasm name, and the fix to tuningRef's unsorted median). Each change
+copies index.html, polypitch.js, parts.js, files.js, engine-worker.js, the
+wasm, the code font and the Basic Pitch licence, and applies the site's
+changes (the Recess colours and fonts in light and dark, the abc wordmark, the
+in-browser engine only, a versioned wasm name, and no demo: OmniPitch opens
+Allegri's Miserere until a file is chosen, the site's copy starts empty,
+Blaine, 10 November 2026). OmniPitch moved to its dark "Graphite" look on
+9 November, with some colours written straight into its rules: the sync points
+those at the theme too (the header, tips, the view box, the record buttons,
+its violet tints and logo), so a new hard-coded colour upstream shows as a
+dark or violet patch here; look at the tab after each sync. Synced last on
+10 November 2026 from 7538cd3 plus that night's uncommitted engine work
+(v3 wasm). Each change
 is a literal replacement that must find its text, so if OmniPitch's page
 moves one, the sync stops and says which.
 

@@ -111,17 +111,28 @@ export async function loadPolyPitch(url = "polypitch.wasm") {
      * in wasm, with every note's separation cached by its crop, as tools/edit_server.py does. notes: the whole
      * note list ({start, end, midi} or [start, end, midi], s from the recording's start), passed on every call.
      *   prepare(notes, js)   separate notes js (shared ~6 s windows) ahead of editing
-     *   solo(notes, j)       {start (sample), signal, curve: {times (s), cents, weight}}: note j alone
-     *   delta(notes, j, {semis, mod, drift, dt, gain})   {start, signal}: the change to the recording for that edit
+     *   solo(notes, j)       {start (sample), signal, channels, curve: {times (s), cents, weight}}: note j alone
+     *   delta(notes, j, {semis, mod, drift, dt, gain, formant, lead, trail})   {start, signal}: the change to the recording for that
+     *                        edit (formant: semitones to move the note's formants, its timbre)
      * Only one session at a time: starting one drops the last.
      */
     session(samples, sampleRate) {
       if (!w.pp_session_load) return null;
-      write(samples);
-      w.pp_session_load(sampleRate);
+      // samples: the recording, or its channels ([Float32Array, ...], one length). With several, a note's
+      // separation and change come per channel: `signal` then holds them one after another, `channels` of them.
+      const chans = Array.isArray(samples) ? samples : [samples], many = chans.length > 1 && !!w.pp_session_load_channels;
+      if (many) {
+        const n = chans[0].length, ptr = w.pp_input(n * chans.length);
+        chans.forEach((c, k) => new Float32Array(w.memory.buffer, ptr + 4 * n * k, n).set(c));
+        w.pp_session_load_channels(sampleRate, chans.length);
+      } else {
+        write(chans.length > 1 ? chans[0].map((_, i) => chans.reduce((a, c) => a + c[i], 0) / chans.length) : chans[0]);
+        w.pp_session_load(sampleRate);
+      }
+      const channels = many ? chans.length : 1;
       const out = (start, what) => {
         if (start < 0) throw new Error(`${what}: no session or bad note index`);
-        return { start, signal: read(w.pp_output_len(), 1) };
+        return { start, signal: read(w.pp_output_len(), 1), channels };
       };
       return {
         prepare(notes, js) {
@@ -133,8 +144,8 @@ export async function loadPolyPitch(url = "polypitch.wasm") {
           r.curve = { times: sh.subarray(1, n + 1), cents: sh.subarray(n + 1, 2 * n + 1), weight: sh.subarray(2 * n + 1) };
           return r;
         },
-        delta(notes, j, { semis = 0, mod = 1, drift = 1, dt = 0, gain = 1 } = {}) {
-          return out(w.pp_session_delta(writeNoteList(notes, [j])[0], semis, mod, drift, dt, gain), "delta");
+        delta(notes, j, { semis = 0, mod = 1, drift = 1, dt = 0, gain = 1, formant = 0, lead = NaN, trail = NaN } = {}) {
+          return out(w.pp_session_delta(writeNoteList(notes, [j])[0], semis, mod, drift, dt, gain, formant, lead ?? NaN, trail ?? NaN), "delta");
         },
       };
     },
