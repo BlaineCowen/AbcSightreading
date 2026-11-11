@@ -36,7 +36,23 @@ function createClient(): PrismaClient {
   if (!connectionString) throw new Error("DATABASE_URL is not set.");
   // A small pool: queries take milliseconds, so a few connections serve an
   // instance's requests, and the pooler's own limit is shared by every instance.
-  const adapter = new PrismaPg({ connectionString: pooledUrl(connectionString), max: 3 });
+  //
+  // And never wait forever. pg's defaults wait without limit for a connection
+  // and for a query, so a socket that died while the instance sat idle (the
+  // pooler or the network drops it, the instance never hears) held a request
+  // until Vercel killed it at 60 s: 7 times on 10 and 11 November 2026, all on
+  // warm instances, during S&S CISD's band classes (Brooke Grabowski: "timing
+  // out on the practice page"). Now a stuck connection fails in seconds, the
+  // pool throws it away and the next request opens a fresh one.
+  const adapter = new PrismaPg({
+    connectionString: pooledUrl(connectionString),
+    max: 3,
+    connectionTimeoutMillis: 5_000, // to open one, or to wait for a free one
+    query_timeout: 15_000, // a query here takes milliseconds; 15 s is a dead socket
+    idleTimeoutMillis: 20_000, // close idle ones before the pooler or network forgets them
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
+  });
   return new PrismaClient({ adapter });
 }
 
