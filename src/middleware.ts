@@ -1,5 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { refCookie, refFromUrl } from "./lib/referral";
+// Loaded with the function so its database connection opens at start-up (db.ts).
+import "./lib/server/db";
 
 /**
  * One address for the site. abc.blainecowen.com was the beta's address and
