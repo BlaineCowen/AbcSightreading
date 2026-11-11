@@ -128,6 +128,8 @@ request plus a message a device.
 
 Until then the site behaves exactly as before.
 
+**On in production since 11 November 2026** (it had been on for dev only since 26 October): a class game in Brooke Grabowski's room (S&S CISD) made 3,610 of the site's 4,589 requests that hour in polls, heartbeats, clock syncs and the device count. The secret was made new that day and set on the worker and in Vercel (dev and Production); nobody holds a copy, so to change it again make a new one and set all three.
+
 ## Testing
 
 - `bun run test` (live.test.ts included) and `bunx astro check`.
