@@ -332,6 +332,11 @@ export const auth = betterAuth({
     // Checks the session from a signed cookie for five minutes before going
     // back to the database - most requests then cost no query.
     cookieCache: { enabled: true, maxAge: 5 * 60 },
+    // 30 days from the last visit, not Better Auth's 7 (11 November 2026): a
+    // class that skips the site a week came back signed out all together,
+    // and signing a class in again at once is the slowest moment it has.
+    expiresIn: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   // Serverless instances do not share memory, so a per-instance limit is not
   // one. The database is shared.
@@ -342,10 +347,22 @@ export const auth = betterAuth({
   // out (a QA run on production hit it at 85 page loads). /get-session only
   // reads the signed cookie, so it is not limited; sign-in, sign-up and
   // password resets keep Better Auth's strict rules (3 per 10 s or 60 s).
+  //
+  // Except the sign-ins a whole class makes at once (11 November 2026): 3 per
+  // 10 s from one school address meant a class of 25 needed over a minute to
+  // get in, most of them told "Too many requests" on the way. Students sign in
+  // with a username (or ClassLink, or Google), so those allow a class: 60 a
+  // minute an address. Email sign-in, the one worth guessing teachers'
+  // passwords against, keeps the strict rule.
   rateLimit: {
     enabled: true,
     storage: "database",
-    customRules: { "/get-session": false },
+    customRules: {
+      "/get-session": false,
+      "/sign-in/username": { window: 60, max: 60 },
+      "/sign-in/social": { window: 60, max: 60 },
+      "/sign-in/oauth2": { window: 60, max: 60 },
+    },
   },
   // Vercel sets x-vercel-forwarded-for to the client's address and replaces
   // any x-forwarded-for a client sends; read Vercel's own header first.
