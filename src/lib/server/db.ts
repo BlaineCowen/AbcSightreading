@@ -46,7 +46,9 @@ function createClient(): PrismaClient {
   // pool throws it away and the next request opens a fresh one.
   const adapter = new PrismaPg({
     connectionString: pooledUrl(connectionString),
-    max: 3,
+    // 5, not 3, since Fluid compute (11 November 2026): one instance now serves
+    // many requests at once, a class's worth, instead of one each.
+    max: 5,
     connectionTimeoutMillis: 5_000, // to open one, or to wait for a free one
     query_timeout: 15_000, // a query here takes milliseconds; 15 s is a dead socket
     idleTimeoutMillis: 20_000, // close idle ones before the pooler or network forgets them
@@ -58,3 +60,14 @@ function createClient(): PrismaClient {
 
 export const prisma = globalForPrisma.prisma ?? createClient();
 if (import.meta.env.DEV) globalForPrisma.prisma = prisma;
+
+/**
+ * Open a connection as the instance starts, not when its first request asks
+ * (11 November 2026): on a new instance a page that reads the database took
+ * about 1.6 s longer than one that does not (3.8 s against 2.2 s), the client
+ * setting up and the first connection opening. src/middleware.ts imports this
+ * module, so it runs as the function loads: an instance Vercel starts ahead of
+ * time is ready before anyone arrives, and a request that starts one overlaps
+ * it with the page's own loading. A failure only costs the warm start.
+ */
+if (process.env.VERCEL) void prisma.$queryRawUnsafe("SELECT 1").catch(() => {});
