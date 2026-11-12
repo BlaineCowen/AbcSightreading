@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { apiGet } from "../lib/api-get";
   import { onMount } from "svelte";
   import { X } from "lucide-svelte";
   import { GENERATION_LIMITS } from "../lib/plan";
@@ -26,7 +27,7 @@
       history.replaceState(history.state, "", url);
     }
     if (email === null) return;
-    const res = await fetch("/api/free-month").catch(() => null);
+    const res = await apiGet("/api/free-month").catch(() => null);
     fm = res?.ok ? await res.json() : null;
   });
 </script>

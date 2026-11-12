@@ -1,3 +1,4 @@
+import { apiGet } from "./api-get";
 import { signedInUser } from "./auth-client";
 import type { Plan } from "./plan";
 
@@ -39,7 +40,7 @@ export function billingStatus(refresh = false): Promise<BillingStatus | null> {
   current ??= signedInUser()
     .then(async (u) => {
       if (!u) return null;
-      const res = await fetch("/api/billing");
+      const res = await apiGet("/api/billing");
       return res.ok ? ((await res.json()) as BillingStatus) : null;
     })
     .catch(() => null);

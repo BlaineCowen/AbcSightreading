@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { apiGet } from "../lib/api-get";
   import { onMount } from "svelte";
   import { assignmentHref } from "../lib/assignment-client";
   import { assignmentKind } from "../lib/practice";
@@ -21,7 +22,7 @@
 
   onMount(async () => {
     if (initial) return;
-    const res = await fetch("/api/assignments");
+    const res = await apiGet("/api/assignments");
     if (res.ok) ({ enrolled, assignments: items } = await res.json());
   });
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { apiGet } from "../lib/api-get";
   import { onMount } from "svelte";
 
   /**
@@ -26,7 +27,7 @@
       dismissed = variant === "note" && localStorage.getItem(NOTE_KEY) === "1";
     } catch {}
     if (initial) return;
-    const res = await fetch("/api/free-month").catch(() => null);
+    const res = await apiGet("/api/free-month").catch(() => null);
     s = res?.ok ? await res.json() : null;
   });
 

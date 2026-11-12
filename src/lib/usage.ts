@@ -1,3 +1,4 @@
+import { apiGet } from "./api-get";
 import { get, writable } from "svelte/store";
 import { signedInUser } from "./auth-client";
 import { noteExercise } from "./practice-tracker";
@@ -37,7 +38,7 @@ export async function mayGenerate(): Promise<boolean> {
   const known = get(usage);
   if (known && known.tier !== "anonymous" && known.limit === null) return true;
   try {
-    const res = await fetch("/api/usage");
+    const res = await apiGet("/api/usage");
     if (!res.ok) return true;
     const body = await res.json();
     if (!body.allowed) refuse({ tier: body.plan, limit: body.limit, remaining: 0, blocked: true });
@@ -98,7 +99,7 @@ export async function loadUsage() {
     return;
   }
   try {
-    const res = await fetch("/api/usage");
+    const res = await apiGet("/api/usage");
     if (!res.ok) return;
     const body = await res.json();
     usage.set({ tier: body.plan, limit: body.limit, remaining: body.remaining, blocked: false });

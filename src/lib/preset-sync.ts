@@ -1,3 +1,4 @@
+import { apiGet } from "./api-get";
 import { signedInUser } from "./auth-client";
 import {
   deletePreset,
@@ -22,10 +23,10 @@ import {
 const CHORAL_STORE = "abcsr_presets";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  // Reads go out gathered with the page's others (api-get.ts).
+  const res = !init?.method || init.method === "GET"
+    ? await apiGet(path)
+    : await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body?.error ?? `The server said ${res.status}.`);
   return body as T;
