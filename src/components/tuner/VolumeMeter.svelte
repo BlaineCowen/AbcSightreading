@@ -6,6 +6,7 @@
   $: color = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-400" : "bg-green-500";
 </script>
 
+{#if $tuner.engineStatus === "running"}
 <div class="flex items-center gap-3 text-xs text-sr-muted">
   <span class="w-12">Level</span>
   <div class="flex-1 h-2 rounded bg-sr-track overflow-hidden">
@@ -13,3 +14,4 @@
   </div>
   <span class="w-14 text-right font-mono">{Number.isFinite($tuner.dbfs) ? `${$tuner.dbfs.toFixed(0)} dB` : "—"}</span>
 </div>
+{/if}
