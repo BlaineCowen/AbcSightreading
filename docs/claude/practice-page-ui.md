@@ -356,3 +356,5 @@ both lines whole at every line; at 720 tall a system is about 345 px, two
 do not fit, and the next line shows about three quarters (a quarter before)
 until the turn at beat 3. A smaller default size (0.9 looked fine to Blaine)
 would fit both; left at 1x for now.
+
+**Students' practice page froze (9 to 12 November 2026).** TeachMenu.svelte took `student` back from a LiveTeacher in each of its two branches (bind:student); a new LiveTeacher starts at "not a student", so for a student account the branches swapped forever, each swap mounting a new LiveTeacher, and the page's main thread never came free (headless Chrome could not even evaluate `1`). Found with a test class (scripts/load-class.ts) and a CDP pause on the frozen page. TeachMenu now asks `signedInUser()` itself and LiveTeacher is only in the teacher's branch. Never let a child's bound value choose which branch holds that child.
