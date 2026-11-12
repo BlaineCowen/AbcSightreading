@@ -2,6 +2,7 @@ import { defineMiddleware } from "astro:middleware";
 import { refCookie, refFromUrl } from "./lib/referral";
 // Loaded with the function so its database connection opens at start-up (db.ts).
 import "./lib/server/db";
+import { withPlanCache } from "./lib/server/plan-cache";
 
 /**
  * One address for the site. abc.blainecowen.com was the beta's address and
@@ -19,18 +20,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (target) {
     return Response.redirect(new URL(context.url.pathname + context.url.search, target).href, 308);
   }
-  const response = await next();
+  // The plan, remembered between requests in a signed cookie (plan-cache.ts).
+  const { response, setCookie } = await withPlanCache(context.request, context.url, () => next());
+  const cookies: string[] = setCookie ? [setCookie] : [];
   // An advertiser's link, ?ref=CODE on any page: kept for checkout (referral.ts).
   const ref = refFromUrl(context.url);
-  if (!ref) return response;
-  const cookie = refCookie(ref, context.url.protocol === "https:");
+  if (ref) cookies.push(refCookie(ref, context.url.protocol === "https:"));
+  if (!cookies.length) return response;
   try {
-    response.headers.append("Set-Cookie", cookie);
+    for (const c of cookies) response.headers.append("Set-Cookie", c);
     return response;
   } catch {
     // Some responses (a redirect, say) come with headers that cannot change.
     const copy = new Response(response.body, response);
-    copy.headers.append("Set-Cookie", cookie);
+    for (const c of cookies) copy.headers.append("Set-Cookie", c);
     return copy;
   }
 });

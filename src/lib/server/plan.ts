@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { serverEnv } from "./env";
+import { cachedPlan } from "./plan-cache";
 import { generationAllowance, monthKey, planFrom, type Plan } from "../plan";
 
 /**
@@ -40,7 +41,12 @@ const subscriptionsOf = (referenceIds: string[]) =>
 const grantsOf = (userId: string) =>
   prisma.accessGrant.findMany({ where: { userId, expiresAt: { gt: new Date() } }, select: { plan: true, expiresAt: true } });
 
-export async function planFor(userId: string): Promise<Plan> {
+export function planFor(userId: string): Promise<Plan> {
+  // Remembered in a signed cookie and in memory for a few minutes (plan-cache.ts).
+  return cachedPlan(userId, () => lookupPlan(userId));
+}
+
+async function lookupPlan(userId: string): Promise<Plan> {
   // The account and its own subscriptions and grants need only the id, so
   // they are asked for together: one round trip, not three in a row. Every
   // practice page asks for the plan several times as it opens (usage,
