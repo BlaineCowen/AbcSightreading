@@ -27,9 +27,6 @@
   export let item = false;
   /** While Live is on: its code and devices, for the Teach pill to show (bind:status). */
   export let status: { display: string; connected: number } | null = null;
-  /** A student account: nothing to show (bind:student), so the Teach menu can step aside. */
-  export let student = false;
-  $: student = isStudent;
   $: status = session ? { display: session.display, connected } : null;
 
   type Room = { code: string; display: string; path: string; live: boolean; page: string; version: number };
