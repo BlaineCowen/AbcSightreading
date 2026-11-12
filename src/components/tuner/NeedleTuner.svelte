@@ -126,10 +126,6 @@
         ctx.fillStyle = col.faint;
         ctx.font = `${Math.round(r * 0.055)}px ui-monospace, monospace`;
         ctx.fillText(`${pitch.toFixed(1)} Hz`, cx, cy + r * 0.64);
-      } else {
-        ctx.fillStyle = col.faint;
-        ctx.font = `${Math.round(r * 0.07)}px system-ui, sans-serif`;
-        ctx.fillText("Sing or play a note", cx, cy + r * 0.3);
       }
 
       // The needle, over everything.
