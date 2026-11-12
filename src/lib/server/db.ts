@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import { PrismaClient } from "../../generated/prisma/client";
 import { serverEnv } from "./env";
 import { isConnectionError } from "./db-errors";
@@ -47,7 +48,11 @@ const READS = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirs
  * meanwhile without it hearing: the idle timer below cannot run while it is
  * frozen. The first query after waking then waited out query_timeout and
  * failed, an error page on /tuner twice that evening. The pool has thrown
- * that connection away by then, so the second try opens a fresh one.
+ * that connection away by then, but not the others: the first night on main
+ * (03:48 UTC, 12 November 2026) the pooler had dropped all of an instance's
+ * connections at once and each retry took the next dead one, 20 s of failures
+ * for one student. So every idle connection goes too (dropIdle), and the
+ * second try opens a fresh one.
  */
 function withRetry(client: PrismaClient) {
   return client.$extends({
@@ -57,7 +62,8 @@ function withRetry(client: PrismaClient) {
           return await query(args);
         } catch (e) {
           if (!READS.has(operation) || !isConnectionError(e)) throw e;
-          console.warn(`db: ${model}.${operation} sent again after a dead connection`);
+          const dropped = dropIdle();
+          console.warn(`db: ${model}.${operation} sent again after a dead connection (${dropped} idle dropped)`);
           return query(args);
         }
       },
@@ -65,6 +71,27 @@ function withRetry(client: PrismaClient) {
   });
 }
 export type Db = ReturnType<typeof withRetry>;
+
+/** The pool, ours rather than the adapter's, so dropIdle can reach it. */
+let pool: pg.Pool | undefined;
+
+/**
+ * Closes every idle connection: after one turned out dead, the rest most
+ * likely are too (they died together). pg-pool has no public call for it;
+ * `_idle` and `_remove` are what its own idle timer uses (pg-pool 3.x).
+ */
+function dropIdle(): number {
+  const p = pool as unknown as { _idle?: { client: pg.PoolClient }[]; _remove?: (c: pg.PoolClient) => void } | undefined;
+  const idle = [...(p?._idle ?? [])];
+  for (const item of idle) {
+    try {
+      p!._remove!(item.client);
+    } catch {
+      // already gone
+    }
+  }
+  return idle.length;
+}
 
 function createClient(): Db {
   const connectionString = serverEnv("DATABASE_URL");
@@ -79,7 +106,7 @@ function createClient(): Db {
   // warm instances, during S&S CISD's band classes (Brooke Grabowski: "timing
   // out on the practice page"). Now a stuck connection fails in seconds, the
   // pool throws it away and the next request opens a fresh one.
-  const adapter = new PrismaPg({
+  pool = new pg.Pool({
     connectionString: pooledUrl(connectionString),
     // 5, not 3, since Fluid compute (11 November 2026): one instance now serves
     // many requests at once, a class's worth, instead of one each.
@@ -93,6 +120,7 @@ function createClient(): Db {
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
   });
+  const adapter = new PrismaPg(pool);
   return withRetry(new PrismaClient({ adapter }));
 }
 
