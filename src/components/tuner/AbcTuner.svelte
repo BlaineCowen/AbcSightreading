@@ -5,6 +5,8 @@
   import { droneOn } from "../../lib/tools/state";
   import { timer } from "../../lib/tools/timer";
   import RadialTuner from "./RadialTuner.svelte";
+  import NeedleTuner from "./NeedleTuner.svelte";
+  import StrobeTuner from "./StrobeTuner.svelte";
   import TunerSettings from "./TunerSettings.svelte";
   import VolumeMeter from "./VolumeMeter.svelte";
   import DetectionHint from "./DetectionHint.svelte";
@@ -23,8 +25,8 @@
    */
   // No Pitches tab: it gives each part its first note from an exercise, and
   // there is no exercise here. It stays in the practice pages' Tools wheel.
-  // OmniPitch is hidden for now (12 November 2026, Blaine); OmniPitchTab.svelte
-  // stays, to add back as a TABS row.
+  // OmniPitch is hidden for now (12 November 2026, Blaine: "I don't see the
+  // point of it"); OmniPitchTab.svelte stays, to add back as a TABS row.
   type Tab = "tuner" | "analysis" | "omnipitch" | "metro" | "drone" | "timer" | "challenge";
   const TABS: [Tab, string][] = [
     ["tuner", "Tuner"],
@@ -51,6 +53,20 @@
     challenge: false,
   } as Record<Tab, boolean>;
 
+  /** The tuner's look (12 November 2026): the wheel, a needle meter or a strobe; kept per browser. */
+  type Style = "wheel" | "needle" | "strobe";
+  const STYLES: [Style, string][] = [
+    ["wheel", "Wheel"],
+    ["needle", "Needle"],
+    ["strobe", "Strobe"],
+  ];
+  let style: Style = "wheel";
+  try {
+    const saved = localStorage.getItem("abc-tuner-style");
+    if (STYLES.some(([id]) => id === saved)) style = saved as Style;
+  } catch {}
+  $: try { localStorage.setItem("abc-tuner-style", style); } catch {}
+
   onMount(initTuner);
   // The OmniPitch tab frames OmniPitch's editor (12 MB): loaded only when it is opened.
   const omniPitchTab = () => import("./OmniPitchTab.svelte");
@@ -76,7 +92,18 @@
   <section class="sr-panel p-5 sm:p-7 flex flex-col gap-4" role="tabpanel">
     {#if tab === "tuner"}
       <TunerSettings />
-      <RadialTuner />
+      <div class="flex justify-center gap-1.5" role="radiogroup" aria-label="Tuner style">
+        {#each STYLES as [id, label]}
+          <button role="radio" aria-checked={style === id} class="sr-tok {style === id ? 'sr-on' : ''}" on:click={() => (style = id)}>{label}</button>
+        {/each}
+      </div>
+      {#if style === "needle"}
+        <NeedleTuner />
+      {:else if style === "strobe"}
+        <StrobeTuner />
+      {:else}
+        <RadialTuner />
+      {/if}
       <VolumeMeter />
       <DetectionHint />
     {:else if tab === "analysis"}
