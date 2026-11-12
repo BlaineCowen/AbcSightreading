@@ -23,11 +23,12 @@
    */
   // No Pitches tab: it gives each part its first note from an exercise, and
   // there is no exercise here. It stays in the practice pages' Tools wheel.
+  // OmniPitch is hidden for now (12 November 2026, Blaine); OmniPitchTab.svelte
+  // stays, to add back as a TABS row.
   type Tab = "tuner" | "analysis" | "omnipitch" | "metro" | "drone" | "timer" | "challenge";
   const TABS: [Tab, string][] = [
     ["tuner", "Tuner"],
     ["analysis", "Analysis"],
-    ["omnipitch", "OmniPitch"],
     ["metro", "Metronome"],
     ["drone", "Drone"],
     ["timer", "Timer"],
