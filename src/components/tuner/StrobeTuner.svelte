@@ -134,7 +134,7 @@
         ctx.fillText(label(target, solfege, s.key), w / 2, top * 0.42);
         ctx.fillStyle = col.muted;
         ctx.font = `${Math.round(h * 0.05)}px system-ui, sans-serif`;
-        ctx.fillText(note ? `hearing ${label(note, solfege, s.key)}${octave ?? ""}` : "target", w / 2, top * 0.88);
+        ctx.fillText(note ? `hearing ${label(note, solfege, s.key)}${octave ?? ""}` : "", w / 2, top * 0.88);
       } else if (note) {
         const name = solfege ? solfegeFor(note, s.key) : note;
         ctx.fillStyle = inTune ? IN_TUNE : col.ink;
@@ -212,10 +212,6 @@
             ? `${steps} half step${steps > 1 ? "s" : ""} ${c > 0 ? "high: go lower" : "low: go higher"}`
             : `${c > 0 ? "+" : ""}${c}¢  ${word}`;
         ctx.fillText(text, w / 2, below);
-      } else {
-        ctx.fillStyle = col.faint;
-        ctx.font = `${Math.round(h * 0.055)}px system-ui, sans-serif`;
-        ctx.fillText("Sing or play a note: the stripes stand still when it is in tune", w / 2, below);
       }
     };
     raf = requestAnimationFrame(render);

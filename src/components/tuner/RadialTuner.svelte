@@ -205,10 +205,6 @@
         ctx.fillStyle = col.faint;
         ctx.font = `${Math.round(size * 0.1)}px system-ui, sans-serif`;
         ctx.fillText("—", cx, cy - size * 0.01);
-        if (interactive && !compact) {
-          ctx.font = `${Math.round(size * 0.03)}px system-ui, sans-serif`;
-          ctx.fillText("tap a note to hear it", cx, cy + size * 0.08);
-        }
       }
     };
     raf = requestAnimationFrame(render);

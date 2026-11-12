@@ -7,6 +7,10 @@
    * the sound - or, if no frames are arriving at all, that the audio graph
    * never started. Otherwise "it just doesn't detect anything" is
    * undiagnosable from the outside, especially on a phone.
+   *
+   * Only the real problem now (12 November 2026, Blaine: "get rid of the
+   * helper text"): the grey line saying why nothing showed (quiet, no steady
+   * pitch, with level, floor and clarity) is gone.
    */
 
   const NO_AUDIO_AFTER_MS = 1500;
@@ -35,26 +39,6 @@
         page; on an iPhone or iPad, also check that no other app or tab is using
         the microphone, and that the browser has microphone access in Settings.
       </p>
-    </div>
-  {:else}
-    <div class="text-xs text-sr-muted bg-sr-panel border border-sr-hairline rounded-lg p-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-      {#if reason === "self-playing"}
-        <span>Paused while the app is sounding a note. Tap the lit wedge again to stop it, then sing.</span>
-      {:else if reason === "quiet"}
-        <span>
-          Sound is too close to the room noise
-          {#if $tuner.sensitivity !== "high"}
-            - try <button class="underline underline-offset-2 hover:text-sr-ink" on:click={() => tuner.setSensitivity("high")}>High sensitivity</button>
-          {/if}
-        </span>
-      {:else if reason === "silent"}
-        <span>Listening, no sound yet</span>
-      {:else}
-        <span>Hearing sound, but no steady pitch yet</span>
-      {/if}
-      <span class="font-mono text-sr-faint">
-        level {level} · floor {floor} · clarity {$tuner.detection.clarity.toFixed(2)} · {$tuner.framesReceived} frames
-      </span>
     </div>
   {/if}
 {/if}
