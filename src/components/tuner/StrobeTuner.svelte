@@ -21,6 +21,17 @@
   const BANDS = [1, 2, 4];
   /** Past this many cents the stripes run no faster: a blur tells nothing. */
   const MOTION_CAP = 50;
+  /**
+   * The look of a real strobe without flashing (12 November 2026, Blaine: "It
+   * is weird using a strobe tuner on a 120hz screen"; real flashing is out,
+   * students may be photosensitive). A band smears by how far it moves in
+   * EXPOSURE seconds, the eye's blur, the same on any refresh rate: far off it
+   * is a shimmer, close it sharpens into stripes, in tune it stands. A wobbly
+   * pitch smears more (jitter), and the stripes glow with the sound's level,
+   * as a strobe's lamp does.
+   */
+  const EXPOSURE = 1 / 20;
+  const BLUR_SAMPLES = 8;
 
   /**
    * Auto or a chosen note (12 November 2026, Blaine: "select the note to tune
@@ -79,7 +90,7 @@
     const observer = new ResizeObserver(resize);
     observer.observe(container);
 
-    const state = { phase: 0, cents: 0, last: performance.now(), inTuneSince: null as number | null };
+    const state = { phase: 0, cents: 0, last: performance.now(), inTuneSince: null as number | null, raw: 0, jitter: 0, lamp: 0 };
     let raf = 0;
     const render = () => {
       raf = requestAnimationFrame(render);
@@ -99,6 +110,12 @@
       const moving = Math.max(-MOTION_CAP, Math.min(MOTION_CAP, cents));
       state.cents += ((note ? moving : 0) - state.cents) * 0.2;
       if (note) state.phase += state.cents * SPEED * w * dt;
+      // How unsteady the pitch is (cents a frame, smoothed), and the lamp.
+      if (note) state.jitter += (Math.min(30, Math.abs(cents - state.raw)) - state.jitter) * 0.08;
+      else state.jitter *= 0.9;
+      state.raw = note ? cents : state.raw;
+      const level = Number.isFinite(s.dbfs) ? Math.max(0, Math.min(1, (s.dbfs + 50) / 35)) : 0;
+      state.lamp += ((note ? 0.35 + 0.65 * level : 0) - state.lamp) * (note ? 0.25 : 0.06);
       if (note && Math.abs(cents) < IN_TUNE_CENTS) state.inTuneSince ??= now;
       else state.inTuneSince = null;
       const inTune = !!note && state.inTuneSince !== null && now - state.inTuneSince > IN_TUNE_HOLD_MS;
@@ -147,15 +164,31 @@
       ctx.fillStyle = col.raise;
       ctx.fill();
       ctx.clip();
-      const stripe = inTune ? IN_TUNE : note ? col.ink : col.tint;
+      const stripe = inTune ? IN_TUNE : col.ink;
+      // The lamp's glow behind the stripes.
+      if (state.lamp > 0.02) {
+        ctx.fillStyle = inTune ? IN_TUNE : col.tint;
+        ctx.globalAlpha = 0.18 * state.lamp;
+        ctx.fillRect(x0, y0, ww, wh);
+      }
       const bandH = wh / BANDS.length;
       BANDS.forEach((mult, i) => {
         const period = ww / (6 * mult);
         const shift = (((state.phase * mult) % period) + period) % period;
+        // The smear: how far the band moves in one exposure, plus the wobble.
+        const speed = Math.abs(state.cents * SPEED * w * mult);
+        const smear = Math.min(period, speed * EXPOSURE + state.jitter * 0.0015 * w * mult);
+        const base = (0.85 - i * 0.12) * (note ? 0.25 + 0.75 * state.lamp : 0.35);
         ctx.fillStyle = stripe;
-        ctx.globalAlpha = note ? 0.85 - i * 0.12 : 0.5;
-        for (let x = x0 - period + shift; x < x0 + ww; x += period) {
-          ctx.fillRect(x, y0 + i * bandH + 3, period / 2, bandH - 6);
+        const n = smear < 1 ? 1 : BLUR_SAMPLES;
+        // Each pass so that n of them overlapping make the base opacity.
+        ctx.globalAlpha = n === 1 ? base : 1 - Math.pow(1 - base, 1 / n);
+        const dir = state.cents >= 0 ? 1 : -1;
+        for (let k = 0; k < n; k++) {
+          const off = n === 1 ? 0 : -dir * smear * (k / (n - 1));
+          for (let x = x0 - 2 * period + shift + off; x < x0 + ww + period; x += period) {
+            ctx.fillRect(x, y0 + i * bandH + 3, period / 2, bandH - 6);
+          }
         }
       });
       ctx.globalAlpha = 1;
