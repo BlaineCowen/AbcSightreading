@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
+import { attachDatabasePool } from "@vercel/functions";
 import { PrismaClient } from "../../generated/prisma/client";
 import { serverEnv } from "./env";
 import { isConnectionError } from "./db-errors";
@@ -124,6 +125,12 @@ function createClient(): Db {
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
   });
+  // Vercel's own answer to dead connections (12 November 2026, found after
+  // the retry): it releases idle clients before the instance is suspended,
+  // so an instance never wakes holding sockets that died while it was frozen.
+  // The retry and dropIdle stay for what this cannot see (a pooler or a
+  // sleeping Neon compute dropping connections while the instance runs).
+  if (process.env.VERCEL) attachDatabasePool(pool);
   const adapter = new PrismaPg(pool);
   return withRetry(new PrismaClient({ adapter }));
 }

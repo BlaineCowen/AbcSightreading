@@ -5,6 +5,7 @@
   import Clapperboard from "lucide-svelte/icons/clapperboard";
   import Presentation from "lucide-svelte/icons/presentation";
   import LiveTeacher from "./LiveTeacher.svelte";
+  import { signedInUser } from "../lib/auth-client";
 
   /**
    * The Teach pill (9 November 2026, Blaine: "That top bar is getting really
@@ -36,6 +37,14 @@
   let open = false;
   let root: HTMLElement;
   let status: { display: string; connected: number } | null = null;
+  /**
+   * A student account: no Teach menu, only Video. Asked here, once (12
+   * November 2026). It used to come back from LiveTeacher (bind:student), one
+   * in each branch below: every new LiveTeacher starts at "not a student", so
+   * for a student the two branches swapped forever, each swap mounting a new
+   * LiveTeacher, and the practice page froze for every signed-in student from
+   * 9 November (the Teach pill) until this, S&S CISD's "timing out" among it.
+   */
   let student = false;
 
   /** A row chosen (Live's included) shuts the menu. */
@@ -49,6 +58,7 @@
   }
 
   onMount(() => {
+    signedInUser().then((u) => (student = u?.accountType === "student")).catch(() => {});
     const away = (e: Event) => { if (open && root && !root.contains(e.target as Node)) open = false; };
     const esc = (e: KeyboardEvent) => { if (open && e.key === "Escape") open = false; };
     document.addEventListener("pointerdown", away);
@@ -67,8 +77,6 @@
       {#if videoAllowed === false}<span class="sr-pro-tag">Pro</span>{/if}
     </button>
   {/if}
-  <!-- Kept for its account check; it draws nothing for a student. -->
-  {#if live}<LiveTeacher {page} {abc} {bpm} title={liveTitle} {rhythm} bind:student />{/if}
 {:else}
   <div class="teach no-print" bind:this={root} data-teach>
     <button
@@ -97,7 +105,7 @@
           </span>
         </button>
       {/if}
-      {#if live}<LiveTeacher item {page} {abc} {bpm} title={liveTitle} {rhythm} bind:status bind:student />{/if}
+      {#if live}<LiveTeacher item {page} {abc} {bpm} title={liveTitle} {rhythm} bind:status />{/if}
       {#if onVideo}
         <button type="button" role="menuitem" class="teach-item" on:click={() => choose(onVideo)}>
           <Clapperboard size={18} aria-hidden="true" />
