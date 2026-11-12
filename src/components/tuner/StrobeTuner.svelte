@@ -42,8 +42,6 @@
   /** Band spelling: sharps for C# and F#, flats for the rest. */
   const SPELL: Partial<Record<NoteName, string>> = { "D#": "Eb", "G#": "Ab", "A#": "Bb" };
   const label = (n: NoteName, solfege: boolean, key: NoteName) => (solfege ? solfegeFor(n, key) : SPELL[n] ?? n);
-  let lastPicked: NoteName = "A";
-  $: if (target) lastPicked = target;
   $: hearing = !!target && $tuner.playing?.name === target;
   function hear() {
     if (!target) return;
@@ -53,7 +51,13 @@
   function pick(n: NoteName | null) {
     if (tuner.get().playing) tuner.setPlaying(null);
     target = n;
+    open = false;
   }
+  let open = false;
+  let pickerEl: HTMLDivElement;
+  const closeOutside = (e: MouseEvent) => {
+    if (open && pickerEl && !pickerEl.contains(e.target as Node)) open = false;
+  };
 
   let container: HTMLDivElement;
   let canvas: HTMLCanvasElement;
@@ -189,31 +193,53 @@
   });
 </script>
 
+<svelte:window on:click={closeOutside} on:keydown={(e) => e.key === "Escape" && (open = false)} />
+
 <div class="flex flex-col gap-3">
-  <div class="flex flex-col items-center gap-2">
-    <div class="flex flex-wrap justify-center gap-1.5">
-      <div class="flex gap-1.5" role="radiogroup" aria-label="Strobe target">
-        <button role="radio" aria-checked={!target} class="sr-tok {!target ? 'sr-on' : ''}" on:click={() => pick(null)}>Auto</button>
-        <button role="radio" aria-checked={!!target} class="sr-tok {target ? 'sr-on' : ''}" on:click={() => pick(target ?? lastPicked)}>Pick a note</button>
-      </div>
-      {#if target}
-        <button class="sr-tok {hearing ? 'sr-on' : ''}" on:click={hear} aria-pressed={hearing}>
-          {hearing ? "Stop" : "Hear it"}
-        </button>
+  <!-- One control for what to tune to: Auto, or a note from a small popup. -->
+  <div class="flex items-center justify-center gap-1.5" bind:this={pickerEl}>
+    <div class="relative">
+      <button
+        class="flex items-center gap-1.5 rounded-full bg-sr-track px-4 py-1.5 text-sm font-bold text-sr-ink hover:bg-sr-raise border border-transparent hover:border-sr-hairline"
+        aria-haspopup="true"
+        aria-expanded={open}
+        on:click={() => (open = !open)}
+      >
+        <span class="text-sr-muted font-semibold">Tune to</span>
+        {target ? label(target, $tuner.displayMode === "solfege", $tuner.key) : "Auto"}
+        <svg viewBox="0 0 12 12" class="w-3 h-3 text-sr-muted" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+      </button>
+      {#if open}
+        <div class="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-20 w-[17rem] rounded-2xl bg-sr-raise border border-sr-hairline shadow-lg p-2 flex flex-col gap-1.5" role="radiogroup" aria-label="Note to tune to">
+          <button
+            role="radio"
+            aria-checked={!target}
+            class="rounded-full py-1.5 text-sm font-bold {!target ? 'bg-sr-action text-sr-action-ink' : 'bg-sr-track text-sr-ink hover:bg-sr-panel'}"
+            on:click={() => pick(null)}
+          >Auto <span class="font-normal {!target ? '' : 'text-sr-muted'}">(nearest note)</span></button>
+          <div class="grid grid-cols-6 gap-1">
+            {#each NOTES as n}
+              <button
+                role="radio"
+                aria-checked={target === n}
+                class="rounded-full py-1.5 text-sm font-bold {target === n ? 'bg-sr-action text-sr-action-ink' : 'bg-sr-track text-sr-ink hover:bg-sr-panel'}"
+                on:click={() => pick(n)}
+              >{label(n, $tuner.displayMode === "solfege", $tuner.key)}</button>
+            {/each}
+          </div>
+        </div>
       {/if}
     </div>
     {#if target}
-      <!-- Six a row on a phone, all twelve in one row wider. -->
-      <div class="grid grid-cols-6 sm:grid-cols-12 gap-1 w-full max-w-[560px]" role="radiogroup" aria-label="Note to tune to">
-        {#each NOTES as n}
-          <button
-            role="radio"
-            aria-checked={target === n}
-            class="rounded-full py-1.5 text-sm font-bold transition-colors {target === n ? 'bg-sr-action text-sr-action-ink' : 'bg-sr-track text-sr-ink hover:bg-sr-raise'}"
-            on:click={() => pick(n)}
-          >{label(n, $tuner.displayMode === "solfege", $tuner.key)}</button>
-        {/each}
-      </div>
+      <button
+        class="w-9 h-9 grid place-items-center rounded-full transition-colors {hearing ? 'bg-sr-action text-sr-action-ink' : 'bg-sr-track text-sr-ink hover:bg-sr-raise'}"
+        on:click={hear}
+        aria-pressed={hearing}
+        aria-label={hearing ? "Stop the note" : "Hear the note"}
+        title={hearing ? "Stop" : "Hear it"}
+      >
+        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/>{#if hearing}<path d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10"/>{:else}<path d="M16 9.5a3.5 3.5 0 0 1 0 5"/>{/if}</svg>
+      </button>
     {/if}
   </div>
   <MicStatus />

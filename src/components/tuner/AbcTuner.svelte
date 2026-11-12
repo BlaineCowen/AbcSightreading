@@ -66,6 +66,8 @@
     if (STYLES.some(([id]) => id === saved)) style = saved as Style;
   } catch {}
   $: try { localStorage.setItem("abc-tuner-style", style); } catch {}
+  /** Key, solfège, A4 and sensitivity, folded away until asked for (12 November 2026, Blaine: "just a lot of buttons"). */
+  let showSettings = false;
 
   onMount(initTuner);
   // The OmniPitch tab frames OmniPitch's editor (12 MB): loaded only when it is opened.
@@ -91,12 +93,30 @@
 
   <section class="sr-panel p-5 sm:p-7 flex flex-col gap-4" role="tabpanel">
     {#if tab === "tuner"}
-      <TunerSettings />
-      <div class="flex justify-center gap-1.5" role="radiogroup" aria-label="Tuner style">
-        {#each STYLES as [id, label]}
-          <button role="radio" aria-checked={style === id} class="sr-tok {style === id ? 'sr-on' : ''}" on:click={() => (style = id)}>{label}</button>
-        {/each}
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex p-1 rounded-full bg-sr-track" role="radiogroup" aria-label="Tuner style">
+          {#each STYLES as [id, label]}
+            <button
+              role="radio"
+              aria-checked={style === id}
+              class="rounded-full px-3.5 py-1.5 text-sm font-bold transition-colors {style === id ? 'bg-sr-raise text-sr-ink shadow-sm' : 'text-sr-muted hover:text-sr-ink'}"
+              on:click={() => (style = id)}
+            >{label}</button>
+          {/each}
+        </div>
+        <button
+          class="shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold transition-colors {showSettings ? 'bg-sr-action text-sr-action-ink' : 'text-sr-muted hover:text-sr-ink hover:bg-sr-track'}"
+          aria-expanded={showSettings}
+          aria-label="Settings"
+          on:click={() => (showSettings = !showSettings)}
+        >
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          <span class="hidden sm:inline">Settings</span>
+        </button>
       </div>
+      {#if showSettings}
+        <TunerSettings />
+      {/if}
       {#if style === "needle"}
         <NeedleTuner />
       {:else if style === "strobe"}

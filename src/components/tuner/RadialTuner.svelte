@@ -262,11 +262,6 @@
       <button class="sr-btn w-full py-2.5 text-base" on:click={startTuner}>Start microphone</button>
     {:else if $tuner.engineStatus === "starting"}
       <p class="text-center text-sm text-sr-brass py-2">Starting microphone…</p>
-    {:else if $tuner.engineStatus === "running"}
-      <p class="text-center text-xs text-sr-muted">
-        <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 align-middle"></span>
-        Listening
-      </p>
     {:else if $tuner.engineStatus === "error"}
       <div class="rounded-lg bg-sr-danger-bg border border-sr-danger p-3 text-sm">
         <p class="text-sr-danger mb-1">Microphone access error</p>
