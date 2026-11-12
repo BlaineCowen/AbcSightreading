@@ -94,8 +94,12 @@ function dropIdle(): number {
 }
 
 function createClient(): Db {
-  const connectionString = serverEnv("DATABASE_URL");
-  if (!connectionString) throw new Error("DATABASE_URL is not set.");
+  // Neon since 12 November 2026 (NEON_DATABASE_URL, its -pooler host). On
+  // Vercel DATABASE_URL belongs to the Prisma Postgres integration and still
+  // names the old database, kept untouched for a while: dropping
+  // NEON_DATABASE_URL (or reverting this) goes back to it.
+  const connectionString = serverEnv("NEON_DATABASE_URL") ?? serverEnv("DATABASE_URL");
+  if (!connectionString) throw new Error("NEON_DATABASE_URL / DATABASE_URL is not set.");
   // A small pool: queries take milliseconds, so a few connections serve an
   // instance's requests, and the pooler's own limit is shared by every instance.
   //
