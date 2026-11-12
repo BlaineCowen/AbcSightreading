@@ -92,11 +92,16 @@ const due = (kind: string) => !state.sent[kind] || now - Date.parse(state.sent[k
 
 let problems: { kind: string; text: string }[] = [];
 try {
+  // Time to first byte, what a visitor waits, not function_duration_ms (12 November
+  // 2026): attachDatabasePool (db.ts) keeps each instance running the pool's idle
+  // timeout (20 s) after its last request to close connections, and Vercel counts
+  // that as duration, so every quiet spell read as a 20, 40 or 59 s "slow" page
+  // while the pages had answered in milliseconds.
   const [errors, hotCount, hotP95, coldP95, coldCount] = await Promise.all([
     metric("vercel.function_invocation.count", { filter: "httpStatus >= 500", groupBy: ["httpStatus", "requestPath"], limit: 6 }),
     metric("vercel.function_invocation.count", { filter: 'functionStartType = "hot"' }),
-    metric("vercel.function_invocation.function_duration_ms", { agg: "p95", filter: 'functionStartType = "hot"' }),
-    metric("vercel.function_invocation.function_duration_ms", { agg: "p95", filter: 'functionStartType != "hot"' }),
+    metric("vercel.function_invocation.ttfb_ms", { agg: "p95", filter: 'functionStartType = "hot"' }),
+    metric("vercel.function_invocation.ttfb_ms", { agg: "p95", filter: 'functionStartType != "hot"' }),
     metric("vercel.function_invocation.count", { filter: 'functionStartType != "hot"' }),
   ]);
   if (errors.length) {
