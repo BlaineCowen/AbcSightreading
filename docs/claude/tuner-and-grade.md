@@ -451,3 +451,5 @@ for a class on a TV.
 To test with a real signal, run Chromium with
 `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`;
 a synthetic 440 Hz tone reads A4 within a cent.
+
+**Tuner styles, and OmniPitch hidden (12 November 2026).** abcTuner's Tuner tab has a style picker (localStorage `abc-tuner-style`): Wheel (RadialTuner, as before), Needle (NeedleTuner.svelte: a meter 50 cents either way, green within 10, amber within 25, the note under the pivot) and Strobe (StrobeTuner.svelte: three bands of stripes drifting right when sharp and left when flat, the lower ones finer and two and four times as fast, still and green within 3 cents held 300 ms). Both use MicStatus.svelte for the Start / Retry row. Checked in headless Chrome with getUserMedia replaced by an oscillator: 446 Hz reads A4 +23¢ (true 23.4) and the strobe moves, 434 Hz moves the other way, 440 Hz stands still. The OmniPitch tab is out of TABS (Blaine: "I don't see the point of it"); OmniPitchTab.svelte stays, to add back as a row. It was only ever on dev, never on the live site.
