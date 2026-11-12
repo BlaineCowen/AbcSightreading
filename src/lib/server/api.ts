@@ -1,4 +1,5 @@
 import { auth } from "./auth";
+import { noteSignedIn } from "./plan-cache";
 
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -9,6 +10,7 @@ export const json = (body: unknown, status = 200) =>
 /** The signed-in user for this request, or null. */
 export async function currentUser(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
+  noteSignedIn(session?.user?.id);
   return session?.user ?? null;
 }
 

@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma/client";
 import { serverEnv } from "./env";
+import { isConnectionError } from "./db-errors";
 
 /**
  * One Prisma client per server instance.
@@ -9,7 +10,7 @@ import { serverEnv } from "./env";
  * than opening a new one on every edit. The pg driver adapter means no query
  * engine binary, which is what lets this bundle into a Vercel function as is.
  */
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma?: Db };
 
 /**
  * The app's traffic goes through Prisma Postgres's pooler (PgBouncer, in
@@ -25,13 +26,47 @@ export function pooledUrl(url: string): string {
   try {
     const u = new URL(url);
     if (u.hostname === "db.prisma.io") u.hostname = "pooled.db.prisma.io";
+    // pg already treats sslmode=require as verify-full, and says so in a
+    // warning on stderr, which Vercel logs as an error on every new instance
+    // and which buried the real errors (12 November 2026). Saying verify-full
+    // is the same check, without the warning.
+    const mode = u.searchParams.get("sslmode");
+    if (mode === "require" || mode === "prefer" || mode === "verify-ca") u.searchParams.set("sslmode", "verify-full");
     return u.toString();
   } catch {
     return url;
   }
 }
 
-function createClient(): PrismaClient {
+/** Reads, which are safe to send again. Writes never are: one may have landed. */
+const READS = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy"]);
+
+/**
+ * A read that met a dead connection is sent once more (12 November 2026).
+ * Vercel freezes an instance between requests and its pooled sockets can die
+ * meanwhile without it hearing: the idle timer below cannot run while it is
+ * frozen. The first query after waking then waited out query_timeout and
+ * failed, an error page on /tuner twice that evening. The pool has thrown
+ * that connection away by then, so the second try opens a fresh one.
+ */
+function withRetry(client: PrismaClient) {
+  return client.$extends({
+    query: {
+      async $allOperations({ model, operation, args, query }) {
+        try {
+          return await query(args);
+        } catch (e) {
+          if (!READS.has(operation) || !isConnectionError(e)) throw e;
+          console.warn(`db: ${model}.${operation} sent again after a dead connection`);
+          return query(args);
+        }
+      },
+    },
+  });
+}
+export type Db = ReturnType<typeof withRetry>;
+
+function createClient(): Db {
   const connectionString = serverEnv("DATABASE_URL");
   if (!connectionString) throw new Error("DATABASE_URL is not set.");
   // A small pool: queries take milliseconds, so a few connections serve an
@@ -50,12 +85,15 @@ function createClient(): PrismaClient {
     // many requests at once, a class's worth, instead of one each.
     max: 5,
     connectionTimeoutMillis: 5_000, // to open one, or to wait for a free one
-    query_timeout: 15_000, // a query here takes milliseconds; 15 s is a dead socket
+    // A query here takes milliseconds, so 5 s is a dead socket, and the read
+    // is then sent again (withRetry): about 5 s slow at worst, not an error.
+    // Scripts run outside Vercel keep longer.
+    query_timeout: process.env.VERCEL ? 5_000 : 15_000,
     idleTimeoutMillis: 20_000, // close idle ones before the pooler or network forgets them
     keepAlive: true,
     keepAliveInitialDelayMillis: 10_000,
   });
-  return new PrismaClient({ adapter });
+  return withRetry(new PrismaClient({ adapter }));
 }
 
 export const prisma = globalForPrisma.prisma ?? createClient();

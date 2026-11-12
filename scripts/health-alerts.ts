@@ -12,8 +12,8 @@
  *     the paths;
  *   - warm requests are slow: p95 over SLOW_MS with at least MIN_REQUESTS of
  *     them (a class's burst, not one stray request);
- *   - cold starts are very slow: p95 over COLD_MS (what a class arriving at
- *     once feels).
+ *   - cold starts are very slow: p95 over COLD_MS over at least MIN_COLD new
+ *     instances (what a class arriving at once feels).
  * The same kind of alert is not sent again for COOLDOWN_MIN, and one "back to
  * normal" line follows once a check is clean. Telegram's bot and chat come
  * from Hermes (~/.hermes/.env), as for scripts/signup-alerts.ts; state is in
@@ -30,6 +30,10 @@ import { join } from "node:path";
 const SLOW_MS = 3_000;
 const MIN_REQUESTS = 50;
 const COLD_MS = 10_000;
+// One slow new instance is one slow page (12 November 2026: one request that
+// met a dead connection on a new instance sent this alert alongside the error
+// one). A class arriving at once starts several.
+const MIN_COLD = 3;
 const COOLDOWN_MIN = 30;
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry");
@@ -106,7 +110,7 @@ try {
     problems.push({ kind: "slow", text: `<b>abcSightReading: slow</b>\nWarm requests p95 ${secs(p95)} over ${hot} requests (normal is about 0.1 s).` });
   }
   const cold = value(coldP95[0]);
-  if (cold > COLD_MS) {
+  if (cold > COLD_MS && value(coldCount[0]) >= MIN_COLD) {
     problems.push({ kind: "cold", text: `<b>abcSightReading: slow cold starts</b>\np95 ${secs(cold)} over ${value(coldCount[0])} new instances (normal is about 3 s): a class arriving at once waits this long.` });
   }
   if (DRY) console.log(`checked ${SINCE}${UNTIL ? ` to ${UNTIL}` : ""}: ${errors.length} error groups, warm p95 ${secs(p95)} over ${hot}, cold p95 ${secs(cold)}`);
