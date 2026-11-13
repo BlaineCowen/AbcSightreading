@@ -23,6 +23,10 @@ the link again). `/account` is one tab at a time for everyone but students:
 Account and plan (#plan, #quote), Classes (#students), Rhythm syllables
 (#syllables); the hash picks the tab, so old links still land.
 
+**Student or teacher?** (13 November 2026, Blaine: "we need to do the question"). A student who signs in with their school's Google gets an ordinary account in no class, unseen by the teacher (S&S CISD, 10 to 12 November: 6 band students, 5 in no class, one made a class of her own). An address cannot tell a student from a teacher (S&S gives both `@sscisd.net`), so WelcomeNote asks "Are you a student or a teacher?" before anything else, of an ordinary account that is in no class and has no class with students (`/api/role-check`, so it reaches the accounts made before it too). "I'm a student" takes the class code there and joins (`/api/join`); "I don't have a code yet" asks again next visit; "I'm a teacher" goes on to the welcome. Which answer is offered first is a guess (`src/lib/student-guess.ts`: a student domain, an address that is mostly a number, a name in capitals). The answer is kept per account in localStorage (`sr-role:<id>`). The founding-teacher modal (HomeDashboard) waits for the answer through the `roleQuestion` store (`src/lib/role-question.ts`) and never shows to a student, and the home gives no founders offer to an ordinary account that is in a class. Joining reads a 404 from its status, since Astro can answer an API 404 with the site's 404 page. A student can still tap "teacher"; making a class count only once its teacher is an Educator is the next step if that happens.
+
+Local dev servers load `.env.local` before `.env` (`src/lib/server/env.ts`, 13 November 2026): until then only `.env` was loaded, so after the move to Neon a dev server read `.env`'s DATABASE_URL, the old Prisma database, and anything done on localhost went there.
+
 Classes (`Class`, `ClassProgress`; `/api/classes`, `src/lib/classes.ts`) are
 signed-in only: a director's choirs and which presets each has passed, keyed
 `step:<id>`, `uil:UIL n`, `nyssma:<level id>`, `track:<step id>:<part>` or

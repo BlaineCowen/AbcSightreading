@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { roleQuestion } from "../lib/role-question";
   import { whenLabel, type RecentExercise } from "../lib/recent-exercises";
   import { BUILTIN_SETS } from "../lib/curriculum/catalogue";
   import { trackById } from "../lib/curriculum/tracks";
@@ -55,12 +56,17 @@
     try { localStorage.setItem(OFFER_SEEN, "1"); } catch {}
   }
 
+  // Not over WelcomeNote's "student or teacher?" question, and never for a student.
+  let offerWanted = false;
+  $: if (offerWanted && ($roleQuestion === "teacher" || $roleQuestion === "none")) {
+    offerWanted = false;
+    offerOpen = true;
+    setTimeout(() => offerButton?.focus(), 50);
+  }
+
   onMount(() => {
     try {
-      if (founders && !localStorage.getItem(OFFER_SEEN)) {
-        offerOpen = true;
-        setTimeout(() => offerButton?.focus(), 50);
-      }
+      if (founders && !localStorage.getItem(OFFER_SEEN)) offerWanted = true;
     } catch {}
     now = Date.now();
     const tickTimer = setInterval(() => (now = Date.now()), 60_000);
@@ -182,7 +188,7 @@
     </a>
   </section>
 
-  {#if founders}
+  {#if founders && $roleQuestion !== "student"}
     <!-- The founding-teacher offer (/founders), for a teacher who may join. -->
     <a class="offer bg-sr-peach text-sr-peach-ink" href="/founders">
       <span class="offer-tag">{classlink ? "Pro is on through ClassLink" : "Founding teachers"}</span>

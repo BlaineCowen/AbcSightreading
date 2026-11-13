@@ -36,7 +36,9 @@ const home = viewer
       accountType === "student" ? libraryFor(viewer.id).catch(() => []) : [],
       accountType === "student" ? null : founderStatus(viewer.id).catch(() => null),
       accountType === "student" ? false : viaClasslink(viewer.id).catch(() => false),
-    ]).then(([rows, pref, allowance, assignments, library, founders, classlink]) => ({
+      // An ordinary account in someone's class is a student who signed in with Google: no teacher offer.
+      accountType === "standard" ? prisma.enrollment.findFirst({ where: { studentId: viewer.id }, select: { id: true } }) : null,
+    ]).then(([rows, pref, allowance, assignments, library, founders, classlink, inClass]) => ({
       recent: rows.map((r): RecentExercise => ({
         id: r.id, page: r.page as RecentExercise["page"], title: r.title, detail: r.detail, link: r.link, createdAt: r.createdAt.getTime(),
       })),
@@ -45,7 +47,7 @@ const home = viewer
       assignments,
       library,
       // The founding-teacher offer while this teacher may join (or has one step left).
-      founders: founders && (founders.ok || founders.step === "confirm" || founders.step === "apply") ? founders : null,
+      founders: !inClass && founders && (founders.ok || founders.step === "confirm" || founders.step === "apply") ? founders : null,
       classlink,
     }))
   : null;
