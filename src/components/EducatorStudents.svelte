@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { modal } from "../lib/modal";
   import { Copy, KeyRound, UserMinus, Printer, Upload, Monitor, X } from "lucide-svelte";
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
@@ -549,7 +550,7 @@
 
 {#if boardFor}
   <!-- The join code big enough to read from the back of the room (a projector or TV). -->
-  <div class="board print:hidden" role="dialog" aria-label="Join {boardFor.name}" on:click={() => (boardFor = null)} on:keydown={(e) => e.key === "Escape" && (boardFor = null)} tabindex="-1">
+  <dialog class="sr-modal board print:hidden" use:modal={{ onClose: () => (boardFor = null), tapAnywhere: true }} aria-label="Join {boardFor.name}">
     <div class="board-inner">
       <p class="board-class">{boardFor.name}</p>
       <p class="board-step">Go to</p>
@@ -558,7 +559,7 @@
       <p class="board-code">{boardFor.joinCode}</p>
       <p class="board-hint">Tap anywhere or press Esc to close</p>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- Login cards: only these print, eight to a letter page, each class from a new page. -->

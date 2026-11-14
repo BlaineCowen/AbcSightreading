@@ -60,7 +60,7 @@ await page.evaluate(() => [...document.querySelectorAll("button")].find((x) => /
 await new Promise((r) => setTimeout(r, 1200));
 await page.evaluate(() => {
   (window as any).__starts.length = 0;
-  ([...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start") as HTMLButtonElement | undefined)?.click();
+  ([...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start") as HTMLButtonElement | undefined)?.click();
 });
 await page.waitForFunction(() => (window as any).__gradeDebug.view().phase === "results", { timeout: 120000, polling: 500 });
 const { starts, t0 } = await page.evaluate(() => ({ starts: (window as any).__starts as { at: number }[], t0: (window as any).__gradeDebug.t0() as number }));

@@ -194,7 +194,7 @@ await page.evaluate(() => {
 await new Promise((r) => setTimeout(r, 1200));
 await page.evaluate(() => {
   (window as any).__clicks.length = 0;
-  const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
+  const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
   (b as HTMLButtonElement | undefined)?.click();
 });
 const one = await page.waitForFunction(() => (window as any).__countIn.find((w: any) => w.word === "1")?.at, { timeout: 15000 });
@@ -239,7 +239,7 @@ await page.waitForFunction(() => (window as any).__gradeDebug.view().phase === "
 await new Promise((r) => setTimeout(r, 600));
 if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS });
 const out = await page.evaluate(() => ({
-  dock: (document.querySelector('[role="dialog"]') ?? document.querySelector(".grade-dock"))?.textContent?.replace(/\s+/g, " ").trim(),
+  dock: (document.querySelector('dialog[open]') ?? document.querySelector('[role="dialog"]') ?? document.querySelector(".grade-dock"))?.textContent?.replace(/\s+/g, " ").trim(),
   marks: document.querySelectorAll(".grade-overlay path").length,
   view: (window as any).__gradeDebug.view(),
 }));
@@ -299,7 +299,7 @@ if (OVERLAP) {
 }
 // PLAYBACK=1: the clapped take plays back, the cursor following its notes.
 if (process.env.PLAYBACK && INPUT === "mic") {
-  await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+  await page.evaluate(() => { const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
   const seen: number[] = [];
   let playing = false;
   // Six seconds: it starts a moment before the first note, and half notes pass slowly.

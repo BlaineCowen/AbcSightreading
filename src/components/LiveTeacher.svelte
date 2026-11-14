@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tourStepAside } from "../lib/tour";
+  import { modal } from "../lib/modal";
   import { onDestroy, onMount } from "svelte";
   import { Radio, X, Play, Square, Users, Printer } from "lucide-svelte";
   import { billingStatus } from "../lib/billing-client";
@@ -269,14 +270,10 @@
   /** A share of the room shown as the poster's address: "abc-sightreading.com/live/482KTZ". */
   $: shortUrl = joinHost.replace(/^www\./, "");
 
-  function onKey(e: KeyboardEvent) {
-    if (panelOpen && e.key === "Escape") panelOpen = false;
-  }
   // The panel carries the code and QR the room needs to see: no welcome card over it.
   $: if (panelOpen) tourStepAside();
 </script>
 
-<svelte:window on:keydown={onKey} />
 
 {#if isStudent}
   <!-- nothing: students follow a session at /live -->
@@ -320,8 +317,8 @@
 {/if}
 
 {#if panelOpen}
-  <div class="fixed inset-0 z-[60] live-scrim flex items-center justify-center p-3 sm:p-6 no-print" role="presentation" on:click|self={() => (panelOpen = false)}>
-    <div class="live-card bg-sr-raise text-sr-ink border border-sr-hairline rounded-[28px] shadow-2xl w-full max-w-3xl max-h-full overflow-y-auto p-5 sm:p-8" role="dialog" aria-modal="true" aria-label="Live practice">
+  <dialog class="sr-modal live-scrim flex items-center justify-center p-3 sm:p-6 no-print" use:modal={{ onClose: () => (panelOpen = false) }} aria-label="Live practice">
+    <div class="live-card bg-sr-raise text-sr-ink border border-sr-hairline rounded-[28px] shadow-2xl w-full max-w-3xl max-h-full overflow-y-auto p-5 sm:p-8">
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="font-display text-2xl sm:text-3xl font-bold">Live practice</h2>
@@ -381,7 +378,7 @@
         <button class="sr-btn mt-4" on:click={start}>Turn Live on</button>
       {/if}
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>

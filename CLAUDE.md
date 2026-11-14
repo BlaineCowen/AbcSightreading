@@ -79,6 +79,12 @@ regression.
   push the page down; Tone.js and the Tools cards load on first use.
 - New public pages go in `src/lib/seo.ts` (the sitemap). Keep `data-tour`
   attributes on controls you move (the walkthrough points at them).
+- **Pop-ups over the page are native `<dialog>`s**: `use:modal` from
+  `src/lib/modal.ts` on a `<dialog class="sr-modal ...">` (it brings Esc,
+  focus and the inert page; no `role="dialog"` or Esc handler of your own).
+  Settings popovers on the practice pages are not modals and stay as they are.
+  The project skill `modern-web-guidance` (`.claude/skills/`) has Google's
+  current patterns: search it before building UI.
 - abcjs is SSR-incompatible (render client-side). The project's ABC uses
   `L:1/32`, so a quarter note is `8`.
 - Validate UI changes in the browser; most pages have an end-to-end

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { X, ChevronUp, Check, Ban, ArrowLeftRight, Hash, Scissors, Music2, Sparkles, Play, Pause, Headphones } from "lucide-svelte";
   import { tuner } from "../lib/tuner/store";
+  import { modal } from "../lib/modal";
   import type { GradeRunner } from "../lib/grade-runner";
   import { guidance, STRICTNESS, type Strictness } from "../lib/grade";
   import { CLAP_FULL_MS, togetherLabel } from "../lib/grade-rhythm";
@@ -115,11 +116,6 @@
   export function reopen() {
     if (v.phase === "idle" || v.phase === "results") changeSettings();
   }
-  function onKey(e: KeyboardEvent) {
-    if (e.key !== "Escape") return;
-    if (resultsShown) resultsOpen = false;
-    else if (setupShown) leaveSetup();
-  }
   const start = () => {
     setupOpen = false;
     onStart();
@@ -208,12 +204,11 @@
       : "text-sr-ink-2";
 </script>
 
-<svelte:window on:keydown={onKey} />
 
 <!-- The setup, centred over the page. -->
 {#if setupShown}
-  <div class="grade-veil fixed inset-0 z-[60] flex items-center justify-center p-3 no-print" on:click|self={leaveSetup} role="presentation">
-    <div class="grade-card w-full max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-sm" role="dialog" aria-modal="true" aria-labelledby="grade-title">
+  <dialog class="sr-modal grade-veil flex items-center justify-center p-3 no-print" use:modal={{ onClose: leaveSetup }} aria-labelledby="grade-title">
+    <div class="grade-card w-full max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4 text-sm">
       <div class="flex items-start gap-3">
         <div class="flex-1">
           <h2 id="grade-title" class="font-display text-2xl font-bold text-sr-ink">{rhythmOnly ? "Clap and grade" : "Listen and grade"}</h2>
@@ -333,13 +328,13 @@
         <button class="sr-btn text-sm px-6 py-2" on:click={start} disabled={allowed === null}>{allowed === null ? "…" : "Start"}</button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- The results, centred over the page. -->
 {#if resultsShown}
-  <div class="grade-veil fixed inset-0 z-[60] flex items-center justify-center p-3 no-print" on:click|self={() => (resultsOpen = false)} role="presentation">
-    <div class="grade-card w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4" role="dialog" aria-modal="true" aria-labelledby="grade-result-title">
+  <dialog class="sr-modal grade-veil flex items-center justify-center p-3 no-print" use:modal={{ onClose: () => (resultsOpen = false) }} aria-labelledby="grade-result-title">
+    <div class="grade-card w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4">
       <div class="flex items-center gap-3">
         <h2 id="grade-result-title" class="flex-1 font-display text-xl font-bold text-sr-ink">{v.mode === "pitch" ? "Note by note" : "Your score"}</h2>
         <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={() => (resultsOpen = false)} aria-label="Close the results"><X size={18} /></button>
@@ -423,7 +418,7 @@
         {/if}
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- The strip: while it runs, and after the results are put away. -->

@@ -484,7 +484,7 @@ if (process.env.LOOP) {
   // Listen and grade: the setup asks for a part and what plays.
   await clickIncludes(page, "Listen and grade");
   await sleep(500);
-  const setup: string[] = await texts(page, "[role=dialog] button");
+  const setup: string[] = await texts(page, "dialog button, [role=dialog] button");
   for (const want of ["Group 1", "Group 2", "Group 3", "The other parts", "Everyone", "A cappella", "Pitch & rhythm", "Note by note"]) {
     if (!setup.some((b) => b.includes(want))) fail(`grade: the setup has no "${want}"`);
   }
@@ -493,7 +493,7 @@ if (process.env.LOOP) {
   // Note by note: the first note waits, lit.
   await clickIncludes(page, "Note by note");
   await clickIncludes(page, "Group 2");
-  await page.evaluate(() => ([...document.querySelectorAll("[role=dialog] button")].find((b) => b.textContent?.trim() === "Start") as HTMLButtonElement)?.click());
+  await page.evaluate(() => ([...document.querySelectorAll("dialog button, [role=dialog] button")].find((b) => b.textContent?.trim() === "Start") as HTMLButtonElement)?.click());
   await page.waitForFunction(() => /Note 1 of/.test(document.querySelector("[aria-label=Grade]")?.textContent ?? ""), { timeout: 15000 }).catch(() => fail("grade: Note by note never reached the first note"));
   if (!(await page.$("#piece-paper .piece-now"))) fail("grade: the note waited on is not lit");
   await shot(page, "7-grade-note-by-note");
@@ -509,9 +509,9 @@ if (process.env.LOOP) {
   await sleep(400);
   await clickIncludes(page, "Pitch & rhythm");
   await clickIncludes(page, "A cappella");
-  await page.evaluate(() => ([...document.querySelectorAll("[role=dialog] button")].find((b) => b.textContent?.trim() === "Start") as HTMLButtonElement)?.click());
+  await page.evaluate(() => ([...document.querySelectorAll("dialog button, [role=dialog] button")].find((b) => b.textContent?.trim() === "Start") as HTMLButtonElement)?.click());
   await page.waitForFunction(() => /Your score/.test(document.body.textContent ?? ""), { timeout: 60000 }).catch(() => fail("grade: Pitch & rhythm never reached a score"));
-  const result = await page.evaluate(() => document.querySelector("#grade-result-title")?.closest("[role=dialog]")?.textContent?.replace(/\s+/g, " ").slice(0, 120) ?? "");
+  const result = await page.evaluate(() => document.querySelector("#grade-result-title")?.closest("dialog, [role=dialog]")?.textContent?.replace(/\s+/g, " ").slice(0, 120) ?? "");
   console.log(`graded: ${result}`);
   if (!(await page.$("#piece-paper .grade-good, #piece-paper .grade-ok, #piece-paper .grade-bad"))) fail("grade: no marks on the music");
   await shot(page, "8-grade-result");
