@@ -115,6 +115,10 @@ Layout carries plain links for crawlers. Public pages are listed in
 `src/lib/plan.ts`. The Sight Reading Factory comparison quotes their prices
 with a date; recheck before editing it. `public/og.png` is the share image.
 
+Titles and H1s say **generator** (13 November 2026): "sight reading
+generator" is what people search, and the old "Practice" titles never
+matched it. Keep the word in the main pages' titles and headings.
+
 ## Full screen
 
 Both practice pages have a full-screen button in the playback bar (beside
