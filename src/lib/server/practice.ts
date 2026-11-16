@@ -12,6 +12,7 @@ import { tmeaLevelOf } from "../tmea-presets";
 import { loadScore } from "./pieces";
 import { shortUsername } from "./students";
 import { checkpointOf } from "../portfolio";
+import { isBoardTest } from "../board-test";
 import { barsLabel, checkPieceAssignment, pieceAssignmentOf } from "../pieces/assign";
 
 /**
@@ -164,6 +165,8 @@ const assignmentView = (a: {
     ...(!piece && assignedExercise(a.params) ? { fixed: true } : {}),
     // A portfolio checkpoint (portfolio.ts): its stage and tries.
     ...(!piece && checkpointOf(a.params) ? { checkpoint: checkpointOf(a.params), maxAttempts: checkpointOf(a.params)!.tries } : {}),
+    // A test given on the teacher's board, one student at a time (board-test.ts).
+    ...(!piece && isBoardTest(a.params) ? { board: true } : {}),
     // Posted to Google Classroom, and when its grades were last sent there.
     classroom: a.classroomWorkId ? { sentAt: a.gradesSentAt?.getTime() ?? null } : null,
   };
@@ -203,8 +206,8 @@ function withAttempts(
   att: { attempts: number; best: number | null; bestId: string | null; part: string | null } | undefined,
 ) {
   // Sight reading: done by its minutes; graded attempts, if any, are its grade.
-  // A checkpoint, as a piece: done once a try is graded (and any minutes are in).
-  if (a.page !== "piece" && !checkpointOf(a.params)) return { ...time, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null };
+  // A checkpoint or a board test, as a piece: done once a try is graded (and any minutes are in).
+  if (a.page !== "piece" && !checkpointOf(a.params) && !isBoardTest(a.params)) return { ...time, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null };
   const graded = att?.best !== null && att?.best !== undefined;
   const timeDone = a.minutes <= 0 || time.status === "done";
   const status = graded && timeDone ? "done" : graded || time.status !== "not-started" || (att?.attempts ?? 0) > 0 ? "in-progress" : "not-started";
@@ -258,6 +261,8 @@ export async function myAssignments(userId: string) {
     orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
     take: 50,
   });
+  // A board test is taken in class on the teacher's device (board-test.ts): not on the student's list.
+  assignments.splice(0, assignments.length, ...assignments.filter((a) => !isBoardTest(a.params)));
   const totals = await totalsFor(assignments.map((a) => a.id), [userId]);
   const tries = await attemptsFor(assignments.map((a) => a.id), [userId]);
   const className = new Map(enrollments.map((e) => [e.classId, e.class.name]));

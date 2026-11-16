@@ -16,6 +16,7 @@
    * then shows the tune, each note's share right and the points.
    */
   import { onDestroy } from "svelte";
+  import { modal } from "../../lib/modal";
   import PipFace from "../PipFace.svelte";
   import TuneGrid from "./TuneGrid.svelte";
   import TuneSetup from "./TuneSetup.svelte";
@@ -376,10 +377,9 @@
   {#if mode === "solo"}
     {#if winOpen}
       <!-- The catch: a pop-up over the page, so nothing scrolls (Blaine, 4 November 2026). Confetti for three stars only. -->
-      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-      <div class="win-back" on:click|self={() => (winOpen = false)}>
+      <dialog class="sr-modal win-back" use:modal={{ onClose: () => (winOpen = false) }} aria-labelledby="win-title">
         {#if stars === 3}<div class="confetti" aria-hidden="true" data-confetti>{#each bits as s}<i style={s}></i>{/each}</div>{/if}
-        <div class="win" role="dialog" aria-modal="true" aria-labelledby="win-title" data-tune-win={stars} on:keydown={(e) => e.key === "Escape" && (winOpen = false)}>
+        <div class="win" data-tune-win={stars}>
           <button type="button" class="win-x" on:click={() => (winOpen = false)} aria-label="Close and look at the board"><X size={22} aria-hidden="true" /></button>
           <PipFace class="w-24 h-24 win-pip" />
           <p id="win-title" class="win-title font-display">{stars === 3 ? "Perfect catch!" : "You caught it!"}</p>
@@ -397,7 +397,7 @@
             <button class="sr-btn-quiet big" on:click={() => (playing ? stopSound() : hear(false))}>{#if playing}<Square size={22} aria-hidden="true" /> Stop{:else}<Play size={22} aria-hidden="true" /> Hear it again{/if}</button>
           </div>
         </div>
-      </div>
+      </dialog>
     {/if}
     <div class="head">
       <PipFace class="w-12 h-12 shrink-0" />

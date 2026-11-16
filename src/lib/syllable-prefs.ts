@@ -1,3 +1,4 @@
+import { apiGet } from "./api-get";
 import { get, writable } from "svelte/store";
 import { signedInUser } from "./auth-client";
 import type { CustomSyllables } from "../resources/rhythm-syllables";
@@ -20,7 +21,7 @@ export function loadMySyllables(fresh = false): Promise<void> {
   if (fresh) loading = null;
   loading ??= (async () => {
     if (!(await signedInUser())) return;
-    const res = await fetch("/api/preferences");
+    const res = await apiGet("/api/preferences");
     if (!res.ok) throw new Error(`The server said ${res.status}.`);
     const body = await res.json();
     const next = body.rhythmSyllables ?? null;

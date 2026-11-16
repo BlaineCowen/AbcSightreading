@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { roleQuestion } from "../lib/role-question";
+  import { modal } from "../lib/modal";
   import { whenLabel, type RecentExercise } from "../lib/recent-exercises";
   import { BUILTIN_SETS } from "../lib/curriculum/catalogue";
   import { trackById } from "../lib/curriculum/tracks";
@@ -49,18 +51,21 @@
    */
   const OFFER_SEEN = "abc-founders-offer-v1";
   let offerOpen = false;
-  let offerButton: HTMLAnchorElement;
   function closeOffer() {
     offerOpen = false;
     try { localStorage.setItem(OFFER_SEEN, "1"); } catch {}
   }
 
+  // Not over WelcomeNote's "student or teacher?" question, and never for a student.
+  let offerWanted = false;
+  $: if (offerWanted && ($roleQuestion === "teacher" || $roleQuestion === "none")) {
+    offerWanted = false;
+    offerOpen = true;
+  }
+
   onMount(() => {
     try {
-      if (founders && !localStorage.getItem(OFFER_SEEN)) {
-        offerOpen = true;
-        setTimeout(() => offerButton?.focus(), 50);
-      }
+      if (founders && !localStorage.getItem(OFFER_SEEN)) offerWanted = true;
     } catch {}
     now = Date.now();
     const tickTimer = setInterval(() => (now = Date.now()), 60_000);
@@ -104,7 +109,6 @@
   a row of equal tiles, My music first; at most one offer, as a slim strip;
   then the earlier exercises.
 -->
-<svelte:window on:keydown={(e) => offerOpen && e.key === "Escape" && closeOffer()} />
 
 <div class="home w-full max-w-5xl mx-auto px-4 py-6 sm:py-8 flex flex-col gap-5">
   <header>
@@ -182,7 +186,7 @@
     </a>
   </section>
 
-  {#if founders}
+  {#if founders && $roleQuestion !== "student"}
     <!-- The founding-teacher offer (/founders), for a teacher who may join. -->
     <a class="offer bg-sr-peach text-sr-peach-ink" href="/founders">
       <span class="offer-tag">{classlink ? "Pro is on through ClassLink" : "Founding teachers"}</span>
@@ -196,9 +200,8 @@
   {/if}
 
   {#if offerOpen}
-    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-    <div class="offer-back" on:click|self={closeOffer}>
-      <div class="offer-modal" role="dialog" aria-modal="true" aria-labelledby="offer-h">
+    <dialog class="sr-modal offer-back" use:modal={{ onClose: closeOffer }} aria-labelledby="offer-h">
+      <div class="offer-modal">
         <div class="offer-top">
           <span class="text-xs font-extrabold uppercase tracking-wide opacity-80">{classlink ? "Pro is already on through ClassLink" : "Founding teachers"}</span>
           <h2 id="offer-h" class="text-2xl font-extrabold leading-tight">Bring your students, free this school year</h2>
@@ -210,10 +213,11 @@
         </ul>
         <div class="flex flex-wrap gap-2 justify-end">
           <button type="button" class="sr-btn-quiet" on:click={closeOffer}>Not now</button>
-          <a class="sr-btn" href="/founders" bind:this={offerButton} on:click={closeOffer}>See the offer</a>
+          <!-- svelte-ignore a11y-autofocus -->
+          <a class="sr-btn" href="/founders" autofocus on:click={closeOffer}>See the offer</a>
         </div>
       </div>
-    </div>
+    </dialog>
   {/if}
 
   <!-- The exercises they wrote before the last, each reopening exactly as it was. -->

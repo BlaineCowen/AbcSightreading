@@ -101,6 +101,8 @@ export type AssignmentRequest = {
   checkpoint?: Checkpoint;
   /** The parts students pick from, each with its range (assignment-parts.ts). */
   parts?: AssignParts;
+  /** A test given in class on the teacher's board, one student at a time (board-test.ts). */
+  board?: true;
 };
 
 export function checkAssignmentRequest(body: unknown, now = new Date()): Checked<AssignmentRequest> {
@@ -112,8 +114,9 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   const isPiece = key?.kind === "piece";
   const cp = isPiece ? { ok: true as const, value: null } : checkCheckpoint(b.checkpoint);
   if (!cp.ok) return cp;
-  // A piece's goal is the part; a checkpoint's the graded tries: neither needs minutes.
-  const noTime = isPiece || !!cp.value;
+  const board = !isPiece && b.board === true;
+  // A piece's goal is the part; a checkpoint's or a board test's the graded tries: none needs minutes.
+  const noTime = isPiece || !!cp.value || board;
   const minutes = b.minutes === undefined || b.minutes === null || b.minutes === "" ? (noTime ? 0 : NaN) : Number(b.minutes);
   if (!Number.isInteger(minutes) || minutes < (noTime ? 0 : 1) || minutes > MAX_MINUTES) {
     return { ok: false, error: `Minutes: a whole number from ${noTime ? 0 : 1} to ${MAX_MINUTES}.` };
@@ -131,6 +134,7 @@ export function checkAssignmentRequest(body: unknown, now = new Date()): Checked
   const value: AssignmentRequest = { presetKey: b.presetKey as string, minutes, dueAt, note };
   if (isPiece) value.piece = b.piece;
   if (cp.value) value.checkpoint = cp.value;
+  if (board) value.board = true;
   if (!isPiece) {
     const parts = checkParts(b.parts);
     if (!parts.ok) return parts;

@@ -82,6 +82,10 @@
   import { countInBeats, countInMeasures, hideCountIn, meterOf, showCountIn } from "../lib/count-in";
   import { barStartOf, eventElements, eventForChar, startLine, type TimingEvent } from "../lib/start-point";
   import AssignmentBanner from "./AssignmentBanner.svelte";
+  import BoardNames from "./BoardNames.svelte";
+  import { BOARD_PARAM, isBoardTest, type BoardRoster, type BoardStudent } from "../lib/board-test";
+  import { ownerSees } from "../lib/owner-flags";
+  import { modal } from "../lib/modal";
   import AssigningBar from "./AssigningBar.svelte";
   import { ASSIGNING_PARAM, RESUME_HREF, assigningFromUrl, saveDraft } from "../lib/assignment-draft";
   import TeachMenu from "./TeachMenu.svelte";
@@ -305,6 +309,8 @@
   // Read at start: the URL sync rewrites the address from the page's state.
   const assignmentId = assignmentIdFromUrl();
   let assignment: OpenAssignment | null = null;
+  /** A board test asked for in the address (board-test.ts): read as the page opens, as the page rewrites its address before the assignment loads. */
+  const boardWanted = typeof location !== "undefined" && new URLSearchParams(location.search).has(BOARD_PARAM);
   /** Opened from Create assignment, to set one up here (assignment-draft.ts). */
   const assigning = !assignmentId && assigningFromUrl();
   /** The assignment gives every student one exercise: no New exercise. */
@@ -331,6 +337,11 @@
     // Set up on this page when it was assigned: a saved preset's shape.
     else if (kind === "custom" && a.params) applySavedPreset(a.params as SavedPreset<any>);
     assignment = a;
+    // A board test opened by its teacher with ?board=1 (board-test.ts): the names come up.
+    if (a.role === "teacher" && isBoardTest(a.params) && boardWanted && (await ownerSees("board-test"))) {
+      boardOn = true;
+      void startBoard();
+    }
     updateUrlFromState();
     const one = assignedExercise(a.params);
     if (one) await openLinkedExercise(one);
@@ -2004,6 +2015,7 @@
     if (dynamicsSet.length) params.set("dynamics", dynamicsSet.join(","));
     // An open assignment stays in the address, so a reload keeps it.
     if (assignmentId) params.set(ASSIGNMENT_PARAM, assignmentId);
+    if (boardOn || boardWanted) params.set(BOARD_PARAM, "1");
     if (assigning) params.set(ASSIGNING_PARAM, "1");
 
     // The exercise hash rides along, or the next settings change would lose it.
@@ -5252,6 +5264,12 @@
       pendingAttempt = await startAssignmentAttempt(assignment.id);
       if (!pendingAttempt) return;
     }
+    // A board test: the try is the student's, sent from this (the teacher's) device. Always graded, never Note by note.
+    if (boardOn && assignment && boardStudent) {
+      if (!rhythmOnly && $tuner.gradeMode !== "performance") tuner.setGrade({ gradeMode: "performance" });
+      pendingAttempt = await startAssignmentAttempt(assignment.id, boardStudent.id);
+      if (!pendingAttempt) return;
+    }
     // Saving runs for review: the recording starts first. Nothing may await
     // between the tuner starting and the run starting, or the page sees a
     // microphone held with no run and switches it off.
@@ -5366,19 +5384,26 @@
         ? `Your score goes to your teacher${rhythmOnly && $tuner.gradeClapInput === "keys" ? "" : ", with the recording, kept 90 days"}. Your best try counts.`
         : "Note by note is practice: it is not sent to your teacher. Pitch & rhythm is."
       : null;
-  /** The exercise's link, to keep with the attempt (without the assignment, which opens its own). */
-  async function exerciseLink(): Promise<string> {
+  /**
+   * The exercise's link, to keep with the attempt (without the assignment,
+   * which opens its own). Named apart from `exerciseLink` (the share link,
+   * reactive, above): with the same name the reactive value replaced this
+   * function, so attempts sent the full share address, which the server
+   * refuses ("That exercise link is not readable"), from 10 October to
+   * 16 November 2026.
+   */
+  async function attemptExerciseLink(): Promise<string> {
     let packed = exercisePacked;
     if (!packed && currentScore) packed = await packExercise({ kind: "unison", score: currentScore }).catch(() => null);
     const url = new URL(settingsLink());
     url.searchParams.delete(ASSIGNMENT_PARAM);
     return url.pathname + url.search + (packed ? exerciseFragment(packed) : "");
   }
-  async function startAssignmentAttempt(id: string): Promise<string | null> {
+  async function startAssignmentAttempt(id: string, studentId?: string): Promise<string | null> {
     const mode = !rhythmOnly ? "sing" : $tuner.gradeClapInput === "keys" ? "tap" : "clap";
     try {
       const { startExerciseAttempt } = await import("../lib/pieces/client");
-      const r = await startExerciseAttempt(id, mode, await exerciseLink());
+      const r = await startExerciseAttempt(id, mode, await attemptExerciseLink(), studentId);
       return r.attempt.id;
     } catch (e) {
       attemptSent = (e as Error).message;
@@ -5392,20 +5417,139 @@
     const v = $gradeRunner;
     const result = v.claps ? clapMarksOf(v.claps) : v.perf ? marksOf(v.perf) : null;
     if (!result) return;
-    attemptSent = "Sending your score…";
+    attemptSent = boardOn ? "Saving the score…" : "Sending your score…";
     try {
       const { finishAttempt, sendTake } = await import("../lib/pieces/client");
       await finishAttempt(assignment.id, attemptId, result);
-      attemptSent = "Your score is with your teacher.";
+      attemptSent = boardOn ? "Saved to the gradebook." : "Your score is with your teacher.";
       if (gradeRecording) await stopGradeRecording(true);
       if (gradeAudio) {
         await sendTake(assignment.id, attemptId, gradeAudio);
-        attemptSent = "Your score and recording are with your teacher.";
+        attemptSent = boardOn ? "Score and recording saved to the gradebook." : "Your score and recording are with your teacher.";
       }
     } catch (e) {
       attemptSent = (e as Error).message;
     }
+    if (boardOn) void loadBoard();
   }
+
+  // ── Board test (board-test.ts) ──────────────────────────────────────────────
+  /**
+   * The teacher's device at the front: the names come up, a student taps
+   * theirs and gets a new exercise to study, Ready grades it as their try
+   * (startGrade above), and the score card offers Retry (the same exercise)
+   * or Next student (the names again).
+   */
+  let boardOn = false;
+  let boardRoster: BoardRoster | null = null;
+  let boardStudent: BoardStudent | null = null;
+  let boardNamesOpen = false;
+  let boardProblem = "";
+  async function loadBoard() {
+    if (!assignment) return;
+    boardProblem = "";
+    try {
+      const res = await fetch(`/api/assignments/${assignment.id}/board`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not load the class.");
+      boardRoster = data;
+    } catch (e) {
+      boardProblem = (e as Error).message;
+    }
+  }
+  async function startBoard() {
+    boardNamesOpen = true;
+    await loadBoard();
+    await openGrade();
+  }
+  function boardPicker() {
+    gradeRunner.stop();
+    clearGradeMarks();
+    boardStudent = null;
+    boardNamesOpen = true;
+    void loadBoard();
+  }
+  async function boardPick(s: BoardStudent) {
+    boardNamesOpen = false;
+    boardStudent = s;
+    attemptSent = null;
+    gradeRunner.stop();
+    clearGradeMarks();
+    await generateExercise();
+    if (!gradeOpen) await openGrade();
+  }
+  function boardRetry() {
+    attemptSent = null;
+    gradeRunner.stop();
+    clearGradeMarks();
+  }
+  function boardClose() {
+    boardNamesOpen = false;
+  }
+  $: gradeBoard = boardOn ? { student: boardStudent?.name ?? null, onPick: boardPicker, onRetry: boardRetry, onNext: boardPicker } : null;
+
+  /**
+   * "Grade a class one by one" on the Grade card: these settings become a
+   * board test in the classes chosen (one assignment each, as the Assign
+   * form makes them), and the page opens the first one's names. The others
+   * are run from their class's assignments, another day.
+   */
+  let boardSetupOpen = false;
+  let boardClasses: { id: string; name: string }[] = [];
+  let boardChosen: string[] = [];
+  let boardTitle = "";
+  let boardBusy = false;
+  let boardSetupProblem = "";
+  async function openBoardSetup() {
+    boardSetupProblem = "";
+    boardTitle = (rhythmOnly ? "Rhythm test" : `Sight-reading test: ${pillText.key}`).slice(0, 60);
+    boardSetupOpen = true;
+    try {
+      const res = await fetch("/api/educator");
+      const data = await res.json().catch(() => ({}));
+      boardClasses = res.ok ? data.classes.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })) : [];
+      if (!res.ok) boardSetupProblem = data.error ?? "Could not load your classes.";
+    } catch {
+      boardSetupProblem = "Could not load your classes.";
+    }
+  }
+  async function createBoardTest() {
+    if (!boardChosen.length || !boardTitle.trim()) return;
+    boardBusy = true;
+    boardSetupProblem = "";
+    const body = {
+      presetKey: "custom:unison",
+      board: true,
+      minutes: 0,
+      dueAt: "",
+      note: "",
+      custom: { name: boardTitle.trim().slice(0, 60), params: { ...currentOptions } },
+    };
+    const ids: string[] = [];
+    const done: string[] = [];
+    for (const classId of boardChosen) {
+      const res = await fetch(`/api/classes/${classId}/assignments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        boardSetupProblem = `${boardClasses.find((c) => c.id === classId)?.name ?? "A class"}: ${r.error ?? "could not make the test."}`;
+        break;
+      }
+      ids.push(r.id);
+      done.push(classId);
+    }
+    boardBusy = false;
+    // Made in some: take those out, so trying again only makes the rest.
+    if (done.length < boardChosen.length) {
+      boardChosen = boardChosen.filter((id) => !done.includes(id));
+      return;
+    }
+    location.href = `${location.pathname}?${ASSIGNMENT_PARAM}=${encodeURIComponent(ids[0])}&${BOARD_PARAM}=1`;
+  }
+  let canBoard = false;
+  onMount(() => {
+    ownerSees("board-test").then((on) => (canBoard = on));
+  });
+
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
   $: tapping = grading && rhythmOnly && $tuner.gradeClapInput === "keys";
@@ -5665,10 +5809,43 @@
       {timingNote}
       {keptNote}
       sentNote={attemptSent}
+      board={gradeBoard}
+      onBoard={canBoard && !assignment && $usage?.tier === "educator" ? openBoardSetup : null}
     />
     {#if tapping || calibrating}
       <TapPad onTap={(t) => (calibrationTaps ? (calibrationTaps = [...calibrationTaps, t]) : gradeRunner.tap(t))} />
     {/if}
+  {/if}
+  {#if boardOn && boardNamesOpen}
+    <BoardNames roster={boardRoster} problem={boardProblem} onPick={boardPick} onClose={boardClose} onReload={loadBoard} />
+  {/if}
+  {#if boardSetupOpen}
+    <dialog class="sr-modal board-setup-veil print:hidden" use:modal={{ onClose: () => (boardSetupOpen = boardBusy) }} aria-labelledby="board-setup-title">
+      <div class="board-setup-card">
+        <h2 id="board-setup-title" class="font-display text-2xl font-bold text-sr-ink">Grade a class one by one</h2>
+        <p class="text-sm text-sr-muted">These settings become a test in each class you choose. Each student gets their own new exercise at the board. Run it over as many days as you like: the names show who is done, and the scores are in the gradebook.</p>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="font-bold text-sr-ink-2">Title</span>
+          <input class="rounded-lg border border-sr-hairline bg-sr-track text-sr-ink px-3 py-2" bind:value={boardTitle} maxlength="60" />
+        </label>
+        <div class="flex flex-col gap-1.5">
+          <span class="text-sm font-bold text-sr-ink-2">Which classes</span>
+          {#if !boardClasses.length && !boardSetupProblem}<p class="text-sm text-sr-muted">Loading…</p>{/if}
+          <div class="flex flex-wrap gap-2">
+            {#each boardClasses as c (c.id)}
+              <button class="sr-tok text-sm {boardChosen.includes(c.id) ? 'sr-on' : ''}" aria-pressed={boardChosen.includes(c.id)}
+                on:click={() => (boardChosen = boardChosen.includes(c.id) ? boardChosen.filter((x) => x !== c.id) : [...boardChosen, c.id])}>{c.name}</button>
+            {/each}
+          </div>
+          {#if boardChosen.length > 1}<p class="text-xs text-sr-muted">The first class you chose opens now; the others from their class's assignments.</p>{/if}
+        </div>
+        {#if boardSetupProblem}<p class="text-sm text-sr-danger" role="alert">{boardSetupProblem}</p>{/if}
+        <div class="flex gap-2 justify-end">
+          <button class="sr-btn-quiet text-sm" disabled={boardBusy} on:click={() => (boardSetupOpen = false)}>Cancel</button>
+          <button class="sr-btn text-sm px-5" disabled={boardBusy || !boardChosen.length || !boardTitle.trim()} on:click={createBoardTest}>{boardBusy ? "Making the test…" : "Start the test"}</button>
+        </div>
+      </div>
+    </dialog>
   {/if}
   {#if playAlongOpen}
     <PlayAlongVideo
@@ -6731,6 +6908,9 @@
 
 <svelte:window on:keydown={onTapKey} on:keyup={onTapKeyUp} />
 <style>
+  /* "Grade a class one by one" (board-test.ts). */
+  .board-setup-veil { display: flex; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--sr-ink) 28%, transparent); }
+  .board-setup-card { width: min(34rem, 100%); max-height: calc(100dvh - 2rem); overflow: auto; display: flex; flex-direction: column; gap: 0.9rem; padding: 1.4rem; border-radius: 28px; background: var(--sr-raise); border: 1px solid var(--sr-hairline); }
   /* The settings row: pills that each open their own popover, then New exercise. */
   .setbar {
     position: relative;

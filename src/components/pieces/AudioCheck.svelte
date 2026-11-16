@@ -14,6 +14,7 @@
   import Check from "lucide-svelte/icons/check";
   import X from "lucide-svelte/icons/x";
   import { tuner } from "../../lib/tuner/store";
+  import { modal } from "../../lib/modal";
   import { initTuner, startTuner, stopTuner } from "../../lib/tuner/controller";
   import { playArpeggio, playNotes } from "../../lib/tools/tone";
   import { BEEP_COUNT, BEEP_MIDI, BEEP_MS, GAP_MS, beepWindows, beepsHeard, bleeds, meterLevel, voiceHeard, type Heard } from "../../lib/pieces/audio-check";
@@ -56,11 +57,8 @@
     if (checkedBefore) step = "ready";
     if (tuner.get().engineStatus === "running") micState = "on";
     void focusStep();
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("keydown", esc);
     document.documentElement.classList.add("sr-pop-open");
     return () => {
-      window.removeEventListener("keydown", esc);
       document.documentElement.classList.remove("sr-pop-open");
     };
   });
@@ -131,9 +129,8 @@
   $: stepIndex = STEPS.indexOf(step);
 </script>
 
-<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-<div class="scrim" on:click|self={close}>
-  <div class="dialog sr-panel" role="dialog" aria-modal="true" aria-labelledby="check-h" bind:this={dialog}>
+<dialog class="sr-modal scrim" use:modal={{ onClose: close }} aria-labelledby="check-h">
+  <div class="dialog sr-panel" bind:this={dialog}>
     <button type="button" class="close" aria-label="Close" on:click={close}><X size={20} aria-hidden="true" /></button>
     {#if step !== "ready" || !checkedBefore}
       <ol class="dots" aria-label="Step {stepIndex + 1} of {STEPS.length}">
@@ -216,7 +213,7 @@
       </div>
     {/if}
   </div>
-</div>
+</dialog>
 
 <style>
   .scrim {

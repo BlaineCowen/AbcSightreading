@@ -94,7 +94,7 @@ async function run(check: boolean, bias: number, tv = TV) {
   const { page, measured } = await open(check, tv);
   const tempo = await page.evaluate(() => (window as any).__gradeDebug.tempo() as number);
   const beatMs = 60_000 / tempo;
-  await page.evaluate(() => ([...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start") as HTMLButtonElement | undefined)?.click());
+  await page.evaluate(() => ([...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start") as HTMLButtonElement | undefined)?.click());
   await page.waitForFunction(() => (window as any).__gradeDebug.t0?.() != null, { timeout: 15000 });
   const t0 = (await page.evaluate(() => (window as any).__gradeDebug.t0())) as number;
   // Quarters, four bars: a tap per beat, through the TV, with the player's bias.

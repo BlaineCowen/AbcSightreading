@@ -5,6 +5,7 @@
   import Music from "lucide-svelte/icons/music";
   import { assignmentKind } from "../lib/practice";
   import { assignmentHref } from "../lib/assignment-client";
+  import { BOARD_PARAM } from "../lib/board-test";
   import { CLASSROOM_SCOPES, GRADE_SCOPE, shareToClassroomUrl } from "../lib/classroom";
   import { authClient } from "../lib/auth-client";
   import AssignmentWizard from "./AssignmentWizard.svelte";
@@ -37,6 +38,8 @@
   type Assignment = {
     id: string; title: string; page: string; presetKey: string; minutes: number; dueAt: number | null; note: string;
     maxAttempts?: number | null; fixed?: boolean; progress: Row[];
+    /** A test given on the board, one student at a time (board-test.ts). */
+    board?: boolean;
     classroom?: { sentAt: number | null } | null;
   };
   type Student = { id: string; name: string; username?: string | null; week: { seconds: number; exercises: number } };
@@ -250,7 +253,11 @@
           {/if}
           {#if gcNote?.id === a.id}<p class="text-xs {gcNote.error ? 'text-sr-danger' : 'text-sr-ink-2'}" role="status">{gcNote.text}</p>{/if}
           <div class="flex flex-wrap items-center gap-3 text-xs">
-            <a class="underline text-sr-action-fg" href={assignmentHref(a)}>{piece ? "Open it: every attempt, and try it as they will" : "Open it as students see it"}</a>
+            {#if a.board}
+              <a class="sr-btn text-xs px-3 py-1.5 no-underline" href="{assignmentHref(a)}&{BOARD_PARAM}=1">Test on the board</a>
+            {:else}
+              <a class="underline text-sr-action-fg" href={assignmentHref(a)}>{piece ? "Open it: every attempt, and try it as they will" : "Open it as students see it"}</a>
+            {/if}
             {#if googleClass}
               {#if a.classroom}
                 <button class="underline text-sr-action-fg font-semibold disabled:opacity-50" disabled={gcBusy === a.id} on:click={() => classroomAction(a, "grades")} title="Each student's grade goes to Classroom as a draft grade">{gcBusy === a.id ? "Sending…" : "Send grades to Classroom"}</button>

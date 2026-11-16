@@ -10,6 +10,9 @@
  *   - From BIG on: no per-account messages, one count a day at 8 am Central
  *     (new in the last day, and the total).
  *   - Emails or domains in WATCH get a louder line ("Jim at MusicFirst").
+ *   - Once, when every account counted together (students too) reaches
+ *     MOVE_DB_AT: a reminder to move the database to Neon (Blaine, 10 November
+ *     2026; the plan is in Obsidian, Dev-stuff/abcSightReading).
  *
  * Read only against DATABASE_URL (the shared database; bun loads this repo's
  * .env, so run it from the repo root). Telegram's bot token and chat come from
@@ -29,6 +32,7 @@ const WATCH: Record<string, string> = {
   "jim@musicfirst.com": "Jim Frankel at MusicFirst",
   "musicfirst.com": "someone at MusicFirst",
 };
+const MOVE_DB_AT = Number(process.env.MOVE_DB_AT ?? 100); // env only to test the message
 const DIGEST_HOUR = 8; // Central, once accounts reach BIG
 const DRY = process.argv.includes("--dry");
 const STATE = join(homedir(), ".abc-signup-alerts.json");
@@ -46,7 +50,7 @@ const tg = dotenv(join(homedir(), ".hermes/.env"));
 const TOKEN = tg.TELEGRAM_BOT_TOKEN;
 const CHAT = tg.TELEGRAM_HOME_CHANNEL;
 
-type State = { since: string; digestDay?: string };
+type State = { since: string; digestDay?: string; movedDbReminder?: boolean };
 const state: State | null = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : null;
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -72,19 +76,20 @@ function watched(email: string): string | null {
 
 const sql = new Bun.SQL(process.env.DATABASE_URL!);
 const now = new Date();
-const { total, newRows } = await sql.begin("read only", async (tx) => {
+const { total, everyone, newRows } = await sql.begin("read only", async (tx) => {
   const [t] = await tx`select count(*)::int as total from "user" where "accountType" <> 'student'`;
+  const [all] = await tx`select count(*)::int as n from "user"`;
   const since = state?.since ?? now.toISOString();
   const rows = await tx`
     select email, "accountType" as type, "emailVerified" as confirmed, "createdAt" as created,
            to_char(("createdAt" at time zone 'UTC') at time zone 'America/Chicago', 'Mon DD, HH12:MI am') as joined
     from "user" where "accountType" <> 'student' and "createdAt" > ${since}::timestamptz
     order by "createdAt" asc`;
-  return { total: t.total as number, newRows: rows as { email: string; type: string; confirmed: boolean; created: Date; joined: string }[] };
+  return { total: t.total as number, everyone: all.n as number, newRows: rows as { email: string; type: string; confirmed: boolean; created: Date; joined: string }[] };
 });
 await sql.close();
 
-const next: State = { since: newRows.length ? new Date(newRows.at(-1)!.created).toISOString() : (state?.since ?? now.toISOString()), digestDay: state?.digestDay };
+const next: State = { since: newRows.length ? new Date(newRows.at(-1)!.created).toISOString() : (state?.since ?? now.toISOString()), digestDay: state?.digestDay, movedDbReminder: state?.movedDbReminder };
 
 if (!state) {
   await send(`🔔 <b>abcSightReading sign-up alerts are on.</b>\nYou have ${total} accounts. New ones will show up here.`);
@@ -109,6 +114,11 @@ if (!state) {
     await send(`📈 <b>${d.n} new sign-up${d.n === 1 ? "" : "s"}</b> in the last day. Total accounts: ${total}`);
     next.digestDay = day;
   }
+}
+
+if (state && !state.movedDbReminder && everyone >= MOVE_DB_AT) {
+  await send(`🗄️ <b>${everyone} accounts now, students included.</b>\nTime to move the database to Neon's free plan, as planned on 10 Nov: Prisma Free has only 10 pooled connections, and more schools mean more sign-in rushes. The steps are in Obsidian: Dev-stuff/abcSightReading/Database move to Neon. Tell Claude to start the dry run.`);
+  next.movedDbReminder = true;
 }
 
 if (!DRY) writeFileSync(STATE, JSON.stringify(next, null, 2));

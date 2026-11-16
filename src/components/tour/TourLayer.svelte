@@ -8,6 +8,7 @@
    */
   import { onDestroy, onMount, tick } from "svelte";
   import { fade, fly } from "svelte/transition";
+  import { modal } from "../../lib/modal";
   import X from "lucide-svelte/icons/x";
   import {
     FIRST_STEP_HREF,
@@ -223,8 +224,9 @@
 </script>
 
 {#if welcoming}
-  <div class="tour-scrim" transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
-  <div class="tour-welcome sr-panel" role="dialog" aria-modal="true" aria-labelledby="tour-welcome-title" transition:fly={{ y: reduceMotion ? 0 : 12, duration: reduceMotion ? 0 : 200 }}>
+  <!-- Esc is onKey's (skipWelcome); a tap on the dim part does nothing, as before. -->
+  <dialog class="sr-modal tour-scrim" use:modal={{ onClose: skipWelcome, lightDismiss: false }} aria-labelledby="tour-welcome-title" transition:fade={{ duration: reduceMotion ? 0 : 160 }}>
+  <div class="tour-welcome sr-panel" transition:fly={{ y: reduceMotion ? 0 : 12, duration: reduceMotion ? 0 : 200 }}>
     <button class="tour-close" aria-label="Close" on:click={skipWelcome}><X size={18} /></button>
     {#if page === "piano"}
       <h2 id="tour-welcome-title" class="tour-h">Welcome to piano sight reading</h2>
@@ -246,6 +248,7 @@
       <p class="tour-hint">You can take the tour any time with the <span class="tour-q" aria-hidden="true">?</span> button.</p>
     {/if}
   </div>
+  </dialog>
 {/if}
 
 {#if running && step}

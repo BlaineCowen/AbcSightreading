@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { apiGet } from "../lib/api-get";
   import { onMount } from "svelte";
 
   /**
@@ -10,7 +11,7 @@
   let gift: { grantId: string; until: number; plan: string } | null = null;
 
   onMount(async () => {
-    gift = (await fetch("/api/gift").then((r) => (r.ok ? r.json() : null)).catch(() => null))?.gift ?? null;
+    gift = (await apiGet("/api/gift").then((r) => (r.ok ? r.json() : null)).catch(() => null))?.gift ?? null;
   });
 
   const day = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });

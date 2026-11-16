@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import { noteSignedIn } from "./plan-cache";
+import { noteSignedIn, requestMemo } from "./plan-cache";
 
 export const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -9,7 +9,10 @@ export const json = (body: unknown, status = 200) =>
 
 /** The signed-in user for this request, or null. */
 export async function currentUser(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
+  // Once per request, keyed by its cookies (a batch's routes share it).
+  const session = await requestMemo(`session:${request.headers.get("cookie") ?? ""}`, () =>
+    auth.api.getSession({ headers: request.headers })
+  );
   noteSignedIn(session?.user?.id);
   return session?.user ?? null;
 }

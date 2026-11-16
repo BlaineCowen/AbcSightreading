@@ -827,3 +827,32 @@ html .set-pill.set-pill-warn {
 @media (prefers-reduced-motion: reduce) {
   .sr-fix-flash { animation: none; box-shadow: 0 0 0 3px var(--sr-brass); }
 }
+
+/* Pop-ups on the browser's <dialog> (src/lib/modal.ts). The dialog is the
+   whole screen and is the scrim: each component's own scrim class colours it
+   and centres the card. :where() so those classes and Tailwind win over this
+   reset; it only undoes the browser's dialog box. Scrolling stays inside
+   (Modern Web Guidance, prevent-page-scroll-under-modal-dialog): never lock
+   it with overflow on html or body. */
+:where(dialog.sr-modal) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  color: inherit;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+dialog.sr-modal::backdrop {
+  background: transparent;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+/* A component's display (grid, flex) must not show it once closed. */
+dialog.sr-modal:not([open]) {
+  display: none !important;
+}

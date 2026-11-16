@@ -44,6 +44,8 @@ type Store = {
   fresh?: { userId: string; plan: Plan; at: number };
   /** A request that may change the plan: no caching either way. */
   bypass: boolean;
+  /** Answers shared by everything in this request (requestMemo). */
+  memo?: Map<string, Promise<unknown>>;
 };
 const als = new AsyncLocalStorage<Store>();
 
@@ -114,6 +116,24 @@ export async function withPlanCache(request: Request, url: URL, run: () => Promi
   const value = encode(f);
   if (!value) return { response };
   return { response, setCookie: `${COOKIE}=${value}; Path=/; Max-Age=${STALE_MS / 1000}; HttpOnly; SameSite=Lax${secure}` };
+}
+
+/**
+ * One answer per request for `key`: /api/batch runs several routes inside one
+ * request, and each asks who is signed in; they share the first ask.
+ * Outside a request it just calls `make`.
+ */
+export function requestMemo<T>(key: string, make: () => Promise<T>): Promise<T> {
+  const s = als.getStore();
+  if (!s) return make();
+  s.memo ??= new Map();
+  let p = s.memo.get(key) as Promise<T> | undefined;
+  if (!p) {
+    p = make();
+    s.memo.set(key, p);
+    p.catch(() => s.memo?.delete(key));
+  }
+  return p;
 }
 
 /** currentUser calls this: the cookie is only ever written for the signed-in account. */

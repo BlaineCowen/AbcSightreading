@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { apiGet } from "../lib/api-get";
   import { onMount, createEventDispatcher } from "svelte";
   import Sparkles from "lucide-svelte/icons/sparkles";
   import { authClient } from "../lib/auth-client";
@@ -29,7 +30,7 @@
   }
 
   onMount(async () => {
-    const res = await fetch("/api/free-month").catch(() => null);
+    const res = await apiGet("/api/free-month").catch(() => null);
     status = res?.ok ? await res.json() : null;
   });
 

@@ -107,8 +107,8 @@ editor inside abcTuner, under the abc look): `OmniPitchTab.svelte` frames
 `public/omnipitch/editor/index.html`, OmniPitch's editor copied from
 `~/Projects/polyphonic-pitch-detector` by `bun run scripts/omnipitch/sync.ts`
 with the Recess colours and fonts, the site's theme, the in-browser engine
-only and a versioned wasm (12 MB, the vocoder build; loaded only when the
-tab opens). How to sync, rebuild and bump the wasm: notes/omnipitch.md. A
+only, a versioned wasm (12 MB, the vocoder build; loaded only when the
+tab opens) and no demo (it opens empty; Blaine, 10 November 2026). How to sync, rebuild and bump the wasm: notes/omnipitch.md. A
 part-by-part director's view built on the same detector is stashed on the
 branch `ensemble-parts-idea`. `/dev/tuner` is abcTuner with no account
 (dev server only).

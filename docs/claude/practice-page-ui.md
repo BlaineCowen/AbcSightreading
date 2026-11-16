@@ -360,3 +360,24 @@ both lines whole at every line; at 720 tall a system is about 345 px, two
 do not fit, and the next line shows about three quarters (a quarter before)
 until the turn at beat 3. A smaller default size (0.9 looked fine to Blaine)
 would fit both; left at 1x for now.
+
+**Students' practice page froze (9 to 12 November 2026).** TeachMenu.svelte took `student` back from a LiveTeacher in each of its two branches (bind:student); a new LiveTeacher starts at "not a student", so for a student account the branches swapped forever, each swap mounting a new LiveTeacher, and the page's main thread never came free (headless Chrome could not even evaluate `1`). Found with a test class (scripts/load-class.ts) and a CDP pause on the frozen page. TeachMenu now asks `signedInUser()` itself and LiveTeacher is only in the teacher's branch. Never let a child's bound value choose which branch holds that child.
+
+**Fewer requests (12 November 2026, on dev; Blaine wants it on main Saturday 14 November).** A signed-in practice page sent 11 API requests as it opened, each with its own sign-in check and plan lookup. Phase 1 (done, 9e551ce): `apiGet` (src/lib/api-get.ts) gathers reads made within 30 ms into one `GET /api/batch?p=...` (src/pages/api/batch.ts: only the listed read routes, each run with the request's cookies, one shared session check via `requestMemo` and plan lookup); the same path twice goes once; a failed batch falls back to one fetch each. Checked: every route's answer identical alone and batched; the practice page is 5 requests (two batches). Still to do: phase 2, keep slow-changing reads (plan, settings, courses, presets) in sessionStorage across pages, shown at once and refreshed in the background, cleared by any save; phase 3, CDN cache headers for what is the same for everyone (soundfonts, public pages); the account page's per-class requests and double session check; then scripts/load-class.ts on dev before main.
+
+## Pop-ups (native dialog)
+
+Since 14 November 2026 the modals are the browser's `<dialog>`, opened with
+`showModal()` by the `modal` action (`src/lib/modal.ts`): the grade setup and
+results, the founders offer, the Live panel, the join board, Catch the tune's
+win, the audio check and the tour's welcome card. The dialog is the whole
+screen and is the scrim (each component's scrim class colours it); the
+browser makes the page inert, keeps focus inside, closes on Esc and the
+phone's back gesture. Svelte removes a dialog before the action's destroy
+runs, so the action hands focus back to the opener itself. Not converted:
+the play-along video (full screen, its own Esc rules while recording), the
+tour's step bubbles and WelcomeNote (not modal), and the settings popovers
+(`set-pop`, PresetDropdown, ToolsWheel, ReaderPill: menus, not dialogs).
+The check scripts find the grade panel with `dialog button, [role="dialog"]
+button`. scripts/check-grade.ts already stalled before this change (the
+setup never reaches "sing"; seen on the old code too).

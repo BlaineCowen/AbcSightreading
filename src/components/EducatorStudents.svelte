@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { modal } from "../lib/modal";
   import { Copy, KeyRound, UserMinus, Printer, Upload, Monitor, X } from "lucide-svelte";
   import { parseRoster, type RosterStudent } from "../lib/roster";
   import { classes as classList } from "../lib/classes";
@@ -11,6 +12,9 @@
   import { UNISON_PRESET_STORE } from "../lib/preset-storage";
   import { authClient } from "../lib/auth-client";
   import { CLASSROOM_SCOPES, type ClassroomCourse } from "../lib/classroom";
+  import { ownerSees } from "../lib/owner-flags";
+  import { readOneRoster, type OneRosterClass } from "../lib/oneroster";
+  import { createClass } from "../lib/classes";
 
   /** Whether Google sign-in is set up here, and so Google Classroom import. */
   export let googleEnabled = false;
@@ -26,7 +30,14 @@
    */
 
   type Student = { id: string; name: string; username: string | null; managed: boolean; google: boolean };
-  type Cls = { id: string; name: string; joinCode: string | null; classroom: { syncedAt: number | null } | null; students: Student[] };
+  type Cls = {
+    id: string;
+    name: string;
+    joinCode: string | null;
+    classroom: { syncedAt: number | null } | null;
+    oneroster: { key: string; syncedAt: number | null } | null;
+    students: Student[];
+  };
   type Card = { name: string; username: string; password: string; className: string; joinCode: string };
 
   let seats = { total: 0, used: 0, left: 0 };
@@ -159,6 +170,94 @@
     await load();
   }
 
+  // ── OneRoster (owner only while it is tested: owner-flags.ts) ──
+  /**
+   * A OneRoster file (a zip, or its CSVs chosen together), read here in the
+   * browser: only each class's title and its students' names go to the server.
+   * Each roster class is matched to a class here (the one it was imported into
+   * before, else one with the same name, else a new one), and the teacher can
+   * change any of them or skip it.
+   */
+  let canOneRoster = false;
+  let orClasses: OneRosterClass[] = [];
+  let orWarnings: string[] = [];
+  let orChoice: Record<string, string> = {};
+  let orOpen = false;
+  let orBusy = false;
+
+  async function filesOf(list: FileList): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    for (const f of Array.from(list)) {
+      if (/\.zip$/i.test(f.name)) {
+        const { unzipSync, strFromU8 } = await import("fflate");
+        const entries = unzipSync(new Uint8Array(await f.arrayBuffer()), { filter: (e) => /\.csv$/i.test(e.name) });
+        for (const [name, bytes] of Object.entries(entries)) out[name] = strFromU8(bytes);
+      } else out[f.name] = await f.text();
+    }
+    return out;
+  }
+
+  async function pickOneRoster(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    if (!input.files?.length) return;
+    problem = notice = "";
+    try {
+      const read = readOneRoster(await filesOf(input.files));
+      orClasses = read.classes;
+      orWarnings = read.warnings;
+      const lower = (t: string) => t.trim().toLowerCase();
+      orChoice = Object.fromEntries(
+        orClasses.map((c) => [
+          c.key,
+          classes.find((k) => k.oneroster?.key === c.key)?.id ?? classes.find((k) => lower(k.name) === lower(c.title))?.id ?? "new",
+        ])
+      );
+      orOpen = true;
+    } catch (err) {
+      problem = err instanceof Error ? err.message : "Could not read that file.";
+    }
+    input.value = "";
+  }
+
+  $: orChosen = orClasses.filter((c) => orChoice[c.key] && orChoice[c.key] !== "skip");
+
+  async function importOneRoster() {
+    orBusy = true;
+    problem = notice = "";
+    const made: Card[] = [];
+    const lines: string[] = [];
+    try {
+      for (const c of orChosen) {
+        let classId = orChoice[c.key];
+        if (classId === "new") classId = (await createClass(c.title)).id;
+        const res = await fetch(`/api/classes/${classId}/oneroster`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: c.key, title: c.title, school: c.school, students: c.students.map(({ key, first, last }) => ({ key, first, last })) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error ?? `Could not bring in ${c.title}.`);
+        for (const card of data.created) made.push({ ...card, className: data.className, joinCode: data.joinCode });
+        const added = data.created.length + data.enrolled.length;
+        lines.push(
+          `${data.className}: ${added ? `${added} added` : "no one new"}` +
+            (data.present ? `, ${data.present} already here` : "") +
+            (data.gone.length ? `. No longer on the roster: ${data.gone.join(", ")}` : "")
+        );
+      }
+      orOpen = false;
+    } catch (err) {
+      problem = (err as Error).message;
+    }
+    orBusy = false;
+    if (lines.length) notice = `${lines.join(". ")}.` + (made.length ? " Print the new login cards now: the passwords are not shown again." : "");
+    if (made.length) {
+      cards = made;
+      cardsFrom = "printed";
+    }
+    await load();
+  }
+
   const syncedOn = (t: number | null) => (t ? new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
 
   /** Create assignment at the top: for any classes. Opened by ?assign=new, or back from the page with ?assign=resume. */
@@ -167,6 +266,7 @@
 
   onMount(() => {
     loadSaved().catch(() => {});
+    ownerSees("oneroster").then((on) => (canOneRoster = on));
     const assign = new URLSearchParams(location.search).get("assign");
     if (assign) {
       resume = assign === "resume" ? readDraft() : null;
@@ -365,6 +465,12 @@
     {:else}
       <div class="flex flex-wrap gap-2">
         <button class="sr-btn text-sm" on:click={() => (creating = true)}>Create assignment</button>
+        {#if canOneRoster}
+          <label class="sr-btn-quiet text-sm flex items-center gap-1 cursor-pointer">
+            <Upload size={14} /> Import a OneRoster file
+            <input type="file" accept=".zip,.csv,application/zip,text/csv" multiple class="sr-only" on:change={pickOneRoster} />
+          </label>
+        {/if}
         {#if printable.length > 1}
           <button class="sr-btn-quiet text-sm flex items-center gap-1" disabled={printing} on:click={() => printCards(printable)}>
             <Printer size={14} /> {printing ? "Making the cards…" : "Print login cards for all classes"}
@@ -547,9 +653,43 @@
   {/if}
 </section>
 
+{#if orOpen}
+  <dialog class="sr-modal or-scrim print:hidden" use:modal={{ onClose: () => (orOpen = orBusy) }} aria-labelledby="or-title">
+    <div class="or-card">
+      <h2 id="or-title" class="text-lg font-semibold text-sr-ink">Import a OneRoster file</h2>
+      <p class="text-sm text-sr-muted">
+        Only names come in. Choose the class each one goes into. Students already brought in from this roster are found again, and anyone new gets a login.
+      </p>
+      {#each orWarnings as w}<p class="text-xs text-sr-brass">{w}</p>{/each}
+      <div class="or-list">
+        {#each orClasses as c (c.key)}
+          <div class="or-row">
+            <div class="min-w-0">
+              <div class="font-semibold text-sr-ink truncate">{c.title}</div>
+              <div class="text-xs text-sr-muted">{c.students.length} student{c.students.length === 1 ? "" : "s"}{c.school ? ` · ${c.school}` : ""}</div>
+            </div>
+            <select class="or-select" aria-label="Class for {c.title}" bind:value={orChoice[c.key]} disabled={orBusy}>
+              <option value="new">New class "{c.title}"</option>
+              {#each classes as k (k.id)}<option value={k.id}>{k.name}</option>{/each}
+              <option value="skip">Skip</option>
+            </select>
+          </div>
+        {/each}
+      </div>
+      <p class="text-sm text-sr-ink-2">
+        {orChosen.reduce((n, c) => n + c.students.length, 0)} students in {orChosen.length} class{orChosen.length === 1 ? "" : "es"}; {seats.left} seats left.
+      </p>
+      <div class="flex gap-2 justify-end">
+        <button class="text-sm text-sr-muted underline" disabled={orBusy} on:click={() => (orOpen = false)}>Cancel</button>
+        <button class="sr-btn text-sm" disabled={orBusy || !orChosen.length} on:click={importOneRoster}>{orBusy ? "Bringing them in…" : "Import"}</button>
+      </div>
+    </div>
+  </dialog>
+{/if}
+
 {#if boardFor}
   <!-- The join code big enough to read from the back of the room (a projector or TV). -->
-  <div class="board print:hidden" role="dialog" aria-label="Join {boardFor.name}" on:click={() => (boardFor = null)} on:keydown={(e) => e.key === "Escape" && (boardFor = null)} tabindex="-1">
+  <dialog class="sr-modal board print:hidden" use:modal={{ onClose: () => (boardFor = null), tapAnywhere: true }} aria-label="Join {boardFor.name}">
     <div class="board-inner">
       <p class="board-class">{boardFor.name}</p>
       <p class="board-step">Go to</p>
@@ -558,7 +698,7 @@
       <p class="board-code">{boardFor.joinCode}</p>
       <p class="board-hint">Tap anywhere or press Esc to close</p>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <!-- Login cards: only these print, eight to a letter page, each class from a new page. -->
@@ -609,6 +749,11 @@
   .course:hover {
     border-color: var(--sr-action);
   }
+  .or-scrim { display: flex; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--sr-ink) 28%, transparent); }
+  .or-card { width: min(36rem, 100%); max-height: calc(100dvh - 2rem); overflow: auto; display: flex; flex-direction: column; gap: 0.75rem; padding: 1.25rem; border-radius: 28px; background: var(--sr-panel); border: 1px solid var(--sr-hairline); }
+  .or-list { display: flex; flex-direction: column; gap: 0.4rem; }
+  .or-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 14px; background: var(--sr-raise); border: 1px solid var(--sr-hairline); }
+  .or-select { max-width: 55%; border-radius: 10px; border: 1px solid var(--sr-hairline); background: var(--sr-panel); color: var(--sr-ink); font-size: 0.85rem; padding: 0.3rem 0.4rem; }
   .add-panel { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; border-radius: 16px; background: var(--sr-panel); border: 1px solid var(--sr-hairline); }
   .ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.5rem; }
   .way { display: flex; flex-direction: column; gap: 0.15rem; text-align: left; padding: 0.65rem 0.85rem; border-radius: 14px; background: var(--sr-track); border: 2px solid transparent; color: var(--sr-ink); }

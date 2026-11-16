@@ -4,6 +4,7 @@ import { prisma } from "../../../../lib/server/db";
 import { checkAssignmentRequest } from "../../../../lib/practice";
 import { classAssignments, describePreset, roleIn } from "../../../../lib/server/practice";
 import { hasEducatorPlan } from "../../../../lib/server/plan";
+import { isAdmin } from "../../../../lib/server/admin";
 
 /**
  * A class's assignments. The class's teacher only.
@@ -33,7 +34,14 @@ export const POST: APIRoute = async ({ request, params }) => {
   // Graded tries and parts are on the Unison page only.
   if (checked.value.checkpoint && preset.page !== "unison") return json({ error: "A portfolio checkpoint is sung on the Unison page: choose a step, a level or a Unison preset." }, 400);
   if (checked.value.parts && preset.page !== "unison") return json({ error: "Students pick their part on the Unison page: choose a step, a level or a Unison preset." }, 400);
-  const extra = { ...(checked.value.checkpoint ? { checkpoint: checked.value.checkpoint } : {}), ...(checked.value.parts ? { parts: checked.value.parts } : {}) };
+  // Owner only while board tests are tried out (board-test.ts, owner-flags.ts "board-test").
+  if (checked.value.board && !isAdmin(user)) return json({ error: "Board tests are not open yet." }, 403);
+  if (checked.value.board && preset.page !== "unison") return json({ error: "A board test is graded on the Unison page." }, 400);
+  const extra = {
+    ...(checked.value.checkpoint ? { checkpoint: checked.value.checkpoint } : {}),
+    ...(checked.value.parts ? { parts: checked.value.parts } : {}),
+    ...(checked.value.board ? { board: true } : {}),
+  };
   const stored = Object.keys(extra).length ? { ...((preset.params ?? {}) as object), ...extra } : preset.params;
   const a = await prisma.assignment.create({
     data: {

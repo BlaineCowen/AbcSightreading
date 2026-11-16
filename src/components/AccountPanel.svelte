@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { apiGet } from "../lib/api-get";
   import ReferralNote from "./ReferralNote.svelte";
   import { onMount } from "svelte";
   import { authClient } from "../lib/auth-client";
@@ -16,7 +17,7 @@
   // A student's username and classes; anyone's classes they have joined.
   let membership: { username: string | null; classes: { name: string; teacher: string }[] } | null = null;
   $: if (user && !membership) {
-    fetch("/api/student").then((r) => (r.ok ? r.json() : null)).then((m) => (membership = m));
+    apiGet("/api/student").then((r) => (r.ok ? r.json() : null)).then((m) => (membership = m));
   }
 
   // The plan, and this month's count on the free one.
@@ -62,7 +63,7 @@
     } catch {}
     billing = await billingStatus();
     if (billing?.plan === "free") {
-      const res = await fetch("/api/usage");
+      const res = await apiGet("/api/usage");
       if (res.ok) used = (await res.json()).used;
     }
   });

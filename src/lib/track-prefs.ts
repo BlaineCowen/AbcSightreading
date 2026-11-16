@@ -1,3 +1,4 @@
+import { apiGet } from "./api-get";
 import { writable } from "svelte/store";
 import { signedInUser } from "./auth-client";
 import { DEFAULT_SUBSCRIPTIONS, needsPro, subscriptionsFrom } from "./curriculum/catalogue";
@@ -48,7 +49,7 @@ export function loadTrackPrefs(): Promise<void> {
       trackPrefs.set({ ready: true, signedIn: false, tracks: local ?? [...DEFAULT_SUBSCRIPTIONS], overrides: {}, canSubscribe: false, fromClasses: [] });
       return;
     }
-    const res = await fetch("/api/tracks");
+    const res = await apiGet("/api/tracks");
     if (!res.ok) throw new Error(`The server said ${res.status}.`);
     let body = await res.json();
     if (!body.chosen && local) body = await send({ tracks: local });

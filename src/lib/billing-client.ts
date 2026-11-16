@@ -1,3 +1,4 @@
+import { apiGet } from "./api-get";
 import { signedInUser } from "./auth-client";
 import type { Plan } from "./plan";
 
@@ -13,6 +14,8 @@ export type BillingStatus = {
   /** When a plan given by a code ends. */
   grantEnds: number | null;
   billingEnabled: boolean;
+  /** The site owner (ADMIN_EMAILS): sees owner-only features (owner-flags.ts). */
+  owner?: boolean;
   subscription: { id: string | null; plan: string; status: string; periodEnd: number | null; cancelAtPeriodEnd: boolean } | null;
   /** A plan on a school purchase order. */
   po?: { poNumber: string | null; school: string; invoiceUrl: string | null; dueAt: number | null; paid: boolean; renews: boolean } | null;
@@ -39,7 +42,7 @@ export function billingStatus(refresh = false): Promise<BillingStatus | null> {
   current ??= signedInUser()
     .then(async (u) => {
       if (!u) return null;
-      const res = await fetch("/api/billing");
+      const res = await apiGet("/api/billing");
       return res.ok ? ((await res.json()) as BillingStatus) : null;
     })
     .catch(() => null);

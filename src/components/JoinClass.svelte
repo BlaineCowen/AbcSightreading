@@ -46,7 +46,8 @@
       const res = await fetch("/api/join", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        problem = data?.error ?? "Could not join.";
+        // A 404 can reach here as the site's 404 page, not the JSON (Astro), so name it from the status.
+        problem = data?.error ?? (res.status === 404 ? "No class has that code. Check it with your teacher." : "Could not join.");
         return;
       }
       if (user) joined = data.joined;

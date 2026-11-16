@@ -10,10 +10,13 @@
  *   (the tab passes ?theme= and posts {abcTheme} when it changes);
  * - the abc wordmark in place of OmniPitch's logo;
  * - the in-browser engine only (it tried a local edit server first);
+ * - no demo: OmniPitch opens Allegri's Miserere until a file is chosen; here
+ *   it starts empty (Blaine, 10 November 2026);
  * - the wasm under a versioned name (vercel.json caches /omnipitch/*.wasm a
  *   year): bump WASM_NAME whenever the wasm changes;
- * - one upstream fix: tuningRef's sort sat inside a comment, so the median it
- *   takes was of unsorted offsets.
+ * - the dark "Graphite" colours written straight into OmniPitch's rules (the
+ *   header, tips, the view box, the record buttons, its violet tints) made to
+ *   follow the theme (10 November 2026, when OmniPitch moved to Graphite).
  *
  *   bun run scripts/omnipitch/sync.ts     (OMNIPITCH=<repo> if it is elsewhere)
  *
@@ -28,7 +31,7 @@ import { execSync } from "node:child_process";
 const REPO = process.env.OMNIPITCH ?? join(homedir(), "Projects/polyphonic-pitch-detector");
 const WEB = join(REPO, "polypitch/web");
 const OUT = "public/omnipitch/editor";
-const WASM_NAME = "polypitch-v2.wasm";
+const WASM_NAME = "polypitch-v3.wasm";
 
 function patch(file: string, text: string, edits: [string, string][]): string {
   for (const [from, to] of edits) {
@@ -50,6 +53,10 @@ const THEME = `
     --key-white: #ffffff; --key-black: #34405e; --note: #2f6fe0; --note-edge: #1e56c0; --playhead: #f0803c;
     --off: #e89a0c; --way-off: #e0443a; --curve: #15213a; --wave: #aab8d0; --ghost: #8793ad; --sel: #15213a;
     --rec: #c2352b; --radius: 10px; --hint-bg: #15213a; --hint-fg: #ffffff;
+    --well: #eef3fa; --overlay: #dce8ff; --hilite: rgba(255, 255, 255, 0.6); --track: #d8e2f1;
+    --text-lo: #7a86a0; --text-off: #a9b3c6; --accent-hi: #1e56c0; --accent-lo: #9dbbf0; --accent-tint: rgba(47, 111, 224, 0.12);
+    --on-accent: #ffffff; --ok: #1f9d6b; --key-label: #8793ad; --raise: linear-gradient(#ffffff, #f3f7fd);
+    --pop-shadow: 0 8px 24px rgba(21, 33, 58, 0.18); --font: "Nunito", system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark;
     --bg: #111113; --panel: #1b1b1f; --raised: #232328; --raised-hover: #2a2a30; --fg: #f4f4f6; --muted: #a4a4ae;
@@ -57,19 +64,32 @@ const THEME = `
     --row-white: #1d1d22; --row-black: #18181c; --row-out: #121215; --row-tonic: #1f2a3d; --grid: #26262c; --grid-strong: #3a3a43;
     --key-white: #d8d8de; --key-black: #111113; --note: #5c9dff; --note-edge: #c9e4ff; --playhead: #ffb38a;
     --off: #fbbf24; --way-off: #ff8a7a; --curve: #f4f4f6; --wave: #55555f; --ghost: #a4a4ae; --sel: #ffffff;
-    --rec: #ff6b5b; --hint-bg: #020617; --hint-fg: #f4f4f6; } }
+    --rec: #ff6b5b; --hint-bg: #020617; --hint-fg: #f4f4f6;
+    --well: #0d0d10; --overlay: #2a2a30; --hilite: rgba(255, 255, 255, 0.05); --track: #34343b;
+    --text-lo: #7c7c88; --text-off: #55555f; --accent-hi: #8dbaff; --accent-lo: #2c4f86; --accent-tint: rgba(92, 157, 255, 0.16);
+    --on-accent: #0b1220; --ok: #34d399; --key-label: #6b6b76; --raise: linear-gradient(#26262c, #202025);
+    --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.55); --font: "Nunito", system-ui, sans-serif; } }
   :root[data-theme="dark"] { color-scheme: dark;
     --bg: #111113; --panel: #1b1b1f; --raised: #232328; --raised-hover: #2a2a30; --fg: #f4f4f6; --muted: #a4a4ae;
     --line: #34343b; --line-strong: #45454e; --accent: #5c9dff; --accent-hover: #78adff; --focus: #8dbaff;
     --row-white: #1d1d22; --row-black: #18181c; --row-out: #121215; --row-tonic: #1f2a3d; --grid: #26262c; --grid-strong: #3a3a43;
     --key-white: #d8d8de; --key-black: #111113; --note: #5c9dff; --note-edge: #c9e4ff; --playhead: #ffb38a;
     --off: #fbbf24; --way-off: #ff8a7a; --curve: #f4f4f6; --wave: #55555f; --ghost: #a4a4ae; --sel: #ffffff;
-    --rec: #ff6b5b; --hint-bg: #020617; --hint-fg: #f4f4f6; }
-  body { font-family: "Nunito", system-ui, sans-serif; font-size: 13.5px; font-weight: 600; }
+    --rec: #ff6b5b; --hint-bg: #020617; --hint-fg: #f4f4f6;
+    --well: #0d0d10; --overlay: #2a2a30; --hilite: rgba(255, 255, 255, 0.05); --track: #34343b;
+    --text-lo: #7c7c88; --text-off: #55555f; --accent-hi: #8dbaff; --accent-lo: #2c4f86; --accent-tint: rgba(92, 157, 255, 0.16);
+    --on-accent: #0b1220; --ok: #34d399; --key-label: #6b6b76; --raise: linear-gradient(#26262c, #202025);
+    --pop-shadow: 0 8px 24px rgba(0, 0, 0, 0.55); --font: "Nunito", system-ui, sans-serif; }
+  body { font-family: var(--font); font-size: 13px; font-weight: 600; }
   button, select, input { font-weight: 700; }
-  .brand { font-family: "Fredoka", "Nunito", sans-serif; font-size: 17px; font-weight: 600; letter-spacing: 0; }
-  .brand .abc { font-style: italic; color: var(--accent); margin-right: 1px; }
-  #hint { background: var(--hint-bg); color: var(--hint-fg); }
+  .wm { font-family: "Fredoka", "Nunito", sans-serif; font-size: 17px; font-weight: 600; letter-spacing: 0; }
+  .wm .abc { font-style: italic; color: var(--accent); margin-right: 1px; }
+  header { background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+  #hint, #tip { background: var(--hint-bg); color: var(--hint-fg); }
+  #hint kbd { color: var(--hint-fg); background: transparent; }
+  select option { background: var(--panel); }
+  #view { background: var(--panel); }
+  #rec.on, #transfer.on { color: var(--rec); }
   #play:hover:not(:disabled) { background: var(--fg); border-color: var(--fg); opacity: 0.88; }
   #help h2 { font-family: "Fredoka", "Nunito", sans-serif; font-weight: 600; }
 `;
@@ -88,35 +108,39 @@ const THEME_SYNC = `<script>
 </script>
 <script type="module">`;
 
-const BRAND_FROM = `<div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#2563eb"/><path d="M5 15c2 0 2-6 4-6s2 8 4 8 2-10 4-10 1.5 5 2 5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg><h1 style="font:inherit;margin:0">OmniPitch</h1></div>`;
-const BRAND_TO = `<div class="brand"><h1 style="font:inherit;margin:0"><span class="abc">abc</span>OmniPitch</h1></div>`;
+const BRAND_FROM = `<div class="brand"><svg viewBox="0 0 22 22" aria-hidden="true"><rect width="22" height="22" rx="6" fill="#A78BFA"/><g fill="#120D22"><rect x="4" y="12" width="6" height="3.4" rx="1.7"/><rect x="9" y="6.5" width="9" height="3.4" rx="1.7"/></g></svg><h1 class="wm">OmniPitch</h1></div>`;
+const BRAND_TO = `<div class="brand"><h1 class="wm"><span class="abc">abc</span>OmniPitch</h1></div>`;
 
-mkdirSync(join(OUT, "demo"), { recursive: true });
-const html = patch("index.html", readFileSync(join(WEB, "index.html"), "utf8"), [
+/** OmniPitch's violet tints, written as rgba in its rules: the theme's accent instead, at the same strength. */
+const tints = (text: string) =>
+  text
+    .replace(/rgba\(167, 139, 250, ([0-9.]+)\)/g, (_, a) => `color-mix(in srgb, var(--accent) ${Math.round(Number(a) * 100)}%, transparent)`)
+    // the logo's square and bars (the About box), in the theme's accent
+    .replaceAll('fill="#A78BFA"', 'style="fill: var(--accent)"')
+    .replaceAll('<g fill="#120D22">', '<g style="fill: var(--on-accent)">');
+
+mkdirSync(OUT, { recursive: true });
+const html = tints(patch("index.html", readFileSync(join(WEB, "index.html"), "utf8"), [
   ["<title>OmniPitch</title>", "<title>abcOmniPitch</title>"],
   ["</style>", `${THEME}</style>`],
   [BRAND_FROM, BRAND_TO],
   ['<script type="module">', THEME_SYNC],
-  ['loadPolyPitch("polypitch.wasm")', `loadPolyPitch("${WASM_NAME}")`],
+  ['loadPolyPitch("polypitch.wasm" + ENGINE_V)', `loadPolyPitch("${WASM_NAME}" + ENGINE_V)`],
+  ["background: linear-gradient(#1D2027, #171A20);", "background: var(--panel);"],
   [
     'if (HOST || new URLSearchParams(location.search).get("engine") === "local") throw new Error("local engine asked for");',
     'if (HOST || new URLSearchParams(location.search).get("engine") !== "server") throw new Error("the in-browser engine");',
   ],
+  ["if (!HOST) loadDemo();", "// no demo on abcSightReading (scripts/omnipitch/sync.ts)"],
   ['status.textContent += " — editing unavailable (start tools/edit_server.py)";', 'status.textContent += ". Editing is not available in this browser.";'],
-  [
-    "const offs = pool.map((m) => [m.curve ? m.curve.steady : m.centsOff, m.end - m.start]) // as sung, whatever the edits.sort((a, b) => a[0] - b[0]);",
-    "const offs = pool.map((m) => [m.curve ? m.curve.steady : m.centsOff, m.end - m.start]).sort((a, b) => a[0] - b[0]); // as sung, whatever the edits",
-  ],
-]);
+]));
 writeFileSync(join(OUT, "index.html"), html);
 writeFileSync(
   join(OUT, "engine-worker.js"),
-  patch("engine-worker.js", readFileSync(join(WEB, "engine-worker.js"), "utf8"), [['loadPolyPitch("polypitch.wasm")', `loadPolyPitch("${WASM_NAME}")`]])
+  patch("engine-worker.js", readFileSync(join(WEB, "engine-worker.js"), "utf8"), [['loadPolyPitch("polypitch.wasm" + V)', `loadPolyPitch("${WASM_NAME}" + V)`]])
 );
-copyFileSync(join(WEB, "polypitch.js"), join(OUT, "polypitch.js"));
+for (const f of ["polypitch.js", "parts.js", "files.js", "JetBrainsMono-500.woff2", "fonts-OFL.txt"]) copyFileSync(join(WEB, f), join(OUT, f));
 copyFileSync(join(WEB, "polypitch.wasm"), join(OUT, WASM_NAME));
-copyFileSync(join(WEB, "demo/miserere.m4a"), join(OUT, "demo/miserere.m4a"));
-copyFileSync(join(WEB, "demo/CREDITS.txt"), join(OUT, "demo/CREDITS.txt"));
 copyFileSync(join(REPO, "polypitch/models/LICENSE-basic-pitch"), join(OUT, "LICENSE-basic-pitch"));
 
 const commit = execSync("git rev-parse --short HEAD", { cwd: REPO }).toString().trim();

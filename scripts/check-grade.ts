@@ -162,7 +162,7 @@ await page.evaluate(() => {
 });
 await new Promise((r) => setTimeout(r, 1200));
 await page.evaluate(() => {
-  const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
+  const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Start");
   (b as HTMLButtonElement | undefined)?.click();
 });
 
@@ -205,7 +205,7 @@ if (MODE === "pitch") {
   });
   console.log(`pitch ${r.score}% ${r.letter}`);
   if (process.env.PLAYBACK) {
-    await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+    await page.evaluate(() => { const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
     const seen: number[] = [];
     let playing = false, music = true;
     for (let k = 0; k < 24; k++) {
@@ -261,14 +261,14 @@ if (process.env.SAVE) {
   const cdp = await page.createCDPSession();
   await cdp.send("Page.setDownloadBehavior", { behavior: "allow", downloadPath: process.env.SAVE });
   await page.evaluate(() => {
-    const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Save this run");
+    const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === "Save this run");
     (b as HTMLButtonElement | undefined)?.click();
   });
   await new Promise((r) => setTimeout(r, 2500));
 }
 
 const out = await page.evaluate(() => {
-  const dock = (document.querySelector('[role="dialog"]') ?? document.querySelector(".grade-dock"))?.textContent?.replace(/\s+/g, " ").trim();
+  const dock = (document.querySelector('dialog[open]') ?? document.querySelector('[role="dialog"]') ?? document.querySelector(".grade-dock"))?.textContent?.replace(/\s+/g, " ").trim();
   const trace = document.querySelectorAll(".grade-overlay polyline").length;
   const marks = document.querySelectorAll(".grade-overlay path, .grade-overlay line").length;
   return { dock, trace, marks, view: (window as any).__gradeDebug.view() };
@@ -314,12 +314,12 @@ if (MODE === "performance") {
 if (process.env.REGRADE && MODE === "performance") {
   const scoreOf = () => page.evaluate(() => (window as any).__gradeDebug.view().perf?.overall);
   const before = await scoreOf();
-  await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent ?? "").trim() === "Easy"); (b as HTMLButtonElement | undefined)?.click(); });
+  await page.evaluate(() => { const b = [...document.querySelectorAll('dialog button, [role="dialog"] button')].find((x) => (x.textContent ?? "").trim() === "Easy"); (b as HTMLButtonElement | undefined)?.click(); });
   await new Promise((r) => setTimeout(r, 600));
   const after = await scoreOf();
   console.log(`regraded: ${STRICT} ${before} -> Easy ${after}`);
   expect(after !== undefined && after >= before, "Easy should grade at least as high");
-  await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent ?? "").trim() === "See it on the music"); (b as HTMLButtonElement | undefined)?.click(); });
+  await page.evaluate(() => { const b = [...document.querySelectorAll('dialog button, [role="dialog"] button')].find((x) => (x.textContent ?? "").trim() === "See it on the music"); (b as HTMLButtonElement | undefined)?.click(); });
   await new Promise((r) => setTimeout(r, 600));
   const ghost = await page.evaluate(() => document.querySelectorAll(".grade-overlay ellipse").length);
   console.log(`sung notes drawn beside wrong ones: ${ghost}`);
@@ -353,7 +353,7 @@ if (process.env.PLAYBACK) {
     const diffs = (plan as any[]).map((n) => { const near = takeOnsets.reduce((a, t) => (Math.abs(t - n.at) < Math.abs(a - n.at) ? t : a), Infinity); return near - n.at; }).filter((d) => Math.abs(d) < 200).sort((a, b) => a - b);
     console.log(`take alignment (after TAKE_ALIGN_MS): sung notes land ${diffs[diffs.length >> 1]?.toFixed(0)} ms from where they were sung (range ${diffs[0]?.toFixed(0)}..${diffs[diffs.length - 1]?.toFixed(0)}, ${diffs.length} notes)`);
     // The player.
-    await page.evaluate(() => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
+    await page.evaluate(() => { const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => /Hear your take/.test(x.textContent ?? "") || x.getAttribute("aria-label") === "Hear your take"); (b as HTMLButtonElement | undefined)?.click(); });
     const seen: number[] = [];
     let playing = false;
     let firstProgress: number | null = null;
@@ -374,7 +374,7 @@ if (process.env.PLAYBACK) {
     expect(await page.evaluate(() => (window as any).__gradeDebug.take().music), "With the music should turn on");
     // Change settings from the results, then back to them: never out of Grade.
     const dialog = () => page.evaluate(() => document.querySelector('[role="dialog"]')?.textContent?.replace(/\s+/g, " ").slice(0, 60) ?? null);
-    const press = (text: string) => page.evaluate((t) => { const b = [...document.querySelectorAll('[role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === t); (b as HTMLButtonElement | undefined)?.click(); return !!b; }, text);
+    const press = (text: string) => page.evaluate((t) => { const b = [...document.querySelectorAll('dialog button, [role="dialog"] button, .grade-dock button')].find((x) => (x.textContent ?? "").trim() === t); (b as HTMLButtonElement | undefined)?.click(); return !!b; }, text);
     await press("Results");
     await new Promise((r) => setTimeout(r, 300));
     await press("Change settings and try again");

@@ -8,6 +8,7 @@ import { partsFor, pieceAssignmentOf } from "../pieces/assign";
 import { FINISH_WITHIN_MS, TAKE_DAYS, TAKE_PATH, type AttemptSummary, type Mark } from "../pieces/attempts";
 import { ATTEMPT_MODES, checkExerciseAttempt } from "../gradebook";
 import { checkpointOf, isLevel, keepUntil } from "../portfolio";
+import { byName, isBoardTest, type BoardRoster } from "../board-test";
 
 /**
  * Graded attempts at an assignment, against the database (rules in
@@ -57,9 +58,23 @@ async function assignmentOf(assignmentId: string) {
  * Starts an attempt for a student of the class: counted now. A piece's names
  * the part (`partId`); a sight-reading one how it is graded and the exercise.
  */
-export async function startAttempt(userId: string, assignmentId: string, body: { partId?: unknown; mode?: unknown; exercise?: unknown } = {}) {
+export async function startAttempt(
+  requesterId: string,
+  assignmentId: string,
+  body: { partId?: unknown; mode?: unknown; exercise?: unknown; studentId?: unknown } = {},
+) {
   const { a, settings } = await assignmentOf(assignmentId);
-  if ((await roleIn(userId, a.classId)) !== "student") throw new AttemptError("Only a student of the class has graded attempts.", 403);
+  const role = await roleIn(requesterId, a.classId);
+  const board = isBoardTest(a.params);
+  // A board test's tries are sent by the teacher's device, for the student at the board (board-test.ts).
+  let userId = requesterId;
+  if (role === "teacher" && board && !settings) {
+    if (typeof body.studentId !== "string") throw new AttemptError("Which student?");
+    const enrolled = await prisma.enrollment.findFirst({ where: { classId: a.classId, studentId: body.studentId }, select: { id: true } });
+    if (!enrolled) throw new AttemptError("That student is not in this class.", 404);
+    userId = body.studentId;
+  } else if (role !== "student") throw new AttemptError("Only a student of the class has graded attempts.", 403);
+  else if (board) throw new AttemptError("This test is taken in class, on your teacher's board.", 403);
   const checkpoint = checkpointOf(a.params);
   // A checkpoint's recordings are the portfolio: kept through the school year.
   const deleteAfter = checkpoint ? keepUntil() : new Date(Date.now() + TAKE_DAYS * 86_400_000);
@@ -98,9 +113,18 @@ export async function startAttempt(userId: string, assignmentId: string, body: {
   return { attempt: summaryOf(row), used: used + 1, max: settings.maxAttempts };
 }
 
+/** The student's own attempt, or one the class's teacher started at a board test. */
+async function mayHandle(userId: string, at: { studentId: string; assignment: { classId: string; params: unknown } }) {
+  if (at.studentId === userId) return true;
+  return isBoardTest(at.assignment.params) && (await roleIn(userId, at.assignment.classId)) === "teacher";
+}
+
 async function ownOpenAttempt(userId: string, assignmentId: string, attemptId: string) {
-  const at = await prisma.pieceAttempt.findFirst({ where: { id: attemptId, assignmentId, studentId: userId } });
-  if (!at) throw new AttemptError("No such attempt.", 404);
+  const at = await prisma.pieceAttempt.findFirst({
+    where: { id: attemptId, assignmentId },
+    include: { assignment: { select: { classId: true, params: true } } },
+  });
+  if (!at || !(await mayHandle(userId, at))) throw new AttemptError("No such attempt.", 404);
   if (Date.now() - at.startedAt.getTime() > FINISH_WITHIN_MS) throw new AttemptError("This attempt was started too long ago.", 409);
   return at;
 }
@@ -125,8 +149,12 @@ export async function finishAttempt(
 export async function mayUploadTake(userId: string, pathname: string): Promise<boolean> {
   const m = TAKE_PATH.exec(pathname);
   if (!m) return false;
-  const at = await prisma.pieceAttempt.findFirst({ where: { id: m[2], assignmentId: m[1], studentId: userId } });
-  return !!at && !at.recordingPath && Date.now() - at.startedAt.getTime() <= FINISH_WITHIN_MS;
+  const at = await prisma.pieceAttempt.findFirst({
+    where: { id: m[2], assignmentId: m[1] },
+    include: { assignment: { select: { classId: true, params: true } } },
+  });
+  if (!at || !(await mayHandle(userId, at))) return false;
+  return !at.recordingPath && Date.now() - at.startedAt.getTime() <= FINISH_WITHIN_MS;
 }
 
 /** After the upload: the take is there, so the attempt points at it. */
@@ -247,5 +275,33 @@ export async function classPortfolio(classId: string) {
       id: r.id, assignmentId: r.assignmentId, studentId: r.studentId,
       overall: r.finishedAt ? r.overall : null, rubric: r.rubric, hasTake: !!r.recordingPath, at: r.startedAt.getTime(),
     })),
+  };
+}
+
+/**
+ * A board test's names for the teacher's device (board-test.ts): everyone in
+ * the class, with how many graded tries and the best, so a test spread over
+ * several days shows who is left.
+ */
+export async function boardRoster(userId: string, assignmentId: string): Promise<BoardRoster> {
+  const a = await prisma.assignment.findUnique({ where: { id: assignmentId }, select: { classId: true, title: true, params: true, class: { select: { name: true } } } });
+  if (!a || !isBoardTest(a.params) || (await roleIn(userId, a.classId)) !== "teacher") throw new AttemptError("No such test.", 404);
+  const [enrolled, tries] = await Promise.all([
+    prisma.enrollment.findMany({ where: { classId: a.classId }, select: { student: { select: { id: true, name: true } } } }),
+    prisma.pieceAttempt.findMany({ where: { assignmentId, finishedAt: { not: null } }, select: { studentId: true, overall: true } }),
+  ]);
+  const best = new Map<string, { tries: number; best: number | null }>();
+  for (const t of tries) {
+    const b = best.get(t.studentId) ?? { tries: 0, best: null };
+    b.tries++;
+    if (t.overall !== null && (b.best === null || t.overall > b.best)) b.best = t.overall;
+    best.set(t.studentId, b);
+  }
+  return {
+    className: a.class.name,
+    title: a.title,
+    students: enrolled
+      .map((e) => ({ id: e.student.id, name: e.student.name, tries: best.get(e.student.id)?.tries ?? 0, best: best.get(e.student.id)?.best ?? null }))
+      .sort(byName),
   };
 }
