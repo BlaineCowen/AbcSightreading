@@ -77,6 +77,8 @@ regression.
   reading it, and applying with `bun run db:deploy` (never resets).
 - **Load time**: fonts are self-hosted; nothing that appears after load may
   push the page down; Tone.js and the Tools cards load on first use.
+- **Owner-only features** (for Blaine to test on the live site): `ownerSees("name")` from
+  `src/lib/owner-flags.ts` hides the UI; server code behind it checks `isAdmin(user)`.
 - New public pages go in `src/lib/seo.ts` (the sitemap). Keep `data-tour`
   attributes on controls you move (the walkthrough points at them).
 - **Pop-ups over the page are native `<dialog>`s**: `use:modal` from

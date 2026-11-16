@@ -14,6 +14,8 @@ export type BillingStatus = {
   /** When a plan given by a code ends. */
   grantEnds: number | null;
   billingEnabled: boolean;
+  /** The site owner (ADMIN_EMAILS): sees owner-only features (owner-flags.ts). */
+  owner?: boolean;
   subscription: { id: string | null; plan: string; status: string; periodEnd: number | null; cancelAtPeriodEnd: boolean } | null;
   /** A plan on a school purchase order. */
   po?: { poNumber: string | null; school: string; invoiceUrl: string | null; dueAt: number | null; paid: boolean; renews: boolean } | null;

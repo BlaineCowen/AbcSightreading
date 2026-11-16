@@ -5,6 +5,7 @@ import { billingEnabled } from "../../../lib/server/auth";
 import { complimentary, planFor } from "../../../lib/server/plan";
 import { currentGrant } from "../../../lib/server/codes";
 import { endingPlanFor } from "../../../lib/server/plan-ending";
+import { isAdmin } from "../../../lib/server/admin";
 
 /**
  * The account's plan and the subscription behind it, for the account page.
@@ -12,7 +13,7 @@ import { endingPlanFor } from "../../../lib/server/plan-ending";
  * GET -> { plan, via, billingEnabled, subscription: { id, plan, status,
  *          periodEnd, cancelAtPeriodEnd } | null,
  *          po: { poNumber, school, invoiceUrl, dueAt, paid, renews } | null,
- *          ending: { plan, endsAt, kind, quoteId? } | null }
+ *          ending: { plan, endsAt, kind, quoteId? } | null, owner }
  *
  * `ending` is a plan that will not renew and ends within 30 days (the banner;
  * plan-ending.ts).
@@ -57,6 +58,8 @@ export const GET: APIRoute = async ({ request }) => {
     via,
     grantEnds: grant?.expiresAt.getTime() ?? null,
     billingEnabled,
+    // The site owner: owner-only features show for them (src/lib/owner-flags.ts).
+    owner: isAdmin(user),
     subscription: subscription
       ? {
           id: subscription.stripeSubscriptionId,

@@ -392,3 +392,14 @@ presets once; the server dedupes by name + creation time.
   (`src/lib/usage.ts`) before generating and `countGeneration()` once the score
   is drawn, so an exercise that could not be written costs nothing; `GenerationLimit.svelte` says what is
   left. Pro also unlocks the Tools wheel and `/tuner`.
+
+## Owner-only features (16 Nov 2026)
+
+To try a feature on the real site before anyone else sees it, gate its UI with
+`ownerSees("name")` from `src/lib/owner-flags.ts` (list the name in
+`OWNER_FLAGS`). It is true for the `ADMIN_EMAILS` / `ADMIN_EMAIL` account
+only: `/api/billing` returns `owner: isAdmin(user)`, read through the cached
+`billingStatus()`, so it costs no extra request. `?everyone` on a page's
+address turns it off, to see the page as everyone does. It only hides UI:
+server work behind such a feature checks `isAdmin(user)` itself. Delete the
+name and its checks when the feature ships.
