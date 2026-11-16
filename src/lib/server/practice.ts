@@ -252,6 +252,76 @@ export async function classAssignments(classId: string) {
   };
 }
 
+/**
+ * Every assignment in every class of a teacher's, newest first, with how many
+ * in its class are done: the account page's Assignments tab, where one is
+ * opened again or given to more classes (copyAssignment).
+ */
+export async function teacherAssignments(teacherId: string) {
+  const classes = await prisma.class.findMany({
+    where: { userId: teacherId },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, enrollments: { select: { studentId: true } } },
+  });
+  const assignments = await prisma.assignment.findMany({ where: { classId: { in: classes.map((c) => c.id) } }, orderBy: { createdAt: "desc" } });
+  const ids = assignments.map((a) => a.id);
+  const [totals, tries] = await Promise.all([totalsFor(ids), attemptsFor(ids)]);
+  const byClass = new Map(classes.map((c) => [c.id, c]));
+  return {
+    classes: classes.map((c) => ({ id: c.id, name: c.name, students: c.enrollments.length })),
+    assignments: assignments.map((a) => {
+      const students = byClass.get(a.classId)?.enrollments.map((e) => e.studentId) ?? [];
+      const status = students.map((s) => {
+        const t = totals.get(`${a.id}:${s}`) ?? { seconds: 0 };
+        return withAttempts(a, assignmentProgress(t.seconds, a.minutes), tries.get(`${a.id}:${s}`)).status;
+      });
+      return {
+        ...assignmentView(a),
+        classId: a.classId,
+        className: byClass.get(a.classId)?.name ?? "",
+        // Same title, kind and settings: the one assignment given to several classes.
+        group: `${a.page}|${a.presetKey}|${a.title}|${JSON.stringify(a.params ?? null)}`,
+        students: students.length,
+        done: status.filter((x) => x === "done").length,
+        started: status.filter((x) => x !== "not-started").length,
+      };
+    }),
+  };
+}
+
+/**
+ * The same assignment in more of the teacher's classes: its settings, title,
+ * minutes, due date and note, each class's own students and grades. Classes
+ * not the teacher's are left out. Returns the new assignments' ids, by class.
+ */
+export async function copyAssignment(teacherId: string, assignmentId: string, classIds: string[]) {
+  const a = await prisma.assignment.findUnique({ where: { id: assignmentId } });
+  if (!a || (await roleIn(teacherId, a.classId)) !== "teacher") return null;
+  const mine = await prisma.class.findMany({ where: { id: { in: classIds }, userId: teacherId }, select: { id: true } });
+  const made: { classId: string; id: string }[] = [];
+  for (const { id: classId } of mine) {
+    const c = await prisma.assignment.create({
+      data: {
+        classId,
+        presetKey: a.presetKey,
+        title: a.title,
+        page: a.page,
+        params: (a.params ?? undefined) as Prisma.InputJsonValue | undefined,
+        minutes: a.minutes,
+        dueAt: a.dueAt,
+        note: a.note,
+      },
+    });
+    // A song goes into the class's library too, as when it is first assigned.
+    if (a.page === "piece") {
+      const pieceId = a.presetKey.slice("piece:".length);
+      await prisma.classPiece.upsert({ where: { classId_pieceId: { classId, pieceId } }, create: { classId, pieceId }, update: {} });
+    }
+    made.push({ classId, id: c.id });
+  }
+  return made;
+}
+
 /** A student's assignments in every class they are in, with their own progress. */
 export async function myAssignments(userId: string) {
   const enrollments = await prisma.enrollment.findMany({ where: { studentId: userId }, select: { classId: true, class: { select: { name: true } } } });

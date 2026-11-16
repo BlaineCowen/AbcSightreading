@@ -283,6 +283,21 @@ Every song assigned goes into its class's library (`ClassPiece`, kept after
 the assignment, gone with the class or piece); students open it whole, any
 part, ungraded, from `/library` and their home page (PieceViewer `library`).
 
+**The Assignments tab** (16 November 2026, Blaine: "click an assignment ...
+open it again and assign to more students"; `TeacherAssignments.svelte`, an
+educator-only tab on /account, `#assignments`). Every assignment in every
+class, newest first (`teacherAssignments`, `GET /api/assignments/teaching`,
+loaded when the tab is first shown). Ones with the same page, preset key,
+title and params are one row (`group`): the same assignment in several
+classes. Opened, it lists its classes with done counts and Open (Test on the
+board for a board test), and **Give it to more classes** copies it
+(`copyAssignment`, `POST /api/assignments/<id>/copy { classIds }`): settings,
+title, minutes, due date and note, never the Classroom link; a song also goes
+into the class's library; a board test is owner only, as when made. There is
+no per-student assigning: a class's students all have its assignments,
+students added later too. Checked on the dev server 16 November (a song
+copied to a demo class, grouped as 2 classes, then removed).
+
 A preset holds every setting on its page (Choral `getCurrentParams`, Unison
 `currentOptions`): generation, display (lyrics, chords, cursor, hidden and
 muted voices), sound (instrument, transposition, volumes) and the metronome: its

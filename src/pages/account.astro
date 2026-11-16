@@ -6,6 +6,7 @@ import SyllableEditor from "../components/SyllableEditor.svelte";
 import EducatorStudents from "../components/EducatorStudents.svelte";
 import SchoolQuote from "../components/SchoolQuote.svelte";
 import StudentAssignments from "../components/StudentAssignments.svelte";
+import TeacherAssignments from "../components/TeacherAssignments.svelte";
 import { currentUser } from "../lib/server/api";
 import { accountTypeFor } from "../lib/server/students";
 import { EDUCATOR_ON_SALE } from "../lib/plan";
@@ -26,6 +27,8 @@ const classless = accountType === "student" && viewer ? (await prisma.enrollment
 const tabs = [
   { id: "account", label: "Account and plan", hashes: ["account", "plan", "quote"] },
   { id: "classes", label: "Classes", hashes: ["classes", "students"] },
+  // Every assignment in every class, to open again or give to more classes (TeacherAssignments).
+  ...(accountType === "educator" ? [{ id: "assignments", label: "Assignments", hashes: ["assignments"] }] : []),
   { id: "syllables", label: "Rhythm syllables", hashes: ["syllables"] },
 ];
 ---
@@ -70,6 +73,11 @@ const tabs = [
           {accountType === "educator" && <EducatorStudents client:only="svelte" {googleEnabled} />}
           <ClassProgress client:only="svelte" educator={accountType === "educator"} />
         </div>
+        {accountType === "educator" && (
+          <div id="panel-assignments" role="tabpanel" aria-labelledby="tab-assignments" class="tab-panel" hidden>
+            <TeacherAssignments client:only="svelte" />
+          </div>
+        )}
         <div id="panel-syllables" role="tabpanel" aria-labelledby="tab-syllables" class="tab-panel" hidden>
           <SyllableEditor client:only="svelte" />
         </div>
