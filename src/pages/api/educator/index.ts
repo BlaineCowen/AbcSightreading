@@ -5,11 +5,12 @@ import { accountTypeFor, seatInfo, shortUsername } from "../../../lib/server/stu
 import { becomeEducator } from "../../../lib/server/educator";
 import { hasEducatorPlan } from "../../../lib/server/plan";
 import { formatJoinCode } from "../../../lib/join-code";
+import { oneRosterClassOf } from "../../../lib/oneroster";
 
 /**
  * The educator plan.
  *
- * GET  -> { seats, classes: [{ id, name, joinCode, students: [...] }] }
+ * GET  -> { seats, classes: [{ id, name, joinCode, classroom, oneroster, students: [...] }] }
  * POST -> finish becoming an educator once the Educator plan is paid for (the
  *         webhook does this too; this covers arriving back from checkout
  *         before the webhook has), and every class gets a join code.
@@ -43,6 +44,8 @@ export const GET: APIRoute = async ({ request }) => {
       name: c.name,
       joinCode: c.joinCode ? formatJoinCode(c.joinCode) : null,
       classroom: c.rosterSource?.startsWith("google:") ? { syncedAt: c.rosterSyncedAt?.getTime() ?? null } : null,
+      // The OneRoster class it was imported from (src/lib/oneroster.ts), so the next import matches it.
+      oneroster: oneRosterClassOf(c.rosterSource) ? { key: oneRosterClassOf(c.rosterSource)!, syncedAt: c.rosterSyncedAt?.getTime() ?? null } : null,
       students: c.enrollments.map((e) => ({
         id: e.student.id,
         name: e.student.name,

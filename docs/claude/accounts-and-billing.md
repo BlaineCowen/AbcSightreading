@@ -127,6 +127,24 @@ the ID token holds their email). Each assignment has Share to Google
 Classroom (`shareToClassroomUrl`, no key needed). Whole ClassLink rosters
 (OneRoster) wait for a district to approve the app.
 
+**OneRoster files** (16 November 2026, owner only for now: `ownerSees("oneroster")`
+and `isAdmin` on the route). Students, Import a OneRoster file takes a OneRoster
+1.1 bulk zip (or its CSVs), read in the browser (`src/lib/oneroster.ts`
+`readOneRoster`, tests `oneroster.test.ts`): only class titles and student names
+go to the server. A dialog matches each roster class to a class here (the one it
+was imported into before, `Class.rosterSource` `oneroster:<school>/<class>`,
+else the same name, else a new class, or skip). `POST /api/classes/[id]/oneroster`
+(`src/lib/server/oneroster.ts`) syncs it with Classroom's `planSync`: new
+students get a username and password (cards printed at once), students already
+imported are found by an `account` row (providerId `oneroster`, accountId
+`<school sourcedId>/<user sourcedId>`, never signed in through) and enrolled,
+and those gone from the roster are named, not removed. Made for Blaine's
+Teacher Tools export (~/Projects/rubric-grader, Students, Export OneRoster:
+one class per `Student.class` value, ids from Teacher Tools' cuids); the same
+files from ClassLink or a SIS should work. Tested 16 November 2026 on the dev
+server with a 3-student fake file: import, re-import (no one added, matched by
+rosterSource), then deleted. When it ships: drop the `isAdmin` check and the flag.
+
 **The gradebook** (10 October 2026; rules `src/lib/gradebook.ts`, tests
 `gradebook.test.ts`, the grid `Gradebook.svelte` under a class's Assignments
 on /account). A row a student, a column an assignment, oldest first; each cell
