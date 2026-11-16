@@ -2174,6 +2174,14 @@
         maxSpacing: 5,
       },
       clickListener: async (event: any) => {
+        // A drag over the music (scrolling, or a slip of the mouse) is not a tap (Blaine, 16 November 2026).
+        if (pressMoved) {
+          pressMoved = false;
+          clearNoteSelection();
+          return;
+        }
+        // While Grade is open, abcjs's red "selected" note would sit over the grading marks: none.
+        if (gradeOpen) clearNoteSelection();
         // After a Grade run, a tapped note says how it went.
         if (gradePhase === "results") {
           const drawn = drawnNotes();
@@ -2193,6 +2201,34 @@
         if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
+  }
+
+  // ── Tapping a note (abcjs's clickListener above) ──────────────────────────
+  /**
+   * abcjs takes any press that starts on or near a note as a tap, even one
+   * that drags on (Blaine, 16 November 2026: "clicking it by accident too much
+   * when dragging"). A press that moves more than DRAG_PX, or that the browser
+   * takes over for scrolling (pointercancel), is a drag and taps nothing.
+   */
+  const DRAG_PX = 8;
+  let pressFrom: { x: number; y: number } | null = null;
+  let pressMoved = false;
+  function onPaperDown(e: PointerEvent) {
+    pressFrom = { x: e.clientX, y: e.clientY };
+    pressMoved = false;
+  }
+  function onPaperMove(e: PointerEvent) {
+    if (pressFrom && e.buttons !== 0 && Math.hypot(e.clientX - pressFrom.x, e.clientY - pressFrom.y) > DRAG_PX) pressMoved = true;
+  }
+  function onPaperCancel() {
+    if (pressFrom) pressMoved = true;
+  }
+  /** abcjs's red on the tapped note, taken off (its highlight sets fill, or the attribute it names, and a class). */
+  function clearNoteSelection() {
+    for (const el of document.querySelectorAll("#paper .abcjs-note_selected")) {
+      el.setAttribute(el.getAttribute("highlight") || "fill", "currentColor");
+      el.classList.remove("abcjs-note_selected");
+    }
   }
 
   /**
@@ -4933,6 +4969,7 @@
     const pageClicks = page.clickWithMusic && page.metronomeVolume > 0;
     tuner.setGrade({ gradeClick: pageClicks ? (page.subdivision > 1 ? "sub" : "beat") : "off" });
     gradeOpen = true;
+    clearNoteSelection();
     if (gradeAllowed === null) {
       const who = await signedInUser();
       gradeSignedIn = !!who;
@@ -5251,6 +5288,7 @@
   async function startGrade() {
     if (gradeBlocked || !originalTuneString || !gradeAllowed) return;
     clearGradeMarks();
+    clearNoteSelection();
     if (drillRunning) await stopDrill();
     if (isPlaying) stopMusic();
     const schedule = gradeSchedule(originalTuneString, transposeSemitones);
@@ -6796,6 +6834,9 @@
         id="paper"
         class="sr-sheet w-full my-2"
         class:hidden={!originalTuneString && !isLoading}
+        on:pointerdown={onPaperDown}
+        on:pointermove={onPaperMove}
+        on:pointercancel={onPaperCancel}
       >
         {#if isLoading}
           <div class="flex items-center justify-center h-48">
