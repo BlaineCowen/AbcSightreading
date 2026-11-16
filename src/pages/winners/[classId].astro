@@ -45,7 +45,7 @@ const colours: Record<number, string> = { 1: "bg-sr-butter text-sr-butter-ink", 
       <div class="goalbox">
         <div class="flex justify-between font-extrabold text-lg"><span>Class goal</span><span class="tabular-nums">{total.toLocaleString()} of {goal.toLocaleString()}</span></div>
         <div class="goal"><i style={`width:${pct}%`}></i></div>
-        {pct >= 100 && <div class="font-extrabold text-sr-mint-ink mt-2">Reached! Everyone earned Ensemble.</div>}
+        {pct >= 100 && <div class="font-extrabold text-sr-mint-ink mt-2">{sofar ? "Reached! Everyone gets Ensemble when the week ends." : "Reached! Everyone earned Ensemble."}</div>}
       </div>
     </div>
 
@@ -81,7 +81,7 @@ const colours: Record<number, string> = { 1: "bg-sr-butter text-sr-butter-ink", 
   .sub { font-size: 1.25rem; font-weight: 700; color: var(--sr-muted); }
   .goalbox { width: min(24rem, 100%); color: var(--sr-ink); }
   .goal { height: 22px; margin-top: 8px; background: var(--sr-track); border-radius: 999px; overflow: hidden; }
-  .goal i { display: block; height: 100%; background: var(--sr-mint-ink); opacity: 0.75; border-radius: 999px; }
+  .goal i { display: block; height: 100%; background: linear-gradient(90deg, var(--sr-mint), color-mix(in srgb, var(--sr-mint-ink) 45%, var(--sr-mint))); border-radius: 999px; }
   .podium { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: clamp(0.75rem, 2vw, 1.5rem); }
   .pod { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: clamp(6rem, 22vw, 16rem); }
   .crown { font-size: 2.75rem; line-height: 1; color: var(--sr-brass); }

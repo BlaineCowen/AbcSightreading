@@ -28,7 +28,7 @@ const levelled = (group: string) =>
       b, level,
       says: b.says(b.levels[Math.max(0, level - 1)]),
       bar: next ? Math.round((Math.min(next.have, next.need) / next.need) * 100) : 100,
-      progress: next ? (level ? `${unit(next.have)} of ${unit(next.need)} for level ${next.level}` : `${unit(next.have)} of ${unit(next.need)}`) : "Every level earned",
+      progress: next ? `${next.have} of ${unit(next.need)}${level ? ` for level ${next.level}` : ""}` : "Every level earned",
     };
   });
 const once = (group: string) => ONCE.filter((b) => b.group === group).map((b) => ({ b, done: levelOf(b.id) > 0 }));

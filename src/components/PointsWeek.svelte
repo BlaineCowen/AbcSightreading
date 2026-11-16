@@ -97,7 +97,7 @@
     <div class="mt-4">
       <div class="flex justify-between text-sm mb-1.5"><span class="font-extrabold text-sr-ink flex items-center gap-1"><Users size={15} /> Class goal</span><span class="text-sr-muted tabular-nums">{week.goal.total.toLocaleString()} of {week.goal.goal.toLocaleString()}</span></div>
       <div class="goal"><i style="width:{pct}%"></i></div>
-      <p class="text-xs text-sr-muted mt-1.5">{pct >= 100 ? "Reached! Everyone gets the Ensemble badge." : "Reach it together and everyone gets the Ensemble badge."}</p>
+      <p class="text-xs text-sr-muted mt-1.5">{pct >= 100 ? "Reached! Everyone gets the Ensemble badge when the week ends." : "Reach it together and everyone gets the Ensemble badge."}</p>
     </div>
 
     <div class="flex gap-4 mt-4 text-sm">
@@ -156,7 +156,7 @@
   .nm { flex: 1; }
   .pt { font-variant-numeric: tabular-nums; color: var(--sr-ink-2); }
   .goal { height: 14px; background: var(--sr-track); border-radius: 999px; overflow: hidden; }
-  .goal i { display: block; height: 100%; background: var(--sr-mint-ink); opacity: 0.75; border-radius: 999px; }
+  .goal i { display: block; height: 100%; background: linear-gradient(90deg, var(--sr-mint), color-mix(in srgb, var(--sr-mint-ink) 45%, var(--sr-mint))); border-radius: 999px; }
   .newbadge { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 10px; border-radius: 18px; background: var(--sr-track); text-decoration: none; }
   .rules-veil { display: flex; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--sr-ink) 28%, transparent); }
   .rules { gap: 10px; max-height: calc(100dvh - 2rem); overflow: auto; }
