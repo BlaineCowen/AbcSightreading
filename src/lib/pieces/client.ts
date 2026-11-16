@@ -106,11 +106,12 @@ export async function startAttempt(assignmentId: string, partId: string): Promis
 }
 
 /** A sight-reading assignment's attempt: how it is graded and the exercise's link (gradebook.ts). */
-export async function startExerciseAttempt(assignmentId: string, mode: "sing" | "clap" | "tap", exercise: string): Promise<{ attempt: AttemptRow }> {
+export async function startExerciseAttempt(assignmentId: string, mode: "sing" | "clap" | "tap", exercise: string, studentId?: string): Promise<{ attempt: AttemptRow }> {
   const res = await fetch(`/api/assignments/${assignmentId}/attempts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode, exercise }),
+    // studentId: a board test, sent from the teacher's device (board-test.ts).
+    body: JSON.stringify({ mode, exercise, ...(studentId ? { studentId } : {}) }),
   });
   if (!res.ok) throw new Error(await errorOf(res, "The attempt could not be started."));
   return res.json();

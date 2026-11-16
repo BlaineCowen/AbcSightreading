@@ -50,6 +50,15 @@
   export let onTakeMusic: (on: boolean) => void = () => {};
   export let onTakeSeek: (frac: number) => void = () => {};
   export let onTakeClose: () => void = () => {};
+  /**
+   * A board test (board-test.ts): the student at the board (null while the
+   * names are up), and what the buttons do. The setup card then waits for the
+   * teacher's "Settings"; the strip says who studies and has Ready; the score
+   * card has Retry and Next student.
+   */
+  export let board: { student: string | null; onPick: () => void; onRetry: () => void; onNext: () => void } | null = null;
+  /** The setup card's "Grade a class one by one" (starts a board test), or null. */
+  export let onBoard: (() => void) | null = null;
   const hear = () => {
     resultsOpen = false;
     onHearTake?.();
@@ -81,11 +90,11 @@
    * runs, only the slim strip shows, so the music is in view. "See it on the
    * music" puts the results away to the strip, which can bring them back.
    */
-  let setupOpen = true;
+  let setupOpen = !board;
   let resultsOpen = false;
   let lastPhase = "idle";
   $: if (v.phase !== lastPhase) {
-    if (v.phase === "idle") setupOpen = true;
+    if (v.phase === "idle") setupOpen = !board;
     if (v.phase === "results") {
       resultsOpen = true;
       setupOpen = false;
@@ -323,9 +332,19 @@
       </div>
 
       {#if keptNote}<p class="text-xs text-sr-ink-2 bg-sr-tint rounded-xl px-3 py-2">{keptNote}</p>{/if}
+      {#if onBoard && !board}
+        <div class="flex flex-col gap-1.5 rounded-2xl border border-sr-hairline bg-sr-panel p-3">
+          <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onBoard}>Grade a class one by one</button>
+          <p class="text-xs text-sr-muted">A test on the board: each student taps their name, studies a new exercise, presses Ready and is graded. Scores go to the gradebook.</p>
+        </div>
+      {/if}
       <div class="flex gap-2 justify-end pt-1">
-        <button class="sr-btn-quiet text-sm" on:click={leaveSetup}>{v.phase === "results" ? "Back to results" : "Cancel"}</button>
-        <button class="sr-btn text-sm px-6 py-2" on:click={start} disabled={allowed === null}>{allowed === null ? "…" : "Start"}</button>
+        {#if board}
+          <button class="sr-btn text-sm px-6 py-2" on:click={() => (setupOpen = false)}>Done</button>
+        {:else}
+          <button class="sr-btn-quiet text-sm" on:click={leaveSetup}>{v.phase === "results" ? "Back to results" : "Cancel"}</button>
+          <button class="sr-btn text-sm px-6 py-2" on:click={start} disabled={allowed === null}>{allowed === null ? "…" : "Start"}</button>
+        {/if}
       </div>
     </div>
   </dialog>
@@ -336,7 +355,7 @@
   <dialog class="sr-modal grade-veil flex items-center justify-center p-3 no-print" use:modal={{ onClose: () => (resultsOpen = false) }} aria-labelledby="grade-result-title">
     <div class="grade-card w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto bg-sr-raise border border-sr-hairline rounded-[28px] shadow-2xl p-5 sm:p-6 flex flex-col gap-4">
       <div class="flex items-center gap-3">
-        <h2 id="grade-result-title" class="flex-1 font-display text-xl font-bold text-sr-ink">{v.mode === "pitch" ? "Note by note" : "Your score"}</h2>
+        <h2 id="grade-result-title" class="flex-1 font-display text-xl font-bold text-sr-ink">{board?.student ? board.student : v.mode === "pitch" ? "Note by note" : "Your score"}</h2>
         <button class="w-9 h-9 rounded-full flex items-center justify-center text-sr-muted hover:text-sr-ink hover:bg-sr-track shrink-0" on:click={() => (resultsOpen = false)} aria-label="Close the results"><X size={18} /></button>
       </div>
 
@@ -399,17 +418,25 @@
 
       {#if sentNote}<p class="text-sm text-center font-semibold text-sr-ink-2" role="status">{sentNote}</p>{/if}
       <div class="flex flex-col gap-2">
-        {#if onHearTake}
+        {#if board}
+          <div class="grid grid-cols-2 gap-2">
+            <button class="sr-btn-quiet text-base py-3 border border-sr-hairline rounded-full" on:click={board.onRetry}>Retry</button>
+            <button class="sr-btn text-base py-3" on:click={board.onNext}>Next student</button>
+          </div>
+          {#if onHearTake}<button class="sr-btn-quiet text-sm py-2 inline-flex items-center justify-center gap-2" on:click={hear}><Headphones size={16} /> Hear the take</button>{/if}
+        {:else if onHearTake}
           <button class="sr-btn text-sm py-2.5 inline-flex items-center justify-center gap-2" on:click={hear}><Headphones size={16} /> Hear your take</button>
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={() => (resultsOpen = false)}>See it on the music</button>
         {:else}
           <button class="sr-btn text-sm py-2.5" on:click={() => (resultsOpen = false)}>See it on the music</button>
         {/if}
+        {#if !board}
         <div class="grid {onNewExercise ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
           <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onStart}>Try again</button>
           {#if onNewExercise}<button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={onNewExercise}>New exercise</button>{/if}
         </div>
         <button class="sr-btn-quiet text-sm py-2 border border-sr-hairline rounded-full" on:click={changeSettings}>Change settings and try again</button>
+        {/if}
         {#if onSend || onSave}
           <div class="flex justify-center gap-3">
             {#if onSend}<button class="text-xs text-sr-action-fg font-bold" on:click={() => { resultsOpen = false; sendOpen = true; sentLine = null; }}>Report error</button>{/if}
@@ -459,6 +486,21 @@
     {#if allowed === false}
       <p class="flex-1 text-sm text-sr-ink-2">{rhythmOnly ? "Grade scores your clapping, note by note, for you or a whole class." : "Grade scores your singing, note by note."} It's part of Pro, $19.99 a year.</p>
       <a class="sr-btn text-sm px-4 py-2 shrink-0" href={signedIn ? "/account#plan" : `/login?mode=signup&next=${encodeURIComponent("/account#plan")}`}>Get Pro</a>
+    {:else if v.phase === "idle" && board}
+      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+        {#if board.student}
+          <p class="text-base font-bold text-sr-ink truncate">{board.student}: study the music</p>
+          <p class="text-xs text-sr-muted">Press Ready when you're set. <button class="text-sr-action-fg font-bold" on:click={board.onPick}>Not you?</button></p>
+        {:else}
+          <p class="text-base font-bold text-sr-ink">Who's next?</p>
+          <button class="text-xs text-sr-action-fg font-bold text-left" on:click={() => (setupOpen = true)}>{rhythmOnly ? clapSummary : `${performance ? "Pitch & rhythm" : "Note by note"} · ${STRICTNESS[$tuner.gradeStrictness].label}`} · change</button>
+        {/if}
+      </div>
+      {#if board.student}
+        <button class="sr-btn text-lg px-8 py-3 shrink-0" on:click={start} disabled={!!blocked || allowed === null}>{allowed === null ? "…" : "Ready"}</button>
+      {:else}
+        <button class="sr-btn text-sm px-5 py-2 shrink-0" on:click={board.onPick}>Choose a name</button>
+      {/if}
     {:else if v.phase === "idle"}
       <div class="flex-1 min-w-0 flex flex-col gap-0.5">
         <p class="text-sm font-bold text-sr-ink">{blocked ?? (rhythmOnly ? "Clap and grade" : "Listen and grade")}</p>
@@ -514,8 +556,13 @@
       {/if}
       <p class="flex-1 min-w-0 text-sm text-sr-ink-2 truncate">{detail ?? (v.perf ? (pitchToWork + rhythmToWork === 0 ? "In tune and in time" : `${pitchToWork} pitch, ${rhythmToWork} rhythm to work on`) : claps ? clapLine : doneLine)}</p>
       <button class="sr-btn-quiet text-sm shrink-0" on:click={() => (resultsOpen = true)}>Results</button>
-      <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={changeSettings}>Settings</button>
-      <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
+      {#if board}
+        <button class="sr-btn-quiet text-sm shrink-0" on:click={board.onRetry}>Retry</button>
+        <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={board.onNext}>Next student</button>
+      {:else}
+        <button class="sr-btn-quiet text-sm shrink-0 max-sm:hidden" on:click={changeSettings}>Settings</button>
+        <button class="sr-btn text-sm px-4 py-2 shrink-0" on:click={onStart}>Try again</button>
+      {/if}
     {/if}
     {#if !(v.phase === "results" && take.open)}
       <button class="w-8 h-8 rounded-lg flex items-center justify-center text-sr-muted hover:text-sr-ink shrink-0" on:click={onClose} aria-label="Close Grade">

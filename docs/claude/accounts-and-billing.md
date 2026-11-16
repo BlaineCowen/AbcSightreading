@@ -161,6 +161,36 @@ by note is practice and is not sent. The setup card says what is kept
 (`keptNote`), the results whether it reached the teacher. The teacher's Best
 column opens the attempt: its recording and the exercise.
 
+**Board tests** (16 November 2026, Blaine: "do class assignments one at a time
+on the board"; owner only for now: `ownerSees("board-test")`, and creating one
+checks `isAdmin`). Rules `src/lib/board-test.ts` (tests `board-test.test.ts`). An
+assignment with `params.board = true` (`checkAssignmentRequest` takes `board`; no
+minutes needed; Unison page only). Made from the Grade card's **Grade a class one by
+one** (AbcjsSingle `openBoardSetup`: the page's settings as a custom Unison
+assignment in each class chosen, then `?assignment=<first>&board=1`), and reopened
+from a class's assignments with **Test on the board**. On the page (`boardWanted`,
+read before the page rewrites its address): the names (`BoardNames.svelte`, from
+`GET /api/assignments/<id>/board`, `boardRoster`: everyone, tries and best; the done
+ones under Show who's done), a tap writes a new exercise and the Grade strip says
+"<name>: study the music" with a big **Ready** (GradePanel `board` prop: no setup
+card unless asked, the score card titled with the name, **Retry** = the same
+exercise, **Next student** = the names). The try is the student's: `startAttempt`
+lets the class's teacher start one at a board test with `studentId` (an enrolled
+student), and `finishAttempt`, `attachTake` and `mayUploadTake` accept the teacher
+for a board test's attempts (`mayHandle`). Sung tests always use Pitch & rhythm.
+Students never see a board test on their list (`myAssignments`) and cannot start
+one; it is done once a try is graded (`withAttempts`, as a checkpoint). Tested
+16 November 2026 on the dev server: made in a demo class, a tapped run for one
+student saved (best and done in the class's assignments), Next student showed
+1 of 8 done, then deleted.
+
+**Graded attempts sent the wrong link from 10 October to 16 November 2026.** The
+Unison page had a function `exerciseLink` (the attempt's exercise path) and a
+reactive `exerciseLink` (the share address, from 21 September); the reactive one
+replaced the function, so starting an attempt sent the full address and the
+server answered 400 "That exercise link is not readable". The function is now
+`attemptExerciseLink`. Found while testing board tests.
+
 **Portfolio checkpoints** (9 November 2026, Blaine: pitch districts a
 Teacher Incentive Allotment growth measure for fine arts; TEA recommends
 portfolios for performance classes, 19 TAC §150.1012: standards-aligned
