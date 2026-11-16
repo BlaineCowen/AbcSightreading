@@ -1,0 +1,94 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { currentUser } from "../../lib/server/api";
+import { isAdmin } from "../../lib/server/admin";
+import { roleIn } from "../../lib/server/practice";
+import { classPoints, shortName } from "../../lib/server/points";
+import { practiceDay } from "../../lib/practice";
+import { weekLabel } from "../../lib/points";
+
+/**
+ * Last week's winners, for the board on Monday morning (points.ts): the top
+ * three on a podium, the class goal, the longest streak and the most
+ * improved. Before any week has finished it shows this week so far. The
+ * class's teacher only, the owner while it is tried out.
+ */
+const user = await currentUser(Astro.request);
+if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+const classId = Astro.params.classId!;
+if (!isAdmin(user) || (await roleIn(user.id, classId)) !== "teacher") return Astro.redirect("/account#classes");
+Astro.response.headers.set("Cache-Control", "private, no-store");
+const data = await classPoints(classId, practiceDay(null));
+if (!data) return Astro.redirect("/account#classes");
+
+type Top = { name: string; points: number }[];
+const last = data.lastWeek;
+const sofar = !last;
+const top: Top = last ? (last.top as Top) : data.students.filter((s) => s.points > 0).slice(0, 3).map((s) => ({ name: shortName(s.name), points: s.points }));
+const goal = last ? last.goal : data.weeklyGoal ?? data.recommended;
+const total = last ? last.total : data.total;
+const extras = (last?.extras ?? {}) as { streak?: { name: string; days: number }; improved?: { name: string } };
+const pct = Math.min(100, Math.round((total / Math.max(1, goal)) * 100));
+// Podium order: 2nd, 1st, 3rd.
+const podium = [top[1], top[0], top[2]].map((t, i) => (t ? { ...t, place: [2, 1, 3][i] } : null));
+const heights: Record<number, string> = { 1: "16rem", 2: "11.5rem", 3: "8.5rem" };
+const colours: Record<number, string> = { 1: "bg-sr-butter text-sr-butter-ink", 2: "bg-sr-sky text-sr-sky-ink", 3: "bg-sr-peach text-sr-peach-ink" };
+---
+
+<Layout title="Top readers | abcSightReading" noindex>
+  <div class="board">
+    <div class="top">
+      <div>
+        <h1>{sofar ? "This week's top readers so far" : "Last week's top readers"}</h1>
+        <p class="sub">{data.name} · {weekLabel(sofar ? data.week : last!.week)}</p>
+      </div>
+      <div class="goalbox">
+        <div class="flex justify-between font-extrabold text-lg"><span>Class goal</span><span class="tabular-nums">{total.toLocaleString()} of {goal.toLocaleString()}</span></div>
+        <div class="goal"><i style={`width:${pct}%`}></i></div>
+        {pct >= 100 && <div class="font-extrabold text-sr-mint-ink mt-2">Reached! Everyone earned Ensemble.</div>}
+      </div>
+    </div>
+
+    {top.length ? (
+      <div class="podium">
+        {podium.map((p) => p ? (
+          <div class="pod">
+            {p.place === 1 && <span class="crown" aria-hidden="true">♛</span>}
+            <span class="who">{p.name}</span>
+            <span class="pts">{p.points.toLocaleString()} points</span>
+            <div class={`block ${colours[p.place]}`} style={`height:${heights[p.place]}`}>{p.place}</div>
+          </div>
+        ) : <div class="pod" />)}
+      </div>
+    ) : (
+      <p class="empty">No points yet. The first exercise read gets someone on the board.</p>
+    )}
+
+    {(extras.streak || extras.improved) && (
+      <div class="extras">
+        {extras.streak && <span>Longest streak: {extras.streak.name}, {extras.streak.days} days</span>}
+        {extras.improved && <span>Most improved: {extras.improved.name}</span>}
+      </div>
+    )}
+    <a class="back sr-link text-sm" href="/account#classes">Back to classes</a>
+  </div>
+</Layout>
+
+<style>
+  .board { width: 100%; max-width: 80rem; margin: 0 auto; min-height: calc(100dvh - 9rem); padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+  .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1.5rem; }
+  h1 { font-family: var(--sr-font-display); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: var(--sr-ink); line-height: 1.1; }
+  .sub { font-size: 1.25rem; font-weight: 700; color: var(--sr-muted); }
+  .goalbox { width: min(24rem, 100%); color: var(--sr-ink); }
+  .goal { height: 22px; margin-top: 8px; background: var(--sr-track); border-radius: 999px; overflow: hidden; }
+  .goal i { display: block; height: 100%; background: var(--sr-mint-ink); opacity: 0.75; border-radius: 999px; }
+  .podium { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: clamp(0.75rem, 2vw, 1.5rem); }
+  .pod { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: clamp(6rem, 22vw, 16rem); }
+  .crown { font-size: 2.75rem; line-height: 1; color: var(--sr-brass); }
+  .who { font-family: var(--sr-font-display); font-size: clamp(1.25rem, 2.5vw, 2rem); font-weight: 700; color: var(--sr-ink); text-align: center; }
+  .pts { font-size: clamp(1rem, 1.6vw, 1.25rem); font-weight: 800; color: var(--sr-ink-2); }
+  .block { width: 100%; border-radius: 28px 28px 0 0; display: grid; place-items: center; font-family: var(--sr-font-display); font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 700; }
+  .extras { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem 2rem; font-size: 1.15rem; font-weight: 700; color: var(--sr-ink-2); }
+  .empty { flex: 1; display: grid; place-items: center; font-size: 1.5rem; color: var(--sr-muted); text-align: center; }
+  .back { align-self: center; }
+</style>

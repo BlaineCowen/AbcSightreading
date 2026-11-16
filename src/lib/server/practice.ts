@@ -214,6 +214,18 @@ function withAttempts(
   return { ...time, status: status as typeof time.status, attempts: att?.attempts ?? 0, best: att?.best ?? null, bestId: att?.bestId ?? null, part: att?.part ?? null };
 }
 
+/** Is this assignment done for this student (as the teacher's list says), and when is it due? For points (server/points.ts). */
+export async function assignmentDoneFor(studentId: string, assignmentId: string) {
+  const a = await prisma.assignment.findUnique({ where: { id: assignmentId } });
+  if (!a) return null;
+  const [totals, tries] = await Promise.all([totalsFor([a.id], [studentId]), attemptsFor([a.id], [studentId])]);
+  const t = totals.get(`${a.id}:${studentId}`) ?? { seconds: 0 };
+  const status = withAttempts(a, assignmentProgress(t.seconds, a.minutes), tries.get(`${a.id}:${studentId}`)).status;
+  // Sight reading with no minutes has no "done": started is as far as it goes.
+  const done = status === "done";
+  return { done, dueAt: a.dueAt, board: isBoardTest(a.params) };
+}
+
 /** A class's assignments with every student's progress, and each student's last week of practice. */
 export async function classAssignments(classId: string) {
   const [assignments, enrollments, library] = await Promise.all([

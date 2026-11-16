@@ -1,4 +1,5 @@
 import type { APIRoute } from "astro";
+import { deleteOldPoints } from "../../../lib/server/points";
 import { json } from "../../../lib/server/api";
 import { serverEnv } from "../../../lib/server/env";
 import { reviewPoInvoices } from "../../../lib/server/quotes";
@@ -33,5 +34,6 @@ export const GET: APIRoute = async ({ request }) => {
     takes: await deleteOldTakes(),
     practice: await deleteOldPractice(),
     gameAnswers: await deleteOldGameAnswers(),
+    points: await deleteOldPoints().then(() => true),
   });
 };

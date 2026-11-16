@@ -115,6 +115,9 @@
   import { saveGradeRun, sendGradeRun, startGradeRecording, type GradeRecording } from "../lib/grade-recording";
   import { clapMarksOf } from "../lib/gradebook";
   import { marksOf } from "../lib/pieces/attempts";
+  import { noteGrade, setExercise, type ExerciseMeta } from "../lib/practice-tracker";
+  import { exerciseTraits } from "../lib/points";
+  import PointsToast from "./PointsToast.svelte";
   import { checkpointOf, keepUntil } from "../lib/portfolio";
   import { partKeys, partReader, partsOf } from "../lib/assignment-parts";
   import { TakePlayer, noteAt } from "../lib/grade-playback";
@@ -3621,6 +3624,7 @@
         updateUrlFromState();
         await renderTune();
         void countGeneration();
+        setExercise(pointsMeta(originalTuneString));
         revealScore(document.getElementById("paper"));
       } else {
         throw new Error(result.error || "Failed to generate music");
@@ -5449,6 +5453,37 @@
     }
   }
   $: if (gradePhase === "results" && pendingAttempt) void finishAssignmentAttempt(pendingAttempt);
+
+  // ── Points (points.ts) ───────────────────────────────────────────────────────
+  /**
+   * What the exercise just drawn is, for its points: an assignment, a ladder
+   * step (its number: harder than the student's level earns more), a level or
+   * course step as it is, or the student's own settings. Anything edited is
+   * their own settings.
+   */
+  function pointsMeta(abc: string): ExerciseMeta {
+    const base = { ...exerciseTraits(abc), contest: false };
+    if (assignment) return { ...base, kind: "assigned", key: `a:${assignment.id}`, label: assignment.title.slice(0, 60), step: null };
+    if (!presetEdited) {
+      const step = activeStepId && Object.hasOwn(ladderById, activeStepId) ? ladderById[activeStepId] : null;
+      if (step) return { ...base, kind: "step", key: `step:${step.number}`, label: `Step ${step.number}`, step: step.number };
+      const level = activeNyssmaId ?? activeTmeaId;
+      if (level) return { ...base, contest: true, kind: "preset", key: level, label: (activePresetLabel || "a contest level").slice(0, 60), step: null };
+      if (activeTrackKey) return { ...base, kind: "preset", key: activeTrackKey, label: (activePresetLabel || "a course step").slice(0, 60), step: null };
+    }
+    return { ...base, kind: "own", key: "own:unison", label: "your own settings", step: null };
+  }
+  /** A graded run outside an assignment's attempts (those the server scores): its points. Once a run. */
+  let pointsGraded: unknown = null;
+  $: if (gradePhase === "results" && assignment?.role !== "student" && !boardOn) notePointsGrade();
+  function notePointsGrade() {
+    const v = $gradeRunner;
+    const run = v.claps ?? v.perf;
+    if (!run || run === pointsGraded) return;
+    pointsGraded = run;
+    const r = v.claps ? clapMarksOf(v.claps) : v.perf ? marksOf(v.perf) : null;
+    if (r) noteGrade({ score: r.overall, pitch: r.pitch, rhythm: r.rhythm, clapped: !!v.claps });
+  }
   async function finishAssignmentAttempt(attemptId: string) {
     pendingAttempt = null;
     if (!assignment) return;
@@ -5854,6 +5889,7 @@
       <TapPad onTap={(t) => (calibrationTaps ? (calibrationTaps = [...calibrationTaps, t]) : gradeRunner.tap(t))} />
     {/if}
   {/if}
+  <PointsToast />
   {#if boardOn && boardNamesOpen}
     <BoardNames roster={boardRoster} problem={boardProblem} onPick={boardPick} onClose={boardClose} onReload={loadBoard} />
   {/if}

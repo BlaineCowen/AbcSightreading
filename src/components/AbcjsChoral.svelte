@@ -121,6 +121,9 @@
   import TourHelpButton from "./tour/TourHelpButton.svelte";
   import ToolsWheel from "./tools/ToolsWheel.svelte";
   import { setPracticeContext } from "../lib/tools/exercise-info";
+  import { setExercise, type ExerciseMeta } from "../lib/practice-tracker";
+  import { exerciseTraits } from "../lib/points";
+  import PointsToast from "./PointsToast.svelte";
   import type { SavedPreset, PresetParams } from "../lib/preset-storage";
 
   // ── Playback state ─────────────────────────────────────────────────────────
@@ -802,6 +805,22 @@
   $: presetEdited = Boolean(
     activePresetLabel && _presetParamSig && _currentParamSig !== _presetParamSig
   );
+
+  /**
+   * What the exercise just drawn is, for its points (points.ts): an
+   * assignment, a ladder step (by its number), a UIL level as it is, or the
+   * student's own settings (anything edited).
+   */
+  function pointsMeta(abc: string): ExerciseMeta {
+    const base = { ...exerciseTraits(abc), contest: false };
+    if (assignment) return { ...base, kind: "assigned", key: `a:${assignment.id}`, label: assignment.title.slice(0, 60), step: null };
+    if (!presetEdited && activePresetLabel) {
+      const step = activeStepId && Object.hasOwn(ladderById, activeStepId) ? ladderById[activeStepId] : null;
+      if (step) return { ...base, kind: "step", key: `step:${step.number}`, label: `Step ${step.number}`, step: step.number };
+      if (activeLevel) return { ...base, contest: true, kind: "preset", key: `choral:${activePresetLabel}`.slice(0, 120), label: activePresetLabel.slice(0, 60), step: null };
+    }
+    return { ...base, kind: "own", key: "own:choral", label: "your own settings", step: null };
+  }
 
   // ── Voice names for playback bar ───────────────────────────────────────────
   $: voiceNames = Object.keys(possibleVoicing[selectedVoicing]?.parts ?? {});
@@ -2887,6 +2906,7 @@
       pausedHere = false;
       // The score is on the page: now it counts.
       void countGeneration();
+      setExercise(pointsMeta(renderedString));
       revealScore(document.getElementById("paper"));
       createPlaybackCursor();
       cursorBeats = newMetronomeBeatState();
@@ -3768,6 +3788,7 @@
     <div class="h-4"></div>
 
   </div>
+    <PointsToast />
   </main>
 
   <!-- Sticky playback bar -->

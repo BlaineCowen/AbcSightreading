@@ -283,6 +283,44 @@ Every song assigned goes into its class's library (`ClassPiece`, kept after
 the assignment, gone with the class or piece); students open it whole, any
 part, ungraded, from `/library` and their home page (PieceViewer `library`).
 
+**Points, streaks, badges and the weekly leaderboard** (16 November 2026,
+Blaine: points "like Duolingo" with "a weekly leaderboard", and "they can't
+just do easy ex over and over. Has to be diminishing returns"; the design was
+approved from mockups first). Owner only while tried out: students of an
+owner's classes (`pointsClasses`: the class's teacher `isAdmin`), the teacher
+panel behind `ownerSees("points")`. Rules `src/lib/points.ts` and
+`src/lib/badges.ts` (tests `points.test.ts`), server `src/lib/server/points.ts`,
+tables `PointEvent` (one row an award, deleted after 60 days by the daily cron),
+`StudentStats` (lifetime counts, level, bests, keys, flags, school-day streak),
+`Badge` (one row a level, or given by a teacher), `ClassWeek` (a settled week),
+and on `Class` `leaderboardOn` (default on), `weeklyGoal` (null: 100 a student,
+at least 300) and `breakUntil` (a break's school days never end a streak).
+- No requests of their own: the practice tracker (`practice-tracker.ts`) learns
+  what the exercise on the page is (`setExercise`, Unison and Choral
+  `pointsMeta`: an assignment, a ladder step by number, a contest level or
+  course step as it is, else the student's own settings), reports it once the
+  student has practised 20 s on it, and reports a graded run outside an
+  assignment (`noteGrade`) at once, inside `/api/practice`'s body
+  (`points`). Assignment attempts are scored on the server (`finishAttempt` ->
+  `awardAttempt`), the board's included. `PointsToast` shows the answer.
+- Diminishing returns: 10 at the student's level or harder (level = highest
+  step practised 3 times), 5 within 3 steps below, 2 further below, 5 for their
+  own settings, 10 an assignment; the same step or level the same day full 3
+  times, then half (4 to 6), a quarter (7 to 10), nothing after; past 200 a day
+  everything half; an exercise only after 20 s, and the server allows no more
+  exercises than the day's credited seconds / 20 + 2. Grades: 10, +10 at 80%,
+  +25 at 100% (bonus only at their level or assigned), once an exercise (a
+  better retry earns the difference); +10 a new best on a step; 25 an
+  assignment done (+10 two days early); a point a minute of practice, 30 a day.
+- Weeks start Monday; a week is settled on the first look after it ends
+  (`closeWeek`): top three get Weekly Winner, everyone Ensemble if the goal was
+  reached. Student card `PointsWeek` (home and /account), `/badges` (drawn on
+  the server), teacher `ClassPoints` in each class card, `/winners/<classId>`
+  for the board. Names to classmates are first name and last initial.
+- Not yet: game answers (Gamer, Live Winner badges are not in the catalogue),
+  Piano and Ensemble exercises (they count as own settings only if a tracker
+  runs there; it does not).
+
 **The Assignments tab** (16 November 2026, Blaine: "click an assignment ...
 open it again and assign to more students"; `TeacherAssignments.svelte`, an
 educator-only tab on /account, `#assignments`). Every assignment in every

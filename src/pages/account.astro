@@ -7,6 +7,7 @@ import EducatorStudents from "../components/EducatorStudents.svelte";
 import SchoolQuote from "../components/SchoolQuote.svelte";
 import StudentAssignments from "../components/StudentAssignments.svelte";
 import TeacherAssignments from "../components/TeacherAssignments.svelte";
+import PointsWeek from "../components/PointsWeek.svelte";
 import { currentUser } from "../lib/server/api";
 import { accountTypeFor } from "../lib/server/students";
 import { EDUCATOR_ON_SALE } from "../lib/plan";
@@ -46,6 +47,7 @@ const tabs = [
           </section>
         )}
         <StudentAssignments client:only="svelte" />
+        <PointsWeek client:only="svelte" />
         <AccountPanel client:only="svelte" />
       </>
     ) : (

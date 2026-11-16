@@ -47,6 +47,9 @@ model User {
   grants        AccessGrant[]
   pieces        Piece[]
   pieceAttempts PieceAttempt[]
+  pointEvents   PointEvent[]
+  studentStats  StudentStats?
+  badges        Badge[]
   liveRoom      LiveRoom?
 
   @@map("user")
@@ -243,6 +246,12 @@ model Class {
   /// Where its students come from besides codes and pasted lists: "google:<course id>" (a Google Classroom class, synced on request).
   rosterSource   String?
   rosterSyncedAt DateTime?
+  /// Points and badges (src/lib/points.ts): the weekly leaderboard shown to its students.
+  leaderboardOn  Boolean  @default(true)
+  /// The class's weekly points goal; null is the recommended one (recommendedGoal).
+  weeklyGoal     Int?
+  /// On a break through this day ("2026-11-27"): its school days do not count against streaks.
+  breakUntil     String?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]
@@ -667,4 +676,98 @@ model LiveGameAnswer {
   @@index([roomId, round])
   @@index([createdAt])
   @@map("live_game_answer")
+}
+
+/// Points earned (src/lib/points.ts), one row an award: the week's leaderboard
+/// sums them, and the day's rows say how many times the same settings were
+/// read (repeats count less). Deleted after POINTS_KEEP_DAYS.
+model PointEvent {
+  id        String   @id @default(cuid())
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// The student's calendar day, "2026-11-16", and its week's Monday.
+  day       String
+  week      String
+  /// exercise, grade, best, assignment, time, game.
+  kind      String
+  /// What it was for: the settings read (exercise), the exercise graded, the assignment.
+  key       String   @default("")
+  points    Int
+  createdAt DateTime @default(now())
+
+  @@index([studentId, day])
+  @@index([week, studentId])
+  @@index([day])
+  @@map("point_event")
+}
+
+/// A student's lifetime counts for badges (src/lib/badges.ts), kept while
+/// practice rows are deleted, and their school-day streak.
+model StudentStats {
+  studentId   String   @id
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  seconds     Int      @default(0)
+  exercises   Int      @default(0)
+  graded      Int      @default(0)
+  tries90     Int      @default(0)
+  tries100    Int      @default(0)
+  onTime      Int      @default(0)
+  gameCorrect Int      @default(0)
+  weeklyTop3  Int      @default(0)
+  ensembles   Int      @default(0)
+  streak      Int      @default(0)
+  bestStreak  Int      @default(0)
+  /// The last school day practised, "2026-11-16".
+  streakDay   String?
+  /// The highest ladder step practised enough to count as their level (points.ts levelFrom).
+  level       Int      @default(0)
+  /// { [step number]: exercises earned there }, for the level.
+  steps       Json     @default("{}")
+  /// { [step key]: best graded score }, for "new best on a step".
+  bests       Json     @default("{}")
+  /// Key signatures read ("C", "Bb", "F#m"...), for Key Collector.
+  keys        Json     @default("[]")
+  /// One-time skills done: "minor", "compound", "bass", "perfect-rhythm"...
+  flags       Json     @default("[]")
+  updatedAt   DateTime @updatedAt
+
+  @@map("student_stats")
+}
+
+/// A badge earned (src/lib/badges.ts), one row a level, or given by a teacher.
+model Badge {
+  id        String   @id @default(cuid())
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  badgeId   String
+  level     Int      @default(1)
+  /// Given by a teacher: their id, the class, and their own name for it.
+  givenById String?
+  classId   String?
+  title     String?
+  earnedAt  DateTime @default(now())
+  /// When the student was shown it (the "New badge" card); null until then.
+  seenAt    DateTime?
+
+  @@index([studentId])
+  @@map("badge")
+}
+
+/// A class's finished week (points.ts closeWeek): its top three and whether
+/// it reached its goal, kept for the board and so a week is settled once.
+model ClassWeek {
+  id       String   @id @default(cuid())
+  classId  String
+  week     String
+  /// [{ studentId, name, points }], the top three.
+  top      Json
+  total    Int
+  goal     Int
+  reached  Boolean
+  /// The longest streak and the most improved, for the board.
+  extras   Json     @default("{}")
+  closedAt DateTime @default(now())
+
+  @@unique([classId, week])
+  @@map("class_week")
 }

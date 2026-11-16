@@ -142,6 +142,10 @@ export async function finishAttempt(
     data: { finishedAt: new Date(), overall: result.overall, pitch: result.pitch, rhythm: result.rhythm, marks: result.marks },
     select: SUMMARY,
   });
+  // Points for the student whose try it is (the board's included): never in the way of the grade.
+  await import("./points")
+    .then((p) => p.awardAttempt({ id: at.id, studentId: at.studentId, assignmentId, overall: result.overall, pitch: result.pitch, rhythm: result.rhythm, board: isBoardTest(at.assignment.params) }))
+    .catch((e) => console.error("points", e));
   return summaryOf(row);
 }
 

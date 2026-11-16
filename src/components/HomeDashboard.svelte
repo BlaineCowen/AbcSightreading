@@ -11,6 +11,7 @@
   import Users from "lucide-svelte/icons/users";
   import AudioLines from "lucide-svelte/icons/audio-lines";
   import StudentAssignments from "./StudentAssignments.svelte";
+  import PointsWeek from "./PointsWeek.svelte";
   import PipFace from "./PipFace.svelte";
   import { FIRST_STEP_HREF } from "../lib/tour";
 
@@ -197,6 +198,8 @@
 
   {#if accountType === "student"}
     <StudentAssignments initial={assignments} />
+    <!-- Points and the class leaderboard (points.ts): nothing unless they are on for this student. Last, so arriving pushes nothing down. -->
+    <PointsWeek />
   {/if}
 
   {#if offerOpen}

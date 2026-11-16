@@ -7,6 +7,7 @@
   import { buySeatPacks } from "../lib/billing-client";
   import { EDUCATOR_ON_SALE } from "../lib/plan";
   import ClassAssignments from "./ClassAssignments.svelte";
+  import ClassPoints from "./ClassPoints.svelte";
   import AssignmentWizard from "./AssignmentWizard.svelte";
   import { readDraft, type AssignDraft } from "../lib/assignment-draft";
   import { UNISON_PRESET_STORE } from "../lib/preset-storage";
@@ -179,6 +180,7 @@
    * change any of them or skip it.
    */
   let canOneRoster = false;
+  let canPoints = false;
   let orClasses: OneRosterClass[] = [];
   let orWarnings: string[] = [];
   let orChoice: Record<string, string> = {};
@@ -267,6 +269,8 @@
   onMount(() => {
     loadSaved().catch(() => {});
     ownerSees("oneroster").then((on) => (canOneRoster = on));
+    // Points and badges, owner only while tried out (points.ts).
+    ownerSees("points").then((on) => (canPoints = on));
     const assign = new URLSearchParams(location.search).get("assign");
     if (assign) {
       resume = assign === "resume" ? readDraft() : null;
@@ -529,6 +533,8 @@
         {/if}
 
         <ClassAssignments classId={cls.id} className={cls.name} googleClass={!!cls.classroom} saved={savedPresets} allClasses={classes.map((c) => ({ id: c.id, name: c.name }))} />
+
+        {#if canPoints}<ClassPoints classId={cls.id} />{/if}
 
         {#if classroomFor === cls.id && classroomState !== "idle"}
           <div class="flex flex-col gap-2 rounded-md border border-sr-hairline bg-sr-panel p-3" aria-live="polite">
