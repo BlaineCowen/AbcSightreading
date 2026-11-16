@@ -381,3 +381,15 @@ tour's step bubbles and WelcomeNote (not modal), and the settings popovers
 The check scripts find the grade panel with `dialog button, [role="dialog"]
 button`. scripts/check-grade.ts already stalled before this change (the
 setup never reaches "sing"; seen on the old code too).
+
+
+**Tapping a note: drags and the red** (16 November 2026, Blaine: the selected
+note stayed red while grading, and he tapped notes by accident while
+dragging). abcjs takes any press that starts on or near a note as a tap, even
+one that drags on; the Unison page now tracks the press on `#paper`
+(`onPaperDown` / `onPaperMove` / `onPaperCancel`, `DRAG_PX` 8) and a press that
+moved, or that the browser took for scrolling, taps nothing. abcjs's own red
+on the tapped note (`abcjs-note_selected`) is taken off when Grade opens, when
+a run starts and on any tap while Grade is open (`clearNoteSelection`); the
+start line (where Play begins) stays. Checked in Chrome with real mouse input:
+a drag selected nothing, a click selected the note, opening Grade cleared it.
