@@ -346,6 +346,25 @@ invisible spacer (`y`) between the notes was tried and dropped: bare `y` made a
 beat of sixteenths wider than three quarters, and `y5` broke the beam. A dense
 sixteenth exercise in "ti ka" now draws one bar a line on a laptop.
 
+**Continuous scroll** (Unison, owner only while Blaine tries it with his
+students; 17 November 2026: "everything on one system scrolling from left to
+right"): Display > Continuous scroll, saved as `scoreView.scroll`, owner flag
+`ownerSees("scroll")`. The exercise is drawn as one line (no `wrap`, no
+`responsive`; `staffwidth` is the usual width of a bar times the bars), sized
+to the chosen Layout size through a viewBox (abcjs's own `scale` is a CSS
+transform the page lays out at 1x), with abcjs's inline styles on #paper
+cleared (it pins the unscaled height with overflow hidden, and a fitted
+drawing's padding-bottom stays behind). #paper scrolls sideways
+(`.one-line`), and `followAcross`, from the beat callback whatever the cursor
+mode, keeps the music being played a third of the way across; at the end of
+the line the score stops and the cursor runs on. A silenced drill repeat
+(`scrollSuppressed`) does not slide it. `scripts/check-continuous-scroll.ts`
+(the owner's dev server, its header): one line, wider than the page, as tall
+as the line; sliding forward with the cursor at about 0.27 of the width; Off
+back to fitted lines; no row with ?everyone (`owner-flags.ts` now reads
+?everyone as the page opens, since the practice pages rewrite their address).
+Not yet on Choral.
+
 **Following the music on Choral** (1 November 2026, Blaine: turn on beat 3,
 not 4, and the next system should always be visible): half a bar before a
 line ends (beat 3 in 4/4, at least a beat; `lineTurnMs`, abcjs's

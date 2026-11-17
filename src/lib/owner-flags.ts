@@ -20,7 +20,11 @@ export const OWNER_FLAGS = [] as const satisfies readonly string[];
 
 export type OwnerFlag = (typeof OWNER_FLAGS)[number] | (string & {});
 
+// Read as the page opens: the practice pages rewrite their address with their
+// settings soon after, which dropped ?everyone before a late check saw it.
+const asEveryone = typeof location !== "undefined" && new URLSearchParams(location.search).has("everyone");
+
 export async function ownerSees(_flag: OwnerFlag): Promise<boolean> {
-  if (typeof location !== "undefined" && new URLSearchParams(location.search).has("everyone")) return false;
+  if (asEveryone || (typeof location !== "undefined" && new URLSearchParams(location.search).has("everyone"))) return false;
   return !!(await billingStatus())?.owner;
 }

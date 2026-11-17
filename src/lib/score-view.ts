@@ -6,10 +6,12 @@
  * drawn at half the page's width and abcjs scales it to fill it); bars
  * per line overrides score-layout's choice; spacing is ABC's %%staffsep.
  * Measure numbers (on unless switched off, Display > Under the notes > Bar numbers) are drawn
- * over every bar but the first.
+ * over every bar but the first. Continuous scroll (Display, owner only while
+ * tried out; Blaine, 17 November 2026): the whole exercise on one line that
+ * slides from right to left as it plays.
  */
 export type LineSpacing = "tight" | "normal" | "wide";
-export type ScoreView = { scale: number; bars: number | null; spacing: LineSpacing; measureNumbers?: boolean };
+export type ScoreView = { scale: number; bars: number | null; spacing: LineSpacing; measureNumbers?: boolean; scroll?: boolean };
 
 export const SCALE_MIN = 0.5;
 export const SCALE_MAX = 5;
@@ -28,6 +30,7 @@ export function loadScoreView(page: string, defaults: ScoreView): ScoreView {
         bars: BAR_CHOICES.includes(saved.bars) ? saved.bars : null,
         spacing: saved.spacing in STAFFSEP ? saved.spacing : defaults.spacing,
         measureNumbers: typeof saved.measureNumbers === "boolean" ? saved.measureNumbers : defaults.measureNumbers ?? true,
+        scroll: saved.scroll === true,
       };
     }
   } catch {}

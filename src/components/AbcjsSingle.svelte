@@ -2141,7 +2141,15 @@
    * is what actually turns the narrowed staffwidth into visual zoom.
    */
   function getAbcOptions(most?: number) {
-    return {
+    const source = typeof originalTuneString === "string" ? originalTuneString : "";
+    const perLine = measuresPerLine({
+      measures: barCount(source) || measures,
+      narrow: isNarrow(),
+      dense: isDense({ lyrics: showRhythmSyllables || showSolfege, abc: source }),
+      most,
+      want: scoreView.bars,
+    });
+    const options: Record<string, any> = {
       add_classes: true,
       generateDownload: true,
       generateInline: true,
@@ -2163,16 +2171,7 @@
         // predictable lever than shrinking the text further.
         // Shared out evenly over the lines (score-layout.ts): asking for 3
         // with 4 bars drew three and a lonely one.
-        preferredMeasuresPerLine: measuresPerLine({
-          measures: barCount(typeof originalTuneString === "string" ? originalTuneString : "") || measures,
-          narrow: isNarrow(),
-          dense: isDense({
-            lyrics: showRhythmSyllables || showSolfege,
-            abc: typeof originalTuneString === "string" ? originalTuneString : "",
-          }),
-          most,
-          want: scoreView.bars,
-        }),
+        preferredMeasuresPerLine: perLine,
         minSpacing: 1.5,
         maxSpacing: 5,
       },
@@ -2204,6 +2203,15 @@
         if (event.pitches && event.pitches.length > 0) await playNote(event);
       },
     };
+    // Continuous scroll: one line as wide as the bars need, each bar as wide as
+    // on the page's usual lines, drawn at the chosen size and not fitted to the page.
+    if (isOneLine()) {
+      const bars = barCount(source) || measures;
+      delete options.responsive;
+      delete options.wrap;
+      options.staffwidth = Math.round((getStaffWidth() / Math.max(1, perLine)) * bars);
+    }
+    return options;
   }
 
   // ── Tapping a note (abcjs's clickListener above) ──────────────────────────
@@ -2542,6 +2550,8 @@
           }
         }
 
+        // Continuous scroll follows the music whatever the cursor shows.
+        if (beatNumber < totalBeats && typeof position?.left === "number") followAcross(position.left);
         if (!playbackCursor) return;
         if (beatNumber >= totalBeats) {
           hidePlaybackCursor();
@@ -2717,6 +2727,24 @@
     // The copyright under the score (copyright.ts), as drawn and printed only.
     const abc = withCopyright(withMeasureNumbers(withLineSpacing(source, scoreView.spacing), scoreView.measureNumbers));
     let visualObj = abcjs.renderAbc("paper", abc, getAbcOptions());
+    if (isOneLine()) {
+      const paper = document.getElementById("paper");
+      // Drawn at the chosen size through a viewBox, as responsive drawing is
+      // (abcjs's own scale is a CSS transform the page lays out at 1x).
+      const svg = paper?.querySelector("svg");
+      const w = Number(svg?.getAttribute("width")), h = Number(svg?.getAttribute("height"));
+      if (svg && w && h) {
+        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+        svg.setAttribute("width", String(Math.round(w * displayScale)));
+        svg.setAttribute("height", String(Math.round(h * displayScale)));
+      }
+      // abcjs pins its box at the unscaled height with overflow hidden, and the
+      // fitted layout's padding-bottom stays behind: the line sizes the box itself.
+      paper?.removeAttribute("style");
+      styleCopyright(paper);
+      if (paper) paper.scrollLeft = 0;
+      return visualObj;
+    }
     let drawn = drawnLines(document.getElementById("paper"));
     // Fewer a line each time until the lines come out even: on a phone two bars
     // with lyrics may not fit either, and abcjs then broke them 1 + 1 + 2.
@@ -5622,6 +5650,31 @@
   onMount(() => {
     ownerSees("board-test").then((on) => (canBoard = on));
   });
+  /**
+   * Continuous scroll (Blaine, 17 November 2026: "everything on one system
+   * scrolling from left to right"): Display > Continuous scroll draws the
+   * exercise on one line and slides it along as it plays (followAcross).
+   * Owner only while it is tried out with his students.
+   */
+  let canScroll = false;
+  onMount(() => {
+    ownerSees("scroll").then((on) => {
+      canScroll = on;
+      if (on && scoreView.scroll && currentTune && originalTuneString) rerenderTune();
+    });
+  });
+  const isOneLine = () => canScroll && !!scoreView.scroll;
+  $: oneLine = canScroll && !!scoreView.scroll;
+  /** On one line, keeps the music being played a third of the way across the score. */
+  function followAcross(left: number) {
+    if (!isOneLine() || scrollSuppressed) return;
+    const paper = document.getElementById("paper");
+    const svg = paper?.querySelector("svg");
+    if (!paper || !svg) return;
+    const units = svg.viewBox?.baseVal?.width || 0;
+    const scale = units ? svg.getBoundingClientRect().width / units : displayScale;
+    paper.scrollLeft = Math.max(0, left * scale - paper.clientWidth / 3);
+  }
 
 
   /** Taps, on the pad or the spacebar, while a rhythm is graded with them. */
@@ -6715,6 +6768,16 @@
           </div>
         </div>
 
+        {#if canScroll}
+          <div class="pop-row" title="The whole exercise on one line that slides along as it plays.">
+            <span class="pop-row-label">Continuous scroll</span>
+            <div class="pop-row-ctl" role="group" aria-label="Continuous scroll">
+              <button class="sr-tok {!scoreView.scroll ? 'sr-on' : ''}" aria-pressed={!scoreView.scroll} on:click={() => changeScoreView({ scroll: false })}>Off</button>
+              <button class="sr-tok {scoreView.scroll ? 'sr-on' : ''}" aria-pressed={!!scoreView.scroll} on:click={() => changeScoreView({ scroll: true })}>On</button>
+            </div>
+          </div>
+        {/if}
+
         <!-- Disappearing bars (vanishing-bars.ts): the music goes as it is
              reached, a bar or a chunk of beats at a time. Kept in this browser. -->
         <div class="pop-row" title="The music disappears as you reach it, a bar or a few beats at a time, so you have to read ahead. It all comes back when you stop.">
@@ -6869,6 +6932,7 @@
       <div
         id="paper"
         class="sr-sheet w-full my-2"
+        class:one-line={oneLine}
         class:hidden={!originalTuneString && !isLoading}
         on:pointerdown={onPaperDown}
         on:pointermove={onPaperMove}
@@ -7214,6 +7278,10 @@
 
     width: 100%;
   }
+
+  /* Continuous scroll: one line wider than the page, slid along by followAcross. */
+  #paper.one-line { overflow-x: auto; overscroll-behavior-x: contain; }
+  #paper.one-line :global(svg) { max-width: none; margin: 0; }
 
   #paper::-webkit-scrollbar {
     height: 8px;
