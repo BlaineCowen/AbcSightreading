@@ -1,6 +1,11 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import IntervalEar from "../../components/games/IntervalEar.svelte";
+import { currentUser } from "../../lib/server/api";
+import { earGamesShown } from "../../lib/server/ear-games";
+
+// On the dev site for everyone; on the live site an owner only (ear-games.ts).
+if (!earGamesShown(await currentUser(Astro.request).catch(() => null))) return Astro.redirect("/games");
 ---
 
 <Layout

@@ -21,8 +21,6 @@ export const PUBLIC_PAGES = [
   "/games",
   "/games/rhythm",
   "/games/catch-the-tune",
-  "/games/solfege",
-  "/games/intervals",
   "/curriculum",
   "/privacy",
   "/terms",

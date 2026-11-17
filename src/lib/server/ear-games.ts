@@ -5,6 +5,15 @@ import {
   INTERVAL_LEVELS, QUIZ_LENGTH, SOLFEGE_LEVELS, checkIntervalSetup, checkSolfegeSetup, intervalMinSeconds, intervalRound, newSeed, pcOf, solfegeMinSeconds, solfegeRound,
 } from "../games/ear-quiz";
 import { practiceDay } from "../practice";
+import { isAdmin } from "./admin";
+
+/**
+ * Ear training stays on the dev site until Blaine says otherwise (17 November
+ * 2026: "take off main, only on dev, unless it's just an admin feature"): on
+ * Production only an owner sees the games, their card and their API; on dev,
+ * preview and local servers, everyone.
+ */
+export const earGamesShown = (user: { email: string } | null | undefined) => serverEnv("VERCEL_ENV") !== "production" || isAdmin(user);
 
 /**
  * Ear-training rounds that can earn points (points.ts, games section). The

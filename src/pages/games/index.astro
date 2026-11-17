@@ -1,6 +1,11 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import PipFace from "../../components/PipFace.svelte";
+import { currentUser } from "../../lib/server/api";
+import { earGamesShown } from "../../lib/server/ear-games";
+
+// The ear-training games: on the dev site for everyone, on the live site an owner only.
+const earShown = earGamesShown(await currentUser(Astro.request).catch(() => null));
 
 /**
  * Games (2 November 2026): a rhythm game and Catch the tune, each played on
@@ -9,7 +14,7 @@ import PipFace from "../../components/PipFace.svelte";
  * from 17 November 2026 (Solfège first), played on one device; a student's
  * rounds earn points when their teacher lets games earn.
  */
-const games = [
+const allGames = [
   {
     href: "/games/rhythm",
     title: "Tap the rhythm",
@@ -37,6 +42,7 @@ const games = [
     solo: true,
   },
 ];
+const games = allGames.filter((g) => !g.solo || earShown);
 ---
 
 <Layout

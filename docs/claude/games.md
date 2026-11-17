@@ -21,7 +21,11 @@ clean 2 November 2026.
 Blaine: bring learnmusic.fun's ear-training games over, "with modes for
 scale degree, fixed do, minor", for points "if their teacher lets them";
 Solfège first, then Interval, then Note Rain (which "needs to be fixed").
-learnmusic.fun stays up as its own free site. Written fresh in Svelte from
+learnmusic.fun stays up as its own free site. **Dev only for now** (Blaine,
+17 November 2026: "take off main, only on dev, unless it's just an admin
+feature"): on Production (`VERCEL_ENV` production) the pages, their cards on
+/games and `/api/games/round` are an owner's only (`earGamesShown`); on dev,
+preview and local servers everyone has them. Not in the sitemap until public. Written fresh in Svelte from
 its ideas, not ported (its question makers use Math.random; these are seeded).
 
 - Rules `src/lib/games/ear-quiz.ts` (tests `ear-quiz.test.ts`, property tests
