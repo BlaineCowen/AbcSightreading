@@ -144,9 +144,28 @@ try {
 
   // ── In the browser, a whole round as Ivy (9 right, one wrong on purpose).
   let token = "";
+  const failedLoads: string[] = [];
   p.on("response", async (r) => {
+    if (r.status() >= 400 && !r.url().includes("/api/")) failedLoads.push(`${r.status()} ${r.url().slice(-60)}`);
     if (r.url().endsWith("/api/games/round")) try { token = (await r.json()).token; } catch {}
   });
+  /** A whole round at the speed of a quick student: each answer the moment its tiles open, all right. */
+  async function fastRound(path: string, game: string, store: string, setup: object, answersOf: (t: any) => number[]) {
+    await p.goto(APP + path, { waitUntil: "networkidle2" });
+    await p.evaluate((k, v) => localStorage.setItem(k, v), store, JSON.stringify(setup));
+    await p.reload({ waitUntil: "networkidle2" });
+    token = "";
+    await p.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /Start/.test(b.textContent ?? "")) as HTMLElement).click());
+    for (let i = 0; i < 50 && !token; i++) await new Promise((res) => setTimeout(res, 100));
+    const answers = answersOf(JSON.parse(Buffer.from(token.split(".")[0]!, "base64url").toString()));
+    for (const a of answers) {
+      await p.waitForFunction((g) => document.querySelector(`[data-ear-quiz="${g}"]`)?.getAttribute("data-phase") === "ask" && !(document.querySelector("[data-answer]") as HTMLButtonElement)?.disabled, { timeout: 15000, polling: 20 }, game);
+      await p.click(`[data-answer="${a}"]`);
+    }
+    await p.waitForSelector("[data-result]", { timeout: 30000 });
+    await new Promise((res) => setTimeout(res, 1500));
+    return p.evaluate(() => document.querySelector("[data-result]")!.textContent!.replace(/\s+/g, " ").trim());
+  }
   await p.goto(APP + "/games/solfege", { waitUntil: "networkidle2" });
   await p.evaluate(() => localStorage.setItem("sr-solfege-ear", JSON.stringify({ tonality: "major", level: 3, nameAs: "solfege", minorAs: "la", tonicFirst: true })));
   await p.reload({ waitUntil: "networkidle2" });
@@ -208,6 +227,13 @@ try {
   ok(ires.big === "10 of 10 right" && ires.pts === "+15 points", "all ten right: +15", `${ires.big} ${ires.pts}`);
   const irow = await prisma.pointEvent.findFirst({ where: { studentId: ivy.id, kind: "game", key: { startsWith: "interval:2#" } } });
   ok(irow?.points === 15, "its point row: interval Level 2, 15");
+
+  // The fastest honest setups: no "too fast" for a quick student.
+  const together = await fastRound("/games/intervals", "interval", "sr-interval-ear", { level: 1, direction: "together" }, (t) => intervalRound(checkIntervalSetup(t.s), t.seed).questions.map((q) => q.answer));
+  ok(/10 of 10/.test(together) && !/too fast/.test(together) && /\+\d+ points/.test(together), "a quick round of intervals Together counts", together);
+  const justNote = await fastRound("/games/solfege", "solfege", "sr-solfege-ear", { tonality: "minor", level: 8, nameAs: "letters", tonicFirst: false }, (t) => solfegeRound(checkSolfegeSetup(t.s), t.seed).questions.map(pcOf));
+  ok(/10 of 10/.test(justNote) && !/too fast/.test(justNote), "a quick Solfège round, just the note (minor, chromatic), counts", justNote);
+  ok(!failedLoads.length, "every piano sample and file loaded (notes from 52 to 81)", failedLoads.slice(0, 5).join(" | "));
   ok(!errors.length, "Ivy's games: no page errors", errors.join(" | "));
   await sctx.close();
 

@@ -13,6 +13,17 @@
 
 export const QUIZ_LENGTH = 10;
 
+/**
+ * How fast an honest round can go (the server refuses faster ones, ear-games.ts):
+ * the key, then for each question the wait before the tiles open (they open as
+ * its last note sounds) and the NEXT_AFTER_RIGHT pause after a right answer,
+ * with a second to spare. Keep in step with playEar's timings and EarQuiz.
+ */
+export const NEXT_AFTER_RIGHT = 0.9;
+/** The key in playEar: the chord 1.3 s, seven notes 0.5 s apart, then a breath: about 5.7 s. */
+const KEY_SECONDS = 5;
+const floorFor = (key: number, open: number) => key + QUIZ_LENGTH * (open + NEXT_AFTER_RIGHT) - 1;
+
 /** mulberry32: a small seeded random number source, the same on every machine. */
 export function rngFrom(seed: number): () => number {
   let a = seed >>> 0;
@@ -91,6 +102,9 @@ export function checkSolfegeSetup(v: unknown): SolfegeSetup {
     tonicFirst: o.tonicFirst !== false,
   };
 }
+
+/** Solfège: the key, then the tonic 1.1 s before each note (or the note alone). */
+export const solfegeMinSeconds = (s: SolfegeSetup) => floorFor(KEY_SECONDS, s.tonicFirst ? 1.1 : 0);
 
 export const solfegeNotes = (s: SolfegeSetup) => (s.level === 0 ? s.notes ?? [] : SOLFEGE_LEVELS[s.tonality][s.level - 1]!.notes);
 
@@ -217,6 +231,9 @@ export function checkIntervalSetup(v: unknown): IntervalSetup {
 }
 
 /** The answers a setup offers: sizes on the sizes levels, else semitones. */
+/** Intervals: no key; the second note 1 s after the first, or both at once. */
+export const intervalMinSeconds = (s: IntervalSetup) => floorFor(0, s.direction === "together" ? 0 : 1);
+
 export function intervalChoices(s: IntervalSetup): { sizes: boolean; values: number[] } {
   if (s.level === 0) return { sizes: false, values: s.semis ?? [] };
   const l = INTERVAL_LEVELS[s.level - 1]!;

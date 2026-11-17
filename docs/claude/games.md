@@ -52,8 +52,11 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   no table) and marks the answers itself from it. Earns only when one of the
   student's classes has **Games earn points** on (`Class.gamePoints`, off by
   default, the switch on the class's Points tab; owner classes only while
-  points are tried out). A round finished under GAME_MIN_SECONDS (20) or
-  after two hours, or someone else's, earns nothing; a round counts once
+  points are tried out). A round finished faster than an honest one can go
+  (each game's `minSeconds` in ear-quiz.ts: the key, then each question's
+  wait before its tiles open and the 0.9 s after a right answer, less a
+  second; a flat 20 s refused quick students on Just the note and Together)
+  or after two hours, or someone else's, earns nothing; a round counts once
   ever, on any day. Rules in `points.ts`: a point a right answer, +5 for
   10/10, nothing under 7; half below the student's level in that game (two
   rounds of 9+ at a level make it theirs, `bests` "gl:<track>") and on Custom;

@@ -173,8 +173,6 @@ export function exerciseTraits(abc: string): { keySig: string | null; minor: boo
 export const GAME_PASS = 7;
 export const GAME_PERFECT = 5;
 export const GAME_DAILY_CAP = 50;
-/** A round faster than this was not listened to (10 notes, each played). */
-export const GAME_MIN_SECONDS = 20;
 /** Two rounds of 9 or better at a level make it the student's level in that game. */
 export const GAME_MASTER = 9;
 export const GAME_MASTER_ROUNDS = 2;

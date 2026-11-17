@@ -38,7 +38,7 @@
   import { pointsNews } from "../../lib/practice-tracker";
   import { playEar as play } from "../../lib/games/game-audio";
   import { GAME_PASS } from "../../lib/points";
-  import { QUIZ_LENGTH, newSeed } from "../../lib/games/ear-quiz";
+  import { NEXT_AFTER_RIGHT, QUIZ_LENGTH, newSeed } from "../../lib/games/ear-quiz";
 
   /** The game, as /api/games knows it. */
   export let game: string;
@@ -129,12 +129,19 @@
     await player.done;
   }
 
+  /** Hear the key mid-question: then the question again (its tiles open as it sounds). */
+  async function keyThenQuestion() {
+    const at = q;
+    await hearKey();
+    if (phase === "ask" && q === at && !heard) playQuestion();
+  }
+
   let nextTimer: ReturnType<typeof setTimeout> | null = null;
   function answer(v: number) {
     if (phase !== "ask" || !heard || !round) return;
     answers = [...answers, v];
     phase = "answered";
-    if (v === round.answers[q]) nextTimer = setTimeout(next, 900);
+    if (v === round.answers[q]) nextTimer = setTimeout(next, NEXT_AFTER_RIGHT * 1000);
     else {
       stopSound();
       player = round.playAnswer(q);
@@ -253,7 +260,7 @@
           <button class="sr-btn" on:click={next}><SkipForward size={16} /> {q + 1 >= QUIZ_LENGTH ? "Finish" : "Next"}</button>
         {:else}
           <button class="sr-btn-quiet" disabled={phase === "key"} on:click={playQuestion}><Ear size={16} /> Hear it again</button>
-          {#if round.intro}<button class="sr-btn-quiet" disabled={phase === "key"} on:click={hearKey}><Music size={16} /> Hear the key</button>{/if}
+          {#if round.intro}<button class="sr-btn-quiet" disabled={phase === "key"} on:click={keyThenQuestion}><Music size={16} /> Hear the key</button>{/if}
           <button class="sr-btn-quiet" on:click={quit} aria-label="Stop the round"><Square size={14} /> Stop</button>
         {/if}
       </div>

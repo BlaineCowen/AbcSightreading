@@ -1,8 +1,9 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { serverEnv } from "./env";
 import { award, pointsClasses, type Award } from "./points";
-import { GAME_MIN_SECONDS } from "../points";
-import { INTERVAL_LEVELS, QUIZ_LENGTH, checkIntervalSetup, checkSolfegeSetup, intervalRound, newSeed, pcOf, solfegeRound, SOLFEGE_LEVELS } from "../games/ear-quiz";
+import {
+  INTERVAL_LEVELS, QUIZ_LENGTH, SOLFEGE_LEVELS, checkIntervalSetup, checkSolfegeSetup, intervalMinSeconds, intervalRound, newSeed, pcOf, solfegeMinSeconds, solfegeRound,
+} from "../games/ear-quiz";
 import { practiceDay } from "../practice";
 
 /**
@@ -12,7 +13,7 @@ import { practiceDay } from "../practice";
  * the seed (ear-quiz.ts, the same code) and sends the token back with its
  * answers; the server deals the same round again, marks it, and awards it
  * once (the round's id is in its point row). A round sent back sooner than
- * GAME_MIN_SECONDS, later than two hours, or by someone else earns nothing.
+ * its game's minSeconds (as fast as an honest round can go, ear-quiz.ts), later than two hours, or by someone else earns nothing.
  * The round counts on the day it was dealt (the device's day, in the token),
  * and once ever: a token sent again, on any day, finds its row.
  *
@@ -21,13 +22,14 @@ import { practiceDay } from "../practice";
  * while points are tried out).
  */
 
-type GameDef<S> = { check: (v: unknown) => S; key: (s: S, seed: number) => number[]; track: (s: S) => string; label: (s: S) => string };
+type GameDef<S> = { check: (v: unknown) => S; key: (s: S, seed: number) => number[]; minSeconds: (s: S) => number; track: (s: S) => string; label: (s: S) => string };
 /** The games, each with its setup check, its answer key from a seed, and how its levels are counted. */
 const GAMES = {
   solfege: {
     check: checkSolfegeSetup,
     /** Each question's right answer: the note's pitch class from the tonic. */
     key: (setup: ReturnType<typeof checkSolfegeSetup>, seed: number) => solfegeRound(setup, seed).questions.map(pcOf),
+    minSeconds: solfegeMinSeconds,
     track: (s: ReturnType<typeof checkSolfegeSetup>) => `solfege-${s.tonality}`,
     label: (s: ReturnType<typeof checkSolfegeSetup>) =>
       `Solfège, ${s.tonality}, ${s.level ? `Level ${s.level} (${SOLFEGE_LEVELS[s.tonality][s.level - 1]!.name})` : "Custom"}`,
@@ -36,6 +38,7 @@ const GAMES = {
     check: checkIntervalSetup,
     /** Each question's right answer: the size (sizes levels) or the semitones. */
     key: (setup: ReturnType<typeof checkIntervalSetup>, seed: number) => intervalRound(setup, seed).questions.map((q) => q.answer),
+    minSeconds: intervalMinSeconds,
     track: () => "interval",
     label: (s: ReturnType<typeof checkIntervalSetup>) => `Intervals, ${s.level ? `Level ${s.level} (${INTERVAL_LEVELS[s.level - 1]!.name})` : "Custom"}`,
   },
@@ -95,7 +98,7 @@ export async function finishRound(userId: string, token: unknown, answers: unkno
   const correct = marks.filter(Boolean).length;
   const out: Finished = { correct, total: QUIZ_LENGTH, marks, award: null };
   const seconds = (Date.now() - t.t) / 1000;
-  if (seconds < GAME_MIN_SECONDS) return { ...out, problem: "That round went too fast to count." };
+  if (seconds < game.minSeconds(setup)) return { ...out, problem: "That round went too fast to count." };
   if (seconds > 2 * 3600) return { ...out, problem: "That round is too old to count." };
   out.award = await award(userId, practiceDay(t.d), {
     credited: 0, page: null, assignmentId: null, exercises: [], grades: [],
