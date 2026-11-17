@@ -289,7 +289,9 @@ just do easy ex over and over. Has to be diminishing returns"; the design was
 approved from mockups first). Owner only while tried out: students of an
 owner's classes (`pointsClasses`: the class's teacher `isAdmin`), the teacher
 panel behind `ownerSees("points")`. Rules `src/lib/points.ts` and
-`src/lib/badges.ts` (tests `points.test.ts`), server `src/lib/server/points.ts`,
+`src/lib/badges.ts` (tests `points.test.ts`; end to end `scripts/check-points.ts`,
+28 checks in the browser and on the server, its header has the dev server's
+`ADMIN_EMAILS` it needs), server `src/lib/server/points.ts`,
 tables `PointEvent` (one row an award, deleted after 60 days by the daily cron),
 `StudentStats` (lifetime counts, level, bests, keys, flags, school-day streak),
 `Badge` (one row a level, or given by a teacher), `ClassWeek` (a settled week),

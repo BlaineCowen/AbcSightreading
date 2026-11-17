@@ -64,13 +64,14 @@ await new Promise((r) => setTimeout(r, 1500));
 await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => /^\s*Drill/.test(b.textContent ?? ""))?.click());
 await new Promise((r) => setTimeout(r, 500));
 await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => /Start drill/.test(b.textContent ?? ""))?.click());
-await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Stop drill/.test(b.textContent ?? "")), { timeout: 20000 }).catch(async () => {
+// The toolbar's Drill button reads "Drill running" while it runs (the popover with Stop drill closes on start).
+await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Stop drill|Drill running/.test(b.textContent ?? "")), { timeout: 20000 }).catch(async () => {
   if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   console.log("FAIL: the drill never started");
   await browser.close();
   process.exit(1);
 });
-await page.waitForFunction(() => ![...document.querySelectorAll("button")].some((b) => /Stop drill/.test(b.textContent ?? "")), { timeout: 180000, polling: 300 });
+await page.waitForFunction(() => ![...document.querySelectorAll("button")].some((b) => /Stop drill|Drill running/.test(b.textContent ?? "")), { timeout: 180000, polling: 300 });
 const clicks: { at: number }[] = await page.evaluate(() => (window as any).__clicks);
 const music: number[] = await page.evaluate(() => (window as any).__music);
 await browser.close();
