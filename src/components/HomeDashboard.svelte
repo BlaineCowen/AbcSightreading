@@ -168,7 +168,7 @@
       </div>
     {/if}
     {#if accountType === "educator"}
-      <a class="tile bg-sr-sky text-sr-sky-ink" href="/account#students">
+      <a class="tile bg-sr-sky text-sr-sky-ink" href="/teach">
         <Users size={26} aria-hidden="true" />
         <span class="tile-title">Classes</span>
         <span class="tile-line">Students, assignments and progress</span>

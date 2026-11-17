@@ -9,6 +9,7 @@ export const GET: APIRoute = ({ site }) => {
         "User-agent: *",
         "Disallow: /api/",
         "Disallow: /account",
+        "Disallow: /teach",
         "Disallow: /login",
         "Disallow: /reset-password",
         "Disallow: /join",

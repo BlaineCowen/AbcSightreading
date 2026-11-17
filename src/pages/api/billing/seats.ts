@@ -46,8 +46,8 @@ export const POST: APIRoute = async ({ request }) => {
     tax_id_collection: { enabled: true },
     invoice_creation: { enabled: true, invoice_data: { metadata } },
     metadata,
-    success_url: `${origin}/account?seats=added#students`,
-    cancel_url: `${origin}/account#students`,
+    success_url: `${origin}/teach?seats=added`,
+    cancel_url: `${origin}/teach`,
   });
   return json({ url: session.url });
 };

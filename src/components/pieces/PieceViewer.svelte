@@ -1617,7 +1617,7 @@
     {/if}
     {#if asg}
       <header class="assign-card flex flex-col gap-2">
-        <a class="sr-link text-sm self-start" href={assignment.role === "teacher" ? "/account" : "/"}>{assignment.role === "teacher" ? "Classes" : "Home"}</a>
+        <a class="sr-link text-sm self-start" href={assignment.role === "teacher" ? "/teach" : "/"}>{assignment.role === "teacher" ? "Classes" : "Home"}</a>
         <span class="kind"><Music size={12} aria-hidden="true" /> Assignment · a piece</span>
         <h1 class="text-2xl sm:text-3xl font-bold">{piece.title}</h1>
         <p class="font-bold">
@@ -1636,7 +1636,7 @@
     {:else}
     <!-- Centred, as the practice pages' titles; the main action (Assign) ends the settings row, as New exercise does there. -->
     <header class="flex flex-col items-center text-center gap-0.5 focus-hide">
-      <a class="sr-link text-sm" href={library ? "/library" : assignment ? "/account" : "/pieces"}>{library ? "My library" : assignment ? "Classes" : "My music"}</a>
+      <a class="sr-link text-sm" href={library ? "/library" : assignment ? (assignment.role === "teacher" ? "/teach" : "/account") : "/pieces"}>{library ? "My library" : assignment ? "Classes" : "My music"}</a>
       {#if library}
         <h1 class="text-2xl sm:text-3xl font-bold text-sr-ink max-w-full truncate">{piece.title}</h1>
       {:else if renaming}

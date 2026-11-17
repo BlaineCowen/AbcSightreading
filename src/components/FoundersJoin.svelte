@@ -74,7 +74,7 @@
       </p>
     {/if}
     <div class="flex flex-wrap justify-center gap-2">
-      <a class="sr-btn" href="/account#students">Make your first class</a>
+      <a class="sr-btn" href="/teach">Make your first class</a>
       <a class="sr-btn-quiet" href="/sightreading">Start sight-reading</a>
     </div>
   {:else if !status}
@@ -83,7 +83,7 @@
     <button class="sr-btn text-lg px-6" on:click={join} disabled={busy}>{busy ? "Joining…" : "Join as a founding teacher"}</button>
   {:else if status.step === "joined"}
     <p class="text-xl font-semibold text-sr-ink">You're a founding teacher.</p>
-    <a class="sr-btn" href="/account#students">Go to your classes</a>
+    <a class="sr-btn" href="/teach">Go to your classes</a>
   {:else if status.step === "sign-in"}
     <div class="flex flex-wrap justify-center gap-2">
       <a class="sr-btn text-lg px-6" href="/login?mode=signup&next=/founders">Create a free account to join</a>

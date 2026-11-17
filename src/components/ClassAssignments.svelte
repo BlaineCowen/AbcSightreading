@@ -86,7 +86,7 @@
       await load();
     } else if (body.reconnect) {
       // Off to Google for the grades permission; back here to press it again.
-      const { error } = await authClient.linkSocial({ provider: "google", scopes: [...CLASSROOM_SCOPES, GRADE_SCOPE], callbackURL: "/account#students" });
+      const { error } = await authClient.linkSocial({ provider: "google", scopes: [...CLASSROOM_SCOPES, GRADE_SCOPE], callbackURL: "/teach" });
       if (error) gcNote = { id: a.id, text: error.message ?? "Could not reach Google.", error: true };
     } else gcNote = { id: a.id, text: body.error ?? "Google Classroom did not take that.", error: true };
   }

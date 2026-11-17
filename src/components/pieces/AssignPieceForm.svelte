@@ -297,7 +297,7 @@
           {#each classes as c}<option value={c.id}>{c.name}</option>{/each}
         </select>
       {:else}
-        <span class="text-sm font-normal text-sr-muted">No classes yet. Make one on <a class="sr-link" href="/account">your account page</a>.</span>
+        <span class="text-sm font-normal text-sr-muted">No classes yet. Make one on <a class="sr-link" href="/teach">your classes page</a>.</span>
       {/if}
     </label>
   {/if}

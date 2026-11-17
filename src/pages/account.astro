@@ -1,18 +1,18 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import AccountPanel from "../components/AccountPanel.svelte";
-import ClassProgress from "../components/ClassProgress.svelte";
 import SyllableEditor from "../components/SyllableEditor.svelte";
-import EducatorStudents from "../components/EducatorStudents.svelte";
 import SchoolQuote from "../components/SchoolQuote.svelte";
 import StudentAssignments from "../components/StudentAssignments.svelte";
-import TeacherAssignments from "../components/TeacherAssignments.svelte";
 import PointsWeek from "../components/PointsWeek.svelte";
 import { currentUser } from "../lib/server/api";
 import { accountTypeFor } from "../lib/server/students";
 import { EDUCATOR_ON_SALE } from "../lib/plan";
 import { prisma } from "../lib/server/db";
-import { googleEnabled } from "../lib/server/auth";
+
+// Classes moved to /teach (17 November 2026). Links made before then, a
+// Google or Stripe return among them, carry ?assign, ?classroom or ?seats.
+if (["assign", "classroom", "seats"].some((k) => Astro.url.searchParams.has(k))) return Astro.redirect(`/teach${Astro.url.search}`);
 
 // What this account is decides the page: an educator manages students; a
 // student's teacher manages theirs, so none of the director's tools show.
@@ -22,14 +22,12 @@ const accountType = viewer ? await accountTypeFor(viewer) : "standard";
 // A student who signed in with ClassLink before their teacher added them: one class code to type.
 const classless = accountType === "student" && viewer ? (await prisma.enrollment.count({ where: { studentId: viewer.id } })) === 0 : false;
 
-// Everyone but a student gets a menu: the account and plan, the classes, and
-// the rhythm syllables, one at a time. The address's hash picks the tab, so
-// the old links (#plan, #quote, #students, #syllables) still land in the right one.
+// Everyone but a student gets a menu: the account and plan, and the rhythm
+// syllables, one at a time. The address's hash picks the tab, so the old
+// links (#plan, #quote, #syllables) still land in the right one. Classes and
+// assignments are on /teach; their old hashes go there (the script below).
 const tabs = [
   { id: "account", label: "Account and plan", hashes: ["account", "plan", "quote"] },
-  { id: "classes", label: "Classes", hashes: ["classes", "students"] },
-  // Every assignment in every class, to open again or give to more classes (TeacherAssignments).
-  ...(accountType === "educator" ? [{ id: "assignments", label: "Assignments", hashes: ["assignments"] }] : []),
   { id: "syllables", label: "Rhythm syllables", hashes: ["syllables"] },
 ];
 ---
@@ -66,20 +64,15 @@ const tabs = [
             >{t.label}</a>
           ))}
         </nav>
+        <a class="teach-link" href="/teach">
+          <span><strong>Your classes</strong> Students, courses, assignments and progress have their own page now.</span>
+          <span aria-hidden="true">→</span>
+        </a>
         <div id="panel-account" role="tabpanel" aria-labelledby="tab-account" class="tab-panel">
           {accountType !== "educator" && <StudentAssignments client:only="svelte" />}
           <AccountPanel client:only="svelte" />
           <SchoolQuote client:only="svelte" educatorOnSale={EDUCATOR_ON_SALE} />
         </div>
-        <div id="panel-classes" role="tabpanel" aria-labelledby="tab-classes" class="tab-panel" hidden>
-          {accountType === "educator" && <EducatorStudents client:only="svelte" {googleEnabled} />}
-          <ClassProgress client:only="svelte" educator={accountType === "educator"} />
-        </div>
-        {accountType === "educator" && (
-          <div id="panel-assignments" role="tabpanel" aria-labelledby="tab-assignments" class="tab-panel" hidden>
-            <TeacherAssignments client:only="svelte" />
-          </div>
-        )}
         <div id="panel-syllables" role="tabpanel" aria-labelledby="tab-syllables" class="tab-panel" hidden>
           <SyllableEditor client:only="svelte" />
         </div>
@@ -104,6 +97,22 @@ const tabs = [
     white-space: nowrap;
     text-decoration: none;
   }
+  .teach-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 48rem;
+    padding: 0.8rem 1.2rem;
+    border-radius: 18px;
+    background: var(--sr-sky);
+    color: var(--sr-sky-ink);
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .teach-link strong { margin-right: 0.4rem; }
+  .teach-link span:first-child { flex: 1; }
+  .teach-link:hover { filter: brightness(0.97); }
   .tab-panel {
     width: 100%;
     display: flex;
@@ -125,8 +134,16 @@ const tabs = [
 <script>
   // One section at a time, chosen by the hash: a tab click, an in-page link
   // (#quote), or a link from elsewhere (/account#students).
+  // The classes moved to /teach: an old link (#students, #classes, #assignments) goes on there.
+  function moved(hash: string) {
+    const want = hash.replace(/^#/, "");
+    if (!document.querySelector(".account-tabs") || !["students", "classes", "assignments"].includes(want)) return false;
+    location.replace(`/teach${location.search}${want === "assignments" ? "#assignments" : ""}`);
+    return true;
+  }
   const links = [...document.querySelectorAll<HTMLAnchorElement>(".account-tabs [data-tab]")];
   function show(hash: string, scroll: boolean) {
+    if (moved(hash)) return;
     const want = hash.replace(/^#/, "");
     const tab = links.find((a) => (a.dataset.hashes ?? "").split(" ").includes(want)) ?? links[0];
     if (!tab) return;

@@ -35,7 +35,7 @@
 
   function cancel() {
     clearDraft();
-    location.href = "/account#students";
+    location.href = "/teach";
   }
 </script>
 

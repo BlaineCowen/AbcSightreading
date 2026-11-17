@@ -348,9 +348,37 @@ at least 300) and `breakUntil` (a break's school days never end a streak).
   Piano and Ensemble exercises (they count as own settings only if a tracker
   runs there; it does not).
 
+**The classes page, /teach** (17 November 2026, Blaine: "I don't see the
+assignments page in my account. We need to organize that all better"; he
+picked a page of its own over tabs on /account). Before, /account had four
+tabs and its Classes tab listed every class twice: under Students (code,
+roster, assignments, points) and again under Classes (course checklists).
+Now:
+- `/account` is Account and plan and Rhythm syllables, with a link to
+  /teach. Old links still land: `?assign`, `?classroom` and `?seats` (the
+  assignment draft, Google's and Stripe's returns) redirect on the server;
+  `#students`, `#classes` and `#assignments` in its script (also when the hash
+  changes in place). Internal links, the founders email, the seat checkout and
+  the Google callbacks point at /teach.
+- `/teach` (`src/pages/teach.astro`, noindex, robots Disallow; signed out to
+  sign-in, a student to /account): tabs Classes and Assignments (educator).
+  Classes is `EducatorStudents.svelte`: a top card (seats, new class, Create
+  assignment, print all cards, OneRoster) and one card per class, in the
+  teacher's order (`lib/classes` store), with name, student count, join code,
+  move, rename and delete on top, and four tabs inside: Students (roster,
+  adding students, cards, Google Classroom), Course (`ClassCourse.svelte`, the
+  checklist pulled out of ClassProgress), Assignments (`ClassAssignments`)
+  and Points (owner only, `ClassPoints`). A class with no students opens on
+  Students, the rest on Assignments; arrow keys move along the tabs. A
+  teacher without the Educator plan gets `ClassProgress` (course checklists
+  only, through the same ClassCourse) and no Assignments tab.
+- The menu has **Classes** for every signed-in account but a student's.
+- End to end: `scripts/check-teach.ts` (24 checks; it adds, renames and
+  deletes a "Teach test (delete me)" class).
+
 **The Assignments tab** (16 November 2026, Blaine: "click an assignment ...
 open it again and assign to more students"; `TeacherAssignments.svelte`, an
-educator-only tab on /account, `#assignments`). Every assignment in every
+educator-only tab, on /teach since 17 November, `#assignments`). Every assignment in every
 class, newest first (`teacherAssignments`, `GET /api/assignments/teaching`,
 loaded when the tab is first shown). Ones with the same page, preset key,
 title and params are one row (`group`): the same assignment in several

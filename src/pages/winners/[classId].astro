@@ -16,10 +16,10 @@ import { weekLabel } from "../../lib/points";
 const user = await currentUser(Astro.request);
 if (!user) return Astro.redirect(`/login?next=${encodeURIComponent(Astro.url.pathname)}`);
 const classId = Astro.params.classId!;
-if (!isAdmin(user) || (await roleIn(user.id, classId)) !== "teacher") return Astro.redirect("/account#classes");
+if (!isAdmin(user) || (await roleIn(user.id, classId)) !== "teacher") return Astro.redirect("/teach");
 Astro.response.headers.set("Cache-Control", "private, no-store");
 const data = await classPoints(classId, practiceDay(null));
-if (!data) return Astro.redirect("/account#classes");
+if (!data) return Astro.redirect("/teach");
 
 type Top = { name: string; points: number }[];
 const last = data.lastWeek;
@@ -70,7 +70,7 @@ const colours: Record<number, string> = { 1: "bg-sr-butter text-sr-butter-ink", 
         {extras.improved && <span>Most improved: {extras.improved.name}</span>}
       </div>
     )}
-    <a class="back sr-link text-sm" href="/account#classes">Back to classes</a>
+    <a class="back sr-link text-sm" href="/teach">Back to classes</a>
   </div>
 </Layout>
 

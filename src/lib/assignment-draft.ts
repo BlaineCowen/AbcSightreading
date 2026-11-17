@@ -73,7 +73,7 @@ export function designHref(presetKey: string, own: OwnPreset[]): string | null {
 }
 
 /** Where the page sends the teacher back to: the wizard, at the last step. */
-export const RESUME_HREF = "/account?assign=resume#students";
+export const RESUME_HREF = "/teach?assign=resume";
 
 /** Opened from the wizard: the address says so. Read at start, before the page rewrites its address. */
 export const assigningFromUrl = () =>

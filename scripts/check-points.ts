@@ -164,8 +164,14 @@ try {
   ok(own?.logged !== undefined && !own?.points, "a teacher's practice earns no points");
   const w = await tp.goto(APP + "/winners/" + cls.id, { waitUntil: "networkidle2" });
   ok(w?.status() === 200 && (await tp.evaluate(() => /top readers/.test(document.body.innerText))), "the board opens for the class's teacher");
-  await tp.goto(APP + "/account#classes", { waitUntil: "networkidle2" });
+  await tp.goto(APP + "/teach", { waitUntil: "networkidle2" });
   await tp.waitForFunction((n) => document.body.innerText.includes(n), { timeout: 30000 }, NAME);
+  // The class's card on /teach: its Points tab, then the panel.
+  await tp.evaluate((n) => {
+    const card = [...document.querySelectorAll("article.class-card")].find((c) => c.querySelector("h3")?.textContent?.startsWith(n));
+    ([...(card?.querySelectorAll(".class-tabs [role=tab]") ?? [])].find((t) => t.textContent?.trim() === "Points") as HTMLElement | undefined)?.click();
+  }, NAME);
+  await tp.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => /Points and badges/.test(b.textContent ?? "")), { timeout: 20000 });
   await tp.evaluate(() => [...document.querySelectorAll("button")].filter((b) => /Points and badges/.test(b.textContent ?? "")).pop()?.click());
   await tp.waitForFunction(() => document.body.innerText.includes("Weekly leaderboard"), { timeout: 20000 });
   ok(true, "the teacher's points panel opens");

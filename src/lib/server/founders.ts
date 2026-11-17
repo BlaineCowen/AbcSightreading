@@ -198,7 +198,7 @@ export async function decideApplication(id: string, approve: boolean) {
         "",
         `Welcome aboard. Educator is on for your account until May 31, 2027, free, with ${FOUNDER_SEATS} student accounts, and after that it is ${FOUNDER_DISCOUNT}% off for as long as you renew.`,
         "",
-        `Make your first class and bring your students in: ${SITE}/account#students`,
+        `Make your first class and bring your students in: ${SITE}/teach`,
         ...(joined.proRenews
           ? ["", `Your Pro subscription will still renew on its date. Educator includes everything in Pro, so you can turn renewal off: ${SITE}/account#plan`]
           : []),

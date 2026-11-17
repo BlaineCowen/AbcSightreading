@@ -1,0 +1,114 @@
+---
+import Layout from "../layouts/Layout.astro";
+import ClassProgress from "../components/ClassProgress.svelte";
+import EducatorStudents from "../components/EducatorStudents.svelte";
+import TeacherAssignments from "../components/TeacherAssignments.svelte";
+import { currentUser } from "../lib/server/api";
+import { accountTypeFor } from "../lib/server/students";
+import { googleEnabled } from "../lib/server/auth";
+
+/**
+ * A teacher's classes (Blaine, 17 November 2026: everything about classes
+ * left the account page, which keeps the account, the plan and the rhythm
+ * syllables). Classes: one card per class, with its students, course,
+ * assignments and points (EducatorStudents); a teacher without the Educator
+ * plan has the course checklists alone (ClassProgress). Assignments: every
+ * assignment in every class (TeacherAssignments). The old /account#students,
+ * #classes and #assignments links, and ?assign, ?classroom and ?seats, come
+ * here (account.astro).
+ */
+const viewer = await currentUser(Astro.request).catch(() => null);
+if (!viewer) return Astro.redirect(`/login?next=${encodeURIComponent("/teach" + Astro.url.search)}`);
+const accountType = await accountTypeFor(viewer);
+if (accountType === "student") return Astro.redirect("/account");
+const educator = accountType === "educator";
+
+const tabs = [
+  { id: "classes", label: "Classes", hashes: ["classes", "students"] },
+  ...(educator ? [{ id: "assignments", label: "Assignments", hashes: ["assignments"] }] : []),
+];
+---
+
+<Layout noindex title="Classes | abcSightReading" themable>
+  <div class="flex flex-col w-full items-center gap-6 pb-16">
+    <h1 class="text-3xl font-bold text-sr-ink">Your classes</h1>
+    {tabs.length > 1 && (
+      <nav class="page-tabs" role="tablist" aria-label="Classes sections">
+        {tabs.map((t, i) => (
+          <a
+            href={`#${t.id}`}
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-controls={`panel-${t.id}`}
+            aria-selected={i === 0 ? "true" : "false"}
+            class={`sr-tab ${i === 0 ? "sr-on" : ""}`}
+            data-tab={t.id}
+            data-hashes={t.hashes.join(" ")}
+          >{t.label}</a>
+        ))}
+      </nav>
+    )}
+    <div id="panel-classes" role="tabpanel" aria-labelledby="tab-classes" class="tab-panel">
+      {educator ? <EducatorStudents client:only="svelte" {googleEnabled} /> : <ClassProgress client:only="svelte" educator={false} />}
+    </div>
+    {educator && (
+      <div id="panel-assignments" role="tabpanel" aria-labelledby="tab-assignments" class="tab-panel" hidden>
+        <TeacherAssignments client:only="svelte" />
+      </div>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .page-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 5px;
+    background: var(--sr-track);
+    border-radius: 999px;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .page-tabs .sr-tab {
+    padding: 0.55rem 1.1rem;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .tab-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .tab-panel[hidden] {
+    display: none;
+  }
+</style>
+
+<script>
+  // One section at a time, chosen by the hash (#assignments from elsewhere too).
+  const links = [...document.querySelectorAll<HTMLAnchorElement>(".page-tabs [data-tab]")];
+  function show(hash: string) {
+    const want = hash.replace(/^#/, "");
+    const tab = links.find((a) => (a.dataset.hashes ?? "").split(" ").includes(want)) ?? links[0];
+    if (!tab) return;
+    for (const a of links) {
+      const on = a === tab;
+      a.classList.toggle("sr-on", on);
+      a.setAttribute("aria-selected", on ? "true" : "false");
+      const panel = document.getElementById(`panel-${a.dataset.tab}`);
+      if (panel) panel.hidden = !on;
+    }
+  }
+  for (const a of links) {
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      history.replaceState(history.state, "", `${location.pathname}${location.search}#${a.dataset.tab}`);
+      show(a.hash);
+    });
+  }
+  window.addEventListener("hashchange", () => show(location.hash));
+  show(location.hash);
+</script>

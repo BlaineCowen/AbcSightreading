@@ -58,9 +58,11 @@
     : account.accountType === "student"
       ? { href: "/library", short: "My library", full: "My library", line: "" }
       : { href: "/pieces", short: "My music", full: "My music", line: "" };
+  /** A teacher's classes (Blaine, 17 November 2026: they left the account page for /teach). */
+  $: teach = account && account.accountType !== "student" ? { href: "/teach", short: "Classes", full: "My classes", line: "" } : null;
   /** The games (Blaine, 2 November 2026: a section of its own up top). */
   const games = { href: "/games", short: "Games", full: "Games", line: "" };
-  $: links = mine ? [...pages, games, mine] : [...pages, games];
+  $: links = [...pages, games, ...(mine ? [mine] : []), ...(teach ? [teach] : [])];
   $: nextHere = encodeURIComponent(here || "/");
 
   let navbar: HTMLElement;
@@ -187,6 +189,9 @@
         <a href={games.href} class="sr-navlink text-[15px]" aria-current={isHere(games.href) ? "page" : undefined}>{games.short}</a>
         {#if mine}
           <a href={mine.href} class="sr-navlink text-[15px]" aria-current={isHere(mine.href) ? "page" : undefined}>{mine.short}</a>
+        {/if}
+        {#if teach}
+          <a href={teach.href} class="sr-navlink text-[15px]" aria-current={isHere(teach.href) ? "page" : undefined}>{teach.short}</a>
         {/if}
         {#if tourHere}
           <button

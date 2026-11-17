@@ -1,19 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { ArrowUp, ArrowDown, Pencil, X, Check, EyeOff, Play } from "lucide-svelte";
+  import { ArrowUp, ArrowDown, Pencil, X } from "lucide-svelte";
+  import ClassCourse from "./ClassCourse.svelte";
   import {
-    classes, classesAvailable, loadClasses, createClass, renameClass, moveClass, deleteClass, setPassed, setCourse, setCourseSteps,
+    classes, classesAvailable, loadClasses, createClass, renameClass, moveClass, deleteClass,
   } from "../lib/classes";
   import { UNISON_PRESET_STORE, type SavedPreset } from "../lib/preset-storage";
   import { STEP_BY_STEP } from "../lib/curriculum/catalogue";
   import { TRACKS } from "../lib/curriculum/tracks";
-  import {
-    OWN_COURSE, LEVEL_ITEMS, classItems, courseName, hiddenItems, itemForKey, listOps, nextItem, type OwnPreset,
-  } from "../lib/class-course";
-  import type { ClassWithProgress } from "../lib/class-validate";
+  import { OWN_COURSE, type OwnPreset } from "../lib/class-course";
 
   /**
-   * Classes on the account page, one card each: the course the class works
+   * Classes on /teach for a teacher without the Educator plan (an educator has
+   * the class cards of EducatorStudents), one card each: the course the class works
    * through (abcStepByStep, an instrument course, or the teacher's own), its
    * checklist with the date each step was passed, and the next step to
    * practise. Customize hides, reorders and adds steps (the teacher's own
@@ -29,10 +28,6 @@
   let renameValue = "";
   let own: OwnPreset[] = [];
   let loaded = false;
-  /** The class whose checklist is being customized. */
-  let editing: string | null = null;
-  /** What "Add a step" will put in, per class. */
-  let adding: Record<string, string> = {};
 
   const message = (e: unknown) => (e instanceof Error ? e.message : "unknown error");
 
@@ -81,26 +76,6 @@
     if (!confirm(`Delete the class "${name}" and everything it has passed?`)) return;
     await run(() => deleteClass(id), "delete the class");
   }
-  const toggle = (classId: string, key: string, now: boolean) => run(() => setPassed(classId, key, !now), "save that");
-  const changeCourse = (c: ClassWithProgress, course: string) => {
-    if (c.courseSteps && !confirm(`Switch ${c.name} to ${courseName(course)}? Your changes to its list of steps start over; ticks are kept.`)) return;
-    return run(() => setCourse(c.id, course || null), "change the course");
-  };
-  const saveList = (c: ClassWithProgress, keys: string[]) => run(() => setCourseSteps(c.id, keys), "save the list");
-
-  const dateOf = (ms: number | undefined) =>
-    ms ? new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
-
-  /** What "Add a step" offers a class: steps of its course it hides, then the teacher's presets, then levels. */
-  function addable(c: ClassWithProgress) {
-    const shown = new Set(listOps.start(c));
-    return [
-      { group: "Hidden steps of this course", items: hiddenItems(c) },
-      { group: "My presets", items: own.map((p) => itemForKey(`saved:${p.id}`, own)!).filter((i) => !shown.has(i.key)) },
-      { group: "UIL and NYSSMA levels", items: LEVEL_ITEMS.filter((i) => !shown.has(i.key)) },
-    ].filter((g) => g.items.length);
-  }
-
   const band = TRACKS.filter((t) => t.family === "band");
   const strings = TRACKS.filter((t) => t.family === "strings");
 </script>
@@ -146,10 +121,6 @@
 
     <ul class="flex flex-col gap-4">
       {#each $classes as c, i (c.id)}
-        {@const items = classItems(c, own)}
-        {@const done = items.filter((it) => c.passed[it.key]).length}
-        {@const next = nextItem(items, c.passed)}
-        {@const keys = listOps.start(c)}
         <li class="class-card">
           <!-- Name, course and order -->
           <div class="flex flex-wrap items-center gap-2">
@@ -165,97 +136,16 @@
             {:else}
               <h3 class="flex-1 min-w-0 text-base font-bold text-sr-ink truncate">{c.name}</h3>
             {/if}
-            <select class="course-select" value={c.course ?? ""} on:change={(e) => changeCourse(c, e.currentTarget.value)} aria-label="Course for {c.name}">
-              {#if !c.course}<option value="">Choose a course…</option>{/if}
-              <option value={STEP_BY_STEP}>abcStepByStep</option>
-              <optgroup label="Beginning band">{#each band as t}<option value={t.id}>{t.name}</option>{/each}</optgroup>
-              <optgroup label="Beginning orchestra">{#each strings as t}<option value={t.id}>{t.name}</option>{/each}</optgroup>
-              <option value={OWN_COURSE}>My own course</option>
-            </select>
             <button class="icon" disabled={i === 0} on:click={() => run(() => moveClass(c.id, -1), "move the class")} aria-label="Move {c.name} up"><ArrowUp size={14} /></button>
             <button class="icon" disabled={i === $classes.length - 1} on:click={() => run(() => moveClass(c.id, 1), "move the class")} aria-label="Move {c.name} down"><ArrowDown size={14} /></button>
             <button class="icon" on:click={() => { renamingId = c.id; renameValue = c.name; }} aria-label="Rename {c.name}"><Pencil size={13} /></button>
             <button class="icon hover:text-sr-danger" on:click={() => remove(c.id, c.name)} aria-label="Delete {c.name}"><X size={14} /></button>
           </div>
 
-          {#if c.course}
-            <!-- Where they are: how far, and the next step to practise. -->
-            <div class="flex flex-wrap items-center gap-3">
-              <div class="flex-1 min-w-[10rem]">
-                <div class="h-2 rounded bg-sr-track overflow-hidden" aria-hidden="true">
-                  <div class="h-full bg-sr-action" style="width: {items.length ? (100 * done) / items.length : 0}%"></div>
-                </div>
-                <p class="mt-1 text-xs text-sr-muted tabular-nums">{done} of {items.length} steps passed · {courseName(c.course)}{c.courseSteps ? " (customized)" : ""}</p>
-              </div>
-              {#if next}
-                <a class="sr-btn text-sm flex items-center gap-1.5" href={next.href}><Play size={14} aria-hidden="true" />Next: {next.label}</a>
-              {:else if items.length}
-                <span class="text-sm font-bold text-sr-mint-ink bg-sr-mint rounded-full px-3 py-1.5">Course complete</span>
-              {/if}
-              <button class="sr-tok text-sm" aria-pressed={editing === c.id} on:click={() => (editing = editing === c.id ? null : c.id)}>
-                {editing === c.id ? "Done" : "Customize"}
-              </button>
-            </div>
-
-            <!-- The checklist -->
-            {#if items.length}
-              <ol class="checklist">
-                {#each items as it, k (it.key)}
-                  <li class="flex items-center gap-2 py-1.5 border-b border-sr-hairline/60 last:border-0">
-                    <input
-                      type="checkbox"
-                      class="sr-check"
-                      checked={!!c.passed[it.key]}
-                      on:change={() => toggle(c.id, it.key, !!c.passed[it.key])}
-                      aria-label="{c.name} passed {it.label}"
-                    />
-                    <a class="min-w-0 flex-1 group" href={it.href}>
-                      <span class="block text-sm text-sr-ink truncate group-hover:underline {c.passed[it.key] ? 'opacity-70' : ''}">{it.label}</span>
-                      {#if it.detail}<span class="block text-xs text-sr-muted truncate">{it.detail}</span>{/if}
-                    </a>
-                    {#if c.passed[it.key]}<span class="text-xs text-sr-faint whitespace-nowrap"><Check size={12} class="inline" /> {dateOf(c.passed[it.key])}</span>{/if}
-                    {#if editing === c.id}
-                      <button class="icon" disabled={k === 0} on:click={() => saveList(c, listOps.move(keys, it.key, -1))} aria-label="Move {it.label} earlier"><ArrowUp size={14} /></button>
-                      <button class="icon" disabled={k === items.length - 1} on:click={() => saveList(c, listOps.move(keys, it.key, 1))} aria-label="Move {it.label} later"><ArrowDown size={14} /></button>
-                      <button class="icon" on:click={() => saveList(c, listOps.hide(keys, it.key))} aria-label="Hide {it.label} from {c.name}'s course" title="Hide from this class"><EyeOff size={14} /></button>
-                    {/if}
-                  </li>
-                {/each}
-              </ol>
-            {:else}
-              <p class="text-sm text-sr-muted">
-                {c.course === OWN_COURSE ? "No steps yet. Press Customize and add your own presets, or UIL and NYSSMA levels, in the order you teach them." : "This course has no steps."}
-              </p>
-            {/if}
-
-            {#if editing === c.id}
-              <div class="flex flex-wrap items-center gap-2 pt-1">
-                <select class="course-select" value={adding[c.id] ?? ""} on:change={(e) => (adding = { ...adding, [c.id]: e.currentTarget.value })} aria-label="A step to add to {c.name}'s course">
-                  <option value="">Add a step…</option>
-                  {#each addable(c) as g}
-                    <optgroup label={g.group}>{#each g.items as it}<option value={it.key}>{it.label}</option>{/each}</optgroup>
-                  {/each}
-                </select>
-                <button
-                  class="sr-tok text-sm"
-                  disabled={!adding[c.id]}
-                  on:click={() => { const k = adding[c.id]; adding = { ...adding, [c.id]: "" }; if (k) saveList(c, listOps.add(keys, k, null)); }}
-                >Add at the end</button>
-                {#if c.courseSteps && c.course !== OWN_COURSE}
-                  <button class="sr-link text-sm ml-auto" on:click={() => run(() => setCourseSteps(c.id, null), "reset the list")}>Back to the course as written</button>
-                {/if}
-              </div>
-              <p class="text-xs text-sr-muted">Changes are for {c.name} only. Ticks stay with each step, wherever it moves.</p>
-            {/if}
-          {:else}
-            <p class="text-sm text-sr-muted">Choose a course above to see {c.name}'s checklist and next step.</p>
-          {/if}
+          <ClassCourse {c} {own} {run} />
         </li>
       {/each}
     </ul>
-    {#if $classes.length}
-      <p class="text-xs text-sr-muted flex items-center gap-1"><Check size={12} /> Ticks save as you make them.</p>
-    {/if}
   {/if}
 </section>
 
@@ -291,5 +181,4 @@
     background: var(--sr-butter);
     color: var(--sr-butter-ink);
   }
-  .checklist { max-height: 26rem; overflow-y: auto; padding-right: 0.25rem; }
 </style>
