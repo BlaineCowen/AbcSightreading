@@ -121,7 +121,8 @@ export async function finishAttempt(assignmentId: string, attemptId: string, res
   const res = await fetch(`/api/assignments/${assignmentId}/attempts/${attemptId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(result),
+    // The device's day: points and streaks count the student's own calendar, not the server's (UTC).
+    body: JSON.stringify({ ...result, day: new Date().toLocaleDateString("sv") }),
   });
   if (!res.ok) throw new Error(await errorOf(res, "The score could not be sent."));
   return res.json();

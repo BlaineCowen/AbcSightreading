@@ -20,7 +20,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     }
     const checked = checkAttemptResult(body);
     if (!checked.ok) return json({ error: checked.error }, 400);
-    return json(await finishAttempt(user.id, params.id!, params.attemptId!, checked.value));
+    return json(await finishAttempt(user.id, params.id!, params.attemptId!, checked.value, body?.day));
   } catch (e) {
     if (e instanceof AttemptError) return json({ error: e.message }, e.status);
     throw e;

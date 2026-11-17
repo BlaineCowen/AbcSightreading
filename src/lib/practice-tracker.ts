@@ -81,6 +81,7 @@ const clearPending = () => {
 async function report() {
   if (stopped || !hasPending()) return;
   const payload = body();
+  const pts = pendingPts;
   clearPending();
   sinceBeat = 0;
   try {
@@ -90,7 +91,9 @@ async function report() {
     if (r && r.logged === false) stop();
     if (r?.points && (r.points.earned?.length || r.points.badges?.length)) pointsNews.set(r.points);
   } catch {
-    // Offline for a moment: that half-minute is lost, the rest carries on.
+    // Offline for a moment: that half-minute is lost, the rest carries on. Its exercises
+    // and grades wait for the next report (the server counts an exercise id once).
+    pendingPts = { exercises: [...pts.exercises, ...pendingPts.exercises].slice(-5), grades: [...pts.grades, ...pendingPts.grades].slice(-5) };
   }
 }
 

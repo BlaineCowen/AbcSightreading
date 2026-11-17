@@ -2,6 +2,7 @@ import { del, get, head, list } from "@vercel/blob";
 import { prisma } from "./db";
 import { serverEnv } from "./env";
 import { roleIn } from "./practice";
+import { practiceDay } from "../practice";
 import { shortUsername } from "./students";
 import { loadScore } from "./pieces";
 import { partsFor, pieceAssignmentOf } from "../pieces/assign";
@@ -134,6 +135,8 @@ export async function finishAttempt(
   assignmentId: string,
   attemptId: string,
   result: { overall: number; pitch: number | null; rhythm: number; marks: Mark[] },
+  /** The sending device's calendar day, for points (practiceDay checks it). */
+  localDay?: unknown,
 ) {
   const at = await ownOpenAttempt(userId, assignmentId, attemptId);
   if (at.finishedAt) throw new AttemptError("This attempt is already graded.", 409);
@@ -144,7 +147,7 @@ export async function finishAttempt(
   });
   // Points for the student whose try it is (the board's included): never in the way of the grade.
   await import("./points")
-    .then((p) => p.awardAttempt({ id: at.id, studentId: at.studentId, assignmentId, overall: result.overall, pitch: result.pitch, rhythm: result.rhythm, board: isBoardTest(at.assignment.params) }))
+    .then((p) => p.awardAttempt({ id: at.id, studentId: at.studentId, assignmentId, overall: result.overall, pitch: result.pitch, rhythm: result.rhythm, board: isBoardTest(at.assignment.params), day: practiceDay(localDay) }))
     .catch((e) => console.error("points", e));
   return summaryOf(row);
 }

@@ -317,6 +317,31 @@ at least 300) and `breakUntil` (a break's school days never end a streak).
   reached. Student card `PointsWeek` (home and /account), `/badges` (drawn on
   the server), teacher `ClassPoints` in each class card, `/winners/<classId>`
   for the board. Names to classmates are first name and last initial.
+- State, checked 16 November 2026 (Blaine: "check for state issues"), each
+  proved against the database with 10 awards at once: one student's awards run
+  one at a time (`award` holds `pg_advisory_xact_lock` on the student inside a
+  transaction; before it, two reports read the same day and stats and the
+  second write undid the first). Exercise rows are `<choice>#<exercise id>`
+  (a report sent twice counts once, so the tracker re-sends points after a
+  network failure); grade rows `g:<exercise id>|<score>|<choice>`. A grade
+  counts only for an exercise reported that day (attempts are `trusted`), and
+  grades decay by choice like exercises (before, grading easy exercises over
+  and over was a farm). The server rewrites the choice (`choiceKey`: steps by
+  number 1 to STEP_COUNT, own settings as `own:<page>`, assignments by id), so
+  a hand-made report cannot dodge repeats with new keys. Attempts take the
+  device's day (`finishAttempt` body `day`): UTC turns over at 6 pm in Houston
+  and put evening tries on tomorrow, which reset streaks; a day before the
+  streak's last one now changes nothing. Weeks settle from the daily cron too
+  (`closeLastWeeks`), in a transaction with their counts, so a week nobody
+  looked at still gives Weekly Winner and Ensemble, and two settlings at once
+  count once. `Badge` is unique on (student, badge, level); a teacher's badge
+  given again is its next level. `pointsClasses` is cached 5 minutes an
+  instance for `award` (every student's report asks).
+- Still open, by design or small: the level only goes up (a student who reads
+  a hard step 3 times earns less on easier ones after); the step number and a
+  level's name come from the page, so a student hand-crafting requests could
+  claim a harder step (bounded by the time cap); a student in two owner classes
+  sees the first class's board.
 - Not yet: game answers (Gamer, Live Winner badges are not in the catalogue),
   Piano and Ensemble exercises (they count as own settings only if a tracker
   runs there; it does not).

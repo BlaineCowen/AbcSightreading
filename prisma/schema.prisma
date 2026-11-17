@@ -749,6 +749,7 @@ model Badge {
   /// When the student was shown it (the "New badge" card); null until then.
   seenAt    DateTime?
 
+  @@unique([studentId, badgeId, level])
   @@index([studentId])
   @@map("badge")
 }

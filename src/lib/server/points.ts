@@ -8,6 +8,7 @@ import {
   type Tier,
 } from "../points";
 import { badgeText, earnedLevels, type BadgeStats } from "../badges";
+import { STEP_COUNT } from "../ladder";
 
 /**
  * Points, streaks, badges and the weekly leaderboard against the database
@@ -72,28 +73,83 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 const TIER_SAYS: Record<Tier, string> = { level: "your level", review: "review", easy: "much easier", own: "your own settings", assigned: "assigned" };
 
 /**
+ * The owner classes a student is in, remembered for 5 minutes on this
+ * instance: every practice report asks, for every student on the site, and
+ * almost all of them have none while points are tried out.
+ */
+const classesSeen = new Map<string, { at: number; classes: Awaited<ReturnType<typeof pointsClasses>> }>();
+async function pointsClassesCached(studentId: string) {
+  const hit = classesSeen.get(studentId);
+  if (hit && Date.now() - hit.at < 5 * 60_000) return hit.classes;
+  const classes = await pointsClasses(studentId);
+  if (classesSeen.size > 5000) classesSeen.clear();
+  classesSeen.set(studentId, { at: Date.now(), classes });
+  return classes;
+}
+
+/**
  * What a report (or a graded attempt) earns, written down. Null when points
  * are not on for this student. `credited` is the practice seconds the report
  * was credited; `assignmentId` the assignment practised, if any.
+ *
+ * One student's awards run one at a time (a transaction holding an advisory
+ * lock on the student): two tabs, or a grade sent while a report is on its
+ * way, would otherwise both read the day and the stats and the second write
+ * would undo the first (counts lost, a repeat counted as new).
  */
-export async function award(
-  studentId: string,
-  day: string,
-  input: {
-    credited: number; page: string | null; assignmentId: string | null; exercises: ExerciseReport[]; grades: GradeReport[];
-    prevAssignmentBest?: number | null; board?: boolean;
-    /** False when nothing shows the new badges now (a graded attempt): the This week card shows them next. */
-    showBadges?: boolean;
-  },
-): Promise<Award | null> {
-  const classes = await pointsClasses(studentId);
+export async function award(studentId: string, day: string, input: AwardInput): Promise<Award | null> {
+  const classes = await pointsClassesCached(studentId);
   if (!classes.length) return null;
   const breakUntil = classes.map((c) => c.breakUntil).filter(Boolean).sort().pop() ?? null;
-  const week = weekOf(day);
+  // Whether an assignment is done reads its own tables: before the lock, so the lock is held briefly.
+  const assignment = input.assignmentId ? await assignmentDoneFor(studentId, input.assignmentId) : null;
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"points:" + studentId}))`;
+      return awardLocked(tx, studentId, day, breakUntil, assignment, input);
+    },
+    { maxWait: 5000, timeout: 10000 },
+  );
+}
 
-  const [statsRow, events] = await Promise.all([
-    prisma.studentStats.findUnique({ where: { studentId } }),
-    prisma.pointEvent.findMany({ where: { studentId, day }, orderBy: { createdAt: "asc" }, select: { kind: true, key: true, points: true } }),
+type AwardInput = {
+  credited: number; page: string | null; assignmentId: string | null; exercises: ExerciseReport[]; grades: GradeReport[];
+  prevAssignmentBest?: number | null; board?: boolean;
+  /** False when nothing shows the new badges now (a graded attempt): the This week card shows them next. */
+  showBadges?: boolean;
+  /** A graded attempt the server itself recorded (finishAttempt): it needs no exercise reported first. */
+  trusted?: boolean;
+};
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * The choice an exercise came from, as the server will count it: a step by
+ * its number, the student's own settings as one, an assignment by its id;
+ * only a level or course step keeps the page's name for it.
+ */
+function choiceKey(e: { kind: ExerciseReport["kind"]; key: string; step: number | null }, page: string | null, assignmentId: string | null): { kind: ExerciseReport["kind"]; key: string; step: number | null } {
+  if (e.kind === "step" && e.step !== null && e.step >= 1 && e.step <= STEP_COUNT) return { kind: "step", key: `step:${e.step}`, step: e.step };
+  if (e.kind === "assigned" && assignmentId) return { kind: "assigned", key: `a:${assignmentId}`, step: null };
+  if (e.kind === "assigned" && e.key.startsWith("a:")) return { kind: "assigned", key: e.key, step: null };
+  if (e.kind === "preset" && /^[\w:. -]{1,120}$/.test(e.key)) return { kind: "preset", key: e.key, step: null };
+  return { kind: "own", key: `own:${page ?? "page"}`, step: null };
+}
+
+async function awardLocked(
+  tx: Tx,
+  studentId: string,
+  day: string,
+  breakUntil: string | null,
+  assignment: Awaited<ReturnType<typeof assignmentDoneFor>>,
+  input: AwardInput,
+): Promise<Award> {
+  const week = weekOf(day);
+  const [statsRow, events, practised] = await Promise.all([
+    tx.studentStats.findUnique({ where: { studentId } }),
+    tx.pointEvent.findMany({ where: { studentId, day }, orderBy: { createdAt: "asc" }, select: { kind: true, key: true, points: true } }),
+    input.credited > 0 || input.exercises.length
+      ? tx.practiceTime.aggregate({ where: { studentId, day }, _sum: { seconds: true } })
+      : null,
   ]);
   const st = {
     seconds: statsRow?.seconds ?? 0, exercises: statsRow?.exercises ?? 0, graded: statsRow?.graded ?? 0, tries90: statsRow?.tries90 ?? 0,
@@ -118,25 +174,26 @@ export async function award(
     today += points;
     if (points > 0 || note) earned.push({ label, points, ...(note ? { note } : {}) });
   };
+  // Exercise rows are "<choice>#<exercise id>": the choice counts repeats, the id stops a report sent twice counting twice.
+  const exerciseIds = () => new Set(all.filter((e) => e.kind === "exercise").map((e) => e.key.slice(e.key.lastIndexOf("#") + 1)));
 
   // Practice time: a point a minute, up to the day's cap.
-  let daySeconds = 0;
-  if (input.credited > 0 || input.exercises.length) {
-    const sum = await prisma.practiceTime.aggregate({ where: { studentId, day }, _sum: { seconds: true } });
-    daySeconds = sum._sum.seconds ?? 0;
-  }
+  const daySeconds = practised?._sum.seconds ?? 0;
   if (input.credited > 0) {
     st.seconds += input.credited;
     const tp = timePoints(daySeconds - input.credited, daySeconds);
     if (tp) add("time", "", tp, "Practice time");
   }
   // No more exercises than the day's credited time allows (EXERCISE_MIN_SECONDS each, and a little slack).
-  const exerciseRoom = Math.max(0, Math.floor(daySeconds / EXERCISE_MIN_SECONDS) + 2 - events.filter((e) => e.kind === "exercise").length);
+  let exerciseRoom = Math.max(0, Math.floor(daySeconds / EXERCISE_MIN_SECONDS) + 2 - events.filter((e) => e.kind === "exercise").length);
   if (input.page === "unison" || input.page === "choral") flag(`page-${input.page}`);
 
   // Exercises: by how hard for the student, less for repeats and past the day's slowdown.
-  for (const ex of input.exercises.slice(0, exerciseRoom)) {
-    const n = all.filter((e) => e.kind === "exercise" && e.key === ex.key).length + 1;
+  for (const raw of input.exercises) {
+    if (exerciseIds().has(raw.id) || exerciseRoom <= 0) continue;
+    exerciseRoom--;
+    const ex = { ...raw, ...choiceKey(raw, input.page, input.assignmentId) };
+    const n = all.filter((e) => e.kind === "exercise" && e.key.startsWith(`${ex.key}#`)).length + 1;
     const tier = tierOf(ex, st.level);
     const factor = repeatFactor(n);
     const p = scaled(EXERCISE_POINTS[tier], factor, today);
@@ -146,9 +203,9 @@ export async function award(
         : tier === "easy"
         ? `Much easier than your level, Step ${st.level}: harder music earns more.`
         : undefined;
-    add("exercise", ex.key, p, `Exercise, ${ex.label} (${TIER_SAYS[tier]})`, note);
+    add("exercise", `${ex.key}#${raw.id}`, p, `Exercise, ${ex.label} (${TIER_SAYS[tier]})`, note);
     st.exercises++;
-    if (ex.step !== null && ex.kind === "step") st.steps[String(ex.step)] = (st.steps[String(ex.step)] ?? 0) + 1;
+    if (ex.kind === "step" && ex.step !== null) st.steps[String(ex.step)] = (st.steps[String(ex.step)] ?? 0) + 1;
     if (ex.keySig && !st.keys.includes(ex.keySig)) st.keys.push(ex.keySig);
     if (ex.minor) flag("minor");
     if (ex.compound) flag("compound");
@@ -157,15 +214,27 @@ export async function award(
   }
   st.level = Math.max(st.level, levelFrom(st.steps));
 
-  // Graded tries: once an exercise, more only for a better score.
-  for (const g of input.grades) {
+  // Graded tries: once an exercise (a better retry earns the difference), and,
+  // like exercises, less for the same choice graded again and again. Rows are
+  // "g:<exercise id>|<score>|<choice>".
+  for (const raw of input.grades) {
+    // A grade is for an exercise the student has practised (reported today), so grades are held to the same time as exercises.
+    if (!input.trusted && !exerciseIds().has(raw.exerciseId)) continue;
+    const g = { ...raw, ...choiceKey(raw, input.page, input.assignmentId) };
     const prefix = `g:${g.exerciseId}|`;
-    const before = all.filter((e) => e.kind === "grade" && e.key.startsWith(prefix));
-    const prevBest = before.reduce((b, e) => Math.max(b, Number(e.key.slice(prefix.length)) || 0), -1);
-    const lastGrade = [...all].reverse().find((e) => e.kind === "grade");
+    const gradeRows = all.filter((e) => e.kind === "grade");
+    const before = gradeRows.filter((e) => e.key.startsWith(prefix));
+    const prevBest = before.reduce((b, e) => Math.max(b, Number(e.key.split("|")[1]) || 0), -1);
+    const lastGrade = gradeRows[gradeRows.length - 1];
+    // Which graded exercise of this choice today this is: the repeat rule's n.
+    const graded = [...new Set(gradeRows.filter((e) => e.key.endsWith(`|${g.key}`)).map((e) => e.key.slice(2, e.key.indexOf("|"))))];
+    const pos = graded.indexOf(g.exerciseId);
+    const factor = repeatFactor(pos >= 0 ? pos + 1 : graded.length + 1);
     const tier = tierOf(g, st.level);
-    const owed = gradePoints(g.score, tier) - before.reduce((n, e) => n + e.points, 0);
-    add("grade", `${prefix}${g.score}`, owed > 0 ? scaled(owed, 1, today) : 0, `Graded try, ${g.score}%${g.score >= 80 && (tier === "level" || tier === "assigned") ? (g.score >= 100 ? " (100% bonus)" : " (80% bonus)") : ""}`);
+    const owed = Math.round(gradePoints(g.score, tier) * factor) - before.reduce((n, e) => n + e.points, 0);
+    const bonus = g.score >= 80 && (tier === "level" || tier === "assigned") ? (g.score >= 100 ? " (100% bonus)" : " (80% bonus)") : "";
+    add("grade", `${prefix}${g.score}|${g.key}`, owed > 0 ? scaled(owed, 1, today) : 0, `Graded try, ${g.score}%${bonus}`,
+      factor < 1 && pos < 0 ? `Graded ${g.label} ${ordinal(graded.length + 1)} time today, so it counts for less.` : undefined);
     if (prevBest < 0) st.graded++;
     if (g.score >= 90 && prevBest < 90) st.tries90++;
     if (g.score >= 100 && prevBest < 100) st.tries100++;
@@ -186,17 +255,14 @@ export async function award(
   }
 
   // An assignment finished: once.
-  if (input.assignmentId) {
-    const state = await assignmentDoneFor(studentId, input.assignmentId);
-    if (state?.done && !state.board) {
-      const already = await prisma.pointEvent.findFirst({ where: { studentId, kind: "assignment", key: input.assignmentId }, select: { id: true } });
-      if (!already) {
-        const now = Date.now();
-        const early = !!state.dueAt && state.dueAt.getTime() - now >= EARLY_MS;
-        add("assignment", input.assignmentId, ASSIGNMENT_POINTS + (early ? EARLY_POINTS : 0), early ? "Assignment finished, 2 days early" : "Assignment finished");
-        if (!state.dueAt || state.dueAt.getTime() >= now) st.onTime++;
-        if (early) flag("early");
-      }
+  if (input.assignmentId && assignment?.done && !assignment.board) {
+    const already = await tx.pointEvent.findFirst({ where: { studentId, kind: "assignment", key: input.assignmentId }, select: { id: true } });
+    if (!already) {
+      const now = Date.now();
+      const early = !!assignment.dueAt && assignment.dueAt.getTime() - now >= EARLY_MS;
+      add("assignment", input.assignmentId, ASSIGNMENT_POINTS + (early ? EARLY_POINTS : 0), early ? "Assignment finished, 2 days early" : "Assignment finished");
+      if (!assignment.dueAt || assignment.dueAt.getTime() >= now) st.onTime++;
+      if (early) flag("early");
     }
   }
 
@@ -213,12 +279,10 @@ export async function award(
     streak: st.streak, bestStreak: st.bestStreak, streakDay: st.streakDay, level: st.level,
     steps: st.steps, bests: st.bests, keys: st.keys, flags: st.flags,
   };
-  await Promise.all([
-    rows.length ? prisma.pointEvent.createMany({ data: rows.map((r) => ({ ...r, studentId, day, week })) }) : null,
-    prisma.studentStats.upsert({ where: { studentId }, create: { studentId, ...data }, update: data }),
-  ]);
-  const badges = await grantBadges(studentId, { ...st }, input.showBadges !== false);
-  const weekPoints = await prisma.pointEvent.aggregate({ where: { studentId, week }, _sum: { points: true } });
+  if (rows.length) await tx.pointEvent.createMany({ data: rows.map((r) => ({ ...r, studentId, day, week })) });
+  await tx.studentStats.upsert({ where: { studentId }, create: { studentId, ...data }, update: data });
+  const badges = await grantBadges(tx, studentId, { ...st }, input.showBadges !== false);
+  const weekPoints = await tx.pointEvent.aggregate({ where: { studentId, week }, _sum: { points: true } });
   return {
     earned,
     total: rows.reduce((n, r) => n + r.points, 0),
@@ -229,31 +293,39 @@ export async function award(
   };
 }
 
-/** Writes the badge levels the stats have earned and the student lacks; returns them. */
-async function grantBadges(studentId: string, s: BadgeStats, seen = true): Promise<NewBadge[]> {
-  const have = await prisma.badge.findMany({ where: { studentId, givenById: null }, select: { badgeId: true, level: true } });
+/**
+ * Writes the badge levels the stats have earned and the student lacks;
+ * returns them. The unique (student, badge, level) row keeps a level from
+ * being written twice whatever runs at once.
+ */
+async function grantBadges(db: Tx | typeof prisma, studentId: string, s: BadgeStats, seen = true): Promise<NewBadge[]> {
+  const have = await db.badge.findMany({ where: { studentId, givenById: null }, select: { badgeId: true, level: true } });
   const got = new Set(have.map((b) => `${b.badgeId}:${b.level}`));
   const fresh = earnedLevels(s).filter(([id, level]) => !got.has(`${id}:${level}`));
   if (!fresh.length) return [];
-  await prisma.badge.createMany({ data: fresh.map(([badgeId, level]) => ({ studentId, badgeId, level, seenAt: seen ? new Date() : null })) });
+  await db.badge.createMany({ data: fresh.map(([badgeId, level]) => ({ studentId, badgeId, level, seenAt: seen ? new Date() : null })), skipDuplicates: true });
   return fresh.map(([badgeId, level]) => ({ badgeId, level, ...badgeText(badgeId, level)! }));
 }
 
-/** A graded attempt on an assignment (finishAttempt): its points, for the student it belongs to. */
+/**
+ * A graded attempt on an assignment (finishAttempt): its points, for the
+ * student it belongs to, on the day of the device that sent it (UTC turns
+ * over at 6 pm in Houston, which would put an evening's try on tomorrow).
+ */
 export async function awardAttempt(at: {
-  id: string; studentId: string; assignmentId: string; overall: number; pitch: number | null; rhythm: number | null; board: boolean;
+  id: string; studentId: string; assignmentId: string; overall: number; pitch: number | null; rhythm: number | null; board: boolean; day: string;
 }) {
   const prev = await prisma.pieceAttempt.aggregate({
     where: { assignmentId: at.assignmentId, studentId: at.studentId, id: { not: at.id }, overall: { not: null } },
     _max: { overall: true },
   });
-  const now = new Date();
-  return award(at.studentId, now.toISOString().slice(0, 10), {
+  return award(at.studentId, at.day, {
     credited: 0, page: null, assignmentId: at.assignmentId, exercises: [],
     grades: [{ exerciseId: at.id, kind: "assigned", key: `a:${at.assignmentId}`, label: "Assignment", step: null, score: at.overall, pitch: at.pitch, rhythm: at.rhythm, clapped: at.pitch === null }],
     prevAssignmentBest: prev._max.overall ?? null,
     board: at.board,
     showBadges: false,
+    trusted: true,
   });
 }
 
@@ -306,24 +378,53 @@ export async function closeWeek(classId: string, week: string) {
     ...(longest && longest.streak >= 3 ? { streak: { name: nameOf(longest.studentId), days: longest.streak } } : {}),
     ...(improved && improved.up > 0 && before.size ? { improved: { name: shortName(improved.s.name) } } : {}),
   };
+  const winners = top.map((t) => t.studentId);
+  // Everyone who read that week (a student with no points has no stats yet).
+  const everyone = total >= goal ? board.filter((s) => s.points > 0).map((s) => s.id) : [];
+  let row;
   try {
-    const row = await prisma.classWeek.create({ data: { classId, week, top, total, goal, reached: total >= goal, extras } });
-    // Settled here only: a second look at the same moment met the unique row and stops above.
-    const winners = top.map((t) => t.studentId);
-    const everyone = total >= goal ? board.map((s) => s.id) : [];
-    await Promise.all([
-      winners.length ? prisma.studentStats.updateMany({ where: { studentId: { in: winners } }, data: { weeklyTop3: { increment: 1 } } }) : null,
-      everyone.length ? prisma.studentStats.updateMany({ where: { studentId: { in: everyone } }, data: { ensembles: { increment: 1 } } }) : null,
-    ]);
-    for (const id of new Set([...winners, ...everyone])) {
-      const s = await prisma.studentStats.findUnique({ where: { studentId: id } });
-      // Shown on the student's next look (myPoints), not at the moment.
-      if (s) await grantBadges(id, { ...s, keys: asList(s.keys), flags: asList(s.flags) }, false);
-    }
-    return row;
+    // The week's row and its counts together: the unique (class, week) row means a second
+    // settling at the same moment (two looks, or a look and the cron) fails here and counts nothing.
+    row = await prisma.$transaction(async (tx) => {
+      const r = await tx.classWeek.create({ data: { classId, week, top, total, goal, reached: total >= goal, extras } });
+      if (winners.length) await tx.studentStats.updateMany({ where: { studentId: { in: winners } }, data: { weeklyTop3: { increment: 1 } } });
+      if (everyone.length) await tx.studentStats.updateMany({ where: { studentId: { in: everyone } }, data: { ensembles: { increment: 1 } } });
+      return r;
+    });
   } catch {
     return prisma.classWeek.findUnique({ where: { classId_week: { classId, week } } });
   }
+  for (const id of new Set([...winners, ...everyone])) {
+    const s = await prisma.studentStats.findUnique({ where: { studentId: id } });
+    // Shown on the student's next look (myPoints), not at the moment.
+    if (s) await grantBadges(prisma, id, { ...s, keys: asList(s.keys), flags: asList(s.flags) }, false).catch((e) => console.error("points badges", e));
+  }
+  return row;
+}
+
+/**
+ * Settles last week in every class with points (the daily cron), so Weekly
+ * Winner and Ensemble come even when nobody opened a card that Monday.
+ */
+export async function closeLastWeeks(now = new Date()) {
+  const week = previousWeek(weekOf(now.toISOString().slice(0, 10)));
+  const students = await prisma.pointEvent.findMany({ where: { week }, distinct: ["studentId"], select: { studentId: true } });
+  if (!students.length) return 0;
+  const enrolled = await prisma.enrollment.findMany({
+    where: { studentId: { in: students.map((s) => s.studentId) } },
+    distinct: ["classId"],
+    select: { classId: true, class: { select: { user: { select: { email: true } } } } },
+  });
+  let n = 0;
+  // Owner classes only while points are tried out (pointsClasses).
+  for (const { classId } of enrolled.filter((e) => isAdmin(e.class.user))) {
+    try {
+      if (await closeWeek(classId, week)) n++;
+    } catch (e) {
+      console.error("points close week", classId, e);
+    }
+  }
+  return n;
 }
 
 /** The student's week: points, place, streak, the leaderboard and class goal, and badges not yet shown. */
@@ -419,8 +520,17 @@ export async function updateClassPoints(classId: string, v: { leaderboardOn?: un
 export async function giveBadge(teacherId: string, classId: string, studentId: string, badgeId: string, title: string | null) {
   const enrolled = await prisma.enrollment.findFirst({ where: { classId, studentId }, select: { id: true } });
   if (!enrolled) return false;
-  await prisma.badge.create({ data: { studentId, badgeId, level: 1, givenById: teacherId, classId, title } });
-  return true;
+  // A teacher's badge can be given again: each one is the next "level" of it, so (student, badge, level) stays unique.
+  for (let tries = 0; tries < 3; tries++) {
+    const level = (await prisma.badge.count({ where: { studentId, badgeId } })) + 1;
+    try {
+      await prisma.badge.create({ data: { studentId, badgeId, level, givenById: teacherId, classId, title } });
+      return true;
+    } catch (e) {
+      if ((e as { code?: string }).code !== "P2002") throw e;
+    }
+  }
+  return false;
 }
 
 /** Old point rows (POINTS_KEEP_DAYS): from the daily cron, beside deleteOldPractice. */

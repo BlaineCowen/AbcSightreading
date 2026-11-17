@@ -125,7 +125,9 @@ export const isSchoolDay = (day: string, breakUntil?: string | null) =>
 export function nextStreak(s: { streak: number; streakDay: string | null }, day: string, breakUntil?: string | null): { streak: number; streakDay: string | null } {
   if (!isSchoolDay(day, breakUntil)) return s;
   if (s.streakDay === day) return s;
-  if (!s.streakDay || s.streakDay > day) return { streak: 1, streakDay: day };
+  if (!s.streakDay) return { streak: 1, streakDay: day };
+  // A day before the last one counted (a late report, a device on another clock) changes nothing.
+  if (s.streakDay > day) return s;
   let missed = false;
   for (let d = addDays(s.streakDay, 1); d < day; d = addDays(d, 1)) {
     if (isSchoolDay(d, breakUntil)) {

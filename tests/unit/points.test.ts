@@ -64,6 +64,9 @@ describe("school-day streaks", () => {
     expect(currentStreak(s(8, "2026-11-20"), "2026-11-30", "2026-11-27")).toBe(8);
     expect(currentStreak(s(8, "2026-11-20"), "2026-11-30")).toBe(0);
   });
+  test("a day before the last one counted changes nothing", () => {
+    expect(nextStreak(s(4, "2026-11-17"), "2026-11-16")).toEqual(s(4, "2026-11-17"));
+  });
   test("the same day twice counts once", () => {
     expect(nextStreak(s(3, "2026-11-16"), "2026-11-16")).toEqual(s(3, "2026-11-16"));
   });
