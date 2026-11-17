@@ -158,3 +158,29 @@ export function exerciseTraits(abc: string): { keySig: string | null; minor: boo
   const bass = /clef\s*=\s*bass/i.test(abc);
   return { keySig, minor, compound, bass };
 }
+
+// ── Ear-training games (Blaine, 17 November 2026: points for games "if their teacher lets them") ──
+
+/**
+ * A game round (QUIZ_LENGTH questions, dealt and marked on the server,
+ * ear-games.ts) earns a point a right answer and GAME_PERFECT more for all
+ * right, nothing under GAME_PASS. Only when one of the student's classes has
+ * games on (Class.gamePoints, off until the teacher turns it on). A level
+ * below the student's own in that game, or Custom, earns half; the same game
+ * the same day follows repeatFactor; games earn at most GAME_DAILY_CAP a day,
+ * so they never outweigh sight reading.
+ */
+export const GAME_PASS = 7;
+export const GAME_PERFECT = 5;
+export const GAME_DAILY_CAP = 50;
+/** A round faster than this was not listened to (10 notes, each played). */
+export const GAME_MIN_SECONDS = 20;
+/** Two rounds of 9 or better at a level make it the student's level in that game. */
+export const GAME_MASTER = 9;
+export const GAME_MASTER_ROUNDS = 2;
+
+export function gameRoundPoints(o: { correct: number; total: number; below: boolean; custom: boolean; factor: number }): number {
+  if (o.correct < GAME_PASS || o.factor <= 0) return 0;
+  const base = o.correct + (o.correct >= o.total ? GAME_PERFECT : 0);
+  return Math.max(1, Math.round(base * (o.below || o.custom ? 0.5 : 1) * o.factor));
+}

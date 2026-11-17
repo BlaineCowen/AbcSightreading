@@ -344,7 +344,10 @@ at least 300) and `breakUntil` (a break's school days never end a streak).
   level's name come from the page, so a student hand-crafting requests could
   claim a harder step (bounded by the time cap); a student in two owner classes
   sees the first class's board.
-- Not yet: game answers (Gamer, Live Winner badges are not in the catalogue),
+- Ear-training games earn when the class's teacher turns **Games earn
+  points** on (17 November 2026; games.md, Ear training): server-dealt
+  rounds, at most 50 a day, Good Ears badge.
+- Not yet: game answers in hosted games (Live Winner is not in the catalogue),
   Piano and Ensemble exercises (they count as own settings only if a tracker
   runs there; it does not).
 

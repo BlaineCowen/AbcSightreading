@@ -114,3 +114,44 @@ export function playKeyAndTune(o: { steps: number[]; doMidi: number; gap: number
 export function playStep(step: number, doMidi: number) {
   void preloadPiano([doMidi + semiOf(step)]).then(() => piano([doMidi + semiOf(step)], 0.7));
 }
+
+/**
+ * The ear-training quizzes' sound (ear-quiz.ts): the key (its chord held,
+ * then `pattern`), a breath, then `notes`, all as semitones from `tonic`
+ * (a MIDI note), so minor and chromatic notes play as written. `pattern`
+ * null plays no key. Calls `onKey` as the key sounds (-1 for the chord, null
+ * when it is over) and `onNote(i)` as each note sounds. Stop cancels the rest.
+ */
+export function playEar(o: {
+  tonic: number; pattern: number[] | null; chord: number[]; notes: number[]; gap: number;
+  /** All the notes at once (an interval heard together). */
+  together?: boolean;
+  onKey?: (k: number | null) => void; onNote?: (i: number) => void;
+}) {
+  const key = o.pattern ? o.pattern.map((d) => o.tonic + d) : [];
+  const chord = o.pattern ? o.chord.map((d) => o.tonic + d) : [];
+  const notes = o.notes.map((d) => o.tonic + d);
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  let stopped = false;
+  const done = (async () => {
+    await preloadPiano([...key, ...chord, ...notes]);
+    if (stopped) return;
+    const keyGap = 0.5;
+    const chordFor = chord.length ? 1.3 : 0;
+    if (chord.length) timers.push(setTimeout(() => { o.onKey?.(-1); piano(chord, 1.1); }, 0));
+    key.forEach((m, i) => timers.push(setTimeout(() => { o.onKey?.(i); piano([m], keyGap * 0.9); }, (chordFor + i * keyGap) * 1000)));
+    const from = key.length ? chordFor + key.length * keyGap + 0.9 : 0;
+    if (key.length) timers.push(setTimeout(() => o.onKey?.(null), (from - 0.4) * 1000));
+    if (o.together) timers.push(setTimeout(() => { o.onNote?.(notes.length - 1); piano(notes, Math.max(1.2, o.gap * 1.5)); }, from * 1000));
+    else notes.forEach((m, i) => timers.push(setTimeout(() => { o.onNote?.(i); piano([m], Math.max(0.6, o.gap * 0.9)); }, (from + i * o.gap) * 1000)));
+    await new Promise((r) => timers.push(setTimeout(r, (from + (o.together ? 1.5 : notes.length) * o.gap + 0.3) * 1000)));
+  })();
+  return {
+    done,
+    stop() {
+      stopped = true;
+      timers.forEach(clearTimeout);
+      o.onKey?.(null);
+    },
+  };
+}

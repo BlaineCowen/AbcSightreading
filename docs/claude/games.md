@@ -16,6 +16,56 @@ scripts/check-games.ts` (`GAME=rhythm|tune|solo|both`, `SHOTS=`) on a dev
 server on the local database, as `check-live.ts` (notes/live-practice.md);
 clean 2 November 2026.
 
+## Ear training: Solfège and Intervals (17 November 2026)
+
+Blaine: bring learnmusic.fun's ear-training games over, "with modes for
+scale degree, fixed do, minor", for points "if their teacher lets them";
+Solfège first, then Interval, then Note Rain (which "needs to be fixed").
+learnmusic.fun stays up as its own free site. Written fresh in Svelte from
+its ideas, not ported (its question makers use Math.random; these are seeded).
+
+- Rules `src/lib/games/ear-quiz.ts` (tests `ear-quiz.test.ts`, property tests
+  with fast-check over every level and seed): a round is QUIZ_LENGTH (10)
+  questions from a seed (mulberry32), so the browser and the server deal the
+  same round. Notes come from a shuffled bag: every note of the level before
+  one comes again, never the same answer twice running (the property test
+  found so and low so back to back; the bag now joins the next one).
+- **Solfège** (`/games/solfege`, `SolfegeEar.svelte`): the key (chord, then
+  1 3 5 3 1 5 1, on the KeyStrip card, which now takes its names as props),
+  then each note after the tonic (or just the note). Major or minor, eight
+  levels in the ladder's order (do mi so; do re mi; up to so; up to la; the
+  scale; below do; low so to high do; chromatic), or Custom notes. Named as
+  movable do (minor la- or do-based, the site's choice elsewhere too), scale
+  degrees, fixed do (C is do, the key's spelling: D major's mi is fa♯) or
+  letters. Chromatic syllables are di me fi le te. A random key a round.
+- **Intervals** (`/games/intervals`, `IntervalEar.svelte`): two notes up,
+  down, either, or together. Levels 1 to 3 are sizes from a major scale
+  (step or skip; 2nds to 5ths; to the octave), the answer the size; 4 to 7
+  are major, minor and perfect by semitones; Custom picks semitones.
+- Play is shared (`EarQuiz.svelte`): tiles (number keys answer, space
+  replays), the tiles open only once the note has sounded, the first answer
+  counts, a miss shows and plays the right one, Stop goes back to the setup,
+  the result card has stars and Level N+1 after 9 or 10. No hosted mode yet.
+- **Points** (`src/lib/server/ear-games.ts`, `/api/games/round` and
+  `/api/games/finish`): signed in, the server deals the round as a token (the
+  setup, the seed, the device's day, an id, signed with BETTER_AUTH_SECRET;
+  no table) and marks the answers itself from it. Earns only when one of the
+  student's classes has **Games earn points** on (`Class.gamePoints`, off by
+  default, the switch on the class's Points tab; owner classes only while
+  points are tried out). A round finished under GAME_MIN_SECONDS (20) or
+  after two hours, or someone else's, earns nothing; a round counts once
+  ever, on any day. Rules in `points.ts`: a point a right answer, +5 for
+  10/10, nothing under 7; half below the student's level in that game (two
+  rounds of 9+ at a level make it theirs, `bests` "gl:<track>") and on Custom;
+  repeatFactor by game a day; at most 50 a day from games. `gameCorrect`
+  counts toward the new **Good Ears** badge. Game points count on every
+  leaderboard the student is on, games switch or not (the switch decides
+  only whether they earn); the teacher's panel doesn't split them out yet.
+- End to end: `scripts/check-ear-games.ts` (header has the server it needs):
+  the rules through `award()`, the token checks over HTTP, a whole Solfège
+  round and a whole Interval round in the browser as a student, the switch,
+  signed out, phone width.
+
 ## Tap the rhythm (`RhythmGame.svelte`)
 
 A few bars (2 or 4) of one of abcStepByStep's rhythm steps

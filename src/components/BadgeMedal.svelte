@@ -27,6 +27,7 @@
   import Smile from "lucide-svelte/icons/smile";
   import HandHeart from "lucide-svelte/icons/hand-heart";
   import Award from "lucide-svelte/icons/award";
+  import Ear from "lucide-svelte/icons/ear";
   import type { Colour } from "../lib/badges";
 
   /**
@@ -41,6 +42,7 @@
 
   const ICONS: Record<string, typeof Award> = {
     "flame": Flame,
+    "ear": Ear,
     "clock": Clock,
     "music": Music,
     "target": Target,

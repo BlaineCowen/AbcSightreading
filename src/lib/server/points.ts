@@ -4,6 +4,7 @@ import { isAdmin } from "./admin";
 import { assignmentDoneFor } from "./practice";
 import {
   ASSIGNMENT_POINTS, EARLY_MS, EARLY_POINTS, EXERCISE_MIN_SECONDS, EXERCISE_POINTS, NEW_BEST_POINTS, POINTS_KEEP_DAYS,
+  GAME_DAILY_CAP, GAME_MASTER, GAME_MASTER_ROUNDS, GAME_PASS, gameRoundPoints,
   currentStreak, gradePoints, levelFrom, nextStreak, previousWeek, recommendedGoal, repeatFactor, scaled, tierOf, timePoints, weekOf,
   type Tier,
 } from "../points";
@@ -39,7 +40,7 @@ export type Award = { earned: Earned[]; total: number; today: number; week: numb
 export async function pointsClasses(studentId: string) {
   const rows = await prisma.enrollment.findMany({
     where: { studentId },
-    select: { class: { select: { id: true, name: true, breakUntil: true, leaderboardOn: true, weeklyGoal: true, position: true, user: { select: { email: true } } } } },
+    select: { class: { select: { id: true, name: true, breakUntil: true, leaderboardOn: true, weeklyGoal: true, gamePoints: true, position: true, user: { select: { email: true } } } } },
   });
   return rows.map((r) => r.class).filter((c) => isAdmin(c.user));
 }
@@ -98,7 +99,8 @@ async function pointsClassesCached(studentId: string) {
  * would undo the first (counts lost, a repeat counted as new).
  */
 export async function award(studentId: string, day: string, input: AwardInput): Promise<Award | null> {
-  const classes = await pointsClassesCached(studentId);
+  // A game asks afresh: the teacher's Games switch must take at once, not in 5 minutes.
+  const classes = input.game ? (await pointsClasses(studentId)).filter((c) => c.gamePoints) : await pointsClassesCached(studentId);
   if (!classes.length) return null;
   const breakUntil = classes.map((c) => c.breakUntil).filter(Boolean).sort().pop() ?? null;
   // Whether an assignment is done reads its own tables: before the lock, so the lock is held briefly.
@@ -119,7 +121,11 @@ type AwardInput = {
   showBadges?: boolean;
   /** A graded attempt the server itself recorded (finishAttempt): it needs no exercise reported first. */
   trusted?: boolean;
+  /** An ear-training round the server dealt and marked (ear-games.ts). */
+  game?: GameRound;
 };
+/** A finished ear-training round: `track` is the game and its kind ("solfege-major"), `level` 0 for Custom. */
+export type GameRound = { id: string; track: string; level: number; label: string; correct: number; total: number };
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /**
@@ -266,6 +272,45 @@ async function awardLocked(
     }
   }
 
+  // An ear-training round: once (its id), half below the student's level in
+  // that game or on Custom, less for the same game again today, at most
+  // GAME_DAILY_CAP a day from games. Two rounds of 9 or better at a level
+  // make it their level there (bests "gl:<track>", counted in "gp:<track>:<level>").
+  if (input.game) {
+    const g = input.game;
+    // Once ever, whatever day it is sent on.
+    const counted = await tx.pointEvent.findFirst({ where: { studentId, kind: "game", key: { endsWith: `#${g.id}` } }, select: { id: true } });
+    if (!counted) {
+      st.gameCorrect += g.correct;
+      const custom = g.level === 0;
+      const top = st.bests[`gl:${g.track}`] ?? 0;
+      const n = all.filter((e) => e.kind === "game" && e.key.startsWith(`${g.track}:`)).length + 1;
+      const factor = repeatFactor(n);
+      const below = !custom && g.level < top;
+      const fromGames = all.filter((e) => e.kind === "game").reduce((t, e) => t + e.points, 0);
+      const room = Math.max(0, GAME_DAILY_CAP - fromGames);
+      const owed = gameRoundPoints({ correct: g.correct, total: g.total, below, custom, factor });
+      const p = Math.min(room, owed ? scaled(owed, 1, today) : 0);
+      const note =
+        g.correct < GAME_PASS ? `${GAME_PASS} or more right earns points. You've got this!`
+        : !room ? `That's ${GAME_DAILY_CAP} points from games today, the most games earn in a day. Sight reading still earns.`
+        : factor < 1 ? `Your ${ordinal(n)} round of this game today, so it counts for less. Another game earns full points.`
+        : below ? `Below your level here (Level ${top}): Level ${top} or higher earns full points.`
+        : custom ? "Custom rounds earn half. The levels earn full points."
+        : p < owed ? `That reaches today's ${GAME_DAILY_CAP} points from games.`
+        : undefined;
+      add("game", `${g.track}:${g.level}#${g.id}`, p, `${g.label}, ${g.correct} of ${g.total}`, note);
+      if (!custom && g.correct >= GAME_MASTER) {
+        const k = `gp:${g.track}:${g.level}`;
+        st.bests[k] = (st.bests[k] ?? 0) + 1;
+        if (st.bests[k] >= GAME_MASTER_ROUNDS && g.level > top) {
+          st.bests[`gl:${g.track}`] = g.level;
+          earned.push({ label: `Level ${g.level} is yours`, points: 0, note: `Two rounds of ${GAME_MASTER} or more right at Level ${g.level}. Try the next level for full points.` });
+        }
+      }
+    }
+  }
+
   // The streak: a school day with points (or a minute of practice) counts.
   if (rows.some((r) => r.points > 0) || input.credited >= 60) {
     const s = nextStreak({ streak: st.streak, streakDay: st.streakDay }, day, breakUntil);
@@ -276,7 +321,7 @@ async function awardLocked(
 
   const data = {
     seconds: st.seconds, exercises: st.exercises, graded: st.graded, tries90: st.tries90, tries100: st.tries100, onTime: st.onTime,
-    streak: st.streak, bestStreak: st.bestStreak, streakDay: st.streakDay, level: st.level,
+    gameCorrect: st.gameCorrect, streak: st.streak, bestStreak: st.bestStreak, streakDay: st.streakDay, level: st.level,
     steps: st.steps, bests: st.bests, keys: st.keys, flags: st.flags,
   };
   if (rows.length) await tx.pointEvent.createMany({ data: rows.map((r) => ({ ...r, studentId, day, week })) });
@@ -488,7 +533,7 @@ export async function myBadges(studentId: string) {
 
 /** A class's points settings and this week's standings, for its teacher. */
 export async function classPoints(classId: string, today: string) {
-  const cls = await prisma.class.findUnique({ where: { id: classId }, select: { name: true, leaderboardOn: true, weeklyGoal: true, breakUntil: true } });
+  const cls = await prisma.class.findUnique({ where: { id: classId }, select: { name: true, leaderboardOn: true, weeklyGoal: true, breakUntil: true, gamePoints: true } });
   if (!cls) return null;
   const week = weekOf(today);
   const last = await closeWeek(classId, previousWeek(week));
@@ -499,6 +544,7 @@ export async function classPoints(classId: string, today: string) {
     weeklyGoal: cls.weeklyGoal,
     recommended: recommendedGoal(board.length),
     breakUntil: cls.breakUntil,
+    gamePoints: cls.gamePoints,
     week,
     total: board.reduce((n, s) => n + s.points, 0),
     students: board.map((s) => ({ id: s.id, name: s.name, points: s.points })),
@@ -506,9 +552,10 @@ export async function classPoints(classId: string, today: string) {
   };
 }
 
-export async function updateClassPoints(classId: string, v: { leaderboardOn?: unknown; weeklyGoal?: unknown; breakUntil?: unknown }) {
+export async function updateClassPoints(classId: string, v: { leaderboardOn?: unknown; weeklyGoal?: unknown; breakUntil?: unknown; gamePoints?: unknown }) {
   const data: Prisma.ClassUpdateInput = {};
   if (typeof v.leaderboardOn === "boolean") data.leaderboardOn = v.leaderboardOn;
+  if (typeof v.gamePoints === "boolean") data.gamePoints = v.gamePoints;
   if (v.weeklyGoal === null) data.weeklyGoal = null;
   else if (typeof v.weeklyGoal === "number" && Number.isInteger(v.weeklyGoal) && v.weeklyGoal >= 50 && v.weeklyGoal <= 1_000_000) data.weeklyGoal = v.weeklyGoal;
   if (v.breakUntil === null || v.breakUntil === "") data.breakUntil = null;

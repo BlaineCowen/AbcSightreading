@@ -5,7 +5,9 @@ import PipFace from "../../components/PipFace.svelte";
 /**
  * Games (2 November 2026): a rhythm game and Catch the tune, each played on
  * one device or by a whole class, every student on their own device at the
- * director's live code (src/lib/games/, docs/claude/games.md).
+ * director's live code (src/lib/games/, docs/claude/games.md). Ear training
+ * from 17 November 2026 (Solfège first), played on one device; a student's
+ * rounds earn points when their teacher lets games earn.
  */
 const games = [
   {
@@ -20,12 +22,26 @@ const games = [
     blurb: "Hear the key, then a short tune. Find each note on the board in solfège: steps first, then skips, below do, high do and leaps.",
     tint: "bg-sr-sky text-sr-sky-ink",
   },
+  {
+    href: "/games/solfege",
+    title: "Solfège ear training",
+    blurb: "Hear the key, then name each note: in solfège, scale degrees, fixed do or letters, major or minor. The levels follow abcStepByStep.",
+    tint: "bg-sr-mint text-sr-mint-ink",
+    solo: true,
+  },
+  {
+    href: "/games/intervals",
+    title: "Interval ear training",
+    blurb: "Hear two notes and name the distance: step or skip first, then 2nds to octaves, then major, minor and perfect. Up, down or together.",
+    tint: "bg-sr-butter text-sr-butter-ink",
+    solo: true,
+  },
 ];
 ---
 
 <Layout
   title="Music Games for the Classroom | abcSightReading"
-  description="A rhythm game and a solfège ear-training game. Play on one device, or host on the big screen while every student plays on their own phone or laptop."
+  description="A rhythm game and solfège ear-training games. Play on one device, or host on the big screen while every student plays on their own phone or laptop."
   themable
 >
   <div class="max-w-5xl mx-auto pb-16 flex flex-col gap-8">
@@ -44,7 +60,7 @@ const games = [
           <p class="text-base flex-1">{g.blurb}</p>
           <div class="flex flex-wrap gap-2">
             <a class="sr-btn" href={g.href}>Play</a>
-            <a class="sr-btn-quiet bg-sr-raise" href={`${g.href}?host=1`}>Host with your class</a>
+            {!g.solo && <a class="sr-btn-quiet bg-sr-raise" href={`${g.href}?host=1`}>Host with your class</a>}
           </div>
         </div>
       ))}

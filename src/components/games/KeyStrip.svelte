@@ -11,17 +11,22 @@
   export let at: number | null = null;
   /** True while the tune's first note sounds: the card reads "Now the tune", then goes. */
   export let tune = false;
+  /** The key's names as it plays, and its chord's (the ear-training quizzes name them their own way). */
+  export let names: string[] = KEY_SYLLABLES;
+  export let chordName = "do mi so";
+  /** What the card says once the key is over. */
+  export let then = "Now the tune";
 </script>
 
 <!-- Floats over the board (Blaine, 4 November 2026: as a card, not a strip in the page); taps go through it. -->
 {#if at !== null || tune}
   <div class="float" role="status" aria-live="polite" data-key-strip={at !== null ? "key" : "tune"}>
     <div class="card" class:tune={at === null}>
-      <span class="label">{at === null ? "Now the tune" : "First the key"}</span>
+      <span class="label">{at === null ? then : "First the key"}</span>
       {#if at !== null}
-        <span class="chord" class:lit={at === -1}>do mi so</span>
+        <span class="chord" class:lit={at === -1}>{chordName}</span>
         <span class="notes" aria-hidden="true">
-          {#each KEY_SYLLABLES as s, i}<span class="n" class:lit={at === i} class:past={at > i}>{s}</span>{/each}
+          {#each names as s, i}<span class="n" class:lit={at === i} class:past={at > i}>{s}</span>{/each}
         </span>
       {/if}
     </div>

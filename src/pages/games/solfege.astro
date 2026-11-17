@@ -1,0 +1,15 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import SolfegeEar from "../../components/games/SolfegeEar.svelte";
+---
+
+<Layout
+  title="Solfège Ear Training: Name the Note | abcSightReading"
+  description="Hear the key, then name each note in solfège, scale degrees, fixed do or letters. Major and minor, levels that follow the sight-reading ladder."
+  themable
+>
+  <div class="max-w-4xl mx-auto pb-16 flex flex-col gap-4 items-center">
+    <h1 class="font-display text-3xl sm:text-4xl font-bold text-sr-ink">Solfège ear training</h1>
+    <SolfegeEar client:only="svelte" />
+  </div>
+</Layout>

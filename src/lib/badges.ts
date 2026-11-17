@@ -15,6 +15,8 @@ export type Colour = "mint" | "peach" | "butter" | "sky" | "tint";
 export type BadgeStats = {
   seconds: number; exercises: number; graded: number; tries90: number; tries100: number; onTime: number;
   weeklyTop3: number; ensembles: number; bestStreak: number; level: number; keys: string[]; flags: string[];
+  /** Right answers in ear-training games that counted (ear-games.ts). */
+  gameCorrect?: number;
 };
 
 type Levelled = {
@@ -39,6 +41,7 @@ export const LEVELLED: Levelled[] = [
   { id: "on-time", name: "On Time", icon: "calendar-check", colour: "mint", group: "keep-going", count: (s) => s.onTime, levels: [1, 5, 15, 30], says: (n) => `${plural(n, "assignment")} by the due date` },
   { id: "weekly-winner", name: "Weekly Winner", icon: "crown", colour: "butter", group: "keep-going", count: (s) => s.weeklyTop3, levels: [1, 3, 10], says: (n) => `Top 3 of the week ${plural(n, "time")}` },
   { id: "ensemble", name: "Ensemble", icon: "users", colour: "sky", group: "keep-going", count: (s) => s.ensembles, levels: [1, 5, 10], says: (n) => `Your class reached its goal ${plural(n, "time")}` },
+  { id: "good-ears", name: "Good Ears", icon: "ear", colour: "sky", group: "skills", count: (s) => s.gameCorrect ?? 0, levels: [25, 100, 250, 500, 1000], says: (n) => `${n} right answers in ear-training games` },
   { id: "keys", name: "Key Collector", icon: "key-round", colour: "peach", group: "skills", count: (s) => s.keys.length, levels: [5, 8, 12], says: (n) => `Read in ${n} keys`, unit: (n) => plural(n, "key") },
 ];
 

@@ -1,0 +1,15 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import IntervalEar from "../../components/games/IntervalEar.svelte";
+---
+
+<Layout
+  title="Interval Ear Training | abcSightReading"
+  description="Hear two notes and name the interval: step or skip first, then 2nds to octaves, then major, minor and perfect. Up, down or together."
+  themable
+>
+  <div class="max-w-4xl mx-auto pb-16 flex flex-col gap-4 items-center">
+    <h1 class="font-display text-3xl sm:text-4xl font-bold text-sr-ink">Interval ear training</h1>
+    <IntervalEar client:only="svelte" />
+  </div>
+</Layout>

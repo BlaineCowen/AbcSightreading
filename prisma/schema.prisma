@@ -252,6 +252,8 @@ model Class {
   weeklyGoal     Int?
   /// On a break through this day ("2026-11-27"): its school days do not count against streaks.
   breakUntil     String?
+  /// Ear-training games earn points for its students (src/lib/server/ear-games.ts); off unless the teacher turns it on.
+  gamePoints     Boolean  @default(false)
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   progress  ClassProgress[]

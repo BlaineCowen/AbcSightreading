@@ -6,6 +6,7 @@
   import Pencil from "lucide-svelte/icons/pencil";
   import Presentation from "lucide-svelte/icons/presentation";
   import { TEACHER_BADGES } from "../lib/badges";
+  import { GAME_DAILY_CAP } from "../lib/points";
 
   /**
    * A class's points and badges, for its teacher (points.ts): the weekly
@@ -18,7 +19,7 @@
   export let classId: string;
 
   type Data = {
-    name: string; leaderboardOn: boolean; weeklyGoal: number | null; recommended: number; breakUntil: string | null;
+    name: string; leaderboardOn: boolean; weeklyGoal: number | null; recommended: number; breakUntil: string | null; gamePoints: boolean;
     total: number; students: { id: string; name: string; points: number }[];
   };
   let data: Data | null = null;
@@ -90,6 +91,11 @@
           <div><div class="font-extrabold text-sr-ink">Weekly leaderboard</div><div class="text-xs text-sr-muted">Students see their class's top 10 and their own place. Nobody with 0 points is listed.</div></div>
           <button class="switch" class:on={data.leaderboardOn} role="switch" aria-checked={data.leaderboardOn} aria-label="Weekly leaderboard"
             on:click={() => data && save({ leaderboardOn: !data.leaderboardOn }, data.leaderboardOn ? "Leaderboard off." : "Leaderboard on.")}></button>
+        </div>
+        <div class="row">
+          <div><div class="font-extrabold text-sr-ink">Games earn points</div><div class="text-xs text-sr-muted">Ear-training games (<a class="underline" href="/games/solfege">Solfège</a>, <a class="underline" href="/games/intervals">Intervals</a>) count for points, up to {GAME_DAILY_CAP} a day, so they never outweigh sight reading. Off until you turn it on.</div></div>
+          <button class="switch" class:on={data.gamePoints} role="switch" aria-checked={data.gamePoints} aria-label="Games earn points"
+            on:click={() => data && save({ gamePoints: !data.gamePoints }, data.gamePoints ? "Games no longer earn points." : "Games earn points now.")}></button>
         </div>
         <div class="row">
           <div>
