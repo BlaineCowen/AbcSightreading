@@ -1,5 +1,6 @@
 import { rhythms as catalogue, type Rhythm } from "../resources/rhythms";
 import type { ExerciseMeter } from "./meter";
+import { SettingsError } from "./settings-error";
 import type { Cadence, RhythmWithPattern } from "./types";
 
 /**
@@ -177,7 +178,7 @@ export function generateCompoundRhythm(
       r.totalValue <= meter.tsPerMeasure
   );
   if (figures.length === 0) {
-    throw new Error(`No ${meter.name} rhythms are selected. Choose from the compound rhythms.`);
+    throw new SettingsError(`No ${meter.name} rhythms are selected. Choose from the compound rhythms.`);
   }
   const plain = figures.filter((r) => !r.pattern && !r.rest);
   // As in simple meter: a phrase ends on a held note only when a held note is

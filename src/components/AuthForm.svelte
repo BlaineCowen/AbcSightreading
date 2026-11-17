@@ -52,6 +52,10 @@
       return "Your teacher has not brought your Google account into a class yet. Use the login card from your teacher, or ask them to import your class from Google Classroom.";
     }
     if (/signup/i.test(err)) return "There is no account for that Google account yet. Choose Create account to make one.";
+    // Better Auth will not join Google to an account made with a password whose
+    // email was never confirmed (someone else could have made it): a teacher tried
+    // three times on 17 November 2026 with only "did not work" to go on.
+    if (/account_not_linked/i.test(err)) return "This email already has an account with a password. Sign in with your email and password below.";
     return "That sign-in did not work. Try again, or use your email and password.";
   }
 

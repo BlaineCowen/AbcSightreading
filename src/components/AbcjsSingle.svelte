@@ -1220,10 +1220,16 @@
     setTimeout(() => (activePresetSignature = signatureOf(currentOptions)), 0);
   }
 
-  /** The rhythms for a meter drawn: the selection, or the other kind's, remembered (a TMEA level draws both). */
+  /**
+   * The rhythms for a meter drawn: the selection, or the other kind's, remembered (a TMEA level draws both).
+   * Judged by the selection's own figures, not the page's meter: after a TMEA level wrote a 6/8
+   * exercise the meter was 6/8 while the selection was still its 4/4 figures, and the next 6/8 drawn
+   * sent those (a 500, "No 6/8 rhythms are selected", 17 November 2026). With no compound figure
+   * remembered, a compound meter gets the Core ones (dotted quarter, three eighths...).
+   */
   function rhythmsForMeter(meter: string) {
     const kind = meterKindOf(meter);
-    if (kind === meterKindOf(selectedTimeSignature)) return selectedRhythms;
+    if (selectedRhythms.length && selectedRhythms.every((r: Rhythm) => (r.meterKind ?? "simple") === kind)) return selectedRhythms;
     const remembered = resolveRhythmSelection(rhythmMemory[kind] ?? [], kind);
     return remembered.length ? remembered : selectedRhythms;
   }

@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { createNewSr } from "../../../lib/generateUnison";
+import { SettingsError } from "../../../lib/settings-error";
 
 export const GET: APIRoute = () => {
   return new Response(JSON.stringify({ status: "API route is working" }), {
@@ -79,6 +80,14 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
   } catch (error) {
+    // Settings that cannot make an exercise: the reader is told why, and it is no server fault.
+    if (error instanceof SettingsError) {
+      console.warn("Generation refused:", error.message);
+      return new Response(JSON.stringify({ success: false, error: error.message }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     console.error("❌ Generation error:", {
       error,
       message: error instanceof Error ? error.message : "Unknown error",

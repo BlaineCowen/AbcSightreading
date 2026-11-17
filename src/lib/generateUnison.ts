@@ -52,6 +52,7 @@ import {
   SKIP_DRAWS,
 } from "./unison-phrasing";
 import { degreesConnected, NO_LANDING_MESSAGE } from "./skip-settings";
+import { SettingsError } from "./settings-error";
 import {
   drawDynamics,
   dynamicsSetFrom,
@@ -2421,6 +2422,7 @@ function createRhythmOnlySr(params: any) {
       params.allowTiesAcrossBarline === true
     );
   } catch (err) {
+    if (err instanceof SettingsError) throw err;
     const base = err instanceof Error ? err.message : "Rhythm generation failed.";
     throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
   }
@@ -2723,7 +2725,7 @@ function createNewSrOnce(params: any) {
     // console.log("🔍 Validating parameters...");
 
     if (!params.selectedRhythms || params.selectedRhythms.length === 0) {
-      throw new Error("No rhythms selected");
+      throw new SettingsError("No rhythms selected");
     }
 
     // Rhythm-only exercises need no key, range or scale degrees, so they branch
@@ -3031,6 +3033,7 @@ function createNewSrOnce(params: any) {
           params.allowTiesAcrossBarline === true
         );
       } catch (err) {
+        if (err instanceof SettingsError) throw err;
         const base = err instanceof Error ? err.message : "Rhythm generation failed.";
         throw new Error(withTiesHint(base, params.allowTiesAcrossBarline === true));
       }

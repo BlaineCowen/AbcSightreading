@@ -419,3 +419,15 @@ pill is set to it. The per-part entries (`tmeaPartLevel`) are what each part
 reads. Their ids, the presets' first form (`tmea-voice-2-alto`), still open
 as their level with that part set, and check marks kept under them still
 read (`tmeaLevelOf`).
+
+A level from III draws simple meters and 6/8 together. Which rhythms a drawn
+meter gets (`rhythmsForMeter` in AbcjsSingle) is judged by the selection's own
+figures, not the page's meter: until 17 November 2026 a 6/8 exercise left the
+page's meter at 6/8 with the simple figures still selected, and the next 6/8
+drawn sent those (a 500, "No 6/8 rhythms are selected", in production that
+day). A compound meter with no compound figure remembered gets the Core ones.
+`scripts/check-mixed-meters.ts` (APP=, signed out, 40 New exercises on
+`?tmea=tmea-voice-3`) failed 4 of 40 before the fix and passes after. A
+selection that still cannot fit its meter is a `SettingsError`
+(`src/lib/settings-error.ts`), which /api/generate answers with a 400 and the
+reader's message, so it no longer sets off the health alerts (5xx only).

@@ -7,7 +7,7 @@ Moved out of CLAUDE.md on 27 October 2026, word for word. Read it before touchin
 Better Auth (`src/lib/server/auth.ts`) on Prisma ORM 7 + Prisma Postgres
 (`DATABASE_URL`; one database shared by Development, Preview and Production).
 Email/password with reset and a confirmation email (sent through Resend, not
-required to sign in), plus Google when `GOOGLE_CLIENT_ID`/`_SECRET` are set.
+required to sign in), plus Google when `GOOGLE_CLIENT_ID`/`_SECRET` are set. Google is never joined to an account made with a password whose email was never confirmed (Better Auth's `requireLocalEmailVerified`, kept on: someone could make an account with another person's email first); the callback comes back with `?error=account_not_linked`, and AuthForm says the email already has an account with a password and to sign in with it (17 November 2026: a Princeton ISD teacher tried Google three times with only "did not work").
 Auth endpoints live under `/api/auth/*`; pages are `/login` (also
 `?mode=signup|forgot|student`), `/reset-password`, `/account`.
 
