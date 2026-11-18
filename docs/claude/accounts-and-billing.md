@@ -82,7 +82,19 @@ to sign in, each class from a new page. The cards print from the end of
 <body> (`toBody`): inside the Classes tab they printed blank, since
 globals.css hides every `.tab-panel` in print. A class with no
 code says how to get one. `bun run scripts/demo-classes.ts` lists, creates or
-removes "Demo: ..." classes with roster-made students on a teacher's account.
+removes "Demo: ..." classes with roster-made students on a teacher's account. `scripts/demo-activity.ts plan|create|remove` gives those classes two
+school weeks of life (18 November 2026, Blaine: to see students "doing
+assignments, earning badges" without making accounts): an assignment each
+and two game assignments (noted "Simulated"), practice rows a day with
+points.ts `award` on that day (points, streaks, levels, badges as the site
+makes them), game rounds, last week settled (`closeWeek`), a teacher's
+badge. It refuses unless every student is a student account in that
+teacher's Demo classes only. Points need the owner known: run with
+`ADMIN_EMAILS` set (from `DEV_SIGN_IN_EMAIL` in .env), or `award` returns
+null for every student. `remove` deletes what it made and puts back the
+stats rows it found (`~/.abc-demo-activity.json`). It writes to the shared
+database, so the activity shows on the live site's Demo classes too;
+`scripts/activity.ts` leaves the Demo classes' students and assignments out.
 
 **Rosters from Google Classroom and ClassLink** (10 October 2026; setup
 outside the code in notes/rostering-setup.md). Google Classroom: on a class
@@ -183,6 +195,25 @@ one; it is done once a try is graded (`withAttempts`, as a checkpoint). Tested
 16 November 2026 on the dev server: made in a demo class, a tapped run for one
 student saved (best and done in the class's assignments), Next student showed
 1 of 8 done, then deleted.
+
+**Picking a board test up again** (18 November 2026, Blaine: "let me select
+the assignment from that menu ... go back to an existing assignment to keep
+building on it with more classes, or create a new one. Make the user aware
+that selecting an assignment changes the current presets"). Grade a class
+one by one now opens on the teacher's board tests (from
+`/api/assignments/teaching`, one row a test however many classes, by
+`group`), with "+ New test from this page's settings" under them (straight
+to the form when there are none). A test opened lists its classes, each
+with Open the names, and Add more classes (`POST /api/assignments/<id>/copy`,
+then the first new one opens). A butter note says the page will switch to
+the test's settings: opening an assignment applies its preset and the page
+saves it as its own (`sightReadingOptions`), so what was set up is replaced.
+During a board test the toolbar's Clap and grade button is hidden: the
+student presses Ready in the Grade strip, and the other button was easy to
+hit (Blaine: "remove the clap and grade action when a student is about to
+take their test"). Checked 18 November on the dev server: the list, the
+note, a test added to a Demo class and opened at its names, a name tapped
+(only Ready shows), then that copy deleted.
 
 **Graded attempts sent the wrong link from 10 October to 16 November 2026.** The
 Unison page had a function `exerciseLink` (the attempt's exercise path) and a

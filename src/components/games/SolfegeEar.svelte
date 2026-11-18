@@ -98,12 +98,19 @@
         tonic: r.tonic, pattern: keyPattern(s.tonality), chord: keyChord(s.tonality),
         names: keyPattern(s.tonality).map((d) => name(pcOf(d))), chordName: keyChord(s.tonality).map((d) => name(pcOf(d))).join(" "),
       },
-      play: (i, heard) => {
+      play: (i, heard, onStep) => {
         const notes = ask(i);
-        return playEar({ tonic: r.tonic, pattern: null, chord: [], notes, gap: 1.1, onNote: (k) => k === notes.length - 1 && heard() });
+        return playEar({ tonic: r.tonic, pattern: null, chord: [], notes, gap: 1.1, onNote: (k) => { onStep?.(k); if (k === notes.length - 1) heard(); } });
       },
       // The right one, heard from the reference note (or do).
-      playAnswer: (i) => playEar({ tonic: r.tonic, pattern: null, chord: [], notes: [s.ref ?? 0, r.questions[i]!], gap: 0.8 }),
+      playAnswer: (i, onStep) => playEar({ tonic: r.tonic, pattern: null, chord: [], notes: [s.ref ?? 0, r.questions[i]!], gap: 0.8, onNote: onStep }),
+      // On screen as they sound: "do", then "?" (the answer's name once it is shown).
+      steps: (i, answered) => {
+        const refName = name(pcOf(s.ref ?? 0));
+        const it = answered ? name(pcOf(r.questions[i]!)) : "?";
+        if (answered) return { labels: [refName, it], say: `From ${refName}, that was ${it}.` };
+        return s.ref !== null ? { labels: [refName, it], say: `This note is ${refName}. What's the next note?` } : { labels: [it], say: "What's this note?" };
+      },
       answerName: (i) => name(pcOf(r.questions[i]!)),
     };
   }

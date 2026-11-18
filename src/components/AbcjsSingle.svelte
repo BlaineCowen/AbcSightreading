@@ -5607,17 +5607,69 @@
   let boardTitle = "";
   let boardBusy = false;
   let boardSetupProblem = "";
+  /**
+   * The board tests made before (Blaine, 18 November 2026: "let me select the
+   * assignment from that menu ... go back to an existing assignment to keep
+   * building on it with more classes, or create a new one"). One row a test,
+   * however many classes it is in (the Assignments tab's `group`).
+   */
+  type BoardTestRow = { key: string; title: string; classes: { id: string; classId: string; className: string; done: number; students: number }[] };
+  let boardTests: BoardTestRow[] = [];
+  /** The list, a test opened (its key), or the new test form. */
+  let boardView: "list" | "new" | string = "list";
+  let boardAdd: string[] = [];
+  $: boardOpenTest = boardTests.find((t) => t.key === boardView) ?? null;
   async function openBoardSetup() {
     boardSetupProblem = "";
     boardTitle = (rhythmOnly ? "Rhythm test" : `Sight-reading test: ${pillText.key}`).slice(0, 60);
+    boardView = "list";
+    boardAdd = [];
+    boardChosen = [];
+    boardTests = [];
     boardSetupOpen = true;
     try {
-      const res = await fetch("/api/educator");
+      const res = await fetch("/api/assignments/teaching");
       const data = await res.json().catch(() => ({}));
-      boardClasses = res.ok ? data.classes.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })) : [];
-      if (!res.ok) boardSetupProblem = data.error ?? "Could not load your classes.";
+      if (!res.ok) {
+        boardSetupProblem = data.error ?? "Could not load your classes.";
+        return;
+      }
+      boardClasses = (data.classes as { id: string; name: string }[]).map((c) => ({ id: c.id, name: c.name }));
+      const rows = new Map<string, BoardTestRow>();
+      for (const a of data.assignments as { id: string; title: string; page: string; board?: boolean; group: string; classId: string; className: string; done: number; students: number }[]) {
+        if (!a.board || a.page !== "unison") continue;
+        const row = rows.get(a.group) ?? { key: a.group, title: a.title, classes: [] };
+        row.classes.push({ id: a.id, classId: a.classId, className: a.className, done: a.done, students: a.students });
+        rows.set(a.group, row);
+      }
+      boardTests = [...rows.values()];
+      if (!boardTests.length) boardView = "new";
     } catch {
       boardSetupProblem = "Could not load your classes.";
+    }
+  }
+  /** Opens a test's names in one class: the page takes that test's settings. */
+  function openBoardTest(assignmentId: string) {
+    location.href = `${location.pathname}?${ASSIGNMENT_PARAM}=${encodeURIComponent(assignmentId)}&${BOARD_PARAM}=1`;
+  }
+  /** The test given to more classes too (the same settings, each class's own scores), then the first new one opened. */
+  async function addToBoardTest(test: BoardTestRow) {
+    if (!boardAdd.length) return;
+    boardBusy = true;
+    boardSetupProblem = "";
+    try {
+      const res = await fetch(`/api/assignments/${encodeURIComponent(test.classes[0]!.id)}/copy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classIds: boardAdd }) });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok || !r.made?.length) {
+        boardSetupProblem = r.error ?? "Could not add the classes.";
+        boardBusy = false;
+        return;
+      }
+      const first = (r.made as { classId: string; id: string }[]).find((m) => m.classId === boardAdd[0]) ?? r.made[0];
+      openBoardTest(first.id);
+    } catch {
+      boardSetupProblem = "Could not reach the site. Try again.";
+      boardBusy = false;
     }
   }
   async function createBoardTest() {
@@ -5956,6 +6008,57 @@
     <dialog class="sr-modal board-setup-veil print:hidden" use:modal={{ onClose: () => (boardSetupOpen = boardBusy) }} aria-labelledby="board-setup-title">
       <div class="board-setup-card">
         <h2 id="board-setup-title" class="font-display text-2xl font-bold text-sr-ink">Grade a class one by one</h2>
+        {#if boardView === "list"}
+          <p class="text-sm text-sr-muted">Pick up a test you've started, or make a new one from this page's settings.</p>
+          {#if !boardTests.length && !boardSetupProblem}<p class="text-sm text-sr-muted">Loading…</p>{/if}
+          <div class="flex flex-col gap-2" data-board-tests>
+            {#each boardTests as t (t.key)}
+              {@const done = t.classes.reduce((n, c) => n + c.done, 0)}
+              {@const students = t.classes.reduce((n, c) => n + c.students, 0)}
+              <button class="board-test-row" on:click={() => { boardView = t.key; boardAdd = []; }} data-board-test>
+                <span class="flex flex-col text-left min-w-0">
+                  <b class="truncate">{t.title}</b>
+                  <span class="text-xs text-sr-muted">{t.classes.map((c) => c.className).join(", ")} · {done} of {students} done</span>
+                </span>
+                <span class="text-sm font-bold text-sr-action-fg shrink-0">Open</span>
+              </button>
+            {/each}
+          </div>
+          <button class="sr-btn-quiet text-sm self-start" on:click={() => (boardView = "new")} data-board-new>+ New test from this page's settings</button>
+          {#if boardSetupProblem}<p class="text-sm text-sr-danger" role="alert">{boardSetupProblem}</p>{/if}
+          <div class="flex justify-end"><button class="sr-btn-quiet text-sm" on:click={() => (boardSetupOpen = false)}>Cancel</button></div>
+        {:else if boardOpenTest}
+          {@const t = boardOpenTest}
+          {@const others = boardClasses.filter((c) => !t.classes.some((x) => x.classId === c.id))}
+          <p class="font-display text-lg font-bold text-sr-ink">{t.title}</p>
+          <p class="board-warn" role="note"><b>This page will switch to the test's settings.</b> Opening it replaces the key, meter, notes and rhythms you have set up now. To keep them, save them as a preset first.</p>
+          <div class="flex flex-col gap-1.5">
+            <span class="text-sm font-bold text-sr-ink-2">Give it in class</span>
+            {#each t.classes as c (c.id)}
+              <div class="board-class-row">
+                <span class="min-w-0"><b>{c.className}</b> <span class="text-xs text-sr-muted">{c.done} of {c.students} done</span></span>
+                <button class="sr-btn text-sm px-4 py-1.5 shrink-0" on:click={() => openBoardTest(c.id)} data-board-open={c.classId}>Open the names</button>
+              </div>
+            {/each}
+          </div>
+          {#if others.length}
+            <div class="flex flex-col gap-1.5">
+              <span class="text-sm font-bold text-sr-ink-2">Add more classes</span>
+              <div class="flex flex-wrap gap-2">
+                {#each others as c (c.id)}
+                  <button class="sr-tok text-sm {boardAdd.includes(c.id) ? 'sr-on' : ''}" aria-pressed={boardAdd.includes(c.id)}
+                    on:click={() => (boardAdd = boardAdd.includes(c.id) ? boardAdd.filter((x) => x !== c.id) : [...boardAdd, c.id])}>{c.name}</button>
+                {/each}
+              </div>
+              {#if boardAdd.length}<p class="text-xs text-sr-muted">The same test, with each class's own scores. The first class you chose opens now.</p>{/if}
+            </div>
+          {/if}
+          {#if boardSetupProblem}<p class="text-sm text-sr-danger" role="alert">{boardSetupProblem}</p>{/if}
+          <div class="flex gap-2 justify-between">
+            <button class="sr-btn-quiet text-sm" disabled={boardBusy} on:click={() => (boardView = "list")}>Back</button>
+            {#if boardAdd.length}<button class="sr-btn text-sm px-5" disabled={boardBusy} on:click={() => addToBoardTest(t)} data-board-add>{boardBusy ? "Adding…" : `Add ${boardAdd.length === 1 ? "the class" : `${boardAdd.length} classes`} and open`}</button>{/if}
+          </div>
+        {:else}
         <p class="text-sm text-sr-muted">These settings become a test in each class you choose. Each student gets their own new exercise at the board. Run it over as many days as you like: the names show who is done, and the scores are in the gradebook.</p>
         <label class="flex flex-col gap-1 text-sm">
           <span class="font-bold text-sr-ink-2">Title</span>
@@ -5974,9 +6077,10 @@
         </div>
         {#if boardSetupProblem}<p class="text-sm text-sr-danger" role="alert">{boardSetupProblem}</p>{/if}
         <div class="flex gap-2 justify-end">
-          <button class="sr-btn-quiet text-sm" disabled={boardBusy} on:click={() => (boardSetupOpen = false)}>Cancel</button>
-          <button class="sr-btn text-sm px-5" disabled={boardBusy || !boardChosen.length || !boardTitle.trim()} on:click={createBoardTest}>{boardBusy ? "Making the test…" : "Start the test"}</button>
+          <button class="sr-btn-quiet text-sm" disabled={boardBusy} on:click={() => (boardTests.length ? (boardView = "list") : (boardSetupOpen = false))}>{boardTests.length ? "Back" : "Cancel"}</button>
+          <button class="sr-btn text-sm px-5" disabled={boardBusy || !boardChosen.length || !boardTitle.trim()} on:click={createBoardTest} data-board-create>{boardBusy ? "Making the test…" : "Start the test"}</button>
         </div>
+        {/if}
       </div>
     </dialog>
   {/if}
@@ -6661,6 +6765,9 @@
             {videoAllowed}
           />
         </div>
+        <!-- Not during a board test: the student at the board presses Ready in
+             the Grade strip, and this was easy to hit by mistake (Blaine, 18 November 2026). -->
+        {#if !boardOn}
         <button
           class="inline-flex items-center gap-2 rounded-full px-4 min-h-10 text-sm font-extrabold bg-sr-peach text-sr-peach-ink hover:brightness-95 disabled:opacity-50"
           on:click={openGrade}
@@ -6672,6 +6779,7 @@
           {rhythmOnly ? "Clap and grade" : "Listen and grade"}
           <span class="rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Beta</span>
         </button>
+        {/if}
 
         {#if toolPop}
           <button class="set-scrim" aria-label="Close" tabindex="-1" on:click={() => closePops()} transition:fade={{ duration: reduceMotion ? 0 : 140 }}></button>
@@ -7058,6 +7166,10 @@
   /* "Grade a class one by one" (board-test.ts). */
   .board-setup-veil { display: flex; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--sr-ink) 28%, transparent); }
   .board-setup-card { width: min(34rem, 100%); max-height: calc(100dvh - 2rem); overflow: auto; display: flex; flex-direction: column; gap: 0.9rem; padding: 1.4rem; border-radius: 28px; background: var(--sr-raise); border: 1px solid var(--sr-hairline); }
+  .board-test-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0.9rem; border-radius: 18px; background: var(--sr-panel); border: 1px solid var(--sr-hairline); color: var(--sr-ink); }
+  .board-test-row:hover { border-color: var(--sr-action); }
+  .board-class-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.5rem 0.5rem 0.9rem; border-radius: 18px; background: var(--sr-panel); border: 1px solid var(--sr-hairline); color: var(--sr-ink); }
+  .board-warn { font-size: 0.85rem; padding: 0.6rem 0.8rem; border-radius: 14px; background: var(--sr-butter); color: var(--sr-butter-ink); }
   /* The settings row: pills that each open their own popover, then New exercise. */
   .setbar {
     position: relative;

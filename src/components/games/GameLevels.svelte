@@ -15,8 +15,12 @@
   import { createEventDispatcher } from "svelte";
   import { SlidersHorizontal, ListOrdered } from "lucide-svelte";
 
-  /** The levels: a name, and a few words of what is in it. */
-  export let levels: { name: string; detail?: string }[];
+  /**
+   * The levels: a name, and a few words of what is in it. `icons` (raw SVGs,
+   * the rhythm figures' own) and `meters` ("2/4") show instead of the name,
+   * which is still the button's accessible name (Tap the rhythm, 18 November).
+   */
+  export let levels: { name: string; detail?: string; icons?: string[]; meters?: string[] }[];
   /** The level chosen (0-based), or -1 for Customize. */
   export let selected: number;
   /** A name for the tabs and the data attribute the checks find it by. */
@@ -61,7 +65,18 @@
         {#each levels as l, i}
           <button type="button" class="lvl" class:on={selected === i} aria-pressed={selected === i} {disabled} on:click={() => dispatch("select", i)} data-level={i}>
             <span class="n">{i + 1}</span>
-            <span class="txt"><b>{l.name}</b>{#if l.detail}<small>{l.detail}</small>{/if}</span>
+            {#if l.icons?.length || l.meters?.length}
+              <span class="txt">
+                <span class="sym" aria-hidden="true">
+                  {#each l.meters ?? [] as m}<span class="tsig"><span>{m.split("/")[0]}</span><span>{m.split("/")[1]}</span></span>{/each}
+                  {#each l.icons ?? [] as svg}<span class="rhythm-icon fig">{@html svg}</span>{/each}
+                </span>
+                <span class="sr-only">{l.name}</span>
+                {#if l.detail}<small>{l.detail}</small>{/if}
+              </span>
+            {:else}
+              <span class="txt"><b>{l.name}</b>{#if l.detail}<small>{l.detail}</small>{/if}</span>
+            {/if}
           </button>
         {/each}
       </div>
@@ -93,5 +108,10 @@
   .txt b { font-size: 0.92rem; }
   .txt small { font-size: 0.75rem; color: var(--sr-ink-2); }
   .lvl.on .txt small { color: inherit; opacity: 0.8; }
+  .sym { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; min-height: 2.1rem; }
+  /* The figures at their own size (scripts/render-rhythm-icons.mjs draws every notehead alike). */
+  .fig { width: auto; height: auto; flex: none; }
+  .fig :global(svg) { max-height: 2.4rem; }
+  .tsig { display: inline-flex; flex-direction: column; align-items: center; font-family: var(--sr-font-display); font-weight: 800; font-size: 0.95rem; line-height: 0.9; }
   .custom { display: flex; flex-direction: column; gap: 0.55rem; }
 </style>

@@ -102,14 +102,9 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   the octave is in a major scale), and the key plays first (`intro`, so the
   too-fast floor adds the key's seconds). Blaine: "really hard when it jumps
   around between keys".
-- **Tap the rhythm's beat bar** (`beat-bar.ts`, on by default, `Beat bar`
-  button, `sr-rhythm-beat-bar`): a hairline under each line of music, drawn
-  inside abcjs's SVG, a tick on every beat placed where it falls among the
-  notes (beat 2 two thirds along a dotted quarter), the bar's first beat
-  taller, beat numbers, and a dot that moves along it with the music. Room
-  under the last line is abcjs's paddingbottom (40 with the bar on). Blaine:
-  learnmusic.fun's Rhythm Hero bar was "way too big and messes up the
-  notation", so this one is thin and never moves the music.
+- **Tap the rhythm's beat bar**, replaced the same day by the lane (below):
+  Blaine, "not what I meant at all. I meant a Guitar Hero style bar going
+  across". `beat-bar.ts` and its test were deleted with it.
 - **Note Rain** (`/games/note-rain`, `NoteRain.svelte`, rules
   `note-rain.ts`, tests `note-rain.test.ts`): brought over from
   learnmusic.fun fresh (Blaine called it the storm game: its timed round is a
@@ -153,6 +148,50 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   (`ClassGameAssignments`), with who is done, and Remove. Results go with the
   class, the student or the assignment, and after 395 days (the daily cron).
   Not yet: the gradebook and Google Classroom for games.
+
+### 18 November 2026, later: Blaine's second round of notes
+
+- **Tap the rhythm's lane** (`RhythmLane.svelte`, on by default, `Lane`
+  button, `sr-rhythm-lane`): a slim strip (40px) under the music, outside
+  abcjs's SVG. Each note is a pill as long as it lasts, sliding right to left
+  into a hit line 18% in, 3.2 beats seen ahead; rests are dashed gaps; beat
+  lines, bar lines, the count-in's beats numbered. One strip moves by
+  transform. **It runs on the scoring's clock**: `set(beat)` from
+  `(performance.now() - audioToPage(ctx)(musicSec)) / beatMs`, the audible
+  time the taps are scored against. Drawn on `ctx.currentTime` instead, taps
+  on the line scored 37%; on the page clock, 100%.
+  `scripts/check-rhythm-lane.ts` (headless; a backgrounded Chrome tab runs
+  3 frames a second and taps late) presses Space as each count-in line and
+  pill reaches the hit line and expects 90% or more: 100% on levels 1, 4,
+  8 and 11. After a round the lane fits the whole rhythm, its pills green,
+  yellow or red like the notes.
+- **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
+  rest"; "use the symbols we have instead, and do the same whenever a new one
+  is added"): `levelNews()` in `rhythm-levels.ts` gives each level the
+  figures and meters no earlier level had, from the ladder, so a new step
+  gets its symbols with no one writing them. The card draws the Unison
+  picker's own SVGs (`src/assets/svgs/<figure>.svg`, at their natural size)
+  and stacked time signatures; the name stays as the accessible name and
+  as `levelName` in assignment titles. Level 10 "Two beats" (Blaine: "I
+  don't understand the point") is the ladder's 2/4 step, sbs-10-rhythm: its
+  card now shows 2/4 and "New: 2 beats a bar". Kept, since ids are permanent.
+- **Note Rain's picker in real notation** (Blaine: "the customize feature
+  looks really ugly", "we don't have a regular clef": the picker had the word
+  "Treble" on its side and dashed ghost notes): `StaffPicker.svelte` draws
+  the clef and all 17 notes as whole notes with abcjs, chosen blue and the
+  rest grey, each a button the staff's height (38px wide on a desktop) with
+  a name chip; under 34rem it scrolls sideways so notes stay a finger wide.
+- **Note Rain's sky** is the sky pastel, the cards white with a tinted border
+  and shadow, the music on them larger (scale 1.5); the answer buttons are
+  panels, not the sky's colour (Blaine: "the white notes on the white
+  background don't look good").
+- **Solfège says what is playing** (Blaine: "make it work like
+  learnmusic.fun, where it says this note is Do, what's the ? note"):
+  `QuizRound.steps` gives the notes' labels, and EarQuiz shows them as big
+  cards, "do → ?", each lit as it sounds (`play`'s `onStep`), with "This note
+  is do. What's the next note?"; after a miss, "do → so" and "From do, that
+  was so." The reference note (do by default) and its 1.1 s gap are as
+  before, so rounds and the server's floor are unchanged.
 
 ### Plan: theory speed games (not built)
 

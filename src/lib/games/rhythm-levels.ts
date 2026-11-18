@@ -21,6 +21,29 @@ export const RHYTHM_LEVELS: RhythmLevel[] = ladder
 
 export const rhythmLevel = (id: string | null | undefined) => RHYTHM_LEVELS.find((l) => l.id === id) ?? RHYTHM_LEVELS[0];
 
+/**
+ * What a level brings in, for its card (Blaine, 18 November 2026: the cards
+ * said "Ta, Ti-ti, Ta rest"; "use the symbols we have instead, and do the
+ * same whenever a new one is added"): the figures and meters it has that the
+ * level before did not. Worked out from the ladder, so a new step gets its
+ * symbols without anyone writing them. The first level brings everything it
+ * has; a level that adds nothing (Every rhythm) says it mixes them all.
+ */
+export type LevelNews = { figures: string[]; meters: string[]; all: boolean };
+export function levelNews(levels: RhythmLevel[] = RHYTHM_LEVELS): LevelNews[] {
+  // New against every level before, not only the last: 3/4 at level 4 and
+  // back to 4/4 at level 5 is not 4/4 brought in again.
+  const figuresSeen = new Set<string>();
+  const metersSeen = new Set<string>();
+  return levels.map((l) => {
+    const figures = l.rhythms.filter((r) => !figuresSeen.has(r));
+    const meters = l.meters.filter((m) => !metersSeen.has(m));
+    l.rhythms.forEach((r) => figuresSeen.add(r));
+    l.meters.forEach((m) => metersSeen.add(m));
+    return { figures, meters, all: !figures.length && !meters.length };
+  });
+}
+
 /** The tempo a round starts at, and the choices. */
 export const GAME_TEMPOS = [60, 72, 84, 96, 108, 120];
 export const GAME_BARS = [2, 4];

@@ -11,10 +11,16 @@
     keyboard?: boolean;
     /** The key at the start (and Hear the key), or null for a game without one. */
     intro: { tonic: number; pattern: number[]; chord: number[]; names: string[]; chordName: string } | null;
-    /** Plays question i; `heard` when its last note sounds (the tiles open then). */
-    play: (i: number, heard: () => void) => Player;
+    /** Plays question i; `heard` when its last note sounds (the tiles open then); `onStep(k)` as each of its notes sounds. */
+    play: (i: number, heard: () => void, onStep?: (k: number) => void) => Player;
     /** After a miss: the right answer, played so it is heard. */
-    playAnswer: (i: number) => Player;
+    playAnswer: (i: number, onStep?: (k: number) => void) => Player;
+    /**
+     * What each note of question i is, shown as it sounds (Solfège: "do",
+     * then "?"; Blaine, 18 November 2026: "make it work like learnmusic.fun,
+     * where it says this note is Do, what's the ? note"). Null shows nothing.
+     */
+    steps?: (i: number, answered: boolean) => { labels: string[]; say: string } | null;
     /** "That was ___." */
     answerName: (i: number) => string;
   };
@@ -73,6 +79,16 @@
   let keyAt: number | null = null;
   let heard = false;
   let player: Player | null = null;
+  /** The notes of the question as they are named on screen, and which is sounding. */
+  let prompt: { labels: string[]; say: string } | null = null;
+  let sounding: number | null = null;
+  const onStep = (k: number) => (sounding = k);
+  function track(p: Player) {
+    void p.done.then(() => {
+      if (player === p) sounding = null;
+    });
+    return p;
+  }
   let result: { correct: number; points: number | null; note?: string; problem?: string } | null = null;
   let finishing = false;
 
@@ -126,7 +142,9 @@
   function playQuestion() {
     if (!round) return;
     stopSound();
-    player = round.play(q, () => (heard = true));
+    prompt = round.steps?.(q, false) ?? null;
+    sounding = null;
+    player = track(round.play(q, () => (heard = true), onStep));
   }
   async function hearKey() {
     if (!round?.intro) return;
@@ -151,7 +169,9 @@
     if (v === round.answers[q]) nextTimer = setTimeout(next, NEXT_AFTER_RIGHT * 1000);
     else {
       stopSound();
-      player = round.playAnswer(q);
+      prompt = round.steps?.(q, true) ?? null;
+      sounding = null;
+      player = track(round.playAnswer(q, onStep));
     }
   }
   function next() {
@@ -250,6 +270,17 @@
           <span class="dot" class:now={i === q} class:ok={right[i] === true} class:no={right[i] === false}></span>
         {/each}
       </div>
+      {#if prompt}
+        <div class="prompt" data-ear-prompt>
+          <div class="cards" aria-hidden="true">
+            {#each prompt.labels as l, k}
+              {#if k}<span class="arrow">→</span>{/if}
+              <span class="pc" class:now={sounding === k} class:ask={l === "?"}>{l}</span>
+            {/each}
+          </div>
+          <p class="say" aria-live="polite">{prompt.say}</p>
+        </div>
+      {/if}
       <div class="board">
         {#if round.intro}<KeyStrip at={keyAt} names={round.intro.names} chordName={round.intro.chordName} then="Now the notes" />{/if}
         {#if round.keyboard}
@@ -300,6 +331,13 @@
   .dot.now { border-color: var(--sr-action); }
   .dot.ok { background: var(--sr-mint-ink); }
   .dot.no { background: var(--sr-danger); }
+  .prompt { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+  .cards { display: flex; align-items: center; gap: 0.6rem; }
+  .pc { display: grid; place-items: center; min-width: 5.2rem; height: 4.2rem; padding: 0 0.9rem; border-radius: 20px; background: var(--sr-raise); border: 3px solid var(--sr-hairline); font-family: var(--font-display, inherit); font-size: 2rem; font-weight: 800; color: var(--sr-ink); transition: transform 120ms ease, background 120ms ease; }
+  .pc.ask { color: var(--sr-ink-2); }
+  .pc.now { background: var(--sr-butter); color: var(--sr-butter-ink); border-color: var(--sr-butter-ink); transform: scale(1.08); }
+  .arrow { font-size: 1.5rem; color: var(--sr-ink-2); }
+  .say { font-weight: 800; color: var(--sr-ink-2); }
   .board { position: relative; min-height: 12rem; display: flex; align-items: center; }
   .tiles { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(max(5.5rem, calc(100% / var(--cols) - 0.6rem)), 1fr)); gap: 0.6rem; }
   .tile { position: relative; min-height: 5.5rem; padding: 0.5rem; border-radius: 22px; background: var(--sr-sky); color: var(--sr-sky-ink); font-family: var(--font-display, inherit); font-size: 1.9rem; font-weight: 800; line-height: 1.1; border: 3px solid transparent; transition: transform 80ms ease; }

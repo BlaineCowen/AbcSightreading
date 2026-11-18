@@ -24,8 +24,8 @@
   import { onMount } from "svelte";
   import { loadGameAssignment, reportGameRound, type OpenGameAssignment } from "../../lib/game-assignment-client";
   import type { GameProgress } from "../../lib/game-assignments";
-  import { drawBeatBar, type BeatBar } from "../../lib/games/beat-bar";
-  import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
+  import RhythmLane from "./RhythmLane.svelte";
+  import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, levelNews, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
   import { scoreRhythm, type RhythmScore } from "../../lib/games/game-score";
   import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
@@ -73,19 +73,32 @@
     assignment = a;
     assignmentProgress = a.progress;
   });
+  /** Each level's card: the figures and meters it brings in, as the symbols the Unison page's picker uses. */
+  const figureSvgs = import.meta.glob("../../assets/svgs/*.svg", { as: "raw", eager: true }) as Record<string, string>;
+  const svgOf = (name: string) => figureSvgs[`../../assets/svgs/${name}.svg`] ?? "";
+  const levelCards = levelNews().map((n, i) => ({
+    name: RHYTHM_LEVELS[i]!.name,
+    icons: n.figures.map(svgOf).filter(Boolean),
+    meters: n.all ? RHYTHM_LEVELS[i]!.meters : n.meters,
+    detail: n.all ? "Everything, in every meter" : n.meters.length && i > 0 ? `New: ${n.meters.map((m) => `${m.split("/")[0]} beats a bar`).join(", ")}` : undefined,
+  }));
   $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
   const setStrictness = (id: string) => (strictness = id as Strictness);
-  /** The beat bar under the music (beat-bar.ts), remembered in this browser. */
-  const BEAT_BAR_KEY = "sr-rhythm-beat-bar";
-  let beatBarOn = (() => {
-    try { return localStorage.getItem(BEAT_BAR_KEY) !== "off"; } catch { return true; }
+  /** The lane under the music (RhythmLane.svelte), remembered in this browser; on unless turned off. */
+  const LANE_KEY = "sr-rhythm-lane";
+  let laneOn = (() => {
+    try { return localStorage.getItem(LANE_KEY) !== "off"; } catch { return true; }
   })();
-  let beatBar: BeatBar | null = null;
-  function setBeatBar(on: boolean) {
-    beatBarOn = on;
-    try { localStorage.setItem(BEAT_BAR_KEY, on ? "on" : "off"); } catch {}
-    void draw();
+  let lane: RhythmLane | null = null;
+  function setLane(on: boolean) {
+    laneOn = on;
+    try { localStorage.setItem(LANE_KEY, on ? "on" : "off"); } catch {}
   }
+  /** The exercise's notes and rests in beats, for the lane. */
+  $: laneNotes = exercise ? exercise.schedule.notes.map((n) => ({ start: n.startUnits / exercise!.beatUnits, len: n.lengthUnits / exercise!.beatUnits, cursor: n.cursor })) : [];
+  $: laneRests = exercise ? exercise.schedule.rests.map((r) => ({ start: r.startUnits / exercise!.beatUnits, len: r.lengthUnits / exercise!.beatUnits })) : [];
+  /** A finished solo round's marks on the lane, by note. */
+  $: laneMarks = solo ? new Map(solo.result.notes.map((n) => [n.cursor, n.missed ? "miss" : n.rhythm >= 90 ? "right" : "close"] as const)) : null;
 
   type Exercise = { abc: string; bars: number; meter: string; beatsPerBar: number; beatUnits: number; schedule: ReturnType<typeof gradeSchedule> };
   let exercise: Exercise | null = null;
@@ -115,8 +128,7 @@
   async function draw() {
     await tick();
     if (!paper || !exercise) return;
-    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: beatBarOn ? 40 : 10, add_classes: true, ...roundLayout(exercise.bars) });
-    beatBar = beatBarOn ? drawBeatBar(paper, exercise.abc, exercise.beatUnits, exercise.beatsPerBar) : null;
+    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true, ...roundLayout(exercise.bars) });
   }
 
   /** Each note's mark on the music (rhythm-marks.ts): green right, butter close, red missed. */
@@ -148,13 +160,14 @@
     const musicSec = startSec + countBeats * beatSec;
     const endSec = musicSec + musicBeats * beatSec;
     wordTimers.push(setTimeout(() => (word = ""), msUntil(musicSec)));
+    // The lane on the clock the taps are scored by: when a click booked on the
+    // audio clock is heard, in page time (audioToPage, as scoring uses).
+    const musicPageMs = audioToPage(ctx)(musicSec);
     const step = () => {
       progress = Math.max(0, Math.min(1, (ctx.currentTime - musicSec) / (endSec - musicSec)));
-      // The beat bar's dot: from the first note to the end, in the music's own units.
-      const into = ctx.currentTime - musicSec;
-      beatBar?.set(into >= 0 && ctx.currentTime < endSec ? (into / beatSec) * ex.beatUnits : null);
-      if (ctx.currentTime < endSec && running) raf = requestAnimationFrame(step);
-      else beatBar?.set(null);
+      // The lane, in beats from the first note (negative through the count-in), on the clicks' own clock.
+      lane?.set((performance.now() - musicPageMs) / (beatSec * 1000));
+      if (ctx.currentTime < endSec + beatSec && running) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
     return endSec;
@@ -166,7 +179,7 @@
     wordTimers.forEach(clearTimeout);
     wordTimers = [];
     cancelAnimationFrame(raf);
-    beatBar?.set(null);
+    lane?.set(null);
     word = "";
   }
   onDestroy(() => {
@@ -399,7 +412,7 @@
   {:else}
   <GameLevels
     game="rhythm"
-    levels={RHYTHM_LEVELS.map((l) => ({ name: l.name }))}
+    levels={levelCards}
     selected={levelId === "custom" ? -1 : RHYTHM_LEVELS.findIndex((l) => l.id === levelId)}
     disabled={running}
     on:select={(e) => (levelId = e.detail < 0 ? "custom" : RHYTHM_LEVELS[e.detail].id)}
@@ -415,8 +428,8 @@
     <label class="set"><span>Tempo</span>
       <select bind:value={bpm} disabled={running}>{#each GAME_TEMPOS as b}<option value={b}>♩ = {b}</option>{/each}</select>
     </label>
-    <div class="flex gap-1" role="group" aria-label="Beat bar under the music">
-      <button class="sr-tok text-sm" class:sr-on={beatBarOn} aria-pressed={beatBarOn} on:click={() => setBeatBar(!beatBarOn)} disabled={running} data-beat-bar-toggle>Beat bar {beatBarOn ? "on" : "off"}</button>
+    <div class="flex gap-1" role="group" aria-label="Scrolling lane under the music">
+      <button class="sr-tok text-sm" class:sr-on={laneOn} aria-pressed={laneOn} on:click={() => setLane(!laneOn)} disabled={running} data-lane-toggle>Lane {laneOn ? "on" : "off"}</button>
     </div>
     <div class="flex gap-1" role="group" aria-label="Strictness">
       {#each Object.entries(STRICTNESS) as [id, s]}
@@ -474,7 +487,11 @@
     <div class="stage" class:hidden={!exercise}>
       {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
       <div class="paper" bind:this={paper}></div>
-      <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
+      {#if laneOn && exercise}
+        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running && !!laneMarks} />
+      {:else}
+        <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
+      {/if}
     </div>
 
     {#if solo}
@@ -509,10 +526,4 @@
   .paper :global(.g-right) { fill: #2fb383; }
   .paper :global(.g-close) { fill: #e0a100; }
   .paper :global(.g-miss) { fill: #e5484d; }
-  /* The beat bar (beat-bar.ts): thin, under the music, never over it. */
-  .paper :global(.bb-track) { stroke: var(--sr-hairline-2); stroke-width: 2; stroke-linecap: round; }
-  .paper :global(.bb-tick) { stroke: var(--sr-ink-2); stroke-width: 1.5; }
-  .paper :global(.bb-down) { stroke: var(--sr-ink); stroke-width: 2.5; }
-  .paper :global(.bb-num) { font-size: 11px; font-weight: 700; fill: var(--sr-ink-2); font-family: var(--sr-font-body); }
-  .paper :global(.bb-dot) { fill: var(--sr-action); }
 </style>

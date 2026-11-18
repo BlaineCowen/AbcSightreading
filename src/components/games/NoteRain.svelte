@@ -7,8 +7,9 @@
    * a staff (StaffPicker). Played on this device; nothing is sent anywhere.
    *
    * The look is the site's (Blaine, 18 November 2026: learnmusic.fun's "still
-   * looks too AI-generated. The backgrounds are corny"): a plain paper card for
-   * the sky, white note cards, a ground line; no clouds, hills or rain streaks.
+   * looks too AI-generated. The backgrounds are corny"): a plain tinted sky
+   * (the site's sky pastel, so the white cards stand out), white note cards,
+   * a ground line; no clouds, hills or rain streaks.
    */
   import { onDestroy, onMount, tick } from "svelte";
   import abcjs from "abcjs";
@@ -91,7 +92,7 @@
   let landed: { name: string; at: number } | null = null;
   let lastStep: number | null = null;
   let roundSetup: RainSetup = setup;
-  const CARD_H = 104;
+  const CARD_H = 112;
 
   /** Each note of the round drawn once by abcjs, then reused on every card. */
   async function drawArt(s: RainSetup) {
@@ -100,7 +101,7 @@
     for (const step of poolOf(s)) {
       const div = document.createElement("div");
       artBox.append(div);
-      abcjs.renderAbc(div, `X:1\nM:none\nL:1/1\nK:C clef=${s.clef}\n${abcOf(step)}`, { staffwidth: 46, scale: 1.15, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0 });
+      abcjs.renderAbc(div, `X:1\nM:none\nL:1/1\nK:C clef=${s.clef}\n${abcOf(step)}`, { staffwidth: 40, scale: 1.5, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0 });
       art[step] = div.innerHTML;
       div.remove();
     }
@@ -349,14 +350,15 @@
   .score { font-family: var(--sr-font-display); font-size: 1.8rem; min-width: 2.5rem; text-align: center; }
   .left, .speed { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.9rem; color: var(--sr-ink-2); }
   .stop { display: inline-flex; gap: 0.35rem; align-items: center; }
-  .sky { position: relative; height: clamp(260px, calc(100svh - 13rem), 480px); border-radius: 28px; background: var(--sr-paper); border: 1px solid var(--sr-hairline); overflow: hidden; }
-  .card { position: absolute; top: 4px; width: 22%; max-width: 128px; min-width: 92px; height: 104px; padding: 4px; border-radius: 18px; background: var(--sr-paper); border: 2px solid var(--sr-hairline-2); box-shadow: var(--sr-card-shadow); display: flex; align-items: center; justify-content: center; will-change: transform; }
+  /* A tinted sky so the white cards stand out (Blaine, 18 November 2026: "the white notes on the white background don't look good"). */
+  .sky { position: relative; height: clamp(260px, calc(100svh - 13rem), 480px); border-radius: 28px; background: var(--sr-sky); border: 1px solid var(--sr-hairline); overflow: hidden; }
+  .card { position: absolute; top: 4px; width: 24%; max-width: 140px; min-width: 100px; height: 112px; padding: 6px 8px; border-radius: 18px; background: #fff; border: 2px solid color-mix(in srgb, var(--sr-sky-ink) 35%, transparent); box-shadow: 0 6px 14px color-mix(in srgb, var(--sr-sky-ink) 22%, transparent); display: flex; align-items: center; justify-content: center; will-change: transform; }
   .card :global(svg) { max-width: 100%; height: auto; }
   .card.wrong { border-color: var(--sr-danger); background: var(--sr-peach); }
   .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: var(--sr-danger-bg); border-top: 2px solid var(--sr-danger); }
   .landed { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-weight: 800; color: var(--sr-danger); background: var(--sr-paper); border-radius: 999px; padding: 0.1rem 0.8rem; }
   .answers { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 0.45rem; }
-  .ans { position: relative; min-height: 4rem; border-radius: 18px; background: var(--sr-sky); color: var(--sr-sky-ink); font-family: var(--sr-font-display); font-size: 1.6rem; font-weight: 800; }
+  .ans { position: relative; min-height: 4rem; border-radius: 18px; background: var(--sr-panel); color: var(--sr-ink); border: 2px solid color-mix(in srgb, var(--sr-sky-ink) 35%, transparent); font-family: var(--sr-font-display); font-size: 1.6rem; font-weight: 800; }
   .ans:disabled { opacity: 0.45; }
   .ans:not(:disabled):active { transform: scale(0.97); }
   .k { position: absolute; top: 4px; left: 8px; font-size: 0.7rem; opacity: 0.6; font-family: var(--sr-font-body); }

@@ -1,14 +1,19 @@
 <script lang="ts">
   /**
    * Choosing Note Rain's notes on a staff (Blaine, 18 November 2026: "choosing
-   * the range isn't intuitive. I see the control but don't understand what it
-   * means"; learnmusic.fun had Lowest and Highest steppers). Every note the
-   * clef offers is drawn where it sits, two ledger lines below the staff to
-   * two above, its name under it; tap a note to rain it or not. Shortcuts for
-   * the lines, the spaces, the staff, or everything.
+   * the range isn't intuitive"; then, the same day, "the customize feature
+   * looks really ugly" and "we don't have a regular clef": the first picker
+   * was hand-drawn, with dashed ghost notes and the word "Treble" on its side
+   * where the clef goes). Now the staff is real notation, drawn by abcjs as
+   * the game's cards are: the clef, every note the clef offers as a whole
+   * note (two ledger lines below the staff to two above), the chosen ones in
+   * blue and the rest grey. Each note is a big button the height of the
+   * staff with its name under it; tap to rain it or not. Shortcuts for the
+   * lines, the spaces, the staff, or everything.
    */
-  import { createEventDispatcher } from "svelte";
-  import { BOTTOM_LINE, clefRange, letterOf, noteLabel, onLine, type Clef } from "../../lib/games/note-rain";
+  import { createEventDispatcher, onMount, tick } from "svelte";
+  import abcjs from "abcjs";
+  import { BOTTOM_LINE, abcOf, clefRange, letterOf, noteLabel, octaveOf, onLine, type Clef } from "../../lib/games/note-rain";
 
   export let clef: Clef;
   export let chosen: number[];
@@ -16,30 +21,59 @@
 
   $: steps = clefRange(clef);
   $: bottom = BOTTOM_LINE[clef];
-  const HALF = 7; // half a staff space, px in the SVG
-  const GAP = 38; // one note to the next
-  const LEFT = 40;
-  $: top = bottom + 8;
-  const TOP_Y = 46;
-  const yOf = (s: number) => TOP_Y + (top - s) * HALF;
-  $: width = LEFT + steps.length * GAP + 10;
-  $: height = yOf(steps[0]!) + 40;
-  /** The ledger lines a note needs. */
-  const ledgers = (s: number) => {
-    const out: number[] = [];
-    for (let l = bottom - 2; l >= s; l -= 2) out.push(l);
-    for (let l = top + 2; l <= s; l += 2) out.push(l);
-    return out;
-  };
   const set = (list: number[]) => dispatch("change", [...new Set(list)].sort((a, b) => a - b));
   const toggle = (s: number) => set(chosen.includes(s) ? chosen.filter((x) => x !== s) : [...chosen, s]);
-  const staffOnly = () => steps.filter((s) => s >= bottom && s <= top);
-  function key(e: KeyboardEvent, s: number) {
-    if (e.key === " " || e.key === "Enter") {
-      e.preventDefault();
-      toggle(s);
-    }
+  const staffOnly = () => steps.filter((s) => s >= bottom && s <= bottom + 8);
+
+  let box: HTMLDivElement;
+  let paper: HTMLDivElement;
+  let width = 0;
+  /** Each note's column over the drawing: its middle and width, in px from the box's left. */
+  let cols: { step: number; x: number; w: number }[] = [];
+  let drawnFor = "";
+
+  async function draw() {
+    if (!paper || !width) return;
+    const key = `${clef}|${width}`;
+    if (key === drawnFor) return paint();
+    drawnFor = key;
+    abcjs.renderAbc(paper, `X:1\nM:none\nL:1/1\nK:C clef=${clef}\n${steps.map(abcOf).join(" ")}`, {
+      staffwidth: Math.max(300, width - 12),
+      scale: 1.35,
+      paddingtop: 6,
+      paddingbottom: 6,
+      paddingleft: 4,
+      paddingright: 4,
+      add_classes: true,
+    });
+    await tick();
+    const left = box.getBoundingClientRect().left;
+    const heads = [...paper.querySelectorAll(".abcjs-note")];
+    const xs = heads.map((el) => {
+      const r = el.getBoundingClientRect();
+      return r.left + r.width / 2 - left;
+    });
+    cols = steps.map((step, i) => {
+      const prev = xs[i - 1] ?? xs[i]! - (xs[i + 1]! - xs[i]!);
+      const next = xs[i + 1] ?? xs[i]! + (xs[i]! - prev);
+      return { step, x: xs[i] ?? 0, w: Math.max(18, (next - prev) / 2) };
+    });
+    paint();
   }
+  /** The chosen notes blue, the others grey, on the drawing itself. */
+  function paint() {
+    const heads = [...(paper?.querySelectorAll(".abcjs-note") ?? [])];
+    heads.forEach((el, i) => el.classList.toggle("off", !chosen.includes(steps[i]!)));
+  }
+  $: chosen, paint();
+  $: clef, width, void draw();
+
+  onMount(() => {
+    const ro = new ResizeObserver(() => (width = Math.round(box?.clientWidth ?? 0)));
+    ro.observe(box);
+    width = Math.round(box.clientWidth);
+    return () => ro.disconnect();
+  });
 </script>
 
 <div class="picker" data-staff-picker>
@@ -51,52 +85,37 @@
     <button type="button" class="sr-tok chip" on:click={() => set([])}>Clear</button>
   </div>
   <div class="scroll">
-    <svg viewBox="0 0 {width} {height}" width={width} role="group" aria-label="Notes on the {clef} staff">
-      {#each [0, 2, 4, 6, 8] as k}
-        <line x1="6" x2={width - 6} y1={yOf(bottom + k)} y2={yOf(bottom + k)} class="line" />
-      {/each}
-      <text x="8" y={yOf(bottom + 4) + 5} class="clef">{clef === "treble" ? "Treble" : "Bass"}</text>
-      {#each steps as s, i}
-        {@const x = LEFT + i * GAP + GAP / 2}
-        {@const on = chosen.includes(s)}
-        <g
-          class="note"
-          class:on
-          role="checkbox"
-          aria-checked={on}
-          aria-label={noteLabel(s)}
-          tabindex="0"
-          on:click={() => toggle(s)}
-          on:keydown={(e) => key(e, s)}
-          data-step={s}
-        >
-          <rect x={x - GAP / 2 + 2} y="4" width={GAP - 4} height={height - 8} rx="10" class="hit" />
-          {#each ledgers(s) as l}<line x1={x - 13} x2={x + 13} y1={yOf(l)} y2={yOf(l)} class="line" />{/each}
-          <ellipse cx={x} cy={yOf(s)} rx="8.5" ry="6.5" transform="rotate(-20 {x} {yOf(s)})" class="head" />
-          <text x={x} y={height - 12} class="name" text-anchor="middle">{letterOf(s)}<tspan class="oct">{Math.floor(s / 7)}</tspan></text>
-        </g>
-      {/each}
-    </svg>
+    <div class="box" bind:this={box}>
+      <div class="paper" bind:this={paper} aria-hidden="true"></div>
+      <div class="cols" role="group" aria-label="Notes on the {clef} staff">
+        {#each cols as c (c.step)}
+          {@const on = chosen.includes(c.step)}
+          <button type="button" class="col" class:on style="left: {c.x - c.w / 2}px; width: {c.w}px" aria-pressed={on} aria-label={noteLabel(c.step)} on:click={() => toggle(c.step)} data-step={c.step}>
+            <span class="name">{letterOf(c.step)}<sub>{octaveOf(c.step)}</sub></span>
+          </button>
+        {/each}
+      </div>
+    </div>
   </div>
   <p class="hint">Tap a note to make it fall, tap it again to leave it out. {chosen.length} chosen.</p>
 </div>
 
 <style>
-  .picker { display: flex; flex-direction: column; gap: 0.5rem; }
+  .picker { display: flex; flex-direction: column; gap: 0.6rem; }
   .quick { display: flex; flex-wrap: wrap; gap: 0.35rem; }
   .chip { font-size: 0.8rem; padding: 0.25rem 0.65rem; }
-  .scroll { overflow-x: auto; background: var(--sr-paper); border: 1px solid var(--sr-hairline); border-radius: 18px; padding: 0.25rem; }
-  svg { display: block; max-width: none; height: auto; }
-  .line { stroke: var(--sr-ink-2); stroke-width: 1.2; }
-  .clef { font-size: 10px; font-weight: 800; fill: var(--sr-muted); writing-mode: vertical-rl; }
-  .note { cursor: pointer; outline: none; }
-  .hit { fill: transparent; }
-  .note:hover .hit { fill: var(--sr-tint); }
-  .note:focus-visible .hit { stroke: var(--sr-action); stroke-width: 2; }
-  .head { fill: var(--sr-paper); stroke: var(--sr-hairline-2); stroke-width: 2; stroke-dasharray: 3 2; }
-  .note.on .head { fill: var(--sr-action); stroke: var(--sr-action); stroke-dasharray: none; }
-  .name { font-size: 12px; font-weight: 800; fill: var(--sr-muted); }
-  .note.on .name { fill: var(--sr-action-fg); }
-  .oct { font-size: 8px; }
+  /* On a phone the staff keeps notes a finger wide and scrolls sideways; wider, it fits. */
+  .scroll { overflow-x: auto; border-radius: 22px; background: #fff; border: 1px solid var(--sr-hairline); }
+  .box { position: relative; min-width: 34rem; padding-bottom: 2.1rem; }
+  .paper :global(svg) { display: block; }
+  .paper :global(.abcjs-note) { fill: var(--sr-action); transition: fill 120ms ease; }
+  .paper :global(.abcjs-note.off) { fill: #b9c1d0; }
+  .cols { position: absolute; inset: 0; }
+  .col { position: absolute; top: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 0.35rem; border-radius: 14px; background: transparent; }
+  .col:hover { background: color-mix(in srgb, var(--sr-action) 8%, transparent); }
+  .col:focus-visible { outline: 2px solid var(--sr-action); outline-offset: -2px; }
+  .name { min-width: 1.7rem; padding: 0.1rem 0.3rem; border-radius: 999px; font-size: 0.78rem; font-weight: 800; color: var(--sr-ink-2); background: var(--sr-track); line-height: 1.3; }
+  .name sub { font-size: 0.6rem; }
+  .col.on .name { background: var(--sr-action); color: var(--sr-action-ink); }
   .hint { font-size: 0.8rem; color: var(--sr-ink-2); }
 </style>

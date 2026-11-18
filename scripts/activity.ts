@@ -7,6 +7,8 @@
 const sql = new Bun.SQL(process.env.DATABASE_URL!);
 const OWNER = "%cowen%";
 const day = process.argv[2] ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Chicago" });
+// Blaine's Demo classes' students (scripts/demo-classes.ts, their activity from scripts/demo-activity.ts): not real use.
+const DEMO_STUDENTS = `select e."studentId" from enrollment e join class c on c.id = e."classId" join "user" t on t.id = c."userId" where c.name like 'Demo: %' and t.email ilike '${OWNER}'`;
 const local = (col: string) => `((${col} at time zone 'UTC') at time zone 'America/Chicago')`;
 const show = (title: string, rows: unknown[]) => {
   console.log(`\n## ${title}`);
@@ -31,11 +33,11 @@ await sql.begin("read only", async (tx) => {
     group by 1,2 order by 3 desc`));
   show("Student practice that day", await q(`
     select p.page, count(distinct p."studentId")::int students, sum(p.seconds)/60 minutes, sum(p.exercises)::int exercises
-    from practice_time p where p.day = $1 group by 1`));
+    from practice_time p where p.day = $1 and p."studentId" not in (${DEMO_STUDENTS}) group by 1`));
   show("Classes, enrollments, assignments, live rooms that day", await q(`
     select 'class' kind, count(*)::int n from class c join "user" u on u.id=c."userId" where ${local('c."createdAt"')}::date=$1::date and u.email not ilike '${OWNER}'
     union all select 'enrollment', count(*)::int from enrollment where ${local('"createdAt"')}::date=$1::date
-    union all select 'assignment', count(*)::int from assignment where ${local('"createdAt"')}::date=$1::date
+    union all select 'assignment', count(*)::int from assignment where ${local('"createdAt"')}::date=$1::date and "classId" not in (select c.id from class c join "user" t on t.id=c."userId" where c.name like 'Demo: %' and t.email ilike '${OWNER}')
     union all select 'live room', count(*)::int from live_room where ${local('"startedAt"')}::date=$1::date
     union all select 'founder joined', count(*)::int from access_grant g join access_code a on a.id=g."codeId" where a.code='FOUNDINGTEACHERS' and ${local('g."createdAt"')}::date=$1::date
     union all select 'preset saved', count(*)::int from preset where ${local('"createdAt"')}::date=$1::date`));
