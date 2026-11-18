@@ -170,7 +170,8 @@ try {
   await p.evaluate(() => localStorage.setItem("sr-solfege-ear", JSON.stringify({ tonality: "major", level: 3, nameAs: "solfege", minorAs: "la", tonicFirst: true })));
   await p.reload({ waitUntil: "networkidle2" });
   await p.waitForSelector('[data-ear-quiz="solfege"]');
-  ok(await p.evaluate(() => /Level 3: Up to so/.test((document.querySelector("#ear-level") as HTMLSelectElement).selectedOptions[0]!.textContent!)), "the setup is remembered");
+  // The level cards (GameLevels, 18 November 2026): Level 3, "Up to so", is the one pressed.
+  ok(await p.evaluate(() => { const b = document.querySelector('[data-game-levels="solfege"] [data-level="2"]'); return b?.getAttribute("aria-pressed") === "true" && /Up to so/.test(b.textContent ?? ""); }), "the setup is remembered");
   await p.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /Start/.test(b.textContent ?? "")) as HTMLElement).click());
   await p.waitForSelector("[data-key-strip]", { timeout: 10000 });
   ok(true, "the key plays first, with its card");
@@ -233,6 +234,11 @@ try {
   ok(/10 of 10/.test(together) && !/too fast/.test(together) && /\+\d+ points/.test(together), "a quick round of intervals Together counts", together);
   const justNote = await fastRound("/games/solfege", "solfege", "sr-solfege-ear", { tonality: "minor", level: 8, nameAs: "letters", tonicFirst: false }, (t) => solfegeRound(checkSolfegeSetup(t.s), t.seed).questions.map(pcOf));
   ok(/10 of 10/.test(justNote) && !/too fast/.test(justNote), "a quick Solfège round, just the note (minor, chromatic), counts", justNote);
+  // 18 November 2026's options: the server deals the same round from them and marks it (10 of 10 is its count).
+  const sameKey = await fastRound("/games/intervals", "interval", "sr-interval-ear", { level: 7, direction: "both", sameKey: true }, (t) => intervalRound(checkIntervalSetup(t.s), t.seed).questions.map((q) => q.answer));
+  ok(/10 of 10/.test(sameKey) && !/too fast/.test(sameKey), "intervals in one key (all of them, either way): the server marks 10 of 10, not too fast", sameKey);
+  const refSo = await fastRound("/games/solfege", "solfege", "sr-solfege-ear", { tonality: "major", level: 6, nameAs: "solfege", ref: 7, key: "F", anyOctave: true }, (t) => solfegeRound(checkSolfegeSetup(t.s), t.seed).questions.map(pcOf));
+  ok(/10 of 10/.test(refSo) && !/too fast/.test(refSo), "Solfège with so before each note, in F, any octave: the server marks 10 of 10", refSo);
   ok(!failedLoads.length, "every piano sample and file loaded (notes from 52 to 81)", failedLoads.slice(0, 5).join(" | "));
   ok(!errors.length, "Ivy's games: no page errors", errors.join(" | "));
   await sctx.close();

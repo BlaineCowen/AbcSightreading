@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 import {
-  INTERVAL_LEVELS, QUIZ_LENGTH, SOLFEGE_LEVELS, checkIntervalSetup, checkSolfegeSetup, intervalChoices, intervalName, intervalRound, nameOf, pcOf, solfegeNotes, solfegeRound, spell, type SolfegeSetup,
+  INTERVAL_LEVELS, KEY_NAMES, QUIZ_LENGTH, REFERENCE_NOTES, intervalMinSeconds, solfegeMinSeconds, SOLFEGE_LEVELS, checkIntervalSetup, checkSolfegeSetup, intervalChoices, intervalName, intervalRound, nameOf, pcOf, solfegeNotes, solfegeRound, spell, type SolfegeSetup,
 } from "../../src/lib/games/ear-quiz";
 import { GAME_PASS, gameRoundPoints } from "../../src/lib/points";
 
@@ -45,7 +45,7 @@ describe("solfegeRound", () => {
 
 describe("checkSolfegeSetup", () => {
   test("anything sent is made safe", () => {
-    expect(checkSolfegeSetup(null)).toEqual({ tonality: "major", level: 1, nameAs: "solfege", minorAs: "la", tonicFirst: true });
+    expect(checkSolfegeSetup(null)).toEqual({ tonality: "major", level: 1, nameAs: "solfege", minorAs: "la", ref: 0, key: null, anyOctave: false });
     expect(checkSolfegeSetup({ level: 99, nameAs: "x", tonality: "minor", minorAs: "do" }).level).toBe(1);
     expect(checkSolfegeSetup({ level: 0, notes: [0, 4, 4, 99, "x", -7] }).notes).toEqual([-7, 0, 4]);
   });
@@ -128,7 +128,86 @@ describe("intervalRound", () => {
     expect(intervalName(checkIntervalSetup({ level: 1 }), 2)).toBe("Step (2nd)");
     expect(intervalName(checkIntervalSetup({ level: 2 }), 5)).toBe("5th");
     expect(intervalName(checkIntervalSetup({ level: 7 }), 6)).toBe("Tritone");
-    expect(checkIntervalSetup({ level: 0, semis: [7, 5, 5, 40] })).toEqual({ level: 0, semis: [5, 7], direction: "up" });
+    expect(checkIntervalSetup({ level: 0, semis: [7, 5, 5, 40] })).toEqual({ level: 0, semis: [5, 7], direction: "up", sameKey: false });
     expect(checkIntervalSetup({ level: 0, semis: [7] }).level).toBe(1);
+  });
+});
+
+// 18 November 2026 (Blaine): the note before each question, a fixed key, any octave; intervals in one key.
+describe("the new options", () => {
+  test("a setup saved before them reads the same: tonicFirst false is no note first, true is do", () => {
+    expect(checkSolfegeSetup({ tonicFirst: false }).ref).toBe(null);
+    expect(checkSolfegeSetup({ tonicFirst: true }).ref).toBe(0);
+    expect(checkSolfegeSetup({ ref: 7 }).ref).toBe(7);
+    expect(checkSolfegeSetup({ ref: 7, tonicFirst: false }).ref).toBe(7);
+    // A reference the tonality has no such note for is do.
+    expect(checkSolfegeSetup({ tonality: "minor", ref: 9 }).ref).toBe(0);
+    expect(checkSolfegeSetup({ key: "Q" }).key).toBe(null);
+  });
+  test("no note first is the faster floor, as before", () => {
+    expect(solfegeMinSeconds(setup({ ref: null }))).toBeLessThan(solfegeMinSeconds(setup({ ref: 4 })));
+    expect(solfegeMinSeconds(setup({ ref: 4 }))).toBe(solfegeMinSeconds(setup({ ref: 0 })));
+  });
+
+  // Property: a fixed key is the round's key, every time, at every level.
+  test("a chosen key is kept", () => {
+    const levels = (["major", "minor"] as const).flatMap((t) => SOLFEGE_LEVELS[t].map((_, i) => ({ t, level: i + 1 })));
+    fc.assert(
+      fc.property(fc.constantFrom(...levels), fc.constantFrom(...KEY_NAMES), fc.integer({ min: 0, max: 2 ** 31 - 1 }), ({ t, level }, key, seed) => {
+        const r = solfegeRound(setup({ tonality: t, level, key }), seed);
+        expect(r.tonicName).toBe(key);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  // Property: any octave keeps each note's name (its pitch class), its range and no repeat running.
+  test("any octave moves a note by octaves only, inside 53..79", () => {
+    const levels = (["major", "minor"] as const).flatMap((t) => SOLFEGE_LEVELS[t].map((_, i) => ({ t, level: i + 1 })));
+    fc.assert(
+      fc.property(fc.constantFrom(...levels), fc.integer({ min: 0, max: 2 ** 31 - 1 }), ({ t, level }, seed) => {
+        const s = setup({ tonality: t, level, anyOctave: true });
+        const pcs = new Set(solfegeNotes(s).map(pcOf));
+        const r = solfegeRound(s, seed);
+        for (const [i, q] of r.questions.entries()) {
+          expect(pcs.has(pcOf(q))).toBe(true);
+          expect(r.tonic + q).toBeGreaterThanOrEqual(53);
+          expect(r.tonic + q).toBeLessThanOrEqual(79);
+          if (i) expect(pcOf(q)).not.toBe(pcOf(r.questions[i - 1]!));
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+  test("over many rounds any octave does move notes", () => {
+    const moved = Array.from({ length: 50 }, (_, seed) => solfegeRound(setup({ level: 3, anyOctave: true }), seed)).some((r) =>
+      r.questions.some((q) => !solfegeNotes(setup({ level: 3 })).includes(q)),
+    );
+    expect(moved).toBe(true);
+  });
+
+  // Property: in one key, every note of every question is in that key's major scale, at every level and direction.
+  test("intervals in one key keep every note in the key", () => {
+    const levels = [...INTERVAL_LEVELS.map((_, i) => i + 1), 0];
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...levels), fc.constantFrom("up", "down", "both", "together"), fc.integer({ min: 0, max: 2 ** 31 - 1 }),
+        (level, direction, seed) => {
+          const s = checkIntervalSetup({ level, semis: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], direction, sameKey: true });
+          const r = intervalRound(s, seed);
+          expect(r.tonic).not.toBe(null);
+          const major = [0, 2, 4, 5, 7, 9, 11];
+          for (const q of r.questions) {
+            expect(major).toContain(pcOf(q.from - r.tonic!));
+            expect(major).toContain(pcOf(q.to - r.tonic!));
+          }
+        },
+      ),
+      { numRuns: 400 },
+    );
+  });
+  test("one key plays the key first, so its floor is longer", () => {
+    expect(intervalMinSeconds(checkIntervalSetup({ sameKey: true }))).toBeGreaterThan(intervalMinSeconds(checkIntervalSetup({})));
+    expect(REFERENCE_NOTES.major).toEqual([0, 4, 7, 9]);
   });
 });

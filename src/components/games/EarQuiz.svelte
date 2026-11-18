@@ -5,8 +5,10 @@
   export type QuizRound = {
     /** The right answer to each question. */
     answers: number[];
-    /** The answer tiles, in order. */
-    choices: { value: number; label: string }[];
+    /** The answer tiles, in order (low to high, for a keyboard). */
+    choices: { value: number; label: string; black?: boolean }[];
+    /** The tiles as a piano keyboard (Solfège): notes out of the scale are black keys. */
+    keyboard?: boolean;
     /** The key at the start (and Hear the key), or null for a game without one. */
     intro: { tonic: number; pattern: number[]; chord: number[]; names: string[]; chordName: string } | null;
     /** Plays question i; `heard` when its last note sounds (the tiles open then). */
@@ -34,6 +36,7 @@
   import { onDestroy, onMount } from "svelte";
   import { Ear, Music, Play, RotateCcw, SkipForward, Sparkles, Square } from "lucide-svelte";
   import KeyStrip from "./KeyStrip.svelte";
+  import NoteKeyboard from "./NoteKeyboard.svelte";
   import PointsToast from "../PointsToast.svelte";
   import { pointsNews } from "../../lib/practice-tracker";
   import { playEar as play } from "../../lib/games/game-audio";
@@ -244,6 +247,17 @@
       </div>
       <div class="board">
         {#if round.intro}<KeyStrip at={keyAt} names={round.intro.names} chordName={round.intro.chordName} then="Now the notes" />{/if}
+        {#if round.keyboard}
+          <NoteKeyboard
+            answer
+            label="Answers"
+            keys={round.choices.map((c) => ({ value: c.value, label: c.label, black: !!c.black }))}
+            disabled={phase !== "ask" || !heard}
+            right={phase === "answered" ? round.answers[q] ?? null : null}
+            wrong={phase === "answered" && answers[q] !== round.answers[q] ? answers[q] ?? null : null}
+            on:press={(e) => answer(e.detail)}
+          />
+        {:else}
         <div class="tiles" style="--cols: {Math.min(round.choices.length, 7)}">
           {#each round.choices as c, i (c.value)}
             {@const isRight = phase === "answered" && c.value === round.answers[q]}
@@ -253,6 +267,7 @@
             </button>
           {/each}
         </div>
+        {/if}
       </div>
       <div class="controls">
         {#if phase === "answered" && answers[q] !== round.answers[q]}

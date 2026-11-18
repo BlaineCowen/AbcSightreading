@@ -20,6 +20,7 @@
   import PipFace from "../PipFace.svelte";
   import TuneGrid from "./TuneGrid.svelte";
   import TuneSetup from "./TuneSetup.svelte";
+  import GameLevels from "./GameLevels.svelte";
   import KeyStrip from "./KeyStrip.svelte";
   import { Check, Eye, Flame, Music, Play, RotateCcw, SkipForward, Square, Target, X } from "lucide-svelte";
   import GameHost from "./GameHost.svelte";
@@ -351,14 +352,15 @@
     <button role="tab" class="sr-tok" class:sr-on={mode === "class"} aria-selected={mode === "class"} on:click={() => (mode = "class")}>With your class</button>
   </div>
 
+  <GameLevels
+    game="tune"
+    levels={PATH_LEVELS.map((l) => ({ name: l.name, detail: l.notes.join(" ") }))}
+    selected={li}
+    disabled={game?.phase === "playing" || game?.phase === "answering"}
+    on:select={(e) => setLevel(e.detail)}
+  >
+    <div slot="custom"><TuneSetup bind:level={custom} /></div>
   <div class="settings">
-    <label class="set">
-      <span>Notes</span>
-      <select class="sr-select" value={li} on:change={(e) => setLevel(Number(e.currentTarget.value))} disabled={game?.phase === "playing" || game?.phase === "answering"} data-tune-level>
-        {#each PATH_LEVELS as l, i (l.name)}<option value={i}>{l.name}: {l.notes.join(" ")}</option>{/each}
-        <option value={-1}>Custom</option>
-      </select>
-    </label>
     <label class="set speed">
       <span>Speed</span>
       <span class="pace" aria-hidden="true" title="Slower">🐢</span>
@@ -369,10 +371,7 @@
       <label class="flex items-center gap-2 text-sm font-bold text-sr-ink-2"><input type="checkbox" class="sr-check h-4 w-4" bind:checked={hints} /> Hints</label>
     {/if}
   </div>
-
-  {#if li < 0 && !(game && (game.phase === "playing" || game.phase === "answering"))}
-    <TuneSetup bind:level={custom} />
-  {/if}
+  </GameLevels>
 
   {#if mode === "solo"}
     {#if winOpen}

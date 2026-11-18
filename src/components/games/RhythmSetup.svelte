@@ -73,7 +73,7 @@
 </div>
 
 <style>
-  .setup { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.9rem 1.1rem; border-radius: 22px; background: var(--sr-raise); border: 1px solid var(--sr-hairline); width: 100%; }
+  .setup { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
   .row > span { font-weight: 800; font-size: 0.85rem; color: var(--sr-ink-2); min-width: 5rem; }
   .chip { font-size: 0.8rem; padding: 0.25rem 0.65rem; }

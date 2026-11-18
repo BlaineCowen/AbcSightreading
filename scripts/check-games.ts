@@ -228,7 +228,8 @@ if (GAME === "rhythm" || GAME === "both") {
 if (GAME === "tune" || GAME === "both") {
   check(await openRoom("/games/catch-the-tune"), "tune: the big screen opens the room");
   // The teacher's own set: high do added, and 4ths; three rounds.
-  await teacher.select("[data-tune-level]", "-1");
+  // Customize is a tab now (GameLevels, 18 November 2026), not the menu's last option.
+  await teacher.click('[data-game-levels="tune"] [data-tab="customize"]');
   await teacher.waitForSelector("[data-tune-setup]");
   const clickChip = (label: string, group: string) =>
     teacher.evaluate((l: string, g: string) => ([...document.querySelectorAll(`[data-tune-setup] [aria-label="${g}"] button`)].find((b) => b.textContent?.trim() === l) as HTMLButtonElement)?.click(), label, group);
@@ -333,7 +334,7 @@ if (GAME === "solo" || GAME === "both") {
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/games-rhythm-solo.png` });
 
   // The teacher's own rhythms: 6/8, its figures, Kodály syllables under the notes.
-  await p.select("[data-rhythm-level]", "custom");
+  await p.click('[data-game-levels="rhythm"] [data-tab="customize"]');
   await p.waitForSelector("[data-rhythm-setup]");
   await p.evaluate(() => ([...document.querySelectorAll('[data-rhythm-setup] [aria-label="Meters"] button')].find((b) => b.textContent?.trim() === "6/8") as HTMLButtonElement)?.click());
   await p.evaluate(() => ([...document.querySelectorAll('[data-rhythm-setup] [aria-label="Syllables under the notes"] button')].find((b) => /Kod/.test(b.textContent ?? "")) as HTMLButtonElement)?.click());

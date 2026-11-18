@@ -18,6 +18,8 @@
   import TapPad from "../TapPad.svelte";
   import GameHost from "./GameHost.svelte";
   import RhythmSetup from "./RhythmSetup.svelte";
+  import GameLevels from "./GameLevels.svelte";
+  import { drawBeatBar, type BeatBar } from "../../lib/games/beat-bar";
   import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
   import { scoreRhythm, type RhythmScore } from "../../lib/games/game-score";
@@ -53,6 +55,17 @@
   $: saveOwn(own);
   $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
   const setStrictness = (id: string) => (strictness = id as Strictness);
+  /** The beat bar under the music (beat-bar.ts), remembered in this browser. */
+  const BEAT_BAR_KEY = "sr-rhythm-beat-bar";
+  let beatBarOn = (() => {
+    try { return localStorage.getItem(BEAT_BAR_KEY) !== "off"; } catch { return true; }
+  })();
+  let beatBar: BeatBar | null = null;
+  function setBeatBar(on: boolean) {
+    beatBarOn = on;
+    try { localStorage.setItem(BEAT_BAR_KEY, on ? "on" : "off"); } catch {}
+    void draw();
+  }
 
   type Exercise = { abc: string; bars: number; meter: string; beatsPerBar: number; beatUnits: number; schedule: ReturnType<typeof gradeSchedule> };
   let exercise: Exercise | null = null;
@@ -82,7 +95,8 @@
   async function draw() {
     await tick();
     if (!paper || !exercise) return;
-    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true, ...roundLayout(exercise.bars) });
+    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: beatBarOn ? 40 : 10, add_classes: true, ...roundLayout(exercise.bars) });
+    beatBar = beatBarOn ? drawBeatBar(paper, exercise.abc, exercise.beatUnits, exercise.beatsPerBar) : null;
   }
 
   /** Each note's mark on the music (rhythm-marks.ts): green right, butter close, red missed. */
@@ -116,7 +130,11 @@
     wordTimers.push(setTimeout(() => (word = ""), msUntil(musicSec)));
     const step = () => {
       progress = Math.max(0, Math.min(1, (ctx.currentTime - musicSec) / (endSec - musicSec)));
+      // The beat bar's dot: from the first note to the end, in the music's own units.
+      const into = ctx.currentTime - musicSec;
+      beatBar?.set(into >= 0 && ctx.currentTime < endSec ? (into / beatSec) * ex.beatUnits : null);
       if (ctx.currentTime < endSec && running) raf = requestAnimationFrame(step);
+      else beatBar?.set(null);
     };
     raf = requestAnimationFrame(step);
     return endSec;
@@ -128,6 +146,7 @@
     wordTimers.forEach(clearTimeout);
     wordTimers = [];
     cancelAnimationFrame(raf);
+    beatBar?.set(null);
     word = "";
   }
   onDestroy(() => {
@@ -354,29 +373,34 @@
     <button role="tab" class="sr-tok" class:sr-on={mode === "class"} aria-selected={mode === "class"} on:click={() => (mode = "class")}>With your class</button>
   </div>
 
+  <GameLevels
+    game="rhythm"
+    levels={RHYTHM_LEVELS.map((l) => ({ name: l.name }))}
+    selected={levelId === "custom" ? -1 : RHYTHM_LEVELS.findIndex((l) => l.id === levelId)}
+    disabled={running}
+    on:select={(e) => (levelId = e.detail < 0 ? "custom" : RHYTHM_LEVELS[e.detail].id)}
+  >
+    <div slot="custom">
+      {#if running}<p class="text-sm text-sr-muted">Your own rhythms: {own.meters.join(", ")}.</p>
+      {:else}<RhythmSetup bind:meters={own.meters} bind:rhythms={own.rhythms} bind:ties={own.ties} bind:syllables={own.syllables} />{/if}
+    </div>
   <div class="settings" class:locked={running}>
-    <label class="set"><span>Rhythms</span>
-      <select bind:value={levelId} disabled={running} data-rhythm-level>
-        {#each RHYTHM_LEVELS as l, i (l.id)}<option value={l.id}>{i + 1}. {l.name}</option>{/each}
-        <option value="custom">Custom</option>
-      </select>
-    </label>
     <label class="set"><span>Bars</span>
       <select bind:value={bars} disabled={running}>{#each GAME_BARS as b}<option value={b}>{b}</option>{/each}</select>
     </label>
     <label class="set"><span>Tempo</span>
       <select bind:value={bpm} disabled={running}>{#each GAME_TEMPOS as b}<option value={b}>♩ = {b}</option>{/each}</select>
     </label>
+    <div class="flex gap-1" role="group" aria-label="Beat bar under the music">
+      <button class="sr-tok text-sm" class:sr-on={beatBarOn} aria-pressed={beatBarOn} on:click={() => setBeatBar(!beatBarOn)} disabled={running} data-beat-bar-toggle>Beat bar {beatBarOn ? "on" : "off"}</button>
+    </div>
     <div class="flex gap-1" role="group" aria-label="Strictness">
       {#each Object.entries(STRICTNESS) as [id, s]}
         <button class="sr-tok text-sm" class:sr-on={strictness === id} aria-pressed={strictness === id} on:click={() => setStrictness(id)} disabled={running}>{s.label}</button>
       {/each}
     </div>
   </div>
-
-  {#if levelId === "custom" && !running}
-    <RhythmSetup bind:meters={own.meters} bind:rhythms={own.rhythms} bind:ties={own.ties} bind:syllables={own.syllables} />
-  {/if}
+  </GameLevels>
 
   {#if mode === "class" && !room}
     <div class="sr-panel p-6 flex flex-col items-center gap-3 text-center">
@@ -459,4 +483,10 @@
   .paper :global(.g-right) { fill: #2fb383; }
   .paper :global(.g-close) { fill: #e0a100; }
   .paper :global(.g-miss) { fill: #e5484d; }
+  /* The beat bar (beat-bar.ts): thin, under the music, never over it. */
+  .paper :global(.bb-track) { stroke: var(--sr-hairline-2); stroke-width: 2; stroke-linecap: round; }
+  .paper :global(.bb-tick) { stroke: var(--sr-ink-2); stroke-width: 1.5; }
+  .paper :global(.bb-down) { stroke: var(--sr-ink); stroke-width: 2.5; }
+  .paper :global(.bb-num) { font-size: 11px; font-weight: 700; fill: var(--sr-ink-2); font-family: var(--sr-font-body); }
+  .paper :global(.bb-dot) { fill: var(--sr-action); }
 </style>

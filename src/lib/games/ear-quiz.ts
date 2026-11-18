@@ -54,9 +54,23 @@ export type SolfegeSetup = {
   notes?: number[];
   nameAs: NameAs;
   minorAs: MinorAs;
-  /** Sound the tonic before each note (the key is played at the start of every round either way). */
-  tonicFirst: boolean;
+  /**
+   * The note sounded before each question, as semitones from the tonic (do,
+   * mi, so or la: REFERENCE_NOTES), or null for the question's note alone.
+   * The key is played at the start of every round either way. Was
+   * `tonicFirst` (true is 0, false is null) until 18 November 2026.
+   */
+  ref: number | null;
+  /** The key's tonic by name (KEY_NAMES), or null for a new random key each round. */
+  key: string | null;
+  /** Each note in any octave that fits (low so may come an octave up), not only where the level puts it. */
+  anyOctave: boolean;
 };
+
+/** Notes a round can sound before each question: do, mi, so, la (major); la, do, mi (minor, la-based names). */
+export const REFERENCE_NOTES: Record<Tonality, number[]> = { major: [0, 4, 7, 9], minor: [0, 3, 7] };
+/** Keys a round can be held in: the tonics the random key picks from. */
+export const KEY_NAMES = ["C", "D", "Eb", "F", "G", "A", "Bb"];
 
 /** The levels, as semitones from the tonic: the order abcStepByStep brings notes in. */
 export const SOLFEGE_LEVELS: Record<Tonality, { name: string; notes: number[] }[]> = {
@@ -99,12 +113,14 @@ export function checkSolfegeSetup(v: unknown): SolfegeSetup {
     ...(level === 0 ? { notes } : {}),
     nameAs,
     minorAs: o.minorAs === "do" ? "do" : "la",
-    tonicFirst: o.tonicFirst !== false,
+    ref: typeof o.ref === "number" && REFERENCE_NOTES[tonality].includes(o.ref) ? o.ref : o.ref === null || o.tonicFirst === false ? null : 0,
+    key: typeof o.key === "string" && KEY_NAMES.includes(o.key) ? o.key : null,
+    anyOctave: o.anyOctave === true,
   };
 }
 
 /** Solfège: the key, then the tonic 1.1 s before each note (or the note alone). */
-export const solfegeMinSeconds = (s: SolfegeSetup) => floorFor(KEY_SECONDS, s.tonicFirst ? 1.1 : 0);
+export const solfegeMinSeconds = (s: SolfegeSetup) => floorFor(KEY_SECONDS, s.ref !== null ? 1.1 : 0);
 
 export const solfegeNotes = (s: SolfegeSetup) => (s.level === 0 ? s.notes ?? [] : SOLFEGE_LEVELS[s.tonality][s.level - 1]!.notes);
 
@@ -112,6 +128,10 @@ export const solfegeNotes = (s: SolfegeSetup) => (s.level === 0 ? s.notes ?? [] 
 const TONICS = [60, 62, 63, 65, 67, 57, 58]; // C D Eb F G A Bb
 /** Their letter names, for fixed do and letters. */
 const TONIC_NAMES: Record<number, string> = { 60: "C", 62: "D", 63: "Eb", 65: "F", 67: "G", 57: "A", 58: "Bb", 64: "E", 61: "C#", 66: "F#", 59: "B", 56: "Ab" };
+/** A key chosen by name: its tonic among TONICS. */
+const tonicOfKey = (name: string) => TONICS.find((t) => TONIC_NAMES[t] === name) ?? 60;
+/** The lowest and highest notes a round sounds (anyOctave moves a note only inside these). */
+const LOWEST = 53, HIGHEST = 79;
 
 export type SolfegeRound = {
   /** The tonic, a MIDI note, and its name. */
@@ -132,9 +152,9 @@ export type SolfegeRound = {
 export function solfegeRound(setup: SolfegeSetup, seed: number): SolfegeRound {
   const rng = rngFrom(seed);
   const notes = solfegeNotes(setup);
-  // A tonic whose notes stay inside 53..79.
-  const fits = TONICS.filter((t) => t + Math.min(...notes) >= 53 && t + Math.max(...notes) <= 79);
-  const tonic = pick(rng, fits.length ? fits : [60]);
+  // A tonic whose notes stay inside 53..79 (a chosen key is kept even if a note falls just outside).
+  const fits = TONICS.filter((t) => t + Math.min(...notes) >= LOWEST && t + Math.max(...notes) <= HIGHEST);
+  const tonic = setup.key ? tonicOfKey(setup.key) : pick(rng, fits.length ? fits : [60]);
   const questions: number[] = [];
   let bag: number[] = [];
   while (questions.length < QUIZ_LENGTH) {
@@ -143,7 +163,11 @@ export function solfegeRound(setup: SolfegeSetup, seed: number): SolfegeRound {
     if (!bag.some((n) => pcOf(n) !== last)) bag = [...bag, ...notes];
     const n = pick(rng, bag.filter((n) => pcOf(n) !== last));
     bag.splice(bag.indexOf(n), 1);
-    questions.push(n);
+    if (setup.anyOctave) {
+      // The same note an octave up or down, wherever it still fits.
+      const places = [n - 12, n, n + 12].filter((m) => tonic + m >= LOWEST && tonic + m <= HIGHEST);
+      questions.push(places.length ? pick(rng, places) : n);
+    } else questions.push(n);
   }
   return { tonic, tonicName: TONIC_NAMES[tonic] ?? "C", questions, choices: [...new Set(notes.map(pcOf))].sort((a, b) => a - b) };
 }
@@ -206,6 +230,12 @@ export type IntervalSetup = {
   level: number;
   semis?: number[];
   direction: Direction;
+  /**
+   * One key for the whole round (Blaine, 18 November 2026: "really hard when
+   * it jumps around between keys"): the key plays first, and every note is in
+   * its major scale. Off, each question has a key (or no key) of its own.
+   */
+  sameKey: boolean;
 };
 export const INTERVAL_LEVELS: { name: string; sizes?: number[]; semis?: number[] }[] = [
   { name: "Step or skip", sizes: [2, 3] },
@@ -227,12 +257,12 @@ export function checkIntervalSetup(v: unknown): IntervalSetup {
   const level = typeof o.level === "number" && Number.isInteger(o.level) && o.level >= 0 && o.level <= INTERVAL_LEVELS.length ? o.level : 1;
   const semis = Array.isArray(o.semis) ? [...new Set(o.semis.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= 12))].sort((a, b) => a - b) : [];
   const direction: Direction = (["up", "down", "both", "together"] as const).includes(o.direction as Direction) ? (o.direction as Direction) : "up";
-  return { level: level === 0 && semis.length < 2 ? 1 : level, ...(level === 0 && semis.length >= 2 ? { semis } : {}), direction };
+  return { level: level === 0 && semis.length < 2 ? 1 : level, ...(level === 0 && semis.length >= 2 ? { semis } : {}), direction, sameKey: o.sameKey === true };
 }
 
 /** The answers a setup offers: sizes on the sizes levels, else semitones. */
 /** Intervals: no key; the second note 1 s after the first, or both at once. */
-export const intervalMinSeconds = (s: IntervalSetup) => floorFor(0, s.direction === "together" ? 0 : 1);
+export const intervalMinSeconds = (s: IntervalSetup) => floorFor(s.sameKey ? KEY_SECONDS : 0, s.direction === "together" ? 0 : 1);
 
 export function intervalChoices(s: IntervalSetup): { sizes: boolean; values: number[] } {
   if (s.level === 0) return { sizes: false, values: s.semis ?? [] };
@@ -250,6 +280,9 @@ export type IntervalRound = {
   /** Each question: its two notes as MIDI, in the order played (together: low first), and its answer. */
   questions: { from: number; to: number; answer: number }[];
   together: boolean;
+  /** sameKey: the round's tonic (MIDI) and its name; null when each question has its own. */
+  tonic: number | null;
+  tonicName: string | null;
 };
 
 /** A major scale's degree k (any integer) as semitones from its tonic. */
@@ -260,6 +293,9 @@ export function intervalRound(setup: IntervalSetup, seed: number): IntervalRound
   const { sizes, values } = intervalChoices(setup);
   const together = setup.direction === "together";
   const questions: IntervalRound["questions"] = [];
+  // One key for the round: drawn first, so a round without it deals as it always did.
+  const roundTonic = setup.sameKey ? pick(rng, TONICS) : null;
+  const inKey = (m: number) => roundTonic === null || NATURAL.includes(pcOf(m - roundTonic));
   let bag: number[] = [];
   while (questions.length < QUIZ_LENGTH) {
     const last = questions[questions.length - 1]?.answer;
@@ -270,7 +306,7 @@ export function intervalRound(setup: IntervalSetup, seed: number): IntervalRound
     let from: number, to: number;
     if (sizes) {
       // From a major scale: a tonic, a degree to start on, the size counted in scale steps.
-      const tonic = pick(rng, TONICS);
+      const tonic = roundTonic ?? pick(rng, TONICS);
       const starts = Array.from({ length: 21 }, (_, i) => i - 7).filter((k) => {
         const a = tonic + degreeSemis(k);
         const b = tonic + degreeSemis(k + (down ? -1 : 1) * (answer - 1));
@@ -281,12 +317,14 @@ export function intervalRound(setup: IntervalSetup, seed: number): IntervalRound
       to = tonic + degreeSemis(k + (down ? -1 : 1) * (answer - 1));
     } else {
       const span = answer;
-      const lows = Array.from({ length: 81 - span - 52 + 1 }, (_, i) => 52 + i).filter((m) => m >= 55 && m + span <= 79);
-      const low = pick(rng, lows);
+      const all = Array.from({ length: 81 - span - 52 + 1 }, (_, i) => 52 + i).filter((m) => m >= 55 && m + span <= 79);
+      // In one key: both notes from its scale (every size from a minor 2nd to the octave is in a major scale).
+      const keyed = all.filter((m) => inKey(m) && inKey(m + span));
+      const low = pick(rng, keyed.length ? keyed : all);
       [from, to] = down ? [low + span, low] : [low, low + span];
     }
     if (together && from > to) [from, to] = [to, from];
     questions.push({ from, to, answer });
   }
-  return { questions, together };
+  return { questions, together, tonic: roundTonic, tonicName: roundTonic === null ? null : TONIC_NAMES[roundTonic] ?? "C" };
 }
