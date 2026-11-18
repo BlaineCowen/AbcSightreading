@@ -57,6 +57,10 @@
   export let problem: string | null = null;
   /** Under Start: what a round is. */
   export let hint = "";
+  /** A game assignment this round is played on (game-assignments.ts): the server deals from its setup and records the round. */
+  export let assignmentId: string | null = null;
+  /** The student's progress on that assignment after a round. */
+  export let onProgress: (p: import("../../lib/game-assignments").GameProgress) => void = () => {};
 
   type Phase = "idle" | "key" | "ask" | "answered" | "done";
   let phase: Phase = "idle";
@@ -95,7 +99,7 @@
     let seed = newSeed();
     roundSetup = setup;
     try {
-      const res = await fetch("/api/games/round", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ game, setup, day: localDay() }) });
+      const res = await fetch("/api/games/round", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ game, setup, day: localDay(), ...(assignmentId ? { assignment: assignmentId } : {}) }) });
       if (res.ok) {
         const body = await res.json();
         token = body.token;
@@ -184,6 +188,7 @@
           problem: body.problem,
         };
         if (body.award && (body.award.earned?.length || body.award.badges?.length)) pointsNews.set(body.award);
+        if (body.assignment) onProgress(body.assignment);
       }
     } catch {}
     finishing = false;

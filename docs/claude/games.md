@@ -10,7 +10,7 @@ owner-only prototype `/rhythm-game` (`Abcjs.svelte`) redirects to
 `/games/rhythm` and is gone. `?host=1` opens a game on "With your class".
 
 Rules in `src/lib/games/` (tests `tests/unit/games-live.test.ts`,
-`games-tune-path.test.ts`), pages `src/pages/games/`, components
+`games-tune-path.test.ts`, `ear-quiz.test.ts`, `note-rain.test.ts`, `beat-bar.test.ts`), pages `src/pages/games/`, components
 `src/components/games/`. End to end: `APP=http://localhost:4472 bun run
 scripts/check-games.ts` (`GAME=rhythm|tune|solo|both`, `SHOTS=`) on a dev
 server on the local database, as `check-live.ts` (notes/live-practice.md);
@@ -72,6 +72,119 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   the rules through `award()`, the token checks over HTTP, a whole Solfège
   round and a whole Interval round in the browser as a student, the switch,
   signed out, phone width.
+
+## 18 November 2026: customizing, Note Rain, assigning (Blaine's notes)
+
+- **Levels and Customize are tabs** on every game (`GameLevels.svelte`): Levels
+  as big numbered cards (never a menu), Customize with the game's own choices;
+  what both share (key, speed, names...) sits under the panel. Blaine: the
+  custom option was "hidden at the bottom and really hard to find". The tabs
+  follow the web guidance (labelled tablist, aria-selected, arrows, an
+  underline as well as colour). Checks find them by `[data-game-levels=<game>]
+  [data-tab=customize|levels]` and `[data-level=<index>]`.
+- **Solfège on a piano keyboard** (`NoteKeyboard.svelte`, after
+  learnmusic.fun's SyllablePoolPianoSelector; "important to me"): the scale's
+  notes are white keys, the others black keys between them (minor's white keys
+  are natural minor, so si is a black key), labelled with their names; it is
+  both Customize's note chooser and the answer tiles (`QuizRound.keyboard`,
+  number keys and `data-answer` as before). On a phone a long keyboard scrolls
+  sideways rather than squashing (keys at least 2.6rem).
+- **Solfège's new options** (ear-quiz.ts, all through `checkSolfegeSetup`, so
+  the server deals what the browser plays): `ref`, the note heard before each
+  question: nothing, do, mi, so or la (minor: la, do, mi), replacing
+  `tonicFirst` ("Play do first" was unclear to Blaine; old saves read as do or
+  nothing); `key`, a fixed key or a new one each round; `anyOctave`, a note
+  may come an octave up or down inside 53..79 (learnmusic.fun's range). With
+  the old options a round deals exactly as before (13,532 rounds compared
+  against the previous code, 0 different).
+- **Intervals in one key** (`sameKey`): one tonic a round, drawn first, both
+  notes of every question in its major scale (every size from a minor 2nd to
+  the octave is in a major scale), and the key plays first (`intro`, so the
+  too-fast floor adds the key's seconds). Blaine: "really hard when it jumps
+  around between keys".
+- **Tap the rhythm's beat bar** (`beat-bar.ts`, on by default, `Beat bar`
+  button, `sr-rhythm-beat-bar`): a hairline under each line of music, drawn
+  inside abcjs's SVG, a tick on every beat placed where it falls among the
+  notes (beat 2 two thirds along a dotted quarter), the bar's first beat
+  taller, beat numbers, and a dot that moves along it with the music. Room
+  under the last line is abcjs's paddingbottom (40 with the bar on). Blaine:
+  learnmusic.fun's Rhythm Hero bar was "way too big and messes up the
+  notation", so this one is thin and never moves the music.
+- **Note Rain** (`/games/note-rain`, `NoteRain.svelte`, rules
+  `note-rain.ts`, tests `note-rain.test.ts`): brought over from
+  learnmusic.fun fresh (Blaine called it the storm game: its timed round is a
+  "60-sec storm"). Dev only, as the ear games (`earGamesShown`). Notes fall on
+  white cards drawn by abcjs (each note of the round drawn once and reused);
+  name the lowest before it lands; a wrong answer rests the buttons 0.45 s
+  (no mashing); three strikes. Rounds: a 60-second storm, 20 notes, or
+  Endless. Levels: three notes, five notes, the lines, the spaces, the whole
+  staff, staff and middle C, ledger lines; Customize is a drawn staff
+  (`StaffPicker.svelte`) with every note the clef offers, tap to choose
+  (Blaine: the old Lowest and Highest steppers were unclear). **The speed**:
+  learnmusic.fun's Hard started at 1.2x, added 0.75x a minute and stopped at
+  2.2x, so a note fell in about 5.8 s at the start of a storm and 1.8 s at its
+  end ("I can play it easily with my mouse while talking"). Here it doubles
+  every 40 s from Relaxed 0.7, Medium 1, Fast 1.5 or Extreme 2.2, with no top
+  (a note never falls faster than 0.65 s, but they come closer together and up
+  to 8 at once): Medium 6 s at the start, 2.1 s at a minute; Extreme 2.7 s,
+  under 1 s at a minute. The look is plain (no clouds, hills or rain:
+  "the backgrounds are corny"). Naturals only for now (learnmusic.fun has keys
+  and accidentals); no piano answer mode yet.
+- **Assigning a game** (`game-assignments.ts`, server
+  `src/lib/server/game-assignments.ts`, check `scripts/check-game-assignments.ts`):
+  **Assign to classes** under a game's setup (`AssignGame.svelte`, an account
+  with classes; Educator on the server) gives the game as it is set up to the
+  classes chosen, with a goal (so many rounds at or above a score: right of
+  10, notes named, percent, stars), a due day and a note. **Its own tables**
+  (`GameAssignment`, `GameAssignmentResult`, migrations
+  `20261118000000_game_assignments` and `..._game_result_round`), not
+  `Assignment`: main's practice pages send an assignment with a page they
+  don't know to Choral, whose fetchAssignment redirects to itself, and the
+  database is shared. Students see them with their assignments
+  (`StudentAssignments`, a butter "Game" tag), open `/games/<game>?ga=<id>`:
+  the banner (`GameAssignmentBanner`), the setup locked, no levels, Customize
+  or Assign. **Ear games are marked on the server**: `/api/games/round` deals
+  from the assignment's stored setup whatever the browser sends, the token
+  carries `ga`, `/api/games/finish` records the round (`checked`, its round id
+  unique, so once). Note Rain, the rhythm game and Catch the tune report their
+  score from the device (`checked` false); they earn no points. On the live
+  site the assignments of dev-only games are hidden with the games. The
+  teacher sees each in the class's Assignments tab on /teach
+  (`ClassGameAssignments`), with who is done, and Remove. Results go with the
+  class, the student or the assignment, and after 395 days (the daily cron).
+  Not yet: the gradebook and Google Classroom for games.
+
+### Plan: theory speed games (not built)
+
+Blaine (18 November 2026): gamified theory drills "such as note reading,
+aimed at getting faster, similar to Note Rain", and teachers assigning
+specific content, "e.g. recognizing the key signatures C, F, G, D and B♭
+quickly enough".
+
+1. **One engine, many decks.** Note Rain's loop (fall, name the lowest, three
+   strikes, a ramp, Endless) with the card's content and the answers
+   swapped: a deck is a list of cards (what to draw with abcjs) and the
+   answer buttons. Decks: note names (Note Rain itself), key signatures
+   (major, then relative minor), intervals on the staff, triads (root
+   position, then inversions), rhythm values and rests, accidentals in a key,
+   note values in counts. Each deck has levels (pedagogy first: one new
+   element a step) and a Customize of its own (key signatures: tick the keys).
+2. **Goal is speed, measured.** Besides the falling mode, a "sprint": N cards,
+   one at a time, answer as fast as you can; the score is cards right and the
+   median time a card. A teacher's goal can then be "these five key
+   signatures, 20 right, under 2 s each", which is what "quickly enough"
+   means. Per-card times also feed the tricky list (slowest, not only missed).
+3. **Assigning**: the same Assign to classes (game-assignments.ts) with the
+   deck and its chosen cards as the setup; the goal gains a time ("under N s
+   a card"). Rounds are dealt by the server from a seed as the ear games are
+   (a token, marked on the server), since a sprint's cards are a fixed list.
+4. **Order to build**: key signatures first (Blaine's example; small deck,
+   abcjs draws them), then intervals on the staff, then triads. Points follow
+   the ear games' rules (the class's Games switch).
+5. Questions for Blaine before building: should a wrong answer cost a strike
+   in the sprint, or only time; minor keys in the same deck or their own;
+   should students see the class's fastest times (a leaderboard), given
+   students under 13.
 
 ## Tap the rhythm (`RhythmGame.svelte`)
 

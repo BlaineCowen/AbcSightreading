@@ -38,6 +38,7 @@
 </script>
 
 <div class="kb" class:answer role="group" aria-label={label} style="--whites: {Math.max(1, whites.length)}" data-note-keyboard>
+  <div class="keys">
   {#if blacks.length}
     <div class="blackrow">
       {#each blacks as { k, at } (k.value)}
@@ -77,24 +78,27 @@
       </button>
     {/each}
   </div>
+  </div>
 </div>
 
 <style>
-  .kb { position: relative; width: 100%; max-width: 40rem; margin: 0 auto; }
+  /* Keys keep a size a finger can hit: a long keyboard scrolls sideways on a phone rather than squashing. */
+  .kb { width: 100%; max-width: 40rem; margin: 0 auto; overflow-x: auto; }
+  .keys { position: relative; min-width: calc(var(--whites) * 2.6rem); }
   .whiterow { display: grid; grid-template-columns: repeat(var(--whites), minmax(0, 1fr)); gap: 3px; }
   .blackrow { position: relative; height: 3rem; margin-bottom: -1.7rem; z-index: 2; pointer-events: none; }
   .blackrow .key { pointer-events: auto; }
   .key { position: relative; display: flex; align-items: flex-end; justify-content: center; font-weight: 800; line-height: 1.1; border: 2px solid var(--sr-ink-2); transition: transform 80ms ease; }
   .key:disabled { cursor: default; }
   .white { min-height: 5.4rem; padding: 0 2px 0.5rem; border-radius: 0 0 14px 14px; background: var(--sr-paper); color: var(--sr-ink); font-size: 0.85rem; }
-  .black { position: absolute; top: 0; width: min(13%, 3.4rem); min-width: 2.2rem; height: 100%; transform: translateX(-50%); padding: 0 2px 0.3rem; border-radius: 0 0 10px 10px; background: var(--sr-ink); color: var(--sr-paper); border-color: var(--sr-ink); font-size: 0.75rem; }
+  .black { position: absolute; top: 0; width: calc(100% / var(--whites) * 0.7); max-width: 3.4rem; height: 100%; transform: translateX(-50%); padding: 0 2px 0.3rem; border-radius: 0 0 10px 10px; background: var(--sr-ink); color: var(--sr-paper); border-color: var(--sr-ink); font-size: 0.75rem; }
   .white.on { background: var(--sr-sky); color: var(--sr-sky-ink); border-color: var(--sr-action); box-shadow: inset 0 -5px 0 var(--sr-action); }
   .black.on { background: var(--sr-action); color: var(--sr-action-ink); border-color: var(--sr-action-fg); }
   .white:not(.on):not(:disabled):hover { background: var(--sr-tint); }
   /* Answer tiles: tall keys, big names. */
   .answer .white { min-height: 8.6rem; font-size: 1.5rem; font-family: var(--sr-font-display); border-radius: 0 0 20px 20px; }
   .answer .blackrow { height: 4.6rem; margin-bottom: -2.6rem; }
-  .answer .black { font-size: 1.1rem; font-family: var(--sr-font-display); width: min(14%, 4.6rem); min-width: 2.8rem; }
+  .answer .black { font-size: 1.1rem; font-family: var(--sr-font-display); max-width: 4.6rem; }
   .answer .key:not(:disabled):active { transform: translateY(2px); }
   .answer .black:not(:disabled):active { transform: translate(-50%, 2px); }
   .key.right { background: var(--sr-mint); color: var(--sr-mint-ink); border-color: var(--sr-mint-ink); }

@@ -266,6 +266,11 @@ counts it as sensitive, so until the app is verified for it teachers see the
 unverified-app warning on that step (notes/rostering-setup.md 1e). ClassLink
 grades (OneRoster) wait for a district.
 
+**Game assignments** (18 November 2026) are not `Assignment` rows: they have
+their own tables (`GameAssignment`, `GameAssignmentResult`) so main's
+practice pages never meet a page they don't know; docs/claude/games.md,
+"Assigning a game".
+
 **Creating an assignment** (10 October 2026; `AssignmentWizard.svelte`,
 handoff `src/lib/assignment-draft.ts`, tests `assignment-draft.test.ts`):
 Create assignment at the top of /account's Students (for any classes; the

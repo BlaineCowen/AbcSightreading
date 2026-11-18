@@ -11,6 +11,7 @@
   import { buySeatPacks } from "../lib/billing-client";
   import { EDUCATOR_ON_SALE } from "../lib/plan";
   import ClassAssignments from "./ClassAssignments.svelte";
+  import ClassGameAssignments from "./ClassGameAssignments.svelte";
   import ClassPoints from "./ClassPoints.svelte";
   import AssignmentWizard from "./AssignmentWizard.svelte";
   import { readDraft, type AssignDraft } from "../lib/assignment-draft";
@@ -786,6 +787,7 @@
             {/if}
           {:else if view === "assignments"}
             <ClassAssignments classId={cls.id} className={cls.name} googleClass={!!cls.classroom} saved={savedPresets} allClasses={classes.map((c) => ({ id: c.id, name: c.name }))} />
+            <ClassGameAssignments classId={cls.id} />
           {:else if view === "points" && canPoints}
             <ClassPoints classId={cls.id} />
           {/if}

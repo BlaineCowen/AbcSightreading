@@ -50,6 +50,7 @@ model User {
   pointEvents   PointEvent[]
   studentStats  StudentStats?
   badges        Badge[]
+  gameResults   GameAssignmentResult[]
   liveRoom      LiveRoom?
 
   @@map("user")
@@ -260,6 +261,7 @@ model Class {
   enrollments Enrollment[]
   assignments Assignment[]
   pieces      ClassPiece[]
+  gameAssignments GameAssignment[]
 
   @@index([userId])
   @@map("class")
@@ -773,4 +775,52 @@ model ClassWeek {
 
   @@unique([classId, week])
   @@map("class_week")
+}
+
+// A game given to a class with its setup fixed (Blaine, 18 November 2026:
+// "let teachers assign a custom version of a game"): Solfège, Intervals, Note
+// Rain, the rhythm game or Catch the tune. Its own table, not Assignment:
+// main's practice pages send an Assignment with a page they don't know to
+// Choral, which redirects to itself, and the database is shared.
+// src/lib/game-assignments.ts has the rules.
+model GameAssignment {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  /// "solfege", "interval", "note-rain", "rhythm" or "tune".
+  game      String
+  /// What the student sees: "Solfège: Up to so, in F".
+  title     String
+  /// The game's setup, checked by the game's own check (ear-quiz.ts, note-rain.ts...).
+  setup     Json
+  /// What counts as done: { rounds, score } (rounds at or above a score; see game-assignments.ts).
+  goal      Json
+  dueAt     DateTime?
+  note      String   @default("")
+  createdAt DateTime @default(now())
+  results   GameAssignmentResult[]
+
+  @@index([classId])
+  @@map("game_assignment")
+}
+
+// One round a student played on a game assignment. Ear games are marked on
+// the server (the round's token); the others are what the device reports.
+model GameAssignmentResult {
+  id           String         @id @default(cuid())
+  assignmentId String
+  assignment   GameAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// The round's score on the game's own scale (right of 10, a percent, notes named).
+  score        Int
+  /// Marked by the server (an ear game's token), not reported by the device.
+  checked      Boolean        @default(false)
+  /// An ear game's round id (its token's), so one round is counted once.
+  round        String?        @unique
+  createdAt    DateTime       @default(now())
+
+  @@index([assignmentId, studentId])
+  @@index([studentId])
+  @@map("game_assignment_result")
 }

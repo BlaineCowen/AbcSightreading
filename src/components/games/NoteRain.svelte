@@ -15,6 +15,10 @@
   import { Heart, Play, RotateCcw, Square, Zap } from "lucide-svelte";
   import GameLevels from "./GameLevels.svelte";
   import StaffPicker from "./StaffPicker.svelte";
+  import AssignGame from "./AssignGame.svelte";
+  import GameAssignmentBanner from "./GameAssignmentBanner.svelte";
+  import { loadGameAssignment, reportGameRound, type OpenGameAssignment } from "../../lib/game-assignment-client";
+  import type { GameProgress } from "../../lib/game-assignments";
   import {
     LETTERS, RAIN_LEVELS, START_SPEED, STORM_MS, STRIKES, TWENTY, WRONG_LOCK_MS, abcOf, bumpWeight, checkRainSetup, fallMs, letterOf, lettersOf, maxDrops,
     nameOf, noteLabel, pickStep, poolOf, spawnMs, speedAt, type Letter, type RainSetup,
@@ -28,9 +32,12 @@
       return checkRainSetup(null);
     }
   })();
-  $: try {
+  $: if (!assignment) try {
     localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
   } catch {}
+  /** Opened from a game assignment (?ga=): the teacher's setup, locked; each round's notes named are reported. */
+  let assignment: OpenGameAssignment | null = null;
+  let assignmentProgress: GameProgress | null = null;
   let customNotes: number[] = setup.level === 0 ? setup.notes ?? [] : RAIN_LEVELS[2]!.steps[setup.clef];
 
   $: levelCards = RAIN_LEVELS.map((l) => ({ name: l.name, detail: l.steps[setup.clef].length <= 5 ? l.steps[setup.clef].map((s) => letterOf(s)).join(" ") : `${l.steps[setup.clef].length} notes` }));
@@ -199,6 +206,7 @@
     cancelAnimationFrame(raf);
     phase = "done";
     drops = [];
+    if (assignment) void reportGameRound(assignment, named).then((p) => p && (assignmentProgress = p));
   }
   function quit() {
     cancelAnimationFrame(raf);
@@ -217,7 +225,14 @@
       answer(l);
     } else if (e.key === "Escape") quit();
   }
-  onMount(() => window.addEventListener("keydown", keydown));
+  onMount(async () => {
+    window.addEventListener("keydown", keydown);
+    const a = await loadGameAssignment("note-rain");
+    if (!a) return;
+    assignment = a;
+    assignmentProgress = a.progress;
+    setup = checkRainSetup(a.setup);
+  });
   onDestroy(() => {
     cancelAnimationFrame(raf);
     if (typeof window !== "undefined") window.removeEventListener("keydown", keydown);
@@ -247,6 +262,9 @@
         <button class="sr-btn" on:click={start} disabled={!!problem}><RotateCcw size={16} /> Play again</button>
       </div>
     {/if}
+    {#if assignment}
+      <GameAssignmentBanner {assignment} progress={assignmentProgress ?? assignment.progress} />
+    {:else}
     <GameLevels game="note-rain" levels={levelCards} selected={setup.level - 1} on:select={(e) => setLevel(e.detail)}>
       <div slot="custom">
         <StaffPicker clef={setup.clef} chosen={customNotes} on:change={(e) => setCustom(e.detail)} />
@@ -279,6 +297,8 @@
         </div>
       </div>
     </GameLevels>
+    <AssignGame game="note-rain" {setup} {problem} />
+    {/if}
     {#if phase === "setup"}
       <button class="sr-btn start" on:click={start} disabled={!!problem} data-rain-start><Play size={18} /> Start</button>
       <p class="text-xs text-sr-muted text-center">Name the lowest note before it lands. Three strikes. The letter keys answer{setup.names === "solfege" ? " (d r m f s l t)" : ""}.</p>
@@ -320,7 +340,7 @@
   .row > span { font-weight: 800; font-size: 0.85rem; color: var(--sr-ink-2); min-width: 6.5rem; }
   .chip { font-size: 0.8rem; padding: 0.25rem 0.65rem; }
   .help { font-size: 0.82rem; color: var(--sr-ink-2); margin-top: -0.25rem; padding-left: 6.85rem; }
-  @media (max-width: 36rem) { .help { padding-left: 0; } }
+  @media (max-width: 36rem) { .help { padding-left: 0; } .row > span { min-width: 100%; } }
   .start { align-self: center; font-size: 1.15rem; padding: 0.8rem 2.2rem; display: inline-flex; gap: 0.5rem; align-items: center; }
   .hud { scroll-margin-top: 4.5rem; display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; justify-content: center; font-weight: 800; color: var(--sr-ink); }
   .hud :global(.full) { color: var(--sr-danger); fill: var(--sr-danger); }

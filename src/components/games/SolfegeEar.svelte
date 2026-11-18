@@ -16,6 +16,11 @@
    */
   import EarQuiz, { type QuizRound } from "./EarQuiz.svelte";
   import GameLevels from "./GameLevels.svelte";
+  import AssignGame from "./AssignGame.svelte";
+  import GameAssignmentBanner from "./GameAssignmentBanner.svelte";
+  import { onMount } from "svelte";
+  import { loadGameAssignment, type OpenGameAssignment } from "../../lib/game-assignment-client";
+  import type { GameProgress } from "../../lib/game-assignments";
   import NoteKeyboard from "./NoteKeyboard.svelte";
   import { playEar } from "../../lib/games/game-audio";
   import {
@@ -31,9 +36,20 @@
       return checkSolfegeSetup(null);
     }
   })();
-  $: try {
+  // An assignment's setup is the teacher's: not remembered as this browser's own.
+  $: if (!assignment) try {
     localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
   } catch {}
+  /** Opened from a game assignment (?ga=): its setup, locked, and the student's progress. */
+  let assignment: OpenGameAssignment | null = null;
+  let assignmentProgress: GameProgress | null = null;
+  onMount(async () => {
+    const a = await loadGameAssignment("solfege");
+    if (!a) return;
+    assignment = a;
+    assignmentProgress = a.progress;
+    onSetup(checkSolfegeSetup(a.setup));
+  });
 
   const NAME_AS: [NameAs, string][] = [["solfege", "Solfège"], ["numbers", "Scale degrees"], ["fixed", "Fixed do"], ["letters", "Letters"]];
   /** Customize's notes to choose from, low to high, as semitones from the tonic (low so to high do). */
@@ -102,8 +118,11 @@
   $: hint = `The key plays first, then ${QUIZ_LENGTH} notes. Name each one on the keyboard. Keys 1 to ${new Set((setup.level === 0 ? customNotes : solfegeNotes(setup)).map(pcOf)).size} answer; space plays the note again.`;
 </script>
 
-<EarQuiz game="solfege" {setup} {makeRound} {nextLevel} {onSetup} {problem} {hint}>
+<EarQuiz game="solfege" {setup} {makeRound} nextLevel={assignment ? () => null : nextLevel} {onSetup} {problem} {hint} assignmentId={assignment?.role === "student" ? assignment.id : null} onProgress={(p) => (assignmentProgress = p)}>
   <div slot="setup">
+    {#if assignment}
+      <GameAssignmentBanner {assignment} progress={assignmentProgress ?? assignment.progress} />
+    {:else}
     <GameLevels game="solfege" levels={levelCards} selected={setup.level - 1} on:select={(e) => setLevel(e.detail)}>
       <div slot="custom">
         <p class="lead">Tap the notes to practice. The white keys are the {setup.tonality} scale; the black keys are the notes between.</p>
@@ -160,6 +179,8 @@
         {/if}
       </div>
     </GameLevels>
+    <AssignGame game="solfege" {setup} {problem} />
+    {/if}
   </div>
 </EarQuiz>
 

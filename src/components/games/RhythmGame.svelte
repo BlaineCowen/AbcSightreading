@@ -19,6 +19,11 @@
   import GameHost from "./GameHost.svelte";
   import RhythmSetup from "./RhythmSetup.svelte";
   import GameLevels from "./GameLevels.svelte";
+  import AssignGame from "./AssignGame.svelte";
+  import GameAssignmentBanner from "./GameAssignmentBanner.svelte";
+  import { onMount } from "svelte";
+  import { loadGameAssignment, reportGameRound, type OpenGameAssignment } from "../../lib/game-assignment-client";
+  import type { GameProgress } from "../../lib/game-assignments";
   import { drawBeatBar, type BeatBar } from "../../lib/games/beat-bar";
   import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
@@ -52,7 +57,22 @@
   const saveOwn = (o: typeof own) => {
     try { localStorage.setItem(OWN_KEY, JSON.stringify(o)); } catch {}
   };
-  $: saveOwn(own);
+  $: if (!assignment) saveOwn(own);
+  /** Opened from a game assignment (?ga=): the teacher's rhythms, bars, tempo and strictness, locked. */
+  let assignment: OpenGameAssignment | null = null;
+  let assignmentProgress: GameProgress | null = null;
+  onMount(async () => {
+    const a = await loadGameAssignment("rhythm");
+    if (!a) return;
+    const st = a.setup as { levelId?: string; bars?: number; bpm?: number; strictness?: string; own?: typeof own };
+    if (st.levelId === "custom" && Array.isArray(st.own?.meters) && Array.isArray(st.own?.rhythms)) own = { ties: false, syllables: "off", ...st.own };
+    if (st.levelId === "custom" || RHYTHM_LEVELS.some((l) => l.id === st.levelId)) levelId = st.levelId!;
+    if (typeof st.bars === "number" && (GAME_BARS as readonly number[]).includes(st.bars)) bars = st.bars;
+    if (typeof st.bpm === "number" && (GAME_TEMPOS as readonly number[]).includes(st.bpm)) bpm = st.bpm;
+    if (typeof st.strictness === "string" && st.strictness in STRICTNESS) strictness = st.strictness as Strictness;
+    assignment = a;
+    assignmentProgress = a.progress;
+  });
   $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
   const setStrictness = (id: string) => (strictness = id as Strictness);
   /** The beat bar under the music (beat-bar.ts), remembered in this browser. */
@@ -187,6 +207,7 @@
       stopTimeline();
       solo = scoreRhythm({ round, schedule: ex.schedule, beatUnits: ex.beatUnits, taps, strictness, deviceLagMs: $tuner.tapLatencyMs });
       soloTotal += solo.points;
+      if (assignment) void reportGameRound(assignment, solo.points).then((p) => p && (assignmentProgress = p));
       rounds++;
       mark(solo.result);
     }, (endSec - ctx.currentTime) * 1000 + 500);
@@ -373,6 +394,9 @@
     <button role="tab" class="sr-tok" class:sr-on={mode === "class"} aria-selected={mode === "class"} on:click={() => (mode = "class")}>With your class</button>
   </div>
 
+  {#if assignment}
+    <GameAssignmentBanner {assignment} progress={assignmentProgress ?? assignment.progress} />
+  {:else}
   <GameLevels
     game="rhythm"
     levels={RHYTHM_LEVELS.map((l) => ({ name: l.name }))}
@@ -401,6 +425,8 @@
     </div>
   </div>
   </GameLevels>
+  {#if mode === "solo"}<AssignGame game="rhythm" setup={{ levelId, levelName: level.name, bars, bpm, strictness, ...(levelId === "custom" ? { own } : {}) }} problem={level.rhythms.length ? null : "Choose at least one rhythm."} />{/if}
+  {/if}
 
   {#if mode === "class" && !room}
     <div class="sr-panel p-6 flex flex-col items-center gap-3 text-center">

@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import { assignmentHref } from "../lib/assignment-client";
   import { assignmentKind } from "../lib/practice";
+  import { gameAssignmentHref } from "../lib/game-assignments";
 
   /**
    * A student's assignments from every class they are in: what, how long, by
@@ -20,11 +21,17 @@
   let enrolled = initial?.enrolled ?? false;
   let showDone = false;
 
+  /** Games the teacher assigned (game-assignments.ts), from their own list. */
+  type GameItem = { id: string; game: string; title: string; goalText: string; goal: { rounds: number }; dueAt: number | null; note: string; className: string; passed: number; status: "not-started" | "in-progress" | "done" };
+  let games: GameItem[] = [];
   onMount(async () => {
+    fetch("/api/game-assignments").then(async (r) => (games = r.ok ? (await r.json()).assignments : [])).catch(() => {});
     if (initial) return;
     const res = await apiGet("/api/assignments");
     if (res.ok) ({ enrolled, assignments: items } = await res.json());
   });
+  $: gamesTodo = games.filter((g) => g.status !== "done");
+  $: gamesDone = games.filter((g) => g.status === "done");
 
   $: todo = items.filter((a) => a.status !== "done");
   $: done = items.filter((a) => a.status === "done");
@@ -35,7 +42,7 @@
 {#if enrolled}
   <section class="w-full max-w-md bg-sr-panel border border-sr-hairline rounded-lg p-6 flex flex-col gap-3">
     <h2 class="text-lg font-semibold text-sr-ink">Assignments</h2>
-    {#if !items.length}
+    {#if !items.length && !games.length}
       <p class="text-sm text-sr-muted">Nothing assigned yet. Your practice time still counts, and your teacher can see it.</p>
     {/if}
     {#each todo as a (a.id)}
@@ -52,6 +59,22 @@
         </p>
         {#if a.note}<p class="text-xs text-sr-ink-2 mt-1">{a.note}</p>{/if}
       </a>
+    {/each}
+    {#each gamesTodo as g (g.id)}
+      <a href={gameAssignmentHref(g)} class="block rounded-md border border-sr-hairline bg-sr-raise p-3 hover:border-sr-action no-underline" data-student-game={g.id}>
+        <span class="kind kind-game">Game</span>
+        <div class="flex justify-between gap-2 text-sm mt-1">
+          <span class="font-medium text-sr-ink">{g.title}</span>
+          <span class="tabular-nums text-sr-ink-2 shrink-0">{g.passed} of {g.goal.rounds}</span>
+        </div>
+        <p class="text-xs mt-1.5 {g.dueAt !== null && g.dueAt < Date.now() ? 'text-sr-danger' : 'text-sr-muted'}">
+          {g.className} · {g.goalText}{g.dueAt ? ` · due ${day(g.dueAt)}` : ""} · {g.status === "not-started" ? "Play" : "Keep going"} →
+        </p>
+        {#if g.note}<p class="text-xs text-sr-ink-2 mt-1">{g.note}</p>{/if}
+      </a>
+    {/each}
+    {#each gamesDone as g (g.id)}
+      <a href={gameAssignmentHref(g)} class="text-sm text-sr-ink-2 flex justify-between"><span>✓ {g.title}</span><span class="text-sr-muted">{g.className}</span></a>
     {/each}
     {#if done.length}
       <button class="text-xs text-sr-muted underline self-start" on:click={() => (showDone = !showDone)}>{showDone ? "Hide" : "Show"} {done.length} done</button>
@@ -75,6 +98,10 @@
   .kind-sr {
     background: var(--sr-sky);
     color: var(--sr-sky-ink);
+  }
+  .kind-game {
+    background: var(--sr-butter);
+    color: var(--sr-butter-ink);
   }
   .kind-piece {
     background: var(--sr-peach);

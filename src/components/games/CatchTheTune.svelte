@@ -15,7 +15,11 @@
    * own device at /live/<code> (LiveGame.svelte) and sends it; the board
    * then shows the tune, each note's share right and the points.
    */
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
+  import AssignGame from "./AssignGame.svelte";
+  import GameAssignmentBanner from "./GameAssignmentBanner.svelte";
+  import { loadGameAssignment, reportGameRound, type OpenGameAssignment } from "../../lib/game-assignment-client";
+  import type { GameProgress } from "../../lib/game-assignments";
   import { modal } from "../../lib/modal";
   import PipFace from "../PipFace.svelte";
   import TuneGrid from "./TuneGrid.svelte";
@@ -189,6 +193,8 @@
     said = "";
     // The tune plays again only if the student asks (Blaine, 4 November 2026).
     winOpen = true;
+    // On an assignment: each tune caught is a round, its stars the score.
+    if (assignment && mode === "solo") void reportGameRound(assignment, stars).then((p) => p && (assignmentProgress = p));
   }
   /** The catch pop-up is up; closing it leaves the board, the tune caught, and New tune. */
   let winOpen = false;
@@ -344,6 +350,19 @@
     mode = "solo";
   }
   onDestroy(stopPoll);
+  /** Opened from a game assignment (?ga=): the teacher's level (or Customize) and speed, locked. */
+  let assignment: OpenGameAssignment | null = null;
+  let assignmentProgress: GameProgress | null = null;
+  onMount(async () => {
+    const a = await loadGameAssignment("tune");
+    if (!a) return;
+    const st = a.setup as { level?: number; custom?: PathLevel; gap?: number };
+    if (typeof st.gap === "number" && st.gap >= 0.5 && st.gap <= 3) gap = st.gap;
+    if (st.level === -1 && st.custom?.notes?.length && Array.isArray(st.custom.length)) custom = { ...st.custom, name: "Custom" };
+    assignment = a;
+    assignmentProgress = a.progress;
+    setLevel(typeof st.level === "number" && st.level >= -1 && st.level < PATH_LEVELS.length ? st.level : 0);
+  });
 </script>
 
 <div class="catch">
@@ -352,6 +371,9 @@
     <button role="tab" class="sr-tok" class:sr-on={mode === "class"} aria-selected={mode === "class"} on:click={() => (mode = "class")}>With your class</button>
   </div>
 
+  {#if assignment}
+    <GameAssignmentBanner {assignment} progress={assignmentProgress ?? assignment.progress} />
+  {:else}
   <GameLevels
     game="tune"
     levels={PATH_LEVELS.map((l) => ({ name: l.name, detail: l.notes.join(" ") }))}
@@ -372,6 +394,8 @@
     {/if}
   </div>
   </GameLevels>
+  {#if mode === "solo"}<AssignGame game="tune" setup={{ level: li, levelName: level.name, gap, ...(li < 0 ? { custom } : {}) }} problem={usable ? null : "No tune fits these choices."} />{/if}
+  {/if}
 
   {#if mode === "solo"}
     {#if winOpen}

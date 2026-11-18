@@ -12,6 +12,11 @@
    */
   import EarQuiz, { type QuizRound } from "./EarQuiz.svelte";
   import GameLevels from "./GameLevels.svelte";
+  import AssignGame from "./AssignGame.svelte";
+  import GameAssignmentBanner from "./GameAssignmentBanner.svelte";
+  import { onMount } from "svelte";
+  import { loadGameAssignment, type OpenGameAssignment } from "../../lib/game-assignment-client";
+  import type { GameProgress } from "../../lib/game-assignments";
   import { playEar } from "../../lib/games/game-audio";
   import {
     INTERVAL_LEVELS, INTERVAL_NAMES, QUIZ_LENGTH, checkIntervalSetup, intervalChoices, intervalName, intervalRound, keyChord, keyPattern,
@@ -26,9 +31,20 @@
       return checkIntervalSetup(null);
     }
   })();
-  $: try {
+  // An assignment's setup is the teacher's: not remembered as this browser's own.
+  $: if (!assignment) try {
     localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
   } catch {}
+  /** Opened from a game assignment (?ga=): its setup, locked, and the student's progress. */
+  let assignment: OpenGameAssignment | null = null;
+  let assignmentProgress: GameProgress | null = null;
+  onMount(async () => {
+    const a = await loadGameAssignment("interval");
+    if (!a) return;
+    assignment = a;
+    assignmentProgress = a.progress;
+    onSetup(checkIntervalSetup(a.setup));
+  });
 
   const DIRECTIONS: [Direction, string][] = [["up", "Up"], ["down", "Down"], ["both", "Up or down"], ["together", "Together"]];
   let customSemis: number[] = setup.level === 0 ? [...(setup.semis ?? [])] : [3, 4, 5, 7];
@@ -69,8 +85,11 @@
   $: hint = `${setup.sameKey ? "The key plays first, then " : ""}${QUIZ_LENGTH} intervals. Name each one. The number keys answer; space plays it again.`;
 </script>
 
-<EarQuiz game="interval" {setup} {makeRound} {nextLevel} {onSetup} {problem} {hint}>
+<EarQuiz game="interval" {setup} {makeRound} nextLevel={assignment ? () => null : nextLevel} {onSetup} {problem} {hint} assignmentId={assignment?.role === "student" ? assignment.id : null} onProgress={(p) => (assignmentProgress = p)}>
   <div slot="setup">
+    {#if assignment}
+      <GameAssignmentBanner {assignment} progress={assignmentProgress ?? assignment.progress} />
+    {:else}
     <GameLevels game="interval" levels={levelCards} selected={setup.level - 1} on:select={(e) => setLevel(e.detail)}>
       <div slot="custom">
         <div class="row" role="group" aria-label="Intervals">
@@ -96,6 +115,8 @@
         <p class="help">{setup.sameKey ? "The key plays first, and every note of the round is in it." : "Each interval can start anywhere, in any key."}</p>
       </div>
     </GameLevels>
+    <AssignGame game="interval" {setup} {problem} />
+    {/if}
   </div>
 </EarQuiz>
 

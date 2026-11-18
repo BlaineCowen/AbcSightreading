@@ -6,6 +6,8 @@ import {
 } from "../games/ear-quiz";
 import { practiceDay } from "../practice";
 import { isAdmin } from "./admin";
+import { recordGameResult } from "./game-assignments";
+import type { GameProgress } from "../game-assignments";
 
 /**
  * Ear training stays on the dev site until Blaine says otherwise (17 November
@@ -55,7 +57,8 @@ const GAMES = {
 export type GameId = keyof typeof GAMES;
 export const isGame = (v: unknown): v is GameId => typeof v === "string" && v in GAMES;
 
-type Token = { u: string; g: GameId; s: unknown; seed: number; t: number; id: string; d: string };
+/** `ga`: a game assignment the round is played on (game-assignments.ts); the setup is then the assignment's. */
+type Token = { u: string; g: GameId; s: unknown; seed: number; t: number; id: string; d: string; ga?: string };
 function secret() {
   const s = serverEnv("BETTER_AUTH_SECRET");
   if (s) return s;
@@ -65,10 +68,10 @@ function secret() {
 }
 const sign = (body: string) => createHmac("sha256", secret()).update(body).digest("base64url");
 
-export function dealRound(userId: string, game: GameId, rawSetup: unknown, day: unknown) {
+export function dealRound(userId: string, game: GameId, rawSetup: unknown, day: unknown, assignmentId?: string) {
   const setup = GAMES[game].check(rawSetup);
   const seed = newSeed();
-  const token = { u: userId, g: game, s: setup, seed, t: Date.now(), id: randomUUID().slice(0, 12), d: practiceDay(day) } satisfies Token;
+  const token = { u: userId, g: game, s: setup, seed, t: Date.now(), id: randomUUID().slice(0, 12), d: practiceDay(day), ...(assignmentId ? { ga: assignmentId } : {}) } satisfies Token;
   const body = Buffer.from(JSON.stringify(token)).toString("base64url");
   return { token: `${body}.${sign(body)}`, seed, setup };
 }
@@ -92,7 +95,7 @@ export async function gamesEarn(studentId: string) {
   return (await pointsClasses(studentId)).some((c) => c.gamePoints);
 }
 
-export type Finished = { correct: number; total: number; marks: boolean[]; award: Award | null; problem?: string };
+export type Finished = { correct: number; total: number; marks: boolean[]; award: Award | null; problem?: string; assignment?: GameProgress | null };
 
 /** A round back from the browser: marked here, and awarded if it can earn. */
 export async function finishRound(userId: string, token: unknown, answers: unknown): Promise<Finished | null> {
@@ -109,6 +112,11 @@ export async function finishRound(userId: string, token: unknown, answers: unkno
   const seconds = (Date.now() - t.t) / 1000;
   if (seconds < game.minSeconds(setup)) return { ...out, problem: "That round went too fast to count." };
   if (seconds > 2 * 3600) return { ...out, problem: "That round is too old to count." };
+  // On an assignment: the round is its result, marked here and counted once (its id).
+  if (t.ga) {
+    const p = await recordGameResult(userId, t.ga, t.g, correct, { checked: true, round: t.id });
+    out.assignment = p === "again" ? undefined : p;
+  }
   out.award = await award(userId, practiceDay(t.d), {
     credited: 0, page: null, assignmentId: null, exercises: [], grades: [],
     game: { id: t.id, track: game.track(setup), level: setup.level, label: game.label(setup), correct, total: QUIZ_LENGTH },
