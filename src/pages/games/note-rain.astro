@@ -1,0 +1,20 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import RainGame from "../../components/games/NoteRain.svelte";
+import { currentUser } from "../../lib/server/api";
+import { earGamesShown } from "../../lib/server/ear-games";
+
+// With the ear games: on the dev site for everyone; on the live site an owner only (ear-games.ts).
+if (!earGamesShown(await currentUser(Astro.request).catch(() => null))) return Astro.redirect("/games");
+---
+
+<Layout
+  title="Note Rain: a Note Reading Speed Game | abcSightReading"
+  description="Notes fall on the staff: name each one before it lands. Treble or bass, from three notes to ledger lines, and it keeps getting faster."
+  themable
+>
+  <div class="max-w-4xl mx-auto pb-16 flex flex-col gap-4 items-center">
+    <h1 class="font-display text-3xl sm:text-4xl font-bold text-sr-ink">Note Rain</h1>
+    <RainGame client:only="svelte" />
+  </div>
+</Layout>
