@@ -104,4 +104,15 @@ describe("composeEmail", () => {
     const { text } = composeEmail(good as any);
     expect(text).toContain(`${good.message}\n\n--- so this can be reproduced ---`);
   });
+
+  test("names the signed-in sender first under the divider, so the report can be answered", () => {
+    const { text } = composeEmail(good as any, { name: "Pat Teacher", email: "pat@school.org" });
+    expect(text).toContain("--- so this can be reproduced ---\nFrom: Pat Teacher <pat@school.org>\n");
+    expect(composeEmail(good as any, { name: "", email: "pat@school.org" }).text).toContain("From: pat@school.org\n");
+  });
+
+  test("an unsigned report has no From line", () => {
+    expect(composeEmail(good as any).text).not.toContain("From:");
+    expect(composeEmail(good as any, null).text).not.toContain("From:");
+  });
 });

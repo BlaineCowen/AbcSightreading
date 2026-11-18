@@ -168,7 +168,7 @@ const feedbackConfigured = !!readFeedbackEmail(
       </nav>
     </footer>
     {
-      feedbackConfigured && !isStudent && <FeedbackButton client:idle page={title} />
+      feedbackConfigured && !isStudent && <FeedbackButton client:idle page={title} signedInAs={viewer?.email ?? ""} />
     }
     <TourLayer client:only="svelte" student={isStudent} />
   </body>

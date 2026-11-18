@@ -95,7 +95,16 @@ export function validateReport(input: unknown): Validated {
  * there is nothing here that wants formatting, and plain text is what survives
  * every mail client.
  */
-export function composeEmail(report: FeedbackReport): {
+export function composeEmail(
+  report: FeedbackReport,
+  /**
+   * The signed-in account that sent it, so the report can be answered
+   * (Blaine, 18 November 2026: three reports arrived with no way to tell who
+   * wrote them). Filled in by the server from the session, never from the
+   * body, and never for a student account (they may be under 13).
+   */
+  sender?: { name: string; email: string } | null
+): {
   subject: string;
   text: string;
 } {
@@ -108,6 +117,7 @@ export function composeEmail(report: FeedbackReport): {
   // anything is going underneath it. A report that arrives with a bare heading
   // and nothing below reads like the page failed to collect anything.
   const facts = [
+    sender ? `From: ${sender.name ? `${sender.name} <${sender.email}>` : sender.email}` : "",
     report.context,
     report.href ? `Link: ${report.href}` : "",
     report.userAgent ? `Browser: ${report.userAgent}` : "",

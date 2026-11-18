@@ -2,6 +2,8 @@ import type { APIRoute } from "astro";
 import { Resend } from "resend";
 import { readFeedbackEmail } from "../../lib/feedback-email";
 import { composeEmail, validateReport } from "../../lib/feedback-report";
+import { currentUser } from "../../lib/server/api";
+import { isStudentEmail } from "../../lib/roster";
 
 /**
  * Sends a tester's feedback as an email.
@@ -106,13 +108,23 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const checked = validateReport(body);
   if (!checked.ok) return json({ error: checked.error }, 400);
 
-  const { subject, text } = composeEmail(checked.report);
+  // Who sent it, from the session (never the body), so Reply reaches them. A
+  // student account is never named: it may be a child's, and student pages
+  // carry no feedback form anyway. Signed out, or the session lookup failing,
+  // still sends the report, just unsigned.
+  const user = await currentUser(request).catch(() => null);
+  const sender =
+    user && (user as { accountType?: string }).accountType !== "student" && !isStudentEmail(user.email)
+      ? { name: (user.name ?? "").trim().slice(0, 100), email: user.email }
+      : null;
+  const { subject, text } = composeEmail(checked.report, sender);
 
   try {
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
       from: env.FEEDBACK_FROM || import.meta.env.FEEDBACK_FROM || DEFAULT_FROM,
       to: [to],
+      ...(sender ? { replyTo: sender.email } : {}),
       subject,
       text,
     });

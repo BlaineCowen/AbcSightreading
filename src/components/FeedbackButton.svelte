@@ -22,6 +22,8 @@
 
   /** Shown in the panel so a tester knows what is being attached. */
   export let page: string = "";
+  /** The signed-in account's email, which the server adds so the report can be answered. */
+  export let signedInAs: string = "";
 
   let open = false;
   let kind: ReportKind = "bug";
@@ -172,7 +174,7 @@
           <h2 class="text-lg font-semibold text-sr-ink">Tell me what you found</h2>
           <p class="text-sm text-sr-muted">
             This sends me your note with the settings attached, so the exercise
-            can be reproduced exactly.
+            can be reproduced exactly.{#if signedInAs} Your email ({signedInAs}) is included so I can reply.{/if}
           </p>
         </div>
         <button
