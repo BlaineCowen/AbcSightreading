@@ -25,6 +25,7 @@
   import { loadGameAssignment, reportGameRound, type OpenGameAssignment } from "../../lib/game-assignment-client";
   import type { GameProgress } from "../../lib/game-assignments";
   import RhythmLane from "./RhythmLane.svelte";
+  import RhythmLaneStill from "./RhythmLaneStill.svelte";
   import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, levelNews, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
   import { scoreRhythm, type RhythmScore } from "../../lib/games/game-score";
@@ -99,9 +100,8 @@
       return v === "off" || v === "scroll" ? v : "still";
     } catch { return "still"; }
   })();
-  $: laneOn = laneMode !== "off";
   const LANE_MODES: [LaneMode, string][] = [["still", "Under the notes"], ["scroll", "Scrolling"], ["off", "No lane"]];
-  let lane: RhythmLane | null = null;
+  let lane: RhythmLane | RhythmLaneStill | null = null;
   function setLane(mode: LaneMode) {
     laneMode = mode;
     try { localStorage.setItem(LANE_KEY, mode); } catch {}
@@ -140,9 +140,16 @@
   async function draw() {
     await tick();
     if (!paper || !exercise) return;
-    abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true, ...roundLayout(exercise.bars) });
+    // The still lane sits under each line of music: room for it under every line.
+    const still = laneMode === "still";
+    const abc = still ? exercise.abc.replace(/^(X:.*)$/m, `$1\n%%staffsep ${STILL_STAFFSEP}`) : exercise.abc;
+    abcjs.renderAbc(paper, abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: still ? STILL_PAD : 10, add_classes: true, ...roundLayout(exercise.bars) });
     drawnCount++;
   }
+  /** Room for the still lane (RhythmLaneStill.svelte) under each line, in abcjs's units. */
+  const STILL_STAFFSEP = 85;
+  const STILL_PAD = 34;
+  $: laneMode, void draw();
   /** Bumped each time the music is drawn, so the still lane measures it again. */
   let drawnCount = 0;
 
@@ -503,10 +510,15 @@
 
     <div class="stage" class:hidden={!exercise}>
       {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
-      <div class="paper" bind:this={paper}></div>
-      {#if laneOn && exercise}
-        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running || laneMode === "still"} still={laneMode === "still"} {paper} drawn={drawnCount} />
-      {:else}
+      <div class="music">
+        <div class="paper" bind:this={paper}></div>
+        {#if laneMode === "still" && exercise}
+          <RhythmLaneStill bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} marks={laneMarks} {paper} drawn={drawnCount} />
+        {/if}
+      </div>
+      {#if laneMode === "scroll" && exercise}
+        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running} {paper} drawn={drawnCount} />
+      {:else if laneMode === "off"}
         <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
       {/if}
     </div>
@@ -532,6 +544,7 @@
   .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
   .stage { position: relative; background: #fff; border-radius: 28px; padding: 1.5rem 1rem 1rem; }
   .stage.hidden { display: none; }
+  .music { position: relative; }
   .word { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 2; }
   .word span { display: inline-block; font-family: var(--font-display, inherit); font-weight: 700; font-size: 1.8rem; background: var(--sr-sky); color: var(--sr-sky-ink); border-radius: 999px; padding: 0.2rem 1.2rem; }
   .word span.go { background: var(--sr-mint); color: var(--sr-mint-ink); }

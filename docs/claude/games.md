@@ -177,12 +177,21 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   pill within 3px of its note (0.0px measured, 66 rhythms).
   **"Under the notes" is now the default lane** (the same day, Blaine:
   "have the bars always underneath the notes, statically, the distance you
-  would hold that note"): three buttons, Under the notes / Scrolling / No
-  lane (`sr-rhythm-lane` = still, scroll or off; the old "on" reads as
-  still). Still, the lane never moves; a line moves along it at `px(beat)`
-  (hidden through the count-in) and the sounding note's pill glows.
-  `MODE=still scripts/check-rhythm-lane.ts` taps as the line reaches each
-  pill's start and checks the lane never moved: 100% on levels 1 and 8;
+  would hold that note", then "need to make it work when there are multiple
+  lines"): three buttons, Under the notes / Scrolling / No lane
+  (`sr-rhythm-lane` = still, scroll or off; the old "on" reads as still).
+  `RhythmLaneStill.svelte` lays a row under each line of music over the
+  drawing: lines start where the bars before them end (so a note tied over
+  from the line before shows at the row's start), each barline ends its bar
+  (a note ending on it stops there), the row sits under the lowest thing
+  drawn on its line (syllables too). RhythmGame draws with `%%staffsep 85`
+  and paddingbottom 34 in this mode to leave the room. Nothing scrolls; a
+  line moves along the row being played and the sounding note's pill glows.
+  `scripts/check-lane-under-notes.ts` (2 and 4 bars, 1200px and 420px,
+  every level): every pill within 3px of its note, its row below its line
+  and above the next: 88 rhythms, 0.0px. `MODE=still BARS=4
+  scripts/check-rhythm-lane.ts` taps as the line reaches each pill and
+  checks the rows never move against the music: 100% on levels 1 and 8;
   scrolling still 100% on level 4.
 - **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
   rest"; "use the symbols we have instead, and do the same whenever a new one

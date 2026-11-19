@@ -8,9 +8,10 @@
  *
  * MODE=still (the lane that stays under the notes, 19 November 2026): Space
  * the moment the moving line reaches each pill's start instead (no count-in
- * taps, the line is hidden then), and the lane must never move.
+ * taps, the line is hidden then), and the lane's rows (one under each line
+ * of music, RhythmLaneStill.svelte) must never move.
  *
- *   APP=http://localhost:4399 bun run scripts/check-rhythm-lane.ts   # ROUNDS=3, LEVEL=1..11, MODE=scroll|still
+ *   APP=http://localhost:4399 bun run scripts/check-rhythm-lane.ts   # ROUNDS=3, LEVEL=1..11, MODE=scroll|still, BARS=2|4
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 
@@ -18,6 +19,7 @@ const APP = process.env.APP ?? "http://localhost:4321";
 const ROUNDS = Number(process.env.ROUNDS ?? 3);
 const LEVEL = Number(process.env.LEVEL ?? 1);
 const MODE = process.env.MODE === "still" ? "still" : "scroll";
+const BARS = Number(process.env.BARS ?? 2);
 const browser = await puppeteer.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
@@ -30,6 +32,11 @@ try {
   await page.evaluateOnNewDocument((mode: string) => localStorage.setItem("sr-rhythm-lane", mode), MODE);
   await page.goto(`${APP}/games/rhythm`, { waitUntil: "networkidle2" });
   await page.click(`[data-level="${LEVEL - 1}"]`);
+  await page.evaluate((n: number) => {
+    const s = [...document.querySelectorAll("label.set")].find((l) => l.textContent!.includes("Bars"))!.querySelector("select")!;
+    s.value = String(n);
+    s.dispatchEvent(new Event("change"));
+  }, BARS);
   for (let r = 0; r < ROUNDS; r++) {
     const out = await page.evaluate(async (mode: string) => {
       const find = (re: RegExp) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent!.trim()));
@@ -40,7 +47,12 @@ try {
       const tapped = new Set<string>();
       let frames = 0;
       let moved = false;
-      const strip0 = (document.querySelector("[data-rhythm-lane] .strip") as HTMLElement | null)?.getBoundingClientRect().left;
+      // Rows against the music they sit under (the page around may move).
+      const rowsAt = () => {
+        const p = document.querySelector(".stage .paper")!.getBoundingClientRect();
+        return [...document.querySelectorAll("[data-still-lane] .row")].map((r) => `${Math.round(r.getBoundingClientRect().left - p.left)},${Math.round(r.getBoundingClientRect().top - p.top)}`).join(" ");
+      };
+      const rows0 = rowsAt();
       await new Promise<void>((resolve) => {
         const loop = () => {
           frames++;
@@ -48,10 +60,11 @@ try {
           const hit = lane?.querySelector(".hit");
           const head = lane?.querySelector(".head") as HTMLElement | null;
           if (mode === "still" && head) {
-            if (Math.abs(lane!.querySelector(".strip")!.getBoundingClientRect().left - strip0!) > 0.5) moved = true;
+            if (rowsAt() !== rows0) moved = true;
             const hx = head.getBoundingClientRect().left + head.getBoundingClientRect().width / 2;
-            if (getComputedStyle(head).opacity === "1") {
-              lane!.querySelectorAll<HTMLElement>("[data-lane-note]").forEach((p) => {
+            const row = head.parentElement!;
+            {
+              row.querySelectorAll<HTMLElement>("[data-lane-note]").forEach((p) => {
                 const id = p.dataset.laneNote!;
                 if (tapped.has(id) || p.getBoundingClientRect().left > hx + 0.5) return;
                 tapped.add(id);
