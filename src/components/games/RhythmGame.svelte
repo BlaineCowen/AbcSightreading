@@ -28,7 +28,7 @@
   import RhythmLaneStill from "./RhythmLaneStill.svelte";
   import { GAME_BARS, GAME_TEMPOS, RHYTHM_LEVELS, customLevel, levelNews, roundParams, rhythmLevel } from "../../lib/games/rhythm-levels";
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
-  import { scoreRhythm, type RhythmScore } from "../../lib/games/game-score";
+  import { scoreRhythm, type Press, type RhythmScore } from "../../lib/games/game-score";
   import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
   import { markNotes, markShares, noteShares, roundLayout } from "../../lib/games/rhythm-marks";
   import { roomLag, countInLag } from "../../lib/games/game-lag";
@@ -211,6 +211,8 @@
 
   // ── On this device ─────────────────────────────────────────────────────
   let taps: number[] = [];
+  /** Each tap's press and release, to grade holding the long notes (game-score.ts gradeHolds). */
+  let presses: Press[] = [];
   let solo: RhythmScore | null = null;
   let round: RhythmRound | null = null;
   let soloTotal = 0;
@@ -229,10 +231,12 @@
     solo = null;
     mark(null);
     taps = [];
+    presses = [];
     const ex = exercise;
     const ctx = gameAudio();
     const startSec = ctx.currentTime + 0.4;
     running = true;
+    void clearOfPad();
     const endSec = await runTimeline(ex, startSec);
     // Everything on this page's clock (performance.now), the taps' own.
     const toPage = audioToPage(ctx);
@@ -240,7 +244,7 @@
     setTimeout(() => {
       if (!running || !round) return;
       stopTimeline();
-      solo = scoreRhythm({ round, schedule: ex.schedule, beatUnits: ex.beatUnits, taps, strictness, deviceLagMs: $tuner.tapLatencyMs });
+      solo = scoreRhythm({ round, schedule: ex.schedule, beatUnits: ex.beatUnits, taps, presses, strictness, deviceLagMs: $tuner.tapLatencyMs });
       soloTotal += solo.points;
       if (assignment) void reportGameRound(assignment, solo.points).then((p) => p && (assignmentProgress = p));
       rounds++;
@@ -249,7 +253,55 @@
   }
 
   function onTap(t: number) {
-    if (running && mode === "solo") taps = [...taps, t];
+    if (!running || mode !== "solo") return;
+    taps = [...taps, t];
+    presses = [...presses, { t, up: null }];
+  }
+  /** The tap let go: the last press still down comes up. */
+  function onRelease(t: number) {
+    const open = presses.findLast((p) => p.up === null);
+    if (open && t >= open.t) open.up = t;
+  }
+  function onKeyUp(e: KeyboardEvent) {
+    if ((e.code === "Space" || e.key === " ") && mode === "solo") onRelease(e.timeStamp);
+  }
+
+  /**
+   * The Tap pad (TapPad.svelte), remembered in this browser (Blaine, 19
+   * November 2026: "add a way to hide it or make it smaller if people just
+   * want to use their spacebar"): big, small, or hidden (the spacebar only).
+   */
+  type PadSize = "big" | "small" | "hidden";
+  const PAD_KEY = "sr-tap-pad";
+  let padSize: PadSize = (() => {
+    try {
+      const v = localStorage.getItem(PAD_KEY);
+      return v === "small" || v === "hidden" ? v : "big";
+    } catch { return "big"; }
+  })();
+  function setPad(size: PadSize) {
+    padSize = size;
+    try { localStorage.setItem(PAD_KEY, size); } catch {}
+  }
+  const PAD_SIZES: [PadSize, string][] = [["big", "Big"], ["small", "Small"], ["hidden", "Hidden"]];
+
+  /**
+   * As a round starts, the music scrolls up clear of the Tap pad (Blaine:
+   * "scroll so the tap bar is out of the way of the rhythm"): its foot just
+   * above the pad, its top never above the window's. The page has room below
+   * for it while a round runs (`.rhythm.playing`).
+   */
+  async function clearOfPad() {
+    await tick();
+    const stage = document.querySelector(".rhythm .stage");
+    const pad = document.querySelector(".tap-pad");
+    if (!stage) return;
+    const r = stage.getBoundingClientRect();
+    const limit = (pad ? pad.getBoundingClientRect().top : window.innerHeight) - 12;
+    const down = Math.min(r.bottom - limit, r.top - 8);
+    const up = r.top < 8 ? r.top - 8 : 0;
+    const by = down > 0 ? down : up;
+    if (by) window.scrollBy({ top: by, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
   function onKey(e: KeyboardEvent) {
     if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
@@ -421,9 +473,9 @@
   }
 </script>
 
-<svelte:window on:keydown={onKey} />
+<svelte:window on:keydown={onKey} on:keyup={onKeyUp} />
 
-<div class="rhythm">
+<div class="rhythm" class:playing={running && mode === "solo" && padSize !== "hidden"}>
   <div class="tabs" role="tablist" aria-label="How to play">
     <button role="tab" class="sr-tok" class:sr-on={mode === "solo"} aria-selected={mode === "solo"} on:click={() => (room ? null : (mode = "solo"))} disabled={!!room}>On this device</button>
     <button role="tab" class="sr-tok" class:sr-on={mode === "class"} aria-selected={mode === "class"} on:click={() => (mode = "class")}>With your class</button>
@@ -450,6 +502,12 @@
     <label class="set"><span>Tempo</span>
       <select bind:value={bpm} disabled={running}>{#each GAME_TEMPOS as b}<option value={b}>♩ = {b}</option>{/each}</select>
     </label>
+    <div class="flex gap-1 items-center" role="group" aria-label="Tap pad">
+      <span class="text-sm font-bold text-sr-ink-2">Tap pad</span>
+      {#each PAD_SIZES as [size, label]}
+        <button class="sr-tok text-sm" class:sr-on={padSize === size} aria-pressed={padSize === size} on:click={() => setPad(size)} disabled={running} data-pad-size={size}>{label}</button>
+      {/each}
+    </div>
     <div class="flex gap-1" role="group" aria-label="Lane under the music">
       {#each LANE_MODES as [m, label]}
         <button class="sr-tok text-sm" class:sr-on={laneMode === m} aria-pressed={laneMode === m} on:click={() => setLane(m)} disabled={running} data-lane-mode={m}>{label}</button>
@@ -506,7 +564,7 @@
     {/if}
 
     {#if problem}<p class="text-center text-sm text-sr-danger" role="alert">{problem}</p>{/if}
-    {#if exercise}<p class="how">Tap along with the count-in (1, 2, Ready, Go), then tap the rhythm.</p>{/if}
+    {#if exercise}<p class="how">Tap along with the count-in (1, 2, Ready, Go), then tap the rhythm. Hold each long note down{padSize === "hidden" ? " (the spacebar)" : ""}.</p>{/if}
 
     <div class="stage" class:hidden={!exercise}>
       {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
@@ -527,13 +585,16 @@
       <div class="result sr-panel" data-solo-score={solo.points}>
         <span class="font-display text-5xl font-bold tabular-nums">{solo.points}%</span>
         <span class="text-sr-ink-2 font-bold">{solo.result.beatsRight} of {solo.result.beats} beats right</span>
+        {#if solo.short?.length}
+          <span class="short-note" data-held-short={solo.short.length}>{solo.short.length === 1 ? "1 long note was" : `${solo.short.length} long notes were`} let go too soon. Hold a half note at least a beat, a dotted half two.</span>
+        {/if}
       </div>
     {/if}
   {/if}
 </div>
 
-{#if running && mode === "solo"}
-  <TapPad onTap={onTap} />
+{#if running && mode === "solo" && padSize !== "hidden"}
+  <TapPad {onTap} {onRelease} size={padSize === "small" ? "small" : "big"} />
 {/if}
 
 <style>
@@ -548,6 +609,8 @@
   .word { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 2; }
   .word span { display: inline-block; font-family: var(--font-display, inherit); font-weight: 700; font-size: 1.8rem; background: var(--sr-sky); color: var(--sr-sky-ink); border-radius: 999px; padding: 0.2rem 1.2rem; }
   .word span.go { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .rhythm.playing { padding-bottom: calc(var(--bottom-bar-h, 96px) + 12rem); }
+  .short-note { max-width: 28rem; text-align: center; font-weight: 700; color: var(--sr-butter-ink); background: var(--sr-butter); border-radius: 14px; padding: 0.4rem 0.8rem; }
   .how { text-align: center; font-weight: 700; color: var(--sr-ink-2); }
   .bar { height: 6px; border-radius: 999px; background: var(--sr-track); overflow: hidden; margin-top: 0.5rem; }
   .bar span { display: block; height: 100%; background: var(--sr-action); }

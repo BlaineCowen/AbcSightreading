@@ -193,6 +193,27 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   scripts/check-rhythm-lane.ts` taps as the line reaches each pill and
   checks the rows never move against the music: 100% on levels 1 and 8;
   scrolling still 100% on level 4.
+- **Holding the long notes** (19 November 2026, Blaine: "grade not holding
+  out longer notes, like half notes should be held at least 1 beat, dotted
+  half notes at least 2. Don't have to go all full value"): solo rounds keep
+  each tap's press and release (spacebar keyup, the Tap pad's pointerup;
+  `presses`), and `gradeHolds` in `game-score.ts` finds each note's own tap
+  again from its graded timing. A note of 2 beats or more must be held its
+  length less one beat (`holdNeeded`: half 1, dotted half 2, whole 3), with
+  a quarter beat of grace; still down at the end counts. One let go too soon
+  keeps half its timing credit (its beat is not right, it marks yellow) and
+  the result says how many. Live rooms do not send releases and are not
+  checked for holds. `tests/unit/rhythm-holds.test.ts`;
+  `check-rhythm-lane.ts` with `HOLD=full` (none flagged, 100%) and
+  `HOLD=tap` (every long note flagged), by key or `INPUT=pad`.
+- **The Tap pad, out of the way** (the same day: "scroll so the tap bar is
+  out of the way of the rhythm and add a way to hide it or make it
+  smaller"): a Tap pad choice, Big / Small / Hidden (`sr-tap-pad`; Hidden is
+  the spacebar only; Small is a slim key lower down, `TapPad size`). As a
+  round starts the page scrolls the music up so its foot is just above the
+  pad (never its top above the window), with room added below the game
+  while it plays. `check-rhythm-lane.ts` checks the music is clear of the
+  pad all round long.
 - **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
   rest"; "use the symbols we have instead, and do the same whenever a new one
   is added"): `levelNews()` in `rhythm-levels.ts` gives each level the

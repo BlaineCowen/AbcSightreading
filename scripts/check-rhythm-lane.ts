@@ -11,7 +11,13 @@
  * taps, the line is hidden then), and the lane's rows (one under each line
  * of music, RhythmLaneStill.svelte) must never move.
  *
- *   APP=http://localhost:4399 bun run scripts/check-rhythm-lane.ts   # ROUNDS=3, LEVEL=1..11, MODE=scroll|still, BARS=2|4
+ * HOLD=full (with MODE=still): each key is let go as the line reaches the
+ * end of its pill, and no long note may be marked let go too soon;
+ * HOLD=tap: let go at once, and every note of two beats or more must be
+ * marked (game-score.ts gradeHolds). Either way, while the round plays the
+ * music must sit clear of the Tap pad (scrolled up above it).
+ *
+ *   APP=http://localhost:4399 bun run scripts/check-rhythm-lane.ts   # ROUNDS=3, LEVEL=1..11, MODE=scroll|still, BARS=2|4, HOLD=full|tap, PAD=big|small|hidden, INPUT=key|pad
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 
@@ -20,6 +26,10 @@ const ROUNDS = Number(process.env.ROUNDS ?? 3);
 const LEVEL = Number(process.env.LEVEL ?? 1);
 const MODE = process.env.MODE === "still" ? "still" : "scroll";
 const BARS = Number(process.env.BARS ?? 2);
+const PAD = process.env.PAD ?? "big";
+/** INPUT=pad: press and let go of the Tap pad itself (pointer events), as on a phone, not the spacebar. */
+const INPUT = process.env.INPUT === "pad" ? "pad" : "key";
+const HOLD = process.env.HOLD === "full" || process.env.HOLD === "tap" ? process.env.HOLD : "";
 const browser = await puppeteer.launch({
   executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   headless: true,
@@ -29,7 +39,10 @@ let failed = 0;
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1200, height: 900 });
-  await page.evaluateOnNewDocument((mode: string) => localStorage.setItem("sr-rhythm-lane", mode), MODE);
+  await page.evaluateOnNewDocument((mode: string, pad: string) => {
+    localStorage.setItem("sr-rhythm-lane", mode);
+    localStorage.setItem("sr-tap-pad", pad);
+  }, MODE, PAD);
   await page.goto(`${APP}/games/rhythm`, { waitUntil: "networkidle2" });
   await page.click(`[data-level="${LEVEL - 1}"]`);
   await page.evaluate((n: number) => {
@@ -38,7 +51,7 @@ try {
     s.dispatchEvent(new Event("change"));
   }, BARS);
   for (let r = 0; r < ROUNDS; r++) {
-    const out = await page.evaluate(async (mode: string) => {
+    const out = await page.evaluate(async (mode: string, hold: string, input: string) => {
       const find = (re: RegExp) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent!.trim()));
       find(/^New rhythm$/)!.click();
       await new Promise((res) => setTimeout(res, 2500));
@@ -53,6 +66,15 @@ try {
         return [...document.querySelectorAll("[data-still-lane] .row")].map((r) => `${Math.round(r.getBoundingClientRect().left - p.left)},${Math.round(r.getBoundingClientRect().top - p.top)}`).join(" ");
       };
       const rows0 = rowsAt();
+      const key = (type: string) => {
+        if (input === "pad") {
+          document.querySelector(".tap-pad .pad")?.dispatchEvent(new PointerEvent(type === "keydown" ? "pointerdown" : "pointerup", { bubbles: true, cancelable: true }));
+        } else window.dispatchEvent(new KeyboardEvent(type, { code: "Space", key: " ", bubbles: true }));
+      };
+      let held: { pill: HTMLElement; row: Element } | null = null;
+      let longNotes = 0;
+      let padOver = -Infinity;
+      const playStart = performance.now();
       await new Promise<void>((resolve) => {
         const loop = () => {
           frames++;
@@ -63,14 +85,22 @@ try {
             if (rowsAt() !== rows0) moved = true;
             const hx = head.getBoundingClientRect().left + head.getBoundingClientRect().width / 2;
             const row = head.parentElement!;
-            {
-              row.querySelectorAll<HTMLElement>("[data-lane-note]").forEach((p) => {
-                const id = p.dataset.laneNote!;
-                if (tapped.has(id) || p.getBoundingClientRect().left > hx + 0.5) return;
-                tapped.add(id);
-                window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", key: " ", bubbles: true }));
-              });
+            // A held key comes up as the line reaches its pill's end (or moves to the next row).
+            if (held && (held.row !== row || hx >= held.pill.getBoundingClientRect().right - 2)) {
+              key("keyup");
+              held = null;
             }
+            row.querySelectorAll<HTMLElement>("[data-lane-note]").forEach((p) => {
+              const id = p.dataset.laneNote!;
+              if (tapped.has(id) || p.getBoundingClientRect().left > hx + 0.5) return;
+              tapped.add(id);
+              if (held) key("keyup");
+              held = null;
+              key("keydown");
+              if (Number(p.dataset.laneLen) >= 2) longNotes++;
+              if (hold === "full") held = { pill: p, row };
+              else if (hold === "tap") setTimeout(() => key("keyup"), 60);
+            });
           } else if (hit) {
             const hx = hit.getBoundingClientRect().left + hit.getBoundingClientRect().width / 2;
             [...lane!.querySelectorAll(".tick.count"), ...lane!.querySelectorAll("[data-lane-note]")].forEach((p, i) => {
@@ -80,17 +110,24 @@ try {
               window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", key: " ", bubbles: true }));
             });
           }
+          // The music clear of the Tap pad once the scroll has settled.
+          const pad = document.querySelector(".tap-pad");
+          if (pad && performance.now() - playStart > 1200) padOver = Math.max(padOver, document.querySelector(".rhythm .stage")!.getBoundingClientRect().bottom - pad.getBoundingClientRect().top);
           if (document.querySelector("[data-solo-score]") || performance.now() - t0 > 30000) return resolve();
           requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
       });
+      if (held) key("keyup");
       const s = document.querySelector("[data-solo-score]") as HTMLElement | null;
-      return { moved, secs: (performance.now() - t0) / 1000, fps: frames / ((performance.now() - t0) / 1000), taps: tapped.size, score: Number(s?.dataset.soloScore ?? -1), text: s?.textContent?.trim() ?? "" };
-    }, MODE);
-    const ok = out.score >= 90 && !out.moved;
+      const short = Number((document.querySelector("[data-held-short]") as HTMLElement | null)?.dataset.heldShort ?? 0);
+      return { longNotes, short, padOver, moved, secs: (performance.now() - t0) / 1000, fps: frames / ((performance.now() - t0) / 1000), taps: tapped.size, score: Number(s?.dataset.soloScore ?? -1), text: s?.textContent?.trim() ?? "" };
+    }, MODE, HOLD, INPUT);
+    const holdOk = HOLD === "full" ? out.short === 0 : HOLD === "tap" ? out.short === out.longNotes : true;
+    const padOk = out.padOver <= 0;
+    const ok = (HOLD === "tap" ? true : out.score >= 90) && !out.moved && holdOk && padOk;
     if (!ok) failed++;
-    console.log(`${ok ? "ok  " : "FAIL"} round ${r + 1}: ${out.text} (${out.taps} taps, ${out.fps.toFixed(0)} frames a second${out.moved ? ", THE STILL LANE MOVED" : ""})`);
+    console.log(`${ok ? "ok  " : "FAIL"} round ${r + 1}: ${out.text} (${out.taps} taps, ${out.fps.toFixed(0)} frames a second${out.moved ? ", THE STILL LANE MOVED" : ""}${HOLD ? `; ${out.longNotes} long notes, ${out.short} let go too soon` : ""}; music ${padOk ? "clear of" : `${Math.round(out.padOver)}px under`} the Tap pad)`);
   }
 } finally {
   await browser.close();

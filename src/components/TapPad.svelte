@@ -10,6 +10,10 @@
    (the page listens; the pad only draws it).
    */
   export let onTap: (t: number) => void;
+  /** The press let go (pointerup), for holding long notes; the page hears the spacebar's own keyup. */
+  export let onRelease: ((t: number) => void) | null = null;
+  /** "small": a slim key for players who mostly use the spacebar (Tap the rhythm's Tap pad choice). */
+  export let size: "big" | "small" = "big";
 
   import { onDestroy } from "svelte";
 
@@ -27,6 +31,10 @@
     pressed = true;
     downAt = performance.now();
     ring++;
+  }
+  function up(e: PointerEvent) {
+    if (pressed) onRelease?.(e.timeStamp);
+    release();
   }
   function release() {
     if (!pressed) return;
@@ -52,19 +60,19 @@
 
 <svelte:window on:keydown={keyDown} on:keyup={keyUp} on:blur={release} />
 
-<div class="tap-pad fixed z-50 no-print">
+<div class="tap-pad fixed z-50 no-print" class:small={size === "small"}>
   <button
     class="pad bg-sr-peach text-sr-peach-ink font-extrabold select-none flex flex-col items-center justify-center leading-tight"
     class:pressed
     on:pointerdown={down}
-    on:pointerup={release}
-    on:pointercancel={release}
-    on:pointerleave={release}
+    on:pointerup={up}
+    on:pointercancel={up}
+    on:pointerleave={up}
     on:contextmenu|preventDefault
     aria-label="Tap"
   >
     {#key ring}<span class="ripple" aria-hidden="true"></span>{/key}
-    <span class="text-2xl">{pressed ? "Tapped!" : "Tap"}</span><span class="keys text-xs font-bold opacity-70">or Space</span>
+    <span class={size === "small" ? "text-lg" : "text-2xl"}>{pressed ? "Tapped!" : "Tap"}</span><span class="keys text-xs font-bold opacity-70">or Space</span>
   </button>
 </div>
 
@@ -95,6 +103,9 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-user-select: none;
   }
+  .tap-pad.small { width: min(16rem, calc(100vw - 2rem)); bottom: calc(var(--bottom-bar-h, 96px) + 1.5rem); }
+  .tap-pad.small .pad { height: 3.2rem; border-radius: 18px; }
+  .tap-pad.small .keys { display: none; }
   /* Pushed down into the key, edge closed, a touch darker and smaller. */
   .pad.pressed {
     transform: translateY(5px) scale(0.985);

@@ -1,7 +1,8 @@
-import { gradeClaps, type ClapResult } from "../grade-rhythm";
+import { gradeClaps, scoreByBeats, type ClapNote, type ClapResult } from "../grade-rhythm";
 import type { GradeNote, GradeRest, Strictness } from "../grade";
 import { countInLag, LAG_MAX_MS } from "./game-lag";
 import { FORGIVE_MAX_MS } from "../grade-rhythm";
+import { letterFor } from "../grade";
 import { TEAM_NAMES, rhythmTimes, type BoardRow, type RhythmRound, type Team } from "./live-game";
 
 /**
@@ -16,7 +17,50 @@ export type RhythmScore = {
   /** The lag taken off, ms, and where it came from. */
   lag: number;
   lagFrom: "count-in" | "room" | "steady" | "device";
+  /** Long notes let go too soon (`gradeHolds`), by cursor; absent when holds were not checked. */
+  short?: number[];
 };
+
+/**
+ * Holding the long notes (Blaine, 19 November 2026: "grade not holding out
+ * longer notes, like half notes should be held at least 1 beat, dotted half
+ * notes at least 2. Don't have to go all full value"): a note of two beats
+ * or more must be held down for all but its last beat, less HOLD_SLACK_BEATS
+ * of grace. A quarter, an eighth, a dotted quarter: a tap is enough.
+ */
+export const HOLD_FROM_BEATS = 2;
+export const HOLD_SLACK_BEATS = 0.25;
+export const holdNeeded = (lengthBeats: number) => (lengthBeats >= HOLD_FROM_BEATS ? lengthBeats - 1 : 0);
+/** A tap held: when it went down and came up (null: still down when the round ended). */
+export type Press = { t: number; up: number | null };
+
+/**
+ * Which long notes were let go too soon. Each graded note's own tap is found
+ * again from its timing (the press nearest where the grading put it); a
+ * note held too short keeps half its timing credit, so its beat is not
+ * right, and is marked close.
+ */
+export function gradeHolds(
+  notes: ClapNote[],
+  presses: Press[],
+  o: { t0: number; bpm: number; beatUnits: number; latencyMs: number; forgivenMs: number },
+): { notes: ClapNote[]; short: number[] } {
+  const beatMs = 60_000 / Math.max(1, o.bpm);
+  const unitMs = beatMs / Math.max(1, o.beatUnits);
+  const short: number[] = [];
+  const out = notes.map((n) => {
+    const need = holdNeeded(n.lengthUnits / o.beatUnits);
+    if (!need || n.missed || n.onsetBeats === null) return n;
+    const tapAt = o.t0 + n.startUnits * unitMs + o.forgivenMs + n.onsetBeats * beatMs + o.latencyMs;
+    const press = presses.reduce<Press | null>((best, p) => (!best || Math.abs(p.t - tapAt) < Math.abs(best.t - tapAt) ? p : best), null);
+    if (!press || Math.abs(press.t - tapAt) > beatMs / 2) return n;
+    const held = press.up === null ? Infinity : press.up - press.t;
+    if (held >= (need - HOLD_SLACK_BEATS) * beatMs) return n;
+    short.push(n.cursor);
+    return { ...n, rhythm: Math.round(n.rhythm / 2) };
+  });
+  return { notes: out, short };
+}
 
 /**
  * One student's rhythm round. `taps` are on the server clock, count-in
@@ -33,6 +77,8 @@ export function scoreRhythm(o: {
   strictness: Strictness;
   roomLagMs?: number | null;
   deviceLagMs?: number | null;
+  /** Each tap's press and release, to check the long notes were held (`gradeHolds`); left out, they are not. */
+  presses?: Press[];
 }): RhythmScore {
   const t = rhythmTimes(o.round);
   const own = countInLag(o.taps, t.tapClicks, t.beatMs);
@@ -52,6 +98,12 @@ export function scoreRhythm(o: {
     forgiveLag: known === null,
   });
   const lag = known ?? Math.min(FORGIVE_MAX_MS, Math.max(0, result.lagMs));
+  if (o.presses) {
+    const held = gradeHolds(result.notes, o.presses, { t0: t.musicAt, bpm: o.round.bpm, beatUnits: o.beatUnits, latencyMs: known ?? 0, forgivenMs: result.forgivenMs });
+    const beats = scoreByBeats(held.notes, result.strays, o.beatUnits);
+    const graded: ClapResult = { ...result, notes: held.notes, ...beats, letter: letterFor(beats.rhythm) };
+    return { points: graded.rhythm, result: graded, lag: Math.min(LAG_MAX_MS, lag), lagFrom, short: held.short };
+  }
   return { points: result.rhythm, result, lag: Math.min(LAG_MAX_MS, lag), lagFrom };
 }
 

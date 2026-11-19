@@ -120,6 +120,7 @@
             class:cont={!p.first}
             style="left: {p.x - r.left}px; width: {Math.max(10, p.w - 4)}px"
             data-lane-note={p.first ? n.cursor : undefined}
+            data-lane-len={p.first ? n.len : undefined}
           ></span>
         {/each}
       {/each}
