@@ -22,6 +22,13 @@
    * the beats are spread evenly, and the bar ticks sit on the drawn barlines.
    * Music on two lines (four bars) keeps even beats: one strip cannot sit
    * under both lines. Playing, the lane scrolls at an even speed as before.
+   *
+   * `still` (the default since 19 November 2026, Blaine: "have the bars
+   * always underneath the notes, statically, the distance you would hold
+   * that note"): the lane never scrolls; it stays fitted under the music and
+   * a line moves along it as the music goes, at the same place `px()` puts
+   * each beat (so it passes each pill's start as that note sounds). Hidden
+   * through the count-in.
    */
   import { onMount } from "svelte";
 
@@ -39,6 +46,9 @@
   /** The drawn music, to line the still lane up under; `drawn` changes each time it is drawn again. */
   export let paper: HTMLElement | null = null;
   export let drawn = 0;
+  /** Never scroll: fitted under the music, with a line moving along it as it plays. */
+  export let still = false;
+  let head: HTMLSpanElement;
 
   /** How far in the hit line is, and how many beats are seen coming. */
   const HIT = 0.18;
@@ -85,10 +95,20 @@
 
   /** Where the music is, in beats from its first note (negative in the count-in); null puts it back at the start. */
   export function set(beat: number | null) {
+    if (still) {
+      const b = beat ?? -countBeats;
+      beatNow = b;
+      if (head) {
+        head.style.opacity = b >= 0 && b <= totalBeats ? "1" : "0";
+        head.style.transform = `translate3d(${px(Math.max(0, Math.min(totalBeats, b)))}px, 0, 0)`;
+      }
+      if (strip) strip.style.transform = `translate3d(${under ? 0 : 10}px, 0, 0)`;
+      return;
+    }
     beatNow = fit ? 0 : beat ?? -countBeats;
     if (strip) strip.style.transform = `translate3d(${fit && under ? 0 : hitX - beatNow * perBeat}px, 0, 0)`;
   }
-  $: if (strip && perBeat) under, set(fit ? 0 : beatNow);
+  $: if (strip && perBeat) under, set(still ? beatNow : fit ? 0 : beatNow);
 
   onMount(() => {
     const ro = new ResizeObserver(() => (width = track?.clientWidth || 600));
@@ -119,11 +139,13 @@
       {@const x0 = px(n.start, under, perBeat)}
       <span
         class="pill {marks?.get(n.cursor) ?? ''}"
-        class:past={!marks && beatNow > n.start + 0.15}
+        class:past={!marks && !still && beatNow > n.start + 0.15}
+        class:now={!marks && still && beatNow >= n.start && beatNow < n.start + n.len}
         style="left: {x0}px; width: {Math.max(10, px(n.start + n.len, under, perBeat) - x0 - 4)}px"
         data-lane-note={n.cursor}
       ></span>
     {/each}
+    {#if still}<span class="head" bind:this={head} style="opacity: 0"></span>{/if}
   </div>
   {#if !fit}<span class="hit" style="left: {hitX}px"></span>{/if}
 </div>
@@ -138,6 +160,8 @@
   .tick i { position: absolute; left: 4px; top: 4px; font-style: normal; font-size: 0.75rem; font-weight: 800; color: var(--sr-ink-2); }
   .pill { position: absolute; top: 10px; height: 20px; border-radius: 999px; background: var(--sr-action); box-shadow: 0 1px 0 color-mix(in srgb, var(--sr-ink) 25%, transparent); }
   .pill.past { opacity: 0.35; }
+  .pill.now { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sr-action) 35%, transparent); }
+  .head { position: absolute; top: 0; bottom: 0; left: -1.5px; width: 3px; border-radius: 2px; background: var(--sr-ink); will-change: transform; }
   .pill.right { background: #2fb383; }
   .pill.close { background: #e0a100; }
   .pill.miss { background: #e5484d; }

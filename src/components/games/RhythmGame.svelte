@@ -84,15 +84,27 @@
   }));
   $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
   const setStrictness = (id: string) => (strictness = id as Strictness);
-  /** The lane under the music (RhythmLane.svelte), remembered in this browser; on unless turned off. */
+  /**
+   * The lane under the music (RhythmLane.svelte), remembered in this browser:
+   * "still" (Blaine, 19 November 2026: "have the bars always underneath the
+   * notes, statically, the distance you would hold that note"; a line moves
+   * along it as the music goes), "scroll" (the Guitar Hero lane), or "off".
+   * Still unless chosen otherwise ("on" was the scrolling lane's word).
+   */
+  type LaneMode = "still" | "scroll" | "off";
   const LANE_KEY = "sr-rhythm-lane";
-  let laneOn = (() => {
-    try { return localStorage.getItem(LANE_KEY) !== "off"; } catch { return true; }
+  let laneMode: LaneMode = (() => {
+    try {
+      const v = localStorage.getItem(LANE_KEY);
+      return v === "off" || v === "scroll" ? v : "still";
+    } catch { return "still"; }
   })();
+  $: laneOn = laneMode !== "off";
+  const LANE_MODES: [LaneMode, string][] = [["still", "Under the notes"], ["scroll", "Scrolling"], ["off", "No lane"]];
   let lane: RhythmLane | null = null;
-  function setLane(on: boolean) {
-    laneOn = on;
-    try { localStorage.setItem(LANE_KEY, on ? "on" : "off"); } catch {}
+  function setLane(mode: LaneMode) {
+    laneMode = mode;
+    try { localStorage.setItem(LANE_KEY, mode); } catch {}
   }
   /** The exercise's notes and rests in beats, for the lane. */
   $: laneNotes = exercise ? exercise.schedule.notes.map((n) => ({ start: n.startUnits / exercise!.beatUnits, len: n.lengthUnits / exercise!.beatUnits, cursor: n.cursor })) : [];
@@ -431,8 +443,10 @@
     <label class="set"><span>Tempo</span>
       <select bind:value={bpm} disabled={running}>{#each GAME_TEMPOS as b}<option value={b}>♩ = {b}</option>{/each}</select>
     </label>
-    <div class="flex gap-1" role="group" aria-label="Scrolling lane under the music">
-      <button class="sr-tok text-sm" class:sr-on={laneOn} aria-pressed={laneOn} on:click={() => setLane(!laneOn)} disabled={running} data-lane-toggle>Lane {laneOn ? "on" : "off"}</button>
+    <div class="flex gap-1" role="group" aria-label="Lane under the music">
+      {#each LANE_MODES as [m, label]}
+        <button class="sr-tok text-sm" class:sr-on={laneMode === m} aria-pressed={laneMode === m} on:click={() => setLane(m)} disabled={running} data-lane-mode={m}>{label}</button>
+      {/each}
     </div>
     <div class="flex gap-1" role="group" aria-label="Strictness">
       {#each Object.entries(STRICTNESS) as [id, s]}
@@ -491,7 +505,7 @@
       {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
       <div class="paper" bind:this={paper}></div>
       {#if laneOn && exercise}
-        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running} {paper} drawn={drawnCount} />
+        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running || laneMode === "still"} still={laneMode === "still"} {paper} drawn={drawnCount} />
       {:else}
         <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
       {/if}
