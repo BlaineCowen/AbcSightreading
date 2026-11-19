@@ -26,6 +26,9 @@
   export let paper: HTMLElement | null = null;
   /** Changes each time the music is drawn again, to measure it again. */
   export let drawn = 0;
+  /** Each note's length in beats written on its pill (the Beats choice). */
+  export let beats = false;
+  import { beatLabel } from "../../lib/games/beat-label";
 
   type Row = { from: number; to: number; top: number; left: number; width: number; at: number[]; x: number[]; bars: number[]; barAt: number[] };
   let box: HTMLDivElement;
@@ -121,7 +124,7 @@
             style="left: {p.x - r.left}px; width: {Math.max(10, p.w - 4)}px"
             data-lane-note={p.first ? n.cursor : undefined}
             data-lane-len={p.first ? n.len : undefined}
-          ></span>
+          >{#if beats && p.first}<i>{beatLabel(n.len)}</i>{/if}</span>
         {/each}
       {/each}
       {#if playing === i}<span class="head" style="left: {px(r, beatNow) - r.left}px"></span>{/if}
@@ -134,6 +137,7 @@
   .row { position: absolute; height: 34px; border-radius: 12px; background: var(--sr-track); }
   .bar { position: absolute; top: 3px; bottom: 3px; width: 2px; background: var(--sr-ink-2); }
   .pill { position: absolute; top: 7px; height: 20px; border-radius: 999px; background: var(--sr-action); box-shadow: 0 1px 0 color-mix(in srgb, var(--sr-ink) 25%, transparent); }
+  .pill i { display: flex; align-items: center; justify-content: center; height: 100%; overflow: hidden; font-style: normal; font-weight: 800; font-size: 13px; line-height: 1; color: #fff; text-shadow: 0 1px 0 color-mix(in srgb, var(--sr-ink) 30%, transparent); }
   .pill.cont { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
   .pill.now { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sr-action) 35%, transparent); }
   .pill.right { background: #2fb383; }
@@ -144,6 +148,7 @@
     .row { height: 28px; }
     .pill { top: 5px; height: 18px; }
     .rest { top: 8px; height: 12px; }
+    .pill i { font-size: 11px; }
   }
   .head { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--sr-ink); }
 </style>

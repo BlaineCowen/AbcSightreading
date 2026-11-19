@@ -14,6 +14,13 @@
   export let onRelease: ((t: number) => void) | null = null;
   /** "small": a slim key for players who mostly use the spacebar (Tap the rhythm's Tap pad choice). */
   export let size: "big" | "small" = "big";
+  /**
+   * "low": nothing under it (Tap the rhythm has no playback bar or Grade
+   * strip), so it sits near the foot of the screen, a little smaller and
+   * shorter on short screens (Blaine, 19 November 2026: "too big and too
+   * high on some screens").
+   */
+  export let low = false;
 
   import { onDestroy } from "svelte";
 
@@ -60,7 +67,7 @@
 
 <svelte:window on:keydown={keyDown} on:keyup={keyUp} on:blur={release} />
 
-<div class="tap-pad fixed z-50 no-print" class:small={size === "small"}>
+<div class="tap-pad fixed z-50 no-print" class:small={size === "small"} class:low>
   <button
     class="pad bg-sr-peach text-sr-peach-ink font-extrabold select-none flex flex-col items-center justify-center leading-tight"
     class:pressed
@@ -106,6 +113,11 @@
   .tap-pad.small { width: min(16rem, calc(100vw - 2rem)); bottom: calc(var(--bottom-bar-h, 96px) + 1.5rem); }
   .tap-pad.small .pad { height: 3.2rem; border-radius: 18px; }
   .tap-pad.small .keys { display: none; }
+  .tap-pad.low { bottom: max(0.75rem, env(safe-area-inset-bottom)); width: min(24rem, calc(100vw - 2rem)); }
+  .tap-pad.low .pad { height: clamp(3rem, 9svh, 4.25rem); border-radius: 20px; }
+  .tap-pad.low.small { width: min(14rem, calc(100vw - 2rem)); }
+  .tap-pad.low.small .pad { height: clamp(2.5rem, 6svh, 3rem); border-radius: 16px; }
+  @media (max-height: 560px) { .tap-pad.low .keys { display: none; } }
   /* Pushed down into the key, edge closed, a touch darker and smaller. */
   .pad.pressed {
     transform: translateY(5px) scale(0.985);

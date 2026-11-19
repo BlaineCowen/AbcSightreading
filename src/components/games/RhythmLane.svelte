@@ -41,6 +41,9 @@
   /** The drawn music, to line the still lane up under; `drawn` changes each time it is drawn again. */
   export let paper: HTMLElement | null = null;
   export let drawn = 0;
+  /** Each note's length in beats written on its pill (the Beats choice). */
+  export let beats = false;
+  import { beatLabel } from "../../lib/games/beat-label";
 
   /** How far in the hit line is, and how many beats are seen coming. */
   const HIT = 0.18;
@@ -124,7 +127,7 @@
         class:past={!marks && beatNow > n.start + 0.15}
         style="left: {x0}px; width: {Math.max(10, px(n.start + n.len, under, perBeat) - x0 - 4)}px"
         data-lane-note={n.cursor}
-      ></span>
+      >{#if beats}<i>{beatLabel(n.len)}</i>{/if}</span>
     {/each}
   </div>
   {#if !fit}<span class="hit" style="left: {hitX}px"></span>{/if}
@@ -139,6 +142,7 @@
   .tick.count { background: transparent; border-left: 1px dashed var(--sr-hairline-2); }
   .tick i { position: absolute; left: 4px; top: 4px; font-style: normal; font-size: 0.75rem; font-weight: 800; color: var(--sr-ink-2); }
   .pill { position: absolute; top: 10px; height: 20px; border-radius: 999px; background: var(--sr-action); box-shadow: 0 1px 0 color-mix(in srgb, var(--sr-ink) 25%, transparent); }
+  .pill i { display: flex; align-items: center; justify-content: center; height: 100%; overflow: hidden; font-style: normal; font-weight: 800; font-size: 13px; line-height: 1; color: #fff; text-shadow: 0 1px 0 color-mix(in srgb, var(--sr-ink) 30%, transparent); }
   .pill.past { opacity: 0.35; }
 
   .pill.right { background: #2fb383; }

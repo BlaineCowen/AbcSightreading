@@ -283,6 +283,13 @@
     padSize = size;
     try { localStorage.setItem(PAD_KEY, size); } catch {}
   }
+  /** Each note's length in beats on its bar in the lane (Blaine: "a way to show beat values on the bars"), remembered. */
+  const BEATS_KEY = "sr-rhythm-beats";
+  let showBeats = (() => { try { return localStorage.getItem(BEATS_KEY) === "1"; } catch { return false; } })();
+  function toggleBeats() {
+    showBeats = !showBeats;
+    try { localStorage.setItem(BEATS_KEY, showBeats ? "1" : "0"); } catch {}
+  }
   const PAD_SIZES: [PadSize, string][] = [["big", "Big"], ["small", "Small"], ["hidden", "Hidden"]];
 
   /**
@@ -508,10 +515,11 @@
         <button class="sr-tok text-sm" class:sr-on={padSize === size} aria-pressed={padSize === size} on:click={() => setPad(size)} disabled={running} data-pad-size={size}>{label}</button>
       {/each}
     </div>
-    <div class="flex gap-1" role="group" aria-label="Lane under the music">
+    <div class="flex flex-wrap justify-center gap-1" role="group" aria-label="Lane under the music">
       {#each LANE_MODES as [m, label]}
-        <button class="sr-tok text-sm" class:sr-on={laneMode === m} aria-pressed={laneMode === m} on:click={() => setLane(m)} disabled={running} data-lane-mode={m}>{label}</button>
+        <button class="sr-tok text-sm whitespace-nowrap" class:sr-on={laneMode === m} aria-pressed={laneMode === m} on:click={() => setLane(m)} disabled={running} data-lane-mode={m}>{label}</button>
       {/each}
+      {#if laneMode !== "off"}<button class="sr-tok text-sm whitespace-nowrap" class:sr-on={showBeats} aria-pressed={showBeats} on:click={toggleBeats} disabled={running} data-show-beats title="Write each note's beats on its bar">Beats</button>{/if}
     </div>
     <div class="flex gap-1" role="group" aria-label="Strictness">
       {#each Object.entries(STRICTNESS) as [id, s]}
@@ -571,11 +579,11 @@
       <div class="music">
         <div class="paper" bind:this={paper}></div>
         {#if laneMode === "still" && exercise}
-          <RhythmLaneStill bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} marks={laneMarks} {paper} drawn={drawnCount} />
+          <RhythmLaneStill bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} marks={laneMarks} {paper} drawn={drawnCount} beats={showBeats} />
         {/if}
       </div>
       {#if laneMode === "scroll" && exercise}
-        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running} {paper} drawn={drawnCount} />
+        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running} {paper} drawn={drawnCount} beats={showBeats} />
       {:else if laneMode === "off"}
         <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
       {/if}
@@ -594,7 +602,7 @@
 </div>
 
 {#if running && mode === "solo" && padSize !== "hidden"}
-  <TapPad {onTap} {onRelease} size={padSize === "small" ? "small" : "big"} />
+  <TapPad {onTap} {onRelease} size={padSize === "small" ? "small" : "big"} low />
 {/if}
 
 <style>

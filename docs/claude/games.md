@@ -214,6 +214,19 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   pad (never its top above the window), with room added below the game
   while it plays. `check-rhythm-lane.ts` checks the music is clear of the
   pad all round long.
+- **The pad lower and smaller in the game** (the same day: "too big and too
+  high on some screens"): its usual place is above the playback bar and
+  Grade's strip, which the game page does not have, so it floated about
+  176px up. `TapPad low` (the game passes it) puts it 0.75rem from the foot
+  (or the safe area), 24rem wide, `clamp(3rem, 9svh, 4.25rem)` tall (Small:
+  14rem, up to 3rem), and drops "or Space" under 560px tall. Practice pages
+  keep the old place.
+- **Beats on the bars** (the same day: "a way to show beat values on the
+  bars"): a Beats toggle beside the lane choices (`sr-rhythm-beats`, off at
+  first) writes each note's length in beats on its pill in either lane:
+  1, 2, ½, ¼, 1½, and ⅓, ⅔ in compound meter (`beatLabel()` in
+  `src/lib/games/beat-label.ts`, `tests/unit/beat-label.test.ts`). A note
+  tied onto the next line has it on its first piece only.
 - **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
   rest"; "use the symbols we have instead, and do the same whenever a new one
   is added"): `levelNews()` in `rhythm-levels.ts` gives each level the
