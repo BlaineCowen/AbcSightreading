@@ -165,6 +165,16 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   pill reaches the hit line and expects 90% or more: 100% on levels 1, 4,
   8 and 11. After a round the lane fits the whole rhythm, its pills green,
   yellow or red like the notes.
+  **Still, it lines up under the music** (19 November 2026, Blaine: "make
+  sure the bars under the notes line up with the starts of notes better"):
+  before a round and after it, each pill starts under its note's drawn
+  left edge (measured by cursor in the paper, as `rhythm-marks.ts` finds
+  notes; beats between are spread evenly, bar ticks on the drawn barlines).
+  abcjs spaces by look, so even beats had drifted (a half note at 270px in
+  the score was at 55px in the lane). Four bars draw on two lines and keep
+  even beats. Playing, the lane still scrolls at an even speed.
+  `scripts/check-lane-under-notes.ts`: every level, 1200px and 420px, every
+  pill within 3px of its note (0.0px measured, 66 rhythms).
 - **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
   rest"; "use the symbols we have instead, and do the same whenever a new one
   is added"): `levelNews()` in `rhythm-levels.ts` gives each level the

@@ -12,12 +12,22 @@
    * One strip moves, by transform, from `set(beat)` on the same audio clock
    * the clicks and the scoring use (RhythmGame's runTimeline); nothing is
    * laid out per frame.
+   *
+   * Still (before a round and after it), the lane sits under the music it
+   * belongs to (Blaine, 19 November 2026: "make sure the bars under the
+   * notes line up with the starts of notes better"): abcjs spaces notes by
+   * how they look, not how long they last, so even beats drifted away from
+   * the noteheads. Each note and rest is measured in `paper` (by its cursor,
+   * as rhythm-marks.ts finds it) and its pill starts under it; between them
+   * the beats are spread evenly, and the bar ticks sit on the drawn barlines.
+   * Music on two lines (four bars) keeps even beats: one strip cannot sit
+   * under both lines. Playing, the lane scrolls at an even speed as before.
    */
   import { onMount } from "svelte";
 
   /** The notes and rests, in beats from the first note of the music. */
   export let notes: { start: number; len: number; cursor: number }[] = [];
-  export let rests: { start: number; len: number }[] = [];
+  export let rests: { start: number; len: number; cursor: number }[] = [];
   /** Beats in the music, in a bar, and counted in before it. */
   export let totalBeats = 8;
   export let beatsPerBar = 4;
@@ -26,6 +36,9 @@
   export let marks: Map<number, "right" | "close" | "miss"> | null = null;
   /** The whole rhythm fitted in the lane, still (after a round, with its marks). */
   export let fit = false;
+  /** The drawn music, to line the still lane up under; `drawn` changes each time it is drawn again. */
+  export let paper: HTMLElement | null = null;
+  export let drawn = 0;
 
   /** How far in the hit line is, and how many beats are seen coming. */
   const HIT = 0.18;
@@ -37,12 +50,45 @@
   $: perBeat = fit ? (width - 20) / Math.max(1, totalBeats) : (width - hitX) / AHEAD;
   let beatNow = -countBeats;
 
+  /** Where each beat sits under the drawn music (beats and px from the lane's left, rising), or null for even beats. */
+  let under: { at: number[]; x: number[]; bars: number[] } | null = null;
+  function measure() {
+    under = null;
+    if (!fit || !paper || !track) return;
+    const els = [...paper.querySelectorAll(".abcjs-note, .abcjs-rest")];
+    if (!els.length || els.some((el) => !el.classList.contains("abcjs-l0"))) return;
+    const left = track.getBoundingClientRect().left;
+    const xOf = (el: Element | undefined) => (el ? el.getBoundingClientRect().left - left : NaN);
+    const points = [...notes, ...rests]
+      .map((n) => ({ at: n.start, x: xOf(els[n.cursor]) }))
+      .filter((p) => Number.isFinite(p.x))
+      .sort((a, b) => a.at - b.at);
+    const barXs = [...paper.querySelectorAll(".abcjs-bar")].map((el) => el.getBoundingClientRect().left - left + el.getBoundingClientRect().width / 2).sort((a, b) => a - b);
+    const endX = barXs[barXs.length - 1];
+    if (points.length < 2 || endX === undefined) return;
+    points.push({ at: totalBeats, x: endX });
+    // Rising only: a pill never runs backwards.
+    for (let i = 1; i < points.length; i++) if (points[i]!.x <= points[i - 1]!.x || points[i]!.at <= points[i - 1]!.at) return;
+    under = { at: points.map((p) => p.at), x: points.map((p) => p.x), bars: barXs };
+  }
+  /** A beat's place in px from the strip's left: under the music when measured, else even. */
+  function px(b: number, u = under, per = perBeat) {
+    if (!u) return b * per;
+    const { at, x } = u;
+    if (b <= at[0]!) return x[0]! - (at[0]! - b) * per;
+    for (let i = 1; i < at.length; i++) {
+      if (b <= at[i]!) return x[i - 1]! + ((b - at[i - 1]!) / (at[i]! - at[i - 1]!)) * (x[i]! - x[i - 1]!);
+    }
+    return x[x.length - 1]! + (b - at[at.length - 1]!) * per;
+  }
+  $: fit, width, drawn, notes, rests, paper, requestAnimationFrame(measure);
+
   /** Where the music is, in beats from its first note (negative in the count-in); null puts it back at the start. */
   export function set(beat: number | null) {
     beatNow = fit ? 0 : beat ?? -countBeats;
-    if (strip) strip.style.transform = `translate3d(${hitX - beatNow * perBeat}px, 0, 0)`;
+    if (strip) strip.style.transform = `translate3d(${fit && under ? 0 : hitX - beatNow * perBeat}px, 0, 0)`;
   }
-  $: if (strip && perBeat) set(fit ? 0 : beatNow);
+  $: if (strip && perBeat) under, set(fit ? 0 : beatNow);
 
   onMount(() => {
     const ro = new ResizeObserver(() => (width = track?.clientWidth || 600));
@@ -56,19 +102,25 @@
 
 <div class="lane" bind:this={track} aria-hidden="true" data-rhythm-lane>
   <div class="strip" bind:this={strip}>
-    {#each grid as b}
-      <span class="tick" class:gone={fit && b < 0} class:bar={b >= 0 && b % beatsPerBar === 0} class:count={b < 0} style="left: {b * perBeat}px">
-        {#if b < 0}<i>{b + countBeats + 1}</i>{/if}
-      </span>
-    {/each}
+    {#if under}
+      {#each under.bars as x}<span class="tick bar" style="left: {x - 1}px"></span>{/each}
+    {:else}
+      {#each grid as b}
+        <span class="tick" class:gone={fit && b < 0} class:bar={b >= 0 && b % beatsPerBar === 0} class:count={b < 0} style="left: {b * perBeat}px">
+          {#if b < 0}<i>{b + countBeats + 1}</i>{/if}
+        </span>
+      {/each}
+    {/if}
     {#each rests as r}
-      <span class="rest" style="left: {r.start * perBeat + 3}px; width: {Math.max(8, r.len * perBeat - 6)}px"></span>
+      {@const x0 = px(r.start, under, perBeat)}
+      <span class="rest" style="left: {x0 + 3}px; width: {Math.max(8, px(r.start + r.len, under, perBeat) - x0 - 6)}px"></span>
     {/each}
     {#each notes as n (n.cursor)}
+      {@const x0 = px(n.start, under, perBeat)}
       <span
         class="pill {marks?.get(n.cursor) ?? ''}"
         class:past={!marks && beatNow > n.start + 0.15}
-        style="left: {n.start * perBeat}px; width: {Math.max(10, n.len * perBeat - 4)}px"
+        style="left: {x0}px; width: {Math.max(10, px(n.start + n.len, under, perBeat) - x0 - 4)}px"
         data-lane-note={n.cursor}
       ></span>
     {/each}

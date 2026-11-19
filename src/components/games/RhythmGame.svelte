@@ -96,7 +96,7 @@
   }
   /** The exercise's notes and rests in beats, for the lane. */
   $: laneNotes = exercise ? exercise.schedule.notes.map((n) => ({ start: n.startUnits / exercise!.beatUnits, len: n.lengthUnits / exercise!.beatUnits, cursor: n.cursor })) : [];
-  $: laneRests = exercise ? exercise.schedule.rests.map((r) => ({ start: r.startUnits / exercise!.beatUnits, len: r.lengthUnits / exercise!.beatUnits })) : [];
+  $: laneRests = exercise ? exercise.schedule.rests.map((r) => ({ start: r.startUnits / exercise!.beatUnits, len: r.lengthUnits / exercise!.beatUnits, cursor: r.cursor })) : [];
   /** A finished solo round's marks on the lane, by note. */
   $: laneMarks = solo ? new Map(solo.result.notes.map((n) => [n.cursor, n.missed ? "miss" : n.rhythm >= 90 ? "right" : "close"] as const)) : null;
 
@@ -129,7 +129,10 @@
     await tick();
     if (!paper || !exercise) return;
     abcjs.renderAbc(paper, exercise.abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: 10, add_classes: true, ...roundLayout(exercise.bars) });
+    drawnCount++;
   }
+  /** Bumped each time the music is drawn, so the still lane measures it again. */
+  let drawnCount = 0;
 
   /** Each note's mark on the music (rhythm-marks.ts): green right, butter close, red missed. */
   const mark = (result: RhythmScore["result"] | null) => markNotes(paper, result?.notes ?? null);
@@ -488,7 +491,7 @@
       {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
       <div class="paper" bind:this={paper}></div>
       {#if laneOn && exercise}
-        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running && !!laneMarks} />
+        <RhythmLane bind:this={lane} notes={laneNotes} rests={laneRests} totalBeats={exercise.bars * exercise.beatsPerBar} beatsPerBar={exercise.beatsPerBar} countBeats={countInBarsFor(exercise.beatsPerBar) * exercise.beatsPerBar} marks={laneMarks} fit={!running} {paper} drawn={drawnCount} />
       {:else}
         <div class="bar" aria-hidden="true"><span style="width: {progress * 100}%"></span></div>
       {/if}
