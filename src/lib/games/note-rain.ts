@@ -10,7 +10,10 @@
  * not ported. Pure: what can fall, how fast, which note next.
  *
  * Notes are diatonic steps (octave * 7 + letter, C = 0): middle C is 28,
- * treble's bottom line E4 is 30, bass's G2 is 18. Naturals only.
+ * treble's bottom line E4 is 30, bass's G2 is 18. No accidentals on the
+ * notes, but a key (20 November 2026, Blaine: "change keys for solfège",
+ * movable do): the cards carry its key signature, so in G every F is F♯,
+ * the letters say so, and do is the key's tonic (G is do, F♯ is ti).
  *
  * The speed (measured 18 November 2026; learnmusic.fun's Hard): it started at
  * 1.2x, added 0.75x a minute and stopped at 2.2x, so a note took about 5.8 s
@@ -25,12 +28,37 @@ export type Letter = (typeof LETTERS)[number];
 /** Fixed do, C is do (the site's other fixed-do naming, ear-quiz.ts). */
 export const FIXED_DO: Record<Letter, string> = { C: "do", D: "re", E: "mi", F: "fa", G: "sol", A: "la", B: "ti" };
 
+/**
+ * The keys a round can be in: C and up to three sharps or flats (the choir
+ * keys). In C everything is as it was; a setup only stores `key` when it isn't C.
+ */
+export const RAIN_KEYS = ["C", "G", "D", "A", "F", "Bb", "Eb"] as const;
+export type RainKey = (typeof RAIN_KEYS)[number];
+const SHARPS: Letter[] = ["F", "C", "G", "D", "A", "E", "B"];
+const FLATS: Letter[] = ["B", "E", "A", "D", "G", "C", "F"];
+const KEY_SIG: Record<RainKey, number> = { C: 0, G: 1, D: 2, A: 3, F: -1, Bb: -2, Eb: -3 };
+/** -1, 0 or 1: what the key signature does to a letter. */
+export function accOf(l: Letter, key: RainKey = "C"): number {
+  const n = KEY_SIG[key];
+  if (n > 0) return SHARPS.slice(0, n).includes(l) ? 1 : 0;
+  return FLATS.slice(0, -n).includes(l) ? -1 : 0;
+}
+/** "B♭", "F♯", "G": a key or a letter as a musician writes it. */
+export const keyLabel = (k: RainKey) => k.replace("b", "♭");
+export const letterName = (l: Letter, key: RainKey = "C") => l + ["♭", "", "♯"][accOf(l, key) + 1];
+const SOLFA = ["do", "re", "mi", "fa", "sol", "la", "ti"];
+/** Movable do: the key's tonic is do. */
+export const solfegeOf = (l: Letter, key: RainKey = "C") => SOLFA[(LETTERS.indexOf(l) - LETTERS.indexOf(key[0] as Letter) + 7) % 7]!;
+const SEMIS: Record<Letter, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+/** A step's MIDI note in a key (middle C, step 28, is 60). */
+export const midiOf = (step: number, key: RainKey = "C") => 12 * (octaveOf(step) + 1) + SEMIS[letterOf(step)] + accOf(letterOf(step), key);
+
 /** The bottom staff line's step: treble E4, bass G2. */
 export const BOTTOM_LINE: Record<Clef, number> = { treble: 30, bass: 18 };
 export const letterOf = (step: number): Letter => LETTERS[((step % 7) + 7) % 7]!;
 export const octaveOf = (step: number) => Math.floor(step / 7);
 /** "E4", "C5": a note's name with its octave (the staff picker's labels). */
-export const noteLabel = (step: number) => `${letterOf(step)}${octaveOf(step)}`;
+export const noteLabel = (step: number, key: RainKey = "C") => `${letterName(letterOf(step), key)}${octaveOf(step)}`;
 
 /** Every note Customize offers for a clef: two ledger lines below the staff to two above. */
 export function clefRange(clef: Clef): number[] {
@@ -57,7 +85,7 @@ function range(lo: number, hi: number) {
 }
 
 export type RainSpeed = "relaxed" | "medium" | "fast" | "extreme";
-export type RainRound = "storm" | "twenty" | "endless";
+export type RainRound = "sprint" | "storm" | "twenty" | "endless";
 export type RainNames = "letters" | "solfege";
 export type RainSetup = {
   clef: Clef;
@@ -68,6 +96,8 @@ export type RainSetup = {
   speed: RainSpeed;
   round: RainRound;
   names: RainNames;
+  /** Not C: the key (stored only when it isn't C, so older setups read the same). */
+  key?: RainKey;
 };
 
 export function checkRainSetup(v: unknown): RainSetup {
@@ -83,16 +113,22 @@ export function checkRainSetup(v: unknown): RainSetup {
     level: level === 0 && new Set(notes.map(letterOf)).size < 2 ? 1 : level,
     ...(level === 0 ? { notes } : {}),
     speed: (["relaxed", "medium", "fast", "extreme"] as const).includes(o.speed as RainSpeed) ? (o.speed as RainSpeed) : "medium",
-    round: (["storm", "twenty", "endless"] as const).includes(o.round as RainRound) ? (o.round as RainRound) : "storm",
+    round: (["sprint", "storm", "twenty", "endless"] as const).includes(o.round as RainRound) ? (o.round as RainRound) : "storm",
     names: o.names === "solfege" ? "solfege" : "letters",
+    ...(RAIN_KEYS.includes(o.key as RainKey) && o.key !== "C" ? { key: o.key as RainKey } : {}),
   };
 }
 
 /** The steps a setup rains, low to high. */
 export const poolOf = (s: RainSetup): number[] => (s.level === 0 ? s.notes ?? [] : RAIN_LEVELS[s.level - 1]!.steps[s.clef]);
-/** The answer buttons: the letters in play, C to B. */
-export const lettersOf = (s: RainSetup): Letter[] => LETTERS.filter((l) => poolOf(s).some((st) => letterOf(st) === l));
-export const nameOf = (l: Letter, names: RainNames) => (names === "solfege" ? FIXED_DO[l] : l);
+/** The answer buttons: the letters in play, up the scale from the key's tonic (C to B in C). */
+export function lettersOf(s: RainSetup): Letter[] {
+  const from = LETTERS.indexOf((s.key ?? "C")[0] as Letter);
+  const order = LETTERS.map((_, i) => LETTERS[(from + i) % 7]!);
+  return order.filter((l) => poolOf(s).some((st) => letterOf(st) === l));
+}
+/** A letter as the round names it: "F♯" or, in solfège, "ti" (movable do, the key's tonic is do). */
+export const nameOf = (l: Letter, names: RainNames, key: RainKey = "C") => (names === "solfege" ? solfegeOf(l, key) : letterName(l, key));
 
 // ── Speed ─────────────────────────────────────────────────────────────────
 
@@ -105,6 +141,10 @@ export const BASE_SPAWN_MS = 2400;
 /** Below this a note can't be read at all; the rain still thickens (more at once, closer together). */
 export const MIN_FALL_MS = 650;
 export const STORM_MS = 60_000;
+/** The short storm (Blaine, 20 November 2026: "a 30 second mode"). */
+export const SPRINT_MS = 30_000;
+/** How long a timed round lasts; null for the untimed ones. */
+export const roundMs = (r: RainRound) => (r === "sprint" ? SPRINT_MS : r === "storm" ? STORM_MS : null);
 export const TWENTY = 20;
 export const STRIKES = 3;
 /** After a wrong answer the buttons rest this long, so mashing every letter doesn't pay. */

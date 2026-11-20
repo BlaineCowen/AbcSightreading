@@ -307,6 +307,19 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   sink and turn a warm grey instead of fading. "That was E" is a bigger pill
   for 1.15 s. The result card has four stat tiles and the notes worth
   another look in a butter pill. Reduced motion drops the lift, shake and pop.
+- **Note Rain: keys, a 30-second storm, sound** (20 November 2026, Blaine:
+  "change keys for solfège, a 30 second mode and for it to play the notes").
+  **Key** C, G, D, A, F, B♭ or E♭ (`RAIN_KEYS`; stored as `key` only when
+  not C, so older setups and assignments read the same): the cards carry its
+  key signature, the letters say what it makes them (F♯ in G), and solfège is
+  movable do, the tonic is do (G is do, F♯ is ti; asked, not fixed do). The
+  buttons run up the scale from do; the keys d r m f s l t answer in any key
+  (`hintOf`). The drawings get a viewBox and fill the card (E♭'s three flats
+  ran off a phone's card). **30-second storm** is round `sprint`
+  (`roundMs`). **Sound**: a card named right plays its pitch on the games'
+  piano (`playNote`, `midiOf`; the pool's samples load at Start); On or Off
+  is this device's choice (`sr-note-rain-sound`), not the setup's. An
+  assignment's title adds the key and "30 seconds".
 - **Solfège says what is playing** (Blaine: "make it work like
   learnmusic.fun, where it says this note is Do, what's the ? note"):
   `QuizRound.steps` gives the notes' labels, and EarQuiz shows them as big

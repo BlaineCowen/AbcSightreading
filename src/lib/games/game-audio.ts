@@ -110,6 +110,11 @@ export function playKeyAndTune(o: { steps: number[]; doMidi: number; gap: number
   };
 }
 
+/** Note Rain: load these notes' piano samples ahead, so the first one named sounds at once. */
+export const preloadNotes = (midis: number[]) => { gameAudio(); return preloadPiano(midis); };
+/** Note Rain: one note, by MIDI number (a card named right). */
+export const playNote = (midi: number) => piano([midi], 0.7);
+
 /** One note of the tune (a tapped square). */
 export function playStep(step: number, doMidi: number) {
   void preloadPiano([doMidi + semiOf(step)]).then(() => piano([doMidi + semiOf(step)], 0.7));

@@ -16,19 +16,24 @@
    * faint staves, a red landing rail, the lowest card ringed blue with a Next
    * tag (Try again after a miss), a named card pops out mint, and the answers
    * are keycaps that sink while locked instead of greying out.
+   *
+   * Later that day (Blaine): a key for the round (movable do, the cards in its
+   * key signature), a 30-second storm, and a card named right plays its note
+   * on the games' piano (Sound on or off, this device's choice).
    */
   import { onDestroy, onMount, tick } from "svelte";
   import abcjs from "abcjs";
-  import { Heart, Play, RotateCcw, Square, Zap } from "lucide-svelte";
+  import { Heart, Play, RotateCcw, Square, Volume2, VolumeX, Zap } from "lucide-svelte";
   import GameLevels from "./GameLevels.svelte";
   import StaffPicker from "./StaffPicker.svelte";
   import AssignGame from "./AssignGame.svelte";
   import GameAssignmentBanner from "./GameAssignmentBanner.svelte";
   import { loadGameAssignment, reportGameRound, type OpenGameAssignment } from "../../lib/game-assignment-client";
   import type { GameProgress } from "../../lib/game-assignments";
+  import { playNote, preloadNotes } from "../../lib/games/game-audio";
   import {
-    LETTERS, RAIN_LEVELS, START_SPEED, STORM_MS, STRIKES, TWENTY, WRONG_LOCK_MS, abcOf, bumpWeight, checkRainSetup, fallMs, letterOf, lettersOf, maxDrops,
-    nameOf, noteLabel, pickStep, poolOf, spawnMs, speedAt, type Letter, type RainSetup,
+    LETTERS, RAIN_KEYS, RAIN_LEVELS, START_SPEED, STRIKES, TWENTY, WRONG_LOCK_MS, abcOf, accOf, bumpWeight, checkRainSetup, fallMs, keyLabel, letterName, letterOf, lettersOf, maxDrops,
+    midiOf, nameOf, noteLabel, pickStep, poolOf, roundMs, spawnMs, speedAt, type Letter, type RainKey, type RainSetup,
   } from "../../lib/games/note-rain";
 
   const SETUP_KEY = "sr-note-rain";
@@ -61,8 +66,21 @@
     customNotes = RAIN_LEVELS[2]!.steps[clef];
     setup = checkRainSetup({ ...setup, clef, notes: setup.level === 0 ? customNotes : undefined });
   }
+  /** The notes the key signature changes, named: "F♯", "B♭ and E♭". */
+  $: altered = LETTERS.filter((l) => accOf(l, setup.key) !== 0).map((l) => letterName(l, setup.key));
+  $: keyHelp =
+    (setup.names === "solfege" ? `Movable do: ${keyLabel(setup.key ?? "C")} is do. ` : "") +
+    (altered.length ? `The cards have the key signature, so every ${altered.map((n) => n[0]).join(" and ")} is ${altered.join(" and ")}.` : "No sharps or flats.");
+  function setKey(k: RainKey) {
+    setup = checkRainSetup({ ...setup, key: k });
+  }
+  /** Sound on a right answer: this device's choice, not part of the setup (so not an assignment's). */
+  const SOUND_KEY = "sr-note-rain-sound";
+  let sound = (() => { try { return localStorage.getItem(SOUND_KEY) !== "off"; } catch { return true; } })();
+  $: try { localStorage.setItem(SOUND_KEY, sound ? "on" : "off"); } catch {}
   const SPEEDS: [RainSetup["speed"], string][] = [["relaxed", "Relaxed"], ["medium", "Medium"], ["fast", "Fast"], ["extreme", "Extreme"]];
   const ROUNDS: [RainSetup["round"], string, string][] = [
+    ["sprint", "30-second storm", "Name as many as you can in 30 seconds."],
     ["storm", "60-second storm", "Name as many as you can in a minute."],
     ["twenty", "20 notes", "Twenty notes, as fast as they come."],
     ["endless", "Endless", "It keeps getting faster until you run out of strikes."],
@@ -116,7 +134,15 @@
     for (const step of poolOf(s)) {
       const div = document.createElement("div");
       artBox.append(div);
-      abcjs.renderAbc(div, `X:1\nM:none\nL:1/1\nK:C clef=${s.clef}\n${abcOf(step)}`, { staffwidth: 40, scale: 1.5, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0 });
+      abcjs.renderAbc(div, `X:1\nM:none\nL:1/1\nK:${s.key ?? "C"} clef=${s.clef}\n${abcOf(step)}`, { staffwidth: 40, scale: 1.5, paddingtop: 0, paddingbottom: 0, paddingleft: 0, paddingright: 0 });
+      // Scale to the card: a key signature makes the drawing wider than a card on a phone (E♭'s three flats ran off it).
+      const svg = div.querySelector("svg");
+      if (svg) {
+        const w = svg.getAttribute("width"), h = svg.getAttribute("height");
+        if (w && h && !svg.getAttribute("viewBox")) svg.setAttribute("viewBox", `0 0 ${parseFloat(w)} ${parseFloat(h)}`);
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+      }
       art[step] = div.innerHTML;
       div.remove();
     }
@@ -127,6 +153,7 @@
     roundSetup = setup;
     pool = poolOf(setup);
     letters = lettersOf(setup);
+    if (sound) void preloadNotes(pool.map((st) => midiOf(st, setup.key)));
     await drawArt(setup);
     drops = [];
     named = wrong = strikes = streak = bestStreak = spawned = 0;
@@ -176,7 +203,7 @@
         lost++;
         note(d.step, false);
         weights[d.step] = bumpWeight(weights[d.step] ?? 1, false);
-        landed = { name: nameOf(letterOf(d.step), roundSetup.names), at: t };
+        landed = { name: nameOf(letterOf(d.step), roundSetup.names, roundSetup.key), at: t };
       } else kept.push(d);
     }
     drops = kept;
@@ -187,7 +214,7 @@
     }
     const over =
       strikes >= STRIKES ||
-      (roundSetup.round === "storm" && elapsed >= STORM_MS) ||
+      (roundMs(roundSetup.round) !== null && elapsed >= roundMs(roundSetup.round)!) ||
       (roundSetup.round === "twenty" && spawned >= TWENTY && !drops.length);
     if (over) return finish();
     raf = requestAnimationFrame(frame);
@@ -207,7 +234,8 @@
       note(target.step, !target.wrong);
       weights[target.step] = bumpWeight(weights[target.step] ?? 1, !target.wrong);
       drops = drops.filter((d) => d !== target);
-      pops = [...pops, { id: target.id, step: target.step, x: target.x, y: fallY(target.p), at: performance.now(), name: nameOf(l, roundSetup.names) }];
+      pops = [...pops, { id: target.id, step: target.step, x: target.x, y: fallY(target.p), at: performance.now(), name: nameOf(l, roundSetup.names, roundSetup.key) }];
+      if (sound) playNote(midiOf(target.step, roundSetup.key));
       named++;
       streak++;
       bestStreak = Math.max(bestStreak, streak);
@@ -235,12 +263,12 @@
     phase = "setup";
   }
 
-  /** Solfège keys: each syllable's first letter (s is sol). */
-  const SOLFEGE_KEYS: Record<string, Letter> = { d: "C", r: "D", m: "E", f: "F", s: "G", l: "A", t: "B" };
+  /** The key that answers a letter: its own letter, or in solfège the syllable's first letter (s is sol), so d r m f s l t in any key. */
+  const hintOf = (l: Letter) => (roundSetup.names === "solfege" ? nameOf(l, "solfege", roundSetup.key)[0]! : l.toLowerCase());
   function keydown(e: KeyboardEvent) {
     if (phase !== "play" || (e.target as HTMLElement)?.closest("input, select, textarea")) return;
     const k = e.key.toLowerCase();
-    const l = roundSetup.names === "solfege" ? SOLFEGE_KEYS[k] : (LETTERS as readonly string[]).includes(k.toUpperCase()) ? (k.toUpperCase() as Letter) : undefined;
+    const l = letters.find((x) => hintOf(x) === k);
     if (l && letters.includes(l)) {
       e.preventDefault();
       pressed = l;
@@ -267,13 +295,13 @@
   /** The card to name: the lowest. */
   $: targetId = drops.length ? drops.reduce((a, b) => (b.p > a.p ? b : a)).id : 0;
   $: elapsedNow = Math.max(0, now - startAt);
-  $: left = roundSetup.round === "storm" ? `${Math.max(0, Math.ceil((STORM_MS - elapsedNow) / 1000))} s` : roundSetup.round === "twenty" ? `${Math.max(0, TWENTY - spawned + drops.length)} to come` : `${Math.floor(elapsedNow / 1000)} s`;
+  $: left = roundMs(roundSetup.round) !== null ? `${Math.max(0, Math.ceil((roundMs(roundSetup.round)! - elapsedNow) / 1000))} s` : roundSetup.round === "twenty" ? `${Math.max(0, TWENTY - spawned + drops.length)} to come` : `${Math.floor(elapsedNow / 1000)} s`;
   $: secondsANote = (fallMs(speed) / 1000).toFixed(1);
   $: tricky = Object.entries(stats)
     .filter(([, s]) => s.seen >= 2 && s.clean / s.seen < 0.8)
     .sort((a, b) => a[1].clean / a[1].seen - b[1].clean / b[1].seen)
     .slice(0, 3)
-    .map(([step]) => noteLabel(Number(step)));
+    .map(([step]) => noteLabel(Number(step), roundSetup.key));
   $: accuracy = named + wrong ? Math.round((100 * named) / (named + wrong)) : 0;
 </script>
 
@@ -325,7 +353,19 @@
         <div class="row" role="group" aria-label="Answer with">
           <span>Answer with</span>
           <button type="button" class="sr-tok chip" class:sr-on={setup.names === "letters"} aria-pressed={setup.names === "letters"} on:click={() => (setup = { ...setup, names: "letters" })}>Letters</button>
-          <button type="button" class="sr-tok chip" class:sr-on={setup.names === "solfege"} aria-pressed={setup.names === "solfege"} on:click={() => (setup = { ...setup, names: "solfege" })}>Solfège (C is do)</button>
+          <button type="button" class="sr-tok chip" class:sr-on={setup.names === "solfege"} aria-pressed={setup.names === "solfege"} on:click={() => (setup = { ...setup, names: "solfege" })}>Solfège</button>
+        </div>
+        <div class="row" role="group" aria-label="Key">
+          <span>Key</span>
+          {#each RAIN_KEYS as k}
+            <button type="button" class="sr-tok chip" class:sr-on={(setup.key ?? "C") === k} aria-pressed={(setup.key ?? "C") === k} on:click={() => setKey(k)} data-key={k}>{keyLabel(k)}</button>
+          {/each}
+        </div>
+        <p class="help" data-key-help>{keyHelp}</p>
+        <div class="row" role="group" aria-label="Sound">
+          <span>Sound</span>
+          <button type="button" class="sr-tok chip" class:sr-on={sound} aria-pressed={sound} on:click={() => (sound = true)} data-sound="on"><Volume2 size={14} /> Play each note named</button>
+          <button type="button" class="sr-tok chip" class:sr-on={!sound} aria-pressed={!sound} on:click={() => (sound = false)} data-sound="off"><VolumeX size={14} /> Off</button>
         </div>
       </div>
     </GameLevels>
@@ -333,7 +373,7 @@
     {/if}
     {#if phase === "setup"}
       <button class="sr-btn start" on:click={start} disabled={!!problem} data-rain-start><Play size={18} /> Start</button>
-      <p class="text-xs text-sr-muted text-center">Name the lowest note before it lands. Three strikes. The letter keys answer{setup.names === "solfege" ? " (d r m f s l t)" : ""}.</p>
+      <p class="text-xs text-sr-muted text-center">Name the lowest note before it lands. Three strikes. The {setup.names === "solfege" ? "keys d r m f s l t" : "letter keys"} answer.</p>
     {/if}
   {:else}
     <div class="hud" bind:this={hud}>
@@ -366,7 +406,7 @@
     <div class="answers" role="group" aria-label="Name the note" style="--n: {letters.length}">
       {#each letters as l, i}
         <button class="ans" class:solfege={roundSetup.names === "solfege"} class:pressed={pressed === l} disabled={locked} on:click={() => answer(l)} data-letter={l}>
-          <span class="k" aria-hidden="true">{roundSetup.names === "solfege" ? nameOf(l, "solfege")[0] : l.toLowerCase()}</span>{nameOf(l, roundSetup.names)}
+          <span class="k" aria-hidden="true">{hintOf(l)}</span>{nameOf(l, roundSetup.names, roundSetup.key)}
         </button>
       {/each}
     </div>
@@ -379,7 +419,7 @@
   .shared { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--sr-hairline); }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
   .row > span { font-weight: 800; font-size: 0.85rem; color: var(--sr-ink-2); min-width: 6.5rem; }
-  .chip { font-size: 0.8rem; padding: 0.25rem 0.65rem; }
+  .chip { font-size: 0.8rem; padding: 0.25rem 0.65rem; display: inline-flex; align-items: center; gap: 0.3rem; }
   .help { font-size: 0.82rem; color: var(--sr-ink-2); margin-top: -0.25rem; padding-left: 6.85rem; }
   @media (max-width: 36rem) { .help { padding-left: 0; } .row > span { min-width: 100%; } }
   .start { align-self: center; font-size: 1.15rem; padding: 0.8rem 2.2rem; display: inline-flex; gap: 0.5rem; align-items: center; }
@@ -410,7 +450,7 @@
     background-size: 100% 148px; background-position: 0 36px; }
   .card { position: absolute; top: 8px; z-index: 1; width: 24%; max-width: 144px; min-width: 108px; height: 112px; padding: 4px; border-radius: var(--sr-r-md); background: var(--sr-panel); border: 2px solid color-mix(in srgb, var(--sr-sky-ink) 22%, var(--sr-hairline)); box-shadow: 0 6px 14px -4px color-mix(in srgb, var(--sr-sky-ink) 18%, transparent); will-change: transform; }
   .paper { width: 100%; height: 100%; border-radius: 12px; background: #fff; padding: 4px 6px; display: flex; align-items: center; justify-content: center; }
-  .paper :global(svg) { max-width: 100%; height: auto; }
+  .paper :global(svg) { width: 100%; height: 100%; }
   .tag { position: absolute; top: -11px; left: 50%; z-index: 1; transform: translateX(-50%); white-space: nowrap; font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--sr-action); color: var(--sr-action-ink); box-shadow: 0 2px 6px color-mix(in srgb, var(--sr-action) 35%, transparent); }
   /* The lowest card, the one the answer goes to. */
   .card.target { --lift: 1.04; z-index: 3; background: color-mix(in srgb, var(--sr-tint) 65%, var(--sr-panel)); border: 3px solid var(--sr-action); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sr-action) 20%, transparent), 0 12px 24px -8px color-mix(in srgb, var(--sr-action) 42%, transparent); }

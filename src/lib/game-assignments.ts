@@ -97,7 +97,7 @@ export function gameTitle(game: GameId, setup: Record<string, unknown>): string 
     }
     case "note-rain": {
       const s = checkRainSetup(setup);
-      return `Note Rain: ${lvl(s.level, RAIN_LEVELS.map((l) => l.name))}, ${s.clef}, ${s.speed}`;
+      return `Note Rain: ${lvl(s.level, RAIN_LEVELS.map((l) => l.name))}, ${s.clef}, ${s.speed}${s.key ? `, in ${s.key.replace("b", "♭")}` : ""}${s.round === "sprint" ? ", 30 seconds" : ""}`;
     }
     case "rhythm": return `Tap the rhythm${typeof setup.levelName === "string" ? `: ${setup.levelName}` : ""}`;
     case "tune": return `Catch the tune${typeof setup.levelName === "string" ? `: ${setup.levelName}` : ""}`;
