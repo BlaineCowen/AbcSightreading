@@ -291,6 +291,22 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   and shadow, the music on them larger (scale 1.5); the answer buttons are
   panels, not the sky's colour (Blaine: "the white notes on the white
   background don't look good").
+- **Note Rain's play screen redone** (20 November 2026, Blaine: "fix the
+  note rain game to look better in our aesthetic", design guidance and a
+  mockup from Gemini 4 Neon): the HUD is one white panel (hearts in a blush
+  pill, the score a mint badge, time and speed in track pills, tabular
+  numbers so nothing jitters), one row down to 390px. The sky is a token
+  gradient (paler at the top, a red blush at the bottom) with faint staves
+  every 148px, no scenery; the ground a 14px rail (`GROUND_H`, which the
+  fall now stops on). Cards hold the white paper inside a frame: the lowest
+  (the one the answer goes to) is ringed blue, lifted 1.04 and tagged Next;
+  after a miss it is peach and red, tagged Try again, and shakes once; a card
+  named right lingers 220 ms (`POP_MS`, the `pops` list), mint with its
+  name, rising and fading. Answers are keycaps with a blue edge (TapPad's
+  look); a letter key pressed shows on its button; locked after a miss they
+  sink and turn a warm grey instead of fading. "That was E" is a bigger pill
+  for 1.15 s. The result card has four stat tiles and the notes worth
+  another look in a butter pill. Reduced motion drops the lift, shake and pop.
 - **Solfège says what is playing** (Blaine: "make it work like
   learnmusic.fun, where it says this note is Do, what's the ? note"):
   `QuizRound.steps` gives the notes' labels, and EarQuiz shows them as big
