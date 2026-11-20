@@ -6,7 +6,10 @@
  * left edge in the drawing (by cursor, as rhythm-marks.ts finds it), and
  * each pill's row just under its own line of music, above the next line.
  * The still lane (RhythmLaneStill.svelte, the default), two bars and four
- * (four are drawn on two lines).
+ * (four are drawn on two lines), on a phone, a laptop, 1920 and 2560 wide
+ * (full screen draws the music as wide as the screen), and drawn at 1200
+ * then widened to 1920 without drawing again (entering full screen): the
+ * lane must measure the drawing again.
  *
  *   APP=http://localhost:4399 bun run scripts/check-lane-under-notes.ts   # LEVELS=1,4,8,11 SHOT=path.png
  */
@@ -22,23 +25,27 @@ const browser = await puppeteer.launch({
 });
 let failed = 0;
 try {
-  for (const [width, bars] of [[1200, 2], [1200, 4], [420, 2], [420, 4]]) {
+  for (const [width, bars, widen] of [[1200, 2], [1200, 4], [420, 2], [420, 4], [1920, 4], [2560, 4], [1200, 4, 1920]] as [number, number, number?][]) {
     const page = await browser.newPage();
     await page.setViewport({ width, height: 900 });
     await page.evaluateOnNewDocument(() => localStorage.setItem("sr-rhythm-lane", "still"));
     await page.goto(`${APP}/games/rhythm`, { waitUntil: "networkidle2" });
-    await page.evaluate((n: number) => {
-      const s = [...document.querySelectorAll("label.set")].find((l) => l.textContent!.includes("Bars"))!.querySelector("select")!;
-      s.value = String(n);
-      s.dispatchEvent(new Event("change"));
-    }, bars);
+    await page.click(`[data-bars="${bars}"]`);
     for (const level of LEVELS) {
       await page.click(`[data-level="${level - 1}"]`);
       for (let r = 0; r < 2; r++) {
-        const out = await page.evaluate(async () => {
+        if (widen) await page.setViewport({ width, height: 900 });
+        await page.evaluate(async () => {
           const find = (re: RegExp) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent!.trim()));
           find(/^New rhythm$/)?.click();
           await new Promise((res) => setTimeout(res, 1800));
+        });
+        // Drawn at one width, then widened as full screen does, with no new drawing.
+        if (widen) {
+          await page.setViewport({ width: widen, height: 900 });
+          await new Promise((res) => setTimeout(res, 400));
+        }
+        const out = await page.evaluate(() => {
           const paper = document.querySelector(".stage .paper")!;
           const drawn = [...paper.querySelectorAll(".abcjs-note, .abcjs-rest")];
           const lineOf = (el: Element) => Number(/abcjs-l(\d+)/.exec(el.getAttribute("class") ?? "")?.[1] ?? -1);
@@ -63,7 +70,7 @@ try {
         });
         const ok = out.worst <= TOLERANCE && !out.overlap && !out.misplaced && out.n > 0;
         if (!ok) failed++;
-        console.log(`${ok ? "ok  " : "FAIL"} level ${level}, ${bars} bars at ${width}px: ${out.lines} line(s), ${out.n} pills, farthest ${out.worst.toFixed(1)}px from its note${out.overlap ? ", pills overlap" : ""}${out.misplaced ? `, ${out.misplaced} off their line` : ""}`);
+        console.log(`${ok ? "ok  " : "FAIL"} level ${level}, ${bars} bars at ${width}px${widen ? ` widened to ${widen}px` : ""}: ${out.lines} line(s), ${out.n} pills, farthest ${out.worst.toFixed(1)}px from its note${out.overlap ? ", pills overlap" : ""}${out.misplaced ? `, ${out.misplaced} off their line` : ""}`);
       }
     }
     if (process.env.SHOT && width === 1200 && bars === 4) await (await page.$(".stage"))!.screenshot({ path: process.env.SHOT });

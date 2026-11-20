@@ -15,9 +15,13 @@
  * end of its pill, and no long note may be marked let go too soon;
  * HOLD=tap: let go at once, and every note of two beats or more must be
  * marked (game-score.ts gradeHolds). Either way, while the round plays the
- * music must sit clear of the Tap pad (scrolled up above it).
+ * music must sit clear of the Tap pad (scrolled up above it): with the
+ * still lane, the line being played and its row, between the window's top
+ * and the pad, once the page has had 0.7 s to follow a new line (Blaine,
+ * 20 November 2026: the page follows the music a line at a time; four bars
+ * drawn big no longer fit whole); otherwise the whole music.
  *
- *   APP=http://localhost:4399 bun run scripts/check-rhythm-lane.ts   # ROUNDS=3, LEVEL=1..11, MODE=scroll|still, BARS=2|4, HOLD=full|tap, PAD=big|small|hidden, INPUT=key|pad
+ *   APP=http://localhost:4399 bun run scripts/check-rhythm-lane.ts   # ROUNDS=3, LEVEL=1..11, W=1200 H=900 FULL=1, MODE=scroll|still, BARS=2|4, HOLD=full|tap, PAD=big|small|hidden, INPUT=key|pad
  */
 import puppeteer from "../marketing/ad/node_modules/puppeteer-core";
 
@@ -38,23 +42,24 @@ const browser = await puppeteer.launch({
 let failed = 0;
 try {
   const page = await browser.newPage();
-  await page.setViewport({ width: 1200, height: 900 });
+  await page.setViewport({ width: Number(process.env.W ?? 1200), height: Number(process.env.H ?? 900) });
   await page.evaluateOnNewDocument((mode: string, pad: string) => {
     localStorage.setItem("sr-rhythm-lane", mode);
     localStorage.setItem("sr-tap-pad", pad);
   }, MODE, PAD);
   await page.goto(`${APP}/games/rhythm`, { waitUntil: "networkidle2" });
   await page.click(`[data-level="${LEVEL - 1}"]`);
-  await page.evaluate((n: number) => {
-    const s = [...document.querySelectorAll("label.set")].find((l) => l.textContent!.includes("Bars"))!.querySelector("select")!;
-    s.value = String(n);
-    s.dispatchEvent(new Event("change"));
-  }, BARS);
+  await page.click(`[data-bars="${BARS}"]`);
   for (let r = 0; r < ROUNDS; r++) {
-    const out = await page.evaluate(async (mode: string, hold: string, input: string) => {
+    const out = await page.evaluate(async (mode: string, hold: string, input: string, full: boolean) => {
       const find = (re: RegExp) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent!.trim()));
       find(/^New rhythm$/)!.click();
       await new Promise((res) => setTimeout(res, 2500));
+      // FULL=1: the game's full screen (the in-window view; headless has no real one).
+      if (full && !document.documentElement.classList.contains("sr-focus")) {
+        (document.querySelector("[data-full-screen]") as HTMLElement).click();
+        await new Promise((res) => setTimeout(res, 800));
+      }
       const t0 = performance.now();
       find(/^Play$/)!.click();
       const tapped = new Set<string>();
@@ -74,6 +79,10 @@ try {
       let held: { pill: HTMLElement; row: Element } | null = null;
       let longNotes = 0;
       let padOver = -Infinity;
+      let lineSeen = -2;
+      let padWhy = "";
+      let begun = false;
+      let lineAt = 0;
       const playStart = performance.now();
       await new Promise<void>((resolve) => {
         const loop = () => {
@@ -110,9 +119,29 @@ try {
               window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", key: " ", bubbles: true }));
             });
           }
-          // The music clear of the Tap pad once the scroll has settled.
+          // The music clear of the Tap pad once the scroll has settled: with
+          // the still lane, the line being played (the first through the
+          // count-in) and its row; otherwise the whole music.
           const pad = document.querySelector(".tap-pad");
-          if (pad && performance.now() - playStart > 1200) padOver = Math.max(padOver, document.querySelector(".rhythm .stage")!.getBoundingClientRect().bottom - pad.getBoundingClientRect().top);
+          const rows = [...document.querySelectorAll("[data-still-lane] .row")];
+          const playing = document.querySelector("[data-still-lane] .head")?.parentElement;
+          if (playing) begun = true;
+          const rowIx = playing ? rows.indexOf(playing) : rows.length && !begun ? 0 : -1;
+          if (rowIx !== lineSeen) { lineSeen = rowIx; lineAt = performance.now(); }
+          const padTop = pad ? pad.getBoundingClientRect().top : innerHeight;
+          if (performance.now() - playStart > 1200 && performance.now() - lineAt > 700) {
+            if (rows.length) {
+              if (rowIx >= 0) {
+                const tops = [...document.querySelectorAll(`.stage .paper .abcjs-l${rowIx}`)].map((e) => e.getBoundingClientRect()).filter((r) => r.height).map((r) => r.top);
+                const under = rows[rowIx]!.getBoundingClientRect().bottom - padTop;
+                const above = -Math.min(...tops);
+                if (Math.max(under, above) > padOver) {
+                  padOver = Math.max(under, above);
+                  padWhy = under >= above ? `line ${rowIx + 1}'s row under the pad` : `line ${rowIx + 1} above the window's top`;
+                }
+              }
+            } else if (pad) padOver = Math.max(padOver, document.querySelector(".rhythm .stage")!.getBoundingClientRect().bottom - padTop);
+          }
           if (document.querySelector("[data-solo-score]") || performance.now() - t0 > 30000) return resolve();
           requestAnimationFrame(loop);
         };
@@ -121,13 +150,13 @@ try {
       if (held) key("keyup");
       const s = document.querySelector("[data-solo-score]") as HTMLElement | null;
       const short = Number((document.querySelector("[data-held-short]") as HTMLElement | null)?.dataset.heldShort ?? 0);
-      return { longNotes, short, padOver, moved, secs: (performance.now() - t0) / 1000, fps: frames / ((performance.now() - t0) / 1000), taps: tapped.size, score: Number(s?.dataset.soloScore ?? -1), text: s?.textContent?.trim() ?? "" };
-    }, MODE, HOLD, INPUT);
+      return { padWhy, longNotes, short, padOver, moved, secs: (performance.now() - t0) / 1000, fps: frames / ((performance.now() - t0) / 1000), taps: tapped.size, score: Number(s?.dataset.soloScore ?? -1), text: s?.textContent?.trim() ?? "" };
+    }, MODE, HOLD, INPUT, !!process.env.FULL);
     const holdOk = HOLD === "full" ? out.short === 0 : HOLD === "tap" ? out.short === out.longNotes : true;
     const padOk = out.padOver <= 0;
     const ok = (HOLD === "tap" ? true : out.score >= 90) && !out.moved && holdOk && padOk;
     if (!ok) failed++;
-    console.log(`${ok ? "ok  " : "FAIL"} round ${r + 1}: ${out.text} (${out.taps} taps, ${out.fps.toFixed(0)} frames a second${out.moved ? ", THE STILL LANE MOVED" : ""}${HOLD ? `; ${out.longNotes} long notes, ${out.short} let go too soon` : ""}; music ${padOk ? "clear of" : `${Math.round(out.padOver)}px under`} the Tap pad)`);
+    console.log(`${ok ? "ok  " : "FAIL"} round ${r + 1}: ${out.text} (${out.taps} taps, ${out.fps.toFixed(0)} frames a second${out.moved ? ", THE STILL LANE MOVED" : ""}${HOLD ? `; ${out.longNotes} long notes, ${out.short} let go too soon` : ""}; music ${padOk ? "clear of" : `${Math.round(out.padOver)}px under`} the Tap pad${!padOk && out.padWhy ? `: ${out.padWhy}` : ""})`);
   }
 } finally {
   await browser.close();

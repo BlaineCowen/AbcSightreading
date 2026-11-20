@@ -227,6 +227,46 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   1, 2, ½, ¼, 1½, and ⅓, ⅔ in compound meter (`beatLabel()` in
   `src/lib/games/beat-label.ts`, `tests/unit/beat-label.test.ts`). A note
   tied onto the next line has it on its first piece only.
+- **Full screen, the page following the music, the options** (Blaine, 20
+  November 2026: "make it look better on fullscreen like our regular rhythm
+  reading where it auto scrolls on line and fix the interface to pick the
+  options"):
+  - *Full screen*: a button at the stage's top right (F, Esc; the icon
+    alone on a phone) uses the practice pages' `createFullscreen()`
+    (`src/lib/fullscreen.ts`, `html.sr-focus`). The title, the two tabs,
+    the levels and options (`.setup`) and the how line are `.focus-hide`;
+    `rhythm.astro` lifts the page's max width under `sr-focus`. The music is
+    then drawn as wide as the screen. Headless Chrome has no real full
+    screen, so the checks see the in-window view (`FULL=1`).
+  - *Following the line*: the lines and their beats come from the drawing
+    (`drawnLines()` in `rhythm-marks.ts`, shared with the still lane, so a
+    tie held onto a line does not shift it). As a round starts, the first
+    line (with the count-in's word) comes up clear of the Tap pad. A beat
+    before a line ends, the next is brought on if it fits without pushing
+    the current line's top off. As it starts, it is brought fully on, its
+    top first when it cannot fit. The page keeps 70vh of room below while a
+    round runs, and the result is scrolled into view after.
+  - *The still lane scales*: `--k` (the drawing's width over abcjs's own
+    units, 0.82 to 1.9) sizes the rows, pills and beat numbers, and a
+    ResizeObserver measures again when the drawing changes size (entering
+    full screen, turning a phone).
+  - *Phones*: under 500px wide (not with the scrolling lane), one bar to a
+    line at staffwidth 300, about twice as big; drawn again when a resize
+    crosses that line, never mid-round. `%%stretchlast 1` keeps a short last
+    line as wide as the rest.
+  - *Options*: two fieldsets, "The round" (Bars, Tempo, Grading: what an
+    assignment sets) and "On screen" (Lane, Tap pad, the beats checkbox).
+    Each choice is native radios drawn as one pill (arrow keys come free),
+    tempo stays a select (six values), and the beats are a checkbox. Narrow
+    (a container query on the group): each label over its choices, sharing
+    the width; under 17rem they may wrap. Hooks: `data-bars`,
+    `data-strictness`, `data-lane-mode`, `data-pad-size`, `data-show-beats`,
+    `data-full-screen`.
+  - *Checks*: `check-rhythm-lane.ts` takes `W`, `H` and `FULL=1`, and with
+    the still lane checks the line being played and its row sit between the
+    window's top and the pad (the whole music no longer fits at 4 bars drawn
+    big). With the following turned off it fails at 844x390.
+    `check-lane-under-notes.ts` adds 1920, 2560, and 1200 widened to 1920.
 - **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
   rest"; "use the symbols we have instead, and do the same whenever a new one
   is added"): `levelNews()` in `rhythm-levels.ts` gives each level the

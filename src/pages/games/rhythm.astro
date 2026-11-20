@@ -8,8 +8,13 @@ import RhythmGame from "../../components/games/RhythmGame.svelte";
   description="Read a few bars of rhythm and tap them in time with the click, alone or as a whole class on your own devices."
   themable
 >
-  <div class="max-w-4xl mx-auto pb-48 flex flex-col gap-4 items-center">
-    <h1 class="font-display text-3xl sm:text-4xl font-bold text-sr-ink">Tap the rhythm</h1>
+  <div class="rhythm-page max-w-4xl mx-auto pb-48 flex flex-col gap-4 items-center">
+    <h1 class="focus-hide font-display text-3xl sm:text-4xl font-bold text-sr-ink">Tap the rhythm</h1>
     <RhythmGame client:only="svelte" />
   </div>
 </Layout>
+
+<style is:global>
+  /* Full screen (RhythmGame, src/lib/fullscreen.ts): the game as wide as the screen. */
+  html.sr-focus .rhythm-page { max-width: none; padding-bottom: 0; }
+</style>

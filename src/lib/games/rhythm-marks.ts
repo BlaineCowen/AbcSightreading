@@ -45,3 +45,30 @@ export function noteShares(results: ClapNote[][]): { cursor: number; share: numb
     share: results.filter((r) => r[i] && !r[i].missed && r[i].rhythm >= 90).length / results.length,
   }));
 }
+
+/** The line (abcjs's `abcjs-lN` class) an element is drawn on, or -1. */
+export function lineOf(el: Element | null | undefined): number {
+  const m = el ? /\babcjs-l(\d+)\b/.exec(el.getAttribute("class") ?? "") : null;
+  return m ? Number(m[1]) : -1;
+}
+
+/**
+ * Each drawn line of a round and the beats it holds, from the drawing: lines
+ * break at barlines, so a line starts where the bars before it end (a tied
+ * note held over onto a line is not in the schedule, so the schedule cannot
+ * say where a line starts). The still lane's rows and the page following the
+ * playing line both read it.
+ */
+export function drawnLines(paper: Element | null | undefined, totalBeats: number, beatsPerBar: number): { line: number; from: number; to: number; bars: Element[] }[] {
+  if (!paper) return [];
+  const lines = [...new Set(drawn(paper).map(lineOf))].filter((l) => l >= 0).sort((a, b) => a - b);
+  const out: { line: number; from: number; to: number; bars: Element[] }[] = [];
+  let from = 0;
+  for (const line of lines) {
+    const bars = [...paper.querySelectorAll(`.abcjs-bar.abcjs-l${line}`)];
+    const to = Math.min(totalBeats, from + Math.max(1, bars.length) * beatsPerBar);
+    out.push({ line, from, to, bars });
+    from = to;
+  }
+  return out;
+}

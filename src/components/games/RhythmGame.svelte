@@ -30,7 +30,9 @@
   import { bookClicks, gameAudio, loadClicks } from "../../lib/games/game-audio";
   import { scoreRhythm, type Press, type RhythmScore } from "../../lib/games/game-score";
   import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
-  import { markNotes, markShares, noteShares, roundLayout } from "../../lib/games/rhythm-marks";
+  import { drawnLines, markNotes, markShares, noteShares, roundLayout } from "../../lib/games/rhythm-marks";
+  import { createFullscreen } from "../../lib/fullscreen";
+  import { Maximize, Minimize } from "lucide-svelte";
   import { roomLag, countInLag } from "../../lib/games/game-lag";
   import { countInBarsFor, isFinal, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
   import { answers as fetchAnswers, closeRoom, measureOffset, newRound, openRoom, players as fetchPlayers, publishGame, type HostRoom } from "../../lib/games/host-room";
@@ -84,7 +86,6 @@
     detail: n.all ? "Everything, in every meter" : n.meters.length && i > 0 ? `New: ${n.meters.map((m) => `${m.split("/")[0]} beats a bar`).join(", ")}` : undefined,
   }));
   $: level = levelId === "custom" ? customLevel(own.meters, own.rhythms) : rhythmLevel(levelId);
-  const setStrictness = (id: string) => (strictness = id as Strictness);
   /**
    * The lane under the music (RhythmLane.svelte), remembered in this browser:
    * "still" (Blaine, 19 November 2026: "have the bars always underneath the
@@ -100,7 +101,7 @@
       return v === "off" || v === "scroll" ? v : "still";
     } catch { return "still"; }
   })();
-  const LANE_MODES: [LaneMode, string][] = [["still", "Under the notes"], ["scroll", "Scrolling"], ["off", "No lane"]];
+  const LANE_MODES: [LaneMode, string][] = [["still", "Under the notes"], ["scroll", "Scrolling"], ["off", "Off"]];
   let lane: RhythmLane | RhythmLaneStill | null = null;
   function setLane(mode: LaneMode) {
     laneMode = mode;
@@ -142,9 +143,23 @@
     if (!paper || !exercise) return;
     // The still lane sits under each line of music: room for it under every line.
     const still = laneMode === "still";
-    const abc = still ? exercise.abc.replace(/^(X:.*)$/m, `$1\n%%staffsep ${STILL_STAFFSEP}`) : exercise.abc;
-    abcjs.renderAbc(paper, abc, { responsive: "resize", staffwidth: 520, scale: 1.6, paddingtop: 10, paddingbottom: still ? STILL_PAD : 10, add_classes: true, ...roundLayout(exercise.bars) });
+    // Every line as wide as the first, so a last line of two bars is not drawn half width.
+    const head = `%%stretchlast 1${still ? `\n%%staffsep ${STILL_STAFFSEP}` : ""}`;
+    const abc = exercise.abc.replace(/^(X:.*)$/m, `$1\n${head}`);
+    // A phone held upright: one bar to a line, drawn narrower so it is scaled
+    // up about twice as big (two bars to a line left sixteenths too small to
+    // read or to tap). Not with the scrolling lane, which lines up under one line.
+    narrow = laneMode !== "scroll" && paper.clientWidth < NARROW_PX;
+    const layout = narrow ? { staffwidth: 300, wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: 1 } } : { staffwidth: 520, ...roundLayout(exercise.bars) };
+    abcjs.renderAbc(paper, abc, { responsive: "resize", scale: 1.6, paddingtop: 10, paddingbottom: still ? STILL_PAD : 10, add_classes: true, ...layout });
     drawnCount++;
+  }
+  const NARROW_PX = 500;
+  let narrow = false;
+  /** Turned (a phone on its side, a window resized): draw again when it crosses the narrow line, not mid-round. */
+  function onResize() {
+    if (!paper || !exercise || running) return;
+    if ((laneMode !== "scroll" && paper.clientWidth < NARROW_PX) !== narrow) void draw().then(() => solo && mark(solo.result));
   }
   /** Room for the still lane (RhythmLaneStill.svelte) under each line, in abcjs's units. */
   const STILL_STAFFSEP = 85;
@@ -188,10 +203,13 @@
     const step = () => {
       progress = Math.max(0, Math.min(1, (ctx.currentTime - musicSec) / (endSec - musicSec)));
       // The lane, in beats from the first note (negative through the count-in), on the clicks' own clock.
-      lane?.set((performance.now() - musicPageMs) / (beatSec * 1000));
+      const beatNow = (performance.now() - musicPageMs) / (beatSec * 1000);
+      lane?.set(beatNow);
+      follow(beatNow);
       if (ctx.currentTime < endSec + beatSec && running) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
+    void followStart();
     return endSec;
   }
   function stopTimeline() {
@@ -236,7 +254,6 @@
     const ctx = gameAudio();
     const startSec = ctx.currentTime + 0.4;
     running = true;
-    void clearOfPad();
     const endSec = await runTimeline(ex, startSec);
     // Everything on this page's clock (performance.now), the taps' own.
     const toPage = audioToPage(ctx);
@@ -249,6 +266,7 @@
       if (assignment) void reportGameRound(assignment, solo.points).then((p) => p && (assignmentProgress = p));
       rounds++;
       mark(solo.result);
+      void showResult();
     }, (endSec - ctx.currentTime) * 1000 + 500);
   }
 
@@ -293,23 +311,105 @@
   const PAD_SIZES: [PadSize, string][] = [["big", "Big"], ["small", "Small"], ["hidden", "Hidden"]];
 
   /**
-   * As a round starts, the music scrolls up clear of the Tap pad (Blaine:
-   * "scroll so the tap bar is out of the way of the rhythm"): its foot just
-   * above the pad, its top never above the window's. The page has room below
-   * for it while a round runs (`.rhythm.playing`).
+   * The page follows the music a line at a time, as the practice pages do
+   * (Blaine, 20 November 2026: "like our regular rhythm reading where it auto
+   * scrolls on line"): as a round starts, the first line (with the count-in's
+   * word over it) comes up clear of the Tap pad ("scroll so the tap bar is out
+   * of the way of the rhythm", 19 November); a beat before a line ends the
+   * next one is brought on screen if it fits beside it, and as it starts it
+   * is brought fully on. The lines and their beats are read from the drawing
+   * (`drawnLines`), as the still lane's rows are. The page has room below
+   * while a round runs (`.rhythm.playing`), so the last line can rise.
    */
-  async function clearOfPad() {
+  let lines: { line: number; from: number; to: number }[] = [];
+  let lineNow = -1;
+  let lineAhead = -1;
+  type Box = { top: number; bottom: number };
+  const boxOf = (rects: DOMRect[]): Box | null => (rects.length ? { top: Math.min(...rects.map((r) => r.top)), bottom: Math.max(...rects.map((r) => r.bottom)) } : null);
+  /** Line i on screen: the line and the lane under it, and with what is nice to show too (the count-in's word over the first line). */
+  function lineBox(i: number): { core: Box; all: Box } | null {
+    const l = lines[i];
+    if (!paper || !l) return null;
+    const rects = [...paper.querySelectorAll(`.abcjs-l${l.line}`)].map((el) => el.getBoundingClientRect()).filter((r) => r.width || r.height);
+    // The still lane's row under the line, or the scrolling lane under the music.
+    const row = document.querySelectorAll(".stage [data-still-lane] .row")[i];
+    if (row) rects.push(row.getBoundingClientRect());
+    const strip = document.querySelector(".stage [data-rhythm-lane]:not([data-still-lane])");
+    if (strip) rects.push(strip.getBoundingClientRect());
+    const core = boxOf(rects);
+    if (!core) return null;
+    const stage = i === 0 ? document.querySelector(".rhythm .stage") : null;
+    const all = stage ? boxOf([...rects, stage.getBoundingClientRect()])! : core;
+    return { core, all };
+  }
+  /** How far to scroll to show line i between the top and the pad: with its extras if they fit, the line alone if not, its top first when even that cannot fit; `keepTop` is not scrolled off the top. */
+  function scrollFor(i: number, keepTop: number | null = null) {
+    const b = lineBox(i);
+    if (!b) return 0;
+    const pad = document.querySelector(".tap-pad");
+    const top = 8;
+    const bottom = (pad ? pad.getBoundingClientRect().top : window.innerHeight) - 12;
+    const fits = (x: Box) => x.bottom - x.top <= bottom - top;
+    const box = fits(b.all) ? b.all : b.core;
+    let by = 0;
+    if (!fits(box) || box.top < top) by = box.top - top;
+    else if (box.bottom > bottom) by = box.bottom - bottom;
+    if (keepTop !== null && by > keepTop - top) by = Math.max(0, keepTop - top);
+    return by;
+  }
+  function scrollPage(by: number) {
+    if (Math.abs(by) < 4) return;
+    window.scrollBy({ top: by, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+  async function followStart() {
+    await tick();
+    lines = drawnLines(paper, exercise ? exercise.bars * exercise.beatsPerBar : 0, exercise?.beatsPerBar ?? 4);
+    lineNow = 0;
+    lineAhead = -1;
+    requestAnimationFrame(() => scrollPage(scrollFor(0)));
+  }
+  /** Each frame of a round, from the beat (negative in the count-in). */
+  function follow(beat: number) {
+    if (lines.length < 2 || beat < 0) return;
+    const i = lines.findIndex((l) => beat >= l.from && beat < l.to);
+    if (i < 0) return;
+    if (i !== lineNow) {
+      lineNow = i;
+      scrollPage(scrollFor(i));
+    } else if (i + 1 < lines.length && lineAhead !== i + 1 && beat >= lines[i]!.to - 1) {
+      lineAhead = i + 1;
+      scrollPage(scrollFor(i + 1, lineBox(i)?.core.top ?? null));
+    }
+  }
+  /** After a round: the marked music and the score both on screen, as far as they fit. */
+  async function showResult() {
     await tick();
     const stage = document.querySelector(".rhythm .stage");
-    const pad = document.querySelector(".tap-pad");
-    if (!stage) return;
-    const r = stage.getBoundingClientRect();
-    const limit = (pad ? pad.getBoundingClientRect().top : window.innerHeight) - 12;
-    const down = Math.min(r.bottom - limit, r.top - 8);
-    const up = r.top < 8 ? r.top - 8 : 0;
-    const by = down > 0 ? down : up;
-    if (by) window.scrollBy({ top: by, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    const result = document.querySelector(".rhythm .result");
+    if (!stage || !result) return;
+    const s = stage.getBoundingClientRect();
+    const r = result.getBoundingClientRect();
+    const by = r.bottom - s.top > window.innerHeight - 16 ? r.bottom - window.innerHeight + 8 : r.bottom > window.innerHeight - 8 ? r.bottom - window.innerHeight + 8 : s.top < 8 ? s.top - 8 : 0;
+    scrollPage(by);
   }
+
+  // ── Full screen ────────────────────────────────────────────────────────
+  /**
+   * Full screen, as on the practice pages (src/lib/fullscreen.ts; F, Esc):
+   * the music alone, as wide as the screen and drawn bigger, the setup and the
+   * site around it hidden (`.focus-hide`), for a TV or a projector.
+   */
+  let full = false;
+  let fs: ReturnType<typeof createFullscreen> | null = null;
+  onMount(() => {
+    fs = createFullscreen();
+    const off = fs.active.subscribe((v) => (full = v));
+    return () => {
+      off();
+      fs?.destroy();
+    };
+  });
+
   function onKey(e: KeyboardEvent) {
     if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
     if ((e.code === "Space" || e.key === " ") && !e.repeat && running && mode === "solo") {
@@ -480,14 +580,15 @@
   }
 </script>
 
-<svelte:window on:keydown={onKey} on:keyup={onKeyUp} />
+<svelte:window on:keydown={onKey} on:keyup={onKeyUp} on:resize={onResize} />
 
-<div class="rhythm" class:playing={running && mode === "solo" && padSize !== "hidden"}>
-  <div class="tabs" role="tablist" aria-label="How to play">
+<div class="rhythm" class:playing={running} class:full>
+  <div class="tabs focus-hide" role="tablist" aria-label="How to play">
     <button role="tab" class="sr-tok" class:sr-on={mode === "solo"} aria-selected={mode === "solo"} on:click={() => (room ? null : (mode = "solo"))} disabled={!!room}>On this device</button>
     <button role="tab" class="sr-tok" class:sr-on={mode === "class"} aria-selected={mode === "class"} on:click={() => (mode = "class")}>With your class</button>
   </div>
 
+  <div class="setup focus-hide">
   {#if assignment}
     <GameAssignmentBanner {assignment} progress={assignmentProgress ?? assignment.progress} />
   {:else}
@@ -502,34 +603,47 @@
       {#if running}<p class="text-sm text-sr-muted">Your own rhythms: {own.meters.join(", ")}.</p>
       {:else}<RhythmSetup bind:meters={own.meters} bind:rhythms={own.rhythms} bind:ties={own.ties} bind:syllables={own.syllables} />{/if}
     </div>
-  <div class="settings" class:locked={running}>
-    <label class="set"><span>Bars</span>
-      <select bind:value={bars} disabled={running}>{#each GAME_BARS as b}<option value={b}>{b}</option>{/each}</select>
-    </label>
-    <label class="set"><span>Tempo</span>
-      <select bind:value={bpm} disabled={running}>{#each GAME_TEMPOS as b}<option value={b}>♩ = {b}</option>{/each}</select>
-    </label>
-    <div class="flex gap-1 items-center" role="group" aria-label="Tap pad">
-      <span class="text-sm font-bold text-sr-ink-2">Tap pad</span>
-      {#each PAD_SIZES as [size, label]}
-        <button class="sr-tok text-sm" class:sr-on={padSize === size} aria-pressed={padSize === size} on:click={() => setPad(size)} disabled={running} data-pad-size={size}>{label}</button>
-      {/each}
-    </div>
-    <div class="flex flex-wrap justify-center gap-1" role="group" aria-label="Lane under the music">
-      {#each LANE_MODES as [m, label]}
-        <button class="sr-tok text-sm whitespace-nowrap" class:sr-on={laneMode === m} aria-pressed={laneMode === m} on:click={() => setLane(m)} disabled={running} data-lane-mode={m}>{label}</button>
-      {/each}
-      {#if laneMode !== "off"}<button class="sr-tok text-sm whitespace-nowrap" class:sr-on={showBeats} aria-pressed={showBeats} on:click={toggleBeats} disabled={running} data-show-beats title="Write each note's beats on its bar">Beats</button>{/if}
-    </div>
-    <div class="flex gap-1" role="group" aria-label="Strictness">
-      {#each Object.entries(STRICTNESS) as [id, s]}
-        <button class="sr-tok text-sm" class:sr-on={strictness === id} aria-pressed={strictness === id} on:click={() => setStrictness(id)} disabled={running}>{s.label}</button>
-      {/each}
-    </div>
+  <div class="opts" class:locked={running}>
+    <fieldset class="grp" disabled={running}>
+      <legend>The round</legend>
+      <div class="opt">
+        <span class="opt-l" id="opt-bars">Bars</span>
+        <div class="seg" role="radiogroup" aria-labelledby="opt-bars">
+          {#each GAME_BARS as b}<label><input type="radio" name="rg-bars" value={b} bind:group={bars} data-bars={b} /><span>{b}</span></label>{/each}
+        </div>
+      </div>
+      <div class="opt">
+        <label class="opt-l" for="opt-tempo">Tempo</label>
+        <select id="opt-tempo" class="sel" bind:value={bpm}>{#each GAME_TEMPOS as b}<option value={b}>♩ = {b}</option>{/each}</select>
+      </div>
+      <div class="opt">
+        <span class="opt-l" id="opt-grading">Grading</span>
+        <div class="seg" role="radiogroup" aria-labelledby="opt-grading">
+          {#each Object.entries(STRICTNESS) as [id, s]}<label><input type="radio" name="rg-strict" value={id} bind:group={strictness} data-strictness={id} /><span>{s.label}</span></label>{/each}
+        </div>
+      </div>
+    </fieldset>
+    <fieldset class="grp" disabled={running}>
+      <legend>On screen</legend>
+      <div class="opt">
+        <span class="opt-l" id="opt-lane">Lane</span>
+        <div class="seg" role="radiogroup" aria-labelledby="opt-lane">
+          {#each LANE_MODES as [m, label]}<label><input type="radio" name="rg-lane" value={m} checked={laneMode === m} on:change={() => setLane(m)} data-lane-mode={m} /><span>{label}</span></label>{/each}
+        </div>
+      </div>
+      <div class="opt">
+        <span class="opt-l" id="opt-pad">Tap pad</span>
+        <div class="seg" role="radiogroup" aria-labelledby="opt-pad">
+          {#each PAD_SIZES as [size, label]}<label><input type="radio" name="rg-pad" value={size} checked={padSize === size} on:change={() => setPad(size)} data-pad-size={size} /><span>{label}</span></label>{/each}
+        </div>
+      </div>
+      <label class="chk"><input type="checkbox" checked={showBeats} on:change={toggleBeats} disabled={laneMode === "off"} data-show-beats /> Write the beats on each bar</label>
+    </fieldset>
   </div>
   </GameLevels>
   {#if mode === "solo"}<AssignGame game="rhythm" setup={{ levelId, levelName: level.name, bars, bpm, strictness, ...(levelId === "custom" ? { own } : {}) }} problem={level.rhythms.length ? null : "Choose at least one rhythm."} />{/if}
   {/if}
+  </div>
 
   {#if mode === "class" && !room}
     <div class="sr-panel p-6 flex flex-col items-center gap-3 text-center">
@@ -572,9 +686,12 @@
     {/if}
 
     {#if problem}<p class="text-center text-sm text-sr-danger" role="alert">{problem}</p>{/if}
-    {#if exercise}<p class="how">Tap along with the count-in (1, 2, Ready, Go), then tap the rhythm. Hold each long note down{padSize === "hidden" ? " (the spacebar)" : ""}.</p>{/if}
+    {#if exercise}<p class="how focus-hide">Tap along with the count-in (1, 2, Ready, Go), then tap the rhythm. Hold each long note down{padSize === "hidden" ? " (the spacebar)" : ""}.</p>{/if}
 
     <div class="stage" class:hidden={!exercise}>
+      <button type="button" class="fs-btn" on:click={() => fs?.toggle()} aria-pressed={full} title={full ? "Leave full screen (Esc)" : "Full screen (F)"} aria-label={full ? "Leave full screen" : "Full screen"} data-full-screen>
+        {#if full}<Minimize size={18} aria-hidden="true" /><span class="fs-txt">Exit</span>{:else}<Maximize size={18} aria-hidden="true" /><span class="fs-txt">Full screen</span>{/if}
+      </button>
       {#if word}<div class="word" aria-live="assertive"><span class:go={word === "Go"}>{word}</span></div>{/if}
       <div class="music">
         <div class="paper" bind:this={paper}></div>
@@ -608,16 +725,59 @@
 <style>
   .rhythm { display: flex; flex-direction: column; gap: 1rem; width: 100%; }
   .tabs { display: flex; gap: 0.5rem; justify-content: center; }
-  .settings { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; justify-content: center; }
-  .set { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); }
-  .set select { border-radius: 999px; padding: 0.4rem 0.9rem; border: 1px solid var(--sr-hairline); background: var(--sr-raise); color: var(--sr-ink); }
-  .stage { position: relative; background: #fff; border-radius: 28px; padding: 1.5rem 1rem 1rem; }
+  /* The options (Blaine, 20 November 2026: "fix the interface to pick the
+     options"): two labelled groups, the round's (what an assignment sets) and
+     this screen's, each choice a row of native radios drawn as one pill. */
+  .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: 0.75rem; }
+  .grp { container: grp / inline-size; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; margin: 0; padding: 0.75rem 0.9rem 0.85rem; border: 1px solid var(--sr-hairline); border-radius: 18px; background: var(--sr-paper, var(--sr-bg)); }
+  .grp legend { float: left; width: 100%; margin-bottom: 0.1rem; font-family: var(--sr-font-display); font-weight: 800; font-size: 0.95rem; color: var(--sr-ink); }
+  .grp legend + * { clear: both; }
+  .grp:disabled { opacity: 0.6; }
+  .opt { display: grid; grid-template-columns: 4.5rem 1fr; align-items: center; gap: 0.6rem; }
+  .opt-l { font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); }
+  .seg { display: flex; gap: 0.2rem; max-width: 100%; padding: 0.2rem; border-radius: 999px; background: var(--sr-track); justify-self: start; }
+  .seg label { position: relative; display: inline-flex; }
+  .seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .seg span { display: inline-flex; align-items: center; justify-content: center; min-height: 2.25rem; min-width: 2.75rem; padding: 0 0.85rem; border-radius: 999px; font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); white-space: nowrap; }
+  .seg label:hover span { color: var(--sr-ink); }
+  .seg input:checked + span { background: var(--sr-action); color: var(--sr-action-ink); box-shadow: 0 1px 2px color-mix(in srgb, var(--sr-ink) 25%, transparent); }
+  .seg input:focus-visible + span { outline: 3px solid var(--sr-action); outline-offset: 2px; }
+  .sel { justify-self: start; min-height: 2.5rem; border-radius: 999px; padding: 0.3rem 0.9rem; border: 1px solid var(--sr-hairline-2, var(--sr-hairline)); background: var(--sr-raise); color: var(--sr-ink); font: inherit; font-weight: 700; }
+  .chk { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.25rem; font-weight: 700; font-size: 0.9rem; color: var(--sr-ink-2); cursor: pointer; }
+  .chk input { width: 1.15rem; height: 1.15rem; accent-color: var(--sr-action); }
+  .chk:has(input:disabled) { opacity: 0.5; cursor: default; }
+  @media (pointer: coarse) {
+    .seg span, .chk, .sel { min-height: 44px; }
+  }
+  /* Narrow (a phone): each label over its choices, the choices sharing the width in one row. */
+  @container grp (width < 24rem) {
+    .opt { grid-template-columns: 1fr; gap: 0.3rem; }
+    .seg { justify-self: stretch; }
+    .seg label { flex: 1 1 auto; }
+    .seg span { width: 100%; min-width: 0; padding: 0 0.5rem; font-size: 0.85rem; }
+  }
+  /* The smallest phones: the choices may take a second row rather than run out of the box. */
+  @container grp (width < 17rem) {
+    .seg { flex-wrap: wrap; border-radius: 18px; }
+  }
+  /* Room at the top for Full screen and the count-in's word, clear of the music. */
+  .stage { position: relative; background: #fff; border-radius: 28px; padding: 3.25rem 1rem 1rem; }
   .stage.hidden { display: none; }
   .music { position: relative; }
   .word { position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 2; }
   .word span { display: inline-block; font-family: var(--font-display, inherit); font-weight: 700; font-size: 1.8rem; background: var(--sr-sky); color: var(--sr-sky-ink); border-radius: 999px; padding: 0.2rem 1.2rem; }
   .word span.go { background: var(--sr-mint); color: var(--sr-mint-ink); }
-  .rhythm.playing { padding-bottom: calc(var(--bottom-bar-h, 96px) + 12rem); }
+  .setup { display: flex; flex-direction: column; gap: 1rem; }
+  /* Room below while a round runs, so the last line can rise above the pad. */
+  .rhythm.playing { padding-bottom: 70vh; }
+  .fs-btn { position: absolute; top: 0.6rem; right: 0.75rem; z-index: 3; display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; padding: 0 0.8rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem; color: var(--sr-ink-2); background: var(--sr-track); }
+  .fs-btn:hover { color: var(--sr-ink); }
+  @media (pointer: coarse) { .fs-btn { min-height: 44px; min-width: 44px; justify-content: center; } }
+  /* A phone: the icon alone, clear of the count-in's word in the middle. */
+  @media (max-width: 30rem) { .fs-txt { display: none; } .fs-btn { padding: 0 0.6rem; } }
+  /* Full screen: the music as wide as the screen (abcjs draws it to its box). */
+  .rhythm.full { max-width: none; }
+  .rhythm.full .stage { padding: 3rem 2rem 1.5rem; }
   .short-note { max-width: 28rem; text-align: center; font-weight: 700; color: var(--sr-butter-ink); background: var(--sr-butter); border-radius: 14px; padding: 0.4rem 0.8rem; }
   .how { text-align: center; font-weight: 700; color: var(--sr-ink-2); }
   .bar { height: 6px; border-radius: 999px; background: var(--sr-track); overflow: hidden; margin-top: 0.5rem; }
