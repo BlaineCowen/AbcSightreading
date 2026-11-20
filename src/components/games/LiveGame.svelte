@@ -140,8 +140,10 @@
   function onKey(e: KeyboardEvent) {
     // A space typed into the name box is a space, not a tap.
     if (e.target instanceof HTMLElement && e.target.closest("input, textarea, [contenteditable]")) return;
-    if ((e.code === "Space" || e.key === " ") && !e.repeat && game.kind === "rhythm") {
+    // Every Space, a held one's repeats too, kept from scrolling the page; only the first is a tap.
+    if ((e.code === "Space" || e.key === " ") && game.kind === "rhythm") {
       e.preventDefault();
+      if (e.repeat) return;
       pressed = true;
       tap(e.timeStamp);
     }

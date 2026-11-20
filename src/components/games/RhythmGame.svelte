@@ -32,7 +32,9 @@
   import { afterRound, blockName, teamsForStart } from "../../lib/games/host-game";
   import { drawnLines, markNotes, markShares, noteShares, roundLayout } from "../../lib/games/rhythm-marks";
   import { createFullscreen } from "../../lib/fullscreen";
-  import { Maximize, Minimize } from "lucide-svelte";
+  import { ArrowLeftRight, Ban, Check, Maximize, Minimize, Scissors, X } from "lucide-svelte";
+  import { clearGradeFeedback, drawGradeFeedback } from "../../lib/grade-feedback";
+  import { clapToleranceBeats } from "../../lib/grade-rhythm";
   import { roomLag, countInLag } from "../../lib/games/game-lag";
   import { countInBarsFor, isFinal, rhythmTimes, type BoardRow, type LiveGame, type RhythmAnswer, type RhythmRound } from "../../lib/games/live-game";
   import { answers as fetchAnswers, closeRoom, measureOffset, newRound, openRoom, players as fetchPlayers, publishGame, type HostRoom } from "../../lib/games/host-room";
@@ -153,13 +155,15 @@
     const layout = narrow ? { staffwidth: 300, wrap: { minSpacing: 1.2, maxSpacing: 2.7, preferredMeasuresPerLine: 1 } } : { staffwidth: 520, ...roundLayout(exercise.bars) };
     abcjs.renderAbc(paper, abc, { responsive: "resize", scale: 1.6, paddingtop: 10, paddingbottom: still ? STILL_PAD : 10, add_classes: true, ...layout });
     drawnCount++;
+    // Drawn again (the lane changed, the window turned): the round's marks with it.
+    if (solo && !running) mark(solo);
   }
   const NARROW_PX = 500;
   let narrow = false;
   /** Turned (a phone on its side, a window resized): draw again when it crosses the narrow line, not mid-round. */
   function onResize() {
     if (!paper || !exercise || running) return;
-    if ((laneMode !== "scroll" && paper.clientWidth < NARROW_PX) !== narrow) void draw().then(() => solo && mark(solo.result));
+    if ((laneMode !== "scroll" && paper.clientWidth < NARROW_PX) !== narrow) void draw();
   }
   /** Room for the still lane (RhythmLaneStill.svelte) under each line, in abcjs's units. */
   const STILL_STAFFSEP = 85;
@@ -168,8 +172,42 @@
   /** Bumped each time the music is drawn, so the still lane measures it again. */
   let drawnCount = 0;
 
-  /** Each note's mark on the music (rhythm-marks.ts): green right, butter close, red missed. */
-  const mark = (result: RhythmScore["result"] | null) => markNotes(paper, result?.notes ?? null);
+  /**
+   * A round's marks on the music: each note green right, butter close, red
+   * missed (rhythm-marks.ts), and what Clap and grade draws on the practice
+   * pages (grade-feedback.ts; Blaine, 20 November 2026: "better feedback like
+   * when they clicked"): an arrow from a note to where its tap came when it
+   * was early or late, "missed" over a note not tapped, a cross where an
+   * extra tap fell. null clears them.
+   */
+  function mark(score: RhythmScore | null) {
+    markNotes(paper, score?.result.notes ?? null);
+    const svg = paper?.querySelector("svg");
+    if (!svg) return;
+    clearGradeFeedback(svg);
+    if (!score || !exercise || !scoredWith) return;
+    const ex = exercise;
+    const els = [...paper.querySelectorAll(".abcjs-note, .abcjs-rest")];
+    const at = (cursor: number) => (els[cursor] ? { absEl: { elemset: [els[cursor]!] } } : undefined);
+    const beatMs = 60_000 / scoredWith.bpm;
+    const ms = (units: number) => (units / ex.beatUnits) * beatMs;
+    const notes = ex.schedule.notes;
+    drawGradeFeedback({
+      svg,
+      notes,
+      drawn: notes.map((n) => at(n.cursor)),
+      drawnAt: at,
+      // No pitch here: each note's span of time only, for how far its arrow reaches.
+      trace: { mode: "performance", frames: [], spans: notes.map((n) => ({ from: ms(n.startUnits), to: ms(n.startUnits + n.lengthUnits) })), onsets: [], tolerance: 0 },
+      perf: null,
+      claps: score.result,
+      doPc: 0,
+      onsetBeats: clapToleranceBeats(scoredWith.strictness, scoredWith.bpm),
+      bpm: scoredWith.bpm,
+    });
+  }
+  /** The tempo and grading a solo round was scored at (they can be changed after). */
+  let scoredWith: { bpm: number; strictness: Strictness } | null = null;
 
   // ── Running a round (both modes) ───────────────────────────────────────
   let running = false;
@@ -234,6 +272,16 @@
   let solo: RhythmScore | null = null;
   let round: RhythmRound | null = null;
   let soloTotal = 0;
+  /** The finished round, counted as Clap and grade counts it. */
+  $: tally = solo
+    ? {
+        right: solo.result.notes.filter((n) => !n.missed && n.rhythm >= 90).length,
+        timing: solo.result.notes.filter((n) => !n.missed && n.rhythm < 90).length,
+        missed: solo.result.notes.filter((n) => n.missed).length,
+        extra: Math.round(solo.result.strays.reduce((a, x) => a + x.weight, 0) * 10) / 10,
+        short: solo.short?.length ?? 0,
+      }
+    : null;
   let rounds = 0;
 
   async function soloNew() {
@@ -262,10 +310,11 @@
       if (!running || !round) return;
       stopTimeline();
       solo = scoreRhythm({ round, schedule: ex.schedule, beatUnits: ex.beatUnits, taps, presses, strictness, deviceLagMs: $tuner.tapLatencyMs });
+      scoredWith = { bpm: round.bpm, strictness };
       soloTotal += solo.points;
       if (assignment) void reportGameRound(assignment, solo.points).then((p) => p && (assignmentProgress = p));
       rounds++;
-      mark(solo.result);
+      mark(solo);
       void showResult();
     }, (endSec - ctx.currentTime) * 1000 + 500);
   }
@@ -281,7 +330,11 @@
     if (open && t >= open.t) open.up = t;
   }
   function onKeyUp(e: KeyboardEvent) {
-    if ((e.code === "Space" || e.key === " ") && mode === "solo") onRelease(e.timeStamp);
+    if ((e.code === "Space" || e.key === " ") && mode === "solo") {
+      // A Space let go on a focused button (Full screen) mid-round is the tap's, not a press of it.
+      if (running) e.preventDefault();
+      onRelease(e.timeStamp);
+    }
   }
 
   /**
@@ -414,12 +467,22 @@
     };
   });
 
+  /**
+   * Space taps. Every Space is kept from scrolling the page while a round
+   * runs, the held ones too (Blaine, 20 November 2026: "make sure spacebar
+   * doesn't drag you down": a long note held down repeats the key, and each
+   * repeat scrolled), and a late one after the round with the music on
+   * screen. Space on a button, a choice or a link still presses it, except
+   * mid-round, where it is a tap (the Full screen button stays as it is).
+   */
   function onKey(e: KeyboardEvent) {
-    if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
-    if ((e.code === "Space" || e.key === " ") && !e.repeat && running && mode === "solo") {
+    if (e.code !== "Space" && e.key !== " ") return;
+    if (e.target instanceof HTMLElement && e.target.closest("input:not([type=radio]):not([type=checkbox]), textarea, select, [contenteditable]")) return;
+    const onControl = e.target instanceof HTMLElement && !!e.target.closest("button, a, input, [role=tab], label");
+    if (running && mode === "solo") {
       e.preventDefault();
-      onTap(e.timeStamp);
-    }
+      if (!e.repeat) onTap(e.timeStamp);
+    } else if (exercise && !onControl) e.preventDefault();
   }
 
   // ── With the class ─────────────────────────────────────────────────────
@@ -710,13 +773,27 @@
       {/if}
     </div>
 
-    {#if solo}
+    {#if solo && tally}
+      <!-- As Clap and grade's result on the practice pages (GradePanel): the letter and score, then each kind of note counted. -->
       <div class="result sr-panel" data-solo-score={solo.points}>
-        <span class="font-display text-5xl font-bold tabular-nums">{solo.points}%</span>
-        <span class="text-sr-ink-2 font-bold">{solo.result.beatsRight} of {solo.result.beats} beats right</span>
-        {#if solo.short?.length}
-          <span class="short-note" data-held-short={solo.short.length}>{solo.short.length === 1 ? "1 long note was" : `${solo.short.length} long notes were`} let go too soon. Hold a half note at least a beat, a dotted half two.</span>
+        <div class="headline">
+          <span class="grade-ring {solo.points >= 90 ? 'good' : solo.points >= 70 ? 'ok' : 'low'}" aria-hidden="true">{solo.result.letter}</span>
+          <div class="flex flex-col">
+            <span class="font-display text-5xl font-bold tabular-nums leading-none">{solo.points}<span class="text-2xl">%</span></span>
+            <span class="text-sm font-bold text-sr-muted mt-1">{solo.result.beatsRight} of {solo.result.beats} beats right</span>
+          </div>
+        </div>
+        <ul class="tallies" data-tallies>
+          <li class="tally"><Check size={16} aria-hidden="true" /><span>Tapped in time</span><b class="good" data-tally="right">{tally.right}</b></li>
+          <li class="tally"><ArrowLeftRight size={16} aria-hidden="true" /><span>Early or late</span><b class={tally.timing ? "warn" : "zero"} data-tally="timing">{tally.timing}</b></li>
+          <li class="tally"><Ban size={16} aria-hidden="true" /><span>Missed</span><b class={tally.missed ? "bad" : "zero"} data-tally="missed">{tally.missed}</b></li>
+          <li class="tally"><X size={16} aria-hidden="true" /><span>Extra taps</span><b class={tally.extra ? "bad" : "zero"} data-tally="extra">{tally.extra}</b></li>
+          {#if solo.short}<li class="tally"><Scissors size={16} aria-hidden="true" /><span>Long notes let go too soon</span><b class={tally.short ? "warn" : "zero"} data-tally="short" data-held-short={tally.short}>{tally.short}</b></li>{/if}
+        </ul>
+        {#if tally.short}
+          <p class="short-note">Hold a half note down at least a beat, a dotted half two.</p>
         {/if}
+        <p class="key-note">On the music: an arrow shows a tap that came early or late, and how far; a cross, an extra tap.</p>
       </div>
     {/if}
   {/if}
@@ -788,7 +865,21 @@
   .how { text-align: center; font-weight: 700; color: var(--sr-ink-2); }
   .bar { height: 6px; border-radius: 999px; background: var(--sr-track); overflow: hidden; margin-top: 0.5rem; }
   .bar span { display: block; height: 100%; background: var(--sr-action); }
-  .result { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 1rem; }
+  .result { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; padding: 1.1rem 1.25rem; }
+  .headline { display: flex; align-items: center; gap: 1rem; }
+  .grade-ring { width: 64px; height: 64px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--sr-font-display); font-weight: 700; font-size: 2rem; }
+  .grade-ring.good { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .grade-ring.ok { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .grade-ring.low { background: var(--sr-peach); color: var(--sr-peach-ink); }
+  .tallies { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0.4rem 1.25rem; width: min(100%, 36rem); font-size: 0.9rem; }
+  .tally { display: flex; align-items: center; gap: 0.6rem; color: var(--sr-ink-2); }
+  .tally > span { flex: 1; }
+  .tally b { min-width: 2rem; height: 2rem; padding: 0 0.5rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tally b.good { background: var(--sr-mint); color: var(--sr-mint-ink); }
+  .tally b.warn { background: var(--sr-butter); color: var(--sr-butter-ink); }
+  .tally b.bad { background: var(--sr-peach); color: var(--sr-peach-ink); }
+  .tally b.zero { background: var(--sr-track); color: var(--sr-muted); }
+  .key-note { max-width: 36rem; text-align: center; font-size: 0.8rem; color: var(--sr-muted); }
   .score-pill { font-weight: 800; background: var(--sr-mint); color: var(--sr-mint-ink); border-radius: 999px; padding: 0.3rem 0.9rem; }
   .paper :global(.g-right) { fill: #2fb383; }
   .paper :global(.g-close) { fill: #e0a100; }

@@ -336,7 +336,10 @@ if (GAME === "solo" || GAME === "both") {
   // The teacher's own rhythms: 6/8, its figures, Kodály syllables under the notes.
   await p.click('[data-game-levels="rhythm"] [data-tab="customize"]');
   await p.waitForSelector("[data-rhythm-setup]");
+  // Each choice behind its pill, as on the Unison page's settings bar.
+  await p.click('[data-rhythm-setup] [data-pill="meter"]');
   await p.evaluate(() => ([...document.querySelectorAll('[data-rhythm-setup] [aria-label="Meters"] button')].find((b) => b.textContent?.trim() === "6/8") as HTMLButtonElement)?.click());
+  await p.click('[data-rhythm-setup] [data-pill="syllables"]');
   await p.evaluate(() => ([...document.querySelectorAll('[data-rhythm-setup] [aria-label="Syllables under the notes"] button')].find((b) => /Kod/.test(b.textContent ?? "")) as HTMLButtonElement)?.click());
   await p.evaluate(() => ([...document.querySelectorAll("button")].find((b) => /New rhythm/.test(b.textContent ?? "")) as HTMLButtonElement)?.click());
   const own = await p.waitForFunction(() => (window as any).__rhythmGame?.exercise?.meter === "6/8", { timeout: 20000 }).then(() => p.evaluate(() => (window as any).__rhythmGame.exercise.abc as string)).catch(() => "");

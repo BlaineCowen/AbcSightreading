@@ -237,6 +237,8 @@ export function drawGradeFeedback(o: {
     // A stray clap: a cross above the staff, where it fell in time - between
     // the notes either side of it, at its share of the way from one to the next.
     target = g;
+    // Extras close together share one word: "extra" written over itself was unreadable.
+    let lastLabel: { x: number; y: number } | null = null;
     for (const stray of o.claps.strays) {
       let i = -1;
       while (i + 1 < o.notes.length && o.notes[i + 1].startUnits <= stray.units) i++;
@@ -249,7 +251,10 @@ export function drawGradeFeedback(o: {
       const share = i < 0 ? -0.5 : Math.min(1, (stray.units - from) / Math.max(1, to - from));
       const x = i < 0 ? h.x - 2 * space : lane.from + share * (lane.to - lane.from);
       cross(x, h.y - 4 * space, BAD);
-      label(x, h.y - 5.4 * space, "extra", BAD);
+      if (!lastLabel || lastLabel.y !== h.y || Math.abs(x - lastLabel.x) > 3 * space) {
+        label(x, h.y - 5.4 * space, "extra", BAD);
+        lastLabel = { x, y: h.y };
+      }
     }
     return;
   }

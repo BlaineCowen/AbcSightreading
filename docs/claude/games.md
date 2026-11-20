@@ -390,6 +390,34 @@ the big screen books its clicks on its own audio clock for that moment.
 Checked with four devices whose clocks were seconds wrong and whose taps
 were 0, 120 and 300 ms late: each scored 100; one a sixteenth late on one
 note scored 88.
+note scored 88.
+
+**20 November 2026, later (Blaine: "make sure spacebar doesn't drag you
+down", "set up custom rhythms like our normal unison interface", "the ending
+screen show better feedback like when they clicked"):**
+- **Space:** `onKey` kept Space from scrolling only on its first keydown, so
+  a long note held down (hold grading) repeated the key and every repeat
+  scrolled the page (762 px in a second). Now every Space is kept while a
+  round runs (only the first is a tap), and a late one after the round too
+  unless it is on a button, choice or link. A Space let go mid-round is kept
+  too, so a focused Full screen button is not pressed. `LiveGame.svelte` had
+  the same `!e.repeat` gate. `scripts/check-rhythm-space.ts` presses real
+  keys (a dispatched KeyboardEvent never scrolls, which is why
+  check-rhythm-lane.ts missed it) and fails on the old code.
+- **Customize** (`RhythmSetup.svelte`): the Unison page's settings bar,
+  groups Music (Meter), Rhythm (N rhythms, ties in its panel) and Syllables,
+  each pill opening its choices in a panel under the row (a disclosure with
+  `aria-expanded`/`aria-controls`, not a pop-up; Done and Esc shut it and
+  focus its pill). Same four props, so saved setups and assignments are
+  unchanged. check-games.ts opens the pills before choosing.
+- **The result:** what Clap and grade shows on the practice pages: the
+  letter and score, then Tapped in time, Early or late, Missed, Extra taps,
+  Long notes let go too soon; and on the music `drawGradeFeedback`
+  (grade-feedback.ts) with the round's taps: arrows for early and late,
+  "missed", a cross for each extra tap (extras close together now share one
+  word there, on the practice pages too). `mark()` draws it, and `draw()`
+  marks again after a redraw (lane changed, phone turned). Class mode and the
+  students' devices are unchanged.
 
 ## Catch the tune (`CatchTheTune.svelte`, `TuneGrid.svelte`)
 
