@@ -316,7 +316,9 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
   buttons run up the scale from do; the keys d r m f s l t answer in any key
   (`hintOf`). The drawings get a viewBox and fill the card (E♭'s three flats
   ran off a phone's card). **30-second storm** is round `sprint`
-  (`roundMs`). **Sound**: a card named right plays its pitch on the games'
+  (`roundMs`); it doubles every 20 s, not 40 (`doubleSecondsOf`; Blaine: "scale
+  faster in the 30 s version"), so it ends as fast as the 60-second storm
+  (Medium: 6 s a note at the start, 2.1 s at the end). **Sound**: a card named right plays its pitch on the games'
   piano (`playNote`, `midiOf`; the pool's samples load at Start); On or Off
   is this device's choice (`sr-note-rain-sound`), not the setup's. An
   assignment's title adds the key and "30 seconds".

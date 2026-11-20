@@ -33,7 +33,7 @@
   import { playNote, preloadNotes } from "../../lib/games/game-audio";
   import {
     LETTERS, RAIN_KEYS, RAIN_LEVELS, START_SPEED, STRIKES, TWENTY, WRONG_LOCK_MS, abcOf, accOf, bumpWeight, checkRainSetup, fallMs, keyLabel, letterName, letterOf, lettersOf, maxDrops,
-    midiOf, nameOf, noteLabel, pickStep, poolOf, roundMs, spawnMs, speedAt, type Letter, type RainKey, type RainSetup,
+    doubleSecondsOf, midiOf, nameOf, noteLabel, pickStep, poolOf, roundMs, spawnMs, speedAt, type Letter, type RainKey, type RainSetup,
   } from "../../lib/games/note-rain";
 
   const SETUP_KEY = "sr-note-rain";
@@ -188,7 +188,7 @@
   function frame(t: number) {
     now = t;
     const elapsed = t - startAt;
-    speed = speedAt(elapsed, START_SPEED[roundSetup.speed]);
+    speed = speedAt(elapsed, START_SPEED[roundSetup.speed], doubleSecondsOf(roundSetup.round));
     topSpeed = Math.max(topSpeed, speed);
     const want = roundSetup.round !== "twenty" || spawned < TWENTY;
     if (want && t - lastSpawn >= spawnMs(speed) && drops.length < maxDrops(speed)) {
@@ -342,7 +342,7 @@
             <button type="button" class="sr-tok chip" class:sr-on={setup.speed === v} aria-pressed={setup.speed === v} on:click={() => (setup = { ...setup, speed: v })} data-speed={v}>{label}</button>
           {/each}
         </div>
-        <p class="help">Every round gets faster as it goes: about twice as fast every 40 seconds.</p>
+        <p class="help">Every round gets faster as it goes: about twice as fast every {doubleSecondsOf(setup.round)} seconds.</p>
         <div class="row" role="group" aria-label="Round">
           <span>Round</span>
           {#each ROUNDS as [v, label]}

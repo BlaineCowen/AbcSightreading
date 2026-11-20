@@ -136,6 +136,12 @@ export const nameOf = (l: Letter, names: RainNames, key: RainKey = "C") => (name
 export const START_SPEED: Record<RainSpeed, number> = { relaxed: 0.7, medium: 1, fast: 1.5, extreme: 2.2 };
 /** The speed doubles every this many seconds (learnmusic.fun's Hard added 62% a minute, then stopped). */
 export const DOUBLE_SECONDS = 40;
+/**
+ * The 30-second storm ramps twice as fast (Blaine, 20 November 2026: "scale
+ * faster in the 30 s version"), so it ends as fast as the minute-long storm.
+ */
+export const SPRINT_DOUBLE_SECONDS = 20;
+export const doubleSecondsOf = (r: RainRound) => (r === "sprint" ? SPRINT_DOUBLE_SECONDS : DOUBLE_SECONDS);
 export const BASE_FALL_MS = 6000;
 export const BASE_SPAWN_MS = 2400;
 /** Below this a note can't be read at all; the rain still thickens (more at once, closer together). */
@@ -151,7 +157,7 @@ export const STRIKES = 3;
 export const WRONG_LOCK_MS = 450;
 
 /** The speed `ms` into a round: doubling every DOUBLE_SECONDS, without end. */
-export const speedAt = (ms: number, start: number) => start * 2 ** (Math.max(0, ms) / 1000 / DOUBLE_SECONDS);
+export const speedAt = (ms: number, start: number, doubleSeconds = DOUBLE_SECONDS) => start * 2 ** (Math.max(0, ms) / 1000 / doubleSeconds);
 /** How long a note takes from the top to the ground at a speed. */
 export const fallMs = (speed: number) => Math.max(MIN_FALL_MS, BASE_FALL_MS / speed);
 /** Time between notes appearing. */

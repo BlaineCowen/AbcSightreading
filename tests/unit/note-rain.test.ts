@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 import {
-  BOTTOM_LINE, MIN_FALL_MS, RAIN_KEYS, SPRINT_MS, accOf, letterName, midiOf, nameOf, roundMs, solfegeOf, RAIN_LEVELS, START_SPEED, STORM_MS, abcOf, checkRainSetup, clefRange, fallMs, lettersOf, maxDrops, noteLabel, pickStep, poolOf, spawnMs, speedAt,
+  BOTTOM_LINE, MIN_FALL_MS, doubleSecondsOf, RAIN_KEYS, SPRINT_MS, accOf, letterName, midiOf, nameOf, roundMs, solfegeOf, RAIN_LEVELS, START_SPEED, STORM_MS, abcOf, checkRainSetup, clefRange, fallMs, lettersOf, maxDrops, noteLabel, pickStep, poolOf, spawnMs, speedAt,
 } from "../../src/lib/games/note-rain";
 
 describe("levels", () => {
@@ -109,5 +109,13 @@ describe("rounds", () => {
     expect(SPRINT_MS).toBe(30_000);
     expect(roundMs("storm")).toBe(STORM_MS);
     expect(roundMs("endless")).toBeNull();
+  });
+  test("the 30-second storm speeds up twice as fast, ending as fast as the minute-long one", () => {
+    for (const start of Object.values(START_SPEED)) {
+      const sprintEnd = speedAt(SPRINT_MS, start, doubleSecondsOf("sprint"));
+      expect(sprintEnd).toBeCloseTo(speedAt(STORM_MS, start, doubleSecondsOf("storm")), 6);
+      expect(sprintEnd).toBeGreaterThan(speedAt(SPRINT_MS, start, doubleSecondsOf("storm")));
+    }
+    expect(fallMs(speedAt(SPRINT_MS, START_SPEED.medium, doubleSecondsOf("sprint")))).toBeLessThan(2200);
   });
 });
