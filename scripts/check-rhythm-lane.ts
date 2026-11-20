@@ -55,7 +55,7 @@ try {
       const find = (re: RegExp) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent!.trim()));
       find(/^New rhythm$/)!.click();
       await new Promise((res) => setTimeout(res, 2500));
-      // FULL=1: the game's full screen (the in-window view; headless has no real one).
+      // FULL=1: the game's full screen.
       if (full && !document.documentElement.classList.contains("sr-focus")) {
         (document.querySelector("[data-full-screen]") as HTMLElement).click();
         await new Promise((res) => setTimeout(res, 800));

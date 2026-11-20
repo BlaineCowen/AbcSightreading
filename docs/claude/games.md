@@ -236,8 +236,8 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
     (`src/lib/fullscreen.ts`, `html.sr-focus`). The title, the two tabs,
     the levels and options (`.setup`) and the how line are `.focus-hide`;
     `rhythm.astro` lifts the page's max width under `sr-focus`. The music is
-    then drawn as wide as the screen. Headless Chrome has no real full
-    screen, so the checks see the in-window view (`FULL=1`).
+    then drawn as wide as the screen. F before a rhythm is written does
+    nothing (there would be no Exit button to press).
   - *Following the line*: the lines and their beats come from the drawing
     (`drawnLines()` in `rhythm-marks.ts`, shared with the still lane, so a
     tie held onto a line does not shift it). As a round starts, the first
@@ -266,7 +266,11 @@ its ideas, not ported (its question makers use Math.random; these are seeded).
     the still lane checks the line being played and its row sit between the
     window's top and the pad (the whole music no longer fits at 4 bars drawn
     big). With the following turned off it fails at 844x390.
-    `check-lane-under-notes.ts` adds 1920, 2560, and 1200 widened to 1920.
+    `check-lane-under-notes.ts` draws each rhythm in the page's column, then
+    enters full screen at 1200, 1920 and 2560 wide (paper 864 to 1104, 1824
+    px) and checks the pills again: with the ResizeObserver off they land
+    216 to 848 px from their notes. Headless Chrome does grant the real
+    full screen (`document.fullscreenElement` is set).
 - **Rhythm levels shown as symbols** (Blaine: the cards said "Ta, Ti-ti, Ta
   rest"; "use the symbols we have instead, and do the same whenever a new one
   is added"): `levelNews()` in `rhythm-levels.ts` gives each level the

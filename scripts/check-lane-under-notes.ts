@@ -6,10 +6,11 @@
  * left edge in the drawing (by cursor, as rhythm-marks.ts finds it), and
  * each pill's row just under its own line of music, above the next line.
  * The still lane (RhythmLaneStill.svelte, the default), two bars and four
- * (four are drawn on two lines), on a phone, a laptop, 1920 and 2560 wide
- * (full screen draws the music as wide as the screen), and drawn at 1200
- * then widened to 1920 without drawing again (entering full screen): the
- * lane must measure the drawing again.
+ * (four are drawn on two lines), on a phone and a laptop, and in the
+ * game's full screen at 1200, 1920 and 2560 wide: each rhythm is drawn in
+ * the page's own column, then full screen widens it with no new drawing,
+ * so the lane must measure the drawing again (the paper's width is printed
+ * to show it grew).
  *
  *   APP=http://localhost:4399 bun run scripts/check-lane-under-notes.ts   # LEVELS=1,4,8,11 SHOT=path.png
  */
@@ -25,7 +26,7 @@ const browser = await puppeteer.launch({
 });
 let failed = 0;
 try {
-  for (const [width, bars, widen] of [[1200, 2], [1200, 4], [420, 2], [420, 4], [1920, 4], [2560, 4], [1200, 4, 1920]] as [number, number, number?][]) {
+  for (const [width, bars, widen] of [[1200, 2], [1200, 4], [420, 2], [420, 4], [1200, 4, 1], [1920, 4, 1], [2560, 4, 1]] as [number, number, number?][]) {
     const page = await browser.newPage();
     await page.setViewport({ width, height: 900 });
     await page.evaluateOnNewDocument(() => localStorage.setItem("sr-rhythm-lane", "still"));
@@ -34,17 +35,18 @@ try {
     for (const level of LEVELS) {
       await page.click(`[data-level="${level - 1}"]`);
       for (let r = 0; r < 2; r++) {
-        if (widen) await page.setViewport({ width, height: 900 });
         await page.evaluate(async () => {
           const find = (re: RegExp) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent!.trim()));
           find(/^New rhythm$/)?.click();
           await new Promise((res) => setTimeout(res, 1800));
         });
-        // Drawn at one width, then widened as full screen does, with no new drawing.
+        // Drawn in the page's column, then full screen widens it, with no new drawing.
+        const narrowPx = await page.evaluate(() => Math.round(document.querySelector(".stage .paper")!.getBoundingClientRect().width));
         if (widen) {
-          await page.setViewport({ width: widen, height: 900 });
-          await new Promise((res) => setTimeout(res, 400));
+          await page.click("[data-full-screen]");
+          await new Promise((res) => setTimeout(res, 600));
         }
+        const widePx = await page.evaluate(() => Math.round(document.querySelector(".stage .paper")!.getBoundingClientRect().width));
         const out = await page.evaluate(() => {
           const paper = document.querySelector(".stage .paper")!;
           const drawn = [...paper.querySelectorAll(".abcjs-note, .abcjs-rest")];
@@ -69,8 +71,18 @@ try {
           return { worst: Math.max(0, ...offs), n: firsts.length, lines, misplaced, overlap };
         });
         const ok = out.worst <= TOLERANCE && !out.overlap && !out.misplaced && out.n > 0;
+        // Out of full screen again, for the next level's button.
+        if (widen) {
+          await page.click("[data-full-screen]");
+          await new Promise((res) => setTimeout(res, 300));
+        }
+        if (widen && widePx < narrowPx + 100) {
+          failed++;
+          console.log(`FAIL level ${level} at ${width}px: full screen did not widen the music (${narrowPx} to ${widePx}px)`);
+          continue;
+        }
         if (!ok) failed++;
-        console.log(`${ok ? "ok  " : "FAIL"} level ${level}, ${bars} bars at ${width}px${widen ? ` widened to ${widen}px` : ""}: ${out.lines} line(s), ${out.n} pills, farthest ${out.worst.toFixed(1)}px from its note${out.overlap ? ", pills overlap" : ""}${out.misplaced ? `, ${out.misplaced} off their line` : ""}`);
+        console.log(`${ok ? "ok  " : "FAIL"} level ${level}, ${bars} bars at ${width}px${widen ? `, full screen (paper ${narrowPx} to ${widePx}px)` : ""}: ${out.lines} line(s), ${out.n} pills, farthest ${out.worst.toFixed(1)}px from its note${out.overlap ? ", pills overlap" : ""}${out.misplaced ? `, ${out.misplaced} off their line` : ""}`);
       }
     }
     if (process.env.SHOT && width === 1200 && bars === 4) await (await page.$(".stage"))!.screenshot({ path: process.env.SHOT });

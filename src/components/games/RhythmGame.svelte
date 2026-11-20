@@ -403,7 +403,11 @@
   let fs: ReturnType<typeof createFullscreen> | null = null;
   onMount(() => {
     fs = createFullscreen();
-    const off = fs.active.subscribe((v) => (full = v));
+    // F before there is a rhythm would hide everything with no Exit button to press: not yet.
+    const off = fs.active.subscribe((v) => {
+      full = v;
+      if (v && !exercise) fs?.exit();
+    });
     return () => {
       off();
       fs?.destroy();
@@ -778,6 +782,8 @@
   /* Full screen: the music as wide as the screen (abcjs draws it to its box). */
   .rhythm.full { max-width: none; }
   .rhythm.full .stage { padding: 3rem 2rem 1.5rem; }
+  .rhythm.full { padding-bottom: 1.5rem; }
+  .rhythm.full.playing { padding-bottom: 70vh; }
   .short-note { max-width: 28rem; text-align: center; font-weight: 700; color: var(--sr-butter-ink); background: var(--sr-butter); border-radius: 14px; padding: 0.4rem 0.8rem; }
   .how { text-align: center; font-weight: 700; color: var(--sr-ink-2); }
   .bar { height: 6px; border-radius: 999px; background: var(--sr-track); overflow: hidden; margin-top: 0.5rem; }
